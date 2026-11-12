@@ -21,7 +21,7 @@ defmodule SlipdockWeb.PauseLiveTest do
   end
 
   defp epic_board(parent_column, title) do
-    {:ok, t} = Boards.find_template(nil, "Simple")
+    {:ok, t} = Boards.Templates.find_template(nil, "Simple")
     epic = card_fixture(parent_column, %{"title" => title})
     {:ok, sub} = Boards.create_sub_board(epic, t)
     sub

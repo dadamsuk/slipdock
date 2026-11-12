@@ -141,7 +141,7 @@ defmodule SlipdockWeb.MCP.WriteToolsTest do
         |> call("create_card", %{board: "delivery11", title: "Urgent", top: true})
         |> ok!()
 
-      [first | _] = Boards.list_cards(ctx.board, %{"column" => ctx.roles.ready.name})
+      [first | _] = Boards.Cards.list_cards(ctx.board, %{"column" => ctx.roles.ready.name})
       assert first.id == made["id"]
     end
 
@@ -152,15 +152,15 @@ defmodule SlipdockWeb.MCP.WriteToolsTest do
         |> ok!()
 
       assert made["archived"] == true
-      assert Boards.get_card!(made["id"]).archived_at
-      refute Enum.any?(Boards.list_cards(ctx.board, %{}), &(&1.id == made["id"]))
+      assert Boards.Cards.get_card!(made["id"]).archived_at
+      refute Enum.any?(Boards.Cards.list_cards(ctx.board, %{}), &(&1.id == made["id"]))
     end
 
     test "archived is left off: a live card, and the answer says so", ctx do
       made = ctx.conn |> call("create_card", %{board: "delivery11", title: "Live"}) |> ok!()
 
       assert made["archived"] == false
-      refute Boards.get_card!(made["id"]).archived_at
+      refute Boards.Cards.get_card!(made["id"]).archived_at
     end
 
     test "archived as the string \"true\" or \"false\" counts, as a CLI sends it", ctx do
@@ -175,9 +175,9 @@ defmodule SlipdockWeb.MCP.WriteToolsTest do
         |> ok!()
 
       assert archived["archived"] == true
-      assert Boards.get_card!(archived["id"]).archived_at
+      assert Boards.Cards.get_card!(archived["id"]).archived_at
       assert live["archived"] == false
-      refute Boards.get_card!(live["id"]).archived_at
+      refute Boards.Cards.get_card!(live["id"]).archived_at
     end
 
     test "top as the string \"true\" puts it at the top", ctx do
@@ -186,7 +186,7 @@ defmodule SlipdockWeb.MCP.WriteToolsTest do
         |> call("create_card", %{board: "delivery11", title: "Str top", top: "true"})
         |> ok!()
 
-      [first | _] = Boards.list_cards(ctx.board, %{"column" => ctx.roles.ready.name})
+      [first | _] = Boards.Cards.list_cards(ctx.board, %{"column" => ctx.roles.ready.name})
       assert first.id == made["id"]
     end
 
@@ -221,7 +221,7 @@ defmodule SlipdockWeb.MCP.WriteToolsTest do
 
     test "with parent: makes the sub-board, then adds to it", ctx do
       first = ctx.conn |> call("create_card", %{parent: ctx.card.id, title: "Step one"}) |> ok!()
-      parent = Boards.get_card!(ctx.card.id)
+      parent = Boards.Cards.get_card!(ctx.card.id)
       assert parent.sub_board
       assert first["board_id"] == parent.sub_board.id
 
@@ -237,7 +237,7 @@ defmodule SlipdockWeb.MCP.WriteToolsTest do
         |> error!()
 
       assert text =~ "Simple"
-      refute Boards.get_card!(ctx.card.id).sub_board
+      refute Boards.Cards.get_card!(ctx.card.id).sub_board
     end
 
     test "needs a board or a parent", ctx do
@@ -252,7 +252,7 @@ defmodule SlipdockWeb.MCP.WriteToolsTest do
              |> call("create_card", %{board: "delivery11", title: "x", tags: ["nope"]})
              |> error!() == ~s(no tag "nope" on board delivery11; its tags are: bug, ux)
 
-      refute Enum.any?(Boards.list_cards(ctx.board, %{}), &(&1.title == "x"))
+      refute Enum.any?(Boards.Cards.list_cards(ctx.board, %{}), &(&1.title == "x"))
     end
 
     test "a tag on a board with none says so", ctx do
@@ -262,7 +262,7 @@ defmodule SlipdockWeb.MCP.WriteToolsTest do
              |> call("create_card", %{board: "bare3", title: "x", tags: ["nope"]})
              |> error!() =~ ~s(no tag "nope" on board bare3; it has no tags)
 
-      assert Boards.list_cards(bare, %{}) == []
+      assert Boards.Cards.list_cards(bare, %{}) == []
     end
 
     test "never on a stranger's board, nor under their card", ctx do
@@ -270,7 +270,7 @@ defmodule SlipdockWeb.MCP.WriteToolsTest do
                "no board"
 
       ctx.conn |> call("create_card", %{parent: ctx.secret.id, title: "Sneaky"}) |> error!()
-      refute Enum.any?(Boards.list_cards(ctx.theirs, %{}), &(&1.title == "Sneaky"))
+      refute Enum.any?(Boards.Cards.list_cards(ctx.theirs, %{}), &(&1.title == "Sneaky"))
     end
 
     test "a read-only token is refused and nothing is made", ctx do
@@ -281,7 +281,7 @@ defmodule SlipdockWeb.MCP.WriteToolsTest do
         |> error!()
 
       assert text =~ "read-only"
-      refute Enum.any?(Boards.list_cards(ctx.board, %{}), &(&1.title == "Nope"))
+      refute Enum.any?(Boards.Cards.list_cards(ctx.board, %{}), &(&1.title == "Nope"))
     end
 
     # #1757: a planned card in one write, checked as update_card checks them.
@@ -300,7 +300,7 @@ defmodule SlipdockWeb.MCP.WriteToolsTest do
       assert card["bar"] == "Both land; tests for each."
       assert card["paths"] == ["lib/x/**", "docs/{a,b}.md"]
       refute card["bar_locked_at"]
-      assert Boards.get_card!(made["id"]).bar_locked_at == nil
+      assert Boards.Cards.get_card!(made["id"]).bar_locked_at == nil
     end
 
     test "with a bar alone, or paths alone", ctx do
@@ -367,7 +367,7 @@ defmodule SlipdockWeb.MCP.WriteToolsTest do
              |> call("update_card", %{card: ctx.card.id, title: "Renamed", archive: true})
              |> error!() =~ ~s(update_card has no argument "archive")
 
-      assert Boards.get_card!(ctx.card.id).title == "Existing"
+      assert Boards.Cards.get_card!(ctx.card.id).title == "Existing"
     end
 
     test "the answer says the card is not archived", ctx do
@@ -423,7 +423,7 @@ defmodule SlipdockWeb.MCP.WriteToolsTest do
     end
 
     test "an unknown tag names the board's tags, and nothing in the call lands", ctx do
-      {:ok, item} = Boards.add_checklist_item(ctx.card, "Write it")
+      {:ok, item} = Boards.Checklists.add_checklist_item(ctx.card, "Write it")
 
       text =
         ctx.conn
@@ -439,7 +439,7 @@ defmodule SlipdockWeb.MCP.WriteToolsTest do
 
       assert text == ~s(no tag "mcp-test" on board delivery11; its tags are: ux)
 
-      card = Boards.get_card!(ctx.card.id)
+      card = Boards.Cards.get_card!(ctx.card.id)
       assert card.priority == "none"
       assert card.flags == []
       assert card.tags == []
@@ -468,8 +468,8 @@ defmodule SlipdockWeb.MCP.WriteToolsTest do
     end
 
     test "one call that changes the checklist is one line in the activity log", ctx do
-      {:ok, a} = Boards.add_checklist_item(ctx.card, "One", log: false)
-      {:ok, b} = Boards.add_checklist_item(ctx.card, "Two", log: false)
+      {:ok, a} = Boards.Checklists.add_checklist_item(ctx.card, "One", log: false)
+      {:ok, b} = Boards.Checklists.add_checklist_item(ctx.card, "Two", log: false)
 
       ctx.conn |> call("update_card", %{card: ctx.card.id, check_items: [a.id, b.id]}) |> ok!()
 
@@ -488,14 +488,14 @@ defmodule SlipdockWeb.MCP.WriteToolsTest do
     end
 
     test "a refused call leaves no checklist line", ctx do
-      {:ok, a} = Boards.add_checklist_item(ctx.card, "One", log: false)
+      {:ok, a} = Boards.Checklists.add_checklist_item(ctx.card, "One", log: false)
 
       ctx.conn
       |> call("update_card", %{card: ctx.card.id, check_items: [a.id], add_tags: ["nope"]})
       |> error!()
 
       refute Enum.any?(
-               Boards.list_activities(ctx.board.id, 50, ctx.card.id),
+               Boards.ActivityLog.list_activities(ctx.board.id, 50, ctx.card.id),
                &(&1.kind == "checklist")
              )
     end
@@ -504,7 +504,7 @@ defmodule SlipdockWeb.MCP.WriteToolsTest do
       assert ctx.conn |> call("update_card", %{card: ctx.card.id, priority: "urgent"}) |> error!() =~
                "priority"
 
-      assert Boards.get_card!(ctx.card.id).priority == "none"
+      assert Boards.Cards.get_card!(ctx.card.id).priority == "none"
     end
 
     test "add_blocked_by and remove_blocked_by; adding twice is not an error", ctx do
@@ -541,7 +541,7 @@ defmodule SlipdockWeb.MCP.WriteToolsTest do
       })
       |> error!()
 
-      card = Boards.get_card!(ctx.card.id)
+      card = Boards.Cards.get_card!(ctx.card.id)
       assert card.title == "Existing"
       assert card.blocked_by == []
     end
@@ -557,7 +557,7 @@ defmodule SlipdockWeb.MCP.WriteToolsTest do
         |> error!()
 
       assert text =~ "itself"
-      assert Boards.get_card!(ctx.card.id).title == "Existing"
+      assert Boards.Cards.get_card!(ctx.card.id).title == "Existing"
     end
 
     test "an unknown blocker", ctx do
@@ -590,9 +590,24 @@ defmodule SlipdockWeb.MCP.WriteToolsTest do
                api_card(ctx.conn, ctx.card.id)["checklist"]["items"]
     end
 
+    # #2790: with no field arguments the field write doesn't run, so a card
+    # whose fields can't be saved (a stand-in) still takes checklist edits.
+    test "checklist edits alone don't write the card's fields", ctx do
+      {:ok, stand_in} = Boards.Cards.leave_stand_in(ctx.card)
+      {:ok, item} = Boards.Checklists.add_checklist_item(stand_in, "There", log: false)
+
+      ctx.conn
+      |> call("update_card", %{card: stand_in.id, add_checklist: ["Here"], check_items: [item.id]})
+      |> ok!()
+
+      items = Repo.preload(stand_in, :checklist_items).checklist_items
+
+      assert Enum.map(items, &{&1.text, &1.done}) == [{"There", true}, {"Here", false}]
+    end
+
     test "a checklist item from another card is refused, and nothing is ticked", ctx do
       other = card_fixture(ctx.roles.ready, %{"title" => "Other"})
-      {:ok, item} = Boards.add_checklist_item(other, "Not yours")
+      {:ok, item} = Boards.Checklists.add_checklist_item(other, "Not yours")
 
       text =
         ctx.conn
@@ -621,7 +636,7 @@ defmodule SlipdockWeb.MCP.WriteToolsTest do
 
     test "a stranger's card is left alone", ctx do
       ctx.conn |> call("update_card", %{card: ctx.secret.id, title: "Mine now"}) |> error!()
-      assert Boards.get_card!(ctx.secret.id).title == "Their card"
+      assert Boards.Cards.get_card!(ctx.secret.id).title == "Their card"
     end
 
     test "a read-only token is refused", ctx do
@@ -630,7 +645,7 @@ defmodule SlipdockWeb.MCP.WriteToolsTest do
       |> call("update_card", %{card: ctx.card.id, title: "No"})
       |> error!()
 
-      assert Boards.get_card!(ctx.card.id).title == "Existing"
+      assert Boards.Cards.get_card!(ctx.card.id).title == "Existing"
     end
   end
 
@@ -641,7 +656,7 @@ defmodule SlipdockWeb.MCP.WriteToolsTest do
 
       card = api_card(ctx.conn, ctx.card.id)
       assert card["column_id"] == ctx.roles.doing.id
-      assert card["position"] < Boards.get_card!(other.id).position
+      assert card["position"] < Boards.Cards.get_card!(other.id).position
     end
 
     test "an unknown list", ctx do
@@ -668,17 +683,17 @@ defmodule SlipdockWeb.MCP.WriteToolsTest do
       assert ctx.conn |> call("move_card", %{card: ctx.card.id, board: "theirs7"}) |> error!() =~
                "no board"
 
-      assert Boards.get_card!(ctx.card.id).board_id == ctx.board.id
+      assert Boards.Cards.get_card!(ctx.card.id).board_id == ctx.board.id
     end
 
     test "an archived card is not moved to another board", ctx do
       board_fixture(%{"name" => "Elsewhere", "code" => "elsewhere4"}, owner: ctx.user)
-      {:ok, _} = Boards.archive_card(ctx.card)
+      {:ok, _} = Boards.Cards.archive_card(ctx.card)
 
       assert ctx.conn |> call("move_card", %{card: ctx.card.id, board: "elsewhere4"}) |> error!() =~
                "Restore"
 
-      assert Boards.get_card!(ctx.card.id).board_id == ctx.board.id
+      assert Boards.Cards.get_card!(ctx.card.id).board_id == ctx.board.id
     end
 
     test "a bad position", ctx do
@@ -712,7 +727,7 @@ defmodule SlipdockWeb.MCP.WriteToolsTest do
 
     test "not on a stranger's card", ctx do
       ctx.conn |> call("comment", %{card: ctx.secret.id, body: "hi"}) |> error!()
-      assert Repo.preload(Boards.get_card!(ctx.secret.id), :comments).comments == []
+      assert Repo.preload(Boards.Cards.get_card!(ctx.secret.id), :comments).comments == []
     end
 
     test "a commenter may comment and report a status; a reader may not (#863)", ctx do
@@ -734,7 +749,7 @@ defmodule SlipdockWeb.MCP.WriteToolsTest do
       assert conn_as(reader) |> call("comment", %{card: ctx.card.id, body: "Me too"}) |> error!() =~
                "comment on this card"
 
-      card = Boards.get_card!(ctx.card.id)
+      card = Boards.Cards.get_card!(ctx.card.id)
       assert card.title == "Existing"
       assert Enum.map(card.comments, & &1.body) == ["Two cents"]
     end
@@ -779,7 +794,8 @@ defmodule SlipdockWeb.MCP.WriteToolsTest do
       |> call("status_update", %{card: ctx.secret.id, health: "off_track"})
       |> error!()
 
-      assert Repo.preload(Boards.get_card!(ctx.secret.id), :status_updates).status_updates == []
+      assert Repo.preload(Boards.Cards.get_card!(ctx.secret.id), :status_updates).status_updates ==
+               []
     end
 
     test "a read-only token cannot", ctx do
@@ -788,7 +804,8 @@ defmodule SlipdockWeb.MCP.WriteToolsTest do
              |> call("status_update", %{card: ctx.card.id, health: "on_track"})
              |> error!() =~ "read-only"
 
-      assert Repo.preload(Boards.get_card!(ctx.card.id), :status_updates).status_updates == []
+      assert Repo.preload(Boards.Cards.get_card!(ctx.card.id), :status_updates).status_updates ==
+               []
     end
   end
 
@@ -797,22 +814,22 @@ defmodule SlipdockWeb.MCP.WriteToolsTest do
       result = ctx.conn |> call("archive_card", %{card: ctx.card.id}) |> ok!()
       assert result["archived"] == true
       assert api_card(ctx.conn, ctx.card.id)["archived_at"]
-      refute Enum.any?(Boards.list_cards(ctx.board, %{}), &(&1.id == ctx.card.id))
+      refute Enum.any?(Boards.Cards.list_cards(ctx.board, %{}), &(&1.id == ctx.card.id))
 
       result = ctx.conn |> call("archive_card", %{card: ctx.card.id, restore: true}) |> ok!()
       assert result["archived"] == false
       assert api_card(ctx.conn, ctx.card.id)["archived_at"] == nil
-      assert Enum.any?(Boards.list_cards(ctx.board, %{}), &(&1.id == ctx.card.id))
+      assert Enum.any?(Boards.Cards.list_cards(ctx.board, %{}), &(&1.id == ctx.card.id))
     end
 
     test "asking for what is already so leaves it as it is", ctx do
       ctx.conn |> call("archive_card", %{card: ctx.card.id, restore: true}) |> ok!()
-      assert Boards.get_card!(ctx.card.id).archived_at == nil
+      assert Boards.Cards.get_card!(ctx.card.id).archived_at == nil
 
       ctx.conn |> call("archive_card", %{card: ctx.card.id}) |> ok!()
-      stamp = Boards.get_card!(ctx.card.id).archived_at
+      stamp = Boards.Cards.get_card!(ctx.card.id).archived_at
       ctx.conn |> call("archive_card", %{card: ctx.card.id}) |> ok!()
-      assert Boards.get_card!(ctx.card.id).archived_at == stamp
+      assert Boards.Cards.get_card!(ctx.card.id).archived_at == stamp
     end
 
     test "restore must be true or false", ctx do
@@ -822,7 +839,7 @@ defmodule SlipdockWeb.MCP.WriteToolsTest do
 
     test "not a stranger's card", ctx do
       ctx.conn |> call("archive_card", %{card: ctx.secret.id}) |> error!()
-      assert Boards.get_card!(ctx.secret.id).archived_at == nil
+      assert Boards.Cards.get_card!(ctx.secret.id).archived_at == nil
     end
 
     test "a read-only token cannot", ctx do
@@ -832,7 +849,7 @@ defmodule SlipdockWeb.MCP.WriteToolsTest do
              |> error!() =~
                "read-only"
 
-      assert Boards.get_card!(ctx.card.id).archived_at == nil
+      assert Boards.Cards.get_card!(ctx.card.id).archived_at == nil
     end
   end
 
@@ -850,7 +867,7 @@ defmodule SlipdockWeb.MCP.WriteToolsTest do
 
     test "a read-only token cannot", ctx do
       ctx.conn |> read_only(ctx.user) |> call("complete_card", %{card: ctx.card.id}) |> error!()
-      refute Boards.get_card!(ctx.card.id).completed
+      refute Boards.Cards.get_card!(ctx.card.id).completed
     end
   end
 
@@ -1088,7 +1105,7 @@ defmodule SlipdockWeb.MCP.WriteToolsLimitTest do
       Settings.complete_setup(%{"admin_email" => "admin@example.com", "free_card_limit" => 1})
 
     board = board_fixture(%{"name" => "Full", "code" => "full"}, owner: user)
-    {:ok, _} = Boards.create_card(hd(board.columns), %{"title" => "The only one"})
+    {:ok, _} = Boards.Cards.create_card(hd(board.columns), %{"title" => "The only one"})
     %{board: board}
   end
 
@@ -1115,6 +1132,6 @@ defmodule SlipdockWeb.MCP.WriteToolsLimitTest do
     [%{"text" => text}] = result["content"]
     assert text =~ "card_limit_reached"
     assert text =~ "Don't retry"
-    assert length(Boards.list_cards(board, %{})) == 1
+    assert length(Boards.Cards.list_cards(board, %{})) == 1
   end
 end

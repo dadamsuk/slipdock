@@ -29,8 +29,11 @@ type Client struct {
 	Stop <-chan struct{}
 	// Conns is the channel to the server the requests go over (#2807): a
 	// request that hits its deadline or a transport error drops its
-	// connections, so the retry is made on a new one. Nil drops only the
-	// idle ones.
+	// connections, so the retry is made on a new one. Nil closes only the
+	// idle ones: enough over HTTP/1.1, where the failed request's own
+	// connection closes with it, but not over HTTP/2, where that
+	// connection is still busy with the request for a moment after it
+	// fails, stays open, and takes the retry.
 	Conns Conns
 }
 

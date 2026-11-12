@@ -73,6 +73,12 @@ defmodule Slipdock.Boards.Board do
     # deploy a failed change (`Slipdock.Deployments.Incidents`).
     field :incident_tag, :string
     field :hotfix_window_hours, :integer, default: 24
+    # The not-shipped watch (#2819, `Slipdock.Deployments.NotShipped`): how
+    # many minutes a merged card may go without a succeeded deploy naming it
+    # before the board is told (0: never), and since when delivery metrics
+    # have been on. Only cards merged after that count; never cast.
+    field :not_shipped_minutes, :integer, default: 20
+    field :delivery_metrics_since, :utc_datetime
 
     # Whether WIP limits hold automated work (#1116, KTD11): with it on, a
     # runner job or a list_top send whose card isn't already in progress
@@ -152,6 +158,16 @@ defmodule Slipdock.Boards.Board do
     # pull request, and accepting the card queues a merge job). pull_request
     # needs `verify_work`; see `ship_via_values/0`.
     field :ship_via, :string, default: "push"
+    # How merged work reaches production (#2834, `Slipdock.Releases`):
+    # "on_merge" (each merge deploys) or "batched" (merges wait for a
+    # release), and the hours a merge may wait before it triggers one (nil
+    # is off). Set and read on the tree's root board only.
+    field :release_mode, :string, default: "on_merge"
+    field :release_age_cap_hours, :integer
+    # The command a release job runs on a runner (#2835); nil is the default
+    # (`Slipdock.Releases.default_command/0`). The root board's, as the two
+    # above.
+    field :release_command, :string
 
     # The other addresses the board's card addresses take mail from (#1289),
     # besides each address owner's own: lower-cased, at most
@@ -570,6 +586,7 @@ defmodule Slipdock.Boards.Board do
       :card_ref_pattern,
       :incident_tag,
       :hotfix_window_hours,
+      :not_shipped_minutes,
       :automation_wip,
       :agentic_building,
       :job_log_hours,
@@ -590,6 +607,9 @@ defmodule Slipdock.Boards.Board do
       :findings_propose_at,
       :wait_default_after,
       :ship_via,
+      :release_mode,
+      :release_age_cap_hours,
+      :release_command,
       :kind,
       :default_view
     ])
@@ -635,6 +655,7 @@ defmodule Slipdock.Boards.Board do
     |> update_change(:profile_tiers, &Slipdock.Profiles.overrides/1)
     |> validate_change(:profile_tiers, fn _, tiers -> Slipdock.Profiles.tier_errors(tiers) end)
     |> put_ship_via()
+    |> validate_release()
     |> update_change(:handoff_label, &trim_to_nil/1)
     |> update_change(:handoff_prompt, &trim_to_nil/1)
     |> validate_length(:handoff_label, max: @handoff_label_length)
@@ -667,7 +688,24 @@ defmodule Slipdock.Boards.Board do
       greater_than_or_equal_to: 0,
       less_than_or_equal_to: 24 * 30
     )
+    |> validate_number(:not_shipped_minutes,
+      greater_than_or_equal_to: 0,
+      less_than_or_equal_to: 7 * 24 * 60,
+      message: "must be 0 (never) to 10080 minutes (a week)"
+    )
     |> validate_change(:card_ref_pattern, &validate_card_ref_pattern/2)
+    |> put_delivery_metrics_since()
+  end
+
+  # Since when the board has recorded deploys (#2819): set as delivery
+  # metrics are turned on and forgotten as they are turned off, so the
+  # not-shipped watch never counts a card merged before then.
+  defp put_delivery_metrics_since(changeset) do
+    case fetch_change(changeset, :delivery_metrics) do
+      {:ok, true} -> put_change(changeset, :delivery_metrics_since, DateTime.utc_now(:second))
+      {:ok, _off} -> put_change(changeset, :delivery_metrics_since, nil)
+      :error -> changeset
+    end
   end
 
   @lane_modes ~w(off hold advise)
@@ -703,6 +741,60 @@ defmodule Slipdock.Boards.Board do
     do: Map.has_key?(attrs, key) or Map.has_key?(attrs, Atom.to_string(key))
 
   defp has_attr?(_attrs, _key), do: false
+
+  @release_modes ~w(on_merge batched)
+
+  @doc "How a board's merged work can reach production (#2834): `on_merge` or `batched`."
+  def release_modes, do: @release_modes
+
+  # The release settings (#2834) belong to the tree: set on its root, read
+  # from there by `Slipdock.Releases`, so a sub-board refuses them.
+  defp validate_release(changeset) do
+    changeset =
+      changeset
+      |> update_change(:release_mode, fn
+        value when is_binary(value) ->
+          value |> String.trim() |> String.downcase() |> String.replace("-", "_")
+
+        value ->
+          value
+      end)
+      |> validate_inclusion(:release_mode, @release_modes, message: "must be on_merge or batched")
+      |> validate_number(:release_age_cap_hours,
+        greater_than_or_equal_to: 1,
+        less_than_or_equal_to: 8760,
+        message: "must be 1 hour to 8760 (a year), or blank for off"
+      )
+      |> validate_release_command()
+
+    case get_field(changeset, :root_id) do
+      nil -> changeset
+      root_id -> refuse_on_sub_board(changeset, root_id)
+    end
+  end
+
+  # One line a runner's shell runs (#2835). Blank is the default: the cast
+  # has already made a blank one nil.
+  defp validate_release_command(changeset) do
+    changeset
+    |> update_change(:release_command, fn
+      value when is_binary(value) -> String.trim(value)
+      value -> value
+    end)
+    |> validate_length(:release_command, max: 500)
+    |> validate_format(:release_command, ~r/\A[^\r\n\x00]*\z/, message: "must be one line")
+  end
+
+  defp refuse_on_sub_board(changeset, root_id) do
+    [:release_mode, :release_age_cap_hours, :release_command]
+    |> Enum.filter(&Map.has_key?(changeset.changes, &1))
+    |> Enum.reduce(changeset, fn field, cs ->
+      add_error(cs, field, "is set on the tree's root board (#{root_code(root_id)})")
+    end)
+  end
+
+  defp root_code(root_id),
+    do: Slipdock.Repo.one(from(b in __MODULE__, where: b.id == ^root_id, select: b.code))
 
   @ship_via ~w(push pull_request)
 

@@ -10,7 +10,7 @@ defmodule SlipdockWeb.API.SearchTest do
 
     board = board_fixture(%{"name" => "Delivery", "code" => "delivery2"}, owner: user)
     card = card_fixture(hd(board.columns), %{"title" => "Invoice rounding is wrong on refunds"})
-    {:ok, _} = Boards.add_comment(card, "the staging rollback was blocked on approvals")
+    {:ok, _} = Boards.Comments.add_comment(card, "the staging rollback was blocked on approvals")
     {:ok, _} = Search.index_cards(Search.load_cards(Search.all_card_ids()))
 
     %{board: board, card: card}
@@ -90,7 +90,7 @@ defmodule SlipdockWeb.API.SearchTest do
     end
 
     test "archived cards need asking for", ctx do
-      {:ok, _} = Boards.archive_card(ctx.card)
+      {:ok, _} = Boards.Cards.archive_card(ctx.card)
       {:ok, _} = Search.index_card(ctx.card.id)
 
       assert %{"count" => 0} =

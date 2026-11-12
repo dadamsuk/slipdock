@@ -48,7 +48,7 @@ defmodule Slipdock.CardStateTest do
   # The card as listed: its state worked out the way the API's are.
   defp state_of(ctx, card, filters \\ %{}) do
     ctx.board
-    |> Boards.list_cards(filters)
+    |> Boards.Cards.list_cards(filters)
     |> Enum.find(&(&1.id == card.id))
     |> case do
       nil -> nil
@@ -123,7 +123,7 @@ defmodule Slipdock.CardStateTest do
       entered(card, 10 * 86_400)
 
       {:ok, wait} =
-        Boards.open_wait(card, Actor.web(ctx.owner), %{
+        Boards.Waits.open_wait(card, Actor.web(ctx.owner), %{
           "needs" => "Region?",
           "on_user_id" => dana.id
         })
@@ -131,7 +131,7 @@ defmodule Slipdock.CardStateTest do
       Repo.update_all(from(w in Wait, where: w.id == ^wait.id), set: [inserted_at: ago(41 * 60)])
       # A usual stay the card is far past: the wait, not the card, is the hold-up.
       usual = %{ctx.doing.id => 3600}
-      [card] = CardState.put([Boards.get_card!(card.id)], ctx.board, usual: usual)
+      [card] = CardState.put([Boards.Cards.get_card!(card.id)], ctx.board, usual: usual)
 
       assert card.state.line == "Waiting on Dana · 41m"
       assert card.state.kind == "waiting"
@@ -141,14 +141,17 @@ defmodule Slipdock.CardStateTest do
 
     test "a wait on nobody in particular waits on anyone", ctx do
       card = card_fixture(ctx.todo)
-      {:ok, _} = Boards.open_wait(card, Actor.web(ctx.owner), %{"needs" => "Anyone?"})
+      {:ok, _} = Boards.Waits.open_wait(card, Actor.web(ctx.owner), %{"needs" => "Anyone?"})
 
       assert state_of(ctx, card).line =~ ~r/^Waiting on anyone · /
     end
 
     test "a handoff or a review flag alone, with no job or wait, says nothing", ctx do
       handed = card_fixture(ctx.doing)
-      {:ok, _} = Boards.leave_handoff(handed, ctx.owner, %{next_step: "Ship it", via: "ui"})
+
+      {:ok, _} =
+        Boards.Handoffs.leave_handoff(handed, ctx.owner, %{next_step: "Ship it", via: "ui"})
+
       flagged = card_fixture(ctx.doing, %{"flags" => ["review"]})
 
       for card <- [handed, flagged] do
@@ -157,7 +160,9 @@ defmodule Slipdock.CardStateTest do
         assert state.kind == nil
 
         json =
-          SlipdockWeb.API.JSON.card(Enum.find(Boards.list_cards(ctx.board), &(&1.id == card.id)))
+          SlipdockWeb.API.JSON.card(
+            Enum.find(Boards.Cards.list_cards(ctx.board), &(&1.id == card.id))
+          )
 
         refute Map.has_key?(json, :state)
       end
@@ -169,7 +174,9 @@ defmodule Slipdock.CardStateTest do
       job = Runners.claim(ctx.runner)
       {:ok, _} = Runners.finish(ctx.runner, job.id, %{status: "failed"})
       set_job(job, finished_at: ago(2 * 3600 + 60))
-      {:ok, _} = Boards.leave_handoff(card, ctx.owner, %{next_step: "Fix the test", via: "ui"})
+
+      {:ok, _} =
+        Boards.Handoffs.leave_handoff(card, ctx.owner, %{next_step: "Fix the test", via: "ui"})
 
       state = state_of(ctx, card)
       # The handoff's next step doesn't change what kind of line it is.
@@ -193,7 +200,7 @@ defmodule Slipdock.CardStateTest do
       {:ok, _} = queue(card)
       job = Runners.claim(ctx.runner)
       {:ok, _} = Runners.finish(ctx.runner, job.id, %{status: "failed"})
-      {:ok, _} = Boards.toggle_completed(Repo.get!(Card, card.id))
+      {:ok, _} = Boards.Cards.toggle_completed(Repo.get!(Card, card.id))
 
       state = state_of(ctx, card)
       assert state.line == nil
@@ -213,37 +220,37 @@ defmodule Slipdock.CardStateTest do
   describe "the driver" do
     test "a tree with no runner rule has none, even for a card an agent moved", ctx do
       card = card_fixture(ctx.todo)
-      Boards.move_card(card.id, ctx.doing.id, nil, actor: mcp())
+      Boards.Cards.move_card(card.id, ctx.doing.id, nil, actor: mcp())
 
       assert state_of(ctx, card).driver == nil
-      json = SlipdockWeb.API.JSON.card(hd(Boards.list_cards(ctx.board)))
+      json = SlipdockWeb.API.JSON.card(hd(Boards.Cards.list_cards(ctx.board)))
       refute Map.has_key?(json, :driver)
     end
 
     test "on a runner tree: agent when an agent moved it last, human for a person", ctx do
       runner_rule(ctx.board)
       by_agent = card_fixture(ctx.todo)
-      Boards.move_card(by_agent.id, ctx.doing.id, nil, actor: mcp())
+      Boards.Cards.move_card(by_agent.id, ctx.doing.id, nil, actor: mcp())
       by_person = card_fixture(ctx.todo)
-      Boards.move_card(by_person.id, ctx.doing.id, nil, actor: Actor.web(ctx.owner))
+      Boards.Cards.move_card(by_person.id, ctx.doing.id, nil, actor: Actor.web(ctx.owner))
 
       assert state_of(ctx, by_agent).driver == "agent"
       assert state_of(ctx, by_person).driver == "human"
 
-      assert Enum.map(Boards.list_cards(ctx.board, %{"driver" => "agent"}), & &1.id) == [
+      assert Enum.map(Boards.Cards.list_cards(ctx.board, %{"driver" => "agent"}), & &1.id) == [
                by_agent.id
              ]
 
-      assert Enum.map(Boards.list_cards(ctx.board, %{"driver" => "human"}), & &1.id) == [
+      assert Enum.map(Boards.Cards.list_cards(ctx.board, %{"driver" => "human"}), & &1.id) == [
                by_person.id
              ]
 
-      assert length(Boards.list_cards(ctx.board, %{"driver" => "all"})) == 2
+      assert length(Boards.Cards.list_cards(ctx.board, %{"driver" => "all"})) == 2
     end
 
     test "a runner rule on a sub-board makes the root a runner tree", ctx do
       parent = card_fixture(ctx.todo)
-      {:ok, template} = Boards.find_template(nil, "Simple")
+      {:ok, template} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(parent, template)
       runner_rule(sub)
 
@@ -253,7 +260,7 @@ defmodule Slipdock.CardStateTest do
     test "an agent's job holding the card beats a person's last move", ctx do
       runner_rule(ctx.board)
       card = card_fixture(ctx.todo)
-      Boards.move_card(card.id, ctx.doing.id, nil, actor: Actor.web(ctx.owner))
+      Boards.Cards.move_card(card.id, ctx.doing.id, nil, actor: Actor.web(ctx.owner))
       {:ok, _} = queue(card)
       # The rule queued one when the card was made: that one is taken, and
       # the second waits behind it. The one being worked is the card's job.
@@ -304,9 +311,13 @@ defmodule Slipdock.CardStateTest do
       assert CardState.age_text(state) == "3h · 1h over usual"
       refute state_of(ctx, fresh).stuck
 
-      assert Enum.map(Boards.list_cards(ctx.board, %{"stuck" => "true"}), & &1.id) == [card.id]
+      assert Enum.map(Boards.Cards.list_cards(ctx.board, %{"stuck" => "true"}), & &1.id) == [
+               card.id
+             ]
 
-      json = SlipdockWeb.API.JSON.card(hd(Boards.list_cards(ctx.board, %{"stuck" => "true"})))
+      json =
+        SlipdockWeb.API.JSON.card(hd(Boards.Cards.list_cards(ctx.board, %{"stuck" => "true"})))
+
       assert json.stuck == true
       assert json.over_usual >= 3600
       assert json.usual_stay == 7200
@@ -317,7 +328,7 @@ defmodule Slipdock.CardStateTest do
       history(ctx, 2 * 3600)
       epic = card_fixture(ctx.doing, %{"title" => "Epic"})
       entered(epic, 3 * 3600 + 30)
-      {:ok, template} = Boards.find_template(nil, "Simple")
+      {:ok, template} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(epic, template)
       sub = Boards.get_board!(sub.id)
       child = card_fixture(hd(sub.columns), %{"title" => "Child"})
@@ -330,7 +341,7 @@ defmodule Slipdock.CardStateTest do
       assert state.over_usual == nil
       refute state.stuck
       assert CardState.age_text(state) == "3h"
-      assert Boards.list_cards(ctx.board, %{"stuck" => "true"}) == []
+      assert Boards.Cards.list_cards(ctx.board, %{"stuck" => "true"}) == []
 
       # One subcard done and the other archived, nothing is open under it:
       # the epic is a card like any other again.
@@ -344,7 +355,10 @@ defmodule Slipdock.CardStateTest do
       state = state_of(ctx, epic)
       assert state.stuck
       assert state.over_usual >= 3600
-      assert Enum.map(Boards.list_cards(ctx.board, %{"stuck" => "true"}), & &1.id) == [epic.id]
+
+      assert Enum.map(Boards.Cards.list_cards(ctx.board, %{"stuck" => "true"}), & &1.id) == [
+               epic.id
+             ]
     end
 
     test "a card in a done list shows no colour", ctx do
@@ -352,7 +366,8 @@ defmodule Slipdock.CardStateTest do
       card = card_fixture(ctx.done)
       entered(card, 10 * 86_400)
       # Done's own stays: none closed, so lend it Doing's figure to be sure.
-      [card] = CardState.put([Boards.get_card!(card.id)], ctx.board, usual: %{ctx.done.id => 60})
+      [card] =
+        CardState.put([Boards.Cards.get_card!(card.id)], ctx.board, usual: %{ctx.done.id => 60})
 
       assert card.state.age >= 10 * 86_400
       refute card.state.stuck
@@ -396,8 +411,8 @@ defmodule Slipdock.CardStateTest do
         card = card_fixture(ctx.doing)
 
         case rem(i, 3) do
-          0 -> Boards.open_wait(card, Actor.web(ctx.owner), %{"needs" => "Q#{i}?"})
-          1 -> Boards.leave_handoff(card, ctx.owner, %{next_step: "N#{i}", via: "ui"})
+          0 -> Boards.Waits.open_wait(card, Actor.web(ctx.owner), %{"needs" => "Q#{i}?"})
+          1 -> Boards.Handoffs.leave_handoff(card, ctx.owner, %{next_step: "N#{i}", via: "ui"})
           _ -> :ok
         end
       end
@@ -438,6 +453,35 @@ defmodule Slipdock.CardStateTest do
       :query -> drain(n + 1)
     after
       0 -> n
+    end
+  end
+
+  describe "the clock (#2841)" do
+    test "now/0 is the time now unless a test has fixed it" do
+      before = DateTime.utc_now()
+      assert DateTime.compare(CardState.now(), before) != :lt
+      assert DateTime.diff(CardState.now(), before) < 5
+
+      Slipdock.TestConfig.put(:card_state_now, ~U[2026-11-12 00:00:00.200000Z])
+      assert CardState.now() == ~U[2026-11-12 00:00:00.200000Z]
+    end
+
+    test "put/3 counts from the fixed clock, and from :now when it is given", ctx do
+      card = card_fixture(ctx.todo, %{"title" => "Aged"})
+
+      Repo.update_all(from(m in CardMove, where: m.card_id == ^card.id),
+        set: [inserted_at: ~U[2026-11-11 23:59:58.600000Z]]
+      )
+
+      Slipdock.TestConfig.put(:card_state_now, ~U[2026-11-12 00:00:00.700000Z])
+      assert [%{state: %CardState{age: 2, known: true}}] = CardState.put([card], ctx.board)
+
+      assert [%{state: %CardState{age: 60}}] =
+               CardState.put([card], ctx.board, now: ~U[2026-11-12 00:00:58.600000Z])
+
+      # A clock behind the card's arrival is no time at all, never a negative one.
+      Slipdock.TestConfig.put(:card_state_now, ~U[2026-11-11 23:00:00Z])
+      assert [%{state: %CardState{age: 0}}] = CardState.put([card], ctx.board)
     end
   end
 end

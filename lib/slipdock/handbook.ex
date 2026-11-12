@@ -31,7 +31,7 @@ defmodule Slipdock.Handbook do
   alias Slipdock.Wiki.{Folders, FrontMatter, Page}
 
   @name "handbook"
-  @version "1.8.0"
+  @version "1.9.0"
   @folder "Handbook"
   @decisions "Handbook/Decisions"
 
@@ -465,7 +465,7 @@ defmodule Slipdock.Handbook do
      - a new or changed **rule**, or a decision: don't edit it. File it as a proposal for a person to apply (`slipdock garden propose <board> <file.json>`, an `edit_section` step on the page's `## Rules`, the findings' ids as `findings`);
      - a rule whose check could be a test: file a card for the test instead (`slipdock add <board> "Test for <rule id>: …"`), and say so on the finding;
      - then `slipdock finding <id> promote --note "<what it became: W-12 §Tests, proposal #34, card #56>"`.
-  4. Decide every leftover. A finding that was already open at the last triage (older than the last line of the Index's `## Triage`) has had its night: it must be decided now, never left open a second time. It becomes a card (`slipdock add <board> "…" --desc "…" --column Backlog`, or `--desc -` with a heredoc for more than a line, since `--desc -` reads the description from stdin; then `promote --note "card #<id>"`), a proposal or a promotion as in step 3, or it is dismissed with the reason (`dismiss --note "left open on <date>; <why it isn't worth keeping>"`). Only a finding that arrived since the last triage may stay open, and only with a reason in the log line.
+  4. Decide every leftover. A finding that was already open at the last triage (older than the last line of the Index's `## Triage`) has had its night: it must be decided now, never left open a second time. It becomes a card (a fix or investigation in the Housekeeping list, which runners work after the ready list: `slipdock add <board> "…" --desc "…" --column Housekeeping --origin findings`, or the backlog on a board with no Housekeeping list; a design question, whose answer would change how the product or a process behaves, in Triage for a person, `--column Triage --origin findings`; `--desc -` with a heredoc for more than a line, since `--desc -` reads the description from stdin; then `promote --note "card #<id>"`), a proposal or a promotion as in step 3, or it is dismissed with the reason (`dismiss --note "left open on <date>; <why it isn't worth keeping>"`). Only a finding that arrived since the last triage may stay open, and only with a reason in the log line.
   5. Read the numbers: `slipdock quality <board> --rules` (the last 30 days) gives the rejections by part and by rule id, each rule with its page, the disputed `Handbook:` lines and rework by area. A rule that keeps being broken needs clearer wording or a test, as a proposal or a card. Disputed lines point at a page the docs gate keeps missing, and an area with a lot of rework at a section to read again. Say which rules you acted on in the log line.
   6. Log it: append to the Index's `## Triage` a line `- <date>: <n> read, <n> merged, <n> dismissed, <n> promoted, <n> filed as cards; <n> leftovers decided; <n> left open (<ids>: why); proposals <ids or none>`.
   7. Close the card with a `Handbook:` line naming what was written, and the proposals filed. The next one comes by itself tomorrow.
@@ -651,7 +651,7 @@ defmodule Slipdock.Handbook do
   without one leaves them to the ready list, as before.
   """
   def scheduled_cards(%{"cards" => cards} = blueprint, %Board{} = board) do
-    case Boards.scheduled_column(board) do
+    case Boards.Columns.scheduled_column(board) do
       nil -> blueprint
       column -> %{blueprint | "cards" => Enum.map(cards, &into_list(&1, column.name))}
     end
@@ -690,6 +690,8 @@ defmodule Slipdock.Handbook do
           report = add_triage_log(root, user, report)
           report = seed_skeletons(root, user, report)
           {report, upgraded} = upgrade_reconcile(root, user, report)
+          {report, triaged} = upgrade_triage(root, user, report)
+          upgraded = upgraded or triaged
 
           {:ok,
            %{
@@ -947,7 +949,7 @@ defmodule Slipdock.Handbook do
       card.description != @reconcile_description and
         match?(
           {:ok, _},
-          Boards.update_card(card, %{"description" => @reconcile_description}, by: user)
+          Boards.Cards.update_card(card, %{"description" => @reconcile_description}, by: user)
         )
 
     nightly_now =
@@ -955,6 +957,22 @@ defmodule Slipdock.Handbook do
         match?({:ok, _}, Slipdock.Recurrence.set(card, %{"rule" => @reconcile_repeat}, user))
 
     described_now or nightly_now
+  end
+
+  # 1.9.0 (#2779): the triage card files leftovers as fixes to Housekeeping
+  # and design questions to Triage. Installing over an older handbook moves
+  # the newest open *Triage findings* card to the current procedure; one
+  # already current is left alone. Reported as "<title> (updated: procedure)".
+  defp upgrade_triage(root, user, report) do
+    with false <- Enum.member?(report.added["cards"], @triage_title),
+         %{completed: false, description: description} = card <- newest_card(root, @triage_title),
+         true <- description != @triage_description,
+         {:ok, _} <-
+           Boards.Cards.update_card(card, %{"description" => @triage_description}, by: user) do
+      {note_card(report, "#{@triage_title} (updated: procedure)"), true}
+    else
+      _ -> {report, false}
+    end
   end
 
   defp note_card(report, name), do: update_in(report, [:added, "cards"], &(&1 ++ [name]))
@@ -988,7 +1006,9 @@ defmodule Slipdock.Handbook do
 
     with [_ | _] <- waiting,
          %{completed: false} = seed <- newest_card(root, @seed_title) do
-      for title <- waiting, card = newest_card(root, title), do: Boards.add_dependency(card, seed)
+      for title <- waiting,
+          card = newest_card(root, title),
+          do: Boards.Dependencies.add_dependency(card, seed)
     end
   end
 

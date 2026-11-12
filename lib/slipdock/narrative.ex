@@ -63,7 +63,7 @@ defmodule Slipdock.Narrative do
     owner = owner_map(rollup, board.id)
     board_ids = if rollup, do: Map.keys(rollup.boards), else: [board.id]
 
-    activities = Boards.list_activities_between(board_ids, from, to)
+    activities = Boards.ActivityLog.list_activities_between(board_ids, from, to)
     tell = MapSet.new(config.tell)
 
     # On a board without a rollup every card is its own top-level card.
@@ -74,7 +74,7 @@ defmodule Slipdock.Narrative do
 
     comments =
       if MapSet.member?(tell, "comments") and MapSet.member?(tell, "comment_text"),
-        do: Boards.list_comments_between(Map.keys(owner), from, to),
+        do: Boards.ActivityLog.list_comments_between(Map.keys(owner), from, to),
         else: []
 
     # A card's activity is attributed to the top-level card that owns it; a

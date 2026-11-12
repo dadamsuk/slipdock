@@ -332,7 +332,7 @@ defmodule Slipdock.LeadTimeTest do
   describe "an epic" do
     setup ctx do
       epic = record!(ctx.card, [{0, ctx.todo}, {10, ctx.doing}])
-      {:ok, template} = Boards.find_template(nil, "Simple")
+      {:ok, template} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(epic, template)
       sub = Boards.get_board!(sub.id)
       [s_todo, s_doing, s_done] = sub.columns

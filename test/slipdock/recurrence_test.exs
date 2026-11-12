@@ -18,7 +18,7 @@ defmodule Slipdock.RecurrenceTest do
     do: Repo.all(from(c in Card, where: c.board_id == ^board_id, order_by: c.id))
 
   defp complete(card) do
-    {:ok, card} = Boards.update_card(Repo.get!(Card, card.id), %{"completed" => true})
+    {:ok, card} = Boards.Cards.update_card(Repo.get!(Card, card.id), %{"completed" => true})
     card
   end
 
@@ -131,7 +131,7 @@ defmodule Slipdock.RecurrenceTest do
       series = Repo.get!(Series, series.id)
       complete(Repo.get!(Card, series.card_id))
       assert Recurrence.tick(at) == 1
-      Boards.get_card!(Repo.get!(Series, series.id).card_id)
+      Boards.Cards.get_card!(Repo.get!(Series, series.id).card_id)
     end
 
     test "is the title and the due date; the title stays", ctx do
@@ -155,13 +155,13 @@ defmodule Slipdock.RecurrenceTest do
     end
 
     test "starts from a short name the card has", ctx do
-      {:ok, _} = Boards.update_card(ctx.card, %{"short_name" => "Review"})
+      {:ok, _} = Boards.Cards.update_card(ctx.card, %{"short_name" => "Review"})
       assert next(ctx.series, ~U[2027-01-18 07:00:00Z]).short_name == "Review 2027-01-18"
     end
 
     test "fits, for a long title, which it keeps", ctx do
       long = "Weekly review of the whole marketing pipeline and every open deal"
-      {:ok, _} = Boards.update_card(ctx.card, %{"title" => long})
+      {:ok, _} = Boards.Cards.update_card(ctx.card, %{"title" => long})
       new = next(ctx.series, ~U[2027-01-18 07:00:00Z])
 
       assert new.title == long
@@ -174,7 +174,7 @@ defmodule Slipdock.RecurrenceTest do
       Slipdock.AIStub.reply_with("Named by model")
 
       long = "Weekly review of the whole marketing pipeline and every open deal"
-      {:ok, _} = Boards.update_card(ctx.card, %{"title" => long})
+      {:ok, _} = Boards.Cards.update_card(ctx.card, %{"title" => long})
       new = next(ctx.series, ~U[2027-01-18 07:00:00Z])
       assert new.short_name =~ ~r/ 2027-01-18$/
 
@@ -193,7 +193,7 @@ defmodule Slipdock.RecurrenceTest do
       moment = DateTime.new!(series.next_on, ~T[23:59:00], "Etc/UTC")
       assert Recurrence.tick(moment) == 1
 
-      new = Boards.get_card!(Repo.get!(Series, series.id).card_id)
+      new = Boards.Cards.get_card!(Repo.get!(Series, series.id).card_id)
       assert new.short_name == "Water the plants #{series.next_on}"
     end
   end
@@ -208,8 +208,8 @@ defmodule Slipdock.RecurrenceTest do
           "flags" => ["blocked"]
         })
 
-      {:ok, item} = Boards.add_checklist_item(card, "Look back")
-      {:ok, _} = Boards.toggle_checklist_item(item)
+      {:ok, item} = Boards.Checklists.add_checklist_item(card, "Look back")
+      {:ok, _} = Boards.Checklists.toggle_checklist_item(item)
       {:ok, series} = Recurrence.set(card, %{"rule" => "mon"}, ctx.owner)
       %{card: card, series: series}
     end
@@ -230,12 +230,12 @@ defmodule Slipdock.RecurrenceTest do
       assert Recurrence.tick(~U[2027-01-18 07:01:00Z]) == 0
 
       series = Repo.get!(Series, ctx.series.id)
-      new = Boards.get_card!(series.card_id)
+      new = Boards.Cards.get_card!(series.card_id)
 
       assert new.id != ctx.card.id
       assert new.title == "Weekly review"
       assert new.column_id == ctx.todo.id
-      assert [{:card, top} | _] = Boards.active_items(ctx.todo.id)
+      assert [{:card, top} | _] = Boards.Columns.active_items(ctx.todo.id)
       assert top == new.id
       assert new.due_date == ~D[2027-01-18]
       assert new.start_date == ~D[2027-01-16]
@@ -257,7 +257,7 @@ defmodule Slipdock.RecurrenceTest do
 
       assert [card] = cards_on(ctx.board.id)
       assert card.due_date == ~D[2027-01-18]
-      [comment | _] = Boards.get_card!(card.id).comments
+      [comment | _] = Boards.Cards.get_card!(card.id).comments
       assert comment.body =~ "Missed occurrence of 2027-01-11"
       assert comment.body =~ "now due 2027-01-18"
       assert Repo.get!(Series, ctx.series.id).next_on == ~D[2027-01-25]
@@ -275,7 +275,10 @@ defmodule Slipdock.RecurrenceTest do
 
       assert [card] = cards_on(ctx.board.id)
       assert card.due_date == ~D[2027-01-11]
-      assert hd(Boards.get_card!(card.id).comments).body =~ "Skipped the occurrence of 2027-01-18"
+
+      assert hd(Boards.Cards.get_card!(card.id).comments).body =~
+               "Skipped the occurrence of 2027-01-18"
+
       assert Repo.get!(Series, ctx.series.id).next_on == ~D[2027-01-25]
     end
 
@@ -425,17 +428,17 @@ defmodule Slipdock.RecurrenceTest do
     end
 
     test "archiving the current instance pauses it, with a notice", ctx do
-      {:ok, _} = Boards.archive_card(Repo.get!(Card, ctx.card.id))
+      {:ok, _} = Boards.Cards.archive_card(Repo.get!(Card, ctx.card.id))
       series = Repo.get!(Series, ctx.series.id)
       assert series.paused
-      assert hd(Boards.get_card!(ctx.card.id).comments).body =~ "paused the series"
+      assert hd(Boards.Cards.get_card!(ctx.card.id).comments).body =~ "paused the series"
       assert Recurrence.tick(~U[2027-01-18 07:00:00Z]) == 0
     end
 
     test "archiving an older instance doesn't", ctx do
       complete(ctx.card)
       Recurrence.tick(~U[2027-01-18 07:00:00Z])
-      {:ok, _} = Boards.archive_card(Repo.get!(Card, ctx.card.id))
+      {:ok, _} = Boards.Cards.archive_card(Repo.get!(Card, ctx.card.id))
       refute Repo.get!(Series, ctx.series.id).paused
     end
 
@@ -443,7 +446,7 @@ defmodule Slipdock.RecurrenceTest do
       complete(ctx.card)
       Recurrence.tick(~U[2027-01-18 07:00:00Z])
       series = Repo.get!(Series, ctx.series.id)
-      {:ok, _} = Boards.delete_card(Repo.get!(Card, series.card_id))
+      {:ok, _} = Boards.Cards.delete_card(Repo.get!(Card, series.card_id))
       assert Repo.get(Series, series.id) == nil
       # The older instance keeps nothing pointing at a series that's gone.
       assert Repo.get!(Card, ctx.card.id).series_id == nil
@@ -465,7 +468,7 @@ defmodule Slipdock.RecurrenceTest do
 
     test "list_for_board/1 includes series on sub-boards", ctx do
       epic = card_fixture(ctx.backlog, %{"title" => "Epic"})
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(epic, t)
       sub = Boards.get_board!(sub.id)
       subcard = card_fixture(hd(sub.columns), %{"title" => "Sub chore"})
@@ -516,7 +519,7 @@ defmodule Slipdock.RecurrenceTest do
       card = complete(card)
       assert Repo.get!(Series, series.id).next_at
 
-      {:ok, _} = Boards.update_card(card, %{"completed" => false})
+      {:ok, _} = Boards.Cards.update_card(card, %{"completed" => false})
       assert Repo.get!(Series, series.id).next_at == nil
     end
 
@@ -556,7 +559,7 @@ defmodule Slipdock.RecurrenceTest do
     series = Repo.get!(Series, series.id)
     assert series.paused
     assert series.card_id == card.id
-    assert hd(Boards.get_card!(card.id).comments).body =~ "couldn't be made"
+    assert hd(Boards.Cards.get_card!(card.id).comments).body =~ "couldn't be made"
     assert Recurrence.tick(~U[2027-01-18 07:01:00Z]) == 0
   end
 end

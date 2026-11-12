@@ -119,7 +119,7 @@ defmodule SlipdockWeb.VerifiedCreateWebTest do
   test "with lanes on, REST and MCP refuse an agent's overlapping card in progress", ctx do
     {:ok, _} = Boards.update_board(ctx.board, %{"lanes" => true})
     held = card_fixture(ctx.doing, %{"title" => "Holding"})
-    {:ok, held} = Boards.update_card(held, %{"paths" => ["lib/foo/**"]})
+    {:ok, held} = Boards.Cards.update_card(held, %{"paths" => ["lib/foo/**"]})
     working_job_fixture(held)
 
     body =

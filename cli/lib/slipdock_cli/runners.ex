@@ -10,7 +10,7 @@ defmodule SlipdockCLI.Runners do
   alias SlipdockCLI.HTTP
   alias SlipdockCLI.Render
 
-  @commands ~w(runner runners runner-stats jobs job job-log cancel-job claim-job job-progress finish-job pause resume)
+  @commands ~w(runner runners runner-stats jobs job job-log cancel-job claim-job job-progress finish-job pause resume release releases)
 
   @doc "The command names this module answers to; `SlipdockCLI` routes on it."
   def commands, do: @commands
@@ -160,6 +160,25 @@ defmodule SlipdockCLI.Runners do
     |> out(o, fn %{"pause" => p} -> IO.puts("#{p["scope"]} #{p["line"]}") end)
   end
 
+  # Release now (#2835): on a board with batched releases, ask for a
+  # release of its merged work. The board owner's.
+  def run("release", [ref], o) do
+    HTTP.post("/boards/#{enc(ref)}/release", %{})
+    |> out(o, fn %{"line" => line, "release" => release} ->
+      IO.puts(line)
+      release_lines(release)
+    end)
+  end
+
+  # Where the board's releases stand: running, queued, last, awaiting.
+  def run("releases", [ref], o) do
+    HTTP.get("/boards/#{enc(ref)}/release")
+    |> out(o, fn %{"release" => release} ->
+      IO.puts("release mode: #{release["mode"]}")
+      release_lines(release)
+    end)
+  end
+
   def run("resume", [ref], o) do
     HTTP.delete("/boards/#{enc(ref)}/pause", Enum.reject([pool: o[:pool]], &is_nil(elem(&1, 1))))
     |> out(o, fn %{"pause" => p} -> IO.puts("resumed #{p["scope"]}") end)
@@ -167,7 +186,8 @@ defmodule SlipdockCLI.Runners do
 
   # Without an id, the runner job this agent runs under (#1668): a verify
   # job's agent says what it is doing with `--step`, which shows on the job
-  # and not on the card.
+  # and is never a comment on the card (a subcard an epic's job names in it
+  # shows that job as its loop, #2899).
   def run("job-progress", [], o) do
     case String.trim(System.get_env("SLIPDOCK_JOB_ID") || "") do
       "" -> fail("job-progress needs a job id, or $SLIPDOCK_JOB_ID set by a runner")
@@ -325,4 +345,42 @@ defmodule SlipdockCLI.Runners do
       IO.puts("kept job ##{id}'s log as #{p["code"]} #{p["title"]}  #{p["url"] || ""}")
     end)
   end
+
+  # Batched releases (#2835): what `release` and `releases` print.
+  defp release_lines(release) do
+    Enum.each(~w(running queued last), fn key ->
+      if r = release[key], do: IO.puts("#{key}: #{request_line(r)}")
+    end)
+
+    case release["awaiting"] || [] do
+      [] ->
+        IO.puts("awaiting release: none")
+
+      cards ->
+        IO.puts("awaiting release: #{length(cards)}")
+        Enum.each(cards, &IO.puts("  ##{&1["id"]} #{&1["title"]}"))
+    end
+  end
+
+  # One request: its id and status, what asked for it, how many cards it
+  # covers, and the run it fired or why it ended.
+  defp request_line(r) do
+    asked = Enum.map_join(r["triggers"] || [], ", ", &trigger/1)
+
+    [
+      "##{r["id"]} #{r["status"]}",
+      asked != "" && asked,
+      "#{length(r["card_ids"] || [])} cards",
+      r["job_id"] && "job ##{r["job_id"]}",
+      r["run_url"],
+      r["note"]
+    ]
+    |> Enum.filter(& &1)
+    |> Enum.join(" · ")
+  end
+
+  defp trigger(%{"trigger" => "manual"} = t), do: "Release now by #{t["by"] || "somebody"}"
+  defp trigger(%{"trigger" => "critical", "by" => by}), do: "critical card #{by}"
+  defp trigger(%{"trigger" => "age_cap"}), do: "age cap"
+  defp trigger(_other), do: "a trigger"
 end

@@ -19,7 +19,7 @@ defmodule SlipdockWeb.MCP.Tools.DownloadFile do
   """
   @behaviour SlipdockWeb.MCP.Tool
 
-  alias Slipdock.{Boards, Repo, TransferLinks}
+  alias Slipdock.{Boards, TransferLinks}
   alias Slipdock.Boards.Attachment
   alias SlipdockWeb.API.{Authorize, Uploads}
   alias SlipdockWeb.MCP.Args
@@ -94,7 +94,7 @@ defmodule SlipdockWeb.MCP.Tools.DownloadFile do
         attachment
         |> Uploads.json()
         |> Map.merge(owner(attachment))
-        |> Map.put(:url, context.base_url <> Boards.attachment_url(attachment))
+        |> Map.put(:url, context.base_url <> Boards.Attachments.attachment_url(attachment))
 
       answer(attachment, bytes, info)
     end
@@ -158,9 +158,9 @@ defmodule SlipdockWeb.MCP.Tools.DownloadFile do
   end
 
   defp fetch(id) do
-    case Repo.get(Attachment, id) do
+    case Boards.Attachments.get_attachment(id, [:card, :page]) do
       nil -> not_found()
-      attachment -> {:ok, Repo.preload(attachment, [:card, :page])}
+      attachment -> {:ok, attachment}
     end
   end
 
@@ -183,7 +183,7 @@ defmodule SlipdockWeb.MCP.Tools.DownloadFile do
   defp readable(_attachment, _auth), do: not_found()
 
   defp read(attachment) do
-    case File.read(Boards.attachment_path(attachment)) do
+    case File.read(Boards.Attachments.attachment_path(attachment)) do
       {:ok, bytes} -> {:ok, bytes}
       {:error, _} -> {:error, "the file's bytes are missing on the server, so it can't be sent"}
     end

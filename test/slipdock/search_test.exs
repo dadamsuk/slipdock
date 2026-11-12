@@ -51,8 +51,8 @@ defmodule Slipdock.SearchTest do
   describe "chunking" do
     test "a card becomes one chunk plus one per comment and status update", ctx do
       card = card_fixture(ctx.column, %{"title" => "Rotate the Stripe keys"})
-      {:ok, _} = Boards.add_comment(card, "Blocked until finance approve the new plan")
-      {:ok, _} = Boards.add_status_update(card, ctx.owner, %{"health" => "at_risk"})
+      {:ok, _} = Boards.Comments.add_comment(card, "Blocked until finance approve the new plan")
+      {:ok, _} = Boards.StatusUpdates.add_status_update(card, ctx.owner, %{"health" => "at_risk"})
 
       chunks = card.id |> then(&Repo.get(Search.card_query(), &1)) |> Chunk.for_card()
 
@@ -78,7 +78,7 @@ defmodule Slipdock.SearchTest do
           "flags" => ["blocked"]
         })
 
-      {:ok, _} = Boards.set_card_tags(card, [tag_fixture(ctx.board, "billing")])
+      {:ok, _} = Boards.Cards.set_card_tags(card, [tag_fixture(ctx.board, "billing")])
       body = Repo.get(Search.card_query(), card.id) |> Chunk.for_card() |> hd() |> Map.get(:body)
 
       assert body =~ "priority critical"
@@ -96,7 +96,7 @@ defmodule Slipdock.SearchTest do
       # Nothing changed, so nothing is sent to the model a second time.
       assert {:ok, %{embedded: 0, unchanged: 1}} = Search.index_card(card.id)
 
-      {:ok, card} = Boards.update_card(card, %{"description" => "second"})
+      {:ok, card} = Boards.Cards.update_card(card, %{"description" => "second"})
       assert {:ok, %{embedded: 1, unchanged: 0}} = Search.index_card(card.id)
 
       assert [%Embedding{kind: "card", body: body}] =
@@ -107,21 +107,21 @@ defmodule Slipdock.SearchTest do
 
     test "a deleted comment loses its chunk on the next index", ctx do
       card = card_fixture(ctx.column, %{"title" => "Alpha"})
-      {:ok, comment} = Boards.add_comment(card, "a note worth keeping")
+      {:ok, comment} = Boards.Comments.add_comment(card, "a note worth keeping")
       index(card)
       assert Repo.aggregate(from(e in Embedding, where: e.card_id == ^card.id), :count) == 2
 
-      {:ok, _} = Boards.delete_comment(comment.id)
+      {:ok, _} = Boards.Comments.delete_comment(comment.id)
       assert {:ok, %{removed: 1}} = Search.index_card(card.id)
       assert Repo.aggregate(from(e in Embedding, where: e.card_id == ^card.id), :count) == 1
     end
 
     test "deleting a card forgets everything indexed for it", ctx do
       card = card_fixture(ctx.column, %{"title" => "Alpha"})
-      {:ok, _} = Boards.add_comment(card, "something")
+      {:ok, _} = Boards.Comments.add_comment(card, "something")
       index(card)
 
-      {:ok, _} = Boards.delete_card(card)
+      {:ok, _} = Boards.Cards.delete_card(card)
       assert Repo.aggregate(from(e in Embedding, where: e.card_id == ^card.id), :count) == 0
     end
 
@@ -153,14 +153,21 @@ defmodule Slipdock.SearchTest do
       on_exit(fn -> File.rm(path) end)
 
       {:ok, audio} =
-        Boards.add_attachment(card, %{filename: "call.mp3", content_type: "audio/mpeg"}, path)
+        Boards.Attachments.add_attachment(
+          card,
+          %{filename: "call.mp3", content_type: "audio/mpeg"},
+          path
+        )
 
       %{card: card, audio: audio}
     end
 
     defp transcribed(audio, text) do
       {:ok, audio} =
-        Boards.update_attachment_transcript(audio, %{transcript_status: "done", transcript: text})
+        Boards.Attachments.update_attachment_transcript(audio, %{
+          transcript_status: "done",
+          transcript: text
+        })
 
       audio
     end
@@ -185,7 +192,7 @@ defmodule Slipdock.SearchTest do
 
     test "nothing is indexed until it is done, or when it found no speech", ctx do
       {:ok, _} =
-        Boards.update_attachment_transcript(ctx.audio, %{
+        Boards.Attachments.update_attachment_transcript(ctx.audio, %{
           transcript_status: "failed",
           transcript_error: "refused"
         })
@@ -237,7 +244,7 @@ defmodule Slipdock.SearchTest do
       {:ok, _} = Indexer.flush()
       assert Repo.aggregate(from(e in Embedding, where: e.kind == "transcript"), :count) == 1
 
-      {:ok, _} = Boards.delete_attachment(audio)
+      {:ok, _} = Boards.Attachments.delete_attachment(audio)
       {:ok, _} = Indexer.flush()
       assert Repo.aggregate(from(e in Embedding, where: e.kind == "transcript"), :count) == 0
     end
@@ -249,7 +256,8 @@ defmodule Slipdock.SearchTest do
       deploy = card_fixture(ctx.column, %{"title" => "Deploy pipeline needs a rollback step"})
       quiet = card_fixture(ctx.column, %{"title" => "Order new whiteboard markers"})
 
-      {:ok, _} = Boards.add_comment(deploy, "the staging rollback was blocked on approvals")
+      {:ok, _} =
+        Boards.Comments.add_comment(deploy, "the staging rollback was blocked on approvals")
 
       for card <- [billing, deploy, quiet], do: index(card)
       %{billing: billing, deploy: deploy, quiet: quiet}
@@ -300,7 +308,7 @@ defmodule Slipdock.SearchTest do
     end
 
     test "results roll up: one entry per card however many chunks matched", ctx do
-      {:ok, _} = Boards.add_comment(ctx.deploy, "rollback rollback rollback")
+      {:ok, _} = Boards.Comments.add_comment(ctx.deploy, "rollback rollback rollback")
       index(ctx.deploy)
 
       assert {:ok, results} = Search.search(ctx.owner, "rollback")
@@ -309,7 +317,7 @@ defmodule Slipdock.SearchTest do
     end
 
     test "archived cards are left out unless asked for", ctx do
-      {:ok, _} = Boards.archive_card(ctx.billing)
+      {:ok, _} = Boards.Cards.archive_card(ctx.billing)
       index(ctx.billing)
 
       assert {:ok, results} = Search.search(ctx.owner, "invoice rounding refunds")
@@ -320,7 +328,7 @@ defmodule Slipdock.SearchTest do
     end
 
     test "a card's id or link finds that card first, even archived", ctx do
-      {:ok, _} = Boards.archive_card(ctx.billing)
+      {:ok, _} = Boards.Cards.archive_card(ctx.billing)
       index(ctx.billing)
 
       link = "https://app.slipdock.us/boards/#{ctx.board.id}/cards/#{ctx.billing.id}"
@@ -465,7 +473,7 @@ defmodule Slipdock.SearchTest do
 
     test "a view-only grant reaches nothing: a search has no view to apply", ctx do
       {:ok, view} =
-        Boards.create_saved_view(ctx.board, %{
+        Boards.SavedViews.create_saved_view(ctx.board, %{
           "name" => "Just the open ones",
           "config" => %{"mode" => "board"}
         })
@@ -486,7 +494,7 @@ defmodule Slipdock.SearchTest do
       # Before the move, the stranger can read Elsewhere but not the card.
       assert {:ok, []} = Search.search(ctx.stranger, "confidential salary review")
 
-      {:ok, _} = Boards.move_card_to_board(ctx.card, hd(elsewhere.columns))
+      {:ok, _} = Boards.Moves.move_card_to_board(ctx.card, hd(elsewhere.columns))
 
       # The board recorded against its chunks is corrected inline, without
       # waiting for the queue to catch the text up.

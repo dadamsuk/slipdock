@@ -160,7 +160,7 @@ defmodule Slipdock.Search do
   # or not — naming it is asking for it — as long as the reader may open it
   # and it is inside the board and kind asked for.
   defp named_card(user, query, opts) do
-    with id when is_integer(id) <- Slipdock.Boards.card_ref(query),
+    with id when is_integer(id) <- Slipdock.Boards.Links.card_ref(query),
          false <- Enum.member?([:page, "page"], opts[:kind]),
          %Card{} = card <- Repo.get(Card, id),
          nil <- card.stand_in_for_id,

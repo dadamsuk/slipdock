@@ -34,8 +34,8 @@ defmodule Slipdock.WikiContentsTest do
     } do
       card = card_fixture(todo, %{"title" => "The work"})
 
-      {:ok, on_page} = Boards.add_comment(page, "reads well")
-      {:ok, on_card} = Boards.add_comment(card, "shipped")
+      {:ok, on_page} = Boards.Comments.add_comment(page, "reads well")
+      {:ok, on_card} = Boards.Comments.add_comment(card, "shipped")
 
       assert on_page.page_id == page.id
       assert is_nil(on_page.card_id)
@@ -81,7 +81,7 @@ defmodule Slipdock.WikiContentsTest do
       user: user
     } do
       {:ok, other} = Wiki.create_page(board, %{"title" => "Retry policy"}, user: user)
-      {:ok, _} = Boards.add_comment(page, "see [[Retry policy]] for the detail")
+      {:ok, _} = Boards.Comments.add_comment(page, "see [[Retry policy]] for the detail")
 
       assert [%{body: body}] = fresh(page).comments
       assert body =~ "Retry policy"
@@ -93,8 +93,8 @@ defmodule Slipdock.WikiContentsTest do
     end
 
     test "deleting one leaves the page alone", %{page: page} do
-      {:ok, comment} = Boards.add_comment(page, "passing thought")
-      {:ok, _} = Boards.delete_comment(comment.id)
+      {:ok, comment} = Boards.Comments.add_comment(page, "passing thought")
+      {:ok, _} = Boards.Comments.delete_comment(comment.id)
 
       assert fresh(page).comments == []
       assert %Page{} = Wiki.get_page!(page.id)
@@ -104,42 +104,48 @@ defmodule Slipdock.WikiContentsTest do
   describe "status updates" do
     test "a page can be off track, and says so the way a card does", %{page: page, user: user} do
       {:ok, _} =
-        Boards.add_status_update(page, user, %{"health" => "at_risk", "body" => "stalled"})
+        Boards.StatusUpdates.add_status_update(page, user, %{
+          "health" => "at_risk",
+          "body" => "stalled"
+        })
 
       page = fresh(page)
       assert [%{health: "at_risk", body: "stalled"}] = page.status_updates
       assert Card.stated_health(page) == "at_risk"
 
-      {:ok, _} = Boards.add_status_update(page, user, %{"health" => "on_track"})
+      {:ok, _} = Boards.StatusUpdates.add_status_update(page, user, %{"health" => "on_track"})
       assert Card.stated_health(fresh(page)) == "on_track"
     end
 
     test "the latest is found per page as it is per card", %{page: page, user: user} do
-      {:ok, _} = Boards.add_status_update(page, user, %{"health" => "off_track"})
-      assert Boards.latest_stated_health_for_pages([page.id]) == %{page.id => "off_track"}
+      {:ok, _} = Boards.StatusUpdates.add_status_update(page, user, %{"health" => "off_track"})
+
+      assert Boards.StatusUpdates.latest_stated_health_for_pages([page.id]) == %{
+               page.id => "off_track"
+             }
     end
   end
 
   describe "a checklist" do
     test "items go on in order, tick, and come off", %{page: page} do
-      {:ok, first} = Boards.add_checklist_item(page, "outline")
-      {:ok, second} = Boards.add_checklist_item(page, "review")
+      {:ok, first} = Boards.Checklists.add_checklist_item(page, "outline")
+      {:ok, second} = Boards.Checklists.add_checklist_item(page, "review")
 
       assert first.position == 0
       assert second.position == 1
       assert Enum.map(fresh(page).checklist_items, & &1.text) == ["outline", "review"]
 
-      {:ok, _} = Boards.toggle_checklist_item(first.id)
+      {:ok, _} = Boards.Checklists.toggle_checklist_item(first.id)
       assert SlipdockWeb.ItemComponents.progress(fresh(page).checklist_items) == {1, 2, 50}
 
-      {:ok, _} = Boards.delete_checklist_item(second.id)
+      {:ok, _} = Boards.Checklists.delete_checklist_item(second.id)
       assert length(fresh(page).checklist_items) == 1
     end
 
     test "a page's positions are its own, not the board's", %{page: page, todo: todo} do
       card = card_fixture(todo, %{"title" => "The work"})
-      {:ok, _} = Boards.add_checklist_item(card, "a card's first")
-      {:ok, on_page} = Boards.add_checklist_item(page, "a page's first")
+      {:ok, _} = Boards.Checklists.add_checklist_item(card, "a card's first")
+      {:ok, on_page} = Boards.Checklists.add_checklist_item(page, "a page's first")
 
       assert on_page.position == 0
     end
@@ -148,14 +154,14 @@ defmodule Slipdock.WikiContentsTest do
   describe "web links" do
     test "a page links out, and the link is only its own to remove", %{page: page, todo: todo} do
       card = card_fixture(todo, %{"title" => "The work"})
-      {:ok, url} = Boards.add_card_url(page, %{"url" => "example.com/spec"})
+      {:ok, url} = Boards.CardUrls.add_card_url(page, %{"url" => "example.com/spec"})
 
       assert url.url == "https://example.com/spec"
       assert [^url] = fresh(page).urls
-      assert Boards.get_card_url!(url.id).page_id == page.id
+      assert Boards.CardUrls.get_card_url!(url.id).page_id == page.id
       assert Repo.preload(card, :urls).urls == []
 
-      {:ok, _} = Boards.delete_card_url(url)
+      {:ok, _} = Boards.CardUrls.delete_card_url(url)
       assert fresh(page).urls == []
     end
   end
@@ -199,7 +205,7 @@ defmodule Slipdock.WikiContentsTest do
       {:ok, _} = Fields.set_value(card, field, "8")
 
       assert Fields.value(Repo.preload(fresh(page), field_values: :field), field) == 3.0
-      assert Fields.value(Boards.get_card!(card.id), field) == 8.0
+      assert Fields.value(Boards.Cards.get_card!(card.id), field) == 8.0
 
       {:ok, _} = Fields.set_value(page, field, "")
       assert Fields.value(Repo.preload(fresh(page), field_values: :field), field) == nil
@@ -221,10 +227,10 @@ defmodule Slipdock.WikiContentsTest do
 
   describe "deleting the page" do
     test "takes what was written about it with it", %{page: page, user: user} do
-      {:ok, _} = Boards.add_comment(page, "a remark")
-      {:ok, _} = Boards.add_checklist_item(page, "an item")
-      {:ok, _} = Boards.add_status_update(page, user, %{"health" => "on_track"})
-      {:ok, _} = Boards.add_card_url(page, %{"url" => "https://example.com"})
+      {:ok, _} = Boards.Comments.add_comment(page, "a remark")
+      {:ok, _} = Boards.Checklists.add_checklist_item(page, "an item")
+      {:ok, _} = Boards.StatusUpdates.add_status_update(page, user, %{"health" => "on_track"})
+      {:ok, _} = Boards.CardUrls.add_card_url(page, %{"url" => "https://example.com"})
 
       {:ok, _} = Wiki.delete_page(page)
 

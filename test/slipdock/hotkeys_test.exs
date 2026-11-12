@@ -91,7 +91,7 @@ defmodule Slipdock.HotkeysTest do
     test "refuses a sub-board", %{user: user, plan: plan} do
       [column | _] = plan.columns
       card = card_fixture(column, %{"title" => "Epic"})
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = Boards.create_sub_board(card, t)
 
       assert {:error, message} = Hotkeys.put(user, sub, 1)
@@ -109,7 +109,7 @@ defmodule Slipdock.HotkeysTest do
 
     test "an archived board is not opened, but keeps its digit", %{user: user, plan: plan} do
       {:ok, 3} = Hotkeys.put(user, plan, 3)
-      {:ok, _} = Boards.archive_board(plan)
+      {:ok, _} = Boards.Arrangement.archive_board(plan)
 
       assert Hotkeys.target(user, 3) == nil
       assert Hotkeys.get(user, plan) == 3

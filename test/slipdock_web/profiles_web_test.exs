@@ -160,7 +160,7 @@ defmodule SlipdockWeb.ProfilesWebTest do
     test "an agent starting a card over REST on a board with profiles on gets one inferred",
          ctx do
       {:ok, _} = Boards.update_board(ctx.board, %{"profiles" => true})
-      {:ok, _} = Boards.update_card(ctx.card, %{"paths" => "docs/**"})
+      {:ok, _} = Boards.Cards.update_card(ctx.card, %{"paths" => "docs/**"})
 
       ctx.agent
       |> post(~p"/api/cards/#{ctx.card.id}/move", %{"column" => ctx.doing.name})
@@ -236,7 +236,7 @@ defmodule SlipdockWeb.ProfilesWebTest do
       {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}")
       refute has_element?(view, "#card-#{ctx.card.id} [data-role=profile]")
 
-      {:ok, _} = Boards.update_card(ctx.card, %{"profile" => "feature"})
+      {:ok, _} = Boards.Cards.update_card(ctx.card, %{"profile" => "feature"})
       {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}")
       assert view |> element("#card-#{ctx.card.id} [data-role=profile]") |> render() =~ "feature"
     end

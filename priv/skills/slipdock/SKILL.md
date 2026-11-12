@@ -223,6 +223,7 @@ slipdock now <board> [--json]             # right now: runners and their jobs' s
 slipdock dora <board> [--env E] [--days N]   # delivery (DORA) numbers from recorded deploys, when the board's delivery metrics are on
 slipdock deploy run --env E -- <cmd…>   # in CI, with SLIPDOCK_DEPLOY_TOKEN: record a deploy around the deploy command
 slipdock deploy setup <board> [--prompt]   # owner: turn delivery metrics on, issue the deploy token, print the CI step
+slipdock set-board <board> --not-shipped-minutes N   # owner: how long a merged card may go with no deploy naming it before an alert and a "Not shipped" line on `card` (20; 0 never)
 slipdock incident-of <card> <deploy-id>    # an incident card names the deploy that caused it (--clear to undo)
 slipdock work [--board B] [--done]      # what is waiting on you (the overseer's alerts first, then waits, review/waiting flags, runner trouble), then your cards
 slipdock work --dismiss <card> | --undismiss <card> | --dismissed   # take an item off your own list until its cause changes; list and undo
@@ -472,6 +473,9 @@ slipdock set-board <board> --bar-required --evidence-required --verify-work --ve
                                        # starts, evidence on completion, a second agent accepts or
                                        # rejects, and submitted cards queued as verify jobs
 slipdock set-board <board> --ship-via pull-request         # needs --verify-work: agents open a PR (card-<id>), never push main; accepting merges it
+slipdock set-board <board> --release-mode batched --release-age-cap 24   # the root board's: merges wait for a release (on-merge: each merge deploys),
+                                       # at most 24 hours (off: no cap). A merged card is still done; `slipdock card`
+                                       # shows Release: merged, awaiting release, then released with the time
 slipdock done <id> --pr https://github.com/o/r/pull/7 --evidence-commit <head sha>   # on such a board: the pull request the work is in and the commit it merges at (refused without it, a resubmission too)
                                        # an epic names none: its subcards merged their own, so it
                                        # completes with --evidence alone and accepting merges nothing
@@ -569,9 +573,16 @@ slipdock set-board <board> --job-log-hours 24 --failure-log-hours 168   # how lo
 slipdock cancel-job <id>                      # queued: at once; running: on the next heartbeat
 slipdock claim-job <board> --pool P           # take the next job as this session ("nothing queued")
 slipdock pause <board> [--pool P] --reason "…"   # owner: hold runner work (tree or pool); a person resumes
+slipdock release <board>                      # owner, on a board with batched releases: Release now. A runner's release job runs the
+                                              # board's release command for every merged card awaiting release; one at a time
+                                              # (during a release it queues one follow-up). Only when the person asks: a card is done on merge
+slipdock releases <board>                     # where its releases stand: running, queued, the last ended, the cards awaiting
+slipdock set-board <board> --release-command "make release"   # the one line a release job runs (default: gh workflow run release.yml
+                                              # --ref {default_branch}); `default` clears it. Any other command runs only on a
+                                              # machine whose local.json lists it under release_commands (no_release: true: no releases)
 slipdock resume <board> [--pool P]            # let exactly that pause off (refused under an agent)
 slipdock job-progress <id> [--message NOTE]   # renew the lease (20 min for a session); note → card
-slipdock job-progress [<id>] --step "…"       # what the job is doing now: on the job only, not the card
+slipdock job-progress [<id>] --step "…"       # what the job is doing now: on the job, never a card comment; on an epic's job name the subcard ("#2835 CI running") and it shows the job as its loop
 slipdock finish-job <id> --status done|failed|cancelled|timeout [--summary S]
 slipdock finish-job <id> --status waiting --needs "Q" [--choice X]... [--on EMAIL]   # ask and park in one step
 
@@ -623,9 +634,11 @@ job, not one per rule. The rule picks the
 don't try to put a command in a rule, and a job failing with exit 127 means that machine has
 no function for the kind. With the trigger `list_top` (`{"type": "list_top", "column": "To
 Do", "unassigned": true}`, preset `feed_runner`) the rule works a list in order instead: one
-open job at a time, always for the top ready card that no job is already open on (so two
-such rules, one per pool, work one list side by side) and that its lane wouldn't hold: with
-lanes holding, a queued job of its own that a lane holds is withdrawn and the next card that
+open job at a time (an answered question's job may be open beside the card the feed sent,
+and the feed sends the next card once both have closed), always for the top ready card that
+no job is already open on (so two such rules, one per pool, work one list side by side) and
+that its lane wouldn't hold: with lanes holding, a queued job of its own that a lane holds is
+withdrawn and the next card that
 could start sent instead. A rule whose pool has gone offline (runners seen before, none for
 three leases) sends nothing and withdraws its queued job that no runner has taken, so an
 online pool's rule sends that card; a pool never seen yet is fed as usual. `"wait_while_doing": true` on the runner

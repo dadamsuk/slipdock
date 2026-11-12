@@ -147,7 +147,7 @@ defmodule Slipdock.Health.RunnerDetectorsTest do
       Repo.update_all(from(j in Job, where: j.id == ^job.id), set: [step_at: ago(50)])
       assert [_] = detect(HungJob, ctx.board)
 
-      {:ok, _} = Boards.add_comment(ctx.card, "Half way through", by: ctx.owner)
+      {:ok, _} = Boards.Comments.add_comment(ctx.card, "Half way through", by: ctx.owner)
       assert detect(HungJob, ctx.board) == []
 
       Repo.update_all(from(c in Boards.Comment, where: c.card_id == ^ctx.card.id),
@@ -182,7 +182,7 @@ defmodule Slipdock.Health.RunnerDetectorsTest do
     # #1853: an epic's pass writes on the subcard it is working, and each
     # subcard it submits sets off a verify job and a merge.
     defp subcard(card, title) do
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = Boards.create_sub_board(card, t)
       [column | _] = Boards.get_board!(sub.id).columns
       card_fixture(column, %{"title" => title})
@@ -199,13 +199,13 @@ defmodule Slipdock.Health.RunnerDetectorsTest do
       one = subcard(ctx.card, "One")
       deeper = subcard(one, "Deeper")
 
-      {:ok, _} = Boards.add_comment(one, "Submitted #1, PR green", by: ctx.owner)
+      {:ok, _} = Boards.Comments.add_comment(one, "Submitted #1, PR green", by: ctx.owner)
       assert detect(HungJob, ctx.board) == []
 
       age_comments(one, 50)
       assert [_] = detect(HungJob, ctx.board)
 
-      {:ok, _} = Boards.add_comment(deeper, "Started", by: ctx.owner)
+      {:ok, _} = Boards.Comments.add_comment(deeper, "Started", by: ctx.owner)
       assert detect(HungJob, ctx.board) == []
     end
 
@@ -230,12 +230,12 @@ defmodule Slipdock.Health.RunnerDetectorsTest do
     # built #1760–#1765. That is work, not a hung job.
     test "an epic's pass with no steps, writing only on its subcards, isn't hung", ctx do
       running(ctx, 60)
-      {:ok, _} = Boards.add_comment(ctx.card, "Picked up", by: ctx.owner)
+      {:ok, _} = Boards.Comments.add_comment(ctx.card, "Picked up", by: ctx.owner)
       age_comments(ctx.card, 55)
       assert [_] = detect(HungJob, ctx.board)
 
       sub = subcard(ctx.card, "Health monitor 3")
-      {:ok, _} = Boards.add_comment(sub, "Built, tests passing", by: ctx.owner)
+      {:ok, _} = Boards.Comments.add_comment(sub, "Built, tests passing", by: ctx.owner)
       age_comments(sub, 3)
 
       assert detect(HungJob, ctx.board) == []
@@ -244,10 +244,10 @@ defmodule Slipdock.Health.RunnerDetectorsTest do
     test "the server's notes on a subcard, and work on another card, are not", ctx do
       running(ctx, 60)
       one = subcard(ctx.card, "One")
-      {:ok, _} = Boards.add_comment(one, "Health monitor: stuck")
+      {:ok, _} = Boards.Comments.add_comment(one, "Health monitor: stuck")
 
       other = card_fixture(ctx.todo, %{"title" => "Elsewhere"})
-      {:ok, _} = Boards.add_comment(other, "Busy here", by: ctx.owner)
+      {:ok, _} = Boards.Comments.add_comment(other, "Busy here", by: ctx.owner)
       job(other, status: "done", finished_at: ago(1))
 
       assert [_] = detect(HungJob, ctx.board)
@@ -318,7 +318,7 @@ defmodule Slipdock.Health.RunnerDetectorsTest do
 
     test "a Housekeeping feed waiting its turn behind To Do isn't idle (#2777)", ctx do
       runner(ctx.board, "box", "loop", 0)
-      {:ok, col} = Boards.create_column(ctx.board, %{"name" => "Housekeeping"})
+      {:ok, col} = Boards.Columns.create_column(ctx.board, %{"name" => "Housekeeping"})
       card_fixture(col, %{"title" => "Chore"})
       {rule, _ready} = quiet_feed(ctx, 20)
       {:ok, [sibling]} = Slipdock.Automations.ScheduledFeed.ensure(ctx.board)

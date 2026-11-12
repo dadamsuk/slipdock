@@ -76,7 +76,7 @@ defmodule Slipdock.QuickAdd.Capture do
     * `:strict_board` — a board the model names that the user can't reach is
       `{:error, {:unknown_board, name}}`, not quietly the default
     * `:attrs` — more card attributes (a description)
-    * `:create_opts` — passed to `Slipdock.Boards.create_card/3` (`:by`,
+    * `:create_opts` — passed to `Slipdock.Boards.Cards.create_card/3` (`:by`,
       `:actor`); with them, a refused card is `{:error, changeset}`
   """
   @spec capture(User.t(), String.t(), keyword) :: {:ok, map} | {:error, String.t()}
@@ -381,10 +381,10 @@ defmodule Slipdock.QuickAdd.Capture do
       |> put_description(plan[:description])
       |> Map.put("title", plan.title)
 
-    case Boards.create_card(plan.column, attrs, opts[:create_opts] || []) do
+    case Boards.Cards.create_card(plan.column, attrs, opts[:create_opts] || []) do
       {:ok, card} ->
-        if plan.tags != [], do: Boards.set_card_tags(card, plan.tags)
-        if plan.comment, do: Boards.add_comment(card, plan.comment, by: plan.user)
+        if plan.tags != [], do: Boards.Cards.set_card_tags(card, plan.tags)
+        if plan.comment, do: Boards.Comments.add_comment(card, plan.comment, by: plan.user)
 
         repeat =
           with rule when is_binary(rule) <- plan[:recurrence],
@@ -403,7 +403,7 @@ defmodule Slipdock.QuickAdd.Capture do
           end
 
         if plan.board.parent_card_id,
-          do: Boards.broadcast_tree(Boards.root_of_board(plan.board.id))
+          do: Boards.PubSub.broadcast_tree(Boards.root_of_board(plan.board.id))
 
         {:ok,
          %{
@@ -451,7 +451,7 @@ defmodule Slipdock.QuickAdd.Capture do
   end
 
   defp tags_of(%Board{} = board),
-    do: board |> Board.root_id() |> Boards.list_tags() |> Enum.take(@max_tags)
+    do: board |> Board.root_id() |> Boards.Tags.list_tags() |> Enum.take(@max_tags)
 
   # The user's saved default, checked against what they can still reach, or
   # the first list of the first board they can write to.

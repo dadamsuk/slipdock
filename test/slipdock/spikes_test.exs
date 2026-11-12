@@ -29,7 +29,7 @@ defmodule Slipdock.SpikesTest do
 
     [_backlog, _todo, doing, _done] = board.columns
     epic = card_fixture(doing, %{"title" => "Feature"})
-    {:ok, t} = Boards.find_template(nil, "Simple")
+    {:ok, t} = Boards.Templates.find_template(nil, "Simple")
     {:ok, sub} = sub_board(epic, t)
     [column | _] = Boards.get_board!(sub.id).columns
     builder = %{Actor.unknown() | kind: "agent", via: "api", user_id: owner.id, agent: "builder"}
@@ -49,7 +49,7 @@ defmodule Slipdock.SpikesTest do
 
   defp spike(column, title) do
     card = card_fixture(column, %{"title" => title})
-    {:ok, card} = Boards.update_card(card, %{"profile" => "spike"})
+    {:ok, card} = Boards.Cards.update_card(card, %{"profile" => "spike"})
     card
   end
 
@@ -57,7 +57,7 @@ defmodule Slipdock.SpikesTest do
 
   defp submit(card, ctx) do
     {:ok, card} =
-      Boards.update_card(
+      Boards.Cards.update_card(
         fresh(card),
         %{"completed" => true, "evidence" => "built it", "evidence_no_code" => @why},
         actor: ctx.builder
@@ -111,7 +111,7 @@ defmodule Slipdock.SpikesTest do
     test "an archived spike counts as answered, and isn't named", ctx do
       one = spike(ctx.column, "Kept")
       dropped = spike(ctx.column, "Dropped")
-      {:ok, _} = Boards.archive_card(dropped)
+      {:ok, _} = Boards.Cards.archive_card(dropped)
 
       one |> submit(ctx) |> accept(ctx)
 
@@ -128,7 +128,7 @@ defmodule Slipdock.SpikesTest do
 
     test "a hand-tagged spike counts", ctx do
       card = card_fixture(ctx.column, %{"title" => "Tagged"})
-      {:ok, card} = Boards.set_card_tags(card, [tag_fixture(ctx.sub, "spike")])
+      {:ok, card} = Boards.Cards.set_card_tags(card, [tag_fixture(ctx.sub, "spike")])
       card |> submit(ctx) |> accept(ctx)
       assert [_] = waits(ctx.epic)
     end
@@ -137,7 +137,10 @@ defmodule Slipdock.SpikesTest do
   describe "no wait" do
     test "when the epic has a wait open already", ctx do
       {:ok, _} =
-        Boards.open_wait(ctx.epic, Actor.web(ctx.owner), %{needs: "Which way?", question: "ux"})
+        Boards.Waits.open_wait(ctx.epic, Actor.web(ctx.owner), %{
+          needs: "Which way?",
+          question: "ux"
+        })
 
       ctx.column |> spike("Only") |> submit(ctx) |> accept(ctx)
 
@@ -156,7 +159,7 @@ defmodule Slipdock.SpikesTest do
       card = card_fixture(ctx.column, %{"title" => "Plain"})
 
       {:ok, card} =
-        Boards.update_card(card, %{"completed" => true, "evidence_no_code" => @why},
+        Boards.Cards.update_card(card, %{"completed" => true, "evidence_no_code" => @why},
           actor: ctx.builder
         )
 
@@ -170,7 +173,7 @@ defmodule Slipdock.SpikesTest do
       assert [_] = waits(ctx.epic)
 
       {:ok, _} =
-        Boards.answer_wait(fresh(ctx.epic), Actor.web(ctx.owner), %{"answer" => "Resuming"})
+        Boards.Waits.answer_wait(fresh(ctx.epic), Actor.web(ctx.owner), %{"answer" => "Resuming"})
 
       assert [%Wait{closed_at: %DateTime{}}] = waits(ctx.epic)
 
@@ -183,7 +186,7 @@ defmodule Slipdock.SpikesTest do
       assert Spikes.answered(merging, accepted) == :none
       assert Spikes.answered(accepted, %{accepted | title: "Only, renamed"}) == :none
 
-      {:ok, _} = Boards.update_card(fresh(s), %{"title" => "Only, renamed"})
+      {:ok, _} = Boards.Cards.update_card(fresh(s), %{"title" => "Only, renamed"})
 
       assert [%Wait{closed_at: %DateTime{}}] = waits(ctx.epic)
     end
@@ -197,7 +200,7 @@ defmodule Slipdock.SpikesTest do
   test "on a board that doesn't verify, completing the last spike opens it", ctx do
     {:ok, _} = Boards.update_board(Repo.get!(Boards.Board, ctx.sub.id), %{"verify_work" => false})
     s = spike(ctx.column, "Unverified")
-    {:ok, _} = Boards.update_card(fresh(s), %{"completed" => true})
+    {:ok, _} = Boards.Cards.update_card(fresh(s), %{"completed" => true})
     assert [wait] = waits(ctx.epic)
     assert wait.needs =~ "##{s.id}"
   end

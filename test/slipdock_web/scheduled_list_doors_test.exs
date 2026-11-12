@@ -47,7 +47,7 @@ defmodule SlipdockWeb.ScheduledListDoorsTest do
         |> json_response(201)
 
       assert %{"id" => id, "category" => "scheduled"} = created["column"]
-      assert Boards.scheduled_column(board).id == id
+      assert Boards.Columns.scheduled_column(board).id == id
 
       shown = conn |> get(~p"/api/boards/#{board.id}") |> json_response(200)
 
@@ -60,7 +60,7 @@ defmodule SlipdockWeb.ScheduledListDoorsTest do
         |> json_response(200)
 
       assert changed["column"]["category"] == "todo"
-      assert Boards.scheduled_column(board) == nil
+      assert Boards.Columns.scheduled_column(board) == nil
     end
 
     test "an existing list can be given the category", %{conn: conn, board: board} do
@@ -70,7 +70,7 @@ defmodule SlipdockWeb.ScheduledListDoorsTest do
       |> patch(~p"/api/boards/#{board.id}/columns/#{backlog.id}", %{"category" => "scheduled"})
       |> json_response(200)
 
-      assert Boards.scheduled_column(board).id == backlog.id
+      assert Boards.Columns.scheduled_column(board).id == backlog.id
     end
   end
 
@@ -82,7 +82,7 @@ defmodule SlipdockWeb.ScheduledListDoorsTest do
         |> ok!()
 
       assert result["list"]["name"] == "Scheduled"
-      assert Boards.scheduled_column(board).name == "Scheduled"
+      assert Boards.Columns.scheduled_column(board).name == "Scheduled"
 
       schema = SlipdockWeb.MCP.Tools.CreateList.input_schema()
       assert "scheduled" in schema.properties.category.enum
@@ -91,7 +91,8 @@ defmodule SlipdockWeb.ScheduledListDoorsTest do
 
     test "list_boards names the Scheduled list beside the ready and done lists",
          %{conn: conn, board: board} do
-      {:ok, _} = Boards.create_column(board, %{"name" => "Nightly", "category" => "scheduled"})
+      {:ok, _} =
+        Boards.Columns.create_column(board, %{"name" => "Nightly", "category" => "scheduled"})
 
       boards = conn |> call("list_boards", %{}) |> ok!() |> Map.fetch!("boards")
       mine = Enum.find(boards, &(&1["id"] == board.id))
@@ -108,7 +109,8 @@ defmodule SlipdockWeb.ScheduledListDoorsTest do
     end
 
     test "get_board gives the list its role", %{conn: conn, board: board, code: code} do
-      {:ok, _} = Boards.create_column(board, %{"name" => "Scheduled", "category" => "scheduled"})
+      {:ok, _} =
+        Boards.Columns.create_column(board, %{"name" => "Scheduled", "category" => "scheduled"})
 
       lists = conn |> call("get_board", %{board: code}) |> ok!() |> Map.fetch!("lists")
       assert %{"role" => "scheduled"} = Enum.find(lists, &(&1["name"] == "Scheduled"))
@@ -117,7 +119,9 @@ defmodule SlipdockWeb.ScheduledListDoorsTest do
   end
 
   test "the guide over REST says never to take work from it", %{conn: conn, board: board} do
-    {:ok, _} = Boards.create_column(board, %{"name" => "Scheduled", "category" => "scheduled"})
+    {:ok, _} =
+      Boards.Columns.create_column(board, %{"name" => "Scheduled", "category" => "scheduled"})
+
     guide = conn |> get(~p"/api/guide") |> response(200)
     assert guide =~ "Scheduled (scheduled: worked by feed rules, never take work from it"
     assert guide =~ "Never take work from a Scheduled list"

@@ -179,12 +179,12 @@ defmodule Slipdock.Wiki.AutosavesTest do
         )
 
       assert [%Attachment{filename: "kept.png"} = attachment] = Wiki.attachments(page)
-      assert page.body == "Before ![kept](#{Boards.attachment_url(attachment)}) after"
+      assert page.body == "Before ![kept](#{Boards.Attachments.attachment_url(attachment)}) after"
       refute page.body =~ "autosave-files"
       assert page.content_hash == Slipdock.Wiki.Page.hash(page.body)
       assert [revision] = Wiki.list_revisions(page)
       assert revision.body == page.body
-      assert File.exists?(Boards.attachment_path(attachment))
+      assert File.exists?(Boards.Attachments.attachment_path(attachment))
       assert dropped.filename == "dropped.png"
     end
 

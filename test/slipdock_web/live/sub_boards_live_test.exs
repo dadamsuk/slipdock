@@ -19,13 +19,13 @@ defmodule SlipdockWeb.SubBoardsLiveTest do
   } do
     {:ok, view, _} = live(conn, ~p"/boards/#{board}/cards/#{card.id}")
     view |> element("button", "Add subcards") |> render_click()
-    {:ok, t} = Boards.find_template(nil, "Simple")
+    {:ok, t} = Boards.Templates.find_template(nil, "Simple")
 
     view
     |> element("button[phx-click=create_sub_board][phx-value-template='#{t.id}']")
     |> render_click()
 
-    card = Boards.get_card!(card.id)
+    card = Boards.Cards.get_card!(card.id)
     assert card.sub_board.name == "Epic card"
     html = render(view)
     assert html =~ "Open board" and html =~ "To Do" and html =~ "Doing"
@@ -40,7 +40,7 @@ defmodule SlipdockWeb.SubBoardsLiveTest do
     [sub] = Boards.get_board!(card.sub_board.id).columns |> hd() |> Map.get(:cards)
     assert sub.title == "Sub one"
     view |> element("#subcard-#{sub.id} button[phx-click=toggle_subcard]") |> render_click()
-    assert Boards.get_card!(sub.id).completed
+    assert Boards.Cards.get_card!(sub.id).completed
     assert render(view) =~ "1/1 done"
     assert has_element?(view, "#card-#{card.id} button[title^='1 of 1 subcards done']", "1/1")
 
@@ -98,7 +98,7 @@ defmodule SlipdockWeb.SubBoardsLiveTest do
 
     # Removing the subcards deletes the sub-board.
     view |> element("#subcards-more-menu #delete-sub-board") |> render_click()
-    assert is_nil(Boards.get_card!(card.id).sub_board)
+    assert is_nil(Boards.Cards.get_card!(card.id).sub_board)
   end
 
   test "a card with subcards opens as a board in one click, from the modal or the tile", %{
@@ -110,7 +110,7 @@ defmodule SlipdockWeb.SubBoardsLiveTest do
     refute has_element?(view, "#card-open-board")
     refute has_element?(view, "#card-#{card.id} button[title*='open them as a board']")
 
-    {:ok, t} = Boards.find_template(nil, "Simple")
+    {:ok, t} = Boards.Templates.find_template(nil, "Simple")
     {:ok, sub} = sub_board(card, t)
     [todo | _] = Boards.get_board!(sub.id).columns
     card_fixture(todo, %{"title" => "Sub one"})
@@ -164,7 +164,7 @@ defmodule SlipdockWeb.SubBoardsLiveTest do
     })
     |> render_submit()
 
-    {:ok, t} = Boards.find_template(user, "Sprint")
+    {:ok, t} = Boards.Templates.find_template(user, "Sprint")
     assert Enum.map(t.columns, & &1["name"]) == ["Todo", "Doing", "Done"]
     assert Enum.at(t.columns, 1)["wip_limit"] == 2
     assert render(view) =~ "Saved template"
@@ -173,7 +173,7 @@ defmodule SlipdockWeb.SubBoardsLiveTest do
     view |> element("#tcol-0 button[phx-value-dir=down]") |> render_click()
     view |> form("#template-form") |> render_submit()
 
-    assert Enum.map(Boards.get_template!(user, t.id).columns, & &1["name"]) == [
+    assert Enum.map(Boards.Templates.get_template!(user, t.id).columns, & &1["name"]) == [
              "Doing",
              "Todo",
              "Done"
@@ -183,7 +183,7 @@ defmodule SlipdockWeb.SubBoardsLiveTest do
   test "the board index can create a board from a template", %{conn: conn} do
     {:ok, view, _} = live(conn, ~p"/")
     view |> element("button", "New board") |> render_click()
-    {:ok, t} = Boards.find_template(nil, "Checklist")
+    {:ok, t} = Boards.Templates.find_template(nil, "Checklist")
 
     assert {:error, {:live_redirect, %{to: to}}} =
              view
@@ -199,14 +199,16 @@ defmodule SlipdockWeb.SubBoardsLiveTest do
 
   test "a card with a title longer than a board name can still have subcards", %{card: card} do
     long = String.duplicate("word ", 30) |> String.trim()
-    {:ok, card} = Boards.update_card(card, %{"title" => long})
-    {:ok, t} = Boards.find_template(nil, "Simple")
+    {:ok, card} = Boards.Cards.update_card(card, %{"title" => long})
+    {:ok, t} = Boards.Templates.find_template(nil, "Simple")
 
     assert {:ok, sub} = sub_board(card, t)
     assert String.length(sub.name) == 80 and String.ends_with?(sub.name, "…")
 
     # A rename keeps the sub-board's name inside the limit too.
-    {:ok, _} = Boards.update_card(Boards.get_card!(card.id), %{"title" => long <> " again"})
+    {:ok, _} =
+      Boards.Cards.update_card(Boards.Cards.get_card!(card.id), %{"title" => long <> " again"})
+
     assert String.length(Boards.get_board!(sub.id).name) <= 80
   end
 end

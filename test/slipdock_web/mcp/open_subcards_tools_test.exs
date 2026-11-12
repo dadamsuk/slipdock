@@ -16,7 +16,7 @@ defmodule SlipdockWeb.MCP.OpenSubcardsToolsTest do
     board = board_fixture(%{"name" => "Epics", "code" => unique_code()}, owner: user)
     [_backlog, _todo, doing, done] = board.columns
     epic = card_fixture(doing, %{"title" => "Epic"})
-    {:ok, t} = Boards.find_template(nil, "Simple")
+    {:ok, t} = Boards.Templates.find_template(nil, "Simple")
     {:ok, sub} = sub_board(epic, t)
     column = hd(Boards.get_board!(sub.id).columns)
     one = card_fixture(column, %{"title" => "Foo"})
@@ -71,8 +71,8 @@ defmodule SlipdockWeb.MCP.OpenSubcardsToolsTest do
   end
 
   test "with one done and the other archived, complete_card closes it into done", ctx do
-    {:ok, _} = Boards.update_card(ctx.one, %{"completed" => true})
-    {:ok, _} = Boards.archive_card(ctx.two)
+    {:ok, _} = Boards.Cards.update_card(ctx.one, %{"completed" => true})
+    {:ok, _} = Boards.Cards.archive_card(ctx.two)
 
     result = mcp(ctx.agent, "complete_card", %{card: ctx.epic.id})
     assert result["isError"] == false, inspect(result["content"])

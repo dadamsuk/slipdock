@@ -72,7 +72,8 @@ defmodule SlipdockWeb.Wiki.RendererTest do
 
   describe "references" do
     test "a board, a saved view and a mention", %{board: board, user: user} do
-      {:ok, view} = Boards.create_saved_view(board, %{"name" => "Blocked work", "config" => %{}})
+      {:ok, view} =
+        Boards.SavedViews.create_saved_view(board, %{"name" => "Blocked work", "config" => %{}})
 
       body = "[[board:handbook]], [[view:Blocked work|the blocked list]] and @tester."
       html = Renderer.to_html(body, board: board, as: user)
@@ -204,7 +205,7 @@ defmodule SlipdockWeb.Wiki.RendererTest do
     # the directive used to crash on `link.page.title`.
     test "backlinks written on a card name the card", %{board: board, user: user, cards: cards} do
       {:ok, page} = Wiki.create_page(board, %{"title" => "Deploys"}, user: user)
-      {:ok, _} = Boards.add_comment(cards.done, "see [[Deploys]]")
+      {:ok, _} = Boards.Comments.add_comment(cards.done, "see [[Deploys]]")
       page = Wiki.get_page!(page.id)
 
       card_path = "/boards/#{board.id}/cards/#{cards.done.id}"

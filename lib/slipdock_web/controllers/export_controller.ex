@@ -133,7 +133,7 @@ defmodule SlipdockWeb.ExportController do
     board = Boards.get_board!(id)
 
     view =
-      case params["view"] && Boards.find_saved_view(board, params["view"]) do
+      case params["view"] && Boards.SavedViews.find_saved_view(board, params["view"]) do
         {:ok, view} -> view
         _ -> nil
       end

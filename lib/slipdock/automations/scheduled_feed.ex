@@ -13,7 +13,7 @@ defmodule Slipdock.Automations.ScheduledFeed do
   start (`Slipdock.Automations.yielding?/2`).
 
   `ensure/2` makes the siblings that are missing. It runs when a list is
-  made or turned into the Scheduled list (`Slipdock.Boards.create_column/2`,
+  made or turned into the Scheduled list (`Slipdock.Boards.Columns.create_column/2`,
   `update_column/2`) and when a runner's setup makes a feed rule
   (`Slipdock.Runners.Setup`). A ready-list feed whose pools already have a
   feed on the Scheduled list is left alone, so running it again makes

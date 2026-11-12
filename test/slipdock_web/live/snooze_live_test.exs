@@ -118,7 +118,7 @@ defmodule SlipdockWeb.SnoozeLiveTest do
       busy = card!(busy)
       assert Card.snoozed?(busy)
       assert busy.column_id == ctx.todo.id
-      assert hd(Slipdock.Boards.active_items(ctx.todo.id)) == {:card, busy.id}
+      assert hd(Slipdock.Boards.Columns.active_items(ctx.todo.id)) == {:card, busy.id}
       assert card!(first).column_id == ctx.todo.id
     end
 
@@ -249,7 +249,7 @@ defmodule SlipdockWeb.SnoozeLiveTest do
 
     test "the calendar always shows them, by their own dates", ctx do
       {:ok, _} =
-        Slipdock.Boards.update_card(card!(ctx.asleep), %{
+        Slipdock.Boards.Cards.update_card(card!(ctx.asleep), %{
           "due_date" => Date.to_iso8601(Date.utc_today())
         })
 

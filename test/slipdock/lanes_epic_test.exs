@@ -25,7 +25,7 @@ defmodule Slipdock.LanesEpicTest do
 
   defp card(column, title, paths, attrs \\ %{}) do
     card = card_fixture(column, Map.put(attrs, "title", title))
-    {:ok, card} = Boards.update_card(card, %{"paths" => paths})
+    {:ok, card} = Boards.Cards.update_card(card, %{"paths" => paths})
     card
   end
 
@@ -33,7 +33,7 @@ defmodule Slipdock.LanesEpicTest do
   # Progress and Done lists.
   defp epic(column, title \\ "Epic") do
     epic = card(column, title, "lib/**\ndocs/**")
-    {:ok, t} = Boards.find_template(nil, "Simple")
+    {:ok, t} = Boards.Templates.find_template(nil, "Simple")
     {:ok, sub} = sub_board(epic, t)
     sub = Boards.get_board!(sub.id)
     todo = hd(sub.columns)
@@ -52,7 +52,8 @@ defmodule Slipdock.LanesEpicTest do
 
   defp held(ctx, card), do: Lanes.held_cards(ctx.board.id)[card.id]
 
-  defp move(card, column, ctx), do: Boards.move_card(card.id, column.id, nil, actor: ctx.agent)
+  defp move(card, column, ctx),
+    do: Boards.Cards.move_card(card.id, column.id, nil, actor: ctx.agent)
 
   describe "an epic waiting" do
     test "isn't held while one subcard its pass could take is free", ctx do
@@ -85,7 +86,7 @@ defmodule Slipdock.LanesEpicTest do
 
       assert Runners.claim(ctx.runner) == nil
       assert {:error, :unprocessable_entity, message} = move(epic, ctx.doing, ctx)
-      assert message =~ "##{running.id}"
+      assert message =~ ~r/##{running.id}\b/
     end
 
     test "a subcard in progress already, or one with no paths, frees it", ctx do
@@ -117,7 +118,7 @@ defmodule Slipdock.LanesEpicTest do
       card(sub.todo, "Flagged", "docs/f.md", %{"flags" => ["blocked"]})
       blocked = card(sub.todo, "Blocked", "docs/x.md")
       blocker = card(ctx.todo, "Blocker", [])
-      {:ok, _} = Boards.add_dependency(blocked, blocker)
+      {:ok, _} = Boards.Dependencies.add_dependency(blocked, blocker)
 
       assert %Card{} = held(ctx, epic)
     end
@@ -147,19 +148,19 @@ defmodule Slipdock.LanesEpicTest do
 
       same = card(ctx.todo, "Same file", "lib/a.ex")
       assert {:error, :unprocessable_entity, message} = move(same, ctx.doing, ctx)
-      assert message =~ "##{child.id}"
-      refute message =~ "##{epic.id}"
+      assert message =~ ~r/##{child.id}\b/
+      refute message =~ ~r/##{epic.id}\b/
     end
 
     test "a card with an empty sub-board isn't an epic: it holds its own lane", ctx do
       wide = card(ctx.doing, "Wide", "lib/**")
       working_job_fixture(wide)
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, _sub} = sub_board(wide, t)
 
       other = card(ctx.todo, "Other", "lib/x.ex")
       assert {:error, :unprocessable_entity, message} = move(other, ctx.doing, ctx)
-      assert message =~ "##{wide.id}"
+      assert message =~ ~r/##{wide.id}\b/
     end
   end
 end

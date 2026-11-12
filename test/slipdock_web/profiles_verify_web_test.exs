@@ -20,7 +20,7 @@ defmodule SlipdockWeb.ProfilesVerifyWebTest do
     {:ok, board} = Boards.update_board(board, %{"profiles" => true})
     [_backlog, todo, doing, _done] = board.columns
     card = card_fixture(todo, %{"title" => "Migrate"})
-    {:ok, card} = Boards.update_card(card, %{"profile" => "schema"})
+    {:ok, card} = Boards.Cards.update_card(card, %{"profile" => "schema"})
 
     {:ok, _runner, runner_token} =
       Runners.create_runner(board, %{"name" => "box", "pool" => "dev"})
@@ -124,7 +124,7 @@ defmodule SlipdockWeb.ProfilesVerifyWebTest do
         Boards.update_board(ctx.board, %{"verify_work" => true, "verify_pool" => "checkers"})
 
       docs = card_fixture(ctx.doing, %{"title" => "Guide"})
-      {:ok, docs} = Boards.update_card(docs, %{"profile" => "docs"})
+      {:ok, docs} = Boards.Cards.update_card(docs, %{"profile" => "docs"})
 
       builder = %{
         Actor.unknown()
@@ -135,7 +135,7 @@ defmodule SlipdockWeb.ProfilesVerifyWebTest do
       }
 
       {:ok, _} =
-        Boards.update_card(
+        Boards.Cards.update_card(
           docs,
           %{
             "completed" => true,
@@ -176,9 +176,9 @@ defmodule SlipdockWeb.ProfilesVerifyWebTest do
        ctx do
     {:ok, _} = Boards.update_board(ctx.board, %{"verify_work" => true})
     card = card_fixture(ctx.doing, %{"title" => "Auth"})
-    {:ok, card} = Boards.update_card(card, %{"profile" => "security"})
+    {:ok, card} = Boards.Cards.update_card(card, %{"profile" => "security"})
     builder = %{Actor.unknown() | kind: "agent", via: "api", user_id: ctx.user.id, agent: "b"}
-    {:ok, _} = Boards.update_card(card, %{"completed" => true}, actor: builder)
+    {:ok, _} = Boards.Cards.update_card(card, %{"completed" => true}, actor: builder)
 
     text =
       ctx.user
@@ -209,9 +209,9 @@ defmodule SlipdockWeb.ProfilesVerifyWebTest do
        ctx do
     {:ok, _} = Boards.update_board(ctx.board, %{"verify_work" => true})
     card = card_fixture(ctx.doing, %{"title" => "Export"})
-    {:ok, card} = Boards.update_card(card, %{"profile" => "feature"})
+    {:ok, card} = Boards.Cards.update_card(card, %{"profile" => "feature"})
     builder = %{Actor.unknown() | kind: "agent", via: "api", user_id: ctx.user.id, agent: "b"}
-    {:ok, _} = Boards.update_card(card, %{"completed" => true}, actor: builder)
+    {:ok, _} = Boards.Cards.update_card(card, %{"completed" => true}, actor: builder)
 
     text =
       ctx.user

@@ -21,7 +21,7 @@ defmodule Slipdock.OriginTest do
   end
 
   defp made(column, opts, attrs \\ %{}) do
-    Boards.create_card(column, Map.merge(%{"title" => "A card"}, attrs), opts)
+    Boards.Cards.create_card(column, Map.merge(%{"title" => "A card"}, attrs), opts)
   end
 
   defp origin_of({:ok, %Card{} = card}), do: {card.origin, card.origin_job_id}
@@ -115,10 +115,10 @@ defmodule Slipdock.OriginTest do
 
     test "a copy gets its own origin, not the original's", ctx do
       {:ok, original} = made(ctx.todo, actor: Actor.runner(ctx.owner, 3))
-      {:ok, copy} = Boards.copy_card(original, nil, by: ctx.owner)
+      {:ok, copy} = Boards.Cards.copy_card(original, nil, by: ctx.owner)
       assert {copy.origin, copy.origin_job_id} == {"person", nil}
 
-      {:ok, clock} = Boards.copy_card(original, nil, origin: "automation")
+      {:ok, clock} = Boards.Cards.copy_card(original, nil, origin: "automation")
       assert clock.origin == "automation"
     end
 
@@ -151,7 +151,7 @@ defmodule Slipdock.OriginTest do
     end
 
     test "list_cards takes an origin, or none", ctx do
-      ids = &(Boards.list_cards(ctx.board, %{"origin" => &1}) |> Enum.map(fn c -> c.id end))
+      ids = &(Boards.Cards.list_cards(ctx.board, %{"origin" => &1}) |> Enum.map(fn c -> c.id end))
       assert ids.("sweep") == [ctx.sweep.id]
       assert ids.("person") == [ctx.person.id]
       assert ids.("none") == [ctx.old.id]

@@ -743,6 +743,8 @@ defmodule SlipdockWeb.Router do
     post "/boards/:board/runners/:id/token", JobController, :rotate_token
     delete "/boards/:board/runners/:id", JobController, :delete_runner
     get "/boards/:board/jobs", JobController, :index
+    get "/boards/:board/release", ReleaseController, :show
+    post "/boards/:board/release", ReleaseController, :create
     get "/boards/:board/pause", JobController, :pauses
     post "/boards/:board/pause", JobController, :pause
     delete "/boards/:board/pause", JobController, :resume

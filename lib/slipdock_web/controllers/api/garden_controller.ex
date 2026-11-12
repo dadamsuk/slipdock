@@ -17,10 +17,9 @@ defmodule SlipdockWeb.API.GardenController do
   """
   use SlipdockWeb, :controller
 
-  alias Slipdock.Boards.Board
+  alias Slipdock.Boards
   alias Slipdock.Gardener
   alias Slipdock.Gardener.Settings
-  alias Slipdock.Repo
   alias SlipdockWeb.API.Authorize
   alias SlipdockWeb.API.GardenJSON, as: G
 
@@ -103,7 +102,7 @@ defmodule SlipdockWeb.API.GardenController do
 
   defp decide(conn, id, need, fun) do
     with {:ok, suggestion} <- fetch(id),
-         board = Repo.get!(Board, suggestion.board_id),
+         board = Boards.get_board_record!(suggestion.board_id),
          :ok <- readable(conn, board),
          :ok <- Authorize.board(conn, board, need),
          {:ok, suggestion} <- refused(fun.(suggestion, conn.assigns.current_user)) do
@@ -116,7 +115,7 @@ defmodule SlipdockWeb.API.GardenController do
       board_id: board.id,
       suggestions: G.suggestions(Gardener.list_open(board, check: check)),
       last_run: G.run(Gardener.last_run(board)),
-      checks: G.checks(Repo.get!(Board, board.id))
+      checks: G.checks(Boards.get_board_record!(board.id))
     })
   end
 

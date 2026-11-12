@@ -26,7 +26,7 @@ defmodule Slipdock.LanesTest do
 
   defp card(column, title, paths) do
     card = card_fixture(column, %{"title" => title})
-    {:ok, card} = Boards.update_card(card, %{"paths" => paths})
+    {:ok, card} = Boards.Cards.update_card(card, %{"paths" => paths})
     card
   end
 
@@ -103,10 +103,10 @@ defmodule Slipdock.LanesTest do
       card = card(ctx.todo, "Tidy", " ./lib/a/** ,\ndocs/{manual,agents}.md\n\nlib/a/** ")
       assert card.paths == ["lib/a/**", "docs/{manual,agents}.md"]
 
-      {:ok, card} = Boards.update_card(card, %{paths: ["test/x.exs"]})
+      {:ok, card} = Boards.Cards.update_card(card, %{paths: ["test/x.exs"]})
       assert card.paths == ["test/x.exs"]
 
-      {:ok, card} = Boards.update_card(card, %{"paths" => []})
+      {:ok, card} = Boards.Cards.update_card(card, %{"paths" => []})
       assert card.paths == []
     end
 
@@ -122,7 +122,7 @@ defmodule Slipdock.LanesTest do
             {Enum.map(1..51, &"p#{&1}"), "at most 50"},
             {[String.duplicate("a", 201)], "over 200"}
           ] do
-        assert {:error, changeset} = Boards.update_card(card, %{"paths" => paths})
+        assert {:error, changeset} = Boards.Cards.update_card(card, %{"paths" => paths})
         {message, _} = changeset.errors[:paths]
         assert message =~ words, inspect(paths)
       end
@@ -134,7 +134,7 @@ defmodule Slipdock.LanesTest do
       refute ctx.board.lanes
       _running = card(ctx.doing, "Running", "lib/**")
       next = card(ctx.todo, "Next", "lib/a.ex")
-      assert :ok = Boards.move_card(next.id, ctx.doing.id, nil, actor: ctx.agent)
+      assert :ok = Boards.Cards.move_card(next.id, ctx.doing.id, nil, actor: ctx.agent)
       assert column_of(next) == ctx.doing.id
       assert Lanes.conflict(next) == nil
     end
@@ -149,7 +149,7 @@ defmodule Slipdock.LanesTest do
       next = card(ctx.todo, "Next", "lib/runners/claim.ex")
 
       assert {:error, :unprocessable_entity, message} =
-               Boards.move_card(next.id, ctx.doing.id, nil, actor: ctx.agent)
+               Boards.Cards.move_card(next.id, ctx.doing.id, nil, actor: ctx.agent)
 
       assert message =~ "##{running.id} \"Running\""
       assert message =~ "lib/runners/**"
@@ -160,32 +160,35 @@ defmodule Slipdock.LanesTest do
       _running = card(ctx.doing, "Running", "lib/runners/**")
 
       apart = card(ctx.todo, "Apart", "lib/boards/**")
-      assert :ok = Boards.move_card(apart.id, ctx.doing.id, nil, actor: ctx.agent)
+      assert :ok = Boards.Cards.move_card(apart.id, ctx.doing.id, nil, actor: ctx.agent)
 
       unsaid = card_fixture(ctx.todo, %{"title" => "No paths"})
-      assert :ok = Boards.move_card(unsaid.id, ctx.doing.id, nil, actor: ctx.agent)
+      assert :ok = Boards.Cards.move_card(unsaid.id, ctx.doing.id, nil, actor: ctx.agent)
 
       finished = card(ctx.doing, "Finished", "docs/**")
-      {:ok, _} = Boards.update_card(finished, %{"completed" => true})
+      {:ok, _} = Boards.Cards.update_card(finished, %{"completed" => true})
       docs = card(ctx.todo, "Docs", "docs/manual.md")
-      assert :ok = Boards.move_card(docs.id, ctx.doing.id, nil, actor: ctx.agent)
+      assert :ok = Boards.Cards.move_card(docs.id, ctx.doing.id, nil, actor: ctx.agent)
     end
 
     test "moving to a list that isn't in progress is never refused", ctx do
       _running = card(ctx.doing, "Running", "lib/**")
       next = card(ctx.todo, "Next", "lib/a.ex")
       [backlog | _] = ctx.board.columns
-      assert :ok = Boards.move_card(next.id, backlog.id, nil, actor: ctx.agent)
+      assert :ok = Boards.Cards.move_card(next.id, backlog.id, nil, actor: ctx.agent)
     end
 
     test "a person moving it is the override; an automation is never refused either", ctx do
       _running = card(ctx.doing, "Running", "lib/**")
       first = card(ctx.todo, "By hand", "lib/a.ex")
-      assert :ok = Boards.move_card(first.id, ctx.doing.id, nil, actor: Actor.web(ctx.owner))
+
+      assert :ok =
+               Boards.Cards.move_card(first.id, ctx.doing.id, nil, actor: Actor.web(ctx.owner))
+
       assert column_of(first) == ctx.doing.id
 
       second = card(ctx.todo, "By rule", "lib/b.ex")
-      assert :ok = Boards.move_card(second.id, ctx.doing.id, nil, actor: Actor.automation())
+      assert :ok = Boards.Cards.move_card(second.id, ctx.doing.id, nil, actor: Actor.automation())
     end
 
     test "an agent can't widen an in-progress card's paths onto another's", ctx do
@@ -194,7 +197,7 @@ defmodule Slipdock.LanesTest do
       mine = card(ctx.doing, "Mine", "lib/boards/**")
 
       assert {:error, changeset} =
-               Boards.update_card(Repo.get!(Card, mine.id), %{"paths" => "lib/**"},
+               Boards.Cards.update_card(Repo.get!(Card, mine.id), %{"paths" => "lib/**"},
                  actor: ctx.agent
                )
 
@@ -204,20 +207,22 @@ defmodule Slipdock.LanesTest do
 
       # Narrowing is fine; so is a person widening it, and a card not started.
       assert {:ok, _} =
-               Boards.update_card(Repo.get!(Card, mine.id), %{"paths" => "lib/boards/a.ex"},
+               Boards.Cards.update_card(Repo.get!(Card, mine.id), %{"paths" => "lib/boards/a.ex"},
                  actor: ctx.agent
                )
 
-      assert {:ok, _} = Boards.update_card(Repo.get!(Card, mine.id), %{"paths" => "lib/**"})
+      assert {:ok, _} = Boards.Cards.update_card(Repo.get!(Card, mine.id), %{"paths" => "lib/**"})
       waiting = card(ctx.todo, "Waiting", "x/**")
-      assert {:ok, _} = Boards.update_card(waiting, %{"paths" => "lib/**"}, actor: ctx.agent)
+
+      assert {:ok, _} =
+               Boards.Cards.update_card(waiting, %{"paths" => "lib/**"}, actor: ctx.agent)
     end
 
     test "the card's own subcards and parents don't count against it", ctx do
       epic = card(ctx.doing, "Epic", "lib/**")
       # The epic's job works its subcards.
       working_job_fixture(epic)
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(epic, t)
       sub = Boards.get_board!(sub.id)
       assert sub.lanes, "a sub-board made afterwards inherits the switch"
@@ -225,13 +230,13 @@ defmodule Slipdock.LanesTest do
       todo = hd(sub.columns)
 
       child = card(todo, "Child", "lib/a.ex")
-      assert :ok = Boards.move_card(child.id, doing.id, nil, actor: ctx.agent)
+      assert :ok = Boards.Cards.move_card(child.id, doing.id, nil, actor: ctx.agent)
 
       # But a second child overlapping the first is refused, the first named.
       sibling = card(todo, "Sibling", "lib/a.ex")
 
       assert {:error, :unprocessable_entity, message} =
-               Boards.move_card(sibling.id, doing.id, nil, actor: ctx.agent)
+               Boards.Cards.move_card(sibling.id, doing.id, nil, actor: ctx.agent)
 
       assert message =~ "##{child.id}"
     end
@@ -239,7 +244,7 @@ defmodule Slipdock.LanesTest do
     test "the root's switch holds on a sub-board made before it was on", ctx do
       {:ok, off} = Boards.update_board(ctx.board, %{"lanes" => false})
       epic = card(ctx.todo, "Epic", [])
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(epic, t)
       sub = Boards.get_board!(sub.id)
       refute sub.lanes
@@ -252,7 +257,7 @@ defmodule Slipdock.LanesTest do
       child = card(todo, "Child", "lib/a.ex")
 
       assert {:error, :unprocessable_entity, message} =
-               Boards.move_card(child.id, doing.id, nil, actor: ctx.agent)
+               Boards.Cards.move_card(child.id, doing.id, nil, actor: ctx.agent)
 
       assert message =~ "##{running.id}"
     end
@@ -286,7 +291,7 @@ defmodule Slipdock.LanesTest do
       assert Runners.claim(ctx.runner) == nil
 
       # The card in the way finishes: the held job goes.
-      {:ok, _} = Boards.update_card(running, %{"completed" => true})
+      {:ok, _} = Boards.Cards.update_card(running, %{"completed" => true})
       assert %{id: id} = Runners.claim(ctx.runner)
       assert id == held.id
     end
@@ -371,7 +376,7 @@ defmodule Slipdock.LanesTest do
 
       docs_too = card(ctx.todo, "Docs too", "lib/b/**,docs/manual.md")
       assert Lanes.conflict(docs_too) == nil
-      assert :ok = Boards.move_card(docs_too.id, ctx.doing.id, nil, actor: ctx.agent)
+      assert :ok = Boards.Cards.move_card(docs_too.id, ctx.doing.id, nil, actor: ctx.agent)
 
       code_too = card(ctx.todo, "Code too", "lib/a/x.ex,README.md")
       assert %Card{id: id} = Lanes.conflict(code_too)
@@ -436,7 +441,7 @@ defmodule Slipdock.LanesTest do
     test "the root's list holds for its tree, and sub-boards made afterwards inherit it", ctx do
       ctx |> on() |> share(["docs/manual.md"])
       epic = card_fixture(ctx.todo, %{"title" => "Epic"})
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(epic, t)
       assert sub.shared_paths == ["docs/manual.md"]
       assert sub.lanes

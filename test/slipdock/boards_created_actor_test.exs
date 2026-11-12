@@ -42,7 +42,7 @@ defmodule Slipdock.BoardsCreatedActorTest do
   end
 
   defp state_of(board, card),
-    do: board |> Boards.list_cards() |> Enum.find(&(&1.id == card.id)) |> Map.fetch!(:state)
+    do: board |> Boards.Cards.list_cards() |> Enum.find(&(&1.id == card.id)) |> Map.fetch!(:state)
 
   describe "a card made on the board page" do
     test "quick add stamps its created row with the person, as its activity row is", ctx do
@@ -70,16 +70,16 @@ defmodule Slipdock.BoardsCreatedActorTest do
 
       card = card_titled(ctx.board, "Driven")
       assert state_of(ctx.board, card).driver == "human"
-      assert [%{id: id}] = Boards.list_cards(ctx.board, %{"driver" => "human"})
+      assert [%{id: id}] = Boards.Cards.list_cards(ctx.board, %{"driver" => "human"})
       assert id == card.id
-      assert Boards.list_cards(ctx.board, %{"driver" => "agent"}) == []
+      assert Boards.Cards.list_cards(ctx.board, %{"driver" => "agent"}) == []
     end
   end
 
   describe "the actor a create falls back to" do
     test "the process's, when the opts name nobody", ctx do
       Actor.put(Actor.web(ctx.user), "Robin")
-      {:ok, card} = Boards.create_card(ctx.todo, %{"title" => "Process"})
+      {:ok, card} = Boards.Cards.create_card(ctx.todo, %{"title" => "Process"})
 
       assert %{actor_kind: "human", via: "web", user_id: id} = created_move(card)
       assert id == ctx.user.id
@@ -88,18 +88,18 @@ defmodule Slipdock.BoardsCreatedActorTest do
     test "the opts' actor wins over the process's", ctx do
       Actor.put(Actor.web(ctx.user))
       agent = Actor.mcp(%{user: ctx.user, token: %{label: "claude"}})
-      {:ok, card} = Boards.create_card(ctx.todo, %{"title" => "Opts"}, actor: agent)
+      {:ok, card} = Boards.Cards.create_card(ctx.todo, %{"title" => "Opts"}, actor: agent)
 
       assert %{actor_kind: "agent", via: "mcp", agent: "claude"} = created_move(card)
     end
 
     test "with nobody anywhere it stays unknown, never guessed", ctx do
-      {:ok, card} = Boards.create_card(ctx.todo, %{"title" => "Nobody"})
+      {:ok, card} = Boards.Cards.create_card(ctx.todo, %{"title" => "Nobody"})
       assert %{actor_kind: nil, via: nil, user_id: nil} = created_move(card)
     end
 
     test "with nobody but `:by`, the person is kept on the row", ctx do
-      {:ok, card} = Boards.create_card(ctx.todo, %{"title" => "By"}, by: ctx.user)
+      {:ok, card} = Boards.Cards.create_card(ctx.todo, %{"title" => "By"}, by: ctx.user)
       assert created_move(card).user_id == ctx.user.id
     end
   end

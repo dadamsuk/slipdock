@@ -205,7 +205,10 @@ defmodule Slipdock.OCR do
   end
 
   defp read(%Text{attachment: %Attachment{} = a}) do
-    Extractor.extract(Boards.attachment_path(a), Extractor.kind(a.content_type, a.filename))
+    Extractor.extract(
+      Boards.Attachments.attachment_path(a),
+      Extractor.kind(a.content_type, a.filename)
+    )
   rescue
     error -> {:error, Exception.message(error)}
   end
@@ -227,7 +230,9 @@ defmodule Slipdock.OCR do
     if n == 1, do: announce(job)
   end
 
-  defp announce(%Text{attachment: %Attachment{} = a}), do: Boards.attachment_text_changed(a)
+  defp announce(%Text{attachment: %Attachment{} = a}),
+    do: Boards.Attachments.attachment_text_changed(a)
+
   defp announce(%Text{wiki_file: %WikiFile{id: id}}), do: Indexer.enqueue_file(id)
 
   defp recover(now) do

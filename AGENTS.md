@@ -8,7 +8,7 @@ in it. How a card is worked, tested and shipped is in `CLAUDE.md`.
 ## Project guidelines
 
 - **Project handbook:** W-1943 (Handbook/Index) on the `slipdock` board — read the sections a card needs before building (`slipdock card` lists them), and update them before closing it, with a `Handbook:` line in the closing comment. The wiki is the source of truth; don't copy it into the repo.
-- **Before you push, run `mix pre_push`** and fix what it finds: it runs what CI's static checks and build do, in CI's order (`CLAUDE.md` §Before you push). Run the tests you added or changed beside it; the pull request's CI runs the whole suite.
+- **Before you push, run `mix pre_push`** and fix what it finds: it runs what CI's static checks and build do, in CI's order (`CLAUDE.md` §Before you push). Run the tests you added or changed beside it; the pull request's CI runs the whole suite (or, for a change to docs, skills, `*.md`, `cli/` or `daemon/` alone, the repo checks in its place) but no static checks, so `mix pre_push` is where a change meets them first.
 - Use the included `:req` (`Req`) library for HTTP requests; **avoid** `:httpoison`, `:tesla` and `:httpc`. Don't add a dependency the card doesn't ask for.
 - How the UI looks and behaves (design tokens, buttons, controls, dates, fonts) is in the handbook's UX & UI page (W-1946), and the source-convention tests in `test/repo_checks.txt` hold `lib/` to it.
 

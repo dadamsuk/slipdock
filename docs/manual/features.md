@@ -115,7 +115,10 @@
   the outline row, the table's assignee cell and the card's Assignees — linked
   to the job in the card's Runner jobs. It shows with the assignee field and
   goes when the job ends; the loop is never an assignee, so assignee filters
-  and My work still mean people
+  and My work still mean people. An epic's job builds its subcards inside
+  itself: the subcard its current step names ("#2835 CI running") shows
+  that job's chip, and its state line reads `Running · … · in #<epic>`, so it is
+  never "nobody on it" on the epic's line while the job is on it
 - **Multiboard** (`/multiboard`, from the home page's toolbar): pick lists
   from any of your boards under **Lists** and see the top N cards of each
   (5 unless you say, up to 50), in the list's own order, archived and
@@ -256,7 +259,7 @@
 - Accounts: passwordless sign-in by emailed magic link, sessions that last
   30 days, API tokens for the CLI
 - **An MCP server** at `/mcp`: claude.ai, the Claude apps, Claude Code and
-  other MCP clients get the boards and the wiki as 55 tools, signing in
+  other MCP clients get the boards and the wiki as 56 tools, signing in
   through the browser or with an API token (see [MCP server](mcp-server.md))
 - Groups of users; boards, single cards and saved views can be shared with
   people or groups as read-only or editable

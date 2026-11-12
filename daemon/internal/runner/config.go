@@ -140,8 +140,8 @@ func RootOf(dir string, roots []string) string {
 
 // Kinds are the job kinds a runner takes, said on every claim: its agent's,
 // verify (the same agent checks another's work), the built-in merge and
-// the built-in probe (#2580), which the server sends only to the runner it
-// names.
+// release (#2836), and the built-in probe (#2580), which the server sends
+// only to the runner it names.
 func (r Runner) Kinds(local machine.Local) []string {
 	kinds := []string{r.Config.Agent}
 	if r.Config.Agent != "verify" {
@@ -149,6 +149,9 @@ func (r Runner) Kinds(local machine.Local) []string {
 	}
 	if !local.NoMerge && r.Config.Agent != "merge" {
 		kinds = append(kinds, "merge")
+	}
+	if !local.NoRelease && r.Config.Agent != ReleaseKind {
+		kinds = append(kinds, ReleaseKind)
 	}
 	if r.Config.Agent != ProbeKind {
 		kinds = append(kinds, ProbeKind)

@@ -79,7 +79,7 @@ defmodule Slipdock.WaitDefaults do
   board's, else the nearest board above it that sets one; nil when none.
   """
   def after_minutes(%Card{board_id: board_id}) do
-    ids = Boards.ancestor_board_ids(board_id)
+    ids = Boards.PubSub.ancestor_board_ids(board_id)
 
     set =
       from(b in Board,
@@ -128,7 +128,7 @@ defmodule Slipdock.WaitDefaults do
   end
 
   defp resolve(wait, card, minutes) do
-    case Boards.default_wait(wait, format(minutes)) do
+    case Boards.Waits.default_wait(wait, format(minutes)) do
       {:ok, closed} ->
         Slipdock.Boards.WaitEmail.defaulted(closed, card, format(minutes))
         :ok

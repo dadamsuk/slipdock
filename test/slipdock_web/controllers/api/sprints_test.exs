@@ -54,7 +54,9 @@ defmodule SlipdockWeb.API.SprintsTest do
     assert body["card"]["title"] == "Sprint 1"
     assert body["card"]["start_date"] == "2027-01-04"
     assert body["card"]["due_date"] == "2027-01-10"
-    assert body["card"]["sub_board"]["id"] == Boards.get_card!(body["card"]["id"]).sub_board.id
+
+    assert body["card"]["sub_board"]["id"] ==
+             Boards.Cards.get_card!(body["card"]["id"]).sub_board.id
   end
 
   test "a board that is not a sprint board says so", %{conn: conn, work: work} do
@@ -78,7 +80,7 @@ defmodule SlipdockWeb.API.SprintsTest do
     assert body["added"] == [%{"id" => a.id, "title" => "A"}]
     assert [%{"id" => id, "reason" => "it is the sprint"}] = body["skipped"]
     assert id == sprint.id
-    assert Boards.get_card!(a.id).board_id == sprint.sub_board.id
+    assert Boards.Cards.get_card!(a.id).board_id == sprint.sub_board.id
 
     assert conn |> post(~p"/api/cards/#{sprint.id}/sprint", %{}) |> json_response(400)
   end
@@ -117,7 +119,7 @@ defmodule SlipdockWeb.API.SprintsTest do
     |> post(~p"/api/cards/#{sprint.id}/sprint", %{"cards" => [card.id]})
     |> json_response(403)
 
-    assert Boards.get_card!(card.id).board_id == theirs.id
+    assert Boards.Cards.get_card!(card.id).board_id == theirs.id
   end
 
   test "sprint sources are set by board and list, and the plan reads them", %{
@@ -193,7 +195,7 @@ defmodule SlipdockWeb.API.SprintsTest do
     a = card_fixture(todo)
     b = card_fixture(todo)
     {:ok, _} = Slipdock.Sprints.add_cards(sprint, [a, b])
-    {:ok, _} = Boards.update_card(Boards.get_card!(a.id), %{"completed" => true})
+    {:ok, _} = Boards.Cards.update_card(Boards.Cards.get_card!(a.id), %{"completed" => true})
 
     body = conn |> get(~p"/api/cards/#{sprint.id}/burndown") |> json_response(200)
     assert %{"total" => 2, "done" => 1, "days" => [today | _]} = body["burndown"]

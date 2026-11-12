@@ -11,10 +11,7 @@ defmodule SlipdockWeb.API.WikiFileController do
   """
   use SlipdockWeb, :controller
 
-  import Ecto.Query
-
-  alias Slipdock.Repo
-  alias Slipdock.Wiki.{Folder, Folders, WikiFile}
+  alias Slipdock.Wiki.{Files, Folder, Folders, WikiFile}
   alias SlipdockWeb.API.Authorize
 
   action_fallback SlipdockWeb.API.FallbackController
@@ -71,10 +68,7 @@ defmodule SlipdockWeb.API.WikiFileController do
   defp folder_filter(_),
     do: {:error, :bad_request, "folder is a path like Tool or Config/Archive"}
 
-  defp live_files(board) do
-    from(f in WikiFile, where: f.board_id == ^board.id and is_nil(f.archived_at))
-    |> Repo.all()
-  end
+  defp live_files(board), do: Files.live([board.id])
 
   # A file names the folders above it and then itself; folder names are not
   # unique across levels, so the path is matched whole, without regard to case.

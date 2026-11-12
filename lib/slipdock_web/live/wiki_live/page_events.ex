@@ -243,7 +243,7 @@ defmodule SlipdockWeb.WikiLive.PageEvents do
   def handle_event("attach_card", %{"id" => id}, socket) do
     with true <- socket.assigns.can_write,
          %Page{} = page <- socket.assigns.page,
-         %{} = card <- Boards.get_card(Params.id(id)),
+         %{} = card <- Boards.Cards.get_card(Params.id(id)),
          {:ok, _} <- Wiki.pin(page, {:card, card}) do
       {:noreply,
        socket
@@ -272,7 +272,7 @@ defmodule SlipdockWeb.WikiLive.PageEvents do
   def handle_event("toggle_pin_card", %{"id" => id}, socket) do
     with true <- socket.assigns.can_write,
          %Page{} = page <- socket.assigns.page,
-         %{} = card <- Boards.get_card(Params.id(id)),
+         %{} = card <- Boards.Cards.get_card(Params.id(id)),
          link <- Enum.find(socket.assigns.cards, &(&1.target_card_id == card.id)),
          {:ok, _} <- Wiki.pin(page, {:card, card}, not (link && link.pinned)) do
       {:noreply, reload(socket, page)}
@@ -286,7 +286,7 @@ defmodule SlipdockWeb.WikiLive.PageEvents do
   def handle_event("detach_card", %{"id" => id}, socket) do
     with true <- socket.assigns.can_write,
          %Page{} = page <- socket.assigns.page,
-         %{} = card <- Boards.get_card(Params.id(id)),
+         %{} = card <- Boards.Cards.get_card(Params.id(id)),
          {:ok, _} <- Wiki.unlink(page, {:card, card}) do
       {:noreply, reload(socket, page)}
     else
@@ -297,26 +297,28 @@ defmodule SlipdockWeb.WikiLive.PageEvents do
   def handle_event("add_check", %{"text" => text}, socket) do
     if String.trim(text) == "",
       do: {:noreply, socket},
-      else: contents_event(socket, &Boards.add_checklist_item(&1, String.trim(text)))
+      else: contents_event(socket, &Boards.Checklists.add_checklist_item(&1, String.trim(text)))
   end
 
   def handle_event("toggle_check", %{"id" => id}, socket),
     do:
       contents_event(socket, fn page ->
-        if item = Boards.get_checklist_item(page, id), do: Boards.toggle_checklist_item(item)
+        if item = Boards.Checklists.get_checklist_item(page, id),
+          do: Boards.Checklists.toggle_checklist_item(item)
       end)
 
   def handle_event("delete_check", %{"id" => id}, socket),
     do:
       contents_event(socket, fn page ->
-        if item = Boards.get_checklist_item(page, id), do: Boards.delete_checklist_item(item)
+        if item = Boards.Checklists.get_checklist_item(page, id),
+          do: Boards.Checklists.delete_checklist_item(item)
       end)
 
   def handle_event("move_check", %{"id" => id} = params, socket),
     do:
       contents_event(socket, fn page ->
-        if item = Boards.get_checklist_item(page, id),
-          do: Boards.move_checklist_item(item, params["before"])
+        if item = Boards.Checklists.get_checklist_item(page, id),
+          do: Boards.Checklists.move_checklist_item(item, params["before"])
       end)
 
   def handle_event("add_comment", %{"body" => body}, socket) do
@@ -325,7 +327,7 @@ defmodule SlipdockWeb.WikiLive.PageEvents do
       else:
         discussion_event(
           socket,
-          &Boards.add_comment(&1, String.trim(body), by: socket.assigns.current_user)
+          &Boards.Comments.add_comment(&1, String.trim(body), by: socket.assigns.current_user)
         )
   end
 
@@ -342,7 +344,7 @@ defmodule SlipdockWeb.WikiLive.PageEvents do
            page.comments,
            &(to_string(&1.id) == id and (can_write or &1.user_id == user.id))
          ),
-         do: Boards.delete_comment(Params.id(id))
+         do: Boards.Comments.delete_comment(Params.id(id))
     end)
   end
 
@@ -350,21 +352,24 @@ defmodule SlipdockWeb.WikiLive.PageEvents do
     user = socket.assigns.current_user
 
     discussion_event(socket, fn page ->
-      Boards.add_status_update(page, user, %{"health" => health, "body" => params["body"]})
+      Boards.StatusUpdates.add_status_update(page, user, %{
+        "health" => health,
+        "body" => params["body"]
+      })
     end)
   end
 
   def handle_event("delete_status_update", %{"id" => id}, socket) do
     contents_event(socket, fn page ->
       if Enum.any?(page.status_updates, &(to_string(&1.id) == id)),
-        do: Boards.delete_status_update(Params.id(id))
+        do: Boards.StatusUpdates.delete_status_update(Params.id(id))
     end)
   end
 
   def handle_event("add_card_url", params, socket) do
     case socket.assigns do
       %{can_write: true, page: %Page{} = page} ->
-        case Boards.add_card_url(page, Map.take(params, ["url", "title"])) do
+        case Boards.CardUrls.add_card_url(page, Map.take(params, ["url", "title"])) do
           {:ok, _} -> {:noreply, socket |> update(:form_key, &(&1 + 1)) |> reload_page()}
           {:error, _} -> {:noreply, put_flash(socket, :error, "That isn't an address I can use.")}
         end
@@ -376,8 +381,8 @@ defmodule SlipdockWeb.WikiLive.PageEvents do
 
   def handle_event("remove_card_url", %{"id" => id}, socket) do
     contents_event(socket, fn page ->
-      url = Boards.get_card_url!(id)
-      if url.page_id == page.id, do: Boards.delete_card_url(url)
+      url = Boards.CardUrls.get_card_url!(id)
+      if url.page_id == page.id, do: Boards.CardUrls.delete_card_url(url)
     end)
   end
 

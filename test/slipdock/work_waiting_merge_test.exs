@@ -26,7 +26,7 @@ defmodule Slipdock.WorkWaitingMergeTest do
     [_backlog, todo, _doing, _done] = board.columns
 
     epic = card_fixture(todo, %{"title" => "Epic"})
-    {:ok, t} = Boards.find_template(nil, "Simple")
+    {:ok, t} = Boards.Templates.find_template(nil, "Simple")
     {:ok, sub} = sub_board(epic, t)
     sub_card = card_fixture(hd(Boards.get_board!(sub.id).columns), %{"title" => "Sub"})
 

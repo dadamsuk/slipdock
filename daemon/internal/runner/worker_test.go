@@ -61,7 +61,7 @@ func TestClaudeJobRunsWithTheRunnersSettings(t *testing.T) {
 	}
 
 	h := r.srv.header(11)
-	if got := h.Get("X-Runner-Kinds"); got != "claude,verify,merge,probe" {
+	if got := h.Get("X-Runner-Kinds"); got != "claude,verify,merge,release,probe" {
 		t.Errorf("X-Runner-Kinds = %q", got)
 	}
 	if got := h.Get("X-Runner-Version"); got != "daemon test" {
@@ -116,7 +116,7 @@ func TestCodexAndACustomCommand(t *testing.T) {
 	if !strings.Contains(saw, "env=SLIPDOCK_PROMPT=Secret prompt\n") {
 		t.Fatalf("the prompt reaches a custom command as $SLIPDOCK_PROMPT:\n%s", saw)
 	}
-	if got := r.srv.header(11).Get("X-Runner-Kinds"); got != "lint,verify,merge,probe" {
+	if got := r.srv.header(11).Get("X-Runner-Kinds"); got != "lint,verify,merge,release,probe" {
 		t.Fatalf("kinds = %q", got)
 	}
 }
@@ -519,6 +519,220 @@ func TestAWorktreePerJob(t *testing.T) {
 	if f.exit != 1 || f.status != "failed" || r.agentSaw() != "" {
 		t.Fatalf("finish = %+v", f)
 	}
+}
+
+// A new card branch starts from the origin's default branch, fetched
+// first, never from the shared checkout's HEAD on another card's branch;
+// a card branch already there is checked out as it is (#2758).
+func TestAWorktreeStartsFromTheOriginsDefaultBranch(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("no git")
+	}
+	r := newRig(t, Config{Worktree: "on"})
+	git := func(dir string, args ...string) string {
+		t.Helper()
+		cmd := exec.Command("git", append([]string{"-c", "user.name=t", "-c", "user.email=t@example.com", "-c", "init.defaultBranch=main"}, args...)...)
+		cmd.Dir = dir
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+		return strings.TrimSpace(string(out))
+	}
+	// The origin, and a second clone that pushes to it after the
+	// runner's checkout was cloned.
+	origin := filepath.Join(t.TempDir(), "origin.git")
+	git(filepath.Dir(origin), "init", "-q", "--bare", origin)
+	other := filepath.Join(t.TempDir(), "other")
+	git(filepath.Dir(other), "clone", "-q", origin, other)
+	git(other, "commit", "-q", "--allow-empty", "-m", "first")
+	git(other, "push", "-q", "origin", "HEAD:main")
+	git(r.dir, "clone", "-q", origin, ".")
+	git(other, "commit", "-q", "--allow-empty", "-m", "newer")
+	git(other, "push", "-q", "origin", "HEAD:main")
+	newer := git(other, "rev-parse", "HEAD")
+
+	// The shared checkout sits on another card's branch.
+	git(r.dir, "switch", "-q", "-c", "card-9")
+	git(r.dir, "commit", "-q", "--allow-empty", "-m", "card 9's work")
+	theirs := git(r.dir, "rev-parse", "HEAD")
+
+	f := r.runJob(fakeJob{id: 150, kind: "claude", card: 60, prompt: "x"})
+	if f.exit != 0 || !strings.Contains(f.body, "on branch card-60, from origin/main") {
+		t.Fatalf("finish = %+v", f)
+	}
+	// Nothing committed on it, but it isn't merged into card-9, so the
+	// branch is kept: it is where the worktree started.
+	if got := git(r.dir, "rev-parse", "card-60"); got != newer {
+		t.Fatalf("card-60 starts at %s, want origin/main as fetched now (%s); card-9 is %s", got, newer, theirs)
+	}
+	if up, err := exec.Command("git", "-C", r.dir, "rev-parse", "--abbrev-ref", "card-60@{upstream}").Output(); err == nil {
+		t.Fatalf("card-60 tracks %s: a card branch pushes to its own name, never to main", up)
+	}
+	if got := git(r.dir, "rev-parse", "--abbrev-ref", "HEAD"); got != "card-9" {
+		t.Fatalf("the shared checkout was switched to %s", got)
+	}
+
+	// A card branch already there is used as it is, not moved.
+	git(r.dir, "branch", "card-61", theirs)
+	f = r.runJob(fakeJob{id: 151, kind: "claude", card: 61, prompt: "x"})
+	if !strings.Contains(f.body, "on branch card-61") || strings.Contains(f.body, "card-61, from") {
+		t.Fatalf("log: %s", f.body)
+	}
+
+	// With an origin that can't be reached, the branch starts from
+	// origin/main as last fetched, and the log says the fetch failed.
+	git(r.dir, "remote", "set-url", "origin", filepath.Join(t.TempDir(), "gone.git"))
+	f = r.runJob(fakeJob{id: 152, kind: "claude", card: 62, prompt: "x"})
+	if !strings.Contains(f.body, "git fetch origin failed") || !strings.Contains(f.body, "on branch card-62, from origin/main") {
+		t.Fatalf("log: %s", f.body)
+	}
+	if got := git(r.dir, "rev-parse", "card-62"); got != newer {
+		t.Fatalf("card-62 starts at %s, want %s", got, newer)
+	}
+
+	// No origin: HEAD, and the log says why.
+	git(r.dir, "remote", "remove", "origin")
+	f = r.runJob(fakeJob{id: 153, kind: "claude", card: 63, prompt: "x"})
+	if !strings.Contains(f.body, "no origin remote, so the worktree starts from HEAD") || !strings.Contains(f.body, "card-63, from HEAD") {
+		t.Fatalf("log: %s", f.body)
+	}
+}
+
+// Which of the origin's branches a new card branch starts from: the one
+// origin/HEAD names, else origin/main, else origin/master, else HEAD
+// (#2758). Each case is a checkout of its own, sitting on another card's
+// branch, with fetch told never to set origin/HEAD (git 2.48 and later
+// would otherwise make it again).
+func TestAWorktreesBaseFollowsTheOriginsBranches(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("no git")
+	}
+	git := func(dir string, args ...string) string {
+		t.Helper()
+		cmd := exec.Command("git", append([]string{"-c", "user.name=t", "-c", "user.email=t@example.com", "-c", "init.defaultBranch=main"}, args...)...)
+		cmd.Dir = dir
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+		return strings.TrimSpace(string(out))
+	}
+	// An origin with a commit on each of branches, its HEAD on the first.
+	origin := func(branches ...string) (string, map[string]string) {
+		t.Helper()
+		bare := filepath.Join(t.TempDir(), "origin.git")
+		git(filepath.Dir(bare), "init", "-q", "--bare", "--initial-branch="+branches[0], bare)
+		src := filepath.Join(t.TempDir(), "src")
+		git(filepath.Dir(src), "init", "-q", src)
+		tips := map[string]string{}
+		for _, b := range branches {
+			git(src, "commit", "-q", "--allow-empty", "-m", "on "+b)
+			git(src, "push", "-q", bare, "HEAD:"+b)
+			tips[b] = git(src, "rev-parse", "HEAD")
+		}
+		return bare, tips
+	}
+	// The runner's checkout of it, on card-9: an orphan, so that a card
+	// branch started from the origin isn't merged into it, and is kept
+	// after the job for its start to be read.
+	checkout := func(r *rig, bare string) {
+		t.Helper()
+		git(r.dir, "clone", "-q", bare, ".")
+		git(r.dir, "config", "remote.origin.followRemoteHEAD", "never")
+		git(r.dir, "switch", "-q", "--orphan", "card-9")
+		git(r.dir, "commit", "-q", "--allow-empty", "-m", "card 9's work")
+	}
+	// The job's card branch starts from from, at the commit at ("" when
+	// it starts from card-9 itself, so is merged and removed after).
+	starts := func(r *rig, id, card int64, from, at string) string {
+		t.Helper()
+		f := r.runJob(fakeJob{id: id, kind: "claude", card: card, prompt: "x"})
+		branch := fmt.Sprintf("card-%d", card)
+		if f.exit != 0 || !strings.Contains(f.body, "on branch "+branch+", from "+from+"\n") {
+			t.Fatalf("want %s from %s; finish = %+v", branch, from, f)
+		}
+		if at == "" {
+			return f.body
+		}
+		if got := git(r.dir, "rev-parse", branch); got != at {
+			t.Fatalf("%s starts at %s, want %s (%s)", branch, got, at, from)
+		}
+		return f.body
+	}
+
+	t.Run("origin/HEAD names a branch that is neither main nor master", func(t *testing.T) {
+		bare, tips := origin("trunk", "main")
+		r := newRig(t, Config{Worktree: "on"})
+		checkout(r, bare)
+		starts(r, 160, 70, "origin/trunk", tips["trunk"])
+	})
+
+	t.Run("no origin/HEAD: origin/main", func(t *testing.T) {
+		bare, tips := origin("main", "master")
+		r := newRig(t, Config{Worktree: "on"})
+		checkout(r, bare)
+		git(r.dir, "remote", "set-head", "origin", "-d")
+		starts(r, 161, 71, "origin/main", tips["main"])
+	})
+
+	t.Run("no origin/HEAD and no main: origin/master", func(t *testing.T) {
+		bare, tips := origin("master", "trunk")
+		r := newRig(t, Config{Worktree: "on"})
+		checkout(r, bare)
+		git(r.dir, "remote", "set-head", "origin", "-d")
+		starts(r, 162, 72, "origin/master", tips["master"])
+	})
+
+	t.Run("no origin/HEAD, main or master: HEAD", func(t *testing.T) {
+		bare, _ := origin("dev")
+		r := newRig(t, Config{Worktree: "on"})
+		checkout(r, bare)
+		git(r.dir, "remote", "set-head", "origin", "-d")
+		if body := starts(r, 163, 73, "HEAD", ""); !strings.Contains(body, "origin has no default branch here, so the worktree starts from HEAD") {
+			t.Fatalf("log: %s", body)
+		}
+	})
+
+	// origin/HEAD a plain ref, not a symbolic one (as some tools leave
+	// it): rev-parse --abbrev-ref names no branch of the origin's. It
+	// says origin; with a tag or branch named origin to make that
+	// ambiguous, origin/HEAD.
+	for _, c := range []struct {
+		name, tag, says string
+		id, card        int64
+	}{
+		{"origin/HEAD not symbolic: origin/main", "", "origin", 164, 74},
+		{"origin/HEAD not symbolic, and a tag origin: origin/main", "origin", "origin/HEAD", 166, 76},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			bare, tips := origin("main", "trunk")
+			r := newRig(t, Config{Worktree: "on"})
+			checkout(r, bare)
+			git(r.dir, "remote", "set-head", "origin", "-d")
+			git(r.dir, "update-ref", "--no-deref", "refs/remotes/origin/HEAD", tips["trunk"])
+			if c.tag != "" {
+				git(r.dir, "tag", c.tag, tips["trunk"])
+			}
+			if got := git(r.dir, "rev-parse", "--abbrev-ref", "origin/HEAD"); got != c.says {
+				t.Fatalf("rev-parse --abbrev-ref origin/HEAD = %q, want %q", got, c.says)
+			}
+			starts(r, c.id, c.card, "origin/main", tips["main"])
+		})
+	}
+
+	// origin/HEAD pointed at a local branch: rev-parse --abbrev-ref names
+	// it (card-9), which isn't the origin's.
+	t.Run("origin/HEAD naming a local branch: origin/main", func(t *testing.T) {
+		bare, tips := origin("main")
+		r := newRig(t, Config{Worktree: "on"})
+		checkout(r, bare)
+		git(r.dir, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/heads/card-9")
+		if got := git(r.dir, "rev-parse", "--abbrev-ref", "origin/HEAD"); got != "card-9" {
+			t.Fatalf("rev-parse --abbrev-ref origin/HEAD = %q", got)
+		}
+		starts(r, 165, 75, "origin/main", tips["main"])
+	})
 }
 
 func TestClaimsBackOffAndHonourRetryAfter(t *testing.T) {

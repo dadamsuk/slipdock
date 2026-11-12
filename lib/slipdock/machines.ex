@@ -439,4 +439,7 @@ defmodule Slipdock.Machines do
   end
 
   def revoke_machine(%Machine{} = machine), do: {:ok, machine}
+
+  @doc "`machine` read again from the database, with its owner loaded."
+  def reload_with_user(%Machine{} = machine), do: machine |> Repo.reload!() |> Repo.preload(:user)
 end

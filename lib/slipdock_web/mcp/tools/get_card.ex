@@ -58,8 +58,8 @@ defmodule SlipdockWeb.MCP.Tools.GetCard do
        |> Authorize.visible(Boards.with_state(card))
        |> V.card()
        |> Map.put(:docs, docs)
-       |> Map.put(:wait, V.wait(Boards.current_wait(card)))
-       |> Map.put(:last_wait, V.wait(Boards.last_wait(card)))
+       |> Map.put(:wait, V.wait(Boards.Waits.current_wait(card)))
+       |> Map.put(:last_wait, V.wait(Boards.Waits.last_wait(card)))
        |> Map.put(:url, url(card, context.base_url))
        |> Map.put(:rejection, Slipdock.Verified.rejection(card))
        |> V.put_delivery(card, zone)
@@ -86,7 +86,7 @@ defmodule SlipdockWeb.MCP.Tools.GetCard do
 
   # Every wait, asked and answered (#1220), only when asked for.
   defp put_waits(map, card, true),
-    do: Map.put(map, :waits, Enum.map(Boards.list_waits(card), &V.wait/1))
+    do: Map.put(map, :waits, Enum.map(Boards.Waits.list_waits(card), &V.wait/1))
 
   defp put_waits(map, _card, _), do: map
 
@@ -97,7 +97,7 @@ defmodule SlipdockWeb.MCP.Tools.GetCard do
   def url(card, base_url), do: base_url <> "/boards/#{card.board_id}/cards/#{card.id}"
 
   defp fetch(id) do
-    case Boards.get_card(id) do
+    case Boards.Cards.get_card(id) do
       nil -> {:error, "no card you can see matches that"}
       card -> {:ok, card}
     end

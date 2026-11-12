@@ -163,7 +163,7 @@ defmodule SlipdockWeb.BoardHandlesLiveTest do
 
     test "is shown when every board is archived", %{conn: conn, user: user} do
       board = board_fixture(%{"name" => "Put away", "code" => "bh1716d"}, owner: user)
-      {:ok, _} = Slipdock.Boards.archive_board(board)
+      {:ok, _} = Slipdock.Boards.Arrangement.archive_board(board)
       {:ok, view, _} = live(conn, ~p"/")
 
       assert has_element?(view, "#new-board-tile", "Add a new board")

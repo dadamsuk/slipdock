@@ -18,7 +18,9 @@ defmodule Slipdock.Runners do
   A claim holds a lease (`lease_seconds`, 90 by default) that every heartbeat
   renews. `sweep/1`, run by the automation scheduler's clock, puts a job whose
   lease has run out back in the queue, and after `max_attempts` fails it and
-  flags the card instead of handing it out for ever.
+  flags the card instead of handing it out for ever. Until another runner
+  claims a requeued job, the runner that held it takes it back with its next
+  heartbeat or finish (#2817): a machine that slept carries on where it was.
   """
 
   import Ecto.Query
@@ -360,7 +362,7 @@ defmodule Slipdock.Runners do
   `{:error, :not_found}`: a session reports only on jobs it claimed itself.
   """
   def session_job_runner(job_id, %UserToken{id: token_id}) do
-    with %Job{runner_id: runner_id} when not is_nil(runner_id) <- get_job(job_id),
+    with runner_id when not is_nil(runner_id) <- holder_id(get_job(job_id)),
          %Runner{api_token_id: ^token_id} = runner <- Repo.get(Runner, runner_id) do
       {:ok, touch(runner)}
     else
@@ -383,7 +385,7 @@ defmodule Slipdock.Runners do
         nil
 
       card ->
-        ids = [card.id | Boards.ancestor_card_ids(card)]
+        ids = [card.id | Boards.Cards.ancestor_card_ids(card)]
 
         jobs =
           from(j in Job,
@@ -456,6 +458,34 @@ defmodule Slipdock.Runners do
     else
       %Job{} = job -> {:ok, :already_open, job}
       {:error, _} = error -> error
+    end
+  end
+
+  @doc """
+  Queues a release job (#2835) on `root_id`'s tree for `pool`: kind
+  `release`, no card, its prompt the board's release `command`. Lanes and
+  WIP limits never hold it, and only a runner that says it takes `release`
+  is handed it. `{:ok, job}` or `{:error, message}`.
+  """
+  def queue_release(root_id, pool, command) when is_integer(root_id) do
+    # The pool is a runner's own and the command the board's, which keeps
+    # it to one short line: neither is checked again here.
+    with :ok <- queue_allowance(root_id) do
+      job =
+        %Job{
+          board_id: root_id,
+          root_board_id: root_id,
+          card_id: nil,
+          pool: pool,
+          kind: Slipdock.Releases.kind(),
+          prompt: command,
+          status: "queued"
+        }
+        |> Ecto.Changeset.change()
+        |> Repo.insert!()
+
+      Phoenix.PubSub.broadcast(@pubsub, pool_topic(root_id, pool), :job_queued)
+      {:ok, changed(job)}
     end
   end
 
@@ -917,14 +947,14 @@ defmodule Slipdock.Runners do
           {:ok, pause} ->
             pause = Repo.preload(pause, :paused_by)
 
-            Boards.log_activity(
+            Boards.ActivityLog.log_activity(
               root_id,
               nil,
               "runner",
               "#{Pause.who(pause)} paused #{Pause.scope(pause)}: #{pause.reason}"
             )
 
-            Boards.broadcast_tree(root_id)
+            Boards.PubSub.broadcast_tree(root_id)
             {:ok, pause}
 
           error ->
@@ -951,14 +981,14 @@ defmodule Slipdock.Runners do
         |> Ecto.Changeset.change(resumed_at: now(), resumed_by_id: user && user.id)
         |> Repo.update()
 
-      Boards.log_activity(
+      Boards.ActivityLog.log_activity(
         root_id,
         nil,
         "runner",
         "#{user_name(user)} resumed #{Pause.scope(pause)}"
       )
 
-      Boards.broadcast_tree(root_id)
+      Boards.PubSub.broadcast_tree(root_id)
       release(root_id)
       {:ok, pause}
     else
@@ -1167,7 +1197,8 @@ defmodule Slipdock.Runners do
         where:
           j.board_id not in ^wip_full or exists(own_card_doing()) or
             j.kind in ^wip_exempt_kinds(),
-        where: j.card_id not in ^lane_held or j.kind in ^Slipdock.Verified.finishing_kinds(),
+        # A release (#2835) has no card, so it is in no lane.
+        where: j.card_id not in ^lane_held or j.kind in ^lane_exempt_kinds(),
         # A merge job (#1656) or an overseer pass (#2068) only goes to a
         # runner that says it takes them.
         where: j.kind not in ^kinds_not_taken(runner),
@@ -1188,6 +1219,7 @@ defmodule Slipdock.Runners do
                    runner_id: runner.id,
                    runner_name: runner.name,
                    claimed_at: now,
+                   last_runner_id: nil,
                    lease_expires_at: DateTime.add(now, lease_for(runner)),
                    updated_at: now
                  ],
@@ -1208,7 +1240,7 @@ defmodule Slipdock.Runners do
       # The card goes to its board's doing list on claim (#2633).
       moved = ClaimMove.move(claimed, runner)
 
-      Boards.log_activity(
+      Boards.ActivityLog.log_activity(
         claimed.board_id,
         claimed.card_id,
         "runner",
@@ -1230,7 +1262,7 @@ defmodule Slipdock.Runners do
           :ok
 
         card ->
-          Boards.infer_profile(
+          Boards.Cards.infer_profile(
             card,
             Slipdock.Actor.runner(runner.created_by_id, job.id, runner.name)
           )
@@ -1272,7 +1304,9 @@ defmodule Slipdock.Runners do
 
   @doc """
   The job kinds `runner`'s board tree needs that it hasn't said it takes
-  (#1658): `merge` when a board on the tree ships by pull request.
+  (#1658): `merge` when a board on the tree ships by pull request, and
+  `release` (#2836) when the tree releases in batches and the runner
+  merges, since the pool that merges fires the releases.
   """
   def missing_kinds(%Runner{} = runner) do
     needs_merge? =
@@ -1284,9 +1318,20 @@ defmodule Slipdock.Runners do
         )
       )
 
-    if needs_merge? and not takes_merge?(runner) and not Runner.session?(runner),
-      do: ["merge"],
-      else: []
+    if Runner.session?(runner),
+      do: [],
+      else: missing_merge(needs_merge?, runner) ++ missing_release(runner)
+  end
+
+  defp missing_merge(true, runner), do: if(takes_merge?(runner), do: [], else: ["merge"])
+  defp missing_merge(false, _runner), do: []
+
+  # A daemon older than the release kind (#2836) on a batched tree.
+  defp missing_release(runner) do
+    if takes_merge?(runner) and not takes_release?(runner) and
+         Slipdock.Releases.batched?(runner.board_id),
+       do: [Slipdock.Releases.kind()],
+       else: []
   end
 
   @doc "Whether `runner` takes merge jobs: it said so on its last claim."
@@ -1295,15 +1340,34 @@ defmodule Slipdock.Runners do
 
   # The kinds a WIP limit never holds back: verify and merge jobs finish
   # work, and an overseer pass (#2068) does none.
-  defp wip_exempt_kinds, do: [Slipdock.Overseer.kind() | Slipdock.Verified.finishing_kinds()]
+  # The kinds no lane holds: what finishes a card (#1656), and a release
+  # (#2835), which has no card.
+  defp lane_exempt_kinds, do: [Slipdock.Releases.kind() | Slipdock.Verified.finishing_kinds()]
+
+  # A release (#2835) is work on no card.
+  defp wip_exempt_kinds,
+    do: [
+      Slipdock.Releases.kind(),
+      Slipdock.Overseer.kind() | Slipdock.Verified.finishing_kinds()
+    ]
 
   # The kinds only handed to a runner that says it takes them, that this
   # one hasn't said it does.
   defp kinds_not_taken(runner) do
-    [{"merge", takes_merge?(runner)}, {Slipdock.Overseer.kind(), takes_overseer?(runner)}]
+    [
+      {"merge", takes_merge?(runner)},
+      {Slipdock.Overseer.kind(), takes_overseer?(runner)},
+      {Slipdock.Releases.kind(), takes_release?(runner)}
+    ]
     |> Enum.reject(&elem(&1, 1))
     |> Enum.map(&elem(&1, 0))
   end
+
+  @doc "Whether `runner` takes release jobs (#2835): it said so on its last claim."
+  def takes_release?(%Runner{kinds: kinds}) when is_list(kinds),
+    do: Enum.member?(kinds, Slipdock.Releases.kind())
+
+  def takes_release?(_runner), do: false
 
   @doc "Whether `runner` takes overseer passes (#2068): it said so on its last claim."
   def takes_overseer?(%Runner{kinds: kinds}) when is_list(kinds),
@@ -1350,7 +1414,7 @@ defmodule Slipdock.Runners do
   `step_at`, and never posted on the card.
   """
   def heartbeat(%Runner{} = runner, job_id, log \\ nil, opts \\ []) do
-    with {:ok, job} <- runner_job(runner, job_id) do
+    with {:ok, job} <- held_job(runner, job_id) do
       cond do
         not Enum.member?(~w(claimed running), job.status) ->
           {:ok, :cancel}
@@ -1395,7 +1459,7 @@ defmodule Slipdock.Runners do
   from a job with no such wait is refused, as `{:error, message}`.
   """
   def finish(%Runner{} = runner, job_id, attrs) do
-    with {:ok, job} <- runner_job(runner, job_id) do
+    with {:ok, job} <- held_job(runner, job_id) do
       if Enum.member?(Job.finished_statuses(), job.status) do
         {:ok, job}
       else
@@ -1420,7 +1484,7 @@ defmodule Slipdock.Runners do
     {result, effects} =
       Slipdock.Deferred.collect(fn ->
         Repo.transaction(fn ->
-          with {:ok, job} <- runner_job(runner, job_id),
+          with {:ok, job} <- held_job(runner, job_id),
                %Job{} = job <-
                  Repo.one(from(j in Job, where: j.id == ^job.id, lock: "FOR UPDATE")),
                :ok <- can_park(job),
@@ -1515,14 +1579,16 @@ defmodule Slipdock.Runners do
 
   # A probe (#2580) has no card, so nothing about it goes on one: it is
   # read from the Machines page.
+  # A release (#2835) has none either: its request hears how it ended.
   defp after_end(_runner, %Job{card_id: nil} = job, _status) do
+    if job.kind == Slipdock.Releases.kind(), do: Slipdock.Releases.job_finished(job)
     job = changed(job)
     refill(job)
     job
   end
 
   defp after_end(runner, job, status) do
-    Boards.log_activity(
+    Boards.ActivityLog.log_activity(
       job.board_id,
       job.card_id,
       "runner",
@@ -1559,8 +1625,8 @@ defmodule Slipdock.Runners do
     case Repo.get(Slipdock.Boards.Card, job.card_id) do
       %{completed: false, verify_state: state} = card
       when state not in ["merging", "held", "accepted"] ->
-        unless Boards.handoff_written_since?(card.id, since) do
-          Boards.leave_handoff(card, nil, handoff_attrs(job, runner, status))
+        unless Boards.Handoffs.handoff_written_since?(card.id, since) do
+          Boards.Handoffs.leave_handoff(card, nil, handoff_attrs(job, runner, status))
         end
 
       _ ->
@@ -1624,7 +1690,8 @@ defmodule Slipdock.Runners do
   """
   def job_agent_runner(job_id, actor_job_id) do
     with id when is_integer(id) <- actor_job_id,
-         %Job{id: ^id, runner_id: runner_id} when not is_nil(runner_id) <- get_job(job_id),
+         %Job{id: ^id} = job <- get_job(job_id),
+         runner_id when not is_nil(runner_id) <- holder_id(job),
          %Runner{} = runner <- Repo.get(Runner, runner_id) do
       {:ok, runner}
     else
@@ -1632,9 +1699,72 @@ defmodule Slipdock.Runners do
     end
   end
 
+  # The runner a job is with: the one holding it, or, for a job its lease
+  # put back in the queue, the one that may still take it back (#2817).
+  defp holder_id(%Job{runner_id: nil, status: "queued", last_runner_id: last}), do: last
+  defp holder_id(%Job{runner_id: runner_id}), do: runner_id
+  defp holder_id(_), do: nil
+
   defp runner_job(runner, job_id) do
     with {id, ""} <- Integer.parse(to_string(job_id)),
          %Job{runner_id: runner_id} = job when runner_id == runner.id <- Repo.get(Job, id) do
+      {:ok, job}
+    else
+      _ -> {:error, :not_found}
+    end
+  end
+
+  # The runner's job, taken back first if its lease ran out and nobody has
+  # claimed it since (#2817).
+  defp held_job(runner, job_id) do
+    with {:error, :not_found} <- runner_job(runner, job_id), do: reclaim(runner, job_id)
+  end
+
+  # A job the sweep put back in the queue is still its last runner's to
+  # carry on with, until another runner claims it: a machine that slept
+  # through its lease wakes with the agent and its worktree as they were.
+  # The job goes back to running on a fresh lease, and costs no attempt (a
+  # claim counts one, this doesn't). Not while the runner holds another job.
+  defp reclaim(runner, job_id) do
+    now = now()
+
+    with {id, ""} <- Integer.parse(to_string(job_id)),
+         false <- busy?(runner),
+         {1, [job]} <-
+           Repo.update_all(
+             from(j in Job,
+               where: j.id == ^id and j.status == "queued" and j.last_runner_id == ^runner.id,
+               # As it was: claimed if it had not started, else running.
+               update: [
+                 set: [
+                   status:
+                     fragment(
+                       "CASE WHEN ? IS NULL THEN 'claimed' ELSE 'running' END",
+                       j.started_at
+                     )
+                 ]
+               ],
+               select: j
+             ),
+             set: [
+               runner_id: runner.id,
+               runner_name: runner.name,
+               last_runner_id: nil,
+               claimed_at: now,
+               lease_expires_at: DateTime.add(now, lease_for(runner)),
+               updated_at: now
+             ]
+           ) do
+      Repo.update_all(from(r in Runner, where: r.id == ^runner.id), set: [current_job_id: job.id])
+
+      Boards.ActivityLog.log_activity(
+        job.board_id,
+        job.card_id,
+        "runner",
+        "#{runner.name} took job ##{job.id} back: its lease had run out and no other runner had taken it"
+      )
+
+      changed(job)
       {:ok, job}
     else
       _ -> {:error, :not_found}
@@ -1655,6 +1785,7 @@ defmodule Slipdock.Runners do
         |> Repo.update()
         |> tap_changed()
         |> tap_refill()
+        |> tap_release_ended()
 
       status when status in ~w(claimed running) ->
         job
@@ -1699,6 +1830,18 @@ defmodule Slipdock.Runners do
   end
 
   defp tap_refill(other), do: other
+
+  defp tap_release_ended({:ok, job} = result) do
+    release_ended(job)
+    result
+  end
+
+  defp tap_release_ended(other), do: other
+
+  # A job ended with no runner finishing it (cancelled while queued, or its
+  # lease ran out): if it is a release's (#2835), its request hears, as
+  # `after_end/3` tells it of a finish. Any other job has no request.
+  defp release_ended(%Job{id: id}), do: Slipdock.Releases.job_finished(Repo.get!(Job, id))
 
   # A job from a rule that keeps a pool fed from a list (`list_top`) has
   # ended, so the rule may send the next card — after putting back the card
@@ -1769,11 +1912,11 @@ defmodule Slipdock.Runners do
     cond do
       job.cancel_requested_at ->
         if settle(job, %{status: "cancelled", finished_at: now, lease_expires_at: nil}),
-          do: refill(job)
+          do: lapsed(job)
 
       open_linked_wait(job) ->
         if settle(job, %{status: "parked", finished_at: now, lease_expires_at: nil}) do
-          Boards.log_activity(
+          Boards.ActivityLog.log_activity(
             job.board_id,
             job.card_id,
             "runner",
@@ -1792,21 +1935,47 @@ defmodule Slipdock.Runners do
         end
 
       job.attempts >= max_attempts() ->
-        settle(job, %{
-          status: "failed",
-          finished_at: now,
-          lease_expires_at: nil,
-          error: "no runner finished it: the lease ran out #{job.attempts} times"
-        })
-
-        flag_card(job)
-        refill(job)
+        out_of_tries(job, now)
 
       true ->
-        if settle(job, %{status: "queued", runner_id: nil, lease_expires_at: nil, claimed_at: nil}) do
+        # The runner that held it may take it back while it is still
+        # queued (#2817, `held_job/2`): a machine that slept, say.
+        requeued = %{
+          status: "queued",
+          runner_id: nil,
+          last_runner_id: job.runner_id,
+          lease_expires_at: nil,
+          claimed_at: nil
+        }
+
+        if settle(job, requeued) do
           Phoenix.PubSub.broadcast(@pubsub, pool_topic(job.root_board_id, job.pool), :job_queued)
         end
     end
+  end
+
+  # The lease ran out for the last time: the job fails and its card is
+  # flagged. A heartbeat that won the race leaves the job running: nothing
+  # has ended, so nothing is flagged, fed or told (#2835).
+  defp out_of_tries(job, now) do
+    failed = %{
+      status: "failed",
+      finished_at: now,
+      lease_expires_at: nil,
+      error: "no runner finished it: the lease ran out #{job.attempts} times"
+    }
+
+    if settle(job, failed) do
+      flag_card(job)
+      lapsed(job)
+    end
+  end
+
+  # A job its lease ended: the rule feeds the next, and a release's request
+  # hears (#2835).
+  defp lapsed(job) do
+    refill(job)
+    release_ended(job)
   end
 
   # Only if nothing has happened to the job since it was read: a heartbeat
@@ -1861,9 +2030,9 @@ defmodule Slipdock.Runners do
         :ok
 
       card ->
-        Boards.update_card(card, %{"flags" => Enum.uniq(card.flags ++ ["flagged"])})
+        Boards.Cards.update_card(card, %{"flags" => Enum.uniq(card.flags ++ ["flagged"])})
 
-        Boards.add_comment(
+        Boards.Comments.add_comment(
           card,
           "Runner job ##{job.id} (pool #{job.pool}, #{job.kind}) failed: no runner finished it " <>
             "after #{job.attempts} tries. Check the runner is running, then send the card again."
@@ -1896,7 +2065,9 @@ defmodule Slipdock.Runners do
 
   # A probe (#2580) has no card: its prompt is what the server knows of
   # the runner, as data.
-  def claimed_prompt(%Job{card_id: nil} = job), do: Probe.prompt(job)
+  def claimed_prompt(%Job{card_id: nil, kind: "probe"} = job), do: Probe.prompt(job)
+  # A release (#2835) has none either: its prompt is the release command.
+  def claimed_prompt(%Job{card_id: nil, prompt: prompt}), do: prompt
 
   def claimed_prompt(%Job{} = job) do
     case Repo.one(from(c in Card, where: c.id == ^job.card_id, select: {c.bar, c.bar_locked_at})) do
@@ -2137,9 +2308,13 @@ defmodule Slipdock.Runners do
           limit: 1,
           preload: [:on_user, :opened_by, :closed_by]
         )
-      ) || Boards.current_wait(job.card_id)
+      ) || Boards.Waits.current_wait(job.card_id)
 
-    %{wait: wait, handoff: Boards.current_handoff(job.card_id), profile: job_profile(job)}
+    %{
+      wait: wait,
+      handoff: Boards.Handoffs.current_handoff(job.card_id),
+      profile: job_profile(job)
+    }
   end
 
   @doc """
@@ -2213,4 +2388,18 @@ defmodule Slipdock.Runners do
   end
 
   defp now, do: DateTime.utc_now() |> DateTime.truncate(:second)
+
+  @doc "How many of the tree `root_id`'s jobs are queued, claimed and running, by status."
+  def active_job_counts(root_id) do
+    from(j in Job,
+      where: j.root_board_id == ^root_id and j.status in ~w(queued claimed running),
+      group_by: j.status,
+      select: {j.status, count(j.id)}
+    )
+    |> Repo.all()
+    |> Map.new()
+  end
+
+  @doc "`pause` with the person who paused it loaded."
+  def with_paused_by(%Pause{} = pause), do: Repo.preload(pause, :paused_by)
 end

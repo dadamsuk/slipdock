@@ -117,7 +117,7 @@ defmodule SlipdockWeb.MCP.WaitToolsTest do
     |> call("update_card", %{card: ctx.card.id, remove_flags: ["waiting"]})
     |> ok!()
 
-    assert %{close_reason: "withdrawn", needs: "Size?"} = Boards.last_wait(ctx.card)
+    assert %{close_reason: "withdrawn", needs: "Size?"} = Boards.Waits.last_wait(ctx.card)
   end
 
   test "bad shapes and both at once are refused", ctx do
@@ -143,7 +143,7 @@ defmodule SlipdockWeb.MCP.WaitToolsTest do
            |> call("update_card", %{card: ctx.card.id, answer_wait: %{answer: "eu"}})
            |> error!()
 
-    assert Boards.current_wait(ctx.card).needs == "Which region?"
+    assert Boards.Waits.current_wait(ctx.card).needs == "Which region?"
   end
 
   describe "a session runner's job" do

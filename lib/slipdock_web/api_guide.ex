@@ -581,7 +581,8 @@ defmodule SlipdockWeb.APIGuide do
     `manage_automation` (owner only), `list_tools`, `install_tool`, `garden` and
     `garden_decide` (tidy-up suggestions), and `claim_job`,
     `job_progress` and `finish_job` to take runner jobs from a board's
-    queue (see "Runners" below). Archiving can be undone; the
+    queue (see "Runners" below), and `release_now` (Release now on a board
+    with batched releases; `check: true` only reads). Archiving can be undone; the
     deletes can't, so `delete_card`
     needs `confirm: true`, `delete_board` needs `confirm` set to the board's
     code, and `delete_list` refuses a list holding cards unless
@@ -1715,7 +1716,8 @@ defmodule SlipdockWeb.APIGuide do
     41m", "Held · paused by David: bad deploy", "Running · runner-2 · 7m"),
     `held` (why its queued job waits), `loop` (`{runner, kind, job_id}`
     while a runner job holds it: shown beside the assignees, never one, so
-    a runner's agent doesn't assign the card), `driver` (`agent` while a
+    a runner's agent doesn't assign the card; a subcard an epic's build job
+    is working, its current step naming it, carries that job's), `driver` (`agent` while a
     runner job holds it, else who last moved it — runner boards only), `in_list_since`
     and `age` (seconds in its list), `usual_stay` (the list's 85th-percentile
     stay), `over_usual` and `stuck` (past it). The `stuck` and `driver`
@@ -2258,6 +2260,74 @@ defmodule SlipdockWeb.APIGuide do
     Nov 14:32*, the time in your time zone) and the step status *Shipped
     to production*.
 
+    **Batched releases** (#2833). A board's `release_mode` is `on_merge`
+    (each merge deploys; the default) or `batched` (a merge waits for a
+    release), and `release_age_cap_hours` is how long the oldest waiting
+    merge may wait before it triggers one (`null` is off). Both are the
+    tree's, set on its root board only (`PATCH /api/boards/:board`,
+    `update_board`, `slipdock set-board B --release-mode batched
+    --release-age-cap 24`, the Agentic Building page) and read back on every
+    board of the tree. On a batched board a merged card still completes and
+    unblocks its dependents; its `release` (card JSON and `get_card`, the
+    *Release* line in `slipdock card`) is `awaiting` (*Merged 1a2b3c4,
+    awaiting release · since 12 Nov 10:04*) until a succeeded deploy names
+    it, then `released` with the environment and the time.
+
+    A release is asked for, one at a time per tree. Three things ask: a
+    card of priority `critical` merging; **Release now** (`POST
+    /api/boards/:board/release`, `slipdock release B`, MCP `release_now`,
+    the button on the board's release banner and the Agentic Building page:
+    the board owner's); and the age cap. The answer's `how` is `started`,
+    `queued` (one is running: this is the single follow-up) or `joined`
+    (a follow-up was queued already), with the `request` (`status`
+    `queued`, `running`, `released`, `failed` or `timed_out`; `triggers`,
+    each `trigger` `critical`, `manual` or `age_cap` with `by` and `at`;
+    `card_ids`; `job_id`; `run_url`; `note`) and the tree's `release`
+    status. `GET /api/boards/:board/release` (`slipdock releases B`,
+    `release_now` with `check: true`) reads that status alone: `mode`,
+    `running`, `queued`, `last` and the cards `awaiting`. It is the whole
+    tree's: asked of a sub-board, it needs read on the root board too
+    (`403`). A board that releases on merge answers `409`.
+
+    A request starts a runner job of kind `release`, with no card, for the
+    pool that merges: its prompt is the root board's `release_command`
+    (set like the other two; `set-board --release-command "…"`, `default`
+    to clear), one line, by default `gh workflow run release.yml --ref
+    {default_branch}`, the runner putting the repository's default branch
+    in. Lanes and WIP limits never hold it, and it goes only to runners
+    whose claims list `release` in `X-Runner-Kinds`. `release` jobs are
+    built into the runner daemon, as `merge` jobs are (`no_release: true`
+    in the machine's `local.json` turns the kind off): it runs `gh
+    workflow run <workflow> --ref <branch>` itself and logs `release: run
+    <url>`, the run it started. Any other command runs only when the
+    machine's `local.json` lists it under `release_commands`; the daemon
+    refuses the rest, so a custom command is set on the board and allowed
+    on the machine. The runners list's `missing_kinds` names `release` on
+    a batched tree for a runner that merges but hasn't said it releases.
+    The request ends
+    `released` when a deploy of the tree is recorded as succeeded (or when
+    the job is done, on a tree with delivery metrics off, where the cards
+    it covered then read `released` with no `environment`), `failed` when
+    the job or the deploy fails, and `timed_out` after 3 hours with
+    neither; then the follow-up starts. After a failed or timed-out
+    release the age cap asks for nothing until a person or a critical
+    merge has released. Each step is a line in the root board's activity.
+
+    **Merged, not shipped** (#2819). A pipeline that fails before its deploy
+    job records nothing, so the server notices by itself: a card done and
+    accepted with a `merge_sha` (ship by pull request) or the commit it was
+    accepted at (ship by push) that no succeeded deploy names once the
+    board's `not_shipped_minutes` have gone by (20; PATCH the board, or
+    `slipdock set-board B --not-shipped-minutes N`; 0 never) carries
+    `not_shipped` on `GET /api/cards/:id` and `get_card`: `text` (*Merged
+    1a634c6 · not shipped after 45m*), `sha`, `merged_at`, `seconds` and
+    `minutes`; `slipdock card` shows it as *Not shipped*. The root board gets
+    one warning alert (the watch check `not_shipped`) and its owner an
+    email. A succeeded deploy naming the card clears both. It runs whether
+    or not the overseer is on. Only cards merged after the board turned
+    delivery metrics on count; an epic, a card with no commit, a stand-in
+    and an archived card never do.
+
     Incidents are ordinary cards tagged `incident` (the board's `incident_tag`),
     optionally linked to the deploy that caused them: `POST
     /api/cards/:id/incident-of {"deployment": N}`, `slipdock incident-of`. A
@@ -2324,6 +2394,9 @@ defmodule SlipdockWeb.APIGuide do
     for 30 minutes), `idle_capacity` (free ready cards and runners idle for
     `idle_minutes`, or two or more jobs queued behind one card's lane) and
     `no_way_forward` (an epic in progress with every open subcard blocked).
+    A sixth, `not_shipped` (a merged card no succeeded deploy names after
+    the board's `not_shipped_minutes`), runs on every tree with delivery
+    metrics on, whether or not the overseer is.
     Each condition fires once, as a warning alert on the root board and an
     email to the owner with why and what to do, heads the owner's waiting
     (reason `overseer`, with its `condition`), and clears itself, alert and
@@ -2402,7 +2475,11 @@ defmodule SlipdockWeb.APIGuide do
     A job goes `queued → claimed → running → done | failed | cancelled |
     timeout`. A claim holds a lease (90 seconds) that each heartbeat renews;
     a lease that runs out puts the job back in the queue, and after three
-    tries the job fails and its card is flagged.
+    tries the job fails and its card is flagged. Until another runner claims
+    it, the runner that held it takes it back with its next heartbeat,
+    `progress` or finish (a machine that slept, a session that went quiet):
+    the answer is `ok` as if the lease had never lapsed, and it costs no try.
+    Once another runner has it, those answer `404`.
 
     **Taking jobs from a Claude session** (`/loop`, a scheduled task) uses the
     token you already have — over MCP the `claim_job`, `job_progress` and
@@ -2422,7 +2499,8 @@ defmodule SlipdockWeb.APIGuide do
 
     A session holds its job on a 20-minute lease (a runner on a machine, 90
     seconds): report between steps, and never let 20 minutes pass without a
-    `progress`, or the lease runs out and somebody else gets the card. `note` also goes on the card as a
+    `progress`, or the lease runs out and somebody else may get the card (a
+    late `progress` takes the job back only if nobody has). `note` also goes on the card as a
     comment; `step` (what you're doing now, ≤ 300 characters) is kept on the
     job only, as its `step` and `step_at`, and shows on the Runners panel and
     in `slipdock job`/`jobs`. Every step is also kept on the job with its time
@@ -2442,10 +2520,12 @@ defmodule SlipdockWeb.APIGuide do
     "waiting", "wait": {"needs": "…", "choices": […]}}` asks and parks in one
     step, both or neither. A list_top rule puts the parked card back on top
     of its list, flagged waiting, without spending a `requeue_stuck` retry, so
-    the next card goes. Answering sends the card to the same rule again — at
-    once, or once the rule's job that a runner has taken has closed — with
-    the question, the answer, who answered and the handoff on top of the
-    prompt. A job the rule queued for another card that nobody has taken yet
+    the next card goes. Answering sends the card to the same rule again, at
+    once, with the question, the answer, who answered and the handoff on top
+    of the prompt: its job goes into the pool's queue for any free runner,
+    not held for the runner that asked nor behind another card's job that a
+    runner has. Only a job a runner has for the card itself holds it
+    (`pending`) until that job closes. A job the rule queued for another card that nobody has taken yet
     gives way: it is withdrawn (`cancelled`, `recovery: "withdrawn"`, with a
     comment on its card), and its card keeps its place and goes next. The claim
     answer carries them as `wait` and `handoff` too (a runner's: `X-Wait-Id`,
@@ -3802,7 +3882,8 @@ defmodule SlipdockWeb.APIGuide do
     It adds a `Sweeps` page (the rotation table: areas from the handbook's
     `covers:`, against the lenses, each cell the commit last swept), a
     **Triage** list and a daily *Sweep the code* card whose description is
-    the procedure. Installing again adds only what is missing. The card's
+    the procedure. Installing again adds only what is missing, and gives an
+    open card from an older version the current procedure. The card's
     bar names no cell ("Swept the stalest cell of W-…'s Rotation table…"),
     and each new instance starts from that template, not the last run's
     bar: work to the stalest cell on the day, not one a bar names.
@@ -3810,10 +3891,11 @@ defmodule SlipdockWeb.APIGuide do
     **Never take work from a Triage list.** Its category is `triage`, and
     the boards below mark it `triage: for a person`: it is never the ready
     list or the backlog, a `list_top` feed sends nothing from it, and a
-    rule's runner action skips a card that arrives there. What a sweep
-    files waits there for a person, who moves what is worth doing into the
-    ready list. A sweep files one card per issue (where, why it matters,
-    the fix); a security issue gets the `security` tag and stays vague
+    rule's runner action skips a card that arrives there. A sweep files
+    its design questions there, for a person, who moves what is worth doing
+    into the ready list; its fixes and investigations go to the Housekeeping
+    list when the board has one (everything to Triage when it doesn't). A
+    sweep files one card per issue (where, why it matters, the fix); a security issue gets the `security` tag and stays vague
     anywhere public.
     """
   end
@@ -3856,8 +3938,10 @@ defmodule SlipdockWeb.APIGuide do
     someone (a missing test such as "no test pins `slipdock done`'s exit
     codes", a stale moduledoc or doc entry, a tooling bug such as "`page
     section --append -` writes a literal `-`") goes on the board as a card
-    now (`POST /api/boards/:board/cards`, `create_card`, `slipdock add`, in
-    the backlog) and into the block as `→ #<card>`. A finding is only for
+    now (`POST /api/boards/:board/cards`, `create_card`, `slipdock add`: in
+    the Housekeeping list when the board has one, else the backlog; a
+    design question, whose answer changes how the product or a process
+    behaves, in Triage) and into the block as `→ #<card>`. A finding is only for
     what is uncertain, cuts across cards, or shows the handbook wrong
     ("`mix format` can need two passes", "W-1950 §Tests says async is safe,
     but the fixture is one user").
@@ -4108,7 +4192,7 @@ defmodule SlipdockWeb.APIGuide do
     boards =
       user
       |> Access.list_boards(activity: true, token: token)
-      |> Boards.sort_boards(user.board_sort)
+      |> Boards.Arrangement.sort_boards(user.board_sort)
 
     archived = Access.list_boards(user, archived: true, token: token)
 

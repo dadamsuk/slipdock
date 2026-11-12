@@ -220,4 +220,71 @@ defmodule SlipdockWeb.RunnerDocsTest do
     assert guide =~ "built into\n    the runner daemon"
     assert guide =~ "`X-Runner-Kinds`"
   end
+
+  test "the release kind and Release now are described where agents read (#2835)" do
+    agents = read("docs/agents.md")
+    assert agents =~ "runner job of kind `release`"
+    assert agents =~ "`release` in `X-Runner-Kinds`"
+    assert agents =~ "`slipdock release <board>`"
+    assert agents =~ "`POST /api/boards/:board/release`"
+    # Whatever the line breaks, the default command is there in full.
+    assert String.replace(agents, ~r/\s+/, " ") =~ Slipdock.Releases.default_command()
+
+    guide = read("lib/slipdock_web/api_guide.ex")
+    assert guide =~ "runner job of kind `release`"
+    assert guide =~ "`release` in `X-Runner-Kinds`"
+    assert guide =~ "`release_command`"
+    assert guide =~ "MCP `release_now`"
+    # A sub-board's status is its tree's, so it asks for the root too.
+    assert guide =~ "asked of a sub-board, it needs read on the root board too"
+    assert agents =~ "asked of a sub-board, it needs read on the root board too"
+
+    assert read("docs/manual/verified-work.md") =~
+             "asking it of a sub-board needs read on the root board"
+
+    # The daemon's built-in kind and its limits (#2836).
+    assert agents =~ "built-in `release` kind"
+    assert agents =~ "`no_release: true`"
+    assert agents =~ "`release_commands`"
+    assert guide =~ "`no_release: true`"
+    assert guide =~ "`release_commands`"
+
+    machines = read("docs/manual/machines.md")
+    assert machines =~ "`no_release: true` turns off the built-in release"
+    assert machines =~ "`release_commands` lists, word for word"
+
+    help = read("lib/slipdock_web/live/help_live/agents.ex")
+    assert help =~ ~s(id="help-machine-release")
+    assert help =~ "<code>release_commands</code>"
+    assert help =~ "<code>no_release: true</code>"
+    assert help =~ "it never runs what the server sends"
+
+    # Every place that says what a board's release command does says a
+    # custom one runs only where the machine lists it (#2836).
+    for path <- [
+          "README.md",
+          "docs/manual/verified-work.md",
+          "lib/slipdock_web/live/help_live/guides.ex",
+          "lib/slipdock_web/live/help_live/flow.ex",
+          "lib/slipdock_web/live/agentic_live/index.ex",
+          "lib/slipdock_web/mcp/tools/update_board.ex",
+          "cli/help.txt",
+          "priv/skills/slipdock/SKILL.md"
+        ] do
+      assert read(path) =~ "release_commands", "#{path} doesn't name release_commands"
+    end
+
+    for path <- ["README.md", "priv/skills/slipdock/SKILL.md"] do
+      assert read(path) =~ "no_release: true", "#{path} doesn't name no_release"
+    end
+
+    contract = read("daemon/internal/contract/contract.md")
+    assert contract =~ "- Start a release."
+    assert contract =~ "A board's release command is no exception"
+
+    help = read("cli/help.txt")
+    assert help =~ "release <board>"
+    assert help =~ "releases <board>"
+    assert help =~ "--release-command CMD"
+  end
 end

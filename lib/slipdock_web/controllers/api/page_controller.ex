@@ -430,7 +430,7 @@ defmodule SlipdockWeb.API.PageController do
   defp fetch_card(ref) do
     case Integer.parse(to_string(ref)) do
       {id, ""} ->
-        case Slipdock.Repo.get(Slipdock.Boards.Card, id) do
+        case Slipdock.Boards.Cards.get_card_record(id) do
           nil -> {:error, :not_found, "card #{ref}"}
           card -> {:ok, card}
         end
@@ -748,7 +748,7 @@ defmodule SlipdockWeb.API.PageController do
            Wiki.create_card_from_selection(page, column, text, write_opts(conn, params)) do
       conn
       |> put_status(:created)
-      |> json(%{card: V.card(Authorize.visible(conn, Boards.get_card!(card.id)))})
+      |> json(%{card: V.card(Authorize.visible(conn, Boards.Cards.get_card!(card.id)))})
     end
   end
 
@@ -1459,7 +1459,7 @@ defmodule SlipdockWeb.API.PageController do
   @doc "Comments on a page."
   def add_comment(conn, %{"id" => id, "body" => body}) do
     with {:ok, page} <- fetch_page(conn, id, :comment),
-         {:ok, comment} <- Boards.add_comment(page, body, by: conn.assigns.current_user) do
+         {:ok, comment} <- Boards.Comments.add_comment(page, body, by: conn.assigns.current_user) do
       conn |> put_status(:created) |> json(%{comment: V.comment(comment)})
     end
   end
@@ -1467,7 +1467,7 @@ defmodule SlipdockWeb.API.PageController do
   @doc "Adds a tick box to a page."
   def add_checklist_item(conn, %{"id" => id, "text" => text}) do
     with {:ok, page} <- fetch_page(conn, id, :write),
-         {:ok, item} <- Boards.add_checklist_item(page, text) do
+         {:ok, item} <- Boards.Checklists.add_checklist_item(page, text) do
       conn |> put_status(:created) |> json(%{item: V.checklist_item(item)})
     end
   end
@@ -1476,7 +1476,7 @@ defmodule SlipdockWeb.API.PageController do
   def add_status_update(conn, %{"id" => id} = params) do
     with {:ok, page} <- fetch_page(conn, id, :comment),
          {:ok, _} <-
-           Boards.add_status_update(
+           Boards.StatusUpdates.add_status_update(
              page,
              conn.assigns.current_user,
              Map.take(params, ~w(health body))
@@ -1511,7 +1511,7 @@ defmodule SlipdockWeb.API.PageController do
   def remove_attachment(conn, %{"id" => id, "attachment_id" => attachment_id}) do
     with {:ok, page} <- fetch_page(conn, id, :write),
          %{} = attachment <- page_attachment_of(page, attachment_id),
-         {:ok, _} <- Boards.delete_attachment(attachment) do
+         {:ok, _} <- Boards.Attachments.delete_attachment(attachment) do
       json(conn, %{ok: true})
     else
       nil -> {:error, :not_found, "attachment"}
@@ -1523,7 +1523,7 @@ defmodule SlipdockWeb.API.PageController do
   defp page_attachment_of(page, attachment_id) do
     with {int, ""} <- Integer.parse(to_string(attachment_id)),
          %Slipdock.Boards.Attachment{page_id: page_id} = attachment <-
-           Slipdock.Repo.get(Slipdock.Boards.Attachment, int),
+           Slipdock.Boards.Attachments.get_attachment(int),
          true <- page_id == page.id do
       attachment
     else
@@ -1534,7 +1534,7 @@ defmodule SlipdockWeb.API.PageController do
   @doc "Puts a link to somewhere outside the system on a page."
   def add_url(conn, %{"id" => id} = params) do
     with {:ok, page} <- fetch_page(conn, id, :write),
-         {:ok, url} <- Boards.add_card_url(page, Map.take(params, ["url", "title"])) do
+         {:ok, url} <- Boards.CardUrls.add_card_url(page, Map.take(params, ["url", "title"])) do
       conn |> put_status(:created) |> json(%{url: V.card_url(url)})
     end
   end
@@ -1542,7 +1542,7 @@ defmodule SlipdockWeb.API.PageController do
   def remove_url(conn, %{"id" => id, "url_id" => url_id}) do
     with {:ok, page} <- fetch_page(conn, id, :write),
          %{} = url <- page_url_of(page, url_id),
-         {:ok, _} <- Boards.delete_card_url(url) do
+         {:ok, _} <- Boards.CardUrls.delete_card_url(url) do
       json(conn, %{ok: true})
     else
       nil -> {:error, :not_found, "link"}
@@ -1554,7 +1554,7 @@ defmodule SlipdockWeb.API.PageController do
   defp page_url_of(page, url_id) do
     with {int, ""} <- Integer.parse(to_string(url_id)),
          %Slipdock.Boards.CardUrl{page_id: page_id} = url <-
-           Slipdock.Repo.get(Slipdock.Boards.CardUrl, int),
+           Slipdock.Boards.CardUrls.get_card_url(int),
          true <- page_id == page.id do
       url
     else
@@ -1578,8 +1578,7 @@ defmodule SlipdockWeb.API.PageController do
            ) do
       json(conn, %{
         page: V.page(with_users(page)),
-        my_votes:
-          Slipdock.Votes.mine(Slipdock.Repo.preload(page, :votes), conn.assigns.current_user)
+        my_votes: Slipdock.Votes.mine(Wiki.with_votes(page), conn.assigns.current_user)
       })
     else
       {:error, message} when is_binary(message) -> {:error, :unprocessable_entity, message}
@@ -1677,13 +1676,13 @@ defmodule SlipdockWeb.API.PageController do
   end
 
   # `assignee` is an email, as it is for a card; "" or null unassigns. The
-  # same rule as a card's (`Boards.resolve_assignees/3`): somebody the caller
+  # same rule as a card's (`Boards.Cards.resolve_assignees/3`): somebody the caller
   # can see who can read the board, and one 404 for everybody else.
   defp resolve_assignee(_board, attrs, %{"assignee" => email}, _me) when email in [nil, ""],
     do: {:ok, Map.put(attrs, "assignee_id", nil)}
 
   defp resolve_assignee(board, attrs, %{"assignee" => email}, me) when is_binary(email) do
-    case Boards.resolve_assignees(board, me, [String.trim(email)]) do
+    case Boards.Cards.resolve_assignees(board, me, [String.trim(email)]) do
       {:ok, [id]} -> {:ok, Map.put(attrs, "assignee_id", id)}
       _ -> {:error, :not_found, "user #{email}"}
     end
@@ -1747,9 +1746,11 @@ defmodule SlipdockWeb.API.PageController do
 
   defp with_users(%Page{} = page),
     do:
-      Slipdock.Repo.preload(
-        page,
-        [:created_by, :updated_by, :assignee, :tags, [field_values: :field]] ++
-          Wiki.board_preloads()
-      )
+      Wiki.with_board_preloads(page, [
+        :created_by,
+        :updated_by,
+        :assignee,
+        :tags,
+        [field_values: :field]
+      ])
 end

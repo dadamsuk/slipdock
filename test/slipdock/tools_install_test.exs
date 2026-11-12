@@ -41,7 +41,7 @@ defmodule Slipdock.ToolsInstallTest do
     assert {:ok, config} = Folders.find(board, "Config")
     assert [page] = board |> Wiki.list_pages() |> Enum.filter(&(&1.title == "#{name} config"))
     assert page.folder_id == config.id
-    assert [%{name: "hot"}] = Boards.list_tags(board.id)
+    assert [%{name: "hot"}] = Boards.Tags.list_tags(board.id)
     assert [rule] = Automations.list_rules(board.id)
     assert rule.spec["trigger"]["column"] == "Doing"
 

@@ -103,7 +103,7 @@ defmodule SlipdockWeb.ShippedLineTest do
   end
 
   test "a card on a sub-board named by a commit", %{board: board, card: card} do
-    {:ok, t} = Boards.find_template(nil, "Simple")
+    {:ok, t} = Boards.Templates.find_template(nil, "Simple")
     {:ok, sub} = sub_board(card, t)
     [first | _] = Boards.get_board!(sub.id).columns
     child = card_fixture(first, %{"title" => "Child"})
@@ -189,7 +189,10 @@ defmodule SlipdockWeb.ShippedLineTest do
     card: card
   } do
     {:ok, _} =
-      Boards.leave_handoff(card, nil, %{next_step: "Accepting will merge it", via: "runner"})
+      Boards.Handoffs.leave_handoff(card, nil, %{
+        next_step: "Accepting will merge it",
+        via: "runner"
+      })
 
     Slipdock.Repo.update_all(
       from(c in Slipdock.Boards.Card, where: c.id == ^card.id),
@@ -222,29 +225,12 @@ defmodule SlipdockWeb.ShippedLineTest do
   end
 
   test "an open card has no outcome, and keeps its handoff", %{json: json, card: card} do
-    {:ok, _} = Boards.leave_handoff(card, nil, %{next_step: "Write the tests", via: "runner"})
+    {:ok, _} =
+      Boards.Handoffs.leave_handoff(card, nil, %{next_step: "Write the tests", via: "runner"})
+
     body = json |> get(~p"/api/cards/#{card.id}") |> json_response(200)
     refute Map.has_key?(body["card"], "outcome")
     assert body["card"]["handoff"]["next_step"] == "Write the tests"
-  end
-
-  defp mcp_card(conn, card) do
-    conn
-    |> put_req_header("content-type", "application/json")
-    |> post(
-      "/mcp",
-      Jason.encode!(%{
-        jsonrpc: "2.0",
-        id: 1,
-        method: "tools/call",
-        params: %{name: "get_card", arguments: %{card: card.id}}
-      })
-    )
-    |> json_response(200)
-    |> get_in(["result", "content"])
-    |> hd()
-    |> Map.fetch!("text")
-    |> Jason.decode!()
   end
 
   test "the card panel shows it", %{conn: conn, board: board, card: card} do

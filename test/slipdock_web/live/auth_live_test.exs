@@ -200,14 +200,14 @@ defmodule SlipdockWeb.AuthLiveTest do
       assert has_element?(rview, "#card-modal fieldset[disabled]")
       render_hook(with_target(rview, "#board-card"), "add_comment", %{"body" => "hi"})
       assert render(rview) =~ "read-only access to this card"
-      assert Boards.get_card!(ctx.card.id).comments == []
+      assert Boards.Cards.get_card!(ctx.card.id).comments == []
 
       # Upgrading to write lets them edit.
       {:ok, _} = Access.grant(ctx.board, ctx.other, "write", ctx.user)
       {:ok, wview, _} = live(ctx.other_conn, ~p"/boards/#{ctx.board}/cards/#{ctx.card.id}")
       refute has_element?(wview, "#card-modal fieldset[disabled]")
       render_hook(with_target(wview, "#board-card"), "add_comment", %{"body" => "hi"})
-      assert [_] = Boards.get_card!(ctx.card.id).comments
+      assert [_] = Boards.Cards.get_card!(ctx.card.id).comments
 
       # But only the owner can rename the board or share it: the settings
       # panel isn't there for anyone else, and the board knows no such event.
@@ -252,7 +252,7 @@ defmodule SlipdockWeb.AuthLiveTest do
 
     test "a shared view shows only its cards, read-only", ctx do
       {:ok, saved} =
-        Boards.create_saved_view(ctx.board, %{
+        Boards.SavedViews.create_saved_view(ctx.board, %{
           "name" => "Visible only",
           "config" => Config.to_map(%{Config.defaults("table") | q: "visible"})
         })
@@ -294,7 +294,7 @@ defmodule SlipdockWeb.AuthLiveTest do
 
     test "the owner shares a view from the views menu and a card from its modal", ctx do
       {:ok, saved} =
-        Boards.create_saved_view(ctx.board, %{
+        Boards.SavedViews.create_saved_view(ctx.board, %{
           "name" => "Plan",
           "config" => Config.to_map(%Config{})
         })

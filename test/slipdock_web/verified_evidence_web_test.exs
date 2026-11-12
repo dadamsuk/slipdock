@@ -162,7 +162,10 @@ defmodule SlipdockWeb.VerifiedEvidenceWebTest do
     refute has_element?(view, "#card-evidence")
 
     {:ok, _} =
-      Boards.update_card(ctx.card, %{"evidence" => "Looked at it", "evidence_commit" => "abc1234"})
+      Boards.Cards.update_card(ctx.card, %{
+        "evidence" => "Looked at it",
+        "evidence_commit" => "abc1234"
+      })
 
     {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/cards/#{ctx.card}")
     assert has_element?(view, "#card-evidence", "Looked at it")

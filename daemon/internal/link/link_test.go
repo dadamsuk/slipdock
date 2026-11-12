@@ -56,6 +56,74 @@ func TestDropClosesTheConnectionsOnceAGeneration(t *testing.T) {
 	}
 }
 
+func TestALinkPingsByDefault(t *testing.T) {
+	// The daemon makes its link with no ping settings (cli's newLink), so
+	// the defaults are what turns the pings on in production (#2822): 15 s
+	// of quiet, 10 s for the answer.
+	cases := []struct {
+		name           string
+		opts           Options
+		after, timeout time.Duration
+	}{
+		{"no options", Options{}, 15 * time.Second, 10 * time.Second},
+		{"its own times", Options{PingAfter: 300 * time.Millisecond, PingTimeout: 200 * time.Millisecond}, 300 * time.Millisecond, 200 * time.Millisecond},
+		{"its own quiet time only", Options{PingAfter: time.Second}, time.Second, 10 * time.Second},
+		{"its own answer time only", Options{PingTimeout: time.Second}, 15 * time.Second, time.Second},
+		{"pings off", Options{PingAfter: -1}, 0, 10 * time.Second},
+		{"a negative answer time", Options{PingTimeout: -1}, 15 * time.Second, 10 * time.Second},
+	}
+	for _, c := range cases {
+		l := New(c.opts)
+		after, timeout := l.Pings()
+		if after != c.after || timeout != c.timeout {
+			t.Errorf("%s: pings after %s, answered within %s; want %s and %s", c.name, after, timeout, c.after, c.timeout)
+		}
+		// Pings reads the transport's own settings: what Go's HTTP/2 uses.
+		if h2 := l.t.HTTP2; h2 == nil || h2.SendPingTimeout != c.after || h2.PingTimeout != c.timeout {
+			t.Errorf("%s: the transport's HTTP/2 settings are %+v", c.name, h2)
+		}
+	}
+}
+
+func TestAClosedConnectionLeavesTheLinksSet(t *testing.T) {
+	// The link keeps a connection only while it is open (#2822): one left
+	// in the set would be closed again by every Drop, and a daemon that
+	// runs for months would keep one for every reconnect.
+	ts := remoteServer(t)
+	l := New(Options{PingAfter: -1})
+	c := &http.Client{Transport: l}
+	open := func() int {
+		l.mu.Lock()
+		defer l.mu.Unlock()
+		return len(l.conns)
+	}
+	get(t, c, ts.URL)
+	if open() != 1 {
+		t.Fatalf("the link holds %d connections after a request, want 1", open())
+	}
+	l.Drop(l.Gen())
+	if open() != 0 {
+		t.Fatalf("the link still holds %d connections after Drop", open())
+	}
+	// Closed from the other end: the transport closes its side, and the
+	// link forgets it without a Drop.
+	get(t, c, ts.URL)
+	if open() != 1 {
+		t.Fatalf("the link holds %d connections after the request that followed Drop, want 1", open())
+	}
+	ts.CloseClientConnections()
+	deadline := time.Now().Add(5 * time.Second)
+	for open() != 0 {
+		if time.Now().After(deadline) {
+			t.Fatalf("the link still holds %d connections after the server closed them", open())
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if l.Dials() != 2 {
+		t.Fatalf("dials = %d, want 2", l.Dials())
+	}
+}
+
 func TestWakeDropsAndEndsThePausesWaitingOnIt(t *testing.T) {
 	ts := remoteServer(t)
 	l := New(Options{})

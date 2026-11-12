@@ -22,7 +22,7 @@ defmodule Slipdock.CardBordersTest do
 
   test "each edge takes its own palette colour", ctx do
     {:ok, card} =
-      Boards.update_card(ctx.card, %{
+      Boards.Cards.update_card(ctx.card, %{
         "border_top" => "red",
         "border_right" => "sky",
         "border_bottom" => "amber",
@@ -34,7 +34,7 @@ defmodule Slipdock.CardBordersTest do
 
   test "a colour that isn't in the palette is refused, edge by edge", ctx do
     {:error, cs} =
-      Boards.update_card(ctx.card, %{"border_left" => "chartreuse", "border_top" => "red"})
+      Boards.Cards.update_card(ctx.card, %{"border_left" => "chartreuse", "border_top" => "red"})
 
     assert %{border_left: [_]} = errors_on(cs)
     refute Map.has_key?(errors_on(cs), :border_top)
@@ -42,36 +42,42 @@ defmodule Slipdock.CardBordersTest do
   end
 
   test "a blank takes an edge's colour off and leaves the others", ctx do
-    {:ok, card} = Boards.update_card(ctx.card, %{"border_top" => "red", "border_left" => "sky"})
-    {:ok, card} = Boards.update_card(card, %{"border_top" => ""})
+    {:ok, card} =
+      Boards.Cards.update_card(ctx.card, %{"border_top" => "red", "border_left" => "sky"})
+
+    {:ok, card} = Boards.Cards.update_card(card, %{"border_top" => ""})
     assert edges(Repo.reload!(card)) == [nil, nil, nil, "sky"]
   end
 
   test "the edges are apart from the cover colour", ctx do
-    {:ok, card} = Boards.update_card(ctx.card, %{"color" => "violet", "border_top" => "red"})
-    {:ok, card} = Boards.update_card(card, %{"color" => ""})
+    {:ok, card} =
+      Boards.Cards.update_card(ctx.card, %{"color" => "violet", "border_top" => "red"})
+
+    {:ok, card} = Boards.Cards.update_card(card, %{"color" => ""})
     card = Repo.reload!(card)
     assert card.color == nil and card.border_top == "red"
   end
 
   test "a copy keeps the edges", ctx do
     {:ok, card} =
-      Boards.update_card(ctx.card, %{"border_right" => "rose", "border_bottom" => "teal"})
+      Boards.Cards.update_card(ctx.card, %{"border_right" => "rose", "border_bottom" => "teal"})
 
-    {:ok, copy} = Boards.copy_card(card, nil, at: :after, by: ctx.owner)
+    {:ok, copy} = Boards.Cards.copy_card(card, nil, at: :after, by: ctx.owner)
     assert edges(copy) == [nil, "rose", "teal", nil]
   end
 
   describe "portable" do
     setup ctx do
-      {:ok, card} = Boards.update_card(ctx.card, %{"border_top" => "red", "border_left" => "sky"})
+      {:ok, card} =
+        Boards.Cards.update_card(ctx.card, %{"border_top" => "red", "border_left" => "sky"})
+
       %{card: card}
     end
 
     defp import_as(user, document) do
       {:ok, report} = Portable.import(user, Jason.encode!(document))
       board = Boards.get_board!(hd(report.boards).id)
-      [card] = Boards.list_cards(board)
+      [card] = Boards.Cards.list_cards(board)
       Repo.get!(Card, card.id)
     end
 

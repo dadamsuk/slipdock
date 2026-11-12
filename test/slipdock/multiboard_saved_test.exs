@@ -102,7 +102,7 @@ defmodule Slipdock.MultiboardSavedTest do
       Slipdock.Access.list_boards(user)
       |> Kernel.++(Vaults.list_vaults(user))
       |> Kernel.++(Multiboard.list_saved(user))
-      |> Boards.sort_boards("manual")
+      |> Boards.Arrangement.sort_boards("manual")
       |> Enum.map(&{&1.__struct__ |> Module.split() |> List.last(), &1.id})
     end
 
@@ -111,7 +111,7 @@ defmodule Slipdock.MultiboardSavedTest do
       m = save(user, "M")
       {:ok, vault} = user |> Vaults.root() |> Vaults.update_vault(%{"name" => "V"})
 
-      :ok = Boards.reorder_boards(user, [b, m, vault, a])
+      :ok = Boards.Arrangement.reorder_boards(user, [b, m, vault, a])
 
       assert order(user) == [
                {"Board", b.id},
@@ -120,7 +120,7 @@ defmodule Slipdock.MultiboardSavedTest do
                {"Board", a.id}
              ]
 
-      :ok = Boards.reorder_boards(user, ["multiboard-#{m.id}", a.id, vault, b.id])
+      :ok = Boards.Arrangement.reorder_boards(user, ["multiboard-#{m.id}", a.id, vault, b.id])
 
       assert order(user) == [
                {"Saved", m.id},
@@ -129,7 +129,14 @@ defmodule Slipdock.MultiboardSavedTest do
                {"Board", b.id}
              ]
 
-      :ok = Boards.reorder_boards(user, [a.id, {:multiboard, to_string(m.id)}, vault, b.id])
+      :ok =
+        Boards.Arrangement.reorder_boards(user, [
+          a.id,
+          {:multiboard, to_string(m.id)},
+          vault,
+          b.id
+        ])
+
       assert Repo.reload(m).position == 1
     end
 
@@ -139,8 +146,8 @@ defmodule Slipdock.MultiboardSavedTest do
       m = save(user, "M")
       {:ok, vault} = user |> Vaults.root() |> Vaults.update_vault(%{"name" => "V"})
 
-      :ok = Boards.reorder_boards(user, [a, m, b, vault, c])
-      :ok = Boards.reorder_boards(user, [c.id, b.id, a.id])
+      :ok = Boards.Arrangement.reorder_boards(user, [a, m, b, vault, c])
+      :ok = Boards.Arrangement.reorder_boards(user, [c.id, b.id, a.id])
 
       assert order(user) == [
                {"Board", c.id},
@@ -156,8 +163,8 @@ defmodule Slipdock.MultiboardSavedTest do
       m = save(user, "M")
       {:ok, vault} = user |> Vaults.root() |> Vaults.update_vault(%{"name" => "V"})
 
-      :ok = Boards.reorder_boards(user, [m, a, vault, b])
-      :ok = Boards.reorder_boards(user, [vault, b.id, a.id])
+      :ok = Boards.Arrangement.reorder_boards(user, [m, a, vault, b])
+      :ok = Boards.Arrangement.reorder_boards(user, [vault, b.id, a.id])
 
       assert hd(order(user)) == {"Saved", m.id}
     end
@@ -167,8 +174,8 @@ defmodule Slipdock.MultiboardSavedTest do
       m = save(user, "M")
       n = save(user, "N")
 
-      :ok = Boards.reorder_boards(user, [m, n, a])
-      :ok = Boards.reorder_boards(user, [n, a])
+      :ok = Boards.Arrangement.reorder_boards(user, [m, n, a])
+      :ok = Boards.Arrangement.reorder_boards(user, [n, a])
 
       assert Repo.reload(n).position == 0
       assert Repo.reload(m).position == nil
@@ -177,20 +184,20 @@ defmodule Slipdock.MultiboardSavedTest do
     test "nobody else's multiboard is placed", %{user: user, a: a} do
       stranger = user_fixture("msv-stranger2@example.com")
       theirs = save(stranger, "Theirs")
-      :ok = Boards.reorder_boards(stranger, [theirs])
+      :ok = Boards.Arrangement.reorder_boards(stranger, [theirs])
 
-      :ok = Boards.reorder_boards(user, [{:multiboard, theirs.id}, a])
+      :ok = Boards.Arrangement.reorder_boards(user, [{:multiboard, theirs.id}, a])
       assert Repo.reload(theirs).position == 0
     end
 
     test "nudge and place move it like a board", %{user: user, a: a, b: b} do
       m = save(user, "M")
-      :ok = Boards.reorder_boards(user, [a, b, m])
+      :ok = Boards.Arrangement.reorder_boards(user, [a, b, m])
 
-      :ok = Boards.nudge_board(user, m, :up, [a, b, m])
+      :ok = Boards.Arrangement.nudge_board(user, m, :up, [a, b, m])
       assert Enum.take(order(user), 3) == [{"Board", a.id}, {"Saved", m.id}, {"Board", b.id}]
 
-      :ok = Boards.place_board(user, m, a.id, [a, m, b])
+      :ok = Boards.Arrangement.place_board(user, m, a.id, [a, m, b])
       assert hd(order(user)) == {"Saved", m.id}
     end
 
@@ -199,13 +206,13 @@ defmodule Slipdock.MultiboardSavedTest do
       m = save(user, "0 first")
       boards = Slipdock.Access.list_boards(user, activity: true)
 
-      assert [%Saved{id: id} | _] = Boards.sort_boards(boards ++ [m], "name")
+      assert [%Saved{id: id} | _] = Boards.Arrangement.sort_boards(boards ++ [m], "name")
       assert id == m.id
 
       # It holds no cards of its own, so the busiest board comes first.
-      assert [%{name: "A"} | _] = Boards.sort_boards([m | boards], "cards")
-      assert %Saved{} = List.last(Boards.sort_boards([m | boards], "oldest"))
-      assert %Saved{} = hd(Boards.sort_boards([m | boards], "newest"))
+      assert [%{name: "A"} | _] = Boards.Arrangement.sort_boards([m | boards], "cards")
+      assert %Saved{} = List.last(Boards.Arrangement.sort_boards([m | boards], "oldest"))
+      assert %Saved{} = hd(Boards.Arrangement.sort_boards([m | boards], "newest"))
     end
   end
 end

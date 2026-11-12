@@ -695,11 +695,14 @@ defmodule Slipdock.Wiki.Tree do
   # so a tree sorted by name stays sorted and a hand-ordered one keeps its
   # order.
   # The top of a vault is its owner's boards, in the order their home page
-  # keeps them by hand (`Slipdock.Boards.home_ranks/2`). Anything else at
+  # keeps them by hand (`Slipdock.Boards.Arrangement.home_ranks/2`). Anything else at
   # the top stays after the boards, in the order it came.
   defp in_home_order(rows, %Vault{user_id: user_id}, boards) do
     owner = %Slipdock.Accounts.User{id: user_id}
-    ranks = Slipdock.Boards.home_ranks(owner, for({_id, {board, _}} <- boards, do: board))
+
+    ranks =
+      Slipdock.Boards.Arrangement.home_ranks(owner, for({_id, {board, _}} <- boards, do: board))
+
     Enum.sort_by(rows, &(row_rank(&1, ranks) || map_size(ranks)))
   end
 

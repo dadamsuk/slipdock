@@ -17,7 +17,7 @@ defmodule Slipdock.BoardNoticesTest do
   end
 
   # Subscribes this test process as the page would, and returns the roots.
-  defp listen(user), do: Boards.subscribe_all(user)
+  defp listen(user), do: Boards.PubSub.subscribe_all(user)
 
   describe "a change to a board" do
     test "reaches its owner, and not somebody it was never shared with", ctx do
@@ -32,7 +32,7 @@ defmodule Slipdock.BoardNoticesTest do
 
     test "inside a sub-board reaches whoever listens on the root", ctx do
       card = card_fixture(hd(ctx.board.columns), %{"title" => "Epic"})
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(card, t)
       sub = Boards.get_board!(sub.id)
 
@@ -53,7 +53,7 @@ defmodule Slipdock.BoardNoticesTest do
 
     test "as a sub-board reaches the tree it was in", ctx do
       card = card_fixture(hd(ctx.board.columns), %{"title" => "Epic"})
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(card, t)
 
       listen(ctx.owner)
@@ -70,7 +70,7 @@ defmodule Slipdock.BoardNoticesTest do
     refute new.id in roots
     assert_receive {:boards_changed}
 
-    assert new.id in Boards.resubscribe_all(ctx.owner, roots)
+    assert new.id in Boards.PubSub.resubscribe_all(ctx.owner, roots)
     {:ok, _} = Boards.update_board(new, %{"description" => "changed"})
     assert_receive {:boards_changed}
 
@@ -85,14 +85,14 @@ defmodule Slipdock.BoardNoticesTest do
 
     {:ok, grant} = Access.grant(ctx.board, ctx.other, "read", ctx.owner)
     assert_receive {:boards_changed}
-    roots = Boards.resubscribe_all(ctx.other, roots)
+    roots = Boards.PubSub.resubscribe_all(ctx.other, roots)
     assert ctx.board.id in roots
 
     {:ok, _} = Access.revoke(grant)
     assert_receive {:boards_changed}
     flush()
 
-    roots = Boards.resubscribe_all(ctx.other, roots)
+    roots = Boards.PubSub.resubscribe_all(ctx.other, roots)
     refute ctx.board.id in roots
     {:ok, _} = Boards.update_board(ctx.board, %{"description" => "changed"})
     refute_receive {:boards_changed}, 50
@@ -113,7 +113,7 @@ defmodule Slipdock.BoardNoticesTest do
     refute ctx.board.id in roots
     {:ok, _} = Accounts.add_group_member(group, joiner.email)
     assert_receive {:boards_changed}
-    assert ctx.board.id in Boards.resubscribe_all(joiner, roots)
+    assert ctx.board.id in Boards.PubSub.resubscribe_all(joiner, roots)
   end
 
   test "reordering boards tells only the person reordering", ctx do
@@ -121,19 +121,19 @@ defmodule Slipdock.BoardNoticesTest do
     listen(ctx.other)
     flush()
 
-    Boards.reorder_boards(ctx.owner, [ctx.board.id])
+    Boards.Arrangement.reorder_boards(ctx.owner, [ctx.board.id])
     refute_receive {:boards_changed}, 50
 
-    Boards.reorder_boards(ctx.other, [ctx.board.id])
+    Boards.Arrangement.reorder_boards(ctx.other, [ctx.board.id])
     assert_receive {:boards_changed}
   end
 
   describe "Access.notice_root_ids/1" do
     test "takes in owned, archived, card-shared and page-shared trees, as roots", ctx do
       card = card_fixture(hd(ctx.board.columns), %{"title" => "Epic"})
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(card, t)
-      {:ok, _} = Boards.archive_board(ctx.board)
+      {:ok, _} = Boards.Arrangement.archive_board(ctx.board)
       assert Access.notice_root_ids(ctx.owner) == [ctx.board.id]
 
       shared_card_board = board_fixture(%{"name" => "Cards"}, owner: ctx.owner)

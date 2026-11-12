@@ -258,7 +258,7 @@ defmodule SlipdockWeb.WikiLive.ItemEvents do
           %{
             kind: :tag_many,
             items: pages,
-            tags: Boards.list_tags(Slipdock.Boards.Board.root_id(socket.assigns.board))
+            tags: Boards.Tags.list_tags(Slipdock.Boards.Board.root_id(socket.assigns.board))
           }
 
         _ ->

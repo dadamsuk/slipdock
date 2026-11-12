@@ -801,13 +801,15 @@ WRITE
       [--agentic-building on|off]
       [--job-log-hours N] [--failure-log-hours N]
       [--delivery-metrics | --no-delivery-metrics] [--incident-tag T] [--hotfix-hours N]
-      [--card-ref-pattern RE] [--default-view V] [--handoff-label L]
+      [--not-shipped-minutes N] [--card-ref-pattern RE] [--default-view V] [--handoff-label L]
       [--handoff-prompt TEXT | --handoff-prompt-file PATH] [--inbound-senders LIST]
       [--wiki-sort manual|name|modified|created] [--bar-required | --no-bar-required]
       [--evidence-required | --no-evidence-required] [--verify-work | --no-verify-work]
       [--verify-pool POOL] [--verify-rejection-limit N] [--verify-audit N]
       [--findings-propose-at N] [--wait-default-after TIME|off]
       [--ship-via push|pull-request]
+      [--release-mode on-merge|batched] [--release-age-cap HOURS|off]
+      [--release-command CMD|default]
       [--lanes | --no-lanes] [--lane-mode off|hold|advise] [--shared-paths GLOBS]
       [--route KIND=EMAIL[,EMAIL]]... [--no-route KIND]...
       [--profiles on|off] [--profile-tier PROFILE=TIER]...
@@ -836,6 +838,10 @@ WRITE
                                       --incident-tag names the tag on incident cards
                                       (incident); --hotfix-hours how soon a fix naming one
                                       makes the deploy before it a failed change (24);
+                                      --not-shipped-minutes how long a merged card may
+                                      go with no succeeded deploy naming it before the
+                                      board raises an alert and `card` says Not shipped
+                                      (20; 0 never), overseer on or off;
                                       --card-ref-pattern the regex finding card ids in
                                       commit messages, id in its first group (#(\d+))
                                       --default-view picks what opening the board shows
@@ -872,6 +878,19 @@ WRITE
                                       --ship-via pull-request: agents open a pull request,
                                       never push the default branch, and accepting the
                                       card has a runner merge it (needs --verify-work)
+                                      --release-mode batched: a merge doesn't deploy; the
+                                      card shows merged, awaiting release, until a
+                                      release ships it (on-merge, the default, deploys
+                                      each merge). Set on the tree's root board
+                                      --release-age-cap HOURS: on a batched board,
+                                      release once the oldest waiting merge has waited
+                                      that long (off, the default, never)
+                                      --release-command CMD: the one line a runner's
+                                      release job runs (default: gh workflow run
+                                      release.yml --ref {default_branch}, the runner
+                                      putting the repository's default branch in;
+                                      any other command runs only on a machine whose
+                                      local.json lists it under release_commands)
                                       --lanes: an agent can't start a card whose --paths
                                       overlap a card in progress (a person can)
                                       --lane-mode off|hold|advise: what an overlap does:
@@ -1144,9 +1163,20 @@ WRITE
                                                  The board owner's
   resume <board> [--pool P]                      let exactly that pause off again (a person's:
                                                  refused when run under an agent)
+  release <board>                                Release now, on a board with batched releases:
+                                                 a runner's release job runs the release command
+                                                 for every merged card awaiting release. One at a
+                                                 time: during a release it queues one follow-up,
+                                                 and more join that. The board owner's
+  releases <board>                               where its releases stand: the one running, the
+                                                 one queued, the last ended, the cards awaiting
   job-progress [<id>] [--step S] [--message NOTE] renew the job's lease (a session holds it 20 min);
                                                  --step says what you're doing now, shown on the job
-                                                 (Runners panel, job, jobs) and not on the card; the
+                                                 (Runners panel, job, jobs) and never a comment on
+                                                 the card. On an epic's job, name the subcard you
+                                                 are on in it ("#2835 CI running"): that subcard
+                                                 then shows the job as its loop and reads as
+                                                 running, not as nobody on it. The
                                                  note is also a comment on the card (--message - reads
                                                  it from stdin). Without <id>, the runner job in
                                                  $SLIPDOCK_JOB_ID. Prints ok or cancel

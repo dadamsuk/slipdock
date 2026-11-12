@@ -3,7 +3,7 @@ defmodule Slipdock.KindsTest do
   The three things a list can hold — a card, a document, a wiki page placed in
   it — and the filters that narrow to one of them: the board's own
   (`Slipdock.Filters`), every other view's (`Slipdock.Swimlanes`) and the card
-  listing the API and the CLI go through (`Slipdock.Boards.list_cards/2`).
+  listing the API and the CLI go through (`Slipdock.Boards.Cards.list_cards/2`).
   """
   use Slipdock.DataCase, async: true
 
@@ -24,9 +24,13 @@ defmodule Slipdock.KindsTest do
 
     attach = fn card ->
       {:ok, _} =
-        Boards.add_attachment(card, %{filename: "spec.txt", content_type: "text/plain"}, src)
+        Boards.Attachments.add_attachment(
+          card,
+          %{filename: "spec.txt", content_type: "text/plain"},
+          src
+        )
 
-      Boards.get_card!(card.id)
+      Boards.Cards.get_card!(card.id)
     end
 
     card = card_fixture(todo, %{"title" => "Write the parser"})
@@ -53,23 +57,25 @@ defmodule Slipdock.KindsTest do
     end
 
     test "a card with a file and something of its own is a card again", ctx do
-      {:ok, described} = Boards.update_card(ctx.document, %{"description" => "the vendor's spec"})
-      assert Kinds.kind_of(Boards.get_card!(described.id)) == "card"
+      {:ok, described} =
+        Boards.Cards.update_card(ctx.document, %{"description" => "the vendor's spec"})
 
-      {:ok, _} = Boards.update_card(described, %{"description" => "   "})
-      assert Kinds.kind_of(Boards.get_card!(described.id)) == "document"
+      assert Kinds.kind_of(Boards.Cards.get_card!(described.id)) == "card"
 
-      {:ok, _} = Boards.add_checklist_item(ctx.document, "read it")
-      assert Kinds.kind_of(Boards.get_card!(ctx.document.id)) == "card"
+      {:ok, _} = Boards.Cards.update_card(described, %{"description" => "   "})
+      assert Kinds.kind_of(Boards.Cards.get_card!(described.id)) == "document"
+
+      {:ok, _} = Boards.Checklists.add_checklist_item(ctx.document, "read it")
+      assert Kinds.kind_of(Boards.Cards.get_card!(ctx.document.id)) == "card"
     end
 
     test "a file with work hanging beneath it is a card, not a document", ctx do
-      {:ok, template} = Boards.find_template(nil, "Simple")
+      {:ok, template} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = Boards.create_sub_board(ctx.document, template)
-      assert Kinds.kind_of(Boards.get_card!(ctx.document.id)) == "document"
+      assert Kinds.kind_of(Boards.Cards.get_card!(ctx.document.id)) == "document"
 
       _ = card_fixture(hd(Boards.get_board!(sub.id).columns), %{"title" => "Read it"})
-      assert Kinds.kind_of(Boards.get_card!(ctx.document.id)) == "card"
+      assert Kinds.kind_of(Boards.Cards.get_card!(ctx.document.id)) == "card"
 
       rollup = Boards.rollup(Boards.get_board!(ctx.board.id))
       assert %{document: false} = rollup.cards[ctx.document.id]
@@ -108,8 +114,8 @@ defmodule Slipdock.KindsTest do
     end
 
     test "kind narrows alongside the other filters, not instead of them", ctx do
-      {:ok, _} = Boards.update_card(ctx.card, %{"priority" => "high"})
-      card = Boards.get_card!(ctx.card.id)
+      {:ok, _} = Boards.Cards.update_card(ctx.card, %{"priority" => "high"})
+      card = Boards.Cards.get_card!(ctx.card.id)
       filters = %{Filters.empty() | kinds: ["card"], priority: "high"}
 
       assert Filters.matches?(card, filters)
@@ -148,7 +154,7 @@ defmodule Slipdock.KindsTest do
   describe "the card listing the API and the CLI use" do
     test "kind=document, kind=card, and pages are not cards", ctx do
       titles = fn filters ->
-        ctx.board |> Boards.list_cards(filters) |> Enum.map(& &1.title) |> Enum.sort()
+        ctx.board |> Boards.Cards.list_cards(filters) |> Enum.map(& &1.title) |> Enum.sort()
       end
 
       assert titles.(%{}) == ["Write the parser", "spec.txt"]

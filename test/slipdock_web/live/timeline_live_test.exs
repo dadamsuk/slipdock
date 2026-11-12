@@ -32,10 +32,14 @@ defmodule SlipdockWeb.TimelineLiveTest do
     [col | _] = board.columns
     card = card_fixture(col, %{"title" => "Dated", "start_date" => "2030-02-01"})
 
-    assert {:error, cs} = Boards.update_card(card, %{"due_date" => "2030-01-01"})
+    assert {:error, cs} = Boards.Cards.update_card(card, %{"due_date" => "2030-01-01"})
     assert {"must be on or before the due date", _} = cs.errors[:start_date]
-    assert {:ok, _} = Boards.update_card(card, %{"due_date" => "2030-02-05"})
-    assert Enum.any?(Boards.list_activities(board.id), &(&1.message =~ "set due date"))
+    assert {:ok, _} = Boards.Cards.update_card(card, %{"due_date" => "2030-02-05"})
+
+    assert Enum.any?(
+             Boards.ActivityLog.list_activities(board.id),
+             &(&1.message =~ "set due date")
+           )
   end
 
   test "Timeline.build places bars in a window around the anchor", %{board: board} do
@@ -107,25 +111,25 @@ defmodule SlipdockWeb.TimelineLiveTest do
 
     # Dragging the bar two days to the right moves both dates.
     render_hook(view, "timeline_move", %{"id" => span.id, "edge" => "both", "delta" => 2})
-    span = Boards.get_card!(span.id)
+    span = Boards.Cards.get_card!(span.id)
     assert span.start_date == ~D[2030-01-12] and span.due_date == ~D[2030-01-22]
 
     render_hook(view, "timeline_move", %{"id" => span.id, "edge" => "end", "delta" => -1})
-    assert Boards.get_card!(span.id).due_date == ~D[2030-01-21]
+    assert Boards.Cards.get_card!(span.id).due_date == ~D[2030-01-21]
 
     # Scheduling from the tray sets a due date and moves the card onto the grid.
     view |> form("#schedule-#{loose.id}", %{"value" => "2030-01-18"}) |> render_change()
-    assert Boards.get_card!(loose.id).due_date == ~D[2030-01-18]
+    assert Boards.Cards.get_card!(loose.id).due_date == ~D[2030-01-18]
     assert has_element?(view, "#tl-bar-all-#{loose.id}[data-kind=due]")
 
     # Dragging a tray card onto a day column does the same; the day is an
     # index into the window, and out-of-range drops are ignored.
-    Boards.update_card(Boards.get_card!(loose.id), %{"due_date" => nil})
+    Boards.Cards.update_card(Boards.Cards.get_card!(loose.id), %{"due_date" => nil})
     assert has_element?(view, "#dateless-cards[phx-hook=TimelineTray] #dateless-#{loose.id}")
     render_hook(view, "timeline_schedule", %{"id" => loose.id, "day" => 112})
-    assert is_nil(Boards.get_card!(loose.id).due_date)
+    assert is_nil(Boards.Cards.get_card!(loose.id).due_date)
     render_hook(view, "timeline_schedule", %{"id" => loose.id, "day" => 3})
-    assert Boards.get_card!(loose.id).due_date == ~D[2029-12-27]
+    assert Boards.Cards.get_card!(loose.id).due_date == ~D[2029-12-27]
     assert has_element?(view, "#tl-bar-all-#{loose.id}[data-kind=due]")
 
     # Group by list, zoom to months.
@@ -163,7 +167,7 @@ defmodule SlipdockWeb.TimelineLiveTest do
 
     # A day zoom on a one-day card (44px): too short for this title, so it goes beside it.
     {:ok, short} =
-      Boards.update_card(span, %{
+      Boards.Cards.update_card(span, %{
         "title" => "Span over one day",
         "start_date" => "2030-01-15",
         "due_date" => "2030-01-15"
@@ -177,7 +181,7 @@ defmodule SlipdockWeb.TimelineLiveTest do
   test "saved views remember the timeline but not the page", %{conn: conn, board: board} do
     {:ok, view, _} = live(conn, ~p"/boards/#{board}/timeline?rows=tag&date=2030-01-15")
     view |> form("form[phx-submit=swim_save_view]", %{"name" => "Plan"}) |> render_submit()
-    [saved] = Boards.list_saved_views(board.id)
+    [saved] = Boards.SavedViews.list_saved_views(board.id)
     assert saved.config["mode"] == "timeline" and saved.config["rows"] == "tag"
     refute Map.has_key?(saved.config, "date")
     assert_patch(view, ~p"/boards/#{board}/timeline?view=#{saved.id}")

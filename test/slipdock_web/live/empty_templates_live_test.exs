@@ -27,7 +27,7 @@ defmodule SlipdockWeb.EmptyTemplatesLiveTest do
   end
 
   test "a template of the user's own replaces it", %{conn: conn, user: user} do
-    {:ok, _} = Boards.create_template(user, %{"name" => "Mine", "columns" => ["A"]})
+    {:ok, _} = Boards.Templates.create_template(user, %{"name" => "Mine", "columns" => ["A"]})
     {:ok, view, _} = live(conn, ~p"/templates")
     refute has_element?(view, "#templates-empty")
     assert render(view) =~ "Mine"

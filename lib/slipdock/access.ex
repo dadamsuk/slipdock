@@ -107,7 +107,7 @@ defmodule Slipdock.Access do
     board = Repo.get!(Board, card.board_id)
 
     if board_permission(user, board) == :view do
-      card = Boards.get_card!(card.id)
+      card = Boards.Cards.get_card!(card.id)
 
       user
       |> accessible_views(board)
@@ -378,7 +378,7 @@ defmodule Slipdock.Access do
 
   @doc "Saved views on `board` this user may open (all of them with real board access)."
   def accessible_views(%User{} = user, %Board{} = board) do
-    views = Boards.list_saved_views(board.id)
+    views = Boards.SavedViews.list_saved_views(board.id)
 
     case board_permission(user, board) do
       :view -> Enum.filter(views, &(grant_level(user, saved_view_id: &1.id) != :none))
@@ -545,7 +545,7 @@ defmodule Slipdock.Access do
   The root boards whose changes `user`'s cross-board pages should hear about:
   every tree they reach (`reachable_roots/1`) and the trees of pages shared
   with them on their own. Archived boards are in it — they still show on the
-  index's archived list. See `Slipdock.Boards.subscribe_all/1`.
+  index's archived list. See `Slipdock.Boards.PubSub.subscribe_all/1`.
   """
   @spec notice_root_ids(User.t()) :: [integer()]
   def notice_root_ids(%User{} = user) do
@@ -591,7 +591,7 @@ defmodule Slipdock.Access do
   Each board's `position` is where this user has put it on their own index
   (nil until they have placed it); pass `activity: true` to also fill
   `last_activity_at` with the last time anything happened anywhere in its
-  tree. `Slipdock.Boards.sort_boards/2` reads both.
+  tree. `Slipdock.Boards.Arrangement.sort_boards/2` reads both.
   """
   def list_boards(user, opts \\ [])
 
@@ -644,12 +644,12 @@ defmodule Slipdock.Access do
   end
 
   defp with_positions(boards, user) do
-    placed = Boards.board_order(user)
+    placed = Boards.Arrangement.board_order(user)
     Enum.map(boards, &%{&1 | position: placed[&1.id]})
   end
 
   defp with_activity(boards, true) do
-    last = Boards.last_activity_at(boards)
+    last = Boards.Arrangement.last_activity_at(boards)
     Enum.map(boards, &%{&1 | last_activity_at: last[&1.id]})
   end
 
@@ -942,7 +942,7 @@ defmodule Slipdock.Access do
       with {:ok, grant} <- result do
         broadcast_resource(resource)
         # They are not listening on this tree yet.
-        Boards.notify_users_boards_changed(subject_user_ids(subject))
+        Boards.PubSub.notify_users_boards_changed(subject_user_ids(subject))
         notify_shares(resource, subject_user_ids(subject))
         {:ok, Repo.preload(grant, [:user, :group, :granted_by])}
       end
@@ -971,7 +971,7 @@ defmodule Slipdock.Access do
         do: Slipdock.WaitRoutes.user_left(resource, subject_user_ids(grant))
 
       broadcast_resource(resource)
-      Boards.notify_users_boards_changed(subject_user_ids(grant))
+      Boards.PubSub.notify_users_boards_changed(subject_user_ids(grant))
       notify_shares(resource, subject_user_ids(grant))
     end)
   end
@@ -1203,7 +1203,7 @@ defmodule Slipdock.Access do
 
   defp broadcast(board_id) do
     Phoenix.PubSub.broadcast(@pubsub, "board:#{board_id}", {:board_changed, board_id})
-    Boards.notify_boards_changed(Boards.root_of_board(board_id))
+    Boards.PubSub.notify_boards_changed(Boards.root_of_board(board_id))
   end
 
   @doc """

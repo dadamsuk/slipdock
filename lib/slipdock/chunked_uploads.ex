@@ -175,7 +175,7 @@ defmodule Slipdock.ChunkedUploads do
   defp valid_id?(id) when is_binary(id), do: match?({:ok, ^id}, Ecto.UUID.cast(id))
   defp valid_id?(_), do: false
 
-  defp dir, do: Path.join(Boards.uploads_dir(), "staging")
+  defp dir, do: Path.join(Boards.Attachments.uploads_dir(), "staging")
   defp part(id), do: Path.join(dir(), id <> ".part")
   defp sidecar(id), do: Path.join(dir(), id <> ".json")
 end

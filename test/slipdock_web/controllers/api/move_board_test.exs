@@ -20,7 +20,7 @@ defmodule SlipdockWeb.API.MoveBoardTest do
     card: card
   } do
     bug = tag_fixture(from, "bug")
-    Boards.set_card_tags(card, [bug])
+    Boards.Cards.set_card_tags(card, [bug])
 
     body =
       conn
@@ -37,7 +37,7 @@ defmodule SlipdockWeb.API.MoveBoardTest do
              "milestones_unpinned" => 0
            }
 
-    assert Enum.map(Boards.list_tags(to.id), & &1.name) == ["bug"]
+    assert Enum.map(Boards.Tags.list_tags(to.id), & &1.name) == ["bug"]
   end
 
   test "the board can be named, coded or numbered, and the list defaults to the first", %{
@@ -70,7 +70,7 @@ defmodule SlipdockWeb.API.MoveBoardTest do
   end
 
   test "moving into the card's own subcards is refused", %{conn: conn, card: card} do
-    {:ok, sub} = Boards.create_sub_board(card, hd(Boards.list_templates(nil)))
+    {:ok, sub} = Boards.create_sub_board(card, hd(Boards.Templates.list_templates(nil)))
     sub = Boards.get_board!(sub.id)
 
     assert %{"error" => message} =
@@ -94,7 +94,7 @@ defmodule SlipdockWeb.API.MoveBoardTest do
              |> post(~p"/api/cards/#{card.id}/move", %{"board" => theirs.code})
              |> json_response(403)
 
-    assert Boards.get_card!(card.id).board_id != theirs.id
+    assert Boards.Cards.get_card!(card.id).board_id != theirs.id
   end
 
   test "a move with no board is still the old same-board move", %{

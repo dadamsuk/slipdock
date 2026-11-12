@@ -173,7 +173,7 @@ defmodule SlipdockWeb.API.CardViewsTest do
     {:ok, _} = CardViews.create(user, %{"name" => "Top", "show" => "comments"})
 
     {:ok, saved} =
-      Slipdock.Boards.create_saved_view(board, %{
+      Slipdock.Boards.SavedViews.create_saved_view(board, %{
         "name" => "Busy",
         "config" => %{"card_view" => "Top"}
       })

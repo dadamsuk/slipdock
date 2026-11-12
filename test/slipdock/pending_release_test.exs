@@ -43,13 +43,15 @@ defmodule Slipdock.PendingReleaseTest do
 
   defp card(column, title, paths) do
     card = card_fixture(column, %{"title" => title})
-    {:ok, card} = Boards.update_card(card, %{"paths" => paths})
+    {:ok, card} = Boards.Cards.update_card(card, %{"paths" => paths})
     card
   end
 
   defp submit(card, ctx) do
     {:ok, card} =
-      Boards.update_card(Repo.get!(Card, card.id), %{"completed" => true}, actor: ctx.builder)
+      Boards.Cards.update_card(Repo.get!(Card, card.id), %{"completed" => true},
+        actor: ctx.builder
+      )
 
     assert card.verify_state == "pending"
     refute card.completed
@@ -71,15 +73,16 @@ defmodule Slipdock.PendingReleaseTest do
   end
 
   defp depend(blocked, blocker) do
-    {:ok, _} = Boards.add_dependency(blocked, blocker)
-    {:ok, _} = Boards.update_card(Repo.get!(Card, blocked.id), %{"flags" => ["blocked"]})
+    {:ok, _} = Boards.Dependencies.add_dependency(blocked, blocker)
+    {:ok, _} = Boards.Cards.update_card(Repo.get!(Card, blocked.id), %{"flags" => ["blocked"]})
     :ok
   end
 
   defp comments(card),
     do: Repo.all(from(c in Boards.Comment, where: c.card_id == ^card.id, select: c.body))
 
-  defp move(card, column, ctx), do: Boards.move_card(card.id, column.id, nil, actor: ctx.builder)
+  defp move(card, column, ctx),
+    do: Boards.Cards.move_card(card.id, column.id, nil, actor: ctx.builder)
 
   describe "released?/2" do
     test "pending on a push board only", ctx do
@@ -140,7 +143,7 @@ defmodule Slipdock.PendingReleaseTest do
       assert message =~ "##{b.id}"
 
       # ...and takes its lane once B is out of the way, holding off others.
-      {:ok, _} = Boards.update_card(Repo.get!(Card, b.id), %{"completed" => true})
+      {:ok, _} = Boards.Cards.update_card(Repo.get!(Card, b.id), %{"completed" => true})
       b_job |> Ecto.Changeset.change(status: "done") |> Repo.update!()
       assert :ok = move(a, ctx.doing, ctx)
       working_job_fixture(a)
@@ -172,11 +175,11 @@ defmodule Slipdock.PendingReleaseTest do
       a = card(ctx.doing, "A", "lib/**")
       d = card(ctx.todo, "D", "docs/**")
       :ok = depend(d, a)
-      assert Card.blocked?(Boards.get_card!(d.id))
+      assert Card.blocked?(Boards.Cards.get_card!(d.id))
 
       submit(a, ctx)
 
-      d = Boards.get_card!(d.id)
+      d = Boards.Cards.get_card!(d.id)
       refute Card.blocked?(d)
       assert Card.open_blockers(d) == []
       assert [%{verify_released: true}] = d.blocked_by
@@ -184,7 +187,7 @@ defmodule Slipdock.PendingReleaseTest do
       assert Enum.any?(comments(d), &(&1 =~ "awaiting verification"))
 
       refute Rollup.build(ctx.board).stats[d.id].blocked
-      assert d.id in Enum.map(Boards.list_cards(ctx.board, %{"deps" => "ready"}), & &1.id)
+      assert d.id in Enum.map(Boards.Cards.list_cards(ctx.board, %{"deps" => "ready"}), & &1.id)
 
       # The API says so, for the CLI's blocked-by list.
       json = SlipdockWeb.API.JSON.card(d)
@@ -199,16 +202,16 @@ defmodule Slipdock.PendingReleaseTest do
       d = card(ctx.todo, "D", "docs/**")
       :ok = depend(d, a)
       submit(a, ctx)
-      refute Card.blocked?(Boards.get_card!(d.id))
+      refute Card.blocked?(Boards.Cards.get_card!(d.id))
 
       reject(a, ctx)
 
-      d = Boards.get_card!(d.id)
+      d = Boards.Cards.get_card!(d.id)
       assert Card.blocked?(d)
       assert [%{id: id}] = Card.open_blockers(d)
       assert id == a.id
       assert Rollup.build(ctx.board).stats[d.id].blocked
-      refute d.id in Enum.map(Boards.list_cards(ctx.board, %{"deps" => "ready"}), & &1.id)
+      refute d.id in Enum.map(Boards.Cards.list_cards(ctx.board, %{"deps" => "ready"}), & &1.id)
     end
 
     test "on a pull_request board dependents stay blocked until the card is done", ctx do
@@ -219,24 +222,24 @@ defmodule Slipdock.PendingReleaseTest do
 
       submit(a, ctx)
 
-      d = Boards.get_card!(d.id)
+      d = Boards.Cards.get_card!(d.id)
       assert Card.blocked?(d)
       assert [%{verify_released: false}] = d.blocked_by
       assert [%{released: false}] = SlipdockWeb.API.JSON.card(d).blocked_by
       assert "blocked" in d.flags
       assert Rollup.build(ctx.board).stats[d.id].blocked
-      refute d.id in Enum.map(Boards.list_cards(ctx.board, %{"deps" => "ready"}), & &1.id)
+      refute d.id in Enum.map(Boards.Cards.list_cards(ctx.board, %{"deps" => "ready"}), & &1.id)
 
       # Accepted: merging (#1657), its PR still unmerged, so still blocking.
       person = Actor.web(ctx.owner)
       {:ok, a} = Verified.decide(Repo.get!(Card, a.id), "accept", %{}, person, ctx.owner)
       assert a.verify_state == "merging"
-      assert Card.blocked?(Boards.get_card!(d.id))
+      assert Card.blocked?(Boards.Cards.get_card!(d.id))
 
       # Merged (here by hand): done, and the dependent goes.
       {:ok, _} = Verified.decide(a, "merged", %{}, person, ctx.owner)
 
-      d = Boards.get_card!(d.id)
+      d = Boards.Cards.get_card!(d.id)
       refute Card.blocked?(d)
       refute "blocked" in d.flags
     end
@@ -245,7 +248,7 @@ defmodule Slipdock.PendingReleaseTest do
       ctx = ship(ctx, "push")
       a = card(ctx.doing, "A", "lib/**")
       d = card(ctx.todo, "D", "docs/**")
-      {:ok, _} = Boards.add_dependency(d, a)
+      {:ok, _} = Boards.Dependencies.add_dependency(d, a)
       submit(a, ctx)
 
       # The automation's preload sees the release too (blocked_by stubs).

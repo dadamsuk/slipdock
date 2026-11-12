@@ -17,7 +17,7 @@ defmodule SlipdockWeb.VisualiseDoingListTest do
     board = board_fixture(%{"name" => "Seen", "code" => unique_code()}, owner: user)
     [_backlog, _todo, doing, _done] = board.columns
     epic = card_fixture(doing, %{"title" => "Epic"})
-    {:ok, t} = Boards.find_template(nil, "Simple")
+    {:ok, t} = Boards.Templates.find_template(nil, "Simple")
     {:ok, sub} = sub_board(epic, t)
     sub = Boards.get_board!(sub.id)
     sub_todo = Enum.find(sub.columns, &(&1.name == "To Do"))
@@ -29,7 +29,7 @@ defmodule SlipdockWeb.VisualiseDoingListTest do
 
   test "an uncategorised Doing is the flow's doing list, with its WIP limit",
        %{conn: conn} = ctx do
-    {:ok, _} = Boards.update_column(ctx.sub_doing, %{"wip_limit" => 2})
+    {:ok, _} = Boards.Columns.update_column(ctx.sub_doing, %{"wip_limit" => 2})
     card = card_fixture(ctx.sub_doing, %{"title" => "Busy"})
 
     {:ok, view, _} = live(conn, ~p"/boards/#{ctx.sub}/visualise")
@@ -58,7 +58,7 @@ defmodule SlipdockWeb.VisualiseDoingListTest do
 
   test "an uncategorised list not named as a doing list is still outside the flow",
        %{conn: conn} = ctx do
-    {:ok, other} = Boards.create_column(ctx.sub, %{"name" => "Parked"})
+    {:ok, other} = Boards.Columns.create_column(ctx.sub, %{"name" => "Parked"})
     parked = card_fixture(other, %{"title" => "Parked"})
 
     {:ok, view, _} = live(conn, ~p"/boards/#{ctx.sub}/visualise")

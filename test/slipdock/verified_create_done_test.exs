@@ -45,7 +45,7 @@ defmodule Slipdock.VerifiedCreateDoneTest do
     test "an agent can't create a card in a done list with no evidence, and none is made",
          ctx do
       assert {:error, changeset} =
-               Boards.create_card(ctx.done, %{"title" => "Sneaked in"}, actor: ctx.agent)
+               Boards.Cards.create_card(ctx.done, %{"title" => "Sneaked in"}, actor: ctx.agent)
 
       assert {message, _} = changeset.errors[:evidence]
       assert message =~ "evidence_commit"
@@ -56,7 +56,7 @@ defmodule Slipdock.VerifiedCreateDoneTest do
 
     test "nor one created completed in another list", ctx do
       assert {:error, changeset} =
-               Boards.create_card(ctx.todo, %{"title" => "Ticked", "completed" => true},
+               Boards.Cards.create_card(ctx.todo, %{"title" => "Ticked", "completed" => true},
                  actor: ctx.agent
                )
 
@@ -66,7 +66,7 @@ defmodule Slipdock.VerifiedCreateDoneTest do
 
     test "blank evidence is no evidence", ctx do
       assert {:error, changeset} =
-               Boards.create_card(ctx.done, %{"title" => "Blank", "evidence" => "  "},
+               Boards.Cards.create_card(ctx.done, %{"title" => "Blank", "evidence" => "  "},
                  actor: ctx.agent
                )
 
@@ -82,7 +82,9 @@ defmodule Slipdock.VerifiedCreateDoneTest do
              "Suite"}
           ] do
         assert {:ok, card} =
-                 Boards.create_card(ctx.done, Map.put(attrs, "title", title), actor: ctx.agent)
+                 Boards.Cards.create_card(ctx.done, Map.put(attrs, "title", title),
+                   actor: ctx.agent
+                 )
 
         assert card.column_id == ctx.done.id
       end
@@ -90,18 +92,18 @@ defmodule Slipdock.VerifiedCreateDoneTest do
 
     test "a person, the assistant, an automation and an unknown door need no evidence", ctx do
       for {actor, title} <- others(ctx) do
-        assert {:ok, card} = Boards.create_card(ctx.done, %{"title" => title}, actor: actor)
+        assert {:ok, card} = Boards.Cards.create_card(ctx.done, %{"title" => title}, actor: actor)
         assert card.column_id == ctx.done.id
       end
 
-      assert {:ok, _} = Boards.create_card(ctx.done, %{"title" => "No actor"})
+      assert {:ok, _} = Boards.Cards.create_card(ctx.done, %{"title" => "No actor"})
       assert count(ctx.done) == 4
     end
 
     test "an agent creates a card with no evidence in a list that isn't done", ctx do
       for column <- [ctx.todo, ctx.doing] do
         assert {:ok, card} =
-                 Boards.create_card(column, %{"title" => "Open"}, actor: ctx.agent)
+                 Boards.Cards.create_card(column, %{"title" => "Open"}, actor: ctx.agent)
 
         assert card.column_id == column.id
         refute card.completed
@@ -110,7 +112,7 @@ defmodule Slipdock.VerifiedCreateDoneTest do
 
     test "an invalid card is refused for what's wrong with it, not for its evidence", ctx do
       assert {:error, changeset} =
-               Boards.create_card(ctx.done, %{"title" => ""}, actor: ctx.agent)
+               Boards.Cards.create_card(ctx.done, %{"title" => ""}, actor: ctx.agent)
 
       assert changeset.errors[:title]
       refute changeset.errors[:evidence]
@@ -122,7 +124,9 @@ defmodule Slipdock.VerifiedCreateDoneTest do
 
     test "an agent can't create a card in a done list even with evidence", ctx do
       assert {:error, changeset} =
-               Boards.create_card(ctx.done, %{"title" => "Self-accepted", "evidence" => "x"},
+               Boards.Cards.create_card(
+                 ctx.done,
+                 %{"title" => "Self-accepted", "evidence" => "x"},
                  actor: ctx.agent
                )
 
@@ -136,7 +140,7 @@ defmodule Slipdock.VerifiedCreateDoneTest do
 
     test "nor one created completed in another list", ctx do
       assert {:error, changeset} =
-               Boards.create_card(
+               Boards.Cards.create_card(
                  ctx.doing,
                  %{"title" => "Ticked", "completed" => "true", "evidence" => "x"},
                  actor: ctx.agent
@@ -150,7 +154,7 @@ defmodule Slipdock.VerifiedCreateDoneTest do
       switch(%{ctx | board: Repo.reload!(ctx.board)}, %{"ship_via" => "pull_request"})
 
       assert {:error, changeset} =
-               Boards.create_card(
+               Boards.Cards.create_card(
                  ctx.done,
                  %{"title" => "With PR", "evidence_pr" => "https://example.com/pr/1"},
                  actor: ctx.agent
@@ -162,13 +166,15 @@ defmodule Slipdock.VerifiedCreateDoneTest do
 
     test "a person, the assistant and an automation still create one there", ctx do
       for {actor, title} <- others(ctx) do
-        assert {:ok, card} = Boards.create_card(ctx.done, %{"title" => title}, actor: actor)
+        assert {:ok, card} = Boards.Cards.create_card(ctx.done, %{"title" => title}, actor: actor)
         assert card.column_id == ctx.done.id
       end
     end
 
     test "an agent creates one in a list that isn't done, to submit later", ctx do
-      assert {:ok, card} = Boards.create_card(ctx.todo, %{"title" => "Later"}, actor: ctx.agent)
+      assert {:ok, card} =
+               Boards.Cards.create_card(ctx.todo, %{"title" => "Later"}, actor: ctx.agent)
+
       refute card.completed
     end
   end
@@ -177,18 +183,20 @@ defmodule Slipdock.VerifiedCreateDoneTest do
     switch(ctx, %{"verify_work" => true})
 
     assert {:error, changeset} =
-             Boards.create_card(ctx.done, %{"title" => "Bare"}, actor: ctx.agent)
+             Boards.Cards.create_card(ctx.done, %{"title" => "Bare"}, actor: ctx.agent)
 
     assert changeset.errors[:completed]
     refute changeset.errors[:evidence]
   end
 
   test "with the switches off, an agent creates a card in a done list freely", ctx do
-    assert {:ok, card} = Boards.create_card(ctx.done, %{"title" => "Free"}, actor: ctx.agent)
+    assert {:ok, card} =
+             Boards.Cards.create_card(ctx.done, %{"title" => "Free"}, actor: ctx.agent)
+
     assert card.column_id == ctx.done.id
 
     assert {:ok, card} =
-             Boards.create_card(ctx.todo, %{"title" => "Ticked", "completed" => true},
+             Boards.Cards.create_card(ctx.todo, %{"title" => "Ticked", "completed" => true},
                actor: ctx.agent
              )
 
@@ -198,7 +206,9 @@ defmodule Slipdock.VerifiedCreateDoneTest do
   test "with bar_required on, a done list asks no bar", ctx do
     switch(ctx, %{"bar_required" => true})
 
-    assert {:ok, card} = Boards.create_card(ctx.done, %{"title" => "Done"}, actor: ctx.agent)
+    assert {:ok, card} =
+             Boards.Cards.create_card(ctx.done, %{"title" => "Done"}, actor: ctx.agent)
+
     refute card.bar_locked_at
   end
 end

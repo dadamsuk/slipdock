@@ -9,10 +9,8 @@ defmodule SlipdockWeb.MCP.Prompts.Context do
   finds them.
   """
 
-  import Ecto.Query
-
-  alias Slipdock.{Access, Boards, Repo, Timezones, Work}
-  alias Slipdock.Boards.{Activity, Board, Card}
+  alias Slipdock.{Access, Boards, Timezones, Work}
+  alias Slipdock.Boards.{Board, Card}
   alias SlipdockWeb.API.Authorize
   alias SlipdockWeb.MCP.Args
 
@@ -159,21 +157,8 @@ defmodule SlipdockWeb.MCP.Prompts.Context do
     zone = Timezones.of(user)
     end_of_day = Timezones.to_utc(Date.add(today(context), 1), ~T[00:00:00], zone)
 
-    from(c in Card,
-      join: b in Board,
-      on: b.id == c.board_id,
-      where: is_nil(c.archived_at) and not c.completed,
-      where: coalesce(b.root_id, b.id) in ^roots,
-      where:
-        c.id in subquery(
-          from(a in "card_assignees", where: a.user_id == ^user.id, select: a.card_id)
-        ),
-      where: c.snoozed_until < ^end_of_day,
-      order_by: [asc: c.snoozed_until]
-    )
-    |> Slipdock.Snooze.only_snoozed()
-    |> Repo.all()
-    |> Repo.preload([:board, :column])
+    user
+    |> Slipdock.Snooze.waking_before(roots, end_of_day)
     |> then(&Access.filter_readable_cards(user, &1))
   end
 
@@ -182,30 +167,14 @@ defmodule SlipdockWeb.MCP.Prompts.Context do
   included, with its board and list, that the person may read.
   """
   def tree_cards(%{user: user}, roots) do
-    from(c in Card,
-      join: b in Board,
-      on: b.id == c.board_id,
-      where: is_nil(c.archived_at),
-      where: coalesce(b.root_id, b.id) in ^roots,
-      order_by: [asc: c.board_id, asc: c.position]
-    )
-    |> Repo.all()
-    |> Repo.preload([:board, :column, :assignees])
+    roots
+    |> Boards.Cards.tree_cards()
     |> then(&Access.filter_readable_cards(user, &1))
   end
 
   @doc "The activity on the trees of `roots` since `since`, newest first, at most `limit`."
-  def activity_since(roots, %DateTime{} = since, limit) do
-    from(a in Activity,
-      join: b in Board,
-      on: b.id == a.board_id,
-      where: coalesce(b.root_id, b.id) in ^roots and a.inserted_at >= ^since,
-      order_by: [desc: a.inserted_at, desc: a.id],
-      limit: ^limit,
-      preload: [board: b]
-    )
-    |> Repo.all()
-  end
+  def activity_since(roots, %DateTime{} = since, limit),
+    do: Boards.ActivityLog.activity_since(roots, since, limit)
 
   @doc "`path` from My work, as one string."
   def path_line(%{path: path}), do: Enum.join(path, " › ")
@@ -218,9 +187,11 @@ defmodule SlipdockWeb.MCP.Prompts.Context do
     auth = Args.auth(context)
 
     with {:ok, id} <- card_id(ref),
-         %Card{} = card <- Boards.get_card(id) || {:error, "no card you can see matches #{ref}"},
+         %Card{} = card <-
+           Boards.Cards.get_card(id) || {:error, "no card you can see matches #{ref}"},
          :ok <- Args.refusal(Authorize.card(auth, card, :read)) do
-      {:ok, Authorize.visible(auth, card.id |> Boards.get_card!() |> Repo.preload(:board))}
+      {:ok,
+       Authorize.visible(auth, card.id |> Boards.Cards.get_card!() |> Boards.Cards.with_board())}
     end
   end
 
@@ -247,7 +218,7 @@ defmodule SlipdockWeb.MCP.Prompts.Context do
 
   @doc "A card's handoff, as it reads at the top of the card: nil when there is none."
   def handoff_text(%Card{} = card) do
-    case Boards.current_handoff(card) do
+    case Boards.Handoffs.current_handoff(card) do
       nil ->
         nil
 
@@ -265,7 +236,7 @@ defmodule SlipdockWeb.MCP.Prompts.Context do
   what it needs, from whom, since when, and the choices. nil when none.
   """
   def wait_text(%Card{} = card) do
-    case Boards.current_wait(card) do
+    case Boards.Waits.current_wait(card) do
       nil ->
         nil
 

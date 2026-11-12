@@ -6,14 +6,22 @@
 #   ghcr.io/dadamsuk/slipdock:1.2.3        a tag v1.2.3 (also :1.2)
 #   ghcr.io/dadamsuk/slipdock:sha-abc1234  every build, by commit
 #
-# After a push to main or a v* tag, the deploy job puts that exact image on the
-# production server (see the job for how, and deploy/deploy.sh for the server
+# After a push to main, a dispatched release of main or a v* tag, the deploy
+# job puts that exact image on the production server (see the job for how, and deploy/deploy.sh for the server
 # side). If anything on the way there fails, record-failure says where on the
 # slipdock board.
 #
 # The image is amd64 only (#2829: nothing runs it on arm64). The build job
 # pushes it by digest and the merge job tags it, so another architecture is
 # one more line in the build job's matrix.
+#
+# Batched releases (#2833, #2837). With the repository variable RELEASE_MODE
+# set to `batched` (the slipdock board's release mode), a push to main runs
+# no job here: merged cards wait for a release, and a runner's release job
+# starts one with `gh workflow run release.yml --ref main`. That dispatch
+# tests main's tip once (the gate always tests a dispatch), builds the image
+# and deploys it. Unset (on_merge, the default), every push to main releases.
+# A v* tag releases either way.
 #
 # The jobs run where ci.yml's do: on GitHub's runners, or on the self-hosted
 # ones while the repository variable CI_RUNNER is set (ci.yml says why).
@@ -25,6 +33,17 @@ on:
     tags: ["v*"]
   workflow_dispatch:
 
+# One release per ref at a time (#2868). The running one always finishes, so
+# a deploy is never cut off; a newer push replaces the one waiting, so merges
+# that land in a burst are tested and deployed once, at the newest commit,
+# rather than a full suite each on the self-hosted runners. The group can't
+# be ci.yml's: that one is ci-<run id>, and cancels. A batched push to main
+# (which runs nothing) has a group of its own, so it never takes the waiting
+# place of a dispatched release (#2837).
+concurrency:
+  group: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.RELEASE_MODE == 'batched' && format('release-skipped-{0}', github.run_id) || format('release-{0}', github.ref) }}
+  cancel-in-progress: false
+
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
@@ -33,10 +52,24 @@ jobs:
   # Does the suite need to run again? (#1857) A merged pull request's CI
   # already tested the PR merged into main; if main hadn't moved since, this
   # commit has that tree exactly, and a second run tests nothing new. The
-  # script says skip only for a push to main whose PR has a finished, all-green
-  # CI run on the same tree; anything else, its own failure included, runs the
+  # script says skip only for a push to main whose PR has a finished CI run
+  # on the same tree, every job passed or skipped and the suite's own
+  # partitions passed; anything else, its own failure included, runs the
   # suite. Its note goes in the run summary and on the deploy record.
+  #
+  # When it says skip, the same job keeps main's build cache warm (#1913;
+  # its own job until #2832, which folded it in: each job is billed in
+  # whole minutes, and the warming only ever ran after the gate). Partition
+  # 1 of the suite is what saves the build under main's key, and a pull
+  # request restores only from its own ref's caches and main's, so after a
+  # skip every new PR would restore an older main build and compile more.
+  # This compiles the same build the suite would and saves it under the
+  # same key. Its steps may fail without failing the job: a failure here
+  # costs a slower PR, never a deploy. The keys, paths and steps are
+  # ci.yml's test job's, which ci_workflow_test.exs holds them to.
   suite:
+    # Not for a push to main on a batched board (#2837): a dispatch releases.
+    if: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.RELEASE_MODE == 'batched') }}
     runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     permissions:
       contents: read
@@ -45,10 +78,11 @@ jobs:
     outputs:
       run: ${{ steps.gate.outputs.run }}
       note: ${{ steps.gate.outputs.note }}
+    env:
+      MIX_ENV: test
+
     steps:
       - uses: actions/checkout@v4
-        with:
-          sparse-checkout: .github/scripts
 
       - name: Decide whether the suite runs
         id: gate
@@ -60,49 +94,19 @@ jobs:
           SHA: ${{ github.sha }}
           REPO: ${{ github.repository }}
 
-  # Nothing is published that the suite has not passed. An image built from a
-  # red tree is worse than no image, because somebody will run it.
-  #
-  # The suite and the image build run side by side rather than one after the
-  # other: the build only pushes by digest, which nobody pulls, and nothing
-  # gets a tag until the merge job, which needs both. A red suite therefore
-  # still publishes nothing, but a green one is not kept waiting for the build.
-  #
-  # Skipped only when the gate said so in as many words: a gate that failed
-  # or said nothing leaves the suite to run.
-  test:
-    needs: suite
-    if: ${{ !cancelled() && needs.suite.outputs.run != 'false' }}
-    uses: ./.github/workflows/ci.yml
-
-  # Keeps main's build cache warm when the suite is skipped (#1913). Partition
-  # 1 of the suite is what saves the build under main's key, and a pull
-  # request restores only from its own ref's caches and main's, so after a
-  # skip every new PR would restore an older main build and compile more.
-  # This compiles the same build the suite would and saves it under the same
-  # key. Nothing needs it: it is off the merge and deploy path, and a failure
-  # here costs a slower PR, never a deploy. The keys, paths and steps are
-  # ci.yml's test job's, which ci_workflow_test.exs holds them to.
-  warm-cache:
-    needs: suite
-    if: ${{ needs.suite.outputs.run == 'false' }}
-    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
-    permissions:
-      contents: read
-    env:
-      MIX_ENV: test
-
-    steps:
-      - uses: actions/checkout@v4
-
+      # The rest warms the cache, only when the gate said skip.
       - uses: erlef/setup-beam@v1
         id: beam
+        if: steps.gate.outputs.run == 'false'
+        continue-on-error: true
         with:
           elixir-version: "1.20"
           otp-version: "27"
 
       - name: Cache keys
         id: keys
+        if: steps.gate.outputs.run == 'false'
+        continue-on-error: true
         run: |
           deps="${{ runner.os }}-mix-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-${{ hashFiles('**/mix.lock') }}"
           config="$deps-${{ hashFiles('mix.exs', 'config/**') }}"
@@ -112,6 +116,8 @@ jobs:
 
       - uses: actions/cache/restore@v4
         id: mix-cache
+        if: steps.gate.outputs.run == 'false'
+        continue-on-error: true
         with:
           path: |
             deps
@@ -125,25 +131,51 @@ jobs:
       # An exact hit means this tree's build is saved already, and the
       # rest of the job has nothing to do.
       - name: Backdate mix.exs and config to the cached build
-        if: steps.mix-cache.outputs.cache-hit != 'true' && startsWith(steps.mix-cache.outputs.cache-matched-key, format('{0}-', steps.keys.outputs.config))
+        if: steps.gate.outputs.run == 'false' && steps.mix-cache.outputs.cache-hit != 'true' && startsWith(steps.mix-cache.outputs.cache-matched-key, format('{0}-', steps.keys.outputs.config))
+        continue-on-error: true
         run: touch -d 2000-01-01 mix.exs config/*.exs
 
-      - if: steps.mix-cache.outputs.cache-hit != 'true'
+      - if: steps.gate.outputs.run == 'false' && steps.mix-cache.outputs.cache-hit != 'true'
+        continue-on-error: true
         run: mix deps.get
 
       # The suite's compile, so the manifest it saves carries the same
       # warnings (none, since the PR's CI passed on this tree).
       - name: Compile without warnings
-        if: steps.mix-cache.outputs.cache-hit != 'true'
+        id: compile
+        if: steps.gate.outputs.run == 'false' && steps.mix-cache.outputs.cache-hit != 'true'
+        continue-on-error: true
         run: mix compile --warnings-as-errors
 
+      # Never a build that didn't compile clean.
       - uses: actions/cache/save@v4
-        if: steps.mix-cache.outputs.cache-hit != 'true'
+        if: steps.gate.outputs.run == 'false' && steps.mix-cache.outputs.cache-hit != 'true' && steps.compile.outcome == 'success'
+        continue-on-error: true
         with:
           path: |
             deps
             _build
           key: ${{ steps.keys.outputs.code }}
+
+  # Nothing is published that the suite has not passed. An image built from a
+  # red tree is worse than no image, because somebody will run it.
+  #
+  # The suite and the image build run side by side rather than one after the
+  # other: the build only pushes by digest, which nobody pulls, and nothing
+  # gets a tag until the merge job, which needs both. A red suite therefore
+  # still publishes nothing, but a green one is not kept waiting for the build.
+  #
+  # Always called (#2832), with the gate's answer: the suite (and the cli
+  # and daemon jobs) skipped only when the gate said so in as many words (a
+  # gate that failed or said nothing leaves the suite to run), and the
+  # static checks run either way, so every push to main and every release
+  # gets them.
+  test:
+    needs: suite
+    if: ${{ !cancelled() && !(github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.RELEASE_MODE == 'batched') }}
+    uses: ./.github/workflows/ci.yml
+    with:
+      suite: ${{ needs.suite.outputs.run != 'false' }}
 
   # The slipdock CLI the image serves, signed (#2669, W-2542): on a v* tag
   # the CLI is built here, signed in the next job with the release key (in
@@ -256,7 +288,7 @@ jobs:
   # without it; anywhere else there is none to wait for.
   build:
     needs: cli-sign
-    if: ${{ !cancelled() && (needs.cli-sign.result == 'success' || (github.ref_type != 'tag' && needs.cli-sign.result == 'skipped')) }}
+    if: ${{ !cancelled() && !(github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.RELEASE_MODE == 'batched') && (needs.cli-sign.result == 'success' || (github.ref_type != 'tag' && needs.cli-sign.result == 'skipped')) }}
     runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     permissions:
       contents: read
@@ -289,6 +321,13 @@ jobs:
       - uses: docker/setup-buildx-action@v3
         with:
           driver-opts: image=mirror.gcr.io/moby/buildkit:buildx-stable-1
+          # BuildKit's own settings, from the repository variable
+          # BUILDKITD_CONFIG (TOML), unset on GitHub's runners. On the
+          # self-hosted ones (#2829) it names the nameservers: the machine
+          # answers plain DNS only from its provider's resolvers, and the
+          # build's containers otherwise inherit ones that time out, so
+          # every fetch in the build failed with nxdomain.
+          buildkitd-config-inline: ${{ vars.BUILDKITD_CONFIG }}
 
       - uses: docker/login-action@v3
         with:
@@ -335,11 +374,16 @@ jobs:
           retention-days: 1
 
   # The suite passed here, or the gate skipped it because it had passed on the
-  # pull request at this tree. A skip anything else caused (a failed gate, a
-  # cancelled run) is not a pass.
+  # pull request at this tree; either way ci.yml ran, the static checks
+  # passed, and test succeeded. A test that didn't (a failed or cancelled
+  # run) is not a pass.
+  #
+  # Its own job, not folded into the gate or the build (#2832): it needs
+  # both the suite and the image, which run side by side, and folding it
+  # into either would make the other wait.
   merge:
     needs: [suite, test, build]
-    if: ${{ !cancelled() && needs.build.result == 'success' && (needs.test.result == 'success' || (needs.test.result == 'skipped' && needs.suite.outputs.run == 'false')) }}
+    if: ${{ !cancelled() && needs.build.result == 'success' && needs.test.result == 'success' }}
     runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     permissions:
       contents: read
@@ -547,7 +591,7 @@ jobs:
   # such as the daemon release).
   record-failure:
     needs: [suite, test, cli-build, cli-sign, build, merge, deploy]
-    if: ${{ failure() && github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')) }}
+    if: ${{ failure() && ((github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))) || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')) }}
     runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     # For the record's secret and variable, as the deploy job has them.
     environment: production
@@ -607,7 +651,8 @@ jobs:
   # leak), runs deploy/deploy.sh over Tailscale SSH (no SSH key either), and
   # then waits for the server to say it is healthy on the new commit.
   #
-  # Pushes to main and v* tags only — never a pull request, whose code must not
+  # Pushes to main and v* tags, and a dispatched release of main (#2837: how a
+  # batched board releases), only — never a pull request, whose code must not
   # get near production credentials — and always through the `production`
   # environment, whose branch and tag rules are a second gate and whose
   # secrets nothing else can read.
@@ -623,7 +668,7 @@ jobs:
   # a skipped test job through to it.
   deploy:
     needs: [suite, test, merge]
-    if: ${{ !cancelled() && needs.merge.result == 'success' && github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')) }}
+    if: ${{ !cancelled() && needs.merge.result == 'success' && ((github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))) || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')) }}
     runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     environment: production
     permissions:
@@ -674,13 +719,17 @@ jobs:
       # workflow's successful runs on main since the last recorded deploy,
       # before this one is recorded after them. A sha the board already has
       # is never recorded twice, so this is a no-op when nothing was missed.
+      # Batched (#2837), a push to main deployed nothing, so only dispatched
+      # releases count: a push's run, whose jobs all skipped, is no deploy.
       - name: Record deploys the record missed
         continue-on-error: true
         run: |
           gh run list --repo "$GITHUB_REPOSITORY" --workflow release.yml --branch main \
-            --status success --limit 100 --json headSha,createdAt,updatedAt,conclusion |
+            --status success --limit 100 --json headSha,createdAt,updatedAt,conclusion,event |
+            jq '[.[] | select(env.RELEASE_MODE != "batched" or .event != "push")]' |
             slipdock deploy backfill --from-runs - --env production
         env:
+          RELEASE_MODE: ${{ vars.RELEASE_MODE }}
           GH_TOKEN: ${{ github.token }}
           SLIPDOCK_URL: ${{ vars.SLIPDOCK_URL }}
           SLIPDOCK_DEPLOY_TOKEN: ${{ secrets.SLIPDOCK_DEPLOY_TOKEN }}

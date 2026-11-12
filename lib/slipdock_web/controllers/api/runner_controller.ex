@@ -235,8 +235,7 @@ defmodule SlipdockWeb.API.RunnerController do
   # Why nothing was handed out, when something holds work (#1116). Header
   # values are one line of ASCII-safe text; a reason is a person's words.
   defp held(conn, runner) do
-    with %Slipdock.Boards.Board{} = board <-
-           Slipdock.Repo.get(Slipdock.Boards.Board, runner.board_id),
+    with %Slipdock.Boards.Board{} = board <- Slipdock.Boards.get_board_record(runner.board_id),
          %{reason: reason} <- Runners.held(board, runner.pool) do
       put_resp_header(conn, "x-held", header_text(reason))
     else

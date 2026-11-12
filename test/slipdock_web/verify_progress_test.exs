@@ -47,11 +47,11 @@ defmodule SlipdockWeb.VerifyProgressTest do
   end
 
   defp comments(card),
-    do: Boards.get_card!(card.id) |> Repo.preload(:comments) |> Map.get(:comments)
+    do: Boards.Cards.get_card!(card.id) |> Repo.preload(:comments) |> Map.get(:comments)
 
   describe "the verify prompt" do
     test "asks for a step at each stage, and no note", %{board: board, card: card} do
-      {:ok, card} = Boards.update_card(card, %{"evidence_commit" => "abc1234"})
+      {:ok, card} = Boards.Cards.update_card(card, %{"evidence_commit" => "abc1234"})
       prompt = Verified.verify_prompt(card, board)
 
       assert prompt =~ ~s(`slipdock job-progress --step "…"`)
@@ -80,7 +80,7 @@ defmodule SlipdockWeb.VerifyProgressTest do
         Boards.update_board(board, %{"verify_work" => true, "ship_via" => "pull_request"})
 
       {:ok, card} =
-        Boards.update_card(card, %{"evidence_commit" => "abc1234", "evidence_pr" => @pr})
+        Boards.Cards.update_card(card, %{"evidence_commit" => "abc1234", "evidence_pr" => @pr})
 
       %{board: board, card: card}
     end
@@ -117,7 +117,7 @@ defmodule SlipdockWeb.VerifyProgressTest do
     end
 
     test "with no pull request on the card, the suite is run as before", ctx do
-      {:ok, card} = Boards.update_card(ctx.card, %{"evidence_pr" => nil})
+      {:ok, card} = Boards.Cards.update_card(ctx.card, %{"evidence_pr" => nil})
       prompt = Verified.verify_prompt(card, ctx.board)
 
       assert prompt =~ "run the suite there"
@@ -140,7 +140,7 @@ defmodule SlipdockWeb.VerifyProgressTest do
 
     setup %{board: board, card: card} do
       {:ok, card} =
-        Boards.update_card(card, %{
+        Boards.Cards.update_card(card, %{
           "description" => "Add a header row to the export, and a footer.",
           "bar" => "1. The export has a header row.",
           "evidence_commit" => "abc1234"
@@ -195,7 +195,7 @@ defmodule SlipdockWeb.VerifyProgressTest do
 
     test "on a sub-board the rules come from the root board's handbook", ctx do
       {:ok, _} = Slipdock.Handbook.install(ctx.user, ctx.board)
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(ctx.card, t)
       [column | _] = Boards.get_board!(sub.id).columns
       child = card_fixture(column, %{"title" => "Child"})
@@ -212,7 +212,7 @@ defmodule SlipdockWeb.VerifyProgressTest do
       {:ok, board} =
         Boards.update_board(ctx.board, %{"verify_work" => true, "ship_via" => "pull_request"})
 
-      {:ok, card} = Boards.update_card(ctx.card, %{"evidence_pr" => @pr})
+      {:ok, card} = Boards.Cards.update_card(ctx.card, %{"evidence_pr" => @pr})
       prompt = Verified.verify_prompt(card, board)
 
       assert prompt =~
@@ -220,7 +220,9 @@ defmodule SlipdockWeb.VerifyProgressTest do
     end
 
     test "a long description is cut short", ctx do
-      {:ok, card} = Boards.update_card(ctx.card, %{"description" => String.duplicate("a", 5000)})
+      {:ok, card} =
+        Boards.Cards.update_card(ctx.card, %{"description" => String.duplicate("a", 5000)})
+
       prompt = Verified.verify_prompt(card, ctx.board)
 
       assert prompt =~ "… (cut short: read the rest on the card)"

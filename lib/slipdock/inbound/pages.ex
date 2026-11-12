@@ -351,7 +351,8 @@ defmodule Slipdock.Inbound.Pages do
   end
 
   @doc false
-  def cid_url(stored), do: fn id -> if a = stored[id], do: Boards.attachment_url(a) end
+  def cid_url(stored),
+    do: fn id -> if a = stored[id], do: Boards.Attachments.attachment_url(a) end
 
   defp store(page, file) do
     path = Path.join(System.tmp_dir!(), "slipdock-inbound-#{System.unique_integer([:positive])}")

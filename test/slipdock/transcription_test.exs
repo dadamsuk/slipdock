@@ -285,10 +285,18 @@ defmodule Slipdock.TranscriptionTest do
       card = card_fixture(hd(board.columns))
 
       {:ok, audio} =
-        Boards.add_attachment(card, %{filename: "call.mp3", content_type: "audio/mpeg"}, path)
+        Boards.Attachments.add_attachment(
+          card,
+          %{filename: "call.mp3", content_type: "audio/mpeg"},
+          path
+        )
 
       {:ok, pdf} =
-        Boards.add_attachment(card, %{filename: "a.pdf", content_type: "application/pdf"}, path)
+        Boards.Attachments.add_attachment(
+          card,
+          %{filename: "a.pdf", content_type: "application/pdf"},
+          path
+        )
 
       %{audio: audio, pdf: pdf, user: user_fixture()}
     end
@@ -308,13 +316,13 @@ defmodule Slipdock.TranscriptionTest do
       assert {:error, :not_allowed} = Transcription.transcribe_attachment(audio, nil)
       refute Transcription.available_to?(denied)
       assert Transcription.describe(:not_allowed) =~ "an admin can turn it on"
-      assert Boards.get_attachment!(audio.id).transcript_status == nil
+      assert Boards.Attachments.get_attachment!(audio.id).transcript_status == nil
 
       {:ok, admin} = Slipdock.Accounts.promote(denied)
       assert Transcription.available_to?(admin)
       serve([{200, %{"text" => "Admin's call."}}])
       assert {:ok, _} = Transcription.transcribe_attachment(audio, admin)
-      assert Boards.get_attachment!(audio.id).transcript == "Admin's call."
+      assert Boards.Attachments.get_attachment!(audio.id).transcript == "Admin's call."
     end
 
     test "is transcribed, and the text kept on it", %{audio: audio, user: user} do
@@ -326,7 +334,7 @@ defmodule Slipdock.TranscriptionTest do
       assert {:ok, %{transcript_status: "running"}} =
                Transcription.transcribe_attachment(audio, user)
 
-      audio = Boards.get_attachment!(audio.id)
+      audio = Boards.Attachments.get_attachment!(audio.id)
       assert audio.transcript_status == "done"
       assert audio.transcript == "Minutes of the call."
       assert audio.transcript_error == nil
@@ -341,7 +349,7 @@ defmodule Slipdock.TranscriptionTest do
       serve([{401, %{"error" => %{"code" => "invalid_api_key", "message" => "bad"}}}])
 
       {:ok, _} = Transcription.transcribe_attachment(audio, user)
-      audio = Boards.get_attachment!(audio.id)
+      audio = Boards.Attachments.get_attachment!(audio.id)
       assert audio.transcript_status == "failed"
       assert audio.transcript_error =~ "refused the token"
 
@@ -349,7 +357,7 @@ defmodule Slipdock.TranscriptionTest do
       {:ok, _} = Transcription.transcribe_attachment(audio, user)
 
       assert %{transcript_status: "done", transcript_error: nil, transcript: "Second go."} =
-               Boards.get_attachment!(audio.id)
+               Boards.Attachments.get_attachment!(audio.id)
     end
 
     test "only audio, and not while one is running", %{audio: audio, pdf: pdf, user: user} do
@@ -358,7 +366,7 @@ defmodule Slipdock.TranscriptionTest do
       assert {:error, :not_audio} = Transcription.transcribe_attachment(pdf, user)
 
       {:ok, running} =
-        Boards.update_attachment_transcript(audio, %{
+        Boards.Attachments.update_attachment_transcript(audio, %{
           transcript_status: "running",
           transcript_started_at: DateTime.utc_now(:second)
         })
@@ -368,14 +376,14 @@ defmodule Slipdock.TranscriptionTest do
 
       # One left running by a restart, hours ago, may be started again.
       {:ok, stale} =
-        Boards.update_attachment_transcript(running, %{
+        Boards.Attachments.update_attachment_transcript(running, %{
           transcript_started_at: DateTime.add(DateTime.utc_now(:second), -5 * 3600)
         })
 
       refute Transcription.running?(stale)
       serve([{200, %{"text" => "Fresh."}}])
       assert {:ok, _} = Transcription.transcribe_attachment(stale, user)
-      assert Boards.get_attachment!(audio.id).transcript == "Fresh."
+      assert Boards.Attachments.get_attachment!(audio.id).transcript == "Fresh."
     end
   end
 end

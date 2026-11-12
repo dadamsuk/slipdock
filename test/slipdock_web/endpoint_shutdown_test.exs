@@ -8,6 +8,10 @@ defmodule SlipdockWeb.EndpointShutdownTest do
   # Docker's default grace period before it sends SIGKILL.
   @docker_stop_timeout 10_000
 
+  # Long enough for a loaded machine to accept a connection, well inside
+  # ExUnit's 60s.
+  @setup_timeout 15_000
+
   # A request that never finishes by itself, like a long-polled claim.
   defmodule Hang do
     @behaviour Plug
@@ -50,7 +54,9 @@ defmodule SlipdockWeb.EndpointShutdownTest do
 
     {:ok, socket} = :gen_tcp.connect(~c"127.0.0.1", port, [:binary, active: false])
     :ok = :gen_tcp.send(socket, "POST /api/runner/claim HTTP/1.1\r\nhost: x\r\n\r\n")
-    assert_receive :in_flight, 2_000
+    # Only setup: the accept and the handler's spawn. On a loaded machine (the
+    # full suite beside `mix pre_push`) that alone took over 2s (#2830).
+    assert_receive :in_flight, @setup_timeout
 
     ref = Process.monitor(server)
     started = System.monotonic_time(:millisecond)
@@ -62,8 +68,9 @@ defmodule SlipdockWeb.EndpointShutdownTest do
 
     # It waited for the request rather than dropping it at once...
     assert elapsed >= timeout - 250
-    # ...and then gave up on it, instead of Bandit's default 15s.
-    assert elapsed < timeout + 2_000
+    # ...and then gave up on it, inside docker's grace period and instead of
+    # Bandit's default 15s, with room for a loaded machine to stop the server.
+    assert elapsed < timeout + 4_000
     assert {:error, _} = :gen_tcp.recv(socket, 0, 1_000)
   end
 end

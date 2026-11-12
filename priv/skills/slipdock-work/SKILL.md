@@ -258,7 +258,11 @@ whole card before touching it.
   a broken release is an ordinary card tagged `incident`; if you know the
   deploy that caused it, `slipdock incident-of <card> <deploy-id>`. Name the
   card in the fix's commit (`#57`), as with any card: that is how its deploy
-  is counted as a fix and the card gets its *Shipped* line. Never record or
+  is counted as a fix and the card gets its *Shipped* line. A merged card no
+  succeeded deploy names after the board's minutes (20) says *Not shipped*
+  in `slipdock card` (`not_shipped` in its JSON) and raises a warning alert on
+  the board, overseer on or off: the pipeline failed before its deploy, so
+  look at the build rather than waiting. Never record or
   finish deploys by hand — that is CI's, with its own token.
 - **Tidy-up suggestions are the person's to decide.** `slipdock garden <board>`
   (over MCP, `garden`) lists what the board's gardener found: epics done but
@@ -304,8 +308,11 @@ whole card before touching it.
   someone (a missing test such as "no test pins `slipdock done`'s exit
   codes", a stale moduledoc or doc entry, a tooling bug such as "`page
   section --append -` writes a literal `-`") goes on the board now
-  (`slipdock add <board> "…" --desc "…" --column Backlog`; `--desc -`
-  reads the description from stdin, for a heredoc) and into the
+  (`slipdock add <board> "…" --desc "…" --column Housekeeping` when the
+  board has a Housekeeping list, else `--column Backlog`; a design
+  question, whose answer would change how the product or a process
+  behaves, `--column Triage`; `--desc -` reads the description from
+  stdin, for a heredoc) and into the
   block as `→ #<card>`. A finding is only for what is uncertain, cuts across
   cards, or shows the handbook wrong ("`mix format` can need two passes",
   "W-1950 §Tests says async is safe, but the fixture is one user").

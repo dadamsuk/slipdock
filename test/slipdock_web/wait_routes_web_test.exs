@@ -184,7 +184,7 @@ defmodule SlipdockWeb.WaitRoutesWebTest do
                )
                |> json_response(422)
 
-      assert Boards.current_wait(ctx.card) == nil
+      assert Boards.Waits.current_wait(ctx.card) == nil
     end
   end
 
@@ -237,7 +237,7 @@ defmodule SlipdockWeb.WaitRoutesWebTest do
     {:ok, _} = Slipdock.WaitRoutes.set(ctx.board, %{"security" => [ctx.pm.email]})
 
     {:ok, _} =
-      Boards.open_wait(ctx.card, Slipdock.Actor.web(ctx.owner), %{
+      Boards.Waits.open_wait(ctx.card, Slipdock.Actor.web(ctx.owner), %{
         "needs" => "Is this safe?",
         "question" => "security"
       })

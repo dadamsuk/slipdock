@@ -129,7 +129,7 @@ defmodule Slipdock.SkillRegistryPinsTest do
     } do
       [col | _] = board.columns
       epic = card_fixture(col, %{"title" => "Epic"})
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(epic, t)
 
       assert {:ok, enablement} =

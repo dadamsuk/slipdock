@@ -17,7 +17,7 @@ defmodule SlipdockWeb.WikiTreeNamesLiveTest do
   setup %{user: user} do
     board = board_fixture(%{"name" => "Handbook", "code" => "treenames1"}, owner: user)
     long = card_fixture(hd(board.columns), %{"title" => @long})
-    {:ok, long} = Boards.update_card(long, %{"short_name" => "Parked jobs"})
+    {:ok, long} = Boards.Cards.update_card(long, %{"short_name" => "Parked jobs"})
     plain = card_fixture(hd(board.columns), %{"title" => "Plain card"})
     {:ok, page} = Wiki.create_page_from_card(long, user: user, title: "Write up")
     {:ok, other} = Wiki.create_page_from_card(plain, user: user, title: "Other")

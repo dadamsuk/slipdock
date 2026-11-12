@@ -31,10 +31,10 @@ defmodule Slipdock.ProfilesRecheckTest do
     card = card_fixture(ctx.todo, Map.put_new(attrs, "title", "Work"))
 
     if tags != [] do
-      {:ok, _} = Boards.set_card_tags(card, Enum.map(tags, &tag(ctx.board, &1)))
+      {:ok, _} = Boards.Cards.set_card_tags(card, Enum.map(tags, &tag(ctx.board, &1)))
     end
 
-    :ok = Boards.move_card(card.id, ctx.doing.id, nil, actor: ctx.agent)
+    :ok = Boards.Cards.move_card(card.id, ctx.doing.id, nil, actor: ctx.agent)
     Repo.get!(Card, card.id)
   end
 
@@ -44,11 +44,11 @@ defmodule Slipdock.ProfilesRecheckTest do
   end
 
   defp complete(card, change, actor) do
-    Boards.update_card(card, Map.merge(%{"completed" => true}, change), actor: actor)
+    Boards.Cards.update_card(card, Map.merge(%{"completed" => true}, change), actor: actor)
   end
 
   defp activity(ctx, card),
-    do: ctx.board.id |> Boards.list_activities(100, card.id) |> Enum.map(& &1.message)
+    do: ctx.board.id |> Boards.ActivityLog.list_activities(100, card.id) |> Enum.map(& &1.message)
 
   test "the size bump: a fix over the limit is a feature, logged with the count", ctx do
     card = started(ctx, %{"paths" => "lib/x.ex"}, ["bug"])
@@ -91,7 +91,10 @@ defmodule Slipdock.ProfilesRecheckTest do
 
   test "a security path raises it to security, even over a person's fix", ctx do
     card = started(ctx, %{"paths" => "lib/x.ex"})
-    {:ok, card} = Boards.update_card(card, %{"profile" => "fix"}, actor: Actor.web(ctx.owner))
+
+    {:ok, card} =
+      Boards.Cards.update_card(card, %{"profile" => "fix"}, actor: Actor.web(ctx.owner))
+
     assert card.profile_source == "person"
 
     {:ok, _} =
@@ -107,7 +110,9 @@ defmodule Slipdock.ProfilesRecheckTest do
 
   test "a person's fix survives a large diff", ctx do
     card = started(ctx, %{"paths" => "lib/x.ex"})
-    {:ok, card} = Boards.update_card(card, %{"profile" => "fix"}, actor: Actor.web(ctx.owner))
+
+    {:ok, card} =
+      Boards.Cards.update_card(card, %{"profile" => "fix"}, actor: Actor.web(ctx.owner))
 
     {:ok, _} =
       complete(card, %{"changed_lines" => 5000, "changed_files" => ["lib/x.ex"]}, ctx.agent)
@@ -170,7 +175,7 @@ defmodule Slipdock.ProfilesRecheckTest do
     card = started(ctx, %{"paths" => "docs/**"})
 
     {:ok, _} =
-      Boards.update_card(card, %{"changed_files" => [@migration], "percent_complete" => 50},
+      Boards.Cards.update_card(card, %{"changed_files" => [@migration], "percent_complete" => 50},
         actor: ctx.agent
       )
 

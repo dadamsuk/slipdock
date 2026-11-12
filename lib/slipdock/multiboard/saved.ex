@@ -14,7 +14,7 @@ defmodule Slipdock.Multiboard.Saved do
     field :color, :string, default: "indigo"
     # Where its owner has put it among their boards on the home page, in the
     # same numbering as their board orders and vaults' places (see
-    # `Slipdock.Boards.reorder_boards/2`); nil until it has been placed.
+    # `Slipdock.Boards.Arrangement.reorder_boards/2`); nil until it has been placed.
     field :position, :integer
     field :lists, {:array, :integer}, default: []
     field :top, :integer, default: 5

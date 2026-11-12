@@ -982,7 +982,7 @@ defmodule Slipdock.Wiki do
     Repo.delete(page)
     |> case do
       {:ok, deleted} ->
-        Slipdock.Boards.remove_files(keys)
+        Slipdock.Boards.Attachments.remove_files(keys)
         Indexer.forget_page(page.id)
         Changes.record(board_id, "page", page.id, "deleted")
         log(board_id, nil, "page_deleted", "deleted “#{page.title}”")
@@ -1787,7 +1787,7 @@ defmodule Slipdock.Wiki do
       |> Enum.join("\n\n")
 
     with {:ok, card} <-
-           Boards.create_card(column, %{"title" => title, "description" => description}) do
+           Boards.Cards.create_card(column, %{"title" => title, "description" => description}) do
       note_card_in_page(page, card, selection, opts)
       {:ok, card}
     end
@@ -1837,7 +1837,7 @@ defmodule Slipdock.Wiki do
   @spec place(Page.t(), Column.t() | integer, term) :: {:ok, Page.t()} | {:error, term}
   def place(%Page{} = page, column, before \\ nil) do
     with {:ok, column} <- placeable_column(page, column) do
-      Boards.reorder({:page, page.id}, page.column_id, column.id, before)
+      Boards.Columns.reorder({:page, page.id}, page.column_id, column.id, before)
 
       placed = Repo.get!(Page, page.id)
 
@@ -1846,7 +1846,7 @@ defmodule Slipdock.Wiki do
       end
 
       broadcast(placed.board_id)
-      Boards.broadcast_tree(Boards.root_of_board(placed.board_id))
+      Boards.PubSub.broadcast_tree(Boards.root_of_board(placed.board_id))
       {:ok, placed}
     end
   end
@@ -1863,12 +1863,12 @@ defmodule Slipdock.Wiki do
     )
 
     # The list it left closes up behind it.
-    Boards.repack_column(column_id)
+    Boards.Columns.repack_column(column_id)
 
     unplaced = Repo.get!(Page, page.id)
     log(unplaced.board_id, unplaced, "page_unplaced", "took “#{unplaced.title}” off the board")
     broadcast(unplaced.board_id)
-    Boards.broadcast_tree(Boards.root_of_board(unplaced.board_id))
+    Boards.PubSub.broadcast_tree(Boards.root_of_board(unplaced.board_id))
     {:ok, unplaced}
   end
 
@@ -2142,7 +2142,12 @@ defmodule Slipdock.Wiki do
   image into a page body works the way pasting one into a description does.
   """
   def add_attachment(%Page{} = page, meta, source) do
-    Slipdock.Boards.store_attachment(%{page_id: page.id}, "pages/#{page.id}", meta, source)
+    Slipdock.Boards.Attachments.store_attachment(
+      %{page_id: page.id},
+      "pages/#{page.id}",
+      meta,
+      source
+    )
     |> case do
       {:ok, attachment} ->
         Changes.record(page.board_id, "attachment", attachment.id)
@@ -2158,5 +2163,81 @@ defmodule Slipdock.Wiki do
   def attachments(%Page{id: id}) do
     from(a in Attachment, where: a.page_id == ^id, order_by: [asc: a.inserted_at, asc: a.id])
     |> Repo.all()
+  end
+
+  ## Lookups (#2791)
+
+  @doc "`page` (or pages) with its board loaded, and nothing else."
+  def with_board(page_or_pages), do: Repo.preload(page_or_pages, :board)
+
+  @doc """
+  `page` with what drawing it on a board needs (`board_preloads/0`), and
+  `extra` associations beside them. `opts` go to the preload (`force: true`
+  to read them again).
+  """
+  def with_board_preloads(%Page{} = page, extra \\ [], opts \\ []),
+    do: Repo.preload(page, extra ++ @board_preloads, opts)
+
+  @doc "`page` with its votes loaded."
+  def with_votes(%Page{} = page), do: Repo.preload(page, :votes)
+
+  @doc "The code of each page among `ids`, by id."
+  def page_codes([]), do: %{}
+
+  def page_codes(ids),
+    do: Map.new(Repo.all(from(p in Page, where: p.id in ^ids, select: {p.id, p.code})))
+
+  @doc "The cards each page among `ids` is pinned to, by page id, lowest card first."
+  def pinned_card_ids([]), do: %{}
+
+  def pinned_card_ids(ids) do
+    from(l in Link,
+      where: l.page_id in ^ids and l.pinned and l.kind == "card",
+      where: not is_nil(l.target_card_id),
+      order_by: [asc: l.target_card_id],
+      select: {l.page_id, l.target_card_id}
+    )
+    |> Repo.all()
+    |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
+  end
+
+  @doc """
+  The live pages (not archived, not templates) pinned to any of
+  `board_ids`, each as `{page, board}`, by board then page.
+  """
+  def pinned_pages_on([]), do: []
+
+  def pinned_pages_on(board_ids) do
+    from(l in Link,
+      join: p in Page,
+      on: p.id == l.page_id,
+      join: b in Board,
+      on: b.id == l.target_board_id,
+      where: l.pinned and l.target_board_id in ^board_ids and is_nil(p.archived_at),
+      where: not p.template,
+      order_by: [asc: b.id, asc: p.id],
+      select: {p, b}
+    )
+    |> Repo.all()
+  end
+
+  @doc "The pages among `ids` with only `id`, `title`, `slug`, `board_id` and `code` loaded, by id."
+  def page_stubs(ids) do
+    from(p in Page,
+      where: p.id in ^Enum.uniq(ids),
+      select: struct(p, [:id, :title, :slug, :board_id, :code])
+    )
+    |> Repo.all()
+    |> Map.new(&{&1.id, &1})
+  end
+
+  @doc "Each of the pages among `ids` as `id`, `title`, `code` and `board_id`, by id."
+  def page_briefs(ids) do
+    from(p in Page,
+      where: p.id in ^ids,
+      select: {p.id, %{id: p.id, title: p.title, code: p.code, board_id: p.board_id}}
+    )
+    |> Repo.all()
+    |> Map.new()
   end
 end

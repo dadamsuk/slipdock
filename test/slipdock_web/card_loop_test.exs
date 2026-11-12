@@ -61,7 +61,7 @@ defmodule SlipdockWeb.CardLoopTest do
     end
 
     test "a person assignee and the loop show side by side", ctx do
-      {:ok, _} = Boards.update_card(ctx.card, %{"assignee_ids" => [ctx.user.id]})
+      {:ok, _} = Boards.Cards.update_card(ctx.card, %{"assignee_ids" => [ctx.user.id]})
       {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/cards/#{ctx.card}")
 
       assert has_element?(view, "#card-assignee-loop", "Mac Studio · build")

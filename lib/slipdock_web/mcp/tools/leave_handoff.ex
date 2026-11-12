@@ -65,7 +65,7 @@ defmodule SlipdockWeb.MCP.Tools.LeaveHandoff do
   defp delete(id, auth) do
     with {:ok, card} <- Args.refusal(CardWrites.fetch_card(id)),
          {:ok, deleted} <- Args.refusal(CardWrites.delete_handoff(auth, card)) do
-      current = Slipdock.Boards.current_handoff(card)
+      current = Slipdock.Boards.Handoffs.current_handoff(card)
 
       {:ok,
        %{

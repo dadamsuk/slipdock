@@ -23,7 +23,7 @@ defmodule Slipdock.SnoozePortableTest do
   defp import_as(user, document) do
     {:ok, report} = Portable.import(user, Jason.encode!(document))
     board = Boards.get_board!(hd(report.boards).id)
-    [card] = Boards.list_cards(board, %{"snoozed" => "include"})
+    [card] = Boards.Cards.list_cards(board, %{"snoozed" => "include"})
     Repo.get!(Card, card.id)
   end
 

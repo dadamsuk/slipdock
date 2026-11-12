@@ -79,6 +79,17 @@
           #
           # Only where :cover instruments: the code, not its tests.
           {Slipdock.Credo.InOutsideGuard, [files: %{included: ["lib/", "cli/lib/"]}]},
+          # Credo's opt-in DuplicatedCode and ABCSize, gating what a pull
+          # request adds (#2789), with messages credo diff can match from one
+          # side to the other (their moduledocs say why credo's own can't).
+          # Thresholds from the baseline in W-1950 §Credo's size checks.
+          # A new copy of a block: credo's default mass, 40, found 63 copies
+          # (26 in lib), already selective.
+          {Slipdock.Credo.DuplicatedCode, [mass_threshold: 40]},
+          # 50, not credo's 30: 823 functions are over 30 and the baseline's
+          # 99th percentile is 57, so 50 flags the outliers (209 in lib).
+          # Migrations are declarative lists, not logic.
+          {Slipdock.Credo.ABCSize, [max_size: 50, files: %{excluded: ["priv/repo/migrations/"]}]},
 
           #
           ## Consistency Checks
@@ -190,13 +201,18 @@
           # Checks scheduled for next check update (opt-in for now)
           {Credo.Check.Refactor.UtcNowTruncate, []},
 
+          # On as this codebase's own (Slipdock.Credo.DuplicatedCode and
+          # .ABCSize, above): credo's messages carry what changes from one side
+          # of credo diff to the other, a temporary path and a score.
+          {Credo.Check.Design.DuplicatedCode, []},
+          {Credo.Check.Refactor.ABCSize, []},
+
           #
           # Controversial and experimental checks (opt-in, just move the check to `:enabled`
           #   and be sure to use `mix credo --strict` to see low priority checks)
           #
           {Credo.Check.Consistency.MultiAliasImportRequireUse, []},
           {Credo.Check.Consistency.UnusedVariableNames, []},
-          {Credo.Check.Design.DuplicatedCode, []},
           {Credo.Check.Design.SkipTestWithoutComment, []},
           {Credo.Check.Readability.AliasAs, []},
           {Credo.Check.Readability.BlockPipe, []},
@@ -211,7 +227,6 @@
           {Credo.Check.Readability.Specs, []},
           {Credo.Check.Readability.StrictModuleLayout, []},
           {Credo.Check.Readability.WithCustomTaggedTuple, []},
-          {Credo.Check.Refactor.ABCSize, []},
           {Credo.Check.Refactor.AppendSingleItem, []},
           {Credo.Check.Refactor.CondInsteadOfIfElse, []},
           {Credo.Check.Refactor.DoubleBooleanNegation, []},

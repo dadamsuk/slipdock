@@ -81,7 +81,7 @@ defmodule Slipdock.PulseTest do
       finished = card_fixture(ctx.doing)
       complete(finished, ago(60))
       archived = card_fixture(ctx.doing)
-      {:ok, _} = Boards.archive_card(archived)
+      {:ok, _} = Boards.Cards.archive_card(archived)
 
       pulse = Pulse.for_board(ctx.board, now: @now)
       assert pulse.in_progress == 2
@@ -101,7 +101,7 @@ defmodule Slipdock.PulseTest do
 
     test "a card ticked off where it stands counts as done", ctx do
       card = card_fixture(ctx.todo)
-      {:ok, _} = Boards.toggle_completed(card)
+      {:ok, _} = Boards.Cards.toggle_completed(card)
 
       pulse = Pulse.for_board(ctx.board, now: DateTime.utc_now())
       assert pulse.done_7d == 1
@@ -144,9 +144,9 @@ defmodule Slipdock.PulseTest do
       [_, elsewhere | _] = other.columns
 
       card = card_fixture(elsewhere)
-      {:ok, _} = Boards.move_card_to_board(card, ctx.todo, actor: Actor.web(ctx.owner))
+      {:ok, _} = Boards.Moves.move_card_to_board(card, ctx.todo, actor: Actor.web(ctx.owner))
       local = card_fixture(ctx.todo)
-      :ok = Boards.move_card(local.id, ctx.doing.id, nil, actor: Actor.web(ctx.owner))
+      :ok = Boards.Cards.move_card(local.id, ctx.doing.id, nil, actor: Actor.web(ctx.owner))
 
       lists = Map.new(Pulse.for_board(ctx.board).lists, &{&1.name, &1})
       # Made in To Do, plus the one in from the other board.
@@ -182,7 +182,7 @@ defmodule Slipdock.PulseTest do
     end
 
     test "with too few stays and no category figure, nil", ctx do
-      {:ok, plain} = Boards.create_column(ctx.board, %{"name" => "Parked"})
+      {:ok, plain} = Boards.Columns.create_column(ctx.board, %{"name" => "Parked"})
       for h <- 1..7, do: stay(plain, ctx.doing, ago(h * 3600 + 60), ago(60))
       for h <- 1..7, do: stay(ctx.todo, ctx.doing, ago(h * 3600 + 60), ago(60))
 

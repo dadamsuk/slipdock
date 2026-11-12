@@ -21,10 +21,16 @@ defmodule Slipdock.Runners.Requeue do
       card keeps its place, is told so, and is the next one the feed sends.
       Waiting for it instead could be forever: whatever holds it (a lane,
       a pause, the WIP limit) may be the answered card itself.
-    * `pending` — the rule's open job has been handed out (claimed or
-      running), for this card or another, or is another answer's: the answer
-      goes once it closes, ahead of the next card (`drain/1`, from the
-      rule's feed or the job ending).
+    * `queued`, again, when a list_top rule's open job is another card's and
+      a runner has it, or carries another card's answer (#2896): the answer
+      is on the card, so its job goes into the pool's queue beside that one
+      and any free runner of the pool takes it. It is never held for the
+      runner that asked, nor behind another card's work. The rule then has
+      two jobs open, and its feed sends the next card once both have closed.
+    * `pending` — a job for this card (the rule's, or another rule's) has
+      been handed out (claimed or running): the answer goes once it closes,
+      ahead of the next card (`drain/1`, from the rule's feed or the job
+      ending). Two jobs never work one card side by side.
     * `skipped` — the rule is off or deleted, the card is closed or has
       moved to another board tree: nothing is sent, and the card says why.
     * `failed` — the queue refused (full, or too many this minute): the card
@@ -97,57 +103,65 @@ defmodule Slipdock.Runners.Requeue do
   def after_answer(%Wait{} = wait) do
     job = Repo.get(Job, wait.job_id)
     asked = Repo.get(Card, wait.card_id)
-    # The card the job was working on: the wait's own, or the epic above it.
-    card =
-      if job && asked && job.card_id != asked.id, do: Repo.get(Card, job.card_id), else: asked
-
+    card = job_card(job, asked)
     rule = rule_of(job)
 
+    case refusal(wait, card, job, rule) do
+      :gone -> :skipped
+      nil -> send_answer(wait, rule, card, card_job(rule, card))
+      why -> skip(wait, card, why)
+    end
+  end
+
+  # The card the job was working on: the wait's own, or the epic above it.
+  defp job_card(%Job{card_id: id}, %Card{id: asked}) when id != asked, do: Repo.get(Card, id)
+  defp job_card(_job, asked), do: asked
+
+  # Why nothing is sent, nil when the answer can go, `:gone` when there is
+  # no card left to say it on.
+  defp refusal(_wait, nil, _job, _rule), do: :gone
+
+  defp refusal(_wait, _card, job, rule) when is_nil(job) or is_nil(rule),
+    do: "the rule that sent the job that asked it has been deleted"
+
+  defp refusal(_wait, _card, _job, %Rule{enabled: false} = rule),
+    do: "rule “#{rule_name(rule)}” is off"
+
+  defp refusal(wait, card, job, rule) do
     cond do
-      is_nil(asked) or is_nil(card) ->
-        :skipped
-
-      is_nil(job) or is_nil(rule) ->
-        skip(wait, card, "the rule that sent the job that asked it has been deleted")
-
-      not rule.enabled ->
-        skip(wait, card, "rule “#{rule_name(rule)}” is off")
-
       card.completed or not is_nil(card.archived_at) ->
-        skip(wait, card, "#{the_card(wait, card)} is closed")
+        "#{the_card(wait, card)} is closed"
 
       Boards.root_of_board(card.board_id) != job.root_board_id ->
-        skip(
-          wait,
-          card,
-          "#{the_card(wait, card)} has moved to another board tree, " <>
-            "out of rule “#{rule_name(rule)}”'s reach"
-        )
+        "#{the_card(wait, card)} has moved to another board tree, " <>
+          "out of rule “#{rule_name(rule)}”'s reach"
 
       true ->
-        open = card_job(rule, card)
-        other = open || (Spec.feed?(rule.spec) && any_open_job(rule))
+        nil
+    end
+  end
 
-        cond do
-          match?(%Job{status: "queued"}, open) ->
-            rewrite(wait, rule, card, open)
+  # Into the open, still queued job for the card, if there is one.
+  defp send_answer(wait, rule, card, %Job{status: "queued"} = open),
+    do: rewrite(wait, rule, card, open)
 
-          match?(%Job{status: "queued"}, other) and not answer?(other) ->
-            give_way(wait, rule, card, other)
+  # A runner has a job for this card: the answer goes after it.
+  defp send_answer(wait, _rule, card, %Job{} = open), do: pend(wait, card, open)
 
-          other ->
-            pend(wait, card, other)
-
-          true ->
-            queue(wait, rule, card)
-        end
+  # Another card's job from a feed that nobody has taken gives way (#1750).
+  # One a runner has, or another card's answer, doesn't hold this one: it
+  # queues beside it (#2896).
+  defp send_answer(wait, rule, card, nil) do
+    case Spec.feed?(rule.spec) && giving_way(rule) do
+      %Job{} = other -> give_way(wait, rule, card, other)
+      _ -> queue(wait, rule, card)
     end
   end
 
   @doc """
-  Sends the answers that were held while `rule` had a job open (`pending`),
-  oldest answer first, for as long as the rule takes them: one at most for
-  a list_top rule. Answers the first job it queued, or nil.
+  Sends the answers that were held while a runner had a job for their card
+  (`pending`), oldest answer first: each whose card's job has closed since.
+  Answers the first job it queued, or nil.
   """
   def drain(%Rule{} = rule) do
     from(w in Wait,
@@ -214,19 +228,22 @@ defmodule Slipdock.Runners.Requeue do
     Repo.one(query)
   end
 
-  defp any_open_job(rule) do
+  # The rule's oldest queued job that carries no answer: another card's,
+  # sent by the feed and not yet taken.
+  defp giving_way(rule) do
+    answers =
+      from(w in Wait,
+        where: w.requeue_state == "queued" and not is_nil(w.requeue_job_id),
+        select: w.requeue_job_id
+      )
+
     Repo.one(
       from(j in Job,
-        where: j.rule_id == ^rule.id and j.status in ^Job.open_statuses(),
+        where: j.rule_id == ^rule.id and j.status == "queued" and j.id not in subquery(answers),
         order_by: [asc: j.id],
         limit: 1
       )
     )
-  end
-
-  # The job carries an answer already: a second answer waits for it.
-  defp answer?(%Job{id: id}) do
-    Repo.exists?(from(w in Wait, where: w.requeue_job_id == ^id and w.requeue_state == "queued"))
   end
 
   ## Acting -------------------------------------------------------------------
@@ -255,7 +272,7 @@ defmodule Slipdock.Runners.Requeue do
 
   defp tell_withdrawn(job, card) do
     with %Card{} = withdrawn <- Repo.get(Card, job.card_id) do
-      Boards.add_comment(
+      Boards.Comments.add_comment(
         withdrawn,
         "Job ##{job.id} gave way to the answer on ##{card.id}, which went to the runners " <>
           "first. This card keeps its place in the list and goes next."
@@ -269,7 +286,7 @@ defmodule Slipdock.Runners.Requeue do
          {:ok, %Job{} = job} <- Runners.queue(card, attrs) do
       record(wait, "queued", "job ##{job.id}" <> note, job.id)
 
-      Boards.log_activity(
+      Boards.ActivityLog.log_activity(
         card.board_id,
         card.id,
         "runner",
@@ -317,15 +334,10 @@ defmodule Slipdock.Runners.Requeue do
     where = if job.card_id == wait.card_id, do: "on this card", else: "on ##{job.card_id}"
     record(wait, "pending", "after job ##{job.id} (#{job.status} #{where})", nil)
 
-    why =
-      if job.status == "queued",
-        do: "it carries another answer, which goes first",
-        else: "it is already with a runner"
-
-    Boards.add_comment(
+    Boards.Comments.add_comment(
       told(wait, card),
       "The answer goes to the runners once job ##{job.id} (#{job.status} #{where}) " <>
-        "has closed: #{why}."
+        "has closed: it is already with a runner."
     )
 
     :pending
@@ -334,7 +346,7 @@ defmodule Slipdock.Runners.Requeue do
   defp skip(wait, card, why) do
     record(wait, "skipped", why, nil)
 
-    Boards.add_comment(
+    Boards.Comments.add_comment(
       told(wait, card),
       "#{done(wait)}, but #{why}; nothing was sent to the runners."
     )
@@ -345,7 +357,7 @@ defmodule Slipdock.Runners.Requeue do
   defp fail(wait, card, reason) do
     record(wait, "failed", reason, nil)
 
-    Boards.add_comment(
+    Boards.Comments.add_comment(
       told(wait, card),
       "#{done(wait)}, but #{the_card(wait, card)} couldn't be sent to the runners again: #{reason}. " <>
         "Send it again by hand once that clears."
@@ -389,7 +401,7 @@ defmodule Slipdock.Runners.Requeue do
         else: Wait.answered_text(wait)
 
     handoff =
-      case Boards.current_handoff(card.id) do
+      case Boards.Handoffs.current_handoff(card.id) do
         nil -> nil
         h -> Enum.join(Enum.reject([h.next_step, h.body], &Enum.member?([nil, ""], &1)), "\n")
       end

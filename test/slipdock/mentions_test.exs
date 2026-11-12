@@ -52,7 +52,8 @@ defmodule Slipdock.MentionsTest do
       owner: owner,
       domain: domain
     } do
-      {:ok, _} = Boards.add_comment(card, "@priya can you look? @stranger too", by: owner)
+      {:ok, _} =
+        Boards.Comments.add_comment(card, "@priya can you look? @stranger too", by: owner)
 
       assert_email_sent(fn email ->
         assert email.to == [{"", "priya@#{domain}"}]
@@ -65,30 +66,32 @@ defmodule Slipdock.MentionsTest do
     end
 
     test "does not email the writer about their own mention", %{card: card, priya: priya} do
-      {:ok, _} = Boards.add_comment(card, "note to self @priya", by: priya)
+      {:ok, _} = Boards.Comments.add_comment(card, "note to self @priya", by: priya)
       refute_email_sent()
     end
 
     test "on a wiki page notifies nobody", %{board: board, owner: owner} do
       page = page_fixture(board, %{}, user: owner)
-      {:ok, _} = Boards.add_comment(page, "@priya")
+      {:ok, _} = Boards.Comments.add_comment(page, "@priya")
       refute_email_sent()
     end
   end
 
   describe "a description" do
     test "emails people only when an edit newly mentions them", %{card: card, owner: owner} do
-      {:ok, card} = Boards.update_card(card, %{"description" => "For @priya"}, by: owner)
+      {:ok, card} = Boards.Cards.update_card(card, %{"description" => "For @priya"}, by: owner)
       assert_email_sent(subject: ~r/mentioned you/)
 
-      {:ok, card} = Boards.update_card(card, %{"description" => "For @priya, soon"}, by: owner)
-      {:ok, _} = Boards.update_card(card, %{"title" => "Fix the login page"}, by: owner)
+      {:ok, card} =
+        Boards.Cards.update_card(card, %{"description" => "For @priya, soon"}, by: owner)
+
+      {:ok, _} = Boards.Cards.update_card(card, %{"title" => "Fix the login page"}, by: owner)
       refute_email_sent()
     end
 
     test "on a new card emails who it mentions", %{board: board, owner: owner, domain: domain} do
       {:ok, _} =
-        Boards.create_card(hd(board.columns), %{"title" => "T", "description" => "@priya"},
+        Boards.Cards.create_card(hd(board.columns), %{"title" => "T", "description" => "@priya"},
           by: owner
         )
 

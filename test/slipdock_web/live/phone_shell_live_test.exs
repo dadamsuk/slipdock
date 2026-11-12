@@ -146,7 +146,7 @@ defmodule SlipdockWeb.PhoneShellLiveTest do
       board: board,
       card: card
     } do
-      {:ok, _} = Slipdock.Boards.toggle_completed(card)
+      {:ok, _} = Slipdock.Boards.Cards.toggle_completed(card)
       empty = board_fixture(%{"name" => "Empty", "code" => "phsh2"}, owner: user)
       {:ok, view, _} = live(conn, ~p"/")
 

@@ -18,7 +18,7 @@ defmodule SlipdockWeb.ChecklistOrderLiveTest do
 
     [one, two, three] =
       for text <- ~w(alpha bravo charlie) do
-        {:ok, item} = Boards.add_checklist_item(card, text)
+        {:ok, item} = Boards.Checklists.add_checklist_item(card, text)
         item
       end
 
@@ -66,8 +66,8 @@ defmodule SlipdockWeb.ChecklistOrderLiveTest do
 
   test "another card's item is left alone", ctx do
     other = card_fixture(ctx.col, %{"title" => "Other"})
-    {:ok, theirs} = Boards.add_checklist_item(other, "theirs")
-    {:ok, _} = Boards.add_checklist_item(other, "second")
+    {:ok, theirs} = Boards.Checklists.add_checklist_item(other, "theirs")
+    {:ok, _} = Boards.Checklists.add_checklist_item(other, "second")
     {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/cards/#{ctx.card.id}")
 
     render_hook(card_panel(view), "move_check", %{"id" => "#{theirs.id}", "before" => nil})
@@ -85,8 +85,8 @@ defmodule SlipdockWeb.ChecklistOrderLiveTest do
     owner = user_fixture("order-owner@example.com")
     shared = board_fixture(%{"name" => "Shared order"}, owner: owner)
     card = card_fixture(hd(shared.columns), %{"title" => "Theirs"})
-    {:ok, a} = Boards.add_checklist_item(card, "a")
-    {:ok, _} = Boards.add_checklist_item(card, "b")
+    {:ok, a} = Boards.Checklists.add_checklist_item(card, "a")
+    {:ok, _} = Boards.Checklists.add_checklist_item(card, "b")
     {:ok, _} = Access.grant(shared, ctx.user, "read", owner)
 
     {:ok, view, _} = live(ctx.conn, ~p"/boards/#{shared}/cards/#{card.id}")
@@ -100,8 +100,8 @@ defmodule SlipdockWeb.ChecklistOrderLiveTest do
   test "a placed page's panel reorders the page's items", ctx do
     page = page_fixture(ctx.board, %{"title" => "Placed"}, user: ctx.user)
     {:ok, _} = Slipdock.Wiki.place(page, ctx.col)
-    {:ok, x} = Boards.add_checklist_item(page, "x")
-    {:ok, y} = Boards.add_checklist_item(page, "y")
+    {:ok, x} = Boards.Checklists.add_checklist_item(page, "x")
+    {:ok, y} = Boards.Checklists.add_checklist_item(page, "y")
 
     {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}?#{[page: page.id]}")
     assert has_element?(view, ~s(ul#checklist-items-page-#{page.id}[phx-hook="Sortable"]))
@@ -115,8 +115,8 @@ defmodule SlipdockWeb.ChecklistOrderLiveTest do
 
   test "the page's own view reorders its items, and not a card's", ctx do
     page = page_fixture(ctx.board, %{"title" => "Own view"}, user: ctx.user)
-    {:ok, x} = Boards.add_checklist_item(page, "x")
-    {:ok, y} = Boards.add_checklist_item(page, "y")
+    {:ok, x} = Boards.Checklists.add_checklist_item(page, "x")
+    {:ok, y} = Boards.Checklists.add_checklist_item(page, "y")
 
     {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/wiki/#{page.slug}")
     render_hook(view, "move_check", %{"id" => "#{y.id}", "before" => "#{x.id}"})

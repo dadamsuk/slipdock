@@ -285,7 +285,11 @@ Each item in brief, with the detail in [the manual](docs/manual.md):
   progress → the first deploy that names it), each with its DORA band. Cards a
   deploy names show *Shipped to production · 1a2b3c4 · 19 Oct*, and *Deploy
   failed at build* with the run's link when CI's failure job says the release
-  failed (`slipdock deploy failed --stage S`); incidents are
+  failed (`slipdock deploy failed --stage S`); a merged card no succeeded
+  deploy names after 20 minutes (the board's *Not shipped after*,
+  `not_shipped_minutes`) shows an amber *Merged 1a634c6 · not shipped after
+  45m* and raises one warning alert, overseer on or off, both cleared by the
+  deploy that names it; incidents are
   ordinary cards tagged `incident`. Off until the owner turns **Delivery
   metrics** on; **Track deployments** in board settings (or `slipdock deploy
   setup <board>`) issues a deploy token that can record deploys and nothing
@@ -346,8 +350,10 @@ Each item in brief, with the detail in [the manual](docs/manual.md):
   every minute, server checks for work going round (a second rejection, a
   third runner pass), a board waiting only on you with nothing running, cards
   past their board's P85 and jobs stuck on one step, idle runners beside a
-  full ready list or jobs queued behind one lane, and epics with every subcard
-  blocked. Each fires once — an alert and an email with why and what to do —
+  full ready list or jobs queued behind one lane, epics with every subcard
+  blocked, and merged cards that never shipped (`not_shipped`, the one check
+  that runs with the overseer off too, on a board with delivery metrics on).
+  Each fires once — an alert and an email with why and what to do —
   heads *Waiting on you*, and clears itself. A cheap model on your own runner
   (job kind `overseer`) reads only those and the pulse, and keeps a digest as
   a status update on the board's *Overseer* card: every 10 minutes while cards
@@ -543,6 +549,25 @@ Each item in brief, with the detail in [the manual](docs/manual.md):
 - **Help inside the app** — `/help`, readable without an account: short guides
   to boards, the wiki, sharing, automations and the AI features (asking about a
   board, searching and asking across every board), and to connecting agents.
+
+  Merged work can also be **released in batches** rather than on every
+  merge (`slipdock set-board --release-mode batched`, with
+  `--release-age-cap HOURS` for how long the oldest merge may wait; both
+  are the root board's, and its Agentic Building page has them under
+  *Releases*). A merged card is still done and still unblocks what
+  depends on it; it shows *Merged 1a2b3c4, awaiting release* until a
+  succeeded deploy names it, then *Released to production* with the time
+  (`release` on the card's JSON and `get_card`, the *Release* line in
+  `slipdock card`). A release runs when a `critical` card merges, at the
+  age cap, or on **Release now** (the board's banner, `slipdock release
+  <board>`, `POST /api/boards/:board/release`, MCP `release_now`; the
+  owner's), one at a time: a runner's `release` job runs the board's
+  release command (`--release-command`, by default `gh workflow run
+  release.yml --ref {default_branch}`), and `slipdock releases <board>`
+  shows where they stand. The runner daemon runs the default form itself;
+  any other command runs only if the machine's own `local.json` lists it,
+  word for word, under `release_commands`, and is refused otherwise
+  (`no_release: true` there stops the machine taking releases at all).
 
 ## Running it
 
@@ -1064,15 +1089,18 @@ with the tail of the log — and a Cancel button.
   the same for the hosted service and a self-hosted one. The daemon notices
   a dead connection itself and replaces it (it pings a quiet one, and drops
   it after a failed request or a jump in the clock), so a laptop that sleeps
-  or changes networks is back in its pools within seconds of waking.
+  or changes networks is back in its pools within seconds of waking, and
+  carries on with the job it held if no other runner has taken it.
 - **Slipdock never decides what runs.** A job carries data — its kind, the
   card and the prompt. What each kind of job runs is in a config file on the
   runner's machine, and a kind it doesn't know is refused there.
 - **A list in order, or every card that arrives.** *Send cards to a runner*
   queues each card as it lands in a list; *Work a list with a runner*
   (trigger `list_top`) keeps one job open at a time, always for the top
-  ready card of the list, so a runner works your To Do list the way you
-  stacked it — and, by default, waits while anything is in progress, so it
+  ready card of the list (an answered question's job may be open beside
+  the card it sent, and it sends the next card once both have closed), so
+  a runner works your To Do list the way you stacked it — and, by
+  default, waits while anything is in progress, so it
   never starts a card beside one you're working by hand. The moment a
   runner claims that rule's job, the server moves the card to the top of
   its board's doing list and says so in the activity, and the job's prompt
@@ -1094,7 +1122,7 @@ with the tail of the log — and a Cancel button.
   can give opens a wait and stops; the job ends `parked`, its card goes back
   on top of the list flagged waiting so the next card runs, and answering the
   wait sends the card to the same rule again with the answer at the top of
-  the prompt (`slipdock finish-job <job> --status waiting --needs "…"` asks and
+  the prompt, for any free runner of the pool, not only the one that asked (`slipdock finish-job <job> --status waiting --needs "…"` asks and
   parks in one step).
 - **A brake with a reason.** The board's owner can pause the whole tree, or
   one pool, from the Runners panel, `slipdock pause <board> [--pool P]
@@ -1125,7 +1153,8 @@ with the tail of the log — and a Cancel button.
   repository can tread on each other's files. Turn on *a worktree per job*
   in a machine's runner's settings (`slipdock machine add-runner …
   --worktree`) and each job runs in a git worktree of its own, on a
-  branch named for its card (`card-<id>`), beside the repository in
+  branch named for its card (`card-<id>`, started from the origin's
+  default branch), beside the repository in
   `<repo>-lanes/`; a clean one is removed after the job, one with
   uncommitted changes kept for the next job on that card. Off by default.
 - **Each card has a timeline.** Near the bottom of the card, lanes on one
@@ -1289,7 +1318,7 @@ claude mcp add --transport http slipdock https://your-server/mcp \
   --header "Authorization: Bearer <token>"
 ```
 
-The client gets 55 tools — `whoami`, `get_guide` (a short guide that names
+The client gets 56 tools — `whoami`, `get_guide` (a short guide that names
 the rest of its sections, one call each with `section`), `list_boards`, `get_board`,
 `list_cards` (with `full: true`, every card as `get_card` gives it), `get_card`,
 `search`, `ask` (a question in prose, answered from the boards with what it read — a model call on your AI key, so slower), `read_page`, `list_pages` (a board's wiki, flat or as a tree), `page_info` (a page's links or heading paths,
@@ -1304,7 +1333,9 @@ its home), `share` (share a wiki page or folder with a person or group, or take 
 back; `list_pages` with `shared` lists what is shared with you), `revert_page` (put a page back to a revision) and `manage_wiki` (set your wiki's keys or recordings folder, move a folder to another board) `manage_automation` (add, change or delete a board's automation rule, from a spec, a preset or a sentence) and `install_tool` (have the server build a [Tool](#tools)'s board for you, or find the one it built), `skill_registry` (skills fetched from outside Slipdock: add a source by URL, read a skill in full, and enable one on a board pinned to the text you read) to write, and
 `claim_job`, `job_progress` and `finish_job` to take [runner jobs](#run-an-agent-against-a-board)
 from a board's queue, `job_log` to read a job's live log while it runs and
-`keep_job_log` to keep one as a page before it expires, and `card_views`
+`keep_job_log` to keep one as a page before it expires, `release_now` to
+release a batched board's merged work (or, with `check`, read where its
+releases stand), and `card_views`
 to read or change what the person sees of a card (only when asked)
 — each checked exactly as the API
 checks the same token, so a read-only or board-scoped token stays that way.

@@ -28,9 +28,9 @@ defmodule SlipdockWeb.BoardTenancyLiveTest do
     [their_col, their_other_col | _] = theirs.columns
     their_card = card_fixture(their_col, %{"title" => "Their card"})
     archived = card_fixture(their_col, %{"title" => "Their archived card"})
-    {:ok, archived} = Boards.archive_card(archived)
-    {:ok, check} = Boards.add_checklist_item(their_card, "Their step")
-    {:ok, comment} = Boards.add_comment(their_card, "Their comment")
+    {:ok, archived} = Boards.Cards.archive_card(archived)
+    {:ok, check} = Boards.Checklists.add_checklist_item(their_card, "Their step")
+    {:ok, comment} = Boards.Comments.add_comment(their_card, "Their comment")
     tag = tag_fixture(theirs, "theirs")
 
     %{
@@ -115,7 +115,7 @@ defmodule SlipdockWeb.BoardTenancyLiveTest do
     end
 
     test "nor can a live card be deleted through delete_archived", ctx do
-      {:ok, mine_archived} = Boards.archive_card(card_fixture(ctx.my_col))
+      {:ok, mine_archived} = Boards.Cards.archive_card(card_fixture(ctx.my_col))
       view = archive_panel(ctx.conn, ctx.mine)
 
       render_hook(view, "delete_archived", %{"id" => "#{ctx.my_card.id}"})
@@ -141,22 +141,22 @@ defmodule SlipdockWeb.BoardTenancyLiveTest do
     end
 
     test "the open card's own still work", ctx do
-      {:ok, check} = Boards.add_checklist_item(ctx.my_card, "Mine")
-      {:ok, comment} = Boards.add_comment(ctx.my_card, "Mine")
+      {:ok, check} = Boards.Checklists.add_checklist_item(ctx.my_card, "Mine")
+      {:ok, comment} = Boards.Comments.add_comment(ctx.my_card, "Mine")
       view = card_view(ctx.conn, ctx.mine, ctx.my_card)
 
       render_hook(card_panel(view), "toggle_check", %{"id" => "#{check.id}"})
       assert Repo.get!(ChecklistItem, check.id).done
 
       assert [%{message: "ticked a checklist item on " <> _} | _] =
-               Boards.list_activities(ctx.my_card.board_id, 1, ctx.my_card.id)
+               Boards.ActivityLog.list_activities(ctx.my_card.board_id, 1, ctx.my_card.id)
 
       render_hook(card_panel(view), "delete_comment", %{"id" => "#{comment.id}"})
       refute Repo.get(Comment, comment.id)
     end
 
     test "a subcard can't be added to a stranger's list", ctx do
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, _} = Boards.create_sub_board(ctx.my_card, t)
       view = card_view(ctx.conn, ctx.mine, ctx.my_card)
 
@@ -175,7 +175,7 @@ defmodule SlipdockWeb.BoardTenancyLiveTest do
     end
 
     test "remove_assignee needs write access to the card, and an open one", ctx do
-      {:ok, _} = Boards.update_card(ctx.their_card, %{"assignee_id" => ctx.victim.id})
+      {:ok, _} = Boards.Cards.update_card(ctx.their_card, %{"assignee_id" => ctx.victim.id})
       {:ok, _} = Access.grant(ctx.theirs, ctx.user, "read", ctx.victim)
 
       view = card_view(ctx.conn, ctx.theirs, ctx.their_card)
@@ -183,7 +183,7 @@ defmodule SlipdockWeb.BoardTenancyLiveTest do
       render_hook(card_panel(view), "remove_assignee", %{"id" => "#{ctx.victim.id}"})
       assert render(view) =~ "read-only"
 
-      assert Boards.get_card!(ctx.their_card.id).assignee_id == ctx.victim.id
+      assert Boards.Cards.get_card!(ctx.their_card.id).assignee_id == ctx.victim.id
 
       # With no card open there is no card panel, and the board itself
       # knows no such event.
@@ -269,9 +269,9 @@ defmodule SlipdockWeb.BoardTenancyLiveTest do
       assert card.board_id == ctx.mine.id and card.column_id == ctx.my_col.id
     end
 
-    test "Boards.move_card refuses a list on another board", ctx do
-      assert {:error, :wrong_board} = Boards.move_card(ctx.my_card.id, ctx.their_col.id)
-      assert :ok = Boards.move_card(ctx.their_card.id, ctx.their_other_col.id)
+    test "Boards.Cards.move_card refuses a list on another board", ctx do
+      assert {:error, :wrong_board} = Boards.Cards.move_card(ctx.my_card.id, ctx.their_col.id)
+      assert :ok = Boards.Cards.move_card(ctx.their_card.id, ctx.their_other_col.id)
     end
   end
 
@@ -293,7 +293,7 @@ defmodule SlipdockWeb.BoardTenancyLiveTest do
     test "a write grant on a view covers that board, not every card", ctx do
       # The victim shares an unfiltered view of one board, with write access.
       {:ok, saved} =
-        Boards.create_saved_view(ctx.theirs, %{
+        Boards.SavedViews.create_saved_view(ctx.theirs, %{
           "name" => "Everything",
           "config" => Config.to_map(Config.defaults("table"))
         })
@@ -389,7 +389,10 @@ defmodule SlipdockWeb.BoardTenancyLiveTest do
         Slipdock.Fields.create_field(ctx.theirs, %{"name" => "Theirs", "kind" => "number"})
 
       {:ok, milestone} =
-        Boards.create_milestone(ctx.theirs, %{"name" => "Theirs", "date" => "2030-01-01"})
+        Boards.Milestones.create_milestone(ctx.theirs, %{
+          "name" => "Theirs",
+          "date" => "2030-01-01"
+        })
 
       outsider = user_fixture("outsider@example.com")
       {:ok, grant} = Access.grant(ctx.theirs, outsider, "read", ctx.victim)
@@ -443,7 +446,7 @@ defmodule SlipdockWeb.BoardTenancyLiveTest do
 
   describe "sprints" do
     test "a sprint on a board you can only read can't be filled", ctx do
-      {:ok, template} = Boards.find_template(nil, "Sprint planning")
+      {:ok, template} = Boards.Templates.find_template(nil, "Sprint planning")
       sprints = board_fixture(%{"name" => "Their sprints"}, template: template, owner: ctx.victim)
       {:ok, sprint} = Sprints.create_sprint(sprints)
       {:ok, _} = Access.grant(sprints, ctx.user, "read", ctx.victim)
@@ -514,10 +517,10 @@ defmodule SlipdockWeb.BoardTenancyLiveTest do
     end
 
     test "a guest shown one card can't open the sprint charts", ctx do
-      {:ok, template} = Boards.find_template(nil, "Sprint planning")
+      {:ok, template} = Boards.Templates.find_template(nil, "Sprint planning")
       sprints = board_fixture(%{"name" => "Sprints"}, template: template, owner: ctx.victim)
       {:ok, sprint} = Sprints.create_sprint(sprints)
-      {:ok, _} = Access.grant(Boards.get_card!(sprint.id), ctx.user, "read", ctx.victim)
+      {:ok, _} = Access.grant(Boards.Cards.get_card!(sprint.id), ctx.user, "read", ctx.victim)
 
       {:ok, view, _} = live(ctx.conn, ~p"/boards/#{sprints}/cards/#{sprint.id}")
       refute has_element?(view, "#sprint-charts")

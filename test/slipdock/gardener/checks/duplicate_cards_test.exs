@@ -76,9 +76,9 @@ defmodule Slipdock.Gardener.Checks.DuplicateCardsTest do
   } do
     a = card_at(todo, 0)
     b = card_at(todo, 1)
-    {:ok, _} = Boards.add_link(b, a, "relates")
+    {:ok, _} = Boards.Links.add_link(b, a, "relates")
     archived = card_at(todo, 2)
-    {:ok, _} = Boards.archive_card(archived)
+    {:ok, _} = Boards.Cards.archive_card(archived)
     card_at(todo, 3, %{"completed" => true})
 
     assert find(DuplicateCards, board) == []
@@ -141,7 +141,9 @@ defmodule Slipdock.Gardener.Checks.DuplicateCardsTest do
     [s] = Gardener.list_open(board)
     {:ok, _} = Gardener.dismiss(s, owner)
 
-    {:ok, _} = Boards.update_card(Boards.get_card!(a.id), %{"description" => "edited"})
+    {:ok, _} =
+      Boards.Cards.update_card(Boards.Cards.get_card!(a.id), %{"description" => "edited"})
+
     {:ok, run} = Gardener.run(board, only: ["duplicate_cards"])
     assert run.counts["new"] == 0
   end

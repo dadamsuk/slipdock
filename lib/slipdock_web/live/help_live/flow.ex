@@ -189,6 +189,11 @@ defmodule SlipdockWeb.HelpLive.Flow do
           list or jobs queued behind one lane, and an epic whose open subcards are all blocked.
         </p>
         <p>
+          One check needs no switch: on a board with delivery metrics on, a card merged more
+          than 20 minutes ago (the board's <em>Not shipped after</em>, <code>slipdock set-board B --not-shipped-minutes N</code>)
+          that no succeeded deploy names raises an alert whether or not the overseer is on.
+        </p>
+        <p>
           Each fires once: an alert, an email, and the top of My work's <em>Waiting on you</em>,
           saying why and what to do. It clears itself when the condition ends. A cheap model on
           one of your runners (a <code>job_overseer</code>
@@ -498,6 +503,16 @@ defmodule SlipdockWeb.HelpLive.Flow do
       ends. The agent doesn't assign the card to anyone, since it signs in with a person's token.
     </p>
     <.person_note>
+      <strong>A batched board releases on a trigger, not on a merge.</strong>
+      A card there is done when it merges; agents don't wait for its release. A release runs when
+      a critical card merges, at the board's age cap, or when the owner presses <em>Release now</em>
+      (<code>slipdock release B</code>): a runner's <code>release</code>
+      job runs the board's release command, one release at a time. A command other than the
+      default <code>gh workflow run</code>
+      runs only on a machine whose <code>local.json</code>
+      lists it under <code>release_commands</code>.
+    </.person_note>
+    <.person_note>
       <strong>A pause is yours to lift.</strong>
       Agents may pause runner work (<code>slipdock pause B --reason "…"</code>), and an agent
       that sees it takes nothing. Only a person resumes it: <code>slipdock resume B</code>
@@ -524,7 +539,7 @@ defmodule SlipdockWeb.HelpLive.Flow do
       and stops. The job is parked and the card goes back on top of its list. Answer it on the
       card, in My work's <em>Waiting on you</em>
       (<code>slipdock work</code>), or with <code>slipdock answer 12 "…"</code>, and the card is
-      sent again with your answer at the top of its prompt.
+      sent again with your answer at the top of its prompt, to whichever runner of the pool is free.
       A wait is for what is yours to decide: readings that differ in cost or in what you see,
       product, UX, security and release calls, and your steps (merging, a handbook rule, a
       deploy). A bar item a later decision made moot isn't one: the agent reads it the obvious
@@ -594,7 +609,8 @@ defmodule SlipdockWeb.HelpLive.Flow do
       after its kind, or <code>→ #2087</code>
       at its end for a card filed for it. A fix is a card, not a finding: a concrete change
       someone could be handed (a missing test, a stale doc, a tooling bug) goes on the board
-      as a card at once, and the block names it with the arrow; a finding is only for what is
+      as a card at once, in the Housekeeping list when the board has one (a design question
+      goes to Triage, for a person), and the block names it with the arrow; a finding is only for what is
       uncertain, cuts across cards, or shows the handbook wrong.
     </p>
     <.person_note>
@@ -734,7 +750,14 @@ defmodule SlipdockWeb.HelpLive.Flow do
     <p>
       Your CI deploys what reaches the default branch. With delivery metrics on, it records the
       deploy (<code>slipdock deploy run --env production -- ./deploy.sh</code>), and the cards
-      it names get a <em>Shipped</em> line.
+      it names get a <em>Shipped</em>
+      line. A merged card no deploy names after 20 minutes
+      (the board's <em>Not shipped after</em>) shows an amber
+      <em>Merged 1a634c6 · not shipped after 45m</em>
+      instead and raises a warning alert, overseer on or off, until a deploy names it:
+      <code>not_shipped</code>
+      in the card's JSON and <code>get_card</code>, <em>Not shipped</em>
+      in <code>slipdock card</code>.
     </p>
     <p>
       The <strong>handbook improves from use</strong>. The nightly <em>Reconcile the handbook</em>

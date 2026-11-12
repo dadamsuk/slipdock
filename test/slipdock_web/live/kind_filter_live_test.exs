@@ -25,7 +25,11 @@ defmodule SlipdockWeb.KindFilterLiveTest do
     document = card_fixture(column, %{"title" => "spec.txt"})
 
     {:ok, _} =
-      Boards.add_attachment(document, %{filename: "spec.txt", content_type: "text/plain"}, src)
+      Boards.Attachments.add_attachment(
+        document,
+        %{filename: "spec.txt", content_type: "text/plain"},
+        src
+      )
 
     page = page_fixture(board, %{"title" => "Retro notes"}, user: user)
     {:ok, _} = Wiki.place(page, column)

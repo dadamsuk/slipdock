@@ -44,7 +44,11 @@ defmodule Slipdock.OCRSearchTest do
 
   defp attach(card, source) do
     {:ok, a} =
-      Boards.add_attachment(card, %{filename: "scan.png", content_type: "image/png"}, source)
+      Boards.Attachments.add_attachment(
+        card,
+        %{filename: "scan.png", content_type: "image/png"},
+        source
+      )
 
     a
   end
@@ -80,7 +84,7 @@ defmodule Slipdock.OCRSearchTest do
     a = attach(ctx.card, ctx.source)
     read_and_index()
 
-    {:ok, _} = Boards.delete_attachment(a)
+    {:ok, _} = Boards.Attachments.delete_attachment(a)
     {:ok, _} = Indexer.flush()
 
     assert Repo.aggregate(from(e in Embedding, where: e.kind == "document"), :count) == 0
@@ -101,7 +105,7 @@ defmodule Slipdock.OCRSearchTest do
     assert match.kind == "page_document"
     assert match.source_id == a.id
 
-    {:ok, _} = Boards.delete_attachment(a)
+    {:ok, _} = Boards.Attachments.delete_attachment(a)
     {:ok, _} = Indexer.flush()
     assert found(ctx.owner, kind: :page) == []
   end

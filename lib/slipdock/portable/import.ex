@@ -63,7 +63,7 @@ defmodule Slipdock.Portable.Import do
   that is taken is regenerated, and the report says so.
 
   **Automation rules do not fire.** Cards are inserted directly rather than
-  through `Boards.create_card/2`, because importing four hundred cards through
+  through `Boards.Cards.create_card/2`, because importing four hundred cards through
   the normal path would run every rule on the board four hundred times and
   email somebody about each. Rules are about what happens *here*, and an
   import is history arriving.
@@ -487,6 +487,10 @@ defmodule Slipdock.Portable.Import do
     Map.put(attrs, :agentic_building, on)
   end
 
+  # A board's not-shipped minutes (#2819): 0 to a week, else the default.
+  defp not_shipped_minutes(n) when is_integer(n) and n >= 0, do: min(n, 10_080)
+  defp not_shipped_minutes(_), do: 20
+
   defp insert_board(user, doc, parent_card_id, root_id, opts) do
     wanted = doc[:code]
     code = free_code(wanted, doc[:name])
@@ -518,6 +522,9 @@ defmodule Slipdock.Portable.Import do
           simple: bool(doc[:simple], false),
           show_pulse: bool(doc[:show_pulse], false),
           delivery_metrics: bool(doc[:delivery_metrics], false),
+          # The changeset starts the board's `delivery_metrics_since` at the
+          # import, so nothing the copy merged before it is not shipped (#2819).
+          not_shipped_minutes: not_shipped_minutes(doc[:not_shipped_minutes]),
           card_ref_pattern: if(is_binary(doc[:card_ref_pattern]), do: doc[:card_ref_pattern]),
           incident_tag: if(is_binary(doc[:incident_tag]), do: doc[:incident_tag]),
           hotfix_window_hours:
@@ -545,7 +552,8 @@ defmodule Slipdock.Portable.Import do
             ),
           kind: if(Enum.member?(Board.kinds(), doc[:kind]), do: doc[:kind])
         }
-        |> put_agentic(doc),
+        |> put_agentic(doc)
+        |> Map.merge(release_settings(doc, root_id)),
         named("board", doc[:name]) <> if(root_id, do: ", and everything on it,", else: "")
       )
 
@@ -738,7 +746,7 @@ defmodule Slipdock.Portable.Import do
       Repo.insert_all("card_tags", Enum.map(Enum.uniq(tag_ids), &[card_id: card.id, tag_id: &1]))
 
       if column = card.column_id && Repo.get(Column, card.column_id),
-        do: Slipdock.Boards.record_move(card, "created", nil, column, imported_by(user))
+        do: Slipdock.Boards.Moves.record_move(card, "created", nil, column, imported_by(user))
 
       insert_attached!(user, [card_id: card.id], doc, ids)
       insert_handoffs!(user, card, doc)
@@ -1223,6 +1231,32 @@ defmodule Slipdock.Portable.Import do
   defp now, do: DateTime.utc_now() |> DateTime.truncate(:second)
 
   # A job log time (#1872): the board's own when it is one Slipdock takes.
+  # Batched releases (#2834) are the root's alone: a sub-board keeps the
+  # defaults, as its changeset asks; an unknown mode or cap is the default.
+  defp release_settings(doc, nil) do
+    %{
+      release_mode:
+        if(Enum.member?(Board.release_modes(), doc[:release_mode]),
+          do: doc[:release_mode],
+          else: "on_merge"
+        ),
+      release_age_cap_hours: hours(doc[:release_age_cap_hours], nil),
+      release_command: release_command(doc[:release_command])
+    }
+  end
+
+  defp release_settings(_doc, _root_id), do: %{}
+
+  # One line, as the board's changeset asks (#2835); anything else is the
+  # default.
+  defp release_command(command) when is_binary(command) do
+    if String.length(command) <= 500 and not String.contains?(command, ["\n", "\r", <<0>>]),
+      do: command,
+      else: nil
+  end
+
+  defp release_command(_command), do: nil
+
   defp hours(n, _default) when is_integer(n) and n >= 1 and n <= 8760, do: n
   defp hours(_, default), do: default
 end

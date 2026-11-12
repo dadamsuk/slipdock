@@ -260,7 +260,7 @@ defmodule Slipdock.CardViewsTest do
   describe "explain/4" do
     test "says where each value comes from, and that board settings win", ctx do
       {:ok, board} = Slipdock.Boards.update_board(ctx.board, %{"simple" => true})
-      {:ok, todo} = Slipdock.Boards.update_column(ctx.todo, %{"show_age" => false})
+      {:ok, todo} = Slipdock.Boards.Columns.update_column(ctx.todo, %{"show_age" => false})
       {:ok, _} = CardViews.update_level(ctx.user, :global, %{"hide" => "tags"})
 
       {:ok, _} =

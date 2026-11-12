@@ -721,7 +721,7 @@ defmodule Slipdock.Verified do
         (before.verify_state != "pending" and updated.verify_state == "pending")
 
     if finished? and evidence?(updated) and board(updated).evidence_required,
-      do: Slipdock.Boards.add_comment(updated, evidence_text(updated), by: user)
+      do: Slipdock.Boards.Comments.add_comment(updated, evidence_text(updated), by: user)
   end
 
   # A card just gone pending: queued for a verifier, or (a `docs` card,
@@ -734,7 +734,7 @@ defmodule Slipdock.Verified do
     if not unverified?, do: queue_verify_job(updated, user)
 
     # Shipped by push: it no longer holds up the cards that depend on it.
-    if released?(updated), do: Slipdock.Boards.unblock_dependents(updated, by: user)
+    if released?(updated), do: Slipdock.Boards.Dependencies.unblock_dependents(updated, by: user)
     unverified?
   end
 
@@ -1377,7 +1377,7 @@ defmodule Slipdock.Verified do
     attrs = if over, do: %{}, else: no_evidence()
 
     with {:ok, card} <-
-           Slipdock.Boards.update_card(
+           Slipdock.Boards.Cards.update_card(
              card,
              Map.put(attrs, "flags", rejected_flags(card.flags, count)),
              actor: actor,
@@ -1447,7 +1447,7 @@ defmodule Slipdock.Verified do
 
     # A release question (#1949): on the first person the tree routes
     # `release` to, else on the owner (`Slipdock.WaitRoutes`).
-    case Slipdock.Boards.open_wait(card, actor, %{
+    case Slipdock.Boards.Waits.open_wait(card, actor, %{
            needs: limit_question(card, count, limit, rejections),
            choices: [@rework_choice, @accept_choice],
            question: "release",
@@ -1555,7 +1555,7 @@ defmodule Slipdock.Verified do
   end
 
   @doc """
-  A wait closing (`Slipdock.Boards.answer_wait/3`): a rejection-limit wait
+  A wait closing (`Slipdock.Boards.Waits.answer_wait/3`): a rejection-limit wait
   (#1779) answered *Accept as is* accepts the card for whoever answered (on
   a pull request board, queueing the merge); any other answer, or a skip,
   sends it back for rework as rejected, its evidence cleared. Other waits
@@ -1592,7 +1592,7 @@ defmodule Slipdock.Verified do
   end
 
   defp rework_as_rejected(card, actor, user) do
-    {:ok, _} = Slipdock.Boards.update_card(card, no_evidence(), actor: actor, by: user)
+    {:ok, _} = Slipdock.Boards.Cards.update_card(card, no_evidence(), actor: actor, by: user)
     Slipdock.Automations.feed_board(card.board_id)
   end
 
@@ -1607,7 +1607,7 @@ defmodule Slipdock.Verified do
     ]
 
     with {:ok, card} <-
-           Slipdock.Boards.update_card(
+           Slipdock.Boards.Cards.update_card(
              card,
              %{"completed" => true, "flags" => card.flags -- ["review"]},
              actor: actor,
@@ -1619,10 +1619,12 @@ defmodule Slipdock.Verified do
       done = card |> board() |> Repo.preload(:columns) |> Map.get(:columns) |> done_list()
 
       if done && done.id != card.column_id,
-        do: Slipdock.Boards.move_card(card.id, done.id, nil, actor: actor)
+        do: Slipdock.Boards.Cards.move_card(card.id, done.id, nil, actor: actor)
 
       card = Repo.get!(Card, card.id)
       maybe_audit(card)
+      # Where work ships by push, accepted is merged (#2835).
+      Slipdock.Releases.card_merged(card)
       {:ok, card}
     end
     |> api_error()
@@ -1634,7 +1636,10 @@ defmodule Slipdock.Verified do
   defp send_back(card, next_step, actor, user) do
     # The reason is on the comment and the verification block (and in a
     # claimed job's prompt and get_card): the handoff only points there.
-    Slipdock.Boards.leave_handoff(card, user, %{next_step: next_step, via: handoff_via(actor)})
+    Slipdock.Boards.Handoffs.leave_handoff(card, user, %{
+      next_step: next_step,
+      via: handoff_via(actor)
+    })
 
     # The builder's own assignment comes off (a person's stays), so a rule
     # that sends only unassigned cards sends it again.
@@ -1645,7 +1650,7 @@ defmodule Slipdock.Verified do
 
     case Slipdock.Flow.ready_list(columns) do
       %Column{id: id} = ready when id != card.column_id ->
-        Slipdock.Boards.move_card_to_index(card, ready, :top, actor: actor)
+        Slipdock.Boards.Cards.move_card_to_index(card, ready, :top, actor: actor)
 
       _ ->
         :ok
@@ -1786,7 +1791,11 @@ defmodule Slipdock.Verified do
     ]
 
     with {:ok, card} <-
-           Slipdock.Boards.update_card(card, %{}, actor: actor, by: user, verify_changes: changes) do
+           Slipdock.Boards.Cards.update_card(card, %{},
+             actor: actor,
+             by: user,
+             verify_changes: changes
+           ) do
       profile = Slipdock.Profiles.profile_of(card)
 
       comment(
@@ -1810,7 +1819,7 @@ defmodule Slipdock.Verified do
         "#{card.evidence_pr || "its pull request"} merges: merge it, or send it back " <>
         "(say why: the reason goes back to the builder)?"
 
-    case Slipdock.Boards.open_wait(card, actor, %{
+    case Slipdock.Boards.Waits.open_wait(card, actor, %{
            needs: String.slice(needs, 0, 990),
            choices: [@merge_choice, @send_back_choice],
            question: "release",
@@ -1884,9 +1893,9 @@ defmodule Slipdock.Verified do
   end
 
   defp withdraw_held_wait(card, actor) do
-    case Slipdock.Boards.current_wait(card) do
+    case Slipdock.Boards.Waits.current_wait(card) do
       %{purpose: @held_purpose} ->
-        Slipdock.Boards.withdraw_wait(card, actor,
+        Slipdock.Boards.Waits.withdraw_wait(card, actor,
           note: "Decided on the card, so the wait is closed."
         )
 
@@ -1899,7 +1908,7 @@ defmodule Slipdock.Verified do
   # without the tier does.
   defp approve_merge(card, actor, user) do
     with {:ok, card} <-
-           Slipdock.Boards.update_card(card, %{"flags" => card.flags -- ["review"]},
+           Slipdock.Boards.Cards.update_card(card, %{"flags" => card.flags -- ["review"]},
              actor: actor,
              by: user,
              verify_changes: [verify_state: "merging"]
@@ -1960,7 +1969,7 @@ defmodule Slipdock.Verified do
     ]
 
     with {:ok, card} <-
-           Slipdock.Boards.update_card(card, %{"flags" => card.flags -- ["review"]},
+           Slipdock.Boards.Cards.update_card(card, %{"flags" => card.flags -- ["review"]},
              actor: actor,
              by: user,
              verify_changes: changes
@@ -1986,7 +1995,7 @@ defmodule Slipdock.Verified do
   def queue_merge(%Card{} = card, user \\ nil, opts \\ []) do
     case merge_pool(card, opts) do
       nil ->
-        Slipdock.Boards.add_comment(card, no_merger_text(card), by: user)
+        Slipdock.Boards.Comments.add_comment(card, no_merger_text(card), by: user)
         :none
 
       pool ->
@@ -2000,7 +2009,7 @@ defmodule Slipdock.Verified do
             {:ok, job}
 
           {:error, reason} ->
-            Slipdock.Boards.add_comment(
+            Slipdock.Boards.Comments.add_comment(
               card,
               "**Merge job not queued** for pool `#{pool}`: #{reason}. " <>
                 merge_by_hand_text(card),
@@ -2193,10 +2202,16 @@ defmodule Slipdock.Verified do
       else: "**Merged** by runner #{runner_name}"
   end
 
-  # A merge that failed because the pull request was already merged (#2637):
-  # at another head (the daemon's words), or at a head the runner didn't say
-  # (older runners: `is MERGED, not open`).
-  defp already_merged?(%{status: "failed"} = job) do
+  @doc """
+  Whether a merge job failed because the pull request was already merged
+  (#2637): at another head (the daemon's words), or at a head the runner
+  didn't say (older runners: `is MERGED, not open`). Only the runner's own
+  `merge:` line counts. Such a job leaves its card merging for a person
+  (`merged_elsewhere`), so queuing the merge again would fail the same way:
+  the health monitor's `merge_missing` flags it rather than requeuing, and
+  `merge_failing` doesn't count it as a failing merge (#2759).
+  """
+  def already_merged?(%{status: "failed"} = job) do
     said = merge_reason(job)
 
     String.starts_with?(said, "merge: ") and
@@ -2204,7 +2219,7 @@ defmodule Slipdock.Verified do
          String.contains?(said, "is MERGED, not open"))
   end
 
-  defp already_merged?(_job), do: false
+  def already_merged?(_job), do: false
 
   # Already merged, but not at a head the runner could match to the
   # accepted commit: no rebase or resubmission changes a merged pull
@@ -2215,7 +2230,7 @@ defmodule Slipdock.Verified do
     said = merge_reason(job)
     Slipdock.Findings.Signals.merge_failed(card, job, said)
 
-    Slipdock.Boards.add_comment(
+    Slipdock.Boards.Comments.add_comment(
       card,
       "**Merge failed: already merged.** Runner #{runner_name} found " <>
         "#{card.evidence_pr || "the pull request"} merged already, but not at a head it " <>
@@ -2275,14 +2290,14 @@ defmodule Slipdock.Verified do
 
     case queued do
       {:ok, _job} ->
-        Slipdock.Boards.add_comment(
+        Slipdock.Boards.Comments.add_comment(
           card,
           "**Merge handed on.** Runner #{runner_name} can't merge here, so pool `#{pool}` " <>
             "has it now.\n\n#{said}"
         )
 
       _ ->
-        Slipdock.Boards.add_comment(
+        Slipdock.Boards.Comments.add_comment(
           card,
           "**Merge waiting.** Runner #{runner_name} can't merge here, and no other runner " <>
             "has taken it on. Fix the runner, or: " <> merge_by_hand_text(card) <> "\n\n#{said}"
@@ -2304,7 +2319,7 @@ defmodule Slipdock.Verified do
     ]
 
     with {:ok, card} <-
-           Slipdock.Boards.update_card(card, no_evidence(),
+           Slipdock.Boards.Cards.update_card(card, no_evidence(),
              actor: actor,
              verify_changes: changes
            ) do
@@ -2382,7 +2397,7 @@ defmodule Slipdock.Verified do
     sha = sha && String.downcase(sha)
 
     with {:ok, card} <-
-           Slipdock.Boards.update_card(card, %{"completed" => true},
+           Slipdock.Boards.Cards.update_card(card, %{"completed" => true},
              actor: actor,
              by: user,
              verify_changes: [verify_state: "accepted", merge_sha: sha]
@@ -2391,11 +2406,13 @@ defmodule Slipdock.Verified do
       done = card |> board() |> Repo.preload(:columns) |> Map.get(:columns) |> done_list()
 
       if done && done.id != card.column_id,
-        do: Slipdock.Boards.move_card(card.id, done.id, nil, actor: actor)
+        do: Slipdock.Boards.Cards.move_card(card.id, done.id, nil, actor: actor)
 
       # Merged: an audit now can't hold anything up (#1780).
       card = Repo.get!(Card, card.id)
       maybe_audit(card)
+      # On a batched board a critical card's merge asks for a release (#2835).
+      Slipdock.Releases.card_merged(card)
       {:ok, card}
     end
     |> api_error()
@@ -2414,14 +2431,14 @@ defmodule Slipdock.Verified do
   end
 
   defp unassign_agents(%Card{agent_assignee_ids: [_ | _] = ids} = card, actor, user) do
-    on = Slipdock.Boards.assignee_ids(card)
+    on = Slipdock.Boards.Cards.assignee_ids(card)
 
     case Enum.filter(ids, &Enum.member?(on, &1)) do
       [] ->
         card
 
       gone ->
-        case Slipdock.Boards.update_card(card, %{"remove_assignee_ids" => gone},
+        case Slipdock.Boards.Cards.update_card(card, %{"remove_assignee_ids" => gone},
                actor: actor,
                by: user
              ) do
@@ -2739,7 +2756,7 @@ defmodule Slipdock.Verified do
           "**Audit: disagrees again** with the acceptance of ##{card.id}, by #{by}: #{link}\n\n" <>
             reason <> failed
 
-        Slipdock.Boards.add_comment(rework, body, by: user)
+        Slipdock.Boards.Comments.add_comment(rework, body, by: user)
         {:commented, rework}
 
       nil ->
@@ -2752,10 +2769,23 @@ defmodule Slipdock.Verified do
       nil
   end
 
+  # Where an audit's rework card goes: a fix, so the Housekeeping list
+  # (#2779) when the card's board has one, else its root's, else the ready
+  # list as before.
+  defp rework_list(board, columns) do
+    root =
+      if board.parent_card_id,
+        do: Repo.preload(Repo.get(Board, Slipdock.Boards.root_of_board(board.id)), :columns)
+
+    Enum.find(columns, &Column.housekeeping?/1) ||
+      (root && Enum.find(root.columns, &Column.housekeeping?/1)) ||
+      Slipdock.Flow.ready_list(columns) || List.first(columns)
+  end
+
   defp new_rework(card, reason, checks, link, failed, by) do
     board = card |> board() |> Repo.preload(:columns)
     columns = Enum.sort_by(board.columns, & &1.position)
-    column = Slipdock.Flow.ready_list(columns) || List.first(columns)
+    column = rework_list(board, columns)
 
     description =
       "#{@rework_lead}#{card.id} “#{card.title}” (accepted by #{who(card.verify_by)}): " <>
@@ -2773,7 +2803,7 @@ defmodule Slipdock.Verified do
       "priority" => if(urgent_disagreement?(checks), do: "high", else: "medium")
     }
 
-    case Slipdock.Boards.create_card(column, attrs,
+    case Slipdock.Boards.Cards.create_card(column, attrs,
            actor: Slipdock.Actor.automation(),
            origin: "verify"
          ) do
@@ -2902,7 +2932,7 @@ defmodule Slipdock.Verified do
           say_if_no_one_can_take(card, job, board, builder, user)
 
         {:error, reason} ->
-          Slipdock.Boards.add_comment(
+          Slipdock.Boards.Comments.add_comment(
             card,
             "**Verify job not queued** for pool `#{board.verify_pool}`: #{reason}. " <>
               "It waits for someone to verify it by hand.",
@@ -2964,7 +2994,7 @@ defmodule Slipdock.Verified do
       end
 
     if why do
-      Slipdock.Boards.add_comment(
+      Slipdock.Boards.Comments.add_comment(
         card,
         "**Verify job ##{job.id} waits:** #{why}. Add a runner to the pool, or verify it by hand.",
         by: user
@@ -3822,7 +3852,7 @@ defmodule Slipdock.Verified do
 
   defp comment(card, line, note, user) do
     body = if Enum.member?([nil, ""], note), do: line, else: "#{line}\n\n#{note}"
-    Slipdock.Boards.add_comment(card, body, by: user)
+    Slipdock.Boards.Comments.add_comment(card, body, by: user)
   end
 
   defp done_list(columns) do

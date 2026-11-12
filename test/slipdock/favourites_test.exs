@@ -12,7 +12,10 @@ defmodule Slipdock.FavouritesTest do
     card = card_fixture(todo, %{"title" => "Write the post"})
 
     {:ok, view} =
-      Boards.create_saved_view(board, %{"name" => "By tag", "config" => %{"rows" => "tag"}})
+      Boards.SavedViews.create_saved_view(board, %{
+        "name" => "By tag",
+        "config" => %{"rows" => "tag"}
+      })
 
     %{user: user, board: board, backlog: backlog, todo: todo, card: card, view: view}
   end
@@ -98,11 +101,11 @@ defmodule Slipdock.FavouritesTest do
     {:ok, :added} = Favourites.toggle(user, :card, card.id)
     assert [%{kind: :card}] = Favourites.list(user)
 
-    {:ok, _} = Boards.archive_card(card)
+    {:ok, _} = Boards.Cards.archive_card(card)
     assert Favourites.list(user) == []
 
     # Restoring brings it back: the row was never deleted.
-    {:ok, _} = Boards.unarchive_card(Boards.get_card!(card.id))
+    {:ok, _} = Boards.Cards.unarchive_card(Boards.Cards.get_card!(card.id))
     assert [%{kind: :card}] = Favourites.list(user)
   end
 
@@ -111,7 +114,7 @@ defmodule Slipdock.FavouritesTest do
     {:ok, :added} = Favourites.toggle(user, :view, view.id)
     assert Favourites.count(user) == 2
 
-    {:ok, _} = Boards.delete_saved_view(view)
+    {:ok, _} = Boards.SavedViews.delete_saved_view(view)
     assert Favourites.count(user) == 1
     assert [%{kind: :column}] = Favourites.list(user)
   end

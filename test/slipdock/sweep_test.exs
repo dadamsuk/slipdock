@@ -62,9 +62,13 @@ defmodule Slipdock.SweepTest do
       [card] = sweep_cards(board) |> Repo.preload(:column)
       refute card.column.category == "triage"
       assert card.description =~ "One area and one lens per run"
-      assert card.description =~ "--column Triage"
+      # Fixes and investigations to Housekeeping, design questions to Triage,
+      # everything to Triage with no Housekeeping list (#2779).
+      assert card.description =~ "--column Housekeeping --origin sweep"
+      assert card.description =~ "--column Triage --origin sweep"
+      assert card.description =~ "On a board with no Housekeeping list, everything goes to Triage"
       # The description says where, why and the fix: a heredoc on stdin (#2686).
-      assert card.description =~ "--column Triage --desc - <<'EOF'"
+      assert card.description =~ "--column Housekeeping --origin sweep --desc - <<'EOF'"
       assert card.description =~ "`--desc -` reads it from stdin"
       assert card.description =~ "--tag security"
       assert card.description =~ "clean tree"
@@ -103,9 +107,30 @@ defmodule Slipdock.SweepTest do
       assert triage(board).category == "triage"
     end
 
+    test "installing 1.1.0 over an older sweep gives its card the current procedure (#2779)",
+         %{user: user, board: board} do
+      {:ok, _} = Sweep.install(user, board)
+      [card] = sweep_cards(board)
+      old = "File each issue as a card in the `Triage` list, never in the ready list."
+      {:ok, _} = Boards.Cards.update_card(card, %{"description" => old, "priority" => "high"})
+
+      assert {:ok, again} = Sweep.install(user, board)
+      assert again.upgraded
+      assert again.report.added["cards"] == ["Sweep the code (updated: procedure)"]
+      [after_card] = sweep_cards(board)
+      assert after_card.id == card.id
+      assert after_card.description =~ "--column Housekeeping --origin sweep"
+      assert after_card.priority == "high"
+
+      # Once current, installing again leaves it be.
+      assert {:ok, third} = Sweep.install(user, board)
+      refute third.upgraded
+      assert third.report.added["cards"] == []
+    end
+
     test "a Triage list made by hand gets the category; one with its own keeps it",
          %{user: user, board: board} do
-      {:ok, hand} = Boards.create_column(board, %{"name" => "triage"})
+      {:ok, hand} = Boards.Columns.create_column(board, %{"name" => "triage"})
       assert hand.category in [nil, ""]
 
       assert {:ok, result} = Sweep.install(user, board)
@@ -114,7 +139,10 @@ defmodule Slipdock.SweepTest do
       assert Repo.aggregate(from(c in Column, where: c.board_id == ^board.id), :count) == 5
 
       other = board_fixture(%{"name" => "Other"}, owner: user)
-      {:ok, own} = Boards.create_column(other, %{"name" => "Triage", "category" => "todo"})
+
+      {:ok, own} =
+        Boards.Columns.create_column(other, %{"name" => "Triage", "category" => "todo"})
+
       assert {:ok, result} = Sweep.install(user, other)
       assert result.report.added["lists"] == []
       assert Repo.get!(Column, own.id).category == "todo"
@@ -158,7 +186,7 @@ defmodule Slipdock.SweepTest do
     test "a sub-board's install goes on the root board", %{user: user, board: board} do
       [col | _] = board.columns
       epic = card_fixture(col, %{"title" => "Epic"})
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(epic, t)
 
       assert {:ok, result} = Sweep.install(user, sub)
@@ -196,7 +224,7 @@ defmodule Slipdock.SweepTest do
         set: [bar: bar, bar_locked_at: DateTime.utc_now(:second)]
       )
 
-      {:ok, card} = Boards.update_card(Repo.get!(Card, card.id), %{"completed" => true})
+      {:ok, card} = Boards.Cards.update_card(Repo.get!(Card, card.id), %{"completed" => true})
       card
     end
 
@@ -204,7 +232,7 @@ defmodule Slipdock.SweepTest do
     defp next_instance(card, days \\ 3) do
       series = Slipdock.Recurrence.for_card(card)
       assert Slipdock.Recurrence.tick(DateTime.add(DateTime.utc_now(), days, :day)) == 1
-      Boards.get_card!(Repo.get!(Slipdock.Recurrence.Series, series.id).card_id)
+      Boards.Cards.get_card!(Repo.get!(Slipdock.Recurrence.Series, series.id).card_id)
     end
 
     test "is the template at install: the page's code and no cell", %{user: user, board: board} do
@@ -284,7 +312,7 @@ defmodule Slipdock.SweepTest do
       {:ok, _} = Sweep.install(user, board)
       [col | _] = board.columns
       epic = card_fixture(col, %{"title" => "Epic"})
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(epic, t)
       [sub_col | _] = Boards.get_board!(sub.id).columns
 
@@ -298,7 +326,7 @@ defmodule Slipdock.SweepTest do
       swept(lookalike, "Sub's own, reworded")
       # The root's own Sweep the code series is due too: two instances.
       assert Slipdock.Recurrence.tick(DateTime.add(DateTime.utc_now(), 3, :day)) == 2
-      new = Boards.get_card!(Repo.get!(Slipdock.Recurrence.Series, series.id).card_id)
+      new = Boards.Cards.get_card!(Repo.get!(Slipdock.Recurrence.Series, series.id).card_id)
       refute new.id == lookalike.id
       assert new.board_id == sub.id
       assert new.bar == "Sub's own, reworded"
@@ -406,10 +434,10 @@ defmodule Slipdock.SweepTest do
       card = card_fixture(todo, %{"title" => "Found"})
       Repo.delete_all(Job)
 
-      Boards.move_card(card.id, triage.id)
+      Boards.Cards.move_card(card.id, triage.id)
       assert Repo.aggregate(Job, :count) == 0
 
-      Boards.move_card(card.id, todo.id)
+      Boards.Cards.move_card(card.id, todo.id)
       assert [%Job{card_id: id}] = Repo.all(Job)
       assert id == card.id
     end

@@ -140,9 +140,9 @@ defmodule Slipdock.SwimlanesTest do
         })
 
       c = card_fixture(doing, %{"title" => "Charlie", "priority" => "low", "completed" => true})
-      Boards.toggle_card_tag(a, bug)
-      Boards.toggle_card_tag(a, docs)
-      Boards.toggle_card_tag(b, bug)
+      Boards.Tags.toggle_card_tag(a, bug)
+      Boards.Tags.toggle_card_tag(a, docs)
+      Boards.Tags.toggle_card_tag(b, bug)
 
       %{
         board: reload(board),
@@ -383,22 +383,29 @@ defmodule Slipdock.SwimlanesTest do
       config = %Config{rows: "tag", cols: "due_date", unit: "month"}
 
       {:ok, view} =
-        Boards.create_saved_view(board, %{"name" => "Roadmap", "config" => Config.to_map(config)})
+        Boards.SavedViews.create_saved_view(board, %{
+          "name" => "Roadmap",
+          "config" => Config.to_map(config)
+        })
 
-      assert {:ok, ^view} = Boards.find_saved_view(board, "roadmap")
-      assert {:ok, ^view} = Boards.find_saved_view(board, view.id)
+      assert {:ok, ^view} = Boards.SavedViews.find_saved_view(board, "roadmap")
+      assert {:ok, ^view} = Boards.SavedViews.find_saved_view(board, view.id)
       assert Config.from_map(view.config) == config
 
       assert {:error, cs} =
-               Boards.create_saved_view(board, %{"name" => "Roadmap", "config" => %{}})
+               Boards.SavedViews.create_saved_view(board, %{"name" => "Roadmap", "config" => %{}})
 
       assert {"already exists on this board", _} = cs.errors[:name]
 
-      {:ok, view} = Boards.update_saved_view(view, %{"name" => "Plan"})
+      {:ok, view} = Boards.SavedViews.update_saved_view(view, %{"name" => "Plan"})
       assert [%{name: "Plan"}] = reload(board).saved_views
-      assert Enum.any?(Boards.list_activities(board.id), &(&1.message =~ "saved view"))
 
-      {:ok, _} = Boards.delete_saved_view(view)
+      assert Enum.any?(
+               Boards.ActivityLog.list_activities(board.id),
+               &(&1.message =~ "saved view")
+             )
+
+      {:ok, _} = Boards.SavedViews.delete_saved_view(view)
       assert reload(board).saved_views == []
     end
   end
@@ -407,7 +414,7 @@ defmodule Slipdock.SwimlanesTest do
     setup do
       board = board_fixture()
       [_, todo | _] = board.columns
-      card = Boards.get_card!(card_fixture(todo, %{"priority" => "high"}).id)
+      card = Boards.Cards.get_card!(card_fixture(todo, %{"priority" => "high"}).id)
       %{todo: todo, card: card}
     end
 

@@ -27,7 +27,7 @@ defmodule Slipdock.DoingListSimpleTest do
     [_backlog, _todo, doing, _done] = board.columns
 
     epic = card_fixture(doing, %{"title" => "Epic"})
-    {:ok, t} = Boards.find_template(nil, "Simple")
+    {:ok, t} = Boards.Templates.find_template(nil, "Simple")
     {:ok, sub} = sub_board(epic, t)
     sub = Boards.get_board!(sub.id)
     sub_todo = Enum.find(sub.columns, &(&1.name == "To Do"))
@@ -153,7 +153,9 @@ defmodule Slipdock.DoingListSimpleTest do
       actor = Actor.runner(ctx.owner, nil, "loop")
 
       :ok =
-        Boards.move_card_to_index(Repo.get!(Card, card.id), ctx.sub_doing, :top, actor: actor)
+        Boards.Cards.move_card_to_index(Repo.get!(Card, card.id), ctx.sub_doing, :top,
+          actor: actor
+        )
 
       at = ago(180)
       Repo.update_all(from(c in Card, where: c.id == ^card.id), set: [updated_at: at])
@@ -319,7 +321,7 @@ defmodule Slipdock.DoingListSimpleTest do
 
     test "no way forward: an epic in Doing with every subcard blocked fires", ctx do
       inner = card_fixture(ctx.sub_doing, %{"title" => "Inner epic"})
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, inner_sub} = sub_board(inner, t)
       col = hd(Boards.get_board!(inner_sub.id).columns)
       card_fixture(col, %{"flags" => ["blocked"]})
@@ -384,12 +386,12 @@ defmodule Slipdock.DoingListSimpleTest do
       )
 
       worked = card_fixture(ctx.sub_doing, %{"title" => "Worked"})
-      {:ok, _} = Boards.update_card(worked, %{"paths" => "lib/a.ex"})
+      {:ok, _} = Boards.Cards.update_card(worked, %{"paths" => "lib/a.ex"})
       working_job_fixture(worked)
 
       top = card_fixture(ctx.sub_doing, %{"title" => "Top"})
-      {:ok, _} = Boards.update_card(top, %{"paths" => "lib/a.ex"})
-      Boards.move_card(top.id, ctx.sub_doing.id, 0)
+      {:ok, _} = Boards.Cards.update_card(top, %{"paths" => "lib/a.ex"})
+      Boards.Cards.move_card(top.id, ctx.sub_doing.id, 0)
 
       # The top card's lane overlaps the worked one's, but it is in progress
       # already: the lane holds nothing back from it.

@@ -26,21 +26,21 @@ defmodule Slipdock.RoadmapViewsTest do
         })
 
       fine = card_fixture(col, %{"title" => "Ship", "start_date" => "2030-02-01"})
-      {:ok, _} = Boards.add_dependency(blocked, blocker)
-      {:ok, _} = Boards.add_dependency(fine, blocker)
+      {:ok, _} = Boards.Dependencies.add_dependency(blocked, blocker)
+      {:ok, _} = Boards.Dependencies.add_dependency(fine, blocker)
       %{board: reload(board), blocker: blocker, blocked: blocked, fine: fine}
     end
 
     test "a card that starts before its blocker is done is a violation", ctx do
-      blocked = Boards.get_card!(ctx.blocked.id)
-      fine = Boards.get_card!(ctx.fine.id)
+      blocked = Boards.Cards.get_card!(ctx.blocked.id)
+      fine = Boards.Cards.get_card!(ctx.fine.id)
       assert [%{id: id}] = Card.violated_blockers(blocked)
       assert id == ctx.blocker.id
       assert Card.violated_blockers(fine) == []
 
       # Done blockers no longer conflict.
-      {:ok, _} = Boards.toggle_completed(ctx.blocker)
-      assert Card.violated_blockers(Boards.get_card!(ctx.blocked.id)) == []
+      {:ok, _} = Boards.Cards.toggle_completed(ctx.blocker)
+      assert Card.violated_blockers(Boards.Cards.get_card!(ctx.blocked.id)) == []
     end
 
     test "the timeline lists links between visible bars and marks the violated one", ctx do
@@ -66,7 +66,7 @@ defmodule Slipdock.RoadmapViewsTest do
       [col | _] = board.columns
       tag = tag_fixture(board, "Infra", "teal")
       card = card_fixture(col, %{"title" => "X", "priority" => "high", "color" => "rose"})
-      {:ok, _} = Boards.toggle_card_tag(card, tag)
+      {:ok, _} = Boards.Tags.toggle_card_tag(card, tag)
       board = reload(board)
       card = board.columns |> hd() |> Map.fetch!(:cards) |> hd()
 
@@ -99,26 +99,30 @@ defmodule Slipdock.RoadmapViewsTest do
       card = card_fixture(col, %{"title" => "Thing"})
 
       assert {:ok, _} =
-               Boards.add_status_update(card, user, %{
+               Boards.StatusUpdates.add_status_update(card, user, %{
                  "health" => "at_risk",
                  "body" => "Vendor late"
                })
 
       assert {:ok, _} =
-               Boards.add_status_update(card, user, %{"health" => "on_track", "body" => ""})
+               Boards.StatusUpdates.add_status_update(card, user, %{
+                 "health" => "on_track",
+                 "body" => ""
+               })
 
-      card = Boards.get_card!(card.id)
+      card = Boards.Cards.get_card!(card.id)
       assert Card.stated_health(card) == "on_track"
 
       assert [%{health: "on_track", body: nil}, %{health: "at_risk", body: "Vendor late"}] =
                card.status_updates
 
       assert card.rollup.stated == "on_track"
-      assert Boards.latest_stated_health([card.id]) == %{card.id => "on_track"}
+      assert Boards.StatusUpdates.latest_stated_health([card.id]) == %{card.id => "on_track"}
 
-      assert {:error, _} = Boards.add_status_update(card, user, %{"health" => "meh"})
+      assert {:error, _} =
+               Boards.StatusUpdates.add_status_update(card, user, %{"health" => "meh"})
 
-      [activity | _] = Boards.list_activities(board.id)
+      [activity | _] = Boards.ActivityLog.list_activities(board.id)
       assert activity.kind == "status"
       assert activity.message =~ "on track"
     end
@@ -129,19 +133,22 @@ defmodule Slipdock.RoadmapViewsTest do
       board = board_fixture()
 
       {:ok, view} =
-        Boards.create_saved_view(board, %{"name" => "Roadmap", "config" => %{"mode" => "table"}})
+        Boards.SavedViews.create_saved_view(board, %{
+          "name" => "Roadmap",
+          "config" => %{"mode" => "table"}
+        })
 
       assert is_nil(view.public_token)
-      assert Boards.get_published_view("nope") == nil
+      assert Boards.SavedViews.get_published_view("nope") == nil
 
-      {:ok, view} = Boards.publish_saved_view(view)
+      {:ok, view} = Boards.SavedViews.publish_saved_view(view)
       assert String.length(view.public_token) > 16
-      found = Boards.get_published_view(view.public_token)
+      found = Boards.SavedViews.get_published_view(view.public_token)
       assert found.id == view.id
       assert found.board.id == board.id
 
-      {:ok, _} = Boards.unpublish_saved_view(view)
-      assert Boards.get_published_view(view.public_token) == nil
+      {:ok, _} = Boards.SavedViews.unpublish_saved_view(view)
+      assert Boards.SavedViews.get_published_view(view.public_token) == nil
     end
   end
 

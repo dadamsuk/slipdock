@@ -241,6 +241,7 @@ defmodule Slipdock.Portable.Export do
       card_ref_pattern: board.card_ref_pattern,
       incident_tag: board.incident_tag,
       hotfix_window_hours: board.hotfix_window_hours,
+      not_shipped_minutes: board.not_shipped_minutes,
       automation_wip: board.automation_wip,
       agentic_building: board.agentic_building,
       job_log_hours: board.job_log_hours,
@@ -257,6 +258,10 @@ defmodule Slipdock.Portable.Export do
       verify_work: board.verify_work,
       verify_pool: board.verify_pool,
       ship_via: board.ship_via,
+      # How merged work is released (#2834): a root board's.
+      release_mode: board.release_mode,
+      release_age_cap_hours: board.release_age_cap_hours,
+      release_command: board.release_command,
       kind: board.kind,
       archived: board.archived_at != nil,
       # A sub-board hangs off a card; a root board hangs off nothing.

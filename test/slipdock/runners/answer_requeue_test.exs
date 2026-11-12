@@ -4,8 +4,9 @@ defmodule Slipdock.Runners.AnswerRequeueTest do
   sends the card to that job's rule again, with the question, the answer,
   who answered and the handoff on top of its prompt — at once, in place of
   a still-queued job's prompt, in the slot of another card's job nobody has
-  taken yet (#1750), or once the rule's job a runner has closed — and says
-  on the card why when it can't.
+  taken yet (#1750), beside another card's job a runner has (#2896: any
+  free runner of the pool takes it), or once a job a runner has for the
+  card itself has closed — and says on the card why when it can't.
   """
   use Slipdock.DataCase, async: true
 
@@ -57,17 +58,21 @@ defmodule Slipdock.Runners.AnswerRequeueTest do
 
   defp take(ctx) do
     job = Runners.claim(ctx.runner)
-    :ok = Boards.move_card_to_index(Repo.get!(Boards.Card, job.card_id), ctx.doing, :top)
+    :ok = Boards.Cards.move_card_to_index(Repo.get!(Boards.Card, job.card_id), ctx.doing, :top)
     job
   end
 
   defp ask(ctx, job) do
     {:ok, wait} =
-      Boards.open_wait(Repo.get!(Boards.Card, job.card_id), Actor.runner(ctx.owner, job.id), %{
-        "needs" => "Which region?",
-        "choices" => ["eu", "us"],
-        "job_id" => job.id
-      })
+      Boards.Waits.open_wait(
+        Repo.get!(Boards.Card, job.card_id),
+        Actor.runner(ctx.owner, job.id),
+        %{
+          "needs" => "Which region?",
+          "choices" => ["eu", "us"],
+          "job_id" => job.id
+        }
+      )
 
     wait
   end
@@ -84,11 +89,13 @@ defmodule Slipdock.Runners.AnswerRequeueTest do
   end
 
   defp answer(ctx, card, attrs \\ %{"choice" => 1, "answer" => "eu, and soon"}) do
-    {:ok, wait} = Boards.answer_wait(Boards.get_card!(card.id), Actor.web(ctx.dana), attrs)
+    {:ok, wait} =
+      Boards.Waits.answer_wait(Boards.Cards.get_card!(card.id), Actor.web(ctx.dana), attrs)
+
     wait
   end
 
-  defp comments(card), do: Enum.map(Boards.get_card!(card.id).comments, & &1.body)
+  defp comments(card), do: Enum.map(Boards.Cards.get_card!(card.id).comments, & &1.body)
 
   describe "answering a parked wait" do
     test "queues exactly one job for the same rule and pool, with the answer on top", ctx do
@@ -143,7 +150,9 @@ defmodule Slipdock.Runners.AnswerRequeueTest do
       {:ok, _} = Runners.finish(ctx.runner, job.id, %{exit: "0"})
 
       {:ok, _} =
-        Boards.open_wait(Boards.get_card!(ctx.a.id), Actor.web(ctx.owner), %{"needs" => "Why?"})
+        Boards.Waits.open_wait(Boards.Cards.get_card!(ctx.a.id), Actor.web(ctx.owner), %{
+          "needs" => "Why?"
+        })
 
       wait = answer(ctx, ctx.a, %{"answer" => "because"})
 
@@ -191,35 +200,87 @@ defmodule Slipdock.Runners.AnswerRequeueTest do
       assert wait.requeue_job_id == job.id
     end
 
-    test "another card's job from the same list_top rule: this one goes when it closes, first",
+    test "another card's job is with a runner: a second, free runner of the pool claims " <>
+           "the answer's job while the first is busy (#2896)",
          ctx do
+      {:ok, second, _} = Runners.create_runner(ctx.board, %{"name" => "box2", "pool" => "loop"})
       b = card_fixture(ctx.todo, %{"title" => "b"})
       c = card_fixture(ctx.todo, %{"title" => "c"})
+      rule = rule_fixture(ctx.board, spec())
+      # box asked on a and parked, then took b, which it is still working on.
+      parked = park(ctx)
+      assert parked.runner_id == ctx.runner.id
+      b_job = take(ctx)
+      assert b_job.card_id == b.id
+      assert is_nil(Runners.claim(second))
+
+      wait = answer(ctx, ctx.a)
+
+      # Not held for box, nor behind b's job: queued at once, beside it.
+      assert wait.requeue_state == "queued"
+      assert [still, fresh] = open_jobs(rule)
+      assert still.id == b_job.id
+      assert Repo.reload!(b_job).status == "claimed"
+      assert is_nil(Repo.reload!(b_job).recovery)
+      assert {fresh.card_id, fresh.status, fresh.pool} == {ctx.a.id, "queued", "loop"}
+      assert wait.requeue_job_id == fresh.id
+      assert fresh.prompt =~ "Question on card ##{ctx.a.id}: Which region?"
+      refute Enum.any?(comments(ctx.a), &(&1 =~ "The answer goes to the runners once"))
+
+      # The second runner takes it while the first is still on b.
+      assert %Job{id: id, status: "claimed", runner_id: runner_id} = Runners.claim(second)
+      assert id == fresh.id
+      assert runner_id == second.id
+      assert Repo.reload!(b_job).status == "claimed"
+      assert Repo.reload!(b_job).runner_id == ctx.runner.id
+
+      # The feed sends the next card only once both have closed.
+      {:ok, _} = Runners.finish(ctx.runner, b_job.id, %{exit: "0"})
+      assert Enum.map(open_jobs(rule), & &1.id) == [fresh.id]
+      refute Enum.any?(jobs(rule), &(&1.card_id == c.id))
+
+      {:ok, _} = Runners.finish(second, fresh.id, %{exit: "0"})
+      assert [next] = open_jobs(rule)
+      assert next.card_id == c.id
+    end
+
+    test "answered again while a runner has the answer's job and the rule has another " <>
+           "card's open: held for its own job only, and sent when that closes (#2896)",
+         ctx do
+      {:ok, second, _} = Runners.create_runner(ctx.board, %{"name" => "box2", "pool" => "loop"})
+      b = card_fixture(ctx.todo, %{"title" => "b"})
       rule = rule_fixture(ctx.board, spec())
       park(ctx)
       b_job = take(ctx)
       assert b_job.card_id == b.id
+      answer(ctx, ctx.a)
+      fresh = Runners.claim(second)
+      assert fresh.card_id == ctx.a.id
 
-      wait = answer(ctx, ctx.a)
-      assert wait.requeue_state == "pending"
-      assert Enum.map(open_jobs(rule), & &1.card_id) == [b.id]
-      # Handed out, it isn't withdrawn: the answer waits for it.
-      assert Repo.reload!(b_job).status == "claimed"
+      # The second runner asks again, and is answered before it has parked.
+      ask(ctx, fresh)
+      again = answer(ctx, ctx.a, %{"choice" => 2})
+
+      assert again.requeue_state == "pending"
+      assert again.requeue_note == "after job ##{fresh.id} (claimed on this card)"
 
       assert Enum.any?(
                comments(ctx.a),
                &(&1 =~
-                   "once job ##{b_job.id} (claimed on ##{b.id}) has closed: " <>
+                   "once job ##{fresh.id} (claimed on this card) has closed: " <>
                      "it is already with a runner.")
              )
 
-      {:ok, _} = Runners.finish(ctx.runner, b_job.id, %{exit: "0"})
+      # Its own job closes while b's is still with the first runner: it goes.
+      {:ok, _} = Runners.finish(second, fresh.id, %{exit: "0"})
 
-      assert [next] = open_jobs(rule)
-      assert next.card_id == ctx.a.id
-      assert next.prompt =~ "Question on card ##{ctx.a.id}"
-      refute Enum.any?(jobs(rule), &(&1.card_id == c.id))
-      assert Repo.get!(Wait, wait.id).requeue_state == "queued"
+      assert [still, third] = open_jobs(rule)
+      assert {still.id, still.status} == {b_job.id, "claimed"}
+      assert {third.card_id, third.status} == {ctx.a.id, "queued"}
+      assert third.id != fresh.id
+      assert third.prompt =~ "Answer: us"
+      again = Repo.get!(Wait, again.id)
+      assert {again.requeue_state, again.requeue_job_id} == {"queued", third.id}
     end
 
     test "an event rule's own job still open on the card: it goes once that closes", ctx do
@@ -229,7 +290,7 @@ defmodule Slipdock.Runners.AnswerRequeueTest do
           "actions" => [%{"type" => "runner", "pool" => "loop"}]
         })
 
-      {:ok, _} = Boards.update_card(ctx.a, %{"flags" => ["starred"]})
+      {:ok, _} = Boards.Cards.update_card(ctx.a, %{"flags" => ["starred"]})
       job = take(ctx)
       ask(ctx, job)
 
@@ -246,7 +307,7 @@ defmodule Slipdock.Runners.AnswerRequeueTest do
     # its job yet.
     defp queued_behind(ctx, title, paths \\ []) do
       next = card_fixture(ctx.todo, %{"title" => title})
-      {:ok, next} = Boards.update_card(next, %{"paths" => paths})
+      {:ok, next} = Boards.Cards.update_card(next, %{"paths" => paths})
       park(ctx)
       job = Repo.one!(from(j in Job, where: j.card_id == ^next.id and j.status == "queued"))
       {next, job}
@@ -254,11 +315,11 @@ defmodule Slipdock.Runners.AnswerRequeueTest do
 
     test "the answered epic's own subcard lane-holds it: the answer takes its slot", ctx do
       {:ok, board} = Boards.update_board(ctx.board, %{"lanes" => true})
-      {:ok, a} = Boards.update_card(ctx.a, %{"paths" => ["docs/design/**"]})
+      {:ok, a} = Boards.Cards.update_card(ctx.a, %{"paths" => ["docs/design/**"]})
       rule = rule_fixture(board, spec())
 
       # The epic's subcard sits in progress, holding docs/design/**.
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(a, t)
       sub = Boards.get_board!(sub.id)
 
@@ -269,7 +330,7 @@ defmodule Slipdock.Runners.AnswerRequeueTest do
         |> Repo.update!()
 
       child = card_fixture(sub_doing, %{"title" => "child"})
-      {:ok, child} = Boards.update_card(child, %{"paths" => ["docs/design/**"]})
+      {:ok, child} = Boards.Cards.update_card(child, %{"paths" => ["docs/design/**"]})
 
       {next, held} = queued_behind(ctx, "next", ["docs/**"])
 
@@ -330,7 +391,9 @@ defmodule Slipdock.Runners.AnswerRequeueTest do
       refute Enum.any?(jobs(rule), &(&1.card_id == later.id))
     end
 
-    test "a second answer racing it pends behind the first: one job per card", ctx do
+    test "a second answer queues beside the first, never in its slot: one job per card " <>
+           "(#2896)",
+         ctx do
       b = card_fixture(ctx.todo, %{"title" => "b"})
       c = card_fixture(ctx.todo, %{"title" => "c"})
       rule = rule_fixture(ctx.board, spec())
@@ -346,18 +409,19 @@ defmodule Slipdock.Runners.AnswerRequeueTest do
       wait_a = answer(ctx, ctx.a)
       wait_b = answer(ctx, b)
 
-      # The first takes c's slot; the second doesn't take the first's.
+      # The first takes c's slot; the second doesn't take the first's, and
+      # isn't held behind it either.
       assert wait_a.requeue_state == "queued"
-      assert wait_b.requeue_state == "pending"
+      assert wait_b.requeue_state == "queued"
+      refute Enum.any?(comments(b), &(&1 =~ "The answer goes to the runners once"))
 
-      assert Enum.any?(
-               comments(b),
-               &(&1 =~ "it carries another answer, which goes first.")
-             )
-
-      assert [a_fresh] = open_jobs(rule)
-      assert a_fresh.card_id == ctx.a.id
+      assert [a_fresh, b_fresh] = open_jobs(rule)
+      assert {a_fresh.card_id, a_fresh.status} == {ctx.a.id, "queued"}
       assert a_fresh.id != a_job.id
+      assert a_fresh.prompt =~ "Question on card ##{ctx.a.id}"
+      assert {b_fresh.card_id, b_fresh.status} == {b.id, "queued"}
+      assert b_fresh.prompt =~ "Question on card ##{b.id}"
+      assert wait_b.requeue_job_id == b_fresh.id
       assert Repo.reload!(c_job).status == "cancelled"
 
       # The first answer acted on again (two effects racing): still one job.
@@ -368,13 +432,11 @@ defmodule Slipdock.Runners.AnswerRequeueTest do
                :count
              ) == 1
 
-      # a done: b's answer goes, then c.
-      Runners.claim(ctx.runner)
+      # Both answers done: c goes.
+      assert %Job{id: first} = Runners.claim(ctx.runner)
+      assert first == a_fresh.id
       {:ok, _} = Runners.finish(ctx.runner, a_fresh.id, %{exit: "0"})
-      assert [b_fresh] = open_jobs(rule)
-      assert b_fresh.card_id == b.id
-      assert b_fresh.prompt =~ "Question on card ##{b.id}"
-      assert Repo.get!(Wait, wait_b.id).requeue_state == "queued"
+      assert Enum.map(open_jobs(rule), & &1.id) == [b_fresh.id]
 
       Runners.claim(ctx.runner)
       {:ok, _} = Runners.finish(ctx.runner, b_fresh.id, %{exit: "0"})
@@ -382,36 +444,161 @@ defmodule Slipdock.Runners.AnswerRequeueTest do
       assert c_again.card_id == c.id
     end
 
-    test "running, not queued: the job keeps its slot and holds the answer", ctx do
+    test "running, not queued: the job keeps its slot, and the answer queues beside it " <>
+           "(#2896)",
+         ctx do
       rule = rule_fixture(ctx.board, spec())
       {_next, held} = queued_behind(ctx, "next")
       Repo.update_all(from(j in Job, where: j.id == ^held.id), set: [status: "running"])
 
       wait = answer(ctx, ctx.a)
 
-      assert wait.requeue_state == "pending"
-      assert [%Job{status: "running"} = still] = open_jobs(rule)
+      assert wait.requeue_state == "queued"
+      assert [%Job{status: "running"} = still, fresh] = open_jobs(rule)
       assert still.id == held.id
       assert is_nil(still.recovery)
+      assert {fresh.card_id, fresh.status} == {ctx.a.id, "queued"}
+      assert wait.requeue_job_id == fresh.id
     end
 
-    test "an answer held behind a job that went back to the queue goes on the next feed",
+    test "an event rule's queued job for another card never gives way: the answer queues " <>
+           "beside it (#2896)",
+         ctx do
+      b = card_fixture(ctx.todo, %{"title" => "b"})
+
+      rule =
+        rule_fixture(ctx.board, %{
+          "trigger" => %{"type" => "flag_added", "flag" => "starred"},
+          "actions" => [%{"type" => "runner", "pool" => "loop"}]
+        })
+
+      {:ok, _} = Boards.Cards.update_card(ctx.a, %{"flags" => ["starred"]})
+      job = take(ctx)
+      ask(ctx, job)
+      {:ok, %Job{status: "parked"}} = Runners.finish(ctx.runner, job.id, %{exit: "0"})
+      {:ok, _} = Boards.Cards.update_card(b, %{"flags" => ["starred"]})
+      assert [%Job{status: "queued"} = b_job] = open_jobs(rule)
+      assert b_job.card_id == b.id
+
+      wait = answer(ctx, ctx.a)
+
+      assert wait.requeue_state == "queued"
+      assert [still, fresh] = open_jobs(rule)
+      assert {still.id, still.status, still.recovery} == {b_job.id, "queued", nil}
+      assert {fresh.card_id, fresh.status} == {ctx.a.id, "queued"}
+      assert wait.requeue_job_id == fresh.id
+      refute Enum.any?(comments(b), &(&1 =~ "gave way"))
+    end
+
+    test "another rule's job a runner has on the answered card holds the answer, and the " <>
+           "feed's queued job for another card stays queued (#2896)",
          ctx do
       rule = rule_fixture(ctx.board, spec())
       {_next, held} = queued_behind(ctx, "next")
+
+      other =
+        rule_fixture(ctx.board, %{
+          "trigger" => %{"type" => "flag_added", "flag" => "starred"},
+          "actions" => [%{"type" => "runner", "pool" => "loop"}]
+        })
+
+      # Starred beside its waiting flag, which stays: the wait is still open.
+      a = Boards.Cards.get_card!(ctx.a.id)
+      {:ok, _} = Boards.Cards.update_card(a, %{"flags" => ["starred" | a.flags]})
+
+      assert [%Job{card_id: card_id} = busy] = open_jobs(other)
+      assert card_id == ctx.a.id
+      Repo.update_all(from(j in Job, where: j.id == ^busy.id), set: [status: "running"])
+
+      wait = answer(ctx, ctx.a)
+
+      assert wait.requeue_state == "pending"
+      assert wait.requeue_note == "after job ##{busy.id} (running on this card)"
+      assert [still] = open_jobs(rule)
+      assert {still.id, still.status, still.recovery} == {held.id, "queued", nil}
+    end
+
+    test "an answer held behind its card's job that went back to the queue goes on the " <>
+           "next feed",
+         ctx do
+      rule = rule_fixture(ctx.board, spec())
+      job = take(ctx)
+      ask(ctx, job)
       # Handed out when the answer came, so the answer was held...
-      Repo.update_all(from(j in Job, where: j.id == ^held.id), set: [status: "claimed"])
       wait = answer(ctx, ctx.a)
       assert wait.requeue_state == "pending"
       # ...then back in the queue (its lease lapsed, say) without closing.
-      Repo.update_all(from(j in Job, where: j.id == ^held.id), set: [status: "queued"])
+      Repo.update_all(from(j in Job, where: j.id == ^job.id), set: [status: "queued"])
 
       assert {:ok, card} = Automations.feed(Repo.get!(Automations.Rule, rule.id))
       assert card.id == ctx.a.id
-      assert [fresh] = open_jobs(rule)
-      assert fresh.card_id == ctx.a.id
-      assert Repo.reload!(held).recovery == "withdrawn"
-      assert Repo.get!(Wait, wait.id).requeue_state == "queued"
+      assert [same] = open_jobs(rule)
+      assert same.id == job.id
+      assert same.prompt =~ "Question on card ##{ctx.a.id}: Which region?"
+      wait = Repo.get!(Wait, wait.id)
+      assert {wait.requeue_state, wait.requeue_job_id} == {"queued", job.id}
+    end
+  end
+
+  describe "an answered wait is off Waiting on you (#2896)" do
+    # Puts the card's ledger entry into its list two hours ago: past the
+    # hour a card may sit in a doing list with nobody on it.
+    defp long_in_doing(card, doing) do
+      :ok = Boards.Cards.move_card_to_index(Repo.get!(Boards.Card, card.id), doing, :top)
+
+      from(m in Boards.CardMove, where: m.card_id == ^card.id)
+      |> Repo.update_all(set: [inserted_at: DateTime.add(DateTime.utc_now(), -7200, :second)])
+    end
+
+    defp waiting_reasons(ctx),
+      do: ctx.owner |> Slipdock.Work.waiting_on_me() |> Enum.map(&{&1.card.id, &1.reason})
+
+    test "answered while its runner is busy on another card: nothing waits on a person", ctx do
+      b = card_fixture(ctx.todo, %{"title" => "b"})
+      rule_fixture(ctx.board, spec())
+      park(ctx)
+      long_in_doing(ctx.a, ctx.doing)
+      b_job = take(ctx)
+      assert b_job.card_id == b.id
+      # Asked and unanswered, it is the owner's to answer.
+      assert {ctx.a.id, "wait_anyone"} in waiting_reasons(ctx)
+
+      answer(ctx, ctx.a)
+
+      assert waiting_reasons(ctx) == []
+    end
+
+    test "an answer held for the epic's job leaves the subcard off the epic's line", ctx do
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
+      {:ok, sub_board} = sub_board(ctx.a, t)
+      doing = Enum.find(Boards.get_board!(sub_board.id).columns, &(&1.name == "Doing"))
+      sub = card_fixture(doing, %{"title" => "Pick region"})
+      rule_fixture(ctx.board, spec())
+      job = take(ctx)
+      assert job.card_id == ctx.a.id
+      long_in_doing(sub, doing)
+
+      glance = fn ->
+        ctx.owner
+        |> Slipdock.Work.Tree.for_board(Boards.get_board!(ctx.board.id))
+        |> Slipdock.Work.Tree.of(ctx.a.id)
+        |> Slipdock.Work.Tree.glance()
+      end
+
+      # In progress with no job of its own and nothing asked: the owner's.
+      assert glance.() == "Waiting on you: ##{sub.id} (nobody on it)"
+
+      {:ok, _} =
+        Boards.Waits.open_wait(Boards.Cards.get_card!(sub.id), Actor.runner(ctx.owner, job.id), %{
+          "needs" => "Which region?",
+          "job_id" => job.id
+        })
+
+      wait = answer(ctx, sub, %{"answer" => "eu"})
+      assert wait.requeue_state == "pending"
+
+      assert glance.() == nil
+      assert waiting_reasons(ctx) == []
     end
   end
 
@@ -422,7 +609,7 @@ defmodule Slipdock.Runners.AnswerRequeueTest do
       park(ctx)
 
       {:ok, _} =
-        Boards.leave_handoff(Boards.get_card!(ctx.a.id), ctx.owner, %{
+        Boards.Handoffs.leave_handoff(Boards.Cards.get_card!(ctx.a.id), ctx.owner, %{
           next_step: "Pick a region",
           body: String.duplicate("é", 4_000),
           via: "ui"
@@ -488,7 +675,9 @@ defmodule Slipdock.Runners.AnswerRequeueTest do
       rule = rule_fixture(ctx.board, spec())
       park(ctx)
       other = board_fixture(%{"name" => "Elsewhere"}, owner: ctx.owner)
-      {:ok, _} = Boards.move_card_to_board(Boards.get_card!(ctx.a.id), hd(other.columns))
+
+      {:ok, _} =
+        Boards.Moves.move_card_to_board(Boards.Cards.get_card!(ctx.a.id), hd(other.columns))
 
       wait = answer(ctx, ctx.a)
 
@@ -501,10 +690,12 @@ defmodule Slipdock.Runners.AnswerRequeueTest do
       rule = rule_fixture(ctx.board, spec())
       park(ctx)
       epic = card_fixture(ctx.done, %{"title" => "Epic"})
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(epic, t)
       sub = Boards.get_board!(sub.id)
-      {:ok, _} = Boards.move_card_to_board(Boards.get_card!(ctx.a.id), hd(sub.columns))
+
+      {:ok, _} =
+        Boards.Moves.move_card_to_board(Boards.Cards.get_card!(ctx.a.id), hd(sub.columns))
 
       wait = answer(ctx, ctx.a)
 
@@ -516,13 +707,28 @@ defmodule Slipdock.Runners.AnswerRequeueTest do
     test "the card was completed: the wait closed with it, and nothing is sent", ctx do
       rule = rule_fixture(ctx.board, spec())
       park(ctx)
-      {:ok, _} = Boards.update_card(Boards.get_card!(ctx.a.id), %{"completed" => true})
+
+      {:ok, _} =
+        Boards.Cards.update_card(Boards.Cards.get_card!(ctx.a.id), %{"completed" => true})
 
       assert {:error, _} =
-               Boards.answer_wait(Boards.get_card!(ctx.a.id), Actor.web(ctx.dana), %{
+               Boards.Waits.answer_wait(Boards.Cards.get_card!(ctx.a.id), Actor.web(ctx.dana), %{
                  "choice" => 1
                })
 
+      assert open_jobs(rule) == []
+    end
+
+    test "the card is gone by the time the answer is acted on: skipped, and nothing " <>
+           "is sent or said",
+         ctx do
+      rule = rule_fixture(ctx.board, spec())
+      job = take(ctx)
+      wait = ask(ctx, job)
+      {:ok, %Job{status: "parked"}} = Runners.finish(ctx.runner, job.id, %{exit: "0"})
+      {:ok, _} = Boards.Cards.delete_card(Boards.Cards.get_card!(ctx.a.id))
+
+      assert Requeue.after_answer(wait) == :skipped
       assert open_jobs(rule) == []
     end
 
@@ -564,7 +770,7 @@ defmodule Slipdock.Runners.AnswerRequeueTest do
 
   describe "a wait on a subcard, asked from the epic's job (#1755)" do
     setup ctx do
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, board} = sub_board(ctx.a, t)
       sub = card_fixture(hd(Boards.get_board!(board.id).columns), %{"title" => "Pick region"})
       {:ok, deeper} = sub_board(sub, t)
@@ -578,11 +784,15 @@ defmodule Slipdock.Runners.AnswerRequeueTest do
       assert job.card_id == ctx.a.id
 
       {:ok, wait} =
-        Boards.open_wait(Boards.get_card!(card.id), Actor.runner(ctx.owner, job.id), %{
-          "needs" => "Which region?",
-          "choices" => ["eu", "us"],
-          "job_id" => job.id
-        })
+        Boards.Waits.open_wait(
+          Boards.Cards.get_card!(card.id),
+          Actor.runner(ctx.owner, job.id),
+          %{
+            "needs" => "Which region?",
+            "choices" => ["eu", "us"],
+            "job_id" => job.id
+          }
+        )
 
       {:ok, %Job{status: "parked"} = job} = Runners.finish(ctx.runner, job.id, %{exit: "0"})
       {job, wait}
@@ -607,7 +817,7 @@ defmodule Slipdock.Runners.AnswerRequeueTest do
              )
 
       assert fresh.prompt =~ "Work on Slipdock card ##{ctx.a.id}: a"
-      refute "waiting" in Boards.get_card!(ctx.sub.id).flags
+      refute "waiting" in Boards.Cards.get_card!(ctx.sub.id).flags
 
       claimed = Runners.claim(ctx.runner)
       assert claimed.id == fresh.id
@@ -633,10 +843,14 @@ defmodule Slipdock.Runners.AnswerRequeueTest do
       job = take(ctx)
 
       {:ok, _} =
-        Boards.open_wait(Boards.get_card!(ctx.sub.id), Actor.runner(ctx.owner, job.id), %{
-          "needs" => "Which region?",
-          "job_id" => job.id
-        })
+        Boards.Waits.open_wait(
+          Boards.Cards.get_card!(ctx.sub.id),
+          Actor.runner(ctx.owner, job.id),
+          %{
+            "needs" => "Which region?",
+            "job_id" => job.id
+          }
+        )
 
       wait = answer(ctx, ctx.sub, %{"answer" => "eu"})
 

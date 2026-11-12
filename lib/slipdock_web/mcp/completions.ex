@@ -11,10 +11,7 @@ defmodule SlipdockWeb.MCP.Completions do
   ever suggested.
   """
 
-  import Ecto.Query
-
-  alias Slipdock.{Access, Repo}
-  alias Slipdock.Boards.{Board, Card}
+  alias Slipdock.{Access, Boards}
   alias SlipdockWeb.MCP.Prompts
   alias SlipdockWeb.MCP.Prompts.Context
 
@@ -81,38 +78,10 @@ defmodule SlipdockWeb.MCP.Completions do
       end
 
     roots
-    |> card_query(String.trim_leading(value, "#"))
-    |> Repo.all()
+    |> Boards.Cards.pick_open_cards(String.trim_leading(value, "#"), @max + 1)
     |> then(&Access.filter_readable_cards(context.user, &1))
     |> Enum.map(&"##{&1.id} #{&1.title}")
   end
 
   def suggest(_arg, _value, _chosen, _context), do: []
-
-  defp card_query(where, typed) do
-    base =
-      from(c in Card,
-        join: b in Board,
-        on: b.id == c.board_id,
-        where: is_nil(c.archived_at) and not c.completed,
-        order_by: [desc: c.updated_at, desc: c.id],
-        limit: ^(@max + 1),
-        preload: [board: b]
-      )
-
-    base =
-      case where do
-        # The board and, for a top-level one, its sub-boards.
-        {:board, id} -> where(base, [c, b], b.id == ^id or b.root_id == ^id)
-        {:roots, ids} -> where(base, [c, b], coalesce(b.root_id, b.id) in ^ids)
-      end
-
-    case Integer.parse(typed) do
-      {_, ""} -> where(base, [c], like(fragment("CAST(? AS text)", c.id), ^(typed <> "%")))
-      _ when typed == "" -> base
-      _ -> where(base, [c], ilike(c.title, ^("%" <> escape(typed) <> "%")))
-    end
-  end
-
-  defp escape(text), do: String.replace(text, ~r/([\\%_])/, "\\\\\\1")
 end

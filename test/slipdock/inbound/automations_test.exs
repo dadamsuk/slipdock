@@ -105,7 +105,7 @@ defmodule Slipdock.Inbound.AutomationsTest do
           %{"type" => "add_flags", "flags" => ["review"]}
         ])
 
-      {:ok, by_hand} = Boards.create_card(todo, %{"title" => "Typed in"})
+      {:ok, by_hand} = Boards.Cards.create_card(todo, %{"title" => "Typed in"})
       assert Repo.get!(Card, by_hand.id).flags == []
 
       assert {:accepted, email} = send_to(ctx, address(ctx, :card), "Lands in To Do")

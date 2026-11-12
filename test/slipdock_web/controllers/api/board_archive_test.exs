@@ -60,7 +60,7 @@ defmodule SlipdockWeb.API.BoardArchiveTest do
 
   test "a sub-board cannot be archived", %{conn: conn, a: a} do
     card = card_fixture(hd(a.columns))
-    {:ok, template} = Boards.find_template(nil, "Simple")
+    {:ok, template} = Boards.Templates.find_template(nil, "Simple")
     {:ok, sub} = Boards.create_sub_board(card, template)
 
     assert conn |> post(~p"/api/boards/#{sub.id}/archive") |> json_response(422)
@@ -85,7 +85,7 @@ defmodule SlipdockWeb.API.BoardArchiveTest do
       assert names(conn |> get(~p"/api/boards") |> json_response(200)) ==
                ["Charlie", "Bravo", "Alpha"]
 
-      assert Boards.board_order(ctx.user) == %{c.id => 0, b.id => 1, a.id => 2}
+      assert Boards.Arrangement.board_order(ctx.user) == %{c.id => 0, b.id => 1, a.id => 2}
     end
 
     test "boards left out fall to the end", %{conn: conn, a: a, c: c} do
@@ -105,7 +105,7 @@ defmodule SlipdockWeb.API.BoardArchiveTest do
                |> json_response(404)
 
       refute error =~ "Theirs"
-      assert Boards.board_order(other) == %{}
+      assert Boards.Arrangement.board_order(other) == %{}
     end
 
     test "an unknown board is a 404, and a missing list a bad request", %{conn: conn} do

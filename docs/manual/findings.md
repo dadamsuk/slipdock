@@ -40,8 +40,15 @@ read as done, since lessons say them too.
 
 A fix is a card, not a finding. A concrete change you could hand to someone
 waits a day for triage as a finding, and triage only turns it into a card, so
-a pass files the card at once, in the backlog (`slipdock add <board> "…" --desc
-"…" --column Backlog`, or `--desc -` with a heredoc for a longer one), and names it in the block with the arrow. A finding is
+a pass files the card at once: in the Housekeeping list when the board has
+one, where runners take it after the ready list (`slipdock add <board> "…"
+--desc "…" --column Housekeeping`), else the backlog (`--column Backlog`);
+`--desc -` with a heredoc for a longer one. A design question (the answer would
+change how the product or a process behaves) goes to Triage for a person
+instead (`--column Triage`). The block names the card with the arrow. The
+sweep and findings triage file the same way, saying who they are
+(`--origin sweep`, `--origin findings`), and so does an audit that disagrees:
+its rework card goes to Housekeeping when the board has one. A finding is
 only for what is uncertain, cuts across cards, or shows the handbook wrong:
 
 | A card (`→ #id`) | A finding |

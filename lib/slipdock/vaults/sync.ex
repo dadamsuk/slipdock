@@ -199,12 +199,12 @@ defmodule Slipdock.Vaults.Sync do
 
   # The boards `levels` lets the reader open. Archived is a flag, never part
   # of a path. `position` is the order the top of the tree takes: the
-  # reader's home page sorted by hand (`Slipdock.Boards.home_ranks/2`), so a
+  # reader's home page sorted by hand (`Slipdock.Boards.Arrangement.home_ranks/2`), so a
   # client sorts by it and agrees with the web.
   defp board_details(vault, levels, reader) do
     vault_boards = Vaults.boards(vault)
     empty = Vaults.empty_board_ids(vault)
-    order = Slipdock.Boards.home_ranks(reader, Enum.map(vault_boards, & &1.board))
+    order = Slipdock.Boards.Arrangement.home_ranks(reader, Enum.map(vault_boards, & &1.board))
 
     for %{board: board, path: path} <- vault_boards,
         Access.can_read?(Map.get(levels, board.id, :none)) do

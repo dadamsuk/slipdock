@@ -49,7 +49,7 @@ defmodule SlipdockWeb.BoardLive.ArchiveComponent do
   defp list_archived(socket),
     do:
       assign(socket,
-        archived: Boards.list_archived_cards(socket.assigns.board.id, socket.assigns.query)
+        archived: Boards.Cards.list_archived_cards(socket.assigns.board.id, socket.assigns.query)
       )
 
   @impl true
@@ -66,12 +66,12 @@ defmodule SlipdockWeb.BoardLive.ArchiveComponent do
   def handle_event(event, params, socket), do: event(event, params, socket)
 
   defp event("restore_card", %{"id" => id}, socket) do
-    case Boards.get_archived_card(socket.assigns.board.id, id) do
+    case Boards.Cards.get_archived_card(socket.assigns.board.id, id) do
       nil ->
         {:noreply, socket}
 
       card ->
-        case Boards.unarchive_card(card) do
+        case Boards.Cards.unarchive_card(card) do
           {:ok, _} ->
             {:noreply, socket}
 
@@ -82,8 +82,8 @@ defmodule SlipdockWeb.BoardLive.ArchiveComponent do
   end
 
   defp event("delete_archived", %{"id" => id}, socket) do
-    if card = Boards.get_archived_card(socket.assigns.board.id, id),
-      do: {:ok, _} = Boards.delete_card(card)
+    if card = Boards.Cards.get_archived_card(socket.assigns.board.id, id),
+      do: {:ok, _} = Boards.Cards.delete_card(card)
 
     {:noreply, socket}
   end

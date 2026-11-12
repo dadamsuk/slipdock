@@ -38,23 +38,35 @@ defmodule Slipdock.Runners.ParkedTest do
   # The runner takes the job and, as an agent would, moves its card along.
   defp take(ctx) do
     job = Runners.claim(ctx.runner)
-    :ok = Boards.move_card_to_index(Repo.get!(Boards.Card, job.card_id), ctx.doing, :top)
+    :ok = Boards.Cards.move_card_to_index(Repo.get!(Boards.Card, job.card_id), ctx.doing, :top)
     job
   end
 
   # What `slipdock wait <card> "…" --job <id>` does from inside the job.
   defp ask(ctx, job, needs \\ "Which region?") do
     {:ok, wait} =
-      Boards.open_wait(Repo.get!(Boards.Card, job.card_id), Actor.runner(ctx.owner, job.id), %{
-        "needs" => needs,
-        "choices" => ["eu", "us"],
-        "job_id" => job.id
-      })
+      Boards.Waits.open_wait(
+        Repo.get!(Boards.Card, job.card_id),
+        Actor.runner(ctx.owner, job.id),
+        %{
+          "needs" => needs,
+          "choices" => ["eu", "us"],
+          "job_id" => job.id
+        }
+      )
 
     wait
   end
 
-  defp card(card), do: Boards.get_card!(card.id)
+  defp card(card), do: Boards.Cards.get_card!(card.id)
+
+  # The wait finish_waiting/4 opens on card a from inside the job.
+  defp open_wait_on_a(ctx, job) do
+    Boards.Waits.open_wait(card(ctx.a), Actor.runner(ctx.owner, job.id), %{
+      "needs" => "Which region?",
+      "job_id" => job.id
+    })
+  end
 
   defp top_of(column) do
     Repo.one(
@@ -96,9 +108,9 @@ defmodule Slipdock.Runners.ParkedTest do
       ask(ctx, job)
 
       # The wait is still open, but the flag it set has been taken off.
-      {:ok, _} = Boards.update_card(card(ctx.a), %{"flags" => []}, wait_hook: false)
+      {:ok, _} = Boards.Cards.update_card(card(ctx.a), %{"flags" => []}, wait_hook: false)
       assert card(ctx.a).flags == []
-      assert Boards.current_wait(ctx.a)
+      assert Boards.Waits.current_wait(ctx.a)
 
       assert {:ok, %Job{status: "parked"}} = Runners.finish(ctx.runner, job.id, %{exit: "0"})
       assert card(ctx.a).flags == ["waiting"]
@@ -146,7 +158,7 @@ defmodule Slipdock.Runners.ParkedTest do
       rule_fixture(ctx.board, spec())
       job = take(ctx)
       ask(ctx, job)
-      {:ok, _} = Boards.withdraw_wait(card(ctx.a), Actor.web(ctx.owner))
+      {:ok, _} = Boards.Waits.withdraw_wait(card(ctx.a), Actor.web(ctx.owner))
 
       assert {:error, _} = Runners.finish(ctx.runner, job.id, %{status: "parked"})
       assert {:ok, %Job{status: "done"}} = Runners.finish(ctx.runner, job.id, %{exit: "0"})
@@ -159,15 +171,10 @@ defmodule Slipdock.Runners.ParkedTest do
       job = take(ctx)
 
       assert {:ok, %Job{status: "parked"}, wait} =
-               Runners.finish_waiting(ctx.runner, job.id, fn job ->
-                 Boards.open_wait(card(ctx.a), Actor.runner(ctx.owner, job.id), %{
-                   "needs" => "Which region?",
-                   "job_id" => job.id
-                 })
-               end)
+               Runners.finish_waiting(ctx.runner, job.id, &open_wait_on_a(ctx, &1))
 
       assert wait.job_id == job.id
-      assert Boards.current_wait(ctx.a).id == wait.id
+      assert Boards.Waits.current_wait(ctx.a).id == wait.id
       assert "waiting" in card(ctx.a).flags
     end
 
@@ -181,22 +188,53 @@ defmodule Slipdock.Runners.ParkedTest do
       assert Repo.reload!(job).status == "claimed"
     end
 
-    test "after the lease has lapsed, opens no wait", ctx do
+    test "after the lease has lapsed and another runner took the job, opens no wait", ctx do
+      rule_fixture(ctx.board, spec())
+      job = take(ctx)
+      Runners.sweep(DateTime.add(DateTime.utc_now(), 3600))
+      assert Repo.reload!(job).status == "queued"
+      {:ok, other, _} = Runners.create_runner(ctx.board, %{"name" => "other", "pool" => "loop"})
+      assert %Job{} = Runners.claim(other)
+
+      assert {:error, :not_found} =
+               Runners.finish_waiting(ctx.runner, job.id, fn _ -> flunk("opened a wait") end)
+
+      assert Boards.Waits.current_wait(ctx.a) == nil
+      assert Repo.reload!(job).runner_id == other.id
+    end
+
+    # The runner that held it may still take it back (#2817).
+    test "after the lease has lapsed with nobody else on the job, takes it back and parks it",
+         ctx do
       rule_fixture(ctx.board, spec())
       job = take(ctx)
       Runners.sweep(DateTime.add(DateTime.utc_now(), 3600))
       assert Repo.reload!(job).status == "queued"
 
-      assert {:error, :not_found} =
-               Runners.finish_waiting(ctx.runner, job.id, fn _ -> flunk("opened a wait") end)
+      assert {:ok, %Job{status: "parked"}, wait} =
+               Runners.finish_waiting(ctx.runner, job.id, &open_wait_on_a(ctx, &1))
 
-      assert Boards.current_wait(ctx.a) == nil
+      assert wait.job_id == job.id
+      job = Repo.reload!(job)
+      assert {job.status, job.runner_id, job.attempts} == {"parked", ctx.runner.id, 1}
+    end
+
+    test "a refused wait after a lapsed lease leaves the job in the queue", ctx do
+      rule_fixture(ctx.board, spec())
+      job = take(ctx)
+      Runners.sweep(DateTime.add(DateTime.utc_now(), 3600))
+
+      assert {:error, "nope"} =
+               Runners.finish_waiting(ctx.runner, job.id, fn _ -> {:error, "nope"} end)
+
+      job = Repo.reload!(job)
+      assert {job.status, job.runner_id, job.last_runner_id} == {"queued", nil, ctx.runner.id}
     end
   end
 
   describe "recovery of a parked card (KTD6)" do
     test "three parks in a row spend no retry and never flag the card blocked", ctx do
-      Boards.archive_card(ctx.b)
+      Boards.Cards.archive_card(ctx.b)
       rule = rule_fixture(ctx.board, spec(%{"requeue_stuck" => 1}))
 
       for _ <- 1..3 do
@@ -204,7 +242,7 @@ defmodule Slipdock.Runners.ParkedTest do
         assert job.card_id == ctx.a.id
         ask(ctx, job)
         {:ok, %Job{status: "parked"}} = Runners.finish(ctx.runner, job.id, %{exit: "0"})
-        {:ok, _} = Boards.answer_wait(card(ctx.a), Actor.web(ctx.owner), %{"choice" => 1})
+        {:ok, _} = Boards.Waits.answer_wait(card(ctx.a), Actor.web(ctx.owner), %{"choice" => 1})
       end
 
       assert rule |> jobs() |> Enum.take(3) |> Enum.map(& &1.recovery) == ~w(parked parked parked)
@@ -230,7 +268,7 @@ defmodule Slipdock.Runners.ParkedTest do
         "actions" => [%{"type" => "runner", "pool" => "loop"}]
       })
 
-      {:ok, _} = Boards.update_card(ctx.a, %{"flags" => ["starred"]})
+      {:ok, _} = Boards.Cards.update_card(ctx.a, %{"flags" => ["starred"]})
       job = take(ctx)
       ask(ctx, job)
       {:ok, job} = Runners.finish(ctx.runner, job.id, %{exit: "0"})

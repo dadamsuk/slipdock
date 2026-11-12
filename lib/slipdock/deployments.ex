@@ -90,6 +90,7 @@ defmodule Slipdock.Deployments do
     |> Repo.insert()
     |> tap(&broadcast(board, &1))
     |> tap(&if(attrs["source"] != "backfill", do: post_shipped(&1)))
+    |> Slipdock.Releases.deployment_recorded()
   end
 
   # A deploy that succeeded is a line on each epic it ships cards of (#1881).
@@ -126,6 +127,7 @@ defmodule Slipdock.Deployments do
         |> Deployment.fail_changeset(attrs, DateTime.utc_now())
         |> Repo.update()
         |> tap(&broadcast(board, &1))
+        |> Slipdock.Releases.deployment_recorded()
 
       true ->
         {commits, card_ids} = prepare_commits(board, attrs["commits"] || [])
@@ -142,6 +144,7 @@ defmodule Slipdock.Deployments do
         |> Deployment.failure_changeset(attrs)
         |> Repo.insert()
         |> tap(&broadcast(board, &1))
+        |> Slipdock.Releases.deployment_recorded()
     end
   end
 
@@ -191,6 +194,7 @@ defmodule Slipdock.Deployments do
         |> Repo.update()
         |> tap(&broadcast(board, &1))
         |> tap(&post_shipped/1)
+        |> Slipdock.Releases.deployment_recorded()
 
       true ->
         {:error, :not_found}

@@ -27,7 +27,7 @@ defmodule Slipdock.HotPathsTest do
       mine = card_fixture(hd(own.columns), %{"title" => "mine"})
       {:ok, _} = Access.grant(granted, reader, "read", owner)
 
-      cards = Enum.map([hidden, mine, on_shared, granted], &Boards.get_card!(&1.id))
+      cards = Enum.map([hidden, mine, on_shared, granted], &Boards.Cards.get_card!(&1.id))
       expected = Enum.filter(cards, &Access.can_read?(Access.card_permission(reader, &1)))
 
       assert Access.filter_readable_cards(reader, cards) == expected
@@ -45,7 +45,7 @@ defmodule Slipdock.HotPathsTest do
       board = board_fixture(%{}, owner: alice)
       card = card_fixture(hd(board.columns))
       card_fixture(hd(board.columns))
-      template = Boards.list_templates(nil) |> Enum.find(&(&1.name == "Simple"))
+      template = Boards.Templates.list_templates(nil) |> Enum.find(&(&1.name == "Simple"))
       {:ok, sub} = Boards.create_sub_board(card, template)
       card_fixture(hd(Boards.get_board!(sub.id).columns))
       Wiki.create_page(board, %{"title" => "Notes"}, user: alice)
@@ -76,14 +76,14 @@ defmodule Slipdock.HotPathsTest do
     [a, b, c, d] = for t <- ~w(A B C D), do: card_fixture(hd(board.columns), %{"title" => t})
 
     # d blocks b and c, which both block a.
-    {:ok, _} = Boards.add_dependency(a, b)
-    {:ok, _} = Boards.add_dependency(a, c)
-    {:ok, _} = Boards.add_dependency(b, d)
-    {:ok, _} = Boards.add_dependency(c, d)
+    {:ok, _} = Boards.Dependencies.add_dependency(a, b)
+    {:ok, _} = Boards.Dependencies.add_dependency(a, c)
+    {:ok, _} = Boards.Dependencies.add_dependency(b, d)
+    {:ok, _} = Boards.Dependencies.add_dependency(c, d)
 
-    assert {:error, msg} = Boards.add_dependency(d, a)
+    assert {:error, msg} = Boards.Dependencies.add_dependency(d, a)
     assert msg =~ "circular"
-    assert {:ok, _} = Boards.add_dependency(d, card_fixture(hd(board.columns)))
+    assert {:ok, _} = Boards.Dependencies.add_dependency(d, card_fixture(hd(board.columns)))
   end
 
   test "imported pages have a first revision, and their links show as backlinks" do
@@ -92,7 +92,7 @@ defmodule Slipdock.HotPathsTest do
 
     board = board_fixture(%{"name" => "Docs"}, owner: owner)
     card = card_fixture(hd(board.columns), %{"title" => "Points at the doc"})
-    {:ok, _} = Boards.add_comment(card, "see [[Target]]")
+    {:ok, _} = Boards.Comments.add_comment(card, "see [[Target]]")
     {:ok, _} = Wiki.create_page(board, %{"title" => "Target", "body" => "here"}, user: owner)
 
     {:ok, _} =

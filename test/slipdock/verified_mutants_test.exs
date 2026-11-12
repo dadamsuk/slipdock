@@ -38,7 +38,7 @@ defmodule Slipdock.VerifiedMutantsTest do
 
   defp submit(ctx, sha \\ @first) do
     {:ok, card} =
-      Boards.update_card(
+      Boards.Cards.update_card(
         Repo.get!(Card, ctx.card.id),
         %{"completed" => true, "evidence" => "built", "evidence_commit" => sha},
         actor: ctx.builder,
@@ -56,7 +56,7 @@ defmodule Slipdock.VerifiedMutantsTest do
     do: Repo.all(from(f in Finding, where: f.card_id == ^card.id, order_by: f.id))
 
   defp last_body(card),
-    do: Boards.get_card!(card.id).comments |> Enum.max_by(& &1.id) |> Map.fetch!(:body)
+    do: Boards.Cards.get_card!(card.id).comments |> Enum.max_by(& &1.id) |> Map.fetch!(:body)
 
   describe "Checks.parse/1, lines" do
     test "each result takes its file, line, mutation and an optional note" do

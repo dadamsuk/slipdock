@@ -38,7 +38,7 @@ defmodule Slipdock.Automations.RunnerTest do
   defp holds?(card, field, op, value),
     do: Runner.conditions_match?([%{"field" => field, "op" => op, "value" => value}], card)
 
-  defp fresh(card), do: Boards.get_card!(card.id)
+  defp fresh(card), do: Boards.Cards.get_card!(card.id)
 
   describe "matches?/2 — triggers" do
     test "card_entered answers a card added to, or moved into, the list it names", ctx do
@@ -158,7 +158,7 @@ defmodule Slipdock.Automations.RunnerTest do
     test "list fields hold when any member matches", ctx do
       card = card_fixture(ctx.todo, %{"flags" => ["blocked", "review"]})
       tag = tag_fixture(ctx.board, "Ops")
-      {:ok, _} = Boards.toggle_card_tag(card, tag)
+      {:ok, _} = Boards.Tags.toggle_card_tag(card, tag)
       card = fresh(card)
 
       assert holds?(card, "tag", "is", "ops")
@@ -179,7 +179,7 @@ defmodule Slipdock.Automations.RunnerTest do
       share_fixture(ctx.board, [ada, bob])
 
       card = card_fixture(ctx.todo, %{"assignee_id" => ada.id})
-      {:ok, _} = Boards.update_card(card, %{"add_assignee_ids" => [bob.id]})
+      {:ok, _} = Boards.Cards.update_card(card, %{"add_assignee_ids" => [bob.id]})
       card = fresh(card)
 
       assert holds?(card, "assignee", "is", fixture_email("bob@example.com"))
@@ -193,7 +193,7 @@ defmodule Slipdock.Automations.RunnerTest do
 
     test "booleans accept true, yes and 1", ctx do
       card = card_fixture(ctx.todo)
-      {:ok, card} = Boards.toggle_completed(card)
+      {:ok, card} = Boards.Cards.toggle_completed(card)
 
       for yes <- [true, "true", "Yes", "1"], do: assert(holds?(card, "completed", "is", yes))
       refute holds?(card, "completed", "is", "no")
@@ -201,17 +201,17 @@ defmodule Slipdock.Automations.RunnerTest do
       refute holds?(card, "blocked", "is", true)
       assert holds?(card, "has_due_date", "is", false)
 
-      {:ok, archived} = Boards.archive_card(fresh(card))
+      {:ok, archived} = Boards.Cards.archive_card(fresh(card))
       assert holds?(archived, "archived", "is", "yes")
     end
 
     test "a card waiting on an unfinished card is blocked", ctx do
       blocker = card_fixture(ctx.todo)
       card = card_fixture(ctx.todo)
-      {:ok, _} = Boards.add_dependency(card, blocker)
+      {:ok, _} = Boards.Dependencies.add_dependency(card, blocker)
 
       assert holds?(fresh(card), "blocked", "is", true)
-      {:ok, _} = Boards.toggle_completed(blocker)
+      {:ok, _} = Boards.Cards.toggle_completed(blocker)
       refute holds?(fresh(card), "blocked", "is", true)
     end
 
@@ -266,7 +266,10 @@ defmodule Slipdock.Automations.RunnerTest do
       refute holds?(card, "health", "is_set", nil)
 
       {:ok, _} =
-        Boards.add_status_update(card, ctx.owner, %{"health" => "at_risk", "body" => "slipping"})
+        Boards.StatusUpdates.add_status_update(card, ctx.owner, %{
+          "health" => "at_risk",
+          "body" => "slipping"
+        })
 
       assert holds?(fresh(card), "health", "is", "at_risk")
     end
@@ -458,7 +461,7 @@ defmodule Slipdock.Automations.RunnerTest do
 
       assert [~s(added 2 checklist items to “Release”)] ==
                ctx.board.id
-               |> Boards.list_activities(50, card.id)
+               |> Boards.ActivityLog.list_activities(50, card.id)
                |> Enum.filter(&(&1.kind == "checklist"))
                |> Enum.map(& &1.message)
     end
@@ -707,7 +710,7 @@ defmodule Slipdock.Automations.RunnerTest do
           "flags" => ["review"]
         })
 
-      {:ok, _} = Boards.toggle_card_tag(card, tag)
+      {:ok, _} = Boards.Tags.toggle_card_tag(card, tag)
       rule = rule(ctx.board, [%{"type" => "log", "message" => "m"}])
 
       vars =

@@ -26,7 +26,7 @@ defmodule Slipdock.EpicLogTest do
 
     [_backlog, _todo, doing, _done] = board.columns
     epic = card_fixture(doing, %{"title" => "Epic"})
-    {:ok, t} = Boards.find_template(nil, "Simple")
+    {:ok, t} = Boards.Templates.find_template(nil, "Simple")
     {:ok, sub} = sub_board(epic, t)
     columns = Boards.get_board!(sub.id).columns
     ready = Enum.find(columns, &(&1.category == "todo")) || hd(columns)
@@ -80,11 +80,12 @@ defmodule Slipdock.EpicLogTest do
     |> Repo.update_all(set: [updated_at: at, inserted_at: at])
   end
 
-  defp start(card, ctx), do: Boards.move_card(card.id, ctx.working.id, nil, actor: ctx.builder)
+  defp start(card, ctx),
+    do: Boards.Cards.move_card(card.id, ctx.working.id, nil, actor: ctx.builder)
 
   defp submit(card, ctx, pr \\ @pr) do
     {:ok, card} =
-      Boards.update_card(
+      Boards.Cards.update_card(
         fresh(card),
         %{"completed" => true, "evidence_pr" => pr, "evidence_commit" => "abc1234"},
         actor: ctx.builder
@@ -172,7 +173,7 @@ defmodule Slipdock.EpicLogTest do
 
     test "a build reported red on the subcard", ctx do
       {:ok, _} =
-        Boards.add_comment(
+        Boards.Comments.add_comment(
           ctx.one,
           "Build failed: CI #4321 — job test, step mix test\n\nthe log lines",
           by: ctx.owner
@@ -186,20 +187,25 @@ defmodule Slipdock.EpicLogTest do
     end
 
     test "an ordinary comment posts nothing", ctx do
-      {:ok, _} = Boards.add_comment(ctx.one, "The build failed once, then passed", by: ctx.owner)
+      {:ok, _} =
+        Boards.Comments.add_comment(ctx.one, "The build failed once, then passed", by: ctx.owner)
+
       assert lines(ctx.epic) == []
     end
 
     test "a wait opened and answered", ctx do
       {:ok, _wait} =
-        Boards.open_wait(ctx.one, ctx.builder, %{"needs" => "Which colour?\nDetails below"})
+        Boards.Waits.open_wait(ctx.one, ctx.builder, %{"needs" => "Which colour?\nDetails below"})
 
       assert [opened] = lines(ctx.epic)
       assert opened =~ "**Waiting on a person** · ##{ctx.one.id} First part · Which colour?"
       refute opened =~ "Details below"
 
       age(ctx.epic, 30)
-      {:ok, _} = Boards.answer_wait(fresh(ctx.one), Actor.web(ctx.owner), %{"answer" => "Blue"})
+
+      {:ok, _} =
+        Boards.Waits.answer_wait(fresh(ctx.one), Actor.web(ctx.owner), %{"answer" => "Blue"})
+
       assert List.last(lines(ctx.epic)) =~ "**Answered** · ##{ctx.one.id} First part"
     end
 
@@ -239,7 +245,9 @@ defmodule Slipdock.EpicLogTest do
     test "done, on a board that doesn't verify", ctx do
       {:ok, _} = Boards.update_board(ctx.board, %{"verify_work" => false})
       {:ok, _} = Boards.update_board(ctx.sub, %{"verify_work" => false})
-      {:ok, _} = Boards.update_card(fresh(ctx.one), %{"completed" => true}, actor: ctx.builder)
+
+      {:ok, _} =
+        Boards.Cards.update_card(fresh(ctx.one), %{"completed" => true}, actor: ctx.builder)
 
       assert [line] = lines(ctx.epic)
       assert line =~ "**Done** · ##{ctx.one.id} First part · 1/2 done"
@@ -248,13 +256,13 @@ defmodule Slipdock.EpicLogTest do
 
   describe "where lines go" do
     test "a sub-subcard posts on the top-level epic, not its parent", ctx do
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, subsub} = sub_board(ctx.one, t)
       columns = Boards.get_board!(subsub.id).columns
       deep = card_fixture(hd(columns), %{"title" => "Deep"})
       deep_doing = Enum.find(columns, &(&1.name == "Doing"))
 
-      :ok = Boards.move_card(deep.id, deep_doing.id, nil, actor: ctx.builder)
+      :ok = Boards.Cards.move_card(deep.id, deep_doing.id, nil, actor: ctx.builder)
 
       assert [line] = lines(ctx.epic)
       assert line =~ "**Started** · ##{deep.id} Deep"
@@ -265,7 +273,7 @@ defmodule Slipdock.EpicLogTest do
       [_backlog, todo, doing, _done] = ctx.board.columns
       plain = card_fixture(todo, %{"title" => "Plain"})
 
-      :ok = Boards.move_card(plain.id, doing.id, nil, actor: ctx.builder)
+      :ok = Boards.Cards.move_card(plain.id, doing.id, nil, actor: ctx.builder)
       submit(plain, ctx)
 
       assert Repo.all(from c in Comment, where: c.kind == ^EpicLog.kind()) == []
@@ -311,8 +319,8 @@ defmodule Slipdock.EpicLogTest do
 
     test "the epic's own start posts nothing", ctx do
       [_backlog, todo, doing, _done] = ctx.board.columns
-      :ok = Boards.move_card(ctx.epic.id, todo.id, nil, actor: ctx.builder)
-      :ok = Boards.move_card(ctx.epic.id, doing.id, nil, actor: ctx.builder)
+      :ok = Boards.Cards.move_card(ctx.epic.id, todo.id, nil, actor: ctx.builder)
+      :ok = Boards.Cards.move_card(ctx.epic.id, doing.id, nil, actor: ctx.builder)
       assert lines(ctx.epic) == []
     end
   end
@@ -338,7 +346,7 @@ defmodule Slipdock.EpicLogTest do
 
     test "a person's comment in between starts a new one", ctx do
       :ok = start(ctx.one, ctx)
-      {:ok, _} = Boards.add_comment(ctx.epic, "Looking good", by: ctx.owner)
+      {:ok, _} = Boards.Comments.add_comment(ctx.epic, "Looking good", by: ctx.owner)
       :ok = start(ctx.two, ctx)
 
       assert [_, _] = lines(ctx.epic)
@@ -357,7 +365,7 @@ defmodule Slipdock.EpicLogTest do
   describe "the epic's % complete" do
     test "follows done ÷ all on each change, past an agent's own setting", ctx do
       {:ok, _} =
-        Boards.update_card(fresh(ctx.epic), %{"percent_complete" => 0}, actor: ctx.builder)
+        Boards.Cards.update_card(fresh(ctx.epic), %{"percent_complete" => 0}, actor: ctx.builder)
 
       refute fresh(ctx.epic).percent_by_hand
 
@@ -369,13 +377,13 @@ defmodule Slipdock.EpicLogTest do
       three = card_fixture(ctx.ready, %{"title" => "Third"})
       assert fresh(ctx.epic).percent_complete == 33
 
-      {:ok, _} = Boards.archive_card(three)
+      {:ok, _} = Boards.Cards.archive_card(three)
       assert fresh(ctx.epic).percent_complete == 50
     end
 
     test "stays as a person set it by hand, and follows again once they clear it", ctx do
       {:ok, _} =
-        Boards.update_card(fresh(ctx.epic), %{"percent_complete" => 80},
+        Boards.Cards.update_card(fresh(ctx.epic), %{"percent_complete" => 80},
           actor: Actor.web(ctx.owner),
           by: ctx.owner
         )
@@ -388,7 +396,7 @@ defmodule Slipdock.EpicLogTest do
       assert fresh(ctx.epic).percent_complete == 80
 
       {:ok, _} =
-        Boards.update_card(fresh(ctx.epic), %{"percent_complete" => nil},
+        Boards.Cards.update_card(fresh(ctx.epic), %{"percent_complete" => nil},
           actor: Actor.web(ctx.owner),
           by: ctx.owner
         )

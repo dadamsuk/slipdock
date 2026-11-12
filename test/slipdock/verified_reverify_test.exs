@@ -43,7 +43,7 @@ defmodule Slipdock.VerifiedReverifyTest do
 
   defp submit(ctx, sha) do
     {:ok, card} =
-      Boards.update_card(
+      Boards.Cards.update_card(
         Repo.get!(Card, ctx.card.id),
         %{"completed" => true, "evidence" => "built it", "evidence_commit" => sha},
         actor: ctx.builder,
@@ -71,7 +71,7 @@ defmodule Slipdock.VerifiedReverifyTest do
   end
 
   defp bodies(card),
-    do: Boards.get_card!(card.id).comments |> Enum.sort_by(& &1.id) |> Enum.map(& &1.body)
+    do: Boards.Cards.get_card!(card.id).comments |> Enum.sort_by(& &1.id) |> Enum.map(& &1.body)
 
   defp verify_job_prompts(card) do
     import Ecto.Query
@@ -137,7 +137,7 @@ defmodule Slipdock.VerifiedReverifyTest do
 
     test "a verdict with no commit keeps nothing to carry from", ctx do
       {:ok, card} =
-        Boards.update_card(ctx.card, %{"completed" => true, "evidence" => "no sha"},
+        Boards.Cards.update_card(ctx.card, %{"completed" => true, "evidence" => "no sha"},
           actor: ctx.builder,
           by: ctx.owner
         )

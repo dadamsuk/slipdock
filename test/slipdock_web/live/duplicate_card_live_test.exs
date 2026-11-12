@@ -11,7 +11,7 @@ defmodule SlipdockWeb.DuplicateCardLiveTest do
     board = board_fixture(%{}, owner: owner)
     column = hd(board.columns)
     card = card_fixture(column, %{"title" => "Pay rent", "flags" => ["waiting"]})
-    {:ok, _} = Boards.add_checklist_item(card, "Transfer")
+    {:ok, _} = Boards.Checklists.add_checklist_item(card, "Transfer")
     next = card_fixture(column, %{"title" => "After"})
     %{board: board, column: column, card: card, next: next}
   end
@@ -21,11 +21,11 @@ defmodule SlipdockWeb.DuplicateCardLiveTest do
 
     view |> element("#duplicate-card") |> render_click()
 
-    ids = ctx.column.id |> Boards.active_items() |> Enum.map(fn {:card, id} -> id end)
+    ids = ctx.column.id |> Boards.Columns.active_items() |> Enum.map(fn {:card, id} -> id end)
     assert [card_id, copy_id, next_id] = ids
     assert card_id == ctx.card.id and next_id == ctx.next.id
 
-    copy = Boards.get_card!(copy_id)
+    copy = Boards.Cards.get_card!(copy_id)
     assert copy.title == "Pay rent"
     assert copy.flags == []
     assert [%{text: "Transfer", done: false}] = copy.checklist_items
@@ -48,7 +48,7 @@ defmodule SlipdockWeb.DuplicateCardLiveTest do
     assert view |> element("#card-modal #panel-notice[data-callout=error]") |> render() =~
              "read-only"
 
-    assert length(Boards.active_items(ctx.column.id)) == 2
+    assert length(Boards.Columns.active_items(ctx.column.id)) == 2
   end
 
   test "the card limit is said, not crashed on", ctx do
@@ -58,7 +58,7 @@ defmodule SlipdockWeb.DuplicateCardLiveTest do
     {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/cards/#{ctx.card.id}")
     view |> element("#duplicate-card") |> render_click()
 
-    assert length(Boards.active_items(ctx.column.id)) == 2
+    assert length(Boards.Columns.active_items(ctx.column.id)) == 2
 
     assert view |> element("#card-modal #panel-notice[data-callout=error]") |> render() =~
              "has used all 2 of their cards"

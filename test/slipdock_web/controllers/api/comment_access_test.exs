@@ -58,14 +58,14 @@ defmodule SlipdockWeb.API.CommentAccessTest do
       assert Repo.one(from(v in Boards.Vote, where: v.card_id == ^ctx.card.id, select: v.comment)) ==
                "Yes please"
 
-      card = Boards.get_card!(ctx.card.id)
+      card = Boards.Cards.get_card!(ctx.card.id)
       assert [%{body: "My two cents"}] = card.comments
       assert [%{health: "at_risk"}] = card.status_updates
     end
 
     test "is refused every change to the card itself", ctx do
-      {:ok, item} = Boards.add_checklist_item(ctx.card, "Step")
-      {:ok, url} = Boards.add_card_url(ctx.card, %{"url" => "https://example.com"})
+      {:ok, item} = Boards.Checklists.add_checklist_item(ctx.card, "Step")
+      {:ok, url} = Boards.CardUrls.add_card_url(ctx.card, %{"url" => "https://example.com"})
       id = ctx.card.id
 
       refusals = [
@@ -95,7 +95,7 @@ defmodule SlipdockWeb.API.CommentAccessTest do
                "#{method} #{path} should be refused"
       end
 
-      card = Boards.get_card!(id)
+      card = Boards.Cards.get_card!(id)
       assert card.title == "Discuss me" and card.column_id == hd(ctx.board.columns).id
       assert card.assignees == [] and is_nil(card.archived_at)
       assert [%{done: false}] = card.checklist_items
@@ -109,8 +109,8 @@ defmodule SlipdockWeb.API.CommentAccessTest do
     end
 
     test "deletes their own comment but not somebody else's", ctx do
-      {:ok, mine} = Boards.add_comment(ctx.card, "Mine", by: ctx.commenter)
-      {:ok, theirs} = Boards.add_comment(ctx.card, "Theirs", by: ctx.owner)
+      {:ok, mine} = Boards.Comments.add_comment(ctx.card, "Mine", by: ctx.commenter)
+      {:ok, theirs} = Boards.Comments.add_comment(ctx.card, "Theirs", by: ctx.owner)
 
       assert %{"error" => "forbidden: you don't edit this card"} =
                as(ctx.commenter) |> delete("/api/comments/#{theirs.id}") |> json_response(403)
@@ -118,7 +118,7 @@ defmodule SlipdockWeb.API.CommentAccessTest do
       assert %{"ok" => true} =
                as(ctx.commenter) |> delete("/api/comments/#{mine.id}") |> json_response(200)
 
-      assert [%{id: id}] = Boards.get_card!(ctx.card.id).comments
+      assert [%{id: id}] = Boards.Cards.get_card!(ctx.card.id).comments
       assert id == theirs.id
     end
 
@@ -141,7 +141,7 @@ defmodule SlipdockWeb.API.CommentAccessTest do
 
   describe "a plain reader (regression)" do
     test "still can't comment, report a status, or delete their own old comment", ctx do
-      {:ok, old} = Boards.add_comment(ctx.card, "From before", by: ctx.reader)
+      {:ok, old} = Boards.Comments.add_comment(ctx.card, "From before", by: ctx.reader)
 
       assert %{"error" => "forbidden: you don't comment on this card"} =
                as(ctx.reader)

@@ -17,7 +17,7 @@ defmodule Slipdock.ShortNamesTest do
   end
 
   defp card!(column, title, attrs \\ %{}) do
-    {:ok, card} = Boards.create_card(column, Map.merge(%{"title" => title}, attrs))
+    {:ok, card} = Boards.Cards.create_card(column, Map.merge(%{"title" => title}, attrs))
     Repo.get!(Card, card.id)
   end
 
@@ -68,20 +68,20 @@ defmodule Slipdock.ShortNamesTest do
     test "a new long title makes a new one; a short title takes it away", %{column: column} do
       card = card!(column, @long)
 
-      {:ok, card} = Boards.update_card(card, %{"title" => "Another long title " <> @long})
+      {:ok, card} = Boards.Cards.update_card(card, %{"title" => "Another long title " <> @long})
       assert card.short_name == "Another long title Agent…"
 
-      {:ok, card} = Boards.update_card(card, %{"title" => "Short now"})
+      {:ok, card} = Boards.Cards.update_card(card, %{"title" => "Short now"})
       assert card.short_name == nil
     end
 
     test "a typed one is kept when the title changes", %{column: column} do
       card = card!(column, @long)
 
-      {:ok, card} = Boards.update_card(card, %{"short_name" => "Parked jobs"})
+      {:ok, card} = Boards.Cards.update_card(card, %{"short_name" => "Parked jobs"})
       assert card.short_name_edited
 
-      {:ok, card} = Boards.update_card(card, %{"title" => "Quite different " <> @long})
+      {:ok, card} = Boards.Cards.update_card(card, %{"title" => "Quite different " <> @long})
       assert card.short_name == "Parked jobs"
     end
 
@@ -89,7 +89,7 @@ defmodule Slipdock.ShortNamesTest do
       card = card!(column, @long, %{"short_name" => "Mine"})
       assert card.short_name_edited
 
-      {:ok, card} = Boards.update_card(card, %{"short_name" => ""})
+      {:ok, card} = Boards.Cards.update_card(card, %{"short_name" => ""})
 
       refute card.short_name_edited
       assert card.short_name == ShortNames.systematic(@long)
@@ -105,7 +105,7 @@ defmodule Slipdock.ShortNamesTest do
       card = card!(column, "Brief")
 
       assert {:error, changeset} =
-               Boards.update_card(card, %{"short_name" => String.duplicate("x", 41)})
+               Boards.Cards.update_card(card, %{"short_name" => String.duplicate("x", 41)})
 
       assert %{short_name: [_]} = errors_on(changeset)
     end
@@ -116,7 +116,7 @@ defmodule Slipdock.ShortNamesTest do
       card = Repo.get!(Card, card.id)
 
       {:ok, card} =
-        Boards.update_card(card, %{"short_name" => ShortNames.systematic(@long)})
+        Boards.Cards.update_card(card, %{"short_name" => ShortNames.systematic(@long)})
 
       refute card.short_name_edited
     end
@@ -182,7 +182,9 @@ defmodule Slipdock.ShortNamesTest do
       AIStub.reply_with("From the model")
       typed = card!(column, @long, %{"short_name" => "Mine"})
       stale = card!(column, @long)
-      {:ok, _} = Boards.update_card(stale, %{"title" => "Now something else, also quite long"})
+
+      {:ok, _} =
+        Boards.Cards.update_card(stale, %{"title" => "Now something else, also quite long"})
 
       assert ShortNames.refine(typed) == :kept
       assert ShortNames.refine(stale) == :kept
@@ -200,13 +202,15 @@ defmodule Slipdock.ShortNamesTest do
       assert card.short_name == "Named by model"
       assert_received {:ai_request, _}
 
-      {:ok, _} = Boards.update_card(card, %{"description" => "more"})
+      {:ok, _} = Boards.Cards.update_card(card, %{"description" => "more"})
       refute_received {:ai_request, _}
 
       card = Repo.get!(Card, card.id)
 
       {:ok, _} =
-        Boards.update_card(card, %{"title" => "A different title that is well over the limit"})
+        Boards.Cards.update_card(card, %{
+          "title" => "A different title that is well over the limit"
+        })
 
       assert_received {:ai_request, _}
     end
@@ -218,7 +222,7 @@ defmodule Slipdock.ShortNamesTest do
       card = card!(column, @long, %{"short_name" => "Mine"})
       refute_received {:ai_request, _}
 
-      {:ok, _} = Boards.update_card(card, %{"short_name" => ""})
+      {:ok, _} = Boards.Cards.update_card(card, %{"short_name" => ""})
       assert_received {:ai_request, _}
       assert Repo.get!(Card, card.id).short_name == "Named by model"
     end

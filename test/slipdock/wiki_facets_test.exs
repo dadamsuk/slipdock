@@ -75,7 +75,7 @@ defmodule Slipdock.WikiFacetsTest do
 
       {:ok, page} = Wiki.create_page(board, Map.put(attrs, "title", "The spec"), user: user)
       [column | _] = Boards.get_board!(board.id).columns
-      {:ok, card} = Boards.create_card(column, Map.put(attrs, "title", "The work"))
+      {:ok, card} = Boards.Cards.create_card(column, Map.put(attrs, "title", "The work"))
 
       assert page.start_date == card.start_date
       assert page.due_date == card.due_date
@@ -210,10 +210,10 @@ defmodule Slipdock.WikiFacetsTest do
 
     test "a page and a card with the same number stay apart", %{board: board, todo: todo} do
       # Two id spaces, one list: the refs are what keep them straight.
-      assert Boards.item_ref("page-1") == {:page, 1}
-      assert Boards.item_ref("1") == {:card, 1}
+      assert Boards.Columns.item_ref("page-1") == {:page, 1}
+      assert Boards.Columns.item_ref("1") == {:card, 1}
 
-      items = Boards.active_items(todo.id)
+      items = Boards.Columns.active_items(todo.id)
       assert length(items) == 2
       assert Enum.any?(items, &match?({:card, _}, &1))
       assert Enum.any?(items, &match?({:page, _}, &1))

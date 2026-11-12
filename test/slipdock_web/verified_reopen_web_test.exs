@@ -17,7 +17,7 @@ defmodule SlipdockWeb.VerifiedReopenWebTest do
     board = board_fixture(%{"name" => "Reopen", "code" => unique_code()}, owner: user)
     [_backlog, todo, doing, done] = board.columns
     card = card_fixture(doing, %{"title" => "Work"})
-    :ok = Boards.move_card(card.id, done.id, nil, actor: Actor.web(user))
+    :ok = Boards.Cards.move_card(card.id, done.id, nil, actor: Actor.web(user))
     {token, _} = Accounts.create_api_token(user, "bot")
 
     agent =

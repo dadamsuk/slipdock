@@ -95,7 +95,7 @@ defmodule Slipdock.LanesBroadTest do
 
     defp prompt_for(column, paths) do
       card = card_fixture(column, %{"title" => "Pathed"})
-      {:ok, card} = Boards.update_card(card, %{"paths" => paths})
+      {:ok, card} = Boards.Cards.update_card(card, %{"paths" => paths})
       {:ok, job} = Runners.queue(card, %{pool: "dev", kind: "claude", prompt: "go"})
       Runners.claimed_prompt(Repo.reload!(job))
     end

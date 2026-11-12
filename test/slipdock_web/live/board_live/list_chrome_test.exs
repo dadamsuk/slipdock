@@ -121,7 +121,7 @@ defmodule SlipdockWeb.BoardLive.ListChromeTest do
       board: board,
       todo: todo
     } do
-      {:ok, _} = Boards.update_column(todo, %{"wip_limit" => 1})
+      {:ok, _} = Boards.Columns.update_column(todo, %{"wip_limit" => 1})
       card_fixture(todo, %{"title" => "One"})
       {:ok, view, _} = live(conn, ~p"/boards/#{board}")
       badge = "#column-#{todo.id} [data-role=list-count]"

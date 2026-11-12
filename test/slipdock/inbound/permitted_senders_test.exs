@@ -171,7 +171,7 @@ defmodule Slipdock.Inbound.PermittedSendersTest do
 
     test "never answers a wait on the address's owner", ctx do
       {:ok, _} =
-        Boards.open_wait(ctx.card, Actor.web(ctx.user), %{
+        Boards.Waits.open_wait(ctx.card, Actor.web(ctx.user), %{
           needs: "Which hinge?",
           on_user_id: ctx.user.id
         })
@@ -179,7 +179,7 @@ defmodule Slipdock.Inbound.PermittedSendersTest do
       assert {:accepted, _} =
                send_to(ctx.address, "ann@example.com", "[##{ctx.card.id}] Hinge", "Brass.")
 
-      assert Boards.current_wait(Repo.reload!(ctx.card))
+      assert Boards.Waits.current_wait(Repo.reload!(ctx.card))
 
       assert %Comment{body: "*Sent by Ann Smith <ann@example.com>.*\n\nBrass."} =
                List.last(comments(ctx.card))

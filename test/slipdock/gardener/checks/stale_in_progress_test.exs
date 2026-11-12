@@ -45,12 +45,12 @@ defmodule Slipdock.Gardener.Checks.StaleInProgressTest do
     owner: owner
   } do
     card = card_fixture(doing)
-    {:ok, _} = Boards.add_comment(card, "Still on it", by: owner)
+    {:ok, _} = Boards.Comments.add_comment(card, "Still on it", by: owner)
     age(card, 20)
     assert [finding] = find(StaleInProgress, board)
     assert finding.explanation =~ "; last comment by"
 
-    {:ok, _} = Boards.add_comment(card, "Really", by: owner)
+    {:ok, _} = Boards.Comments.add_comment(card, "Really", by: owner)
     assert find(StaleInProgress, board) == []
   end
 

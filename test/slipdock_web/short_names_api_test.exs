@@ -14,7 +14,7 @@ defmodule SlipdockWeb.ShortNamesApiTest do
   end
 
   test "the API sets, reads and clears it", %{conn: conn, column: column} do
-    {:ok, card} = Boards.create_card(column, %{"title" => @long})
+    {:ok, card} = Boards.Cards.create_card(column, %{"title" => @long})
 
     made = conn |> get(~p"/api/cards/#{card.id}") |> json_response(200)
     assert made["card"]["short_name"] == "Agent supervision 5-9- Parked…"
@@ -30,7 +30,7 @@ defmodule SlipdockWeb.ShortNamesApiTest do
   end
 
   test "the API refuses one too long", %{conn: conn, column: column} do
-    {:ok, card} = Boards.create_card(column, %{"title" => @long})
+    {:ok, card} = Boards.Cards.create_card(column, %{"title" => @long})
 
     conn
     |> patch(~p"/api/cards/#{card.id}", %{short_name: String.duplicate("x", 41)})

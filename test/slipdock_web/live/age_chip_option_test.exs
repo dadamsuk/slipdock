@@ -136,7 +136,7 @@ defmodule SlipdockWeb.AgeChipOptionTest do
     end
 
     test "off for the list and off on the board: still off, nothing else lost", ctx do
-      {:ok, _} = Boards.update_column(ctx.todo, %{"show_age" => false})
+      {:ok, _} = Boards.Columns.update_column(ctx.todo, %{"show_age" => false})
 
       {:ok, view, _} =
         Slipdock.CardViewHelpers.live_showing(

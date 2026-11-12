@@ -39,7 +39,7 @@ defmodule Slipdock.VerifiedJobsTest do
 
   defp submit(ctx, attrs \\ %{}) do
     {:ok, card} =
-      Boards.update_card(ctx.card, Map.merge(%{"completed" => true}, attrs),
+      Boards.Cards.update_card(ctx.card, Map.merge(%{"completed" => true}, attrs),
         actor: ctx.builder,
         by: ctx.owner
       )
@@ -73,10 +73,10 @@ defmodule Slipdock.VerifiedJobsTest do
     setup ctx, do: %{board: set(ctx, %{"verify_work" => true, "verify_pool" => "checkers"})}
 
     test "a submission queues a verify job for the pool, with what to check", ctx do
-      {:ok, _} = Boards.update_card(ctx.card, %{"bar" => "The export has a header row"})
+      {:ok, _} = Boards.Cards.update_card(ctx.card, %{"bar" => "The export has a header row"})
 
       card =
-        submit(%{ctx | card: Boards.get_card!(ctx.card.id)}, %{
+        submit(%{ctx | card: Boards.Cards.get_card!(ctx.card.id)}, %{
           "evidence" => "mix test: 4 passed",
           "evidence_commit" => "abc1234"
         })
@@ -104,7 +104,7 @@ defmodule Slipdock.VerifiedJobsTest do
 
     test "submitting again while pending doesn't queue a second", ctx do
       card = submit(ctx)
-      {:ok, _} = Boards.update_card(card, %{"completed" => true}, actor: ctx.builder)
+      {:ok, _} = Boards.Cards.update_card(card, %{"completed" => true}, actor: ctx.builder)
       assert length(jobs(card)) == 1
     end
 
@@ -124,15 +124,18 @@ defmodule Slipdock.VerifiedJobsTest do
       assert Repo.get!(Job, second.id).status == "queued"
 
       # Fixed and submitted again: a fresh job.
-      card = Boards.get_card!(card.id)
-      {:ok, _} = Boards.update_card(card, %{"completed" => true}, actor: ctx.builder)
+      card = Boards.Cards.get_card!(card.id)
+      {:ok, _} = Boards.Cards.update_card(card, %{"completed" => true}, actor: ctx.builder)
       assert [_, _, third] = jobs(card)
       assert third.status == "queued"
     end
 
     test "a person completing the pending card stops its jobs", ctx do
       card = submit(ctx)
-      {:ok, _} = Boards.update_card(card, %{"completed" => true}, actor: Actor.web(ctx.owner))
+
+      {:ok, _} =
+        Boards.Cards.update_card(card, %{"completed" => true}, actor: Actor.web(ctx.owner))
+
       assert [%{status: "cancelled"}] = jobs(card)
     end
 
@@ -159,7 +162,7 @@ defmodule Slipdock.VerifiedJobsTest do
       card = submit(ctx)
       assert card.verify_state == "pending"
       refute Enum.any?(jobs(card), &(&1.kind == "verify"))
-      [body] = Boards.get_card!(card.id).comments |> Enum.map(& &1.body)
+      [body] = Boards.Cards.get_card!(card.id).comments |> Enum.map(& &1.body)
       assert body =~ "**Verify job not queued** for pool `checkers`"
       assert body =~ "queue is full"
     end
@@ -187,7 +190,7 @@ defmodule Slipdock.VerifiedJobsTest do
       assert claimed == verify.id
 
       # Two runners in the pool: nothing to say on the card.
-      refute Enum.any?(Boards.get_card!(card.id).comments, &(&1.body =~ "waits"))
+      refute Enum.any?(Boards.Cards.get_card!(card.id).comments, &(&1.body =~ "waits"))
     end
 
     test "with no job id, the builder is the last runner to take a job on the card", ctx do
@@ -205,7 +208,7 @@ defmodule Slipdock.VerifiedJobsTest do
 
       # The builder is the pool's only runner, so the job waits, and the card says so.
       [body] =
-        Boards.get_card!(card.id).comments
+        Boards.Cards.get_card!(card.id).comments
         |> Enum.map(& &1.body)
         |> Enum.filter(&(&1 =~ "waits"))
 
@@ -222,13 +225,13 @@ defmodule Slipdock.VerifiedJobsTest do
       assert verify.exclude_runner_id == nil
 
       assert Enum.any?(
-               Boards.get_card!(card.id).comments,
+               Boards.Cards.get_card!(card.id).comments,
                &(&1.body =~ "waits:** no runner is in pool `checkers` yet")
              )
     end
 
     test "the pool is inherited by subcards and carried by an export", ctx do
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = Boards.create_sub_board(ctx.card, t)
       assert sub.verify_pool == "checkers"
 

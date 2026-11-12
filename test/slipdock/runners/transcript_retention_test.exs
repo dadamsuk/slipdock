@@ -76,7 +76,7 @@ defmodule Slipdock.Runners.TranscriptRetentionTest do
 
     test "a sub-board's jobs follow the top board", ctx do
       {:ok, _} = Boards.update_board(ctx.board, %{"job_log_hours" => 1})
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(ctx.card, t)
       sub_card = card_fixture(hd(Boards.get_board!(sub.id).columns), %{"title" => "Part"})
       job = ended(ctx, "done", 2, sub_card)
@@ -174,7 +174,9 @@ defmodule Slipdock.Runners.TranscriptRetentionTest do
       agent = %{Actor.unknown() | kind: "agent", via: "cli", user_id: ctx.owner.id, agent: "b"}
 
       {:ok, card} =
-        Boards.update_card(Repo.get!(Boards.Card, card.id), %{"completed" => true}, actor: agent)
+        Boards.Cards.update_card(Repo.get!(Boards.Card, card.id), %{"completed" => true},
+          actor: agent
+        )
 
       assert card.verify_state == "pending"
       {:ok, _} = Runners.queue(card, %{pool: "dev", kind: "verify", prompt: "check"})

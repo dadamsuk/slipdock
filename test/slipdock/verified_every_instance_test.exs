@@ -40,7 +40,7 @@ defmodule Slipdock.VerifiedEveryInstanceTest do
 
   defp submit(ctx) do
     {:ok, card} =
-      Boards.update_card(
+      Boards.Cards.update_card(
         Repo.get!(Card, ctx.card.id),
         %{"completed" => true, "evidence" => "built", "evidence_commit" => "abc1234"},
         actor: ctx.builder,
@@ -55,7 +55,7 @@ defmodule Slipdock.VerifiedEveryInstanceTest do
     do: Verified.decide(Repo.get!(Card, ctx.card.id), decision, params, ctx.checker, ctx.owner)
 
   defp last_body(card),
-    do: Boards.get_card!(card.id).comments |> Enum.max_by(& &1.id) |> Map.fetch!(:body)
+    do: Boards.Cards.get_card!(card.id).comments |> Enum.max_by(& &1.id) |> Map.fetch!(:body)
 
   describe "Checks.parse/1" do
     test "a rule given broken more than once keeps every instance, in order" do
@@ -247,7 +247,7 @@ defmodule Slipdock.VerifiedEveryInstanceTest do
       {:ok, _} = decide(ctx, "reject", %{"reason" => "bar 1: no", "checks" => ["bar:1=fail"]})
 
       {:ok, card} =
-        Boards.update_card(
+        Boards.Cards.update_card(
           Repo.get!(Card, ctx.card.id),
           %{"completed" => true, "evidence" => "again", "evidence_commit" => "def5678"},
           actor: ctx.builder,

@@ -17,13 +17,12 @@ defmodule SlipdockWeb.BoardLive.SnoozeEvents do
   use Phoenix.Component
   alias SlipdockWeb.Dates
 
-  import Ecto.Query, only: [from: 2]
   import Phoenix.LiveView, only: [put_flash: 3]
   import SlipdockWeb.BoardLive.State, only: [reload_board: 1]
   import SlipdockWeb.CoreComponents, only: [icon: 1, input: 1, date_field: 1]
 
   alias Phoenix.LiveView.JS
-  alias Slipdock.{Boards, Repo, Snooze, Timezones}
+  alias Slipdock.{Boards, Snooze, Timezones}
   alias Slipdock.Boards.{Card, Column}
 
   @write_events ~w(open_snooze snooze_preset snooze_save wake_card)
@@ -120,7 +119,10 @@ defmodule SlipdockWeb.BoardLive.SnoozeEvents do
       for card <- board_cards(socket, s.ids) do
         with {:ok, card} <- Snooze.snooze(card, user, date, opts) do
           if back? and Enum.member?(s.doing_ids, card.column_id),
-            do: Boards.move_card_to_index(card, s.ready, :top, actor: Slipdock.Actor.web(user))
+            do:
+              Boards.Cards.move_card_to_index(card, s.ready, :top,
+                actor: Slipdock.Actor.web(user)
+              )
 
           {:ok, card}
         end
@@ -180,13 +182,7 @@ defmodule SlipdockWeb.BoardLive.SnoozeEvents do
 
   defp board_cards(socket, ids) do
     ids = ids |> Enum.map(&to_int/1) |> Enum.reject(&is_nil/1)
-    board_id = socket.assigns.board.id
-
-    from(c in Card,
-      where: c.id in ^ids and c.board_id == ^board_id and is_nil(c.archived_at),
-      order_by: [asc: c.id]
-    )
-    |> Repo.all()
+    Boards.Cards.list_board_cards(socket.assigns.board.id, ids)
   end
 
   defp to_int(id) when is_integer(id), do: id

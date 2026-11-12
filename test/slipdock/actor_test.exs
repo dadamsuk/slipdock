@@ -125,7 +125,7 @@ defmodule Slipdock.ActorTest do
   describe "moves carry their actor" do
     test "move_card/4 to another list, with the person who did it", ctx do
       card = card_fixture(ctx.todo)
-      :ok = Boards.move_card(card.id, ctx.doing.id, nil, actor: Actor.web(ctx.owner))
+      :ok = Boards.Cards.move_card(card.id, ctx.doing.id, nil, actor: Actor.web(ctx.owner))
       id = card.id
       owner_id = ctx.owner.id
       doing = ctx.doing.id
@@ -141,7 +141,7 @@ defmodule Slipdock.ActorTest do
     test "a reorder inside one list is no move", ctx do
       card = card_fixture(ctx.todo)
       card_fixture(ctx.todo)
-      :ok = Boards.move_card_to_index(card, ctx.todo, :bottom, actor: Actor.web(ctx.owner))
+      :ok = Boards.Cards.move_card_to_index(card, ctx.todo, :bottom, actor: Actor.web(ctx.owner))
       id = card.id
       refute_receive {:moved, %{card_id: ^id}}
     end
@@ -152,7 +152,7 @@ defmodule Slipdock.ActorTest do
       Process.put(:automation_depth, 1)
 
       try do
-        :ok = Boards.move_card(card.id, ctx.doing.id)
+        :ok = Boards.Cards.move_card(card.id, ctx.doing.id)
       after
         Process.delete(:automation_depth)
       end
@@ -163,7 +163,7 @@ defmodule Slipdock.ActorTest do
     test "a move nobody names, outside one, is unknown", ctx do
       card = card_fixture(ctx.todo)
       id = card.id
-      :ok = Boards.move_card(card.id, ctx.doing.id)
+      :ok = Boards.Cards.move_card(card.id, ctx.doing.id)
       assert_receive {:moved, %{card_id: ^id, actor: %{kind: nil, via: nil}}}
     end
 
@@ -177,7 +177,7 @@ defmodule Slipdock.ActorTest do
       card = card_fixture(ctx.todo)
       id = card.id
       done = ctx.done.id
-      :ok = Boards.move_card(card.id, ctx.doing.id, nil, actor: Actor.web(ctx.owner))
+      :ok = Boards.Cards.move_card(card.id, ctx.doing.id, nil, actor: Actor.web(ctx.owner))
 
       # The person's move first, then the rule's, which is automation's.
       assert_receive {:moved, %{card_id: ^id, actor: %{kind: "human"}}}
@@ -194,14 +194,16 @@ defmodule Slipdock.ActorTest do
       id = card.id
 
       {:ok, _} =
-        Boards.move_card_to_board(card, hd(other.columns), actor: Actor.assistant(ctx.owner))
+        Boards.Moves.move_card_to_board(card, hd(other.columns),
+          actor: Actor.assistant(ctx.owner)
+        )
 
       assert_receive {:moved, %{card_id: ^id, actor: %{kind: "agent", via: "assistant"}}}
 
       back = Repo.get!(Card, id)
       [_, todo2 | _] = Boards.get_board!(other.id).columns
 
-      {:ok, _} = Boards.move_card_to_board(back, todo2, actor: Actor.web(ctx.owner))
+      {:ok, _} = Boards.Moves.move_card_to_board(back, todo2, actor: Actor.web(ctx.owner))
       assert_receive {:moved, %{card_id: ^id, actor: %{kind: "human", via: "web"}}}
     end
 
@@ -239,7 +241,7 @@ defmodule Slipdock.ActorTest do
       assert job.card_id == id
 
       :ok =
-        Boards.move_card_to_index(Repo.get!(Card, id), ctx.doing, :top,
+        Boards.Cards.move_card_to_index(Repo.get!(Card, id), ctx.doing, :top,
           actor: Actor.runner(ctx.owner, job.id, "box")
         )
 
@@ -261,7 +263,7 @@ defmodule Slipdock.ActorTest do
       card = card_fixture(ctx.todo)
 
       {:ok, updated} =
-        Boards.update_card(card, %{"column_id" => ctx.doing.id, "title" => "Renamed"})
+        Boards.Cards.update_card(card, %{"column_id" => ctx.doing.id, "title" => "Renamed"})
 
       assert updated.title == "Renamed"
       assert Repo.get!(Card, card.id).column_id == ctx.todo.id

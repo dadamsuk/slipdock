@@ -127,8 +127,13 @@ defmodule Slipdock.Snooze do
       )
       |> Repo.update()
       |> tap_ok(fn c ->
-        Boards.log_activity_for(c, "card", "snoozed “#{c.title}” until #{describe(c, by)}")
-        Boards.card_changed(c)
+        Boards.ActivityLog.log_activity_for(
+          c,
+          "card",
+          "snoozed “#{c.title}” until #{describe(c, by)}"
+        )
+
+        Boards.PubSub.card_changed(c)
       end)
     end
   end
@@ -244,11 +249,11 @@ defmodule Slipdock.Snooze do
 
     if not awake.completed and is_nil(awake.archived_at) do
       column = Repo.get!(Slipdock.Boards.Column, awake.column_id)
-      Boards.move_card_to_index(awake, column, :top, actor: Slipdock.Actor.automation())
+      Boards.Cards.move_card_to_index(awake, column, :top, actor: Slipdock.Actor.automation())
     end
 
     line = "woke up “#{card.title}” (#{snoozed_line(card, snoozer)})#{woken_by(reason, by)}"
-    Boards.log_activity_for(awake, "card", line)
+    Boards.ActivityLog.log_activity_for(awake, "card", line)
 
     # The snoozer waking it themselves needs no telling.
     if card.snooze_notify and not same_person?(by, snoozer) do
@@ -262,7 +267,7 @@ defmodule Slipdock.Snooze do
     end
 
     awake = Repo.get!(Card, card.id)
-    Boards.card_changed(awake)
+    Boards.PubSub.card_changed(awake)
     Slipdock.Automations.dispatch(%{type: "card_woken", card: awake, by: by, reason: reason})
     awake
   end
@@ -323,4 +328,27 @@ defmodule Slipdock.Snooze do
   end
 
   defp tap_ok(other, _fun), do: other
+
+  @doc """
+  The open cards assigned to `user` in the trees of `roots` that are
+  snoozed and wake before `before`, soonest first, each with its board and
+  list. Not filtered to what `user` may read.
+  """
+  def waking_before(%User{id: user_id}, roots, %DateTime{} = before) do
+    from(c in Card,
+      join: b in Slipdock.Boards.Board,
+      on: b.id == c.board_id,
+      where: is_nil(c.archived_at) and not c.completed,
+      where: coalesce(b.root_id, b.id) in ^roots,
+      where:
+        c.id in subquery(
+          from(a in "card_assignees", where: a.user_id == ^user_id, select: a.card_id)
+        ),
+      where: c.snoozed_until < ^before,
+      order_by: [asc: c.snoozed_until]
+    )
+    |> only_snoozed()
+    |> Repo.all()
+    |> Repo.preload([:board, :column])
+  end
 end

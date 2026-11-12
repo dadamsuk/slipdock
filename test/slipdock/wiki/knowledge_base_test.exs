@@ -47,9 +47,9 @@ defmodule Slipdock.Wiki.KnowledgeBaseTest do
   test "is first in the home order, whatever the hand-made order says", %{user: user} do
     work = board_fixture(%{"name" => "Aardvark", "code" => "kbfirst"}, owner: user)
     {:ok, kb} = KnowledgeBase.ensure(user)
-    :ok = Boards.reorder_boards(user, [work.id])
+    :ok = Boards.Arrangement.reorder_boards(user, [work.id])
 
-    assert Boards.home_ranks(user, [work, kb]) == %{kb.id => 0, work.id => 1}
+    assert Boards.Arrangement.home_ranks(user, [work, kb]) == %{kb.id => 0, work.id => 1}
   end
 
   describe "adopt" do

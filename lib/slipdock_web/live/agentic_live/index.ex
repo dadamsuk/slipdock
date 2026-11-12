@@ -27,6 +27,8 @@ defmodule SlipdockWeb.AgenticLive.Index do
          perm = Access.board_permission(user, board),
          true <- Access.can_read?(perm) do
       if AgenticBuilding.on?(board) do
+        subscribe_releases(socket, board)
+
         {:ok,
          socket
          |> assign(
@@ -34,6 +36,7 @@ defmodule SlipdockWeb.AgenticLive.Index do
            root: root(board),
            can_manage: perm == :owner,
            routes_error: nil,
+           release: release_status(board, user),
            page_title: "Agentic Building · #{board.name}",
            page_jumps: []
          )
@@ -75,6 +78,13 @@ defmodule SlipdockWeb.AgenticLive.Index do
 
   @impl true
   def handle_info(:hub, socket), do: {:noreply, load_hub(socket)}
+
+  # A release was asked for, started or ended on this tree (#2835).
+  def handle_info({:release_changed, _root_id}, socket),
+    do:
+      {:noreply,
+       assign(socket, release: release_status(socket.assigns.board, socket.assigns.current_user))}
+
   def handle_info(_message, socket), do: {:noreply, socket}
 
   defp root(%Board{root_id: nil}), do: nil
@@ -121,7 +131,30 @@ defmodule SlipdockWeb.AgenticLive.Index do
     end
   end
 
+  # Release now (#2835): the tree's merged work, in the owner's name.
+  def handle_event("release_now", _params, socket) do
+    %{board: board, current_user: user} = socket.assigns
+
+    socket =
+      case Slipdock.Releases.release_now(board, Slipdock.Accounts.User.display_name(user)) do
+        {:ok, how, _request} -> put_flash(socket, :info, Slipdock.Releases.said(how))
+        {:error, reason} -> put_flash(socket, :error, Slipdock.Releases.refusal(reason))
+      end
+
+    {:noreply, assign(socket, release: release_status(board, user))}
+  end
+
   def handle_event(_event, _params, socket), do: {:noreply, socket}
+
+  # A connected page hears the tree's releases change (#2835).
+  defp subscribe_releases(socket, board) do
+    if connected?(socket), do: Slipdock.Releases.subscribe(board)
+  end
+
+  # Where the tree's releases stand (#2835); nil unless it is batched and
+  # `user` reads its root board.
+  defp release_status(%Board{} = board, user),
+    do: SlipdockWeb.BoardLive.State.board_release(board, user)
 
   defp save_routes(board, %{} = routes) do
     case WaitRoutes.set(board, routes) do
@@ -141,6 +174,8 @@ defmodule SlipdockWeb.AgenticLive.Index do
   def summary(%Board{} = b, routes) do
     # `WaitRoutes.routes/1` lists every kind, an unrouted one with nobody.
     routed = Enum.count(routes, fn {_kind, people} -> people != [] end)
+    # A tree's release settings are its root's (#2834).
+    release = Slipdock.Releases.settings(b)
 
     [
       {"bar", "verified", "Bar before work", b.bar_required, nil},
@@ -148,6 +183,9 @@ defmodule SlipdockWeb.AgenticLive.Index do
       {"verify", "verified", "Second agent verifies", b.verify_work,
        b.verify_work && b.verify_pool && "pool #{b.verify_pool}"},
       {"ship", "verified", "Ships by pull request", b.ship_via == "pull_request", nil},
+      {"release", "releases", "Batched releases", release.mode == "batched",
+       release.mode == "batched" && release.age_cap_hours &&
+         "at most #{release.age_cap_hours}h"},
       {"lanes", "lanes", "Lanes", b.lane_mode != "off", b.lane_mode != "off" && b.lane_mode},
       {"profiles", "profiles", "Profiles", b.profiles, nil},
       {"routes", "questions", "Questions routed", routed > 0,
@@ -159,6 +197,15 @@ defmodule SlipdockWeb.AgenticLive.Index do
       {"wip", "runners", "WIP holds automation", b.automation_wip, nil}
     ]
   end
+
+  # The root's release settings, read from a sub-board (#2834).
+  defp release_text(%Board{release_mode: "batched", release_age_cap_hours: nil}),
+    do: "Batched: merges wait for a release, with no age cap."
+
+  defp release_text(%Board{release_mode: "batched", release_age_cap_hours: hours}),
+    do: "Batched: merges wait for a release, at most #{hours} hours."
+
+  defp release_text(_root), do: "On merge: each merge deploys."
 
   # `wait_default_after` (#2096) as typed, else the saved minutes as `4h`.
   defp wait_default_text(form) do
@@ -504,6 +551,79 @@ defmodule SlipdockWeb.AgenticLive.Index do
                       branch and opens a pull request, never the default branch. Accepting the card
                       sends a runner a merge job, and the merge deploys.
                     </p>
+                  </div>
+                </div>
+              </.section>
+
+              <.section id="releases" icon="hero-rocket-launch" title="Releases">
+                <:about>
+                  When merged work reaches production: with each merge, or in batches.
+                </:about>
+                <div id="board-releases" class="space-y-1">
+                  <%= if @root do %>
+                    <p id="board-releases-read" class="text-sm text-base-content/70">
+                      {release_text(@root)}
+                    </p>
+                    <.set_on_root root={@root} what="How merged work is released" />
+                  <% else %>
+                    <.input
+                      field={@form[:release_mode]}
+                      id="board-release-mode"
+                      type="select"
+                      label="Release merged work"
+                      options={[
+                        {"On merge: each merge deploys", "on_merge"},
+                        {"Batched: merges wait for a release", "batched"}
+                      ]}
+                      class="select field w-full"
+                    />
+                    <.input
+                      field={@form[:release_age_cap_hours]}
+                      id="board-release-age-cap"
+                      type="number"
+                      min="1"
+                      max="8760"
+                      label="Release once a merge has waited (hours)"
+                      class="input field w-24"
+                    />
+                    <.input
+                      field={@form[:release_command]}
+                      id="board-release-command"
+                      type="text"
+                      maxlength="500"
+                      label="Release command"
+                      placeholder={Slipdock.Releases.default_command()}
+                      class="input field w-full"
+                    />
+                    <p class="text-xs text-base-content/60">
+                      Batched, a merged card still completes and unblocks its dependents, and shows
+                      <em>merged, awaiting release</em>
+                      until a release ships it. Leave the hours
+                      blank for no age cap. A release runs when a critical card merges, on <em>Release now</em>, or at the age cap: a runner runs the release
+                      command (blank for the default; <code>{"{default_branch}"}</code>
+                      is the repository's default branch). A command other than the default
+                      runs only on a machine whose <code>local.json</code>
+                      lists it under <code>release_commands</code>.
+                    </p>
+                  <% end %>
+                  <div
+                    :if={@release}
+                    id="board-release-status"
+                    class="mt-2 flex flex-wrap items-center gap-2 text-sm"
+                  >
+                    <span id="board-release-line" class="min-w-0 flex-1">
+                      {Slipdock.Releases.line(@release) || "Nothing merged is awaiting release."}
+                    </span>
+                    <button
+                      :if={@can_manage}
+                      type="button"
+                      id="board-release-now"
+                      class="btn btn-sm"
+                      phx-click="release_now"
+                      data-confirm="Release this board's merged work now?"
+                    >
+                      Release now
+                    </button>
                   </div>
                 </div>
               </.section>

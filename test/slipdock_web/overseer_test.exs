@@ -49,7 +49,7 @@ defmodule SlipdockWeb.OverseerTest do
   # A condition open on the board: a wait with nothing running.
   defp waiting(ctx) do
     card = card_fixture(ctx.doing, %{"title" => "Needs you"})
-    {:ok, _} = Boards.open_wait(card, Actor.web(ctx.user), %{"needs" => "Which?"})
+    {:ok, _} = Boards.Waits.open_wait(card, Actor.web(ctx.user), %{"needs" => "Which?"})
     {:ok, settings} = Overseer.put_settings(ctx.board, %{"enabled" => true})
     %{fired: [condition]} = Overseer.Watch.run(Repo.get!(Board, ctx.board.id), settings)
     {card, condition}
@@ -188,7 +188,7 @@ defmodule SlipdockWeb.OverseerTest do
       older = card_fixture(ctx.todo, %{"title" => "Older wait"})
 
       {:ok, _} =
-        Boards.open_wait(older, Actor.web(user_fixture()), %{
+        Boards.Waits.open_wait(older, Actor.web(user_fixture()), %{
           "needs" => "Old?",
           "on_user_id" => ctx.user.id
         })
@@ -231,10 +231,10 @@ defmodule SlipdockWeb.OverseerTest do
       assert whoami["waiting_hidden"]["dismissed"] == 1
 
       # The condition clears, then fires again: a new cause, so it shows.
-      {:ok, _} = Boards.answer_wait(card, Actor.web(ctx.user), %{"answer" => "This one"})
+      {:ok, _} = Boards.Waits.answer_wait(card, Actor.web(ctx.user), %{"answer" => "This one"})
       settings = Overseer.settings(ctx.board)
       %{cleared: [_]} = Overseer.Watch.run(Repo.get!(Board, ctx.board.id), settings)
-      {:ok, _} = Boards.open_wait(card, Actor.web(ctx.user), %{"needs" => "And now?"})
+      {:ok, _} = Boards.Waits.open_wait(card, Actor.web(ctx.user), %{"needs" => "And now?"})
       %{fired: [again]} = Overseer.Watch.run(Repo.get!(Board, ctx.board.id), settings)
       assert again.id != condition.id
 
@@ -334,7 +334,7 @@ defmodule SlipdockWeb.OverseerTest do
     setup ctx do
       {_card, condition} = waiting(ctx)
       epic = card_fixture(ctx.todo, %{"title" => "Epic"})
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(epic, t)
       sub = Boards.get_board!(sub.id)
 

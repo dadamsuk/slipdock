@@ -46,7 +46,7 @@ defmodule SlipdockWeb.MCP.Tools.CreateList do
          {:ok, board} <- Args.refusal(Authorize.fetch_board(auth, ref, :write)),
          :ok <- unique(board, name),
          attrs = args |> Map.take(~w(category wip_limit)) |> Map.put("name", name),
-         {:ok, column} <- Args.refusal(Boards.create_column(board, attrs)) do
+         {:ok, column} <- Args.refusal(Boards.Columns.create_column(board, attrs)) do
       {:ok, %{list: SlipdockWeb.API.JSON.column(column), board_id: board.id}}
     end
   end

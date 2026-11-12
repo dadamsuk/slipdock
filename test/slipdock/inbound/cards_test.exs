@@ -98,7 +98,7 @@ defmodule Slipdock.Inbound.CardsTest do
       assert [%Attachment{filename: "invoice.pdf", content_type: "application/pdf"} = a] =
                card!(email).attachments
 
-      assert File.read!(Boards.attachment_path(a)) == "%PDF-1.4 hello"
+      assert File.read!(Boards.Attachments.attachment_path(a)) == "%PDF-1.4 hello"
     end
 
     test "an inline cid: image is uploaded and shown in the description", ctx do
@@ -127,7 +127,7 @@ defmodule Slipdock.Inbound.CardsTest do
       card = card!(email)
       assert [%Attachment{filename: "shot.png"} = a] = card.attachments
       assert card.description =~ "See this:"
-      assert card.description =~ "](#{Boards.attachment_url(a)})"
+      assert card.description =~ "](#{Boards.Attachments.attachment_url(a)})"
     end
 
     test "a forward keeps the original sender and date at the top", ctx do
@@ -217,7 +217,7 @@ defmodule Slipdock.Inbound.CardsTest do
     end
 
     test "an archived board", ctx do
-      {:ok, _} = Boards.archive_board(ctx.board)
+      {:ok, _} = Boards.Arrangement.archive_board(ctx.board)
 
       assert {:rejected, reason, _} =
                deliver(mail(ctx.user.email, ctx.address, "x", text("x")), ctx.address)

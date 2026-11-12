@@ -8,8 +8,8 @@ defmodule Slipdock.Health.Detectors.Deadlock do
       the cards filling a WIP limit, or — for a merge job — the jobs keeping
       every merge runner busy (holding a job, and not asking for another
       since it claimed it: runners take merges mid-pass);
-    * a held answer (`Slipdock.Runners.Requeue`, `pending`) → the job of its
-      rule it waits to close;
+    * a held answer (`Slipdock.Runners.Requeue`, `pending`) → the job it
+      waits to close: a rule's open job on its card, else its rule's;
     * an open card → the answer to its question, still held; and its
       unfinished blockers;
     * a card pending verification → its verify job; a merging card → its
@@ -171,8 +171,8 @@ defmodule Slipdock.Health.Detectors.Deadlock do
     end
   end
 
-  # A held answer waits for its rule's open job; the card it is for waits
-  # for the answer.
+  # A held answer waits for its card's open job, else its rule's; the card
+  # it is for waits for the answer.
   defp answer_edges(root_id, open_jobs) do
     from(w in Wait,
       join: j in Job,
@@ -182,10 +182,7 @@ defmodule Slipdock.Health.Detectors.Deadlock do
     )
     |> Repo.all()
     |> Enum.flat_map(fn {wait, asking} ->
-      held =
-        open_jobs
-        |> Enum.filter(&(&1.rule_id == asking.rule_id))
-        |> Enum.min_by(& &1.id, fn -> nil end)
+      held = held_behind(open_jobs, asking)
 
       node = {:answer, wait.id}
       cards = Enum.uniq([asking.card_id, wait.card_id])
@@ -205,6 +202,16 @@ defmodule Slipdock.Health.Detectors.Deadlock do
 
       waits ++ holds
     end)
+  end
+
+  # The job a held answer waits to close: a rule's open job on the card
+  # whose job asked (#2896), else its rule's oldest open job (an answer
+  # held before then, behind another card's).
+  defp held_behind(open_jobs, asking) do
+    oldest = fn jobs -> Enum.min_by(jobs, & &1.id, fn -> nil end) end
+
+    oldest.(Enum.filter(open_jobs, &(&1.card_id == asking.card_id and &1.rule_id))) ||
+      oldest.(Enum.filter(open_jobs, &(&1.rule_id == asking.rule_id)))
   end
 
   defp dependency_edges(board_ids) do
@@ -424,7 +431,7 @@ defmodule Slipdock.Health.Detectors.Deadlock do
                "gave way to break a deadlock (health incident ##{incident.id})"
              ) do
         with %Card{} = card <- Repo.get(Card, job.card_id) do
-          Boards.add_comment(
+          Boards.Comments.add_comment(
             card,
             "**Health monitor:** job ##{job.id} gave way to break a deadlock (incident " <>
               "##{incident.id}). It had never been handed out. This card keeps its place in " <>

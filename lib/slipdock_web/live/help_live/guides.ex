@@ -421,6 +421,19 @@ defmodule SlipdockWeb.HelpLive.Guides do
           opens a card with its chat. Ten minutes' reading instead of approving each card.
         </li>
         <li>
+          <strong>Batched releases</strong>: Agentic Building → <em>Releases</em>
+          on the root board chooses how merged work reaches production: with each merge, or in
+          batches, with an age cap in hours for how long the oldest merge may wait. A merged
+          card is still done; on a batched board it shows <em>merged, awaiting release</em>
+          until a deploy ships it, then <em>released</em>
+          with the time. A release runs when a card of priority <em>critical</em>
+          merges, when the oldest merge reaches the age cap, or when the board's owner presses <em>Release now</em>, on the board's release banner or on that page. Releases run one at a
+          time: a runner runs the board's release command, and anything asked for meanwhile
+          becomes one follow-up. A runner runs the default <code>gh workflow run</code>
+          command itself; any other runs only if that machine's <code>local.json</code>
+          lists it, word for word, under <code>release_commands</code>.
+        </li>
+        <li>
           <strong>Who gets asked</strong>: Agentic Building → <em>Who gets asked</em>
           names a person for each kind of question an agent asks (product, UX, security,
           release, anything else). Their waits go to that person, and to the board's owner
@@ -454,7 +467,12 @@ defmodule SlipdockWeb.HelpLive.Guides do
           beside the health the board works out for itself. On a card agents work, the board
           posts each step itself (Writing code, Verifying, Merged, Shipped to production…),
           quietly, at the top of the card; a finished card shows there how it ended (done when,
-          accepted by whom, what merged and shipped) instead of a next step. How long ago each
+          accepted by whom, what merged and shipped) instead of a next step. With delivery
+          metrics on, a merged card that no succeeded deploy names after 20 minutes (the
+          board's <em>Not shipped after</em>
+          setting) shows an amber <em>Merged 1a634c6 · not shipped after 45m</em>
+          and raises one warning alert on the board, whether or not the overseer is on; the
+          deploy that names it clears both. How long ago each
           one was ("18 min ago") keeps up with the clock while the card is open.
         </li>
         <li>

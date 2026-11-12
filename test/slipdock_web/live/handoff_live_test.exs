@@ -23,7 +23,11 @@ defmodule SlipdockWeb.HandoffLiveTest do
   defp leave(ctx, next, body \\ nil),
     do:
       {:ok, _} =
-        Boards.leave_handoff(ctx.card, ctx.owner, %{next_step: next, body: body, via: "api"})
+        Boards.Handoffs.leave_handoff(ctx.card, ctx.owner, %{
+          next_step: next,
+          body: body,
+          via: "api"
+        })
 
   describe "the panel" do
     test "shows the next step, the note, who, how, and the history", ctx do
@@ -91,7 +95,7 @@ defmodule SlipdockWeb.HandoffLiveTest do
       |> render_submit()
 
       assert %{next_step: "Run the suite", body: "Gotchas: seed 42", via: "ui"} =
-               current = Boards.current_handoff(ctx.card)
+               current = Boards.Handoffs.current_handoff(ctx.card)
 
       assert current.user_id == ctx.owner.id
       refute has_element?(view, "#handoff-form")
@@ -110,7 +114,7 @@ defmodule SlipdockWeb.HandoffLiveTest do
 
       assert html =~ "say the one next step"
       assert has_element?(view, "#handoff-form")
-      assert Boards.handoff_history(ctx.card) == []
+      assert Boards.Handoffs.handoff_history(ctx.card) == []
     end
 
     test "cancel closes the form without writing", ctx do
@@ -119,7 +123,7 @@ defmodule SlipdockWeb.HandoffLiveTest do
       view |> element("#handoff-form button", "Cancel") |> render_click()
       refute has_element?(view, "#card-handoff")
       assert has_element?(view, ~s(#card-toolbar #handoff-edit[aria-label="Add “Left off”"]))
-      assert Boards.handoff_history(ctx.card) == []
+      assert Boards.Handoffs.handoff_history(ctx.card) == []
     end
 
     test "clear clears it, and the history keeps the clear", ctx do
@@ -129,7 +133,7 @@ defmodule SlipdockWeb.HandoffLiveTest do
       view |> element("#handoff-edit") |> render_click()
       view |> element("#handoff-clear") |> render_click()
 
-      assert Boards.current_handoff(ctx.card) == nil
+      assert Boards.Handoffs.current_handoff(ctx.card) == nil
       refute has_element?(view, "#card-handoff")
 
       # Back to the link; writing a new one shows the history, clear and all.
@@ -153,13 +157,13 @@ defmodule SlipdockWeb.HandoffLiveTest do
 
       assert has_element?(view, "#handoff-next", "Earlier step")
       refute has_element?(view, "#card-handoff", "A wrong turn")
-      assert [%{next_step: "Earlier step"}] = Boards.handoff_history(ctx.card)
+      assert [%{next_step: "Earlier step"}] = Boards.Handoffs.handoff_history(ctx.card)
 
       # The last one: no panel, only the meta line's link.
       view |> element("#handoff-delete") |> render_click()
       refute has_element?(view, "#card-handoff")
       assert has_element?(view, "#card-toolbar #handoff-edit")
-      assert Boards.handoff_history(ctx.card) == []
+      assert Boards.Handoffs.handoff_history(ctx.card) == []
     end
 
     test "a commenter may delete their own, not the owner's", ctx do
@@ -173,14 +177,14 @@ defmodule SlipdockWeb.HandoffLiveTest do
       refute has_element?(view, "#handoff-delete")
 
       view |> with_target("#board-card") |> render_click("delete_handoff", %{})
-      assert %{next_step: "Owner's step"} = Boards.current_handoff(ctx.card)
+      assert %{next_step: "Owner's step"} = Boards.Handoffs.current_handoff(ctx.card)
 
       {:ok, _} =
-        Boards.leave_handoff(ctx.card, commenter, %{next_step: "Commenter's", via: "ui"})
+        Boards.Handoffs.leave_handoff(ctx.card, commenter, %{next_step: "Commenter's", via: "ui"})
 
       {:ok, view, _} = open(conn_as(commenter), ctx)
       view |> element("#handoff-delete") |> render_click()
-      assert %{next_step: "Owner's step"} = Boards.current_handoff(ctx.card)
+      assert %{next_step: "Owner's step"} = Boards.Handoffs.current_handoff(ctx.card)
     end
 
     test "a reader has no Delete, and the server refuses the event", ctx do
@@ -191,7 +195,7 @@ defmodule SlipdockWeb.HandoffLiveTest do
       {:ok, view, _} = open(conn_as(reader), ctx)
       refute has_element?(view, "#handoff-delete")
       view |> with_target("#board-card") |> render_click("delete_handoff", %{})
-      assert %{next_step: "Owner's step"} = Boards.current_handoff(ctx.card)
+      assert %{next_step: "Owner's step"} = Boards.Handoffs.current_handoff(ctx.card)
     end
   end
 
@@ -217,7 +221,7 @@ defmodule SlipdockWeb.HandoffLiveTest do
       leave(ctx, "Now")
       {:ok, view, _} = open(ctx.conn, ctx)
 
-      [earlier, _] = Enum.reverse(Boards.handoff_history(ctx.card))
+      [earlier, _] = Enum.reverse(Boards.Handoffs.handoff_history(ctx.card))
       assert has_element?(view, "#handoff-#{earlier.id} details", "State: half way")
     end
 
@@ -226,35 +230,38 @@ defmodule SlipdockWeb.HandoffLiveTest do
       leave(ctx, "A wrong turn")
       {:ok, view, _} = open(ctx.conn, ctx)
 
-      [current, earlier] = Boards.handoff_history(ctx.card)
+      [current, earlier] = Boards.Handoffs.handoff_history(ctx.card)
       refute has_element?(view, "#handoff-#{current.id} button", "Restore")
 
       view |> element("#handoff-#{earlier.id} button", "Restore") |> render_click()
 
       assert has_element?(view, "#handoff-next", "Earlier")
-      assert [restored, ^current, ^earlier] = Boards.handoff_history(ctx.card)
+      assert [restored, ^current, ^earlier] = Boards.Handoffs.handoff_history(ctx.card)
       assert %{next_step: "Earlier", body: "State: half way", via: "ui"} = restored
       assert restored.user_id == ctx.owner.id
     end
 
     test "after a clear, the old one can be restored; the clear can't", ctx do
       leave(ctx, "Before the clear")
-      {:ok, clear} = Boards.clear_handoff(ctx.card, ctx.owner, %{via: "ui"})
+      {:ok, clear} = Boards.Handoffs.clear_handoff(ctx.card, ctx.owner, %{via: "ui"})
       {:ok, view, _} = open(ctx.conn, ctx)
 
       view |> element("#card-toolbar #handoff-edit") |> render_click()
       refute has_element?(view, "#handoff-#{clear.id} button", "Restore")
-      [_, old] = Boards.handoff_history(ctx.card)
+      [_, old] = Boards.Handoffs.handoff_history(ctx.card)
       view |> element("#handoff-#{old.id} button", "Restore") |> render_click()
 
-      assert %{next_step: "Before the clear"} = Boards.current_handoff(ctx.card)
+      assert %{next_step: "Before the clear"} = Boards.Handoffs.current_handoff(ctx.card)
     end
 
     test "an id that isn't one of this card's, or a clear, is refused", ctx do
       leave(ctx, "Mine")
-      {:ok, clear} = Boards.clear_handoff(ctx.card, ctx.owner, %{via: "ui"})
+      {:ok, clear} = Boards.Handoffs.clear_handoff(ctx.card, ctx.owner, %{via: "ui"})
       other = card_fixture(hd(ctx.board.columns), %{"title" => "Other"})
-      {:ok, theirs} = Boards.leave_handoff(other, ctx.owner, %{next_step: "Other's", via: "ui"})
+
+      {:ok, theirs} =
+        Boards.Handoffs.leave_handoff(other, ctx.owner, %{next_step: "Other's", via: "ui"})
+
       {:ok, view, _} = open(ctx.conn, ctx)
 
       for id <- [theirs.id, clear.id, "nope"] do
@@ -262,7 +269,7 @@ defmodule SlipdockWeb.HandoffLiveTest do
         assert render(view) =~ "That one can&#39;t be restored."
       end
 
-      assert Boards.current_handoff(ctx.card) == nil
+      assert Boards.Handoffs.current_handoff(ctx.card) == nil
     end
 
     test "a reader sees the history but no Restore, and the event is refused", ctx do
@@ -270,7 +277,7 @@ defmodule SlipdockWeb.HandoffLiveTest do
       {:ok, _} = Access.grant(ctx.board, reader, "read", ctx.owner)
       leave(ctx, "Earlier")
       leave(ctx, "Now")
-      [_, earlier] = Boards.handoff_history(ctx.card)
+      [_, earlier] = Boards.Handoffs.handoff_history(ctx.card)
 
       {:ok, view, _} = open(conn_as(reader), ctx)
       assert has_element?(view, "#handoff-#{earlier.id}")
@@ -280,7 +287,7 @@ defmodule SlipdockWeb.HandoffLiveTest do
       |> with_target("#board-card")
       |> render_click("restore_handoff", %{"id" => earlier.id})
 
-      assert %{next_step: "Now"} = Boards.current_handoff(ctx.card)
+      assert %{next_step: "Now"} = Boards.Handoffs.current_handoff(ctx.card)
     end
   end
 
@@ -299,7 +306,7 @@ defmodule SlipdockWeb.HandoffLiveTest do
       assert html =~ "Drafted from the card"
       assert has_element?(view, "#handoff-form input[value='Fix the flaky upload test']")
       assert has_element?(view, "#handoff-form textarea", "Gotchas: seed 42")
-      assert Boards.handoff_history(ctx.card) == []
+      assert Boards.Handoffs.handoff_history(ctx.card) == []
 
       # What the model was told is about this card.
       assert_received {:ai_request, %{"messages" => [_, %{"content" => content}]}}
@@ -312,7 +319,7 @@ defmodule SlipdockWeb.HandoffLiveTest do
       |> render_submit()
 
       assert %{next_step: "Fix the flaky upload test", via: "ui"} =
-               Boards.current_handoff(ctx.card)
+               Boards.Handoffs.current_handoff(ctx.card)
     end
 
     test "says why when the model gives no next step, and the form keeps what it had", ctx do
@@ -374,7 +381,7 @@ defmodule SlipdockWeb.HandoffLiveTest do
     {:ok, job} = Slipdock.Runners.queue(ctx.card, %{pool: "dev", kind: "claude", prompt: "p"})
 
     {:ok, _} =
-      Boards.leave_handoff(ctx.card, nil, %{
+      Boards.Handoffs.leave_handoff(ctx.card, nil, %{
         next_step: "From the job",
         via: "runner",
         job_id: job.id
@@ -428,12 +435,12 @@ defmodule SlipdockWeb.HandoffLiveTest do
     test "Archive and Delete in ⋯ do what they say", ctx do
       {:ok, view, _} = open(ctx.conn, ctx)
       view |> element("#archive-card") |> render_click()
-      assert Boards.get_card!(ctx.card.id).archived_at
+      assert Boards.Cards.get_card!(ctx.card.id).archived_at
 
       other = card_fixture(hd(ctx.board.columns), %{"title" => "Doomed"})
       {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/cards/#{other.id}")
       view |> element("#delete-card") |> render_click()
-      assert_raise Ecto.NoResultsError, fn -> Boards.get_card!(other.id) end
+      assert_raise Ecto.NoResultsError, fn -> Boards.Cards.get_card!(other.id) end
     end
 
     test "a commenter gets the handoff only, a reader nothing", ctx do
@@ -475,7 +482,7 @@ defmodule SlipdockWeb.HandoffLiveTest do
       assert has_element?(view, "#card-modal fieldset:not([disabled]) #handoff-form")
       view |> form("#handoff-form", handoff: %{next_step: "From a commenter"}) |> render_submit()
 
-      assert %{next_step: "From a commenter"} = Boards.current_handoff(ctx.card)
+      assert %{next_step: "From a commenter"} = Boards.Handoffs.current_handoff(ctx.card)
     end
 
     test "a reader sees it but has no button, and the server refuses the event", ctx do
@@ -494,7 +501,7 @@ defmodule SlipdockWeb.HandoffLiveTest do
 
       view |> with_target("#board-card") |> render_click("clear_handoff", %{})
 
-      assert %{next_step: "Owner's step"} = Boards.current_handoff(ctx.card)
+      assert %{next_step: "Owner's step"} = Boards.Handoffs.current_handoff(ctx.card)
     end
 
     test "a reader sees no panel on a card with no handoff", ctx do
@@ -522,9 +529,9 @@ defmodule SlipdockWeb.HandoffLiveTest do
       other = card_fixture(hd(ctx.board.columns), %{"title" => "Cleared"})
       plain = card_fixture(hd(ctx.board.columns), %{"title" => "Plain"})
       leave(ctx, "Will be done")
-      {:ok, _} = Boards.leave_handoff(other, ctx.owner, %{next_step: "x", via: "ui"})
-      {:ok, _} = Boards.clear_handoff(other, ctx.owner, %{via: "ui"})
-      {:ok, _} = Boards.update_card(ctx.card, %{"completed" => true})
+      {:ok, _} = Boards.Handoffs.leave_handoff(other, ctx.owner, %{next_step: "x", via: "ui"})
+      {:ok, _} = Boards.Handoffs.clear_handoff(other, ctx.owner, %{via: "ui"})
+      {:ok, _} = Boards.Cards.update_card(ctx.card, %{"completed" => true})
 
       {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}")
 
@@ -534,7 +541,7 @@ defmodule SlipdockWeb.HandoffLiveTest do
       end
 
       # The note itself is kept, and the card's panel still shows it.
-      assert %{next_step: "Will be done"} = Boards.current_handoff(ctx.card)
+      assert %{next_step: "Will be done"} = Boards.Handoffs.current_handoff(ctx.card)
     end
   end
 
@@ -610,10 +617,13 @@ defmodule SlipdockWeb.HandoffLiveTest do
       plain = card_fixture(hd(ctx.board.columns), %{"title" => "Plain"})
       open_one = card_fixture(hd(ctx.board.columns), %{"title" => "Open"})
       leave(ctx, "Will be done")
-      {:ok, _} = Boards.leave_handoff(other, ctx.owner, %{next_step: "x", via: "ui"})
-      {:ok, _} = Boards.clear_handoff(other, ctx.owner, %{via: "ui"})
-      {:ok, _} = Boards.leave_handoff(open_one, ctx.owner, %{next_step: "Go on", via: "ui"})
-      {:ok, _} = Boards.update_card(ctx.card, %{"completed" => true})
+      {:ok, _} = Boards.Handoffs.leave_handoff(other, ctx.owner, %{next_step: "x", via: "ui"})
+      {:ok, _} = Boards.Handoffs.clear_handoff(other, ctx.owner, %{via: "ui"})
+
+      {:ok, _} =
+        Boards.Handoffs.leave_handoff(open_one, ctx.owner, %{next_step: "Go on", via: "ui"})
+
+      {:ok, _} = Boards.Cards.update_card(ctx.card, %{"completed" => true})
       note(ctx, "handoff_full")
 
       {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}")

@@ -232,7 +232,15 @@ defmodule SlipdockWeb.MCP.DocsTest do
         text = read(path) |> String.replace(~r/\s+/, " ")
         assert text =~ "no test pins `slipdock done`'s exit codes", path
         assert text =~ "`mix format` can need two passes", path
-        assert text =~ "--column Backlog" or text =~ "in the backlog", path
+
+        assert text =~ "--column Backlog" or text =~ "in the backlog" or
+                 text =~ "else the backlog",
+               path
+
+        # A fix goes to Housekeeping when the board has one, a design question
+        # to Triage (#2779).
+        assert text =~ "Housekeeping", path
+        assert text =~ "design question", path
       end
     end
 

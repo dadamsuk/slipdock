@@ -124,13 +124,17 @@ defmodule SlipdockWeb.SearchLinksTest do
       on_exit(fn -> File.rm(path) end)
 
       {:ok, audio} =
-        Boards.add_attachment(card, %{filename: "call.mp3", content_type: "audio/mpeg"}, path)
+        Boards.Attachments.add_attachment(
+          card,
+          %{filename: "call.mp3", content_type: "audio/mpeg"},
+          path
+        )
 
       lines =
         for n <- 1..60, do: "Speaker #{rem(n, 2) + 1}: line #{n}#{String.duplicate(" words", 8)}"
 
       {:ok, audio} =
-        Boards.update_attachment_transcript(audio, %{
+        Boards.Attachments.update_attachment_transcript(audio, %{
           transcript_status: "done",
           transcript: Enum.join(lines, "\n")
         })
@@ -163,7 +167,7 @@ defmodule SlipdockWeb.SearchLinksTest do
     end
 
     test "a comment is scrolled to; without ?at the transcript stays folded", ctx do
-      {:ok, comment} = Boards.add_comment(ctx.card, "they want it by Friday")
+      {:ok, comment} = Boards.Comments.add_comment(ctx.card, "they want it by Friday")
 
       {:ok, view, _} =
         live(ctx.conn, ~p"/boards/#{ctx.board}/cards/#{ctx.card.id}?at=comment-#{comment.id}")

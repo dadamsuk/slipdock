@@ -104,7 +104,7 @@ defmodule Slipdock.Overseer do
     root = Boards.get_board!(root.id)
     column = Enum.find(root.columns, &(&1.category == "done")) || List.last(root.columns)
 
-    Boards.create_card(
+    Boards.Cards.create_card(
       column,
       %{
         "title" => "Overseer",
@@ -142,24 +142,52 @@ defmodule Slipdock.Overseer do
 
   @doc """
   The minute's work, from the automation scheduler: for every root board
-  with the overseer on, the watch, then a pass if one is due. One board's
-  failure doesn't stop the rest.
+  with the overseer on, the watch, then a pass if one is due. Then, on
+  every other tree with delivery metrics on, the checks that run whether
+  or not the overseer is on (`Watch.always/0`: merged, not shipped,
+  #2819). One board's failure doesn't stop the rest.
   """
   def tick(now \\ DateTime.utc_now()) do
-    from(s in Settings, where: s.enabled, preload: :board)
-    |> Repo.all()
-    |> Enum.each(fn settings ->
-      try do
+    enabled = Repo.all(from(s in Settings, where: s.enabled, preload: :board))
+
+    Enum.each(enabled, fn settings ->
+      guarded(settings.board_id, fn ->
         Watch.run(settings.board, settings, now)
         Pass.maybe_queue(settings.board, Repo.reload!(settings), now)
         Slipdock.Overseer.Housekeeping.maybe_digest(settings.board, Repo.reload!(settings), now)
-      rescue
-        error ->
-          Logger.error(
-            "Overseer on board #{settings.board_id} failed: " <> Exception.message(error)
-          )
-      end
+      end)
     end)
+
+    enabled
+    |> Enum.map(& &1.board_id)
+    |> delivery_roots()
+    |> Enum.each(fn root ->
+      guarded(root.id, fn -> Watch.run(root, settings(root), now, checks: Watch.always()) end)
+    end)
+  end
+
+  # The roots of the trees with delivery metrics on somewhere, the
+  # overseer's own (`except`) aside: those ran every check already.
+  defp delivery_roots(except) do
+    roots =
+      from(b in Board,
+        where: b.delivery_metrics and is_nil(b.archived_at),
+        select: coalesce(b.root_id, b.id)
+      )
+
+    Repo.all(
+      from(r in Board,
+        where: r.id in subquery(roots) and r.id not in ^except and is_nil(r.archived_at),
+        order_by: r.id
+      )
+    )
+  end
+
+  defp guarded(board_id, fun) do
+    fun.()
+  rescue
+    error ->
+      Logger.error("Overseer on board #{board_id} failed: " <> Exception.message(error))
   end
 
   @doc "After a runner job ends: a pass's digest (`Slipdock.Overseer.Pass.finished/1`)."

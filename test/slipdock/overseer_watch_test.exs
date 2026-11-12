@@ -132,7 +132,7 @@ defmodule Slipdock.OverseerWatchTest do
       assert fired.subject == "card:#{card.id}:passes"
       assert fired.title == "##{card.id} is on its 3rd runner pass"
 
-      {:ok, _} = Boards.update_card(Repo.get!(Card, card.id), %{"completed" => true})
+      {:ok, _} = Boards.Cards.update_card(Repo.get!(Card, card.id), %{"completed" => true})
       assert [_] = cleared(watch(ctx), "looping")
     end
   end
@@ -140,7 +140,9 @@ defmodule Slipdock.OverseerWatchTest do
   describe "waiting while idle" do
     test "a wait open with no job running fires, and clears when a job runs", ctx do
       card = card_fixture(ctx.doing, %{"title" => "Needs an answer"})
-      {:ok, _wait} = Boards.open_wait(card, Actor.web(ctx.owner), %{"needs" => "Which region?"})
+
+      {:ok, _wait} =
+        Boards.Waits.open_wait(card, Actor.web(ctx.owner), %{"needs" => "Which region?"})
 
       assert [fired] = fired(watch(ctx), "waiting_idle")
       assert fired.check == "waiting_idle"
@@ -196,7 +198,7 @@ defmodule Slipdock.OverseerWatchTest do
       assert fired.title =~ "is slow: in flight 2h 59m"
       assert fired.why =~ "P85 of 8"
 
-      :ok = Boards.move_card(card.id, ctx.todo.id)
+      :ok = Boards.Cards.move_card(card.id, ctx.todo.id)
       assert [_] = cleared(watch(ctx), "slow")
     end
 
@@ -342,7 +344,7 @@ defmodule Slipdock.OverseerWatchTest do
       assert fired.title == "2 jobs queued behind ##{holder.id}'s lane"
       assert fired.why =~ "docs/agents.md"
 
-      :ok = Boards.move_card(holder.id, ctx.done.id)
+      :ok = Boards.Cards.move_card(holder.id, ctx.done.id)
       assert [_] = cleared(watch(ctx), "idle_capacity")
     end
   end
@@ -352,7 +354,9 @@ defmodule Slipdock.OverseerWatchTest do
       epic = card_fixture(ctx.doing, %{"title" => "The epic"})
 
       {:ok, sub} =
-        Boards.create_sub_board(epic, hd(Boards.list_templates(nil)), code: unique_code())
+        Boards.create_sub_board(epic, hd(Boards.Templates.list_templates(nil)),
+          code: unique_code()
+        )
 
       {epic, hd(Boards.get_board!(sub.id).columns)}
     end
@@ -363,14 +367,14 @@ defmodule Slipdock.OverseerWatchTest do
       a = card_fixture(col, %{"flags" => ["blocked"]})
       b = card_fixture(col)
       blocker = card_fixture(ctx.todo)
-      {:ok, _} = Boards.add_dependency(b, blocker)
+      {:ok, _} = Boards.Dependencies.add_dependency(b, blocker)
 
       assert [fired] = fired(watch(ctx), "no_way_forward")
       assert fired.check == "no_way_forward"
       assert fired.card_id == epic.id
       assert fired.title =~ "all 2 open subcards blocked"
 
-      {:ok, _} = Boards.update_card(Repo.get!(Card, a.id), %{"flags" => []})
+      {:ok, _} = Boards.Cards.update_card(Repo.get!(Card, a.id), %{"flags" => []})
       assert [_] = cleared(watch(ctx), "no_way_forward")
     end
 
@@ -380,7 +384,7 @@ defmodule Slipdock.OverseerWatchTest do
       card_fixture(col)
       assert fired(watch(ctx), "no_way_forward") == []
 
-      :ok = Boards.move_card(epic.id, ctx.todo.id)
+      :ok = Boards.Cards.move_card(epic.id, ctx.todo.id)
       sub = Repo.get_by!(Slipdock.Boards.Board, parent_card_id: epic.id)
       Repo.update_all(from(c in Card, where: c.board_id == ^sub.id), set: [flags: ["blocked"]])
       assert open(ctx, "no_way_forward") == []
@@ -391,7 +395,7 @@ defmodule Slipdock.OverseerWatchTest do
   test "email off: the alert still goes up, no email", ctx do
     {:ok, _} = Overseer.put_settings(ctx.board, %{"email" => false})
     card = card_fixture(ctx.doing)
-    {:ok, _} = Boards.open_wait(card, Actor.web(ctx.owner), %{"needs" => "Yes or no?"})
+    {:ok, _} = Boards.Waits.open_wait(card, Actor.web(ctx.owner), %{"needs" => "Yes or no?"})
 
     assert [fired] = fired(watch(ctx), "waiting_idle")
     assert fired.alert_id
@@ -402,7 +406,7 @@ defmodule Slipdock.OverseerWatchTest do
     other = board_fixture(%{"code" => unique_code()}, owner: ctx.owner)
     [_, _, doing, _] = other.columns
     card = card_fixture(doing)
-    {:ok, _} = Boards.open_wait(card, Actor.web(ctx.owner), %{"needs" => "Anyone?"})
+    {:ok, _} = Boards.Waits.open_wait(card, Actor.web(ctx.owner), %{"needs" => "Anyone?"})
 
     Overseer.tick()
 

@@ -108,7 +108,7 @@ defmodule SlipdockWeb.API.GuideTest do
     board = board_fixture(%{"name" => "Legacy"}, owner: user)
 
     for col <- board.columns,
-        do: {:ok, _} = Slipdock.Boards.update_column(col, %{"category" => ""})
+        do: {:ok, _} = Slipdock.Boards.Columns.update_column(col, %{"category" => ""})
 
     body = conn |> get(~p"/api/guide") |> response(200)
 

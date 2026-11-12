@@ -72,13 +72,13 @@ defmodule Slipdock.RollupTest do
 
   test "overdue, blocked and done bubble up; a completed parent is done", ctx do
     {:ok, _} = sub_board(ctx.loose, ctx.template)
-    loose = Boards.get_card!(ctx.loose.id)
+    loose = Boards.Cards.get_card!(ctx.loose.id)
 
     kid =
       card_fixture(hd(loose.sub_board.columns), %{"title" => "Kid", "due_date" => "2029-12-01"})
 
     blocker = card_fixture(hd(loose.sub_board.columns), %{"title" => "Blocker"})
-    {:ok, _} = Boards.add_dependency(kid, blocker)
+    {:ok, _} = Boards.Dependencies.add_dependency(kid, blocker)
 
     r = Rollup.build(ctx.board.id, @today)
 
@@ -91,12 +91,12 @@ defmodule Slipdock.RollupTest do
            } =
              Rollup.stats(r, loose)
 
-    {:ok, _} = Boards.update_card(loose, %{"completed" => true})
+    {:ok, _} = Boards.Cards.update_card(loose, %{"completed" => true})
     r = Rollup.build(ctx.board.id, @today)
     assert %{health: :done, total: 2, done: 0} = Rollup.stats(r, loose)
 
     # All leaves done makes the parent done without touching its flag.
-    {:ok, _} = Boards.update_card(ctx.e, %{"completed" => true})
+    {:ok, _} = Boards.Cards.update_card(ctx.e, %{"completed" => true})
     r = Rollup.build(ctx.board.id, @today)
     assert %{health: :done, total: 2, done: 2, due_slip: 12} = Rollup.stats(r, ctx.c)
   end
@@ -110,7 +110,7 @@ defmodule Slipdock.RollupTest do
     assert Card.effective_due(epic) == ~D[2030-01-15]
     assert Card.start_derived?(epic) and not Card.due_derived?(epic)
 
-    c = Boards.get_card!(ctx.c.id)
+    c = Boards.Cards.get_card!(ctx.c.id)
     assert Card.due_slip(c) == 12 and Card.health(c) == :late
     assert Card.progress(ctx.loose) == nil
 
@@ -149,7 +149,7 @@ defmodule Slipdock.RollupTest do
 
     # Give Loose subcards with dates: it is placed entirely from them.
     {:ok, _} = sub_board(ctx.loose, ctx.template)
-    loose = Boards.get_card!(ctx.loose.id)
+    loose = Boards.Cards.get_card!(ctx.loose.id)
     card_fixture(hd(loose.sub_board.columns), %{"title" => "Kid", "due_date" => "2030-01-30"})
     tl = Slipdock.Timeline.build(Boards.get_board!(ctx.board.id), config, @today)
     [%{bars: bars}] = tl.groups

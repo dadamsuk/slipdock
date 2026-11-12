@@ -175,13 +175,13 @@ defmodule Slipdock.ProfilesTest do
     test "a card takes a profile, any case, and a blank clears it", ctx do
       card = card_fixture(ctx.todo, %{"title" => "Work", "profile" => "Schema"})
       assert card.profile == "schema"
-      {:ok, card} = Boards.update_card(card, %{"profile" => ""})
+      {:ok, card} = Boards.Cards.update_card(card, %{"profile" => ""})
       assert card.profile == nil
     end
 
     test "an unknown profile is refused with the list", ctx do
       card = card_fixture(ctx.todo, %{"title" => "Work"})
-      assert {:error, cs} = Boards.update_card(card, %{"profile" => "chore"})
+      assert {:error, cs} = Boards.Cards.update_card(card, %{"profile" => "chore"})
       assert %{profile: [message]} = errors_on(cs)
       assert message =~ "security, schema, feature, fix, docs, spike"
       assert Repo.reload!(card).profile == nil
@@ -190,7 +190,7 @@ defmodule Slipdock.ProfilesTest do
     test "sub-boards inherit the switch", ctx do
       profiles_on(ctx)
       card = card_fixture(ctx.todo, %{"title" => "Epic"})
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = Boards.create_sub_board(card, t)
       assert sub.profiles
     end
@@ -226,7 +226,7 @@ defmodule Slipdock.ProfilesTest do
 
   defp tagged(card, ctx, name) do
     tag = tag_fixture(ctx.board, name)
-    {:ok, _} = Boards.set_card_tags(card, [tag])
+    {:ok, _} = Boards.Cards.set_card_tags(card, [tag])
     card
   end
 
@@ -234,18 +234,18 @@ defmodule Slipdock.ProfilesTest do
     test "an agent moving it into a doing list gives it one, from its paths and tags", ctx do
       profiles_on(ctx)
       card = card_fixture(ctx.todo, %{"title" => "Migrate", "paths" => "priv/repo/migrations/**"})
-      :ok = Boards.move_card(card.id, ctx.doing.id, nil, actor: ctx.agent)
+      :ok = Boards.Cards.move_card(card.id, ctx.doing.id, nil, actor: ctx.agent)
       assert Repo.reload!(card).profile == "schema"
 
       bug = ctx.todo |> card_fixture(%{"title" => "Bug"}) |> tagged(ctx, "bug")
-      :ok = Boards.move_card(bug.id, ctx.doing.id, nil, actor: ctx.agent)
+      :ok = Boards.Cards.move_card(bug.id, ctx.doing.id, nil, actor: ctx.agent)
       assert Repo.reload!(bug).profile == "fix"
     end
 
     test "a profile already set is kept", ctx do
       profiles_on(ctx)
       card = card_fixture(ctx.todo, %{"title" => "Set", "profile" => "spike"})
-      :ok = Boards.move_card(card.id, ctx.doing.id, nil, actor: ctx.agent)
+      :ok = Boards.Cards.move_card(card.id, ctx.doing.id, nil, actor: ctx.agent)
       assert Repo.reload!(card).profile == "spike"
     end
 
@@ -254,14 +254,14 @@ defmodule Slipdock.ProfilesTest do
 
       for actor <- [Actor.web(ctx.owner), Actor.assistant(ctx.owner), Actor.automation()] do
         card = card_fixture(ctx.todo, %{"title" => "Theirs"})
-        :ok = Boards.move_card(card.id, ctx.doing.id, nil, actor: actor)
+        :ok = Boards.Cards.move_card(card.id, ctx.doing.id, nil, actor: actor)
         assert Repo.reload!(card).profile == nil
       end
     end
 
     test "with profiles off nothing is inferred", ctx do
       card = card_fixture(ctx.todo, %{"title" => "Off"})
-      :ok = Boards.move_card(card.id, ctx.doing.id, nil, actor: ctx.agent)
+      :ok = Boards.Cards.move_card(card.id, ctx.doing.id, nil, actor: ctx.agent)
       assert Repo.reload!(card).profile == nil
     end
 
@@ -269,7 +269,7 @@ defmodule Slipdock.ProfilesTest do
       profiles_on(ctx)
       [backlog | _] = ctx.board.columns
       card = card_fixture(ctx.todo, %{"title" => "Back"})
-      :ok = Boards.move_card(card.id, backlog.id, nil, actor: ctx.agent)
+      :ok = Boards.Cards.move_card(card.id, backlog.id, nil, actor: ctx.agent)
       assert Repo.reload!(card).profile == nil
     end
 
@@ -277,23 +277,23 @@ defmodule Slipdock.ProfilesTest do
       profiles_on(ctx)
 
       {:ok, card} =
-        Boards.create_card(ctx.doing, %{"title" => "Docs", "paths" => "docs/**"},
+        Boards.Cards.create_card(ctx.doing, %{"title" => "Docs", "paths" => "docs/**"},
           actor: ctx.agent
         )
 
       assert Repo.reload!(card).profile == "docs"
 
-      {:ok, card} = Boards.create_card(ctx.todo, %{"title" => "Later"}, actor: ctx.agent)
+      {:ok, card} = Boards.Cards.create_card(ctx.todo, %{"title" => "Later"}, actor: ctx.agent)
       assert Repo.reload!(card).profile == nil
     end
 
     test "the inference is logged as the card's activity", ctx do
       profiles_on(ctx)
       card = card_fixture(ctx.todo, %{"title" => "Logged"})
-      :ok = Boards.move_card(card.id, ctx.doing.id, nil, actor: ctx.agent)
+      :ok = Boards.Cards.move_card(card.id, ctx.doing.id, nil, actor: ctx.agent)
 
       assert Enum.any?(
-               Boards.list_activities(ctx.board.id, 50, card.id),
+               Boards.ActivityLog.list_activities(ctx.board.id, 50, card.id),
                &(&1.message == "profile inferred: feature")
              )
     end

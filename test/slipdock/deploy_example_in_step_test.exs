@@ -55,7 +55,7 @@ defmodule Slipdock.DeployExampleInStepTest do
     test "#{name}'s record-failure job runs on a failure and can't fail anything" do
       {:ok, yaml} = YamlElixir.read_from_string(unquote(text))
       job = yaml["jobs"]["record-failure"]
-      assert job["if"] =~ ~r/^\$\{\{ failure\(\) && github.event_name == 'push'/
+      assert job["if"] =~ ~r/^\$\{\{ failure\(\) && \(*github.event_name == 'push'/
       assert "deploy" in List.wrap(job["needs"])
       assert job["environment"] == "production"
       assert Enum.all?(job["steps"], &(&1["continue-on-error"] == true))
@@ -71,6 +71,10 @@ defmodule Slipdock.DeployExampleInStepTest do
 
     assert jobs["record-failure"]["if"] =~
              "(github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))"
+
+    # And a dispatched release of main (#2837).
+    assert jobs["record-failure"]["if"] =~
+             "(github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')"
 
     # The deploy job says whether it was the deploy or the health check.
     deploy = jobs["deploy"]

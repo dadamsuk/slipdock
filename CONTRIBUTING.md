@@ -46,10 +46,12 @@ mix test --stale   # the tests that depend on what you changed
 That is the gate. Please make it pass rather than explaining why it does not.
 `mix pre_push` compiles with warnings as errors, checks the formatting (the
 CLI's too), runs the daemon's Go checks, the dependency and security audits,
-credo, and the tests that hold the repo's own files and docs to a rule. CI
-(`.github/workflows/ci.yml`) runs the same checks and the whole suite on every
-pull request, with the suite split four ways across runners, but it is quicker
-to find out here. The whole suite takes about two minutes locally.
+credo, and the tests that hold the repo's own files and docs to a rule. A pull
+request's CI (`.github/workflows/ci.yml`) runs no static checks (they run on
+`main` and the release), so this is where a change meets them first. It runs
+the whole suite, split four ways across runners, when the change touches the
+app; a change to docs, skills, `*.md`, `cli/` or `daemon/` alone runs the
+repo checks in its place, beside the cli or daemon job. The whole suite takes about two minutes locally.
 
 The CLI (`cli/`) is a Mix project of its own with its own suite, whose tests
 `mix pre_push` does not run: `cd cli && mix test`. CI runs those in a
@@ -82,12 +84,15 @@ deploy script, say) says why in its commit message. A refactor that changes no
 behaviour is covered by the tests already there.
 
 `mix test --cover` prints line coverage for `lib/`, worst module first, with a
-page per module in `cover/`, and fails under 65%. It runs through
+page per module in `cover/`, and fails under the threshold in `mix.exs` (71%).
+CI holds the whole suite to it: each partition exports its share (`mix test
+--cover --export-coverage NAME`), and `mix slipdock.coverage` merges the
+exports and fails below the threshold. It runs through
 `test/support/coverage.ex` rather than Mix's own tool: `:cover` on this
 Elixir and OTP cannot instrument some uses of `x in [...]` outside a guard, and Mix's tool dies on the first one. So outside a guard write
 `Enum.member?([...], x)` instead (it is the same test); in a guard, `in` is
 fine. A module that slips through is named at the end of the report as not
-measured, not counted as covered. Every module in `lib/` is measured today.
+measured, not counted as covered.
 
 ### async: true unless something is genuinely shared
 

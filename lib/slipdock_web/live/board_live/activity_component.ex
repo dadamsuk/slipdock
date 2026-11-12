@@ -26,7 +26,10 @@ defmodule SlipdockWeb.BoardLive.ActivityComponent do
   def update(%{refresh: true}, socket) do
     if socket.assigns.reader? do
       {entries, more?} =
-        Boards.page_activities(socket.assigns.board.id, shown(socket, socket.assigns.board))
+        Boards.ActivityLog.page_activities(
+          socket.assigns.board.id,
+          shown(socket, socket.assigns.board)
+        )
 
       {:ok, assign(socket, activities: entries, more?: more?)}
     else
@@ -40,7 +43,7 @@ defmodule SlipdockWeb.BoardLive.ActivityComponent do
 
     {activities, more?} =
       if reader?,
-        do: Boards.page_activities(board.id, shown(socket, board)),
+        do: Boards.ActivityLog.page_activities(board.id, shown(socket, board)),
         else: {[], false}
 
     {:ok,
@@ -66,7 +69,10 @@ defmodule SlipdockWeb.BoardLive.ActivityComponent do
 
     if reader? and more? and shown != [] do
       {entries, more?} =
-        Boards.page_activities(socket.assigns.board.id, limit: @page, before: List.last(shown))
+        Boards.ActivityLog.page_activities(socket.assigns.board.id,
+          limit: @page,
+          before: List.last(shown)
+        )
 
       {:noreply, assign(socket, activities: shown ++ entries, more?: more?)}
     else

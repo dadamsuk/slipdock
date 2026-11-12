@@ -52,7 +52,10 @@ defmodule SlipdockWeb.MCP.Tools.StatusUpdate do
          :ok <- Args.refusal(Authorize.card(auth, card, :comment)),
          {:ok, update} <-
            Args.refusal(
-             Boards.add_status_update(card, context.user, %{"health" => health, "body" => body})
+             Boards.StatusUpdates.add_status_update(card, context.user, %{
+               "health" => health,
+               "body" => body
+             })
            ) do
       {:ok,
        %{

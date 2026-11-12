@@ -133,7 +133,7 @@ defmodule SlipdockWeb.API.PageSectionsTest do
     test "a backlink written on a card comes back as the card", %{conn: conn, column: column} do
       card = card_fixture(column, %{"title" => "Ship it"})
       %{"page" => target} = create(conn, %{title: "Retry policy"})
-      {:ok, _} = Slipdock.Boards.add_comment(card, "blocked on [[Retry policy]]")
+      {:ok, _} = Slipdock.Boards.Comments.add_comment(card, "blocked on [[Retry policy]]")
 
       assert %{"incoming" => [incoming]} =
                conn |> get("/api/pages/#{target["id"]}/links") |> json_response(200)

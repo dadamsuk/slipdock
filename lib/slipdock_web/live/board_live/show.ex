@@ -82,7 +82,7 @@ defmodule SlipdockWeb.BoardLive.Show do
                  SnoozeEvents.read_events() ++ SearchResults.read_events()
 
   # Events only the board owner may perform.
-  @owner_events ~w(swim_publish_view swim_unpublish_view resume_pause)
+  @owner_events ~w(swim_publish_view swim_unpublish_view resume_pause release_now)
 
   @known_events @owner_events ++ @board_write_events ++ @self_checked_events ++ @read_events
 
@@ -134,10 +134,11 @@ defmodule SlipdockWeb.BoardLive.Show do
 
   defp mount_board(board, user, perm, card_only, socket) do
     if connected?(socket) do
-      Boards.subscribe(board.id)
-      Boards.subscribe_templates()
+      Boards.PubSub.subscribe(board.id)
+      Boards.PubSub.subscribe_templates()
       Automations.subscribe_callbacks(board.id)
       Slipdock.Runners.subscribe_board(board.id)
+      Slipdock.Releases.subscribe(board)
       # A deploy arriving moves the delivery strip (#1134).
       Phoenix.PubSub.subscribe(Slipdock.PubSub, Slipdock.Deployments.topic(board))
       # The reader's card views (#2031), changed here or anywhere else.
@@ -181,6 +182,8 @@ defmodule SlipdockWeb.BoardLive.Show do
       right_now: board_now(board),
       # The tree's open runner pauses, for the banner (#1116).
       pauses: board_pauses(board),
+      # Where a batched tree's releases stand, for the banner (#2835).
+      release: board_release(board, socket.assigns.current_user),
       # The mute keeping this tree off my Waiting on you, if any (#2069).
       waiting_muted: waiting_muted(socket.assigns.current_user, board),
       # Who `@` offers in a description or a comment: the board's members.
@@ -230,10 +233,10 @@ defmodule SlipdockWeb.BoardLive.Show do
       prioritise: nil,
       cal_expanded: MapSet.new(),
       ancestry: Boards.ancestry(board),
-      templates: Boards.list_templates(socket.assigns.current_user),
+      templates: Boards.Templates.list_templates(socket.assigns.current_user),
       users: Access.visible_users(socket.assigns.current_user),
       # Who the card and page pickers offer: only people who could be put on
-      # one (see `Boards.resolve_assignees/3`), not everybody in the directory.
+      # one (see `Boards.Cards.resolve_assignees/3`), not everybody in the directory.
       assignable: assignable_users(board, socket.assigns.current_user),
       quick_preview: %{},
       # Whether `BoardLive.MoveBoardComponent` has its picker open.
@@ -296,8 +299,9 @@ defmodule SlipdockWeb.BoardLive.Show do
 
         result =
           consume_uploaded_entry(socket, entry, fn %{path: path} ->
-            with {:ok, card} <- Boards.create_card(column, %{"title" => document_title(entry)}),
-                 {:ok, _} <- Boards.add_attachment(card, meta, path) do
+            with {:ok, card} <-
+                   Boards.Cards.create_card(column, %{"title" => document_title(entry)}),
+                 {:ok, _} <- Boards.Attachments.add_attachment(card, meta, path) do
               {:ok, {:ok, card}}
             else
               other -> {:ok, other}
@@ -452,7 +456,7 @@ defmodule SlipdockWeb.BoardLive.Show do
   # searched for that card.
   defp apply_panel(socket, :archive, params) do
     query =
-      case Boards.card_ref(to_string(params["card"])) do
+      case Boards.Links.card_ref(to_string(params["card"])) do
         nil -> ""
         id -> "##{id}"
       end
@@ -471,7 +475,7 @@ defmodule SlipdockWeb.BoardLive.Show do
   defp missing_card(socket, card_id) do
     %{board: board, card_only: card_only, paths: paths} = socket.assigns
 
-    case !card_only && Boards.get_archived_card(board.id, card_id) do
+    case !card_only && Boards.Cards.get_archived_card(board.id, card_id) do
       %Card{id: id} ->
         socket
         |> put_flash(:info, "That card is archived.")
@@ -488,7 +492,7 @@ defmodule SlipdockWeb.BoardLive.Show do
   # — for a reader who may see it there. One who may not still has the
   # stand-in's title and status, which is all it was ever going to say.
   defp open_stand_in(socket, %Card{stand_in_for_id: target_id}) do
-    case Boards.get_card(target_id) do
+    case Boards.Cards.get_card(target_id) do
       nil ->
         put_flash(socket, :info, "The card this stood for has been deleted.")
 
@@ -528,7 +532,7 @@ defmodule SlipdockWeb.BoardLive.Show do
   defp quick_add_target(board, ""), do: {:ok, board, nil}
 
   defp quick_add_target(board, parent_id) do
-    with %Card{} = card <- Boards.get_card(parent_id),
+    with %Card{} = card <- Boards.Cards.get_card(parent_id),
          true <- card.board_id == board.id or Enum.member?(tree_board_ids(board), card.board_id),
          {:ok, sub_id} <- sub_board_id(card) do
       {:ok, Boards.get_board!(sub_id), card}
@@ -541,7 +545,7 @@ defmodule SlipdockWeb.BoardLive.Show do
   defp sub_board_id(%Card{sub_board: %{id: id}}), do: {:ok, id}
 
   defp sub_board_id(%Card{} = card) do
-    with {:ok, template} <- Boards.find_template(nil, "Simple"),
+    with {:ok, template} <- Boards.Templates.find_template(nil, "Simple"),
          {:ok, sub} <- Boards.create_sub_board(card, template) do
       {:ok, sub.id}
     end
@@ -675,6 +679,12 @@ defmodule SlipdockWeb.BoardLive.Show do
   end
 
   # The reader changed a card view, here or in another tab (#2031).
+  # A release was asked for, started or ended on this tree (#2835).
+  def handle_info({:release_changed, _root_id}, socket),
+    do:
+      {:noreply,
+       assign(socket, release: board_release(socket.assigns.board, socket.assigns.current_user))}
+
   def handle_info({:card_views_changed, _user_id}, socket) do
     {:noreply, socket |> assign_card_views() |> refresh_swimlanes()}
   end
@@ -743,7 +753,8 @@ defmodule SlipdockWeb.BoardLive.Show do
   def handle_info(:reload_board, socket), do: {:noreply, reload_board(socket)}
 
   def handle_info({:templates_changed}, socket) do
-    {:noreply, assign(socket, templates: Boards.list_templates(socket.assigns.current_user))}
+    {:noreply,
+     assign(socket, templates: Boards.Templates.list_templates(socket.assigns.current_user))}
   end
 
   def handle_info(_, socket), do: {:noreply, socket}
@@ -835,6 +846,19 @@ defmodule SlipdockWeb.BoardLive.Show do
      )}
   end
 
+  # The release banner's Release now (#2835): the owner's.
+  def handle_event("release_now", _params, socket) do
+    %{board: board, current_user: user} = socket.assigns
+
+    socket =
+      case Slipdock.Releases.release_now(board, Slipdock.Accounts.User.display_name(user)) do
+        {:ok, how, _request} -> put_flash(socket, :info, Slipdock.Releases.said(how))
+        {:error, reason} -> put_flash(socket, :error, Slipdock.Releases.refusal(reason))
+      end
+
+    {:noreply, assign(socket, release: board_release(board, user))}
+  end
+
   # The banner's Resume (#1116): exactly the pause it names, the whole
   # tree's when it names no pool.
   def handle_event("resume_pause", params, socket) do
@@ -886,7 +910,7 @@ defmodule SlipdockWeb.BoardLive.Show do
   def handle_event("search", %{"q" => q}, socket) do
     %{current_user: user, board: board} = socket.assigns
     page_hit = Slipdock.Wiki.page_by_code_for(user, q)
-    card_hit = Boards.card_elsewhere_in_tree(user, board, q)
+    card_hit = Boards.Links.card_elsewhere_in_tree(user, board, q)
     {:noreply, socket |> assign(page_hit: page_hit, card_hit: card_hit) |> put_filter(:q, q)}
   end
 
@@ -962,7 +986,7 @@ defmodule SlipdockWeb.BoardLive.Show do
     do: {:noreply, assign(socket, adding_column: false)}
 
   def handle_event("add_column", %{"name" => name}, socket) do
-    case Boards.create_column(socket.assigns.board, %{"name" => name}) do
+    case Boards.Columns.create_column(socket.assigns.board, %{"name" => name}) do
       {:ok, _} ->
         {:noreply,
          socket
@@ -984,7 +1008,7 @@ defmodule SlipdockWeb.BoardLive.Show do
 
   def handle_event("rename_column", %{"column_id" => id, "name" => name}, socket) do
     with %Column{} = column <- board_column(socket, id),
-         {:ok, _} <- Boards.update_column(column, %{"name" => name}) do
+         {:ok, _} <- Boards.Columns.update_column(column, %{"name" => name}) do
       {:noreply, assign(socket, renaming_column: nil)}
     else
       nil -> {:noreply, assign(socket, renaming_column: nil)}
@@ -994,7 +1018,7 @@ defmodule SlipdockWeb.BoardLive.Show do
 
   def handle_event("move_column", %{"id" => id} = params, socket) do
     if id = Params.id(id),
-      do: Boards.move_column(socket.assigns.board.id, id, to_int(params["before"]))
+      do: Boards.Columns.move_column(socket.assigns.board.id, id, to_int(params["before"]))
 
     {:noreply, socket}
   end
@@ -1038,13 +1062,16 @@ defmodule SlipdockWeb.BoardLive.Show do
         true ->
           attrs = ops |> swim_attrs() |> Map.merge(parsed.attrs) |> Map.put("title", parsed.title)
 
-          case Boards.create_card(column, attrs) do
+          case Boards.Cards.create_card(column, attrs) do
             {:ok, card} ->
               tags = board_tags(board, swim_tag_ids(ops) || []) ++ parsed.tags
-              if tags != [], do: Boards.set_card_tags(card, Enum.uniq_by(tags, & &1.id))
+              if tags != [], do: Boards.Cards.set_card_tags(card, Enum.uniq_by(tags, & &1.id))
 
               if parsed.comment,
-                do: Boards.add_comment(card, parsed.comment, by: socket.assigns.current_user)
+                do:
+                  Boards.Comments.add_comment(card, parsed.comment,
+                    by: socket.assigns.current_user
+                  )
 
               # `every: mon` (W-1802). A rule that parsed is one the series takes.
               if parsed.recurrence,
@@ -1059,7 +1086,7 @@ defmodule SlipdockWeb.BoardLive.Show do
               if parsed[:snooze],
                 do: Slipdock.Snooze.snooze(card, socket.assigns.current_user, parsed.snooze)
 
-              if parent, do: Boards.broadcast_tree(Boards.root_of_board(board.id))
+              if parent, do: Boards.PubSub.broadcast_tree(Boards.root_of_board(board.id))
 
               {:noreply,
                socket
@@ -1112,7 +1139,7 @@ defmodule SlipdockWeb.BoardLive.Show do
   end
 
   def handle_event("open_card", %{"id" => id}, socket) do
-    case Boards.get_card(Params.id(id)) do
+    case Boards.Cards.get_card(Params.id(id)) do
       %Card{stand_in_for_id: target} = stand_in when not is_nil(target) ->
         {:noreply, open_stand_in(socket, stand_in)}
 
@@ -1126,7 +1153,7 @@ defmodule SlipdockWeb.BoardLive.Show do
   def handle_event("dismiss_stand_in", %{"id" => id}, socket) do
     with {:ok, %Card{stand_in_for_id: target} = stand_in} when not is_nil(target) <-
            writable_card(socket, id),
-         {:ok, _} <- Boards.delete_card(stand_in) do
+         {:ok, _} <- Boards.Cards.delete_card(stand_in) do
       {:noreply, reload_board(socket)}
     else
       _ -> {:noreply, put_flash(socket, :error, "That stand-in couldn't be dismissed.")}
@@ -1145,7 +1172,7 @@ defmodule SlipdockWeb.BoardLive.Show do
   # passes `from`; a push without one (a tab on an older bundle, which
   # `phx-track-static` reloads on rejoin) moves as it always did.
   def handle_event("move_card", %{"id" => id, "to" => to} = params, socket) do
-    case Boards.item_ref(id) do
+    case Boards.Columns.item_ref(id) do
       {:card, card_id} ->
         move_board_card(socket, card_id, to, params)
 
@@ -1165,7 +1192,7 @@ defmodule SlipdockWeb.BoardLive.Show do
   def handle_event("toggle_complete", %{"id" => id}, socket) do
     with {:ok, card} <- writable_card(socket, id) do
       user = socket.assigns.current_user
-      Boards.toggle_completed(card, by: user, actor: Slipdock.Actor.web(user))
+      Boards.Cards.toggle_completed(card, by: user, actor: Slipdock.Actor.web(user))
       {:noreply, socket}
     else
       _ -> {:noreply, put_flash(socket, :error, "You have read-only access to that card.")}
@@ -1396,6 +1423,7 @@ defmodule SlipdockWeb.BoardLive.Show do
           </:trailing>
         </.swim_toolbar>
         <.pause_banner pauses={@pauses} can_manage={@can_manage} />
+        <.release_banner release={@release} can_manage={@can_manage} />
         <.muted_banner waiting_muted={@waiting_muted} board_id={@board.id} />
         <div class="min-h-0 flex-1">
           <.table_view
@@ -1494,6 +1522,7 @@ defmodule SlipdockWeb.BoardLive.Show do
         dora={@dora}
         right_now={@right_now}
         pauses={@pauses}
+        release={@release}
         waiting_muted={@waiting_muted}
         waiting_filter={@waiting_filter}
         columns={@columns}
@@ -1704,7 +1733,7 @@ defmodule SlipdockWeb.BoardLive.Show do
       if moved_since_drawn?(params["from"], card.column_id) do
         {:noreply, moved_since_drawn(socket)}
       else
-        Boards.move_card(card.id, column.id, params["before"],
+        Boards.Cards.move_card(card.id, column.id, params["before"],
           actor: Slipdock.Actor.web(socket.assigns.current_user)
         )
 

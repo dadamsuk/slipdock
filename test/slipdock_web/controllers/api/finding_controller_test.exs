@@ -20,7 +20,7 @@ defmodule SlipdockWeb.API.FindingControllerTest do
     stranger = user_fixture("findings-stranger@example.com")
 
     {:ok, _} =
-      Boards.add_comment(card, "- Findings:\n  - gotcha: one\n  - rule: two", by: owner)
+      Boards.Comments.add_comment(card, "- Findings:\n  - gotcha: one\n  - rule: two", by: owner)
 
     [one, two] = Repo.all(from(f in Finding, where: f.card_id == ^card.id, order_by: f.id))
 
@@ -101,7 +101,7 @@ defmodule SlipdockWeb.API.FindingControllerTest do
     other = card_fixture(Enum.at(ctx.board.columns, 1), %{"title" => "Again"})
 
     {:ok, _} =
-      Boards.add_comment(
+      Boards.Comments.add_comment(
         other,
         "- Findings:\n  - gotcha: One.\n  - tooling (runner): the installed CLI lags",
         by: ctx.owner
@@ -125,7 +125,7 @@ defmodule SlipdockWeb.API.FindingControllerTest do
   end
 
   test "a sub-board's ref lists the root's findings", ctx do
-    {:ok, t} = Boards.find_template(nil, "Simple")
+    {:ok, t} = Boards.Templates.find_template(nil, "Simple")
     {:ok, sub} = sub_board(ctx.card, t)
     assert %{"board_id" => id, "findings" => [_, _]} = list(ctx.owner, sub)
     assert id == ctx.board.id

@@ -213,7 +213,7 @@ defmodule SlipdockWeb.TagsLiveTest do
 
     test "a tag that has gone is refused", ctx do
       view = open(ctx.conn, ctx.board)
-      {:ok, _} = Boards.delete_tag(ctx.urgent)
+      {:ok, _} = Boards.Tags.delete_tag(ctx.urgent)
 
       render_hook(panel(view), "rename_tag", %{"tag_id" => "#{ctx.urgent.id}", "name" => "x"})
       assert_reply(view, %{ok: false})

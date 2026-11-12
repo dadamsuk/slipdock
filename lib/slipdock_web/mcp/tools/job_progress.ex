@@ -19,7 +19,8 @@ defmodule SlipdockWeb.MCP.Tools.JobProgress do
   @impl true
   def description,
     do:
-      "Renews a claimed job's lease. step: what you're doing now, shown on the job only. " <>
+      "Renews a claimed job's lease. step: what you're doing now, shown on the job; on an epic, " <>
+        "name the subcard you're on (\"#12 CI running\") and it shows the job as its loop. " <>
         "note: also a card comment. Answers ok, or cancel: stop, finish_job cancelled."
 
   @impl true
@@ -45,7 +46,7 @@ defmodule SlipdockWeb.MCP.Tools.JobProgress do
          {:ok, note} <- Args.optional(args, "note"),
          {:ok, step} <- Args.optional(args, "step"),
          {:ok, answer} <- Args.refusal(Runners.heartbeat(runner, job.id, note, step: step)) do
-      if note, do: Boards.add_comment(card, note, by: context.user)
+      if note, do: Boards.Comments.add_comment(card, note, by: context.user)
       {:ok, %{job: job.id, status: to_string(answer)}}
     end
   end

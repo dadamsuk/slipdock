@@ -105,14 +105,14 @@ defmodule SlipdockWeb.GardenAPITest do
                |> json_response(200)
 
       assert by == ctx.owner.id
-      assert Boards.get_card!(ctx.stray.id).column_id == ctx.done.id
+      assert Boards.Cards.get_card!(ctx.stray.id).column_id == ctx.done.id
 
       assert %{"suggestion" => %{"state" => "open"}} =
                as(ctx.owner)
                |> post("/api/garden/suggestions/#{s.id}/undo", %{})
                |> json_response(200)
 
-      refute Boards.get_card!(ctx.stray.id).column_id == ctx.done.id
+      refute Boards.Cards.get_card!(ctx.stray.id).column_id == ctx.done.id
     end
 
     test "dismiss, then applying it is refused with the reason", ctx do
@@ -323,7 +323,7 @@ defmodule SlipdockWeb.GardenAPITest do
 
     test "MCP garden findings: true is the findings page's list, from the root (#2123)", ctx do
       {:ok, _} =
-        Slipdock.Boards.add_comment(
+        Slipdock.Boards.Comments.add_comment(
           card_fixture(hd(ctx.board.columns), %{"title" => "Taught"}),
           "- Findings:\n  - gotcha: screens must not flash on load",
           by: ctx.owner
@@ -351,7 +351,7 @@ defmodule SlipdockWeb.GardenAPITest do
       {:ok, plain, :new} = Gardener.propose(ctx.board, ctx.owner, other)
 
       epic = card_fixture(hd(ctx.board.columns), %{"title" => "Epic"})
-      {:ok, t} = Slipdock.Boards.find_template(nil, "Simple")
+      {:ok, t} = Slipdock.Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(epic, t)
       sub = Slipdock.Boards.get_board!(sub.id)
 

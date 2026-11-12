@@ -48,7 +48,7 @@ defmodule Slipdock.Health.CardDetectorsTest do
 
   defp moved_by_agent(ctx, card, column) do
     actor = Slipdock.Actor.runner(ctx.owner, nil, "loop")
-    :ok = Boards.move_card_to_index(card!(card), column, :top, actor: actor)
+    :ok = Boards.Cards.move_card_to_index(card!(card), column, :top, actor: actor)
     card!(card)
   end
 
@@ -69,7 +69,7 @@ defmodule Slipdock.Health.CardDetectorsTest do
       mine = card_fixture(ctx.todo, %{"title" => "Mine"})
 
       :ok =
-        Boards.move_card_to_index(card!(mine), ctx.doing, :top,
+        Boards.Cards.move_card_to_index(card!(mine), ctx.doing, :top,
           actor: Slipdock.Actor.web(ctx.owner)
         )
 
@@ -97,7 +97,7 @@ defmodule Slipdock.Health.CardDetectorsTest do
       assert detect(OrphanInProgress, ctx.board) == []
 
       Repo.update_all(from(c in Card, where: c.id == ^theirs.id), set: [verify_state: nil])
-      {:ok, _} = Boards.add_comment(card!(theirs), "Still here", by: ctx.owner)
+      {:ok, _} = Boards.Comments.add_comment(card!(theirs), "Still here", by: ctx.owner)
       assert detect(OrphanInProgress, ctx.board) == []
 
       assert [_] =
@@ -109,7 +109,7 @@ defmodule Slipdock.Health.CardDetectorsTest do
     # or its merge is being worked, not orphaned (as Recovery skips it, #2371).
     defp orphaned_epic(ctx) do
       epic = card_fixture(ctx.todo, %{"title" => "Epic"})
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = Boards.create_sub_board(epic, t)
       sub = Boards.get_board!(sub.id)
       subcard = card_fixture(hd(sub.columns), %{"title" => "Subcard"})
@@ -210,7 +210,7 @@ defmodule Slipdock.Health.CardDetectorsTest do
       mine = card_fixture(ctx.todo, %{"title" => "Mine"})
 
       :ok =
-        Boards.move_card_to_index(card!(mine), ctx.doing, :top,
+        Boards.Cards.move_card_to_index(card!(mine), ctx.doing, :top,
           actor: Slipdock.Actor.web(ctx.owner)
         )
 

@@ -509,14 +509,16 @@ defmodule Slipdock.Accounts do
              handed_over = hand_over_shared_boards(user)
 
              keys =
-               Slipdock.Boards.file_keys(from(b in Board, where: b.owner_id == ^user.id)) ++
+               Slipdock.Boards.Attachments.file_keys(
+                 from(b in Board, where: b.owner_id == ^user.id)
+               ) ++
                  Slipdock.Wiki.Autosaves.user_keys(user)
 
              Repo.delete!(user)
              {:ok, {handed_over, keys}}
            end) do
       broadcast_disconnect(sockets)
-      Slipdock.Boards.remove_files(keys)
+      Slipdock.Boards.Attachments.remove_files(keys)
 
       Logger.info(
         "Deleted the account #{email}; handed #{length(handed_over)} shared board(s) on."
@@ -1032,6 +1034,7 @@ defmodule Slipdock.Accounts do
   ## Groups — see `Slipdock.Accounts.Groups`
 
   defdelegate get_group!(id), to: Groups
+  defdelegate get_group(id), to: Groups
   defdelegate list_groups(user), to: Groups
   defdelegate group_ids_for(user), to: Groups
   defdelegate create_group(owner, attrs), to: Groups

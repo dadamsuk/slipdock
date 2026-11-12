@@ -16,21 +16,21 @@ defmodule Slipdock.RoadmapTest do
       card = card_fixture(backlog, %{"title" => "Ship"})
       refute card.completed
 
-      :ok = Boards.move_card(card.id, done.id)
-      assert Boards.get_card!(card.id).completed
+      :ok = Boards.Cards.move_card(card.id, done.id)
+      assert Boards.Cards.get_card!(card.id).completed
 
-      :ok = Boards.move_card(card.id, backlog.id)
-      refute Boards.get_card!(card.id).completed
+      :ok = Boards.Cards.move_card(card.id, backlog.id)
+      refute Boards.Cards.get_card!(card.id).completed
     end
 
     test "a list without a category leaves completion alone" do
       board = board_fixture()
       [backlog | _] = board.columns
-      {:ok, plain} = Boards.create_column(board, %{"name" => "Parked"})
+      {:ok, plain} = Boards.Columns.create_column(board, %{"name" => "Parked"})
       card = card_fixture(backlog, %{"title" => "Ship", "completed" => true})
 
-      :ok = Boards.move_card(card.id, plain.id)
-      assert Boards.get_card!(card.id).completed
+      :ok = Boards.Cards.move_card(card.id, plain.id)
+      assert Boards.Cards.get_card!(card.id).completed
     end
 
     test "cards in a dropped list count for nothing in the roll-up" do
@@ -38,7 +38,7 @@ defmodule Slipdock.RoadmapTest do
       [backlog | _] = board.columns
 
       {:ok, dropped} =
-        Boards.create_column(board, %{"name" => "Won't do", "category" => "dropped"})
+        Boards.Columns.create_column(board, %{"name" => "Won't do", "category" => "dropped"})
 
       a = card_fixture(backlog, %{"title" => "A", "completed" => true})
       _b = card_fixture(backlog, %{"title" => "B"})
@@ -52,7 +52,10 @@ defmodule Slipdock.RoadmapTest do
 
     test "only known categories are accepted" do
       board = board_fixture()
-      assert {:error, cs} = Boards.create_column(board, %{"name" => "X", "category" => "maybe"})
+
+      assert {:error, cs} =
+               Boards.Columns.create_column(board, %{"name" => "X", "category" => "maybe"})
+
       assert %{category: _} = errors_on(cs)
     end
   end
@@ -63,7 +66,7 @@ defmodule Slipdock.RoadmapTest do
       [backlog | _] = board.columns
 
       {:ok, q1} =
-        Boards.create_column(board, %{
+        Boards.Columns.create_column(board, %{
           "name" => "Q1",
           "horizon_from" => "2027-01-01",
           "horizon_to" => "2027-03-31",
@@ -73,15 +76,15 @@ defmodule Slipdock.RoadmapTest do
       assert Column.horizon_label(q1) == "Q1 2027"
 
       card = card_fixture(backlog, %{"title" => "Undated"})
-      :ok = Boards.move_card(card.id, q1.id)
-      card = Boards.get_card!(card.id)
+      :ok = Boards.Cards.move_card(card.id, q1.id)
+      card = Boards.Cards.get_card!(card.id)
       assert card.due_date == ~D[2027-03-31]
       assert card.date_precision == "quarter"
 
       # A card already inside the range keeps its date.
       inside = card_fixture(backlog, %{"title" => "Inside", "due_date" => "2027-02-10"})
-      :ok = Boards.move_card(inside.id, q1.id)
-      assert Boards.get_card!(inside.id).due_date == ~D[2027-02-10]
+      :ok = Boards.Cards.move_card(inside.id, q1.id)
+      assert Boards.Cards.get_card!(inside.id).due_date == ~D[2027-02-10]
 
       # A card outside the range is pulled in, and a start after the target is dropped.
       outside =
@@ -91,8 +94,8 @@ defmodule Slipdock.RoadmapTest do
           "due_date" => "2027-06-30"
         })
 
-      :ok = Boards.move_card(outside.id, q1.id)
-      outside = Boards.get_card!(outside.id)
+      :ok = Boards.Cards.move_card(outside.id, q1.id)
+      outside = Boards.Cards.get_card!(outside.id)
       assert outside.due_date == ~D[2027-03-31]
       assert is_nil(outside.start_date)
     end
@@ -109,7 +112,7 @@ defmodule Slipdock.RoadmapTest do
       board = board_fixture()
 
       assert {:error, cs} =
-               Boards.create_column(board, %{
+               Boards.Columns.create_column(board, %{
                  "name" => "X",
                  "horizon_from" => "2027-03-31",
                  "horizon_to" => "2027-01-01"
@@ -136,12 +139,12 @@ defmodule Slipdock.RoadmapTest do
       assert card.due_date == ~D[2027-06-30]
       assert Card.fuzzy?(card)
 
-      {:ok, card} = Boards.update_card(card, %{"date_precision" => "month"})
+      {:ok, card} = Boards.Cards.update_card(card, %{"date_precision" => "month"})
       # Snapping keeps the already-aligned quarter: April 1 and June 30 are month bounds.
       assert card.start_date == ~D[2027-04-01]
       assert card.due_date == ~D[2027-06-30]
 
-      {:ok, card} = Boards.update_card(card, %{"date_precision" => "day"})
+      {:ok, card} = Boards.Cards.update_card(card, %{"date_precision" => "day"})
       assert card.start_date == ~D[2027-04-01]
     end
 
@@ -198,14 +201,14 @@ defmodule Slipdock.RoadmapTest do
       %{board: board, sub: sub} = tree_fixture()
 
       {:ok, m} =
-        Boards.create_milestone(sub, %{
+        Boards.Milestones.create_milestone(sub, %{
           "name" => "Launch",
           "date" => "2030-01-20",
           "color" => "rose"
         })
 
       assert m.board_id == board.id
-      assert [%{name: "Launch"}] = Boards.list_milestones(board.id)
+      assert [%{name: "Launch"}] = Boards.Milestones.list_milestones(board.id)
       assert [%{name: "Launch"}] = Boards.get_board!(sub.id).milestones
 
       timeline = Timeline.build(reload(board), Config.defaults("timeline"), ~D[2030-01-15])
@@ -217,13 +220,16 @@ defmodule Slipdock.RoadmapTest do
 
       assert [%{name: "Launch"}] = calendar.milestones["2030-01-20"]
 
-      {:ok, _} = Boards.delete_milestone(m)
-      assert Boards.list_milestones(board.id) == []
+      {:ok, _} = Boards.Milestones.delete_milestone(m)
+      assert Boards.Milestones.list_milestones(board.id) == []
     end
 
     test "a milestone needs a name and a date" do
       board = board_fixture()
-      assert {:error, cs} = Boards.create_milestone(board, %{"name" => "", "date" => ""})
+
+      assert {:error, cs} =
+               Boards.Milestones.create_milestone(board, %{"name" => "", "date" => ""})
+
       assert %{name: _, date: _} = errors_on(cs)
     end
   end

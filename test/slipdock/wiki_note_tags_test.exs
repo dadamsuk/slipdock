@@ -73,7 +73,7 @@ defmodule Slipdock.WikiNoteTagsTest do
       assert Wiki.get_page!(page.id).note_tags == ~w(area/sub idea)
       assert Wiki.tags(page) == []
 
-      assert Boards.list_tags(ctx.board.id)
+      assert Boards.Tags.list_tags(ctx.board.id)
              |> Enum.map(& &1.name)
              |> Enum.filter(&(&1 in ~w(idea area/sub))) == []
 

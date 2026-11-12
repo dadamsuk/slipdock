@@ -4,13 +4,9 @@ defmodule SlipdockWeb.API.GardenJSON do
   and the CLI see them (W-1807).
   """
 
-  import Ecto.Query
-
-  alias Slipdock.Boards.{Board, Card}
+  alias Slipdock.Boards.Board
   alias Slipdock.Gardener
   alias Slipdock.Gardener.{Run, Settings, Steps, Suggestion}
-  alias Slipdock.Repo
-  alias Slipdock.Wiki.Page
 
   @doc "A run: when, why and what it found."
   def run(nil), do: nil
@@ -40,21 +36,9 @@ defmodule SlipdockWeb.API.GardenJSON do
       |> Enum.flat_map(&(Suggestion.page_ids(&1) ++ step_page_ids(&1)))
       |> Enum.uniq()
 
-    cards =
-      from(c in Card,
-        where: c.id in ^card_ids,
-        select: {c.id, %{id: c.id, title: c.title, board_id: c.board_id}}
-      )
-      |> Repo.all()
-      |> Map.new()
+    cards = Slipdock.Boards.Cards.card_briefs(card_ids)
 
-    pages =
-      from(p in Page,
-        where: p.id in ^page_ids,
-        select: {p.id, %{id: p.id, title: p.title, code: p.code, board_id: p.board_id}}
-      )
-      |> Repo.all()
-      |> Map.new()
+    pages = Slipdock.Wiki.page_briefs(page_ids)
 
     Enum.map(list, &suggestion(&1, cards, pages))
   end

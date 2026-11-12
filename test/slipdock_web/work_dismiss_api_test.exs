@@ -36,7 +36,7 @@ defmodule SlipdockWeb.WorkDismissAPITest do
   end
 
   defp wait_anyone(ctx, card) do
-    {:ok, wait} = Boards.open_wait(card, ctx.asker, %{"needs" => "Which region?"})
+    {:ok, wait} = Boards.Waits.open_wait(card, ctx.asker, %{"needs" => "Which region?"})
     wait
   end
 
@@ -156,7 +156,7 @@ defmodule SlipdockWeb.WorkDismissAPITest do
 
     test "mute and unmute a board's tree", ctx do
       parent = card_fixture(ctx.todo, %{"title" => "Epic"})
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(parent, t)
       deep = card_fixture(hd(Boards.get_board!(sub.id).columns))
       failed_job(deep)
@@ -213,7 +213,10 @@ defmodule SlipdockWeb.WorkDismissAPITest do
       reader = user_fixture("reader@example.com")
       {:ok, _} = Slipdock.Access.grant(ctx.board, reader, "read", ctx.user)
       card = card_fixture(ctx.todo)
-      {:ok, _} = Boards.open_wait(card, ctx.asker, %{"needs" => "Ok?", "on_user_id" => reader.id})
+
+      {:ok, _} =
+        Boards.Waits.open_wait(card, ctx.asker, %{"needs" => "Ok?", "on_user_id" => reader.id})
+
       assert [_] = Work.waiting_on_me(reader)
 
       # Opening the wait writes the card, so the stamp to compare is taken
@@ -235,7 +238,7 @@ defmodule SlipdockWeb.WorkDismissAPITest do
       assert r["dismissed"]["card"]["id"] == card.id
       assert Work.waiting_on_me(reader) == []
       # Still the card it was: nothing written to it.
-      assert Boards.get_card!(card.id).updated_at == before
+      assert Boards.Cards.get_card!(card.id).updated_at == before
     end
 
     test "update_board waiting_list: mute and unmute", ctx do

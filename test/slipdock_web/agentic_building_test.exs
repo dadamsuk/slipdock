@@ -326,7 +326,7 @@ defmodule SlipdockWeb.AgenticBuildingTest do
       board = turn_on(ctx.board, %{"profiles" => true})
       {:ok, _} = Boards.update_board(board, %{"profile_tiers" => %{"docs" => "before_merge"}})
       card = card_fixture(hd(board.columns), %{"title" => "Epic"})
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(card, t)
       assert sub.agentic_building
 

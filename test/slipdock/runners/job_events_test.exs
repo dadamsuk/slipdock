@@ -137,7 +137,7 @@ defmodule Slipdock.Runners.JobEventsTest do
 
     defp end_stuck(ctx, status) do
       job = Runners.claim(ctx.runner)
-      :ok = Boards.move_card_to_index(Boards.get_card!(job.card_id), ctx.doing, :top)
+      :ok = Boards.Cards.move_card_to_index(Boards.Cards.get_card!(job.card_id), ctx.doing, :top)
       {:ok, _} = Runners.finish(ctx.runner, job.id, %{status: status})
       job
     end
@@ -241,8 +241,8 @@ defmodule Slipdock.Runners.JobEventsTest do
 
     test "card events don't set it off", ctx do
       listener(ctx.board)
-      Boards.update_card(ctx.card, %{"title" => "Renamed"})
-      :ok = Boards.move_card_to_index(Boards.get_card!(ctx.card.id), ctx.doing, :top)
+      Boards.Cards.update_card(ctx.card, %{"title" => "Renamed"})
+      :ok = Boards.Cards.move_card_to_index(Boards.Cards.get_card!(ctx.card.id), ctx.doing, :top)
       assert heard(ctx.card) == []
     end
   end

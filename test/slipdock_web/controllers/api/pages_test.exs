@@ -234,7 +234,7 @@ defmodule SlipdockWeb.API.PagesTest do
       assert name == todo.name
       assert placed["column_id"] == todo.id
       # Before the card, in one order with it.
-      assert Slipdock.Boards.active_items(todo.id) == [page: page["id"], card: card.id]
+      assert Slipdock.Boards.Columns.active_items(todo.id) == [page: page["id"], card: card.id]
 
       assert %{"page" => moved} =
                conn

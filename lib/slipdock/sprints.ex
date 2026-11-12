@@ -11,7 +11,7 @@ defmodule Slipdock.Sprints do
       the last one, with its sub-board already made.
     * `add_cards/2` — pull cards from anywhere the person can write into a
       sprint, many at once, instead of moving them one by one. They are moved
-      (`Slipdock.Boards.move_card_to_board/2`), so subcards, tags and fields
+      (`Slipdock.Boards.Moves.move_card_to_board/2`), so subcards, tags and fields
       travel the way they do on any move between boards — and each leaves a
       *stand-in* in the slot it came from, so whoever put it on that board
       can still see where it went and how it is doing.
@@ -130,9 +130,9 @@ defmodule Slipdock.Sprints do
         "due_date" => Date.add(start, days - 1)
       }
 
-      with {:ok, card} <- Boards.create_card(column, card_attrs, opts),
+      with {:ok, card} <- Boards.Cards.create_card(column, card_attrs, opts),
            {:ok, _sub} <- Boards.create_sub_board(card, sprint_template()) do
-        {:ok, Boards.get_card!(card.id)}
+        {:ok, Boards.Cards.get_card!(card.id)}
       else
         # A changeset goes back as it is: it may be the account's card limit,
         # which the API answers with its own 402 rather than a 422.
@@ -151,7 +151,7 @@ defmodule Slipdock.Sprints do
   end
 
   defp sprint_template do
-    case Boards.find_template(nil, @sprint_template) do
+    case Boards.Templates.find_template(nil, @sprint_template) do
       {:ok, template} -> template
       _ -> %Template{name: "Sprint", columns: @fallback_columns}
     end
@@ -164,7 +164,7 @@ defmodule Slipdock.Sprints do
   rather than failing the lot.
 
   Each card leaves a stand-in where it was (see
-  `Slipdock.Boards.leave_stand_in/2`) — except one carried over from another
+  `Slipdock.Boards.Cards.leave_stand_in/2`) — except one carried over from another
   sprint, whose stand-in, if it has one, is already on the board it first
   came from and follows it by itself.
 
@@ -175,7 +175,7 @@ defmodule Slipdock.Sprints do
     with true <- sprint?(sprint) || {:error, "That card is not a sprint."},
          {:ok, board} <- sprint_board(sprint),
          {:ok, column} <- landing_column(board) do
-      inside = MapSet.new(Boards.subtree_board_ids(sprint.id))
+      inside = MapSet.new(Boards.Moves.subtree_board_ids(sprint.id))
 
       {added, skipped} =
         cards
@@ -203,7 +203,7 @@ defmodule Slipdock.Sprints do
               sprint?(card) ->
                 "it is a sprint itself — pick from its cards instead"
 
-              Enum.member?(Boards.subtree_board_ids(card.id), sprint.board_id) ->
+              Enum.member?(Boards.Moves.subtree_board_ids(card.id), sprint.board_id) ->
                 "the sprint is inside it"
 
               true ->
@@ -214,11 +214,11 @@ defmodule Slipdock.Sprints do
             {added, [{card, reason} | skipped]}
           else
             stand_in? = leaves_stand_in?(card)
-            before = stand_in? && Boards.item_after(card)
+            before = stand_in? && Boards.Cards.item_after(card)
 
-            case Boards.move_card_to_board(card, column, opts) do
+            case Boards.Moves.move_card_to_board(card, column, opts) do
               {:ok, %{card: moved}} ->
-                if stand_in?, do: Boards.leave_stand_in(card, before)
+                if stand_in?, do: Boards.Cards.leave_stand_in(card, before)
                 {[moved | added], skipped}
 
               {:error, %Ecto.Changeset{} = refused} ->
@@ -279,7 +279,7 @@ defmodule Slipdock.Sprints do
   leftovers are fair game), but not the sprint's own sub-board.
   """
   def source_boards(user, %Card{} = sprint) do
-    own = Boards.subtree_board_ids(sprint.id)
+    own = Boards.Moves.subtree_board_ids(sprint.id)
 
     user
     |> Access.list_boards(wiki: false)
@@ -299,7 +299,7 @@ defmodule Slipdock.Sprints do
   def candidates(%Board{} = board, %Card{} = sprint) do
     board = Boards.get_board!(board.id)
     pickable = not Board.sprints?(board)
-    inside = MapSet.new(Boards.subtree_board_ids(sprint.id))
+    inside = MapSet.new(Boards.Moves.subtree_board_ids(sprint.id))
 
     if MapSet.member?(inside, board.id) do
       []
@@ -409,7 +409,7 @@ defmodule Slipdock.Sprints do
       |> Repo.update()
       |> case do
         {:ok, board} ->
-          Boards.broadcast_tree(board.id)
+          Boards.PubSub.broadcast_tree(board.id)
           {:ok, board}
 
         {:error, changeset} ->
@@ -586,7 +586,7 @@ defmodule Slipdock.Sprints do
   defp plan_lists(%Board{} = board, sprint, ancestors) do
     formulas = formulas(board)
     pickable = not Board.sprints?(board)
-    inside = MapSet.new(Boards.subtree_board_ids(sprint.id))
+    inside = MapSet.new(Boards.Moves.subtree_board_ids(sprint.id))
 
     if MapSet.member?(inside, board.id) do
       []
@@ -640,7 +640,7 @@ defmodule Slipdock.Sprints do
     cards
     |> Enum.filter(&(is_nil(&1.time_estimate) and not is_nil(sub_board_id(&1))))
     |> Map.new(fn card ->
-      boards = Boards.subtree_board_ids(card.id)
+      boards = Boards.Moves.subtree_board_ids(card.id)
 
       children =
         from(c in Card,

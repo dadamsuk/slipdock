@@ -153,7 +153,7 @@ defmodule SlipdockWeb.WaitDefaultsWebTest do
         })
 
       assert result["isError"] == false, inspect(result)
-      assert Boards.current_wait(ctx.card).default_choice == 2
+      assert Boards.Waits.current_wait(ctx.card).default_choice == 2
     end
 
     test "the card panel marks the proposed choice", ctx do
@@ -172,7 +172,7 @@ defmodule SlipdockWeb.WaitDefaultsWebTest do
 
       body = other |> delete(~p"/api/cards/#{ctx.card.id}/wait") |> json_response(422)
       assert inspect(body) =~ "says why: give a reason"
-      assert Boards.current_wait(ctx.card)
+      assert Boards.Waits.current_wait(ctx.card)
 
       json =
         other
@@ -182,7 +182,7 @@ defmodule SlipdockWeb.WaitDefaultsWebTest do
       assert json["wait"]["close_reason"] == "withdrawn"
 
       assert Enum.any?(
-               Boards.get_card!(ctx.card.id).comments,
+               Boards.Cards.get_card!(ctx.card.id).comments,
                &(&1.body =~
                    "withdrew the wait “Read bar 2 as the one copy?”: Moot: W-2514 settled it")
              )
@@ -210,7 +210,7 @@ defmodule SlipdockWeb.WaitDefaultsWebTest do
         })
 
       assert result["isError"] == false, inspect(result)
-      assert Boards.current_wait(ctx.card) == nil
+      assert Boards.Waits.current_wait(ctx.card) == nil
       assert Repo.get_by!(Wait, card_id: ctx.card.id).close_reason == "withdrawn"
     end
   end

@@ -12,7 +12,7 @@ defmodule Slipdock.Gardener.Checks.EpicDoneTest do
     owner = user_fixture()
     board = board_fixture(%{}, owner: owner)
     [_backlog, todo, _doing, done] = board.columns
-    {:ok, t} = Boards.find_template(nil, "Simple")
+    {:ok, t} = Boards.Templates.find_template(nil, "Simple")
     epic = card_fixture(todo, %{"title" => "Epic"})
     {:ok, sub} = sub_board(epic, t)
     sub = Boards.get_board!(sub.id)
@@ -42,7 +42,7 @@ defmodule Slipdock.Gardener.Checks.EpicDoneTest do
     {:ok, _} = Gardener.run(board, only: ["epic_done"])
     [s] = Gardener.list_open(board)
     {:ok, _} = Gardener.apply(s, owner)
-    epic = Boards.get_card!(epic.id)
+    epic = Boards.Cards.get_card!(epic.id)
     assert epic.completed
     assert epic.column_id == done.id
   end
@@ -59,15 +59,15 @@ defmodule Slipdock.Gardener.Checks.EpicDoneTest do
     sub: sub
   } do
     card_fixture(hd(sub.columns), %{"completed" => true})
-    {:ok, _} = Boards.update_card(Boards.get_card!(epic.id), %{"completed" => true})
+    {:ok, _} = Boards.Cards.update_card(Boards.Cards.get_card!(epic.id), %{"completed" => true})
     card_fixture(hd(board.columns), %{"completed" => true})
     assert find(EpicDone, board) == []
   end
 
   test "already in done, it is only completed", %{board: board, epic: epic, sub: sub, done: done} do
     card_fixture(hd(sub.columns), %{"completed" => true})
-    :ok = Boards.move_card(epic.id, done.id)
-    {:ok, _} = Boards.update_card(Boards.get_card!(epic.id), %{"completed" => false})
+    :ok = Boards.Cards.move_card(epic.id, done.id)
+    {:ok, _} = Boards.Cards.update_card(Boards.Cards.get_card!(epic.id), %{"completed" => false})
 
     assert [%{proposal: [%{"op" => "complete"}]}] = find(EpicDone, board)
   end

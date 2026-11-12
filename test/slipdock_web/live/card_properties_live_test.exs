@@ -62,32 +62,32 @@ defmodule SlipdockWeb.CardPropertiesLiveTest do
     |> form("#card-title-form", card: %{column_id: second.id})
     |> render_change()
 
-    assert Boards.get_card!(ctx.card.id).column_id == second.id
+    assert Boards.Cards.get_card!(ctx.card.id).column_id == second.id
 
     view |> element("#card-title-form button[phx-click=toggle_complete]") |> render_click()
-    assert Boards.get_card!(ctx.card.id).completed
+    assert Boards.Cards.get_card!(ctx.card.id).completed
   end
 
   test "each property saves, and clears", ctx do
     {:ok, view, _} = open(ctx.conn, ctx)
 
     change(view, %{priority: "high"})
-    assert Boards.get_card!(ctx.card.id).priority == "high"
+    assert Boards.Cards.get_card!(ctx.card.id).priority == "high"
 
     change(view, %{percent_complete: "35"})
-    assert Boards.get_card!(ctx.card.id).percent_complete == 35
+    assert Boards.Cards.get_card!(ctx.card.id).percent_complete == 35
     assert has_element?(view, ~s([data-prop="percent"] progress[value="35"]))
 
     change(view, %{start_date: "2030-01-10", due_date: "2030-01-20"})
-    card = Boards.get_card!(ctx.card.id)
+    card = Boards.Cards.get_card!(ctx.card.id)
     assert card.start_date == ~D[2030-01-10]
     assert card.due_date == ~D[2030-01-20]
 
     change(view, %{due_date: ""})
-    assert Boards.get_card!(ctx.card.id).due_date == nil
+    assert Boards.Cards.get_card!(ctx.card.id).due_date == nil
 
     change(view, %{percent_complete: ""})
-    assert Boards.get_card!(ctx.card.id).percent_complete == nil
+    assert Boards.Cards.get_card!(ctx.card.id).percent_complete == nil
   end
 
   test "a bad % or a start after the due date is said under its row", ctx do
@@ -95,7 +95,7 @@ defmodule SlipdockWeb.CardPropertiesLiveTest do
 
     html = change(view, %{percent_complete: "140"})
     assert html =~ "Use a whole number from 0 to 100."
-    assert Boards.get_card!(ctx.card.id).percent_complete == nil
+    assert Boards.Cards.get_card!(ctx.card.id).percent_complete == nil
 
     html = change(view, %{start_date: "2030-02-01", due_date: "2030-01-01"})
     assert html =~ "Start must be on or before the due date."
@@ -117,7 +117,7 @@ defmodule SlipdockWeb.CardPropertiesLiveTest do
     |> render_click()
 
     refute has_element?(view, "#card-assignee-#{ada.id}")
-    assert Boards.get_card!(ctx.card.id).assignees == []
+    assert Boards.Cards.get_card!(ctx.card.id).assignees == []
   end
 
   describe "Precision" do
@@ -142,7 +142,7 @@ defmodule SlipdockWeb.CardPropertiesLiveTest do
       {:ok, view, _} = open(ctx.conn, ctx)
 
       change(view, %{date_precision: "week"})
-      assert Boards.get_card!(ctx.card.id).date_precision == "week"
+      assert Boards.Cards.get_card!(ctx.card.id).date_precision == "week"
 
       assert has_element?(view, ~s(#card-props [data-prop="precision"] #card-precision))
       refute has_element?(view, "#card-props-more")
@@ -165,11 +165,11 @@ defmodule SlipdockWeb.CardPropertiesLiveTest do
   end
 
   test "the due badge shows only when it says more than the date", ctx do
-    {:ok, _} = Boards.update_card(ctx.card, %{"due_date" => Date.add(Date.utc_today(), 60)})
+    {:ok, _} = Boards.Cards.update_card(ctx.card, %{"due_date" => Date.add(Date.utc_today(), 60)})
     {:ok, view, _} = open(ctx.conn, ctx)
     refute has_element?(view, ~s([data-prop="due"] .chip))
 
-    {:ok, _} = Boards.update_card(ctx.card, %{"due_date" => Date.add(Date.utc_today(), -3)})
+    {:ok, _} = Boards.Cards.update_card(ctx.card, %{"due_date" => Date.add(Date.utc_today(), -3)})
     {:ok, view, _} = open(ctx.conn, ctx)
     assert has_element?(view, ~s([data-prop="due"] .chip.text-error))
   end

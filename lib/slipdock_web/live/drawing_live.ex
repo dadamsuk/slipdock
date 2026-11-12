@@ -16,10 +16,9 @@ defmodule SlipdockWeb.DrawingLive do
   """
   use SlipdockWeb, :live_view
 
-  alias Slipdock.{Access, Config, Repo}
+  alias Slipdock.{Access, Boards, Config, Wiki}
   alias Slipdock.Accounts.User
-  alias Slipdock.Boards.Board
-  alias Slipdock.Wiki.{Drawings, DrawingSession, Excalidraw, Page, WikiFile}
+  alias Slipdock.Wiki.{Drawings, DrawingSession, Excalidraw, Files, Page, WikiFile}
   alias SlipdockWeb.Presence
   alias SlipdockWeb.Wiki.Renderer
 
@@ -30,7 +29,7 @@ defmodule SlipdockWeb.DrawingLive do
     with {n, ""} <- Integer.parse(id),
          drawing when not is_nil(drawing) <- fetch(kind, n),
          true <- Drawings.readable?(drawing, user) do
-      board = Repo.get!(Board, drawing.board_id)
+      board = Boards.get_board_record!(drawing.board_id)
 
       socket =
         assign(socket,
@@ -55,14 +54,14 @@ defmodule SlipdockWeb.DrawingLive do
   end
 
   defp fetch("page", id) do
-    case Repo.get(Page, id) do
+    case Wiki.get_page(id) do
       %Page{} = page -> if Excalidraw.page?(page), do: page
       nil -> nil
     end
   end
 
   defp fetch("file", id) do
-    case Repo.get(WikiFile, id) do
+    case Files.get(id) do
       %WikiFile{} = file -> if Excalidraw.name?(file.name), do: file
       nil -> nil
     end
@@ -76,9 +75,11 @@ defmodule SlipdockWeb.DrawingLive do
   # Somebody it was shared with goes back to their Shared view (#817): the
   # board's wiki is not theirs to open.
   defp back(drawing, user) do
-    if Access.can_read?(Access.board_permission(user, Repo.get!(Board, drawing.board_id))),
-      do: back(drawing),
-      else: shared_back(drawing)
+    if Access.can_read?(
+         Access.board_permission(user, Boards.get_board_record!(drawing.board_id))
+       ),
+       do: back(drawing),
+       else: shared_back(drawing)
   end
 
   defp back(%Page{} = page), do: Renderer.page_path(page)
@@ -303,8 +304,8 @@ defmodule SlipdockWeb.DrawingLive do
   defp refusal(:read_only), do: "You can look at this drawing but not change it."
   defp refusal(:not_joined), do: "This drawing can't be changed from here just now. Reload it."
 
-  defp reload(%Page{id: id}), do: Repo.get!(Page, id)
-  defp reload(%WikiFile{id: id}), do: Repo.get!(WikiFile, id)
+  defp reload(%Page{id: id}), do: Wiki.get_page!(id)
+  defp reload(%WikiFile{id: id}), do: Files.get!(id)
 
   # The images a note links rather than carries, as `reader` may see them:
   # given to the editor to show, and never sent back.

@@ -2,7 +2,7 @@ defmodule Slipdock.QuotaPathsTest do
   @moduledoc """
   The card limit through the *other* ways a card gets made.
 
-  The point of enforcing it in `Boards.create_card/2` was that quick add, the
+  The point of enforcing it in `Boards.Cards.create_card/2` was that quick add, the
   CLI, the API, an automation rule and the model all come through there. This
   is the test that says so, because "they all go through one function" is a
   claim that rots the moment somebody adds a sixth path.
@@ -23,15 +23,15 @@ defmodule Slipdock.QuotaPathsTest do
     [backlog | _] = board.columns
 
     # Fill it to the limit.
-    {:ok, _} = Boards.create_card(backlog, %{"title" => "One"})
-    {:ok, _} = Boards.create_card(backlog, %{"title" => "Two"})
+    {:ok, _} = Boards.Cards.create_card(backlog, %{"title" => "One"})
+    {:ok, _} = Boards.Cards.create_card(backlog, %{"title" => "Two"})
 
     %{owner: owner, board: board, column: backlog}
   end
 
   test "the board itself is at the wall", %{owner: owner, column: column} do
     assert Quota.check(owner) == {:error, :card_limit_reached}
-    assert {:error, changeset} = Boards.create_card(column, %{"title" => "Three"})
+    assert {:error, changeset} = Boards.Cards.create_card(column, %{"title" => "Three"})
     assert Quota.limit_reached?(changeset)
   end
 
@@ -59,7 +59,7 @@ defmodule Slipdock.QuotaPathsTest do
     })
 
     [card | _] = Boards.get_board!(board.id).columns |> hd() |> Map.get(:cards)
-    {:ok, _} = Boards.toggle_completed(card)
+    {:ok, _} = Boards.Cards.toggle_completed(card)
 
     # The rule could not make its card, and the count did not move.
     assert Quota.used(owner) == 2
@@ -76,10 +76,10 @@ defmodule Slipdock.QuotaPathsTest do
 
   test "archiving one lets every path through again", %{owner: owner, column: column} do
     [card | _] = Boards.get_board!(column.board_id).columns |> hd() |> Map.get(:cards)
-    {:ok, _} = Boards.archive_card(card)
+    {:ok, _} = Boards.Cards.archive_card(card)
 
     assert Quota.check(owner) == :ok
-    assert {:ok, _} = Boards.create_card(column, %{"title" => "Three"})
+    assert {:ok, _} = Boards.Cards.create_card(column, %{"title" => "Three"})
   end
 
   defp quota_refusal?(reason) when is_binary(reason), do: reason =~ "card"

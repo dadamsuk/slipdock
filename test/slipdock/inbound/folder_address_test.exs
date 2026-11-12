@@ -126,7 +126,7 @@ defmodule Slipdock.Inbound.FolderAddressTest do
       assert {:ok, {:page, _, %Folder{board: board}}} = Tokens.resolve(local(ctx.address))
       assert board.id == other.id
 
-      {:ok, _} = Boards.archive_board(other)
+      {:ok, _} = Boards.Arrangement.archive_board(other)
       assert Tokens.resolve(local(ctx.address)) == {:error, :archived}
     end
   end

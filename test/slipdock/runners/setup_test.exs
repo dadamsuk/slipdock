@@ -65,7 +65,7 @@ defmodule Slipdock.Runners.SetupTest do
     test "a sub-board's wizard enrols the machine for its tree", %{board: board, owner: owner} do
       [_backlog, todo | _] = board.columns
       card = card_fixture(todo, %{"title" => "Epic"})
-      {:ok, t} = Slipdock.Boards.find_template(nil, "Simple")
+      {:ok, t} = Slipdock.Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(card, t)
 
       assert {:ok, result} = Setup.connect(sub, %{"scenario" => "daemon"}, owner, @base)

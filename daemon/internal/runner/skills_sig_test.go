@@ -7,6 +7,7 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -203,8 +204,32 @@ func TestTheSkillsArchivesFileModesAreNotKept(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(string(packed), "0004777") {
-		t.Errorf("the archive fed to the account kept the setuid mode")
+	tr := tar.NewReader(bytes.NewReader(packed))
+	files := 0
+	for {
+		h, err := tr.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		switch h.Typeflag {
+		case tar.TypeReg:
+			files++
+			if h.Mode != 0o644 {
+				t.Errorf("the archive fed to the account has %s at %o, want 644", h.Name, h.Mode)
+			}
+		case tar.TypeDir:
+			if h.Mode != 0o755 {
+				t.Errorf("the archive fed to the account has folder %s at %o, want 755", h.Name, h.Mode)
+			}
+		default:
+			t.Errorf("the archive fed to the account has %s of type %c", h.Name, h.Typeflag)
+		}
+	}
+	if files != 2 {
+		t.Errorf("the archive fed to the account has %d files, want 2", files)
 	}
 }
 

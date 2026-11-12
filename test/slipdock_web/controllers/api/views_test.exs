@@ -10,7 +10,7 @@ defmodule SlipdockWeb.API.ViewsTest do
     bug = tag_fixture(board, "bug")
     a = card_fixture(backlog, %{"title" => "Alpha", "priority" => "high"})
     _b = card_fixture(todo, %{"title" => "Bravo", "priority" => "low"})
-    Boards.toggle_card_tag(a, bug)
+    Boards.Tags.toggle_card_tag(a, bug)
     %{conn: put_req_header(conn, "accept", "application/json"), board: board, bug: bug}
   end
 

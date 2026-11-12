@@ -17,7 +17,7 @@ defmodule Slipdock.CardColoursAITest do
     user = user_fixture()
     board = board_fixture(%{"name" => "Paint"}, owner: user)
     card = card_fixture(hd(board.columns), %{"title" => "Canvas"})
-    %{user: user, board: board, card: Boards.get_card!(card.id)}
+    %{user: user, board: board, card: Boards.Cards.get_card!(card.id)}
   end
 
   defp edges(card), do: Enum.map(Card.borders(), &Map.get(Repo.reload!(card), &1))
@@ -42,7 +42,7 @@ defmodule Slipdock.CardColoursAITest do
       assert [step] = propose(ctx, %{"cover" => "Teal"})
       assert step.label == "Set the cover colour of “Canvas” to teal"
       apply!([step])
-      card = Boards.get_card!(ctx.card.id)
+      card = Boards.Cards.get_card!(ctx.card.id)
       assert card.color == "teal"
 
       assert [step] = propose(ctx, %{"cover" => nil}, card)
@@ -66,8 +66,10 @@ defmodule Slipdock.CardColoursAITest do
     end
 
     test "only edges that change are in the step, and none at all is no step", ctx do
-      {:ok, card} = Boards.update_card(ctx.card, %{"border_top" => "red", "color" => "lime"})
-      card = Boards.get_card!(card.id)
+      {:ok, card} =
+        Boards.Cards.update_card(ctx.card, %{"border_top" => "red", "color" => "lime"})
+
+      card = Boards.Cards.get_card!(card.id)
 
       assert propose(ctx, %{"border_top" => "red", "cover" => "lime"}, card) == []
 
@@ -81,9 +83,9 @@ defmodule Slipdock.CardColoursAITest do
 
     test "clearing every edge that has one says so", ctx do
       {:ok, card} =
-        Boards.update_card(ctx.card, Map.new(Card.borders(), &{to_string(&1), "amber"}))
+        Boards.Cards.update_card(ctx.card, Map.new(Card.borders(), &{to_string(&1), "amber"}))
 
-      assert [step] = propose(ctx, %{"borders" => nil}, Boards.get_card!(card.id))
+      assert [step] = propose(ctx, %{"borders" => nil}, Boards.Cards.get_card!(card.id))
       assert step.label == "Take the edge colours off “Canvas”"
     end
 
@@ -129,13 +131,13 @@ defmodule Slipdock.CardColoursAITest do
   describe "context" do
     test "a card's line and its full text name the cover and edges", ctx do
       {:ok, _} =
-        Boards.update_card(ctx.card, %{
+        Boards.Cards.update_card(ctx.card, %{
           "color" => "indigo",
           "border_top" => "red",
           "border_left" => "sky"
         })
 
-      card = Boards.get_card!(ctx.card.id)
+      card = Boards.Cards.get_card!(ctx.card.id)
       board = Boards.get_board!(ctx.board.id)
 
       assert Context.card_line(card, board) =~ "cover: indigo; edges: top red, left sky"
@@ -191,7 +193,8 @@ defmodule Slipdock.CardColoursAITest do
     end
 
     test "colours the card; a named edge wins and none takes one off", ctx do
-      {:ok, _} = Boards.update_card(ctx.card, %{"color" => "lime", "border_right" => "amber"})
+      {:ok, _} =
+        Boards.Cards.update_card(ctx.card, %{"color" => "lime", "border_right" => "amber"})
 
       {:ok, spec} =
         action(%{"cover" => "none", "border" => "emerald", "border_bottom" => "rose"})
@@ -202,7 +205,7 @@ defmodule Slipdock.CardColoursAITest do
           "actions" => spec["actions"]
         })
 
-      card = Boards.get_card!(ctx.card.id)
+      card = Boards.Cards.get_card!(ctx.card.id)
 
       assert Runner.run(rule, %{type: "card_updated", card: card, board_id: ctx.board.id}) ==
                [{:ok, "coloured it"}]
@@ -213,7 +216,9 @@ defmodule Slipdock.CardColoursAITest do
     end
 
     test "only the colours it names change", ctx do
-      {:ok, _} = Boards.update_card(ctx.card, %{"color" => "lime", "border_right" => "amber"})
+      {:ok, _} =
+        Boards.Cards.update_card(ctx.card, %{"color" => "lime", "border_right" => "amber"})
+
       {:ok, spec} = action(%{"border_top" => "red"})
 
       rule =

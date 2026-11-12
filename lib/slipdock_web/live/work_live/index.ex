@@ -53,7 +53,7 @@ defmodule SlipdockWeb.WorkLive.Index do
 
   defp readable_board(user, id) do
     with {n, ""} <- Integer.parse(id),
-         %Slipdock.Boards.Board{} = board <- Slipdock.Repo.get(Slipdock.Boards.Board, n),
+         %Slipdock.Boards.Board{} = board <- Slipdock.Boards.get_board_record(n),
          true <- Access.can_read?(Access.board_permission(user, board)) do
       board
     else
@@ -90,7 +90,7 @@ defmodule SlipdockWeb.WorkLive.Index do
 
   @impl true
   def handle_info({:boards_changed}, socket) do
-    Boards.drain_boards_changed()
+    Boards.PubSub.drain_boards_changed()
     socket = BoardNotices.resubscribe(socket)
     {:noreply, load(socket)}
   end
@@ -104,10 +104,10 @@ defmodule SlipdockWeb.WorkLive.Index do
 
   def handle_event("toggle_complete", %{"id" => id}, socket) do
     user = socket.assigns.current_user
-    card = Boards.get_card!(id)
+    card = Boards.Cards.get_card!(id)
 
     if Access.can_write?(Access.card_permission(user, card)) do
-      Boards.toggle_completed(card)
+      Boards.Cards.toggle_completed(card)
       {:noreply, load(socket)}
     else
       {:noreply, put_flash(socket, :error, "You have read-only access to that card.")}
@@ -116,7 +116,7 @@ defmodule SlipdockWeb.WorkLive.Index do
 
   # Off my own list (#2069): held on the item's cause, so a new one shows.
   def handle_event("dismiss_waiting", %{"card" => id}, socket) do
-    case Work.dismiss(socket.assigns.current_user, Boards.get_card!(id)) do
+    case Work.dismiss(socket.assigns.current_user, Boards.Cards.get_card!(id)) do
       {:ok, item} ->
         {:noreply,
          socket
@@ -129,7 +129,7 @@ defmodule SlipdockWeb.WorkLive.Index do
   end
 
   def handle_event("undismiss_waiting", %{"card" => id}, socket) do
-    Work.undismiss(socket.assigns.current_user, Boards.get_card!(id))
+    Work.undismiss(socket.assigns.current_user, Boards.Cards.get_card!(id))
     {:noreply, load(socket)}
   end
 
@@ -149,7 +149,7 @@ defmodule SlipdockWeb.WorkLive.Index do
   # A wait answered from here: by choice button or in words.
   def handle_event("answer_wait", %{"card" => id} = params, socket) do
     user = socket.assigns.current_user
-    card = Boards.get_card!(id)
+    card = Boards.Cards.get_card!(id)
 
     attrs = %{
       "choice" => params["choice"],
@@ -157,7 +157,7 @@ defmodule SlipdockWeb.WorkLive.Index do
     }
 
     with true <- Access.can_write?(Access.card_permission(user, card)),
-         {:ok, _} <- Boards.answer_wait(card, Actor.web(user), attrs) do
+         {:ok, _} <- Boards.Waits.answer_wait(card, Actor.web(user), attrs) do
       # `load/1` counts the header's number again, from the same section.
       {:noreply, load(socket)}
     else

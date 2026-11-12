@@ -9,7 +9,7 @@ defmodule Slipdock.Repo.Migrations.RemoveMeetingCaptureData do
 
   def up do
     execute delete_provenance()
-    purge_audio(Slipdock.Boards.uploads_dir())
+    purge_audio(Slipdock.Boards.Attachments.uploads_dir())
   end
 
   def down do

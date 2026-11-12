@@ -168,7 +168,7 @@ defmodule Slipdock.Automations.RunnerActionTest do
       card = card_fixture(ctx.todo, %{"title" => "Go"})
       assert Repo.aggregate(Job, :count) == 0
 
-      Boards.move_card(card.id, ctx.doing.id)
+      Boards.Cards.move_card(card.id, ctx.doing.id)
       assert [%Job{card_id: card_id, status: "queued"}] = Repo.all(Job)
       assert card_id == card.id
     end

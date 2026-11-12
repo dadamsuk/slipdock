@@ -47,7 +47,7 @@ defmodule SlipdockWeb.StaleMoveLiveTest do
     {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}")
 
     # The runner finishes it while the phone's tab still shows it in progress.
-    :ok = Boards.move_card(card.id, ctx.done.id, nil)
+    :ok = Boards.Cards.move_card(card.id, ctx.done.id, nil)
     done = Repo.get!(Card, card.id)
     assert done.completed and done.column_id == ctx.done.id
     before = {snapshot(card), ledger(card)}
@@ -66,7 +66,7 @@ defmodule SlipdockWeb.StaleMoveLiveTest do
     card = card_fixture(ctx.backlog, %{"title" => "Picked"})
     {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}")
 
-    :ok = Boards.move_card(card.id, ctx.todo.id, nil)
+    :ok = Boards.Cards.move_card(card.id, ctx.todo.id, nil)
     before = {snapshot(card), ledger(card)}
 
     html = move(view, card.id, ctx.backlog.id, ctx.doing.id)
@@ -94,12 +94,12 @@ defmodule SlipdockWeb.StaleMoveLiveTest do
 
     move(view, second.id, ctx.todo.id, ctx.todo.id, to_string(first.id))
 
-    assert Boards.active_items(ctx.todo.id) == [card: second.id, card: first.id]
+    assert Boards.Columns.active_items(ctx.todo.id) == [card: second.id, card: first.id]
   end
 
   test "a matching move out of Done into a doing list still reopens the card", ctx do
     card = card_fixture(ctx.doing, %{"title" => "Not quite"})
-    :ok = Boards.move_card(card.id, ctx.done.id, nil)
+    :ok = Boards.Cards.move_card(card.id, ctx.done.id, nil)
     {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}")
 
     html = move(view, card.id, ctx.done.id, ctx.doing.id)
@@ -178,7 +178,7 @@ defmodule SlipdockWeb.StaleMoveLiveTest do
       card = card_fixture(ctx.doing, %{"title" => "Merged", "priority" => "high"})
       {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/swimlanes?empty=show")
 
-      :ok = Boards.move_card(card.id, ctx.done.id, nil)
+      :ok = Boards.Cards.move_card(card.id, ctx.done.id, nil)
       before = {snapshot(card), ledger(card)}
 
       # Drawn in high / In Progress (1:2); dragged to high / To Do (1:1).
@@ -193,7 +193,7 @@ defmodule SlipdockWeb.StaleMoveLiveTest do
       card = card_fixture(ctx.todo, %{"title" => "Triaged", "priority" => "high"})
       {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/swimlanes?empty=show")
 
-      {:ok, _} = Boards.update_card(Boards.get_card!(card.id), %{"priority" => "low"})
+      {:ok, _} = Boards.Cards.update_card(Boards.Cards.get_card!(card.id), %{"priority" => "low"})
 
       # Drawn in high / To Do (1:1); dragged to critical / In Progress (0:2).
       html = swim(view, card.id, "1:1", "0:2")
@@ -221,7 +221,7 @@ defmodule SlipdockWeb.StaleMoveLiveTest do
       ui = tag_fixture(ctx.board, "ui")
       docs = tag_fixture(ctx.board, "docs")
       card = card_fixture(ctx.todo, %{"title" => "Tagged"})
-      {:ok, _} = Boards.set_card_tags(Boards.get_card!(card.id), [bug, ui])
+      {:ok, _} = Boards.Cards.set_card_tags(Boards.Cards.get_card!(card.id), [bug, ui])
 
       {:ok, view, _} =
         live(ctx.conn, ~p"/boards/#{ctx.board}/swimlanes?rows=tag&cols=none&empty=show")
@@ -230,7 +230,7 @@ defmodule SlipdockWeb.StaleMoveLiveTest do
         swim(view, card.id, tag_row(ctx.board, ui) <> ":0", tag_row(ctx.board, docs) <> ":0")
 
       refute html =~ @stale
-      tags = Boards.get_card!(card.id).tags |> Enum.map(& &1.id) |> Enum.sort()
+      tags = Boards.Cards.get_card!(card.id).tags |> Enum.map(& &1.id) |> Enum.sort()
       assert tags == Enum.sort([bug.id, docs.id])
     end
 
@@ -238,17 +238,17 @@ defmodule SlipdockWeb.StaleMoveLiveTest do
       bug = tag_fixture(ctx.board, "bug")
       ui = tag_fixture(ctx.board, "ui")
       card = card_fixture(ctx.todo, %{"title" => "Retagged"})
-      {:ok, _} = Boards.set_card_tags(Boards.get_card!(card.id), [bug])
+      {:ok, _} = Boards.Cards.set_card_tags(Boards.Cards.get_card!(card.id), [bug])
 
       {:ok, view, _} =
         live(ctx.conn, ~p"/boards/#{ctx.board}/swimlanes?rows=tag&cols=none&empty=show")
 
-      {:ok, _} = Boards.set_card_tags(Boards.get_card!(card.id), [])
+      {:ok, _} = Boards.Cards.set_card_tags(Boards.Cards.get_card!(card.id), [])
 
       html = swim(view, card.id, tag_row(ctx.board, bug) <> ":0", tag_row(ctx.board, ui) <> ":0")
 
       assert html =~ @stale
-      assert Boards.get_card!(card.id).tags == []
+      assert Boards.Cards.get_card!(card.id).tags == []
     end
 
     test "leaves a placed page where it is now when it has moved since", ctx do

@@ -40,25 +40,40 @@ defmodule Slipdock.CiRunnerTest do
   test "a newer push to a pull request cancels its older run, never a push to main's" do
     ci = workflow("ci.yml")
 
+    # Grouped by PR number; anything else (a run release.yml calls, the
+    # schedule, a dispatch) in a group of its own run, and only a pull
+    # request's run cancels (#2832, OPS-2).
     assert ci["concurrency"] == %{
              "group" =>
                "ci-${{ github.event.pull_request.number && format('pr-{0}', github.event.pull_request.number) || github.run_id }}",
-             "cancel-in-progress" => true
+             "cancel-in-progress" => "${{ github.event_name == 'pull_request' }}"
            }
-
-    # release.yml has no group of its own that a cancelling CI run could share.
-    refute Map.has_key?(workflow("release.yml"), "concurrency")
   end
 
-  test "the daemon's OS list is CI_RUNNER alone when set, the three OSes when not" do
+  test "a newer push to main replaces the waiting release, never the running one" do
+    release = workflow("release.yml")
+
+    assert release["concurrency"] == %{
+             "group" =>
+               "${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.RELEASE_MODE == 'batched' && format('release-skipped-{0}', github.run_id) || format('release-{0}', github.ref) }}",
+             "cancel-in-progress" => false
+           }
+
+    # Not a group a cancelling CI run could share: ci.yml's all start ci-.
+    refute release["concurrency"]["group"] =~ "ci-"
+    assert String.starts_with?(workflow("ci.yml")["concurrency"]["group"], "ci-")
+  end
+
+  test "the daemon's OS list is CI_RUNNER's Linux when set, GitHub's when not" do
     os = jobs("ci.yml")["daemon"]["strategy"]["matrix"]["os"]
+    assert os == "${{ fromJSON(needs.changes.outputs.daemon_os) }}"
 
-    assert os ==
-             ~s<${{ fromJSON(vars.CI_RUNNER && format('["{0}"]', vars.CI_RUNNER) || '["ubuntu-latest", "macos-latest", "windows-latest"]') }}>
-
-    # The fallback is valid JSON naming the three OSes the daemon ships for.
-    [_, fallback] = Regex.run(~r/\|\| '(\[[^']+\])'/, os)
-    assert Jason.decode!(fallback) == ["ubuntu-latest", "macos-latest", "windows-latest"]
+    # changes.sh builds the list from CI_RUNNER, which the changes job hands
+    # it (ci_workflow_test.exs runs it with and without).
+    decide = step(jobs("ci.yml")["changes"], "id", "changes")
+    assert decide["env"]["CI_RUNNER"] == "${{ vars.CI_RUNNER }}"
+    script = File.read!(Path.join(@root, ".github/scripts/changes.sh"))
+    assert script =~ "linux=${CI_RUNNER:-ubuntu-latest}"
   end
 
   test "the Windows leg alone skips the executor tests, so a self-hosted Linux runs them" do
@@ -108,6 +123,18 @@ defmodule Slipdock.CiRunnerTest do
     assert step(jobs["merge"], "name", "Stitch the architectures into one tag")[
              "working-directory"
            ] == "${{ runner.temp }}/digests"
+  end
+
+  test "the image build takes BuildKit's settings from BUILDKITD_CONFIG, and names no server" do
+    buildx = step(jobs("release.yml")["build"], "uses", "docker/setup-buildx-action@v3")
+    assert buildx["with"]["buildkitd-config-inline"] == "${{ vars.BUILDKITD_CONFIG }}"
+
+    # The nameservers are the machine's, kept in the repository's settings,
+    # never in this public file.
+    refute Enum.any?(
+             code_lines("release.yml"),
+             &(&1 =~ ~r/nameservers|\b\d{1,3}(\.\d{1,3}){3}\b/)
+           )
   end
 
   test "the image is built for amd64 alone, and the README says so" do

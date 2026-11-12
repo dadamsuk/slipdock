@@ -16,11 +16,11 @@ defmodule Slipdock.AIHandoffDrafterTest do
     owner = user_fixture()
     board = board_fixture(%{}, owner: owner)
     card = card_fixture(hd(board.columns), %{"title" => "Wire up billing"})
-    {:ok, _} = Boards.add_comment(card, "Webhook signature check fails on staging")
+    {:ok, _} = Boards.Comments.add_comment(card, "Webhook signature check fails on staging")
     %{owner: owner, board: board, card: card}
   end
 
-  defp loaded(card), do: Boards.get_card!(card.id)
+  defp loaded(card), do: Boards.Cards.get_card!(card.id)
 
   defp prompt do
     assert_received {:ai_request, %{"messages" => [_system, %{"content" => content}]}}
@@ -63,7 +63,7 @@ defmodule Slipdock.AIHandoffDrafterTest do
       })
     end
 
-    {:ok, _} = Boards.leave_handoff(card, owner, %{next_step: "Ask finance", via: "ui"})
+    {:ok, _} = Boards.Handoffs.leave_handoff(card, owner, %{next_step: "Ask finance", via: "ui"})
 
     text = HandoffDrafter.context(loaded(card), board, now: now)
     refute text =~ "an old move"
@@ -74,8 +74,8 @@ defmodule Slipdock.AIHandoffDrafterTest do
   end
 
   test "after a clear there is no handoff before, and the activity says it was cleared", ctx do
-    {:ok, _} = Boards.leave_handoff(ctx.card, ctx.owner, %{next_step: "x", via: "ui"})
-    {:ok, _} = Boards.clear_handoff(ctx.card, ctx.owner, %{via: "ui"})
+    {:ok, _} = Boards.Handoffs.leave_handoff(ctx.card, ctx.owner, %{next_step: "x", via: "ui"})
+    {:ok, _} = Boards.Handoffs.clear_handoff(ctx.card, ctx.owner, %{via: "ui"})
 
     text = HandoffDrafter.context(loaded(ctx.card), ctx.board)
     assert text =~ "## The handoff before this one\n(none)"

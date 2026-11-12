@@ -44,11 +44,11 @@ defmodule Slipdock.VerifiedReworkTest do
   end
 
   defp assign(card, ids, actor),
-    do: {:ok, _} = Boards.update_card(card, %{"assignee_ids" => ids}, actor: actor)
+    do: {:ok, _} = Boards.Cards.update_card(card, %{"assignee_ids" => ids}, actor: actor)
 
   defp submit(card, actor) do
     {:ok, card} =
-      Boards.update_card(Repo.get!(Card, card.id), %{"completed" => true}, actor: actor)
+      Boards.Cards.update_card(Repo.get!(Card, card.id), %{"completed" => true}, actor: actor)
 
     assert card.verify_state == "pending"
     card
@@ -77,7 +77,7 @@ defmodule Slipdock.VerifiedReworkTest do
         )
       )
 
-  defp ids(card), do: Boards.assignee_ids(Repo.get!(Card, card.id))
+  defp ids(card), do: Boards.Cards.assignee_ids(Repo.get!(Card, card.id))
 
   describe "who an agent assigned" do
     test "an agent's self-assignment comes off on a rejection", ctx do
@@ -138,7 +138,9 @@ defmodule Slipdock.VerifiedReworkTest do
       assign(card, [ctx.owner.id], ctx.builder)
 
       {:ok, _} =
-        Boards.update_card(Repo.get!(Card, card.id), %{"add_assignee_ids" => [ctx.helper.id]},
+        Boards.Cards.update_card(
+          Repo.get!(Card, card.id),
+          %{"add_assignee_ids" => [ctx.helper.id]},
           actor: ctx.person
         )
 
@@ -164,11 +166,11 @@ defmodule Slipdock.VerifiedReworkTest do
       card = card_fixture(ctx.doing, %{"title" => "Reason"})
       card = card |> submit(ctx.builder) |> reject(ctx, "bar 1: Empty list fails\nSee the log")
 
-      handoff = Boards.current_handoff(card)
+      handoff = Boards.Handoffs.current_handoff(card)
       assert handoff.next_step == "Rework: rejected by agent “checker”, reason under Verification"
       assert handoff.body in [nil, ""]
 
-      refute Enum.any?(Boards.handoff_history(card), fn h ->
+      refute Enum.any?(Boards.Handoffs.handoff_history(card), fn h ->
                (h.next_step || "") <> (h.body || "") =~ "Empty list fails"
              end)
 
@@ -217,7 +219,7 @@ defmodule Slipdock.VerifiedReworkTest do
     defp build(ctx, job) do
       card = Repo.get!(Card, job.card_id)
       builder = %{ctx.builder | via: "runner", job_id: job.id}
-      :ok = Boards.move_card_to_index(card, ctx.doing, :top, actor: builder)
+      :ok = Boards.Cards.move_card_to_index(card, ctx.doing, :top, actor: builder)
       assign(Repo.get!(Card, card.id), [ctx.owner.id], builder)
       submit(card, builder)
     end
@@ -244,7 +246,7 @@ defmodule Slipdock.VerifiedReworkTest do
       a = card_fixture(ctx.todo, %{"title" => "a"})
       rule_fixture(ctx.board, ctx.spec)
       job = Runners.claim(ctx.runner)
-      :ok = Boards.move_card_to_index(Repo.get!(Card, a.id), ctx.doing, :top)
+      :ok = Boards.Cards.move_card_to_index(Repo.get!(Card, a.id), ctx.doing, :top)
 
       {:ok, _} = Runners.finish(ctx.runner, job.id, %{status: "done"})
 
@@ -266,7 +268,7 @@ defmodule Slipdock.VerifiedReworkTest do
       assert open_jobs(rule) == [c.id]
       other = Runners.claim(ctx.runner)
       # The claim moved it to the doing list (#2633); the job leaves it in To Do.
-      :ok = Boards.move_card_to_index(Repo.get!(Card, c.id), ctx.todo, :top)
+      :ok = Boards.Cards.move_card_to_index(Repo.get!(Card, c.id), ctx.todo, :top)
       {:ok, _} = Runners.finish(ctx.runner, other.id, %{status: "failed"})
       assert open_jobs(rule) == []
 
@@ -300,7 +302,7 @@ defmodule Slipdock.VerifiedReworkTest do
       )
 
       Repo.delete_all(from(x in "card_assignees", where: x.card_id == ^a.id))
-      :ok = Boards.move_card_to_index(Repo.get!(Card, a.id), ctx.todo, :top)
+      :ok = Boards.Cards.move_card_to_index(Repo.get!(Card, a.id), ctx.todo, :top)
       {:ok, _} = Runners.finish(ctx.runner, job.id, %{status: "failed"})
 
       assert Slipdock.Automations.next_card(rule) == nil
@@ -318,7 +320,7 @@ defmodule Slipdock.VerifiedReworkTest do
   describe "repeated rejections go to a person (#1779)" do
     defp submit_with_evidence(card, actor) do
       {:ok, card} =
-        Boards.update_card(
+        Boards.Cards.update_card(
           Repo.get!(Card, card.id),
           %{"completed" => true, "evidence" => "ran it", "evidence_commit" => "abc1234"},
           actor: actor
@@ -394,7 +396,7 @@ defmodule Slipdock.VerifiedReworkTest do
     test "a sub-board's card takes its root board's limit", ctx do
       {:ok, _} = Boards.update_board(ctx.board, %{"verify_rejection_limit" => 0})
       epic = card_fixture(ctx.doing, %{"title" => "Epic"})
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(epic, t)
       [column | _] = Boards.get_board!(sub.id).columns
       child = card_fixture(column, %{"title" => "Child"})
@@ -405,7 +407,7 @@ defmodule Slipdock.VerifiedReworkTest do
       card = card_fixture(ctx.doing, %{"title" => "Judgement call"})
       card = Enum.reduce(1..3, card, &round(&2, ctx, &1))
 
-      {:ok, _} = Boards.answer_wait(Repo.get!(Card, card.id), ctx.person, %{"choice" => 2})
+      {:ok, _} = Boards.Waits.answer_wait(Repo.get!(Card, card.id), ctx.person, %{"choice" => 2})
 
       card = Repo.get!(Card, card.id)
       assert card.completed
@@ -425,7 +427,7 @@ defmodule Slipdock.VerifiedReworkTest do
       card =
         Enum.reduce(1..3, card, fn n, c ->
           {:ok, c} =
-            Boards.update_card(
+            Boards.Cards.update_card(
               Repo.get!(Card, c.id),
               %{
                 "completed" => true,
@@ -439,7 +441,7 @@ defmodule Slipdock.VerifiedReworkTest do
         end)
 
       assert Repo.get!(Card, card.id).evidence_pr == "https://github.com/acme/app/pull/7"
-      {:ok, _} = Boards.answer_wait(Repo.get!(Card, card.id), ctx.person, %{"choice" => 2})
+      {:ok, _} = Boards.Waits.answer_wait(Repo.get!(Card, card.id), ctx.person, %{"choice" => 2})
 
       card = Repo.get!(Card, card.id)
       assert card.verify_state == "merging"
@@ -453,7 +455,7 @@ defmodule Slipdock.VerifiedReworkTest do
         card = Enum.reduce(1..3, card, &round(&2, ctx, &1))
         assert Repo.get!(Card, card.id).evidence == "ran it"
 
-        {:ok, _} = Boards.answer_wait(Repo.get!(Card, card.id), ctx.person, answer)
+        {:ok, _} = Boards.Waits.answer_wait(Repo.get!(Card, card.id), ctx.person, answer)
 
         card = Repo.get!(Card, card.id)
         assert card.verify_state == "rejected"
@@ -468,8 +470,10 @@ defmodule Slipdock.VerifiedReworkTest do
     test "a wait not opened for the limit is left alone when answered", ctx do
       card = card_fixture(ctx.doing, %{"title" => "Plain"})
       card = round(card, ctx, 1)
-      {:ok, _} = Boards.open_wait(Repo.get!(Card, card.id), ctx.person, %{needs: "Which?"})
-      {:ok, _} = Boards.answer_wait(Repo.get!(Card, card.id), ctx.checker, %{"answer" => "This"})
+      {:ok, _} = Boards.Waits.open_wait(Repo.get!(Card, card.id), ctx.person, %{needs: "Which?"})
+
+      {:ok, _} =
+        Boards.Waits.answer_wait(Repo.get!(Card, card.id), ctx.checker, %{"answer" => "This"})
 
       card = Repo.get!(Card, card.id)
       assert card.verify_state == "rejected"
@@ -504,7 +508,7 @@ defmodule Slipdock.VerifiedReworkTest do
       job = Runners.claim(ctx.runner)
       card = Repo.get!(Card, job.card_id)
       builder = %{ctx.builder | via: "runner", job_id: job.id}
-      :ok = Boards.move_card_to_index(card, ctx.doing, :top, actor: builder)
+      :ok = Boards.Cards.move_card_to_index(card, ctx.doing, :top, actor: builder)
       submit(card, builder)
       {:ok, _} = Runners.finish(ctx.runner, job.id, %{status: "done"})
       reject(card, ctx, "bar 1: round #{n}")
@@ -522,7 +526,7 @@ defmodule Slipdock.VerifiedReworkTest do
       assert card.column_id == ctx.todo.id
       assert queued(ctx.rule) == []
 
-      {:ok, _} = Boards.answer_wait(card, ctx.person, %{"choice" => 1})
+      {:ok, _} = Boards.Waits.answer_wait(card, ctx.person, %{"choice" => 1})
       assert queued(ctx.rule) == [a.id]
     end
   end

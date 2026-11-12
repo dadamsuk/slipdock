@@ -13,7 +13,7 @@ defmodule SlipdockWeb.API.TemplateController do
   # and anybody else's is a 404, like a board they can't see.
 
   def index(conn, _params) do
-    templates = Boards.list_templates(conn.assigns.current_user)
+    templates = Boards.Templates.list_templates(conn.assigns.current_user)
     json(conn, %{templates: Enum.map(templates, &V.template/1)})
   end
 
@@ -23,7 +23,7 @@ defmodule SlipdockWeb.API.TemplateController do
 
   def create(conn, params) do
     with {:ok, template} <-
-           Boards.create_template(conn.assigns.current_user, Map.take(params, @fields)) do
+           Boards.Templates.create_template(conn.assigns.current_user, Map.take(params, @fields)) do
       conn |> put_status(:created) |> json(%{template: V.template(template)})
     end
   end
@@ -33,20 +33,21 @@ defmodule SlipdockWeb.API.TemplateController do
 
     with {:ok, template} <- fetch(conn, ref),
          {:ok, template} <-
-           refusal(Boards.update_template(user, template, Map.take(params, @fields))) do
+           refusal(Boards.Templates.update_template(user, template, Map.take(params, @fields))) do
       json(conn, %{template: V.template(template)})
     end
   end
 
   def delete(conn, %{"id" => ref}) do
     with {:ok, template} <- fetch(conn, ref),
-         {:ok, _} <- refusal(Boards.delete_template(conn.assigns.current_user, template)) do
+         {:ok, _} <-
+           refusal(Boards.Templates.delete_template(conn.assigns.current_user, template)) do
       json(conn, %{ok: true})
     end
   end
 
   defp fetch(conn, ref) do
-    case Boards.find_template(conn.assigns.current_user, ref) do
+    case Boards.Templates.find_template(conn.assigns.current_user, ref) do
       {:ok, t} -> {:ok, t}
       _ -> {:error, :not_found, "template"}
     end

@@ -31,7 +31,7 @@ defmodule SlipdockWeb.CardGlanceLiveTest do
 
   defp leave(ctx, next, body, at \\ nil, job_id \\ nil) do
     {:ok, h} =
-      Boards.leave_handoff(ctx.card, nil, %{
+      Boards.Handoffs.leave_handoff(ctx.card, nil, %{
         next_step: next,
         body: body,
         via: "runner",
@@ -141,7 +141,10 @@ defmodule SlipdockWeb.CardGlanceLiveTest do
     finish!(ctx)
 
     {:ok, _} =
-      Boards.leave_handoff(ctx.card, ctx.owner, %{next_step: "Reinstall the CLI", via: "ui"})
+      Boards.Handoffs.leave_handoff(ctx.card, ctx.owner, %{
+        next_step: "Reinstall the CLI",
+        via: "ui"
+      })
 
     {:ok, view, _} = open(ctx.conn, ctx)
     assert has_element?(view, "#card-outcome", "Done")
@@ -156,7 +159,7 @@ defmodule SlipdockWeb.CardGlanceLiveTest do
     StepStatus.post(Repo.get!(Card, ctx.card.id), "Merged")
 
     {:ok, _} =
-      Boards.update_card(Repo.get!(Card, ctx.card.id), %{"completed" => false},
+      Boards.Cards.update_card(Repo.get!(Card, ctx.card.id), %{"completed" => false},
         actor: Actor.web(ctx.owner)
       )
 
@@ -195,7 +198,10 @@ defmodule SlipdockWeb.CardGlanceLiveTest do
 
   test "a person's status names them", ctx do
     {:ok, _} =
-      Boards.add_status_update(ctx.card, ctx.owner, %{"health" => "at_risk", "body" => "Slow"})
+      Boards.StatusUpdates.add_status_update(ctx.card, ctx.owner, %{
+        "health" => "at_risk",
+        "body" => "Slow"
+      })
 
     {:ok, view, _} = open(ctx.conn, ctx)
     assert has_element?(view, "#glance-status", "At risk")

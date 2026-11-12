@@ -149,6 +149,36 @@ defmodule SlipdockCLI.DeployTest do
       assert JSON.decode!(body)["run_url"] == @run <> "1"
     end
 
+    test "a blank $SLIPDOCK_DEPLOY_RUN_URL sends no run, and a padded one is trimmed", %{
+      repo: repo
+    } do
+      commit!(repo, "one")
+
+      for blank <- ["", "   "] do
+        System.put_env("SLIPDOCK_DEPLOY_RUN_URL", blank)
+        serve([last(nil), created()])
+        assert {:ok, _} = Deploy.record_failure(dir: repo, stage: "build")
+        assert_received {:request, "POST", "/api/deployments/failed", body}
+        assert JSON.decode!(body)["run_url"] == nil
+
+        serve([last(nil), created()])
+        assert {:ok, _} = Deploy.record_start(dir: repo)
+        assert_received {:request, "POST", "/api/deployments", body}
+        assert JSON.decode!(body)["run_url"] == nil
+      end
+
+      System.put_env("SLIPDOCK_DEPLOY_RUN_URL", "  #{@run} \n")
+      serve([last(nil), created()])
+      assert {:ok, _} = Deploy.record_failure(dir: repo, stage: "build")
+      assert_received {:request, "POST", "/api/deployments/failed", body}
+      assert JSON.decode!(body)["run_url"] == @run
+
+      serve([last(nil), created()])
+      assert {:ok, _} = Deploy.record_start(dir: repo, run_url: " #{@run} ")
+      assert_received {:request, "POST", "/api/deployments", body}
+      assert JSON.decode!(body)["run_url"] == @run
+    end
+
     test "deploy start sends the run too, when there is one", %{repo: repo} do
       commit!(repo, "one")
       System.put_env("SLIPDOCK_DEPLOY_RUN_URL", @run)
@@ -499,6 +529,28 @@ defmodule SlipdockCLI.DeployTest do
              "hotfix_window_hours" => 6,
              "card_ref_pattern" => "J-(\\d+)"
            }
+  end
+
+  # #2819: how long a merged card may go without a deploy; 0 is sent, not dropped.
+  test "set-board sends the not-shipped minutes" do
+    System.put_env("SLIPDOCK_TOKEN", "api-token")
+
+    for {given, sent} <- [{"45", 45}, {"0", 0}] do
+      serve([{200, ~s({"board":{"id":3,"name":"Docs"}})}])
+
+      {opts, _, []} =
+        OptionParser.parse(["set-board", "x", "--not-shipped-minutes", given],
+          strict: SlipdockCLI.switches()
+        )
+
+      capture_io(fn -> SlipdockCLI.Boards.run("set-board", ["docs"], opts) end)
+      assert_received {:request, "PATCH", "/api/boards/docs", body}
+      assert JSON.decode!(body) == %{"not_shipped_minutes" => sent}
+    end
+
+    help = File.read!(Path.expand("../help.txt", __DIR__))
+    assert help =~ "[--not-shipped-minutes N]"
+    assert help =~ "--not-shipped-minutes how long a merged card may"
   end
 
   test "deploy setup posts the answers and prints the text; --prompt only asks" do

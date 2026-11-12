@@ -379,6 +379,12 @@ optional, and with no file at all `claude` and `codex` are found on your
 - `transcripts`, `skills_dir` and `cli` say where Claude Code's
   transcripts, the slipdock skills and the `slipdock` CLI are, when they
   aren't in the usual places. `no_merge: true` turns off the built-in merge.
+  `no_release: true` turns off the built-in release (a batched board's
+  release job, which runs `gh workflow run <workflow> --ref <branch>` in
+  the runner's repository), and `release_commands` lists, word for word,
+  any other release command this machine will run for a board (in a
+  detached worktree of the default branch, freshly fetched): a command
+  that is neither is refused.
   `no_skills_update: true` stops the daemon putting the server's slipdock
   skills in `skills_dir` before each agent job, and `no_cli_update: true`
   stops it putting the server's `slipdock` CLI in its own `bin` folder (or
@@ -447,7 +453,11 @@ transcript about once a minute, with this machine's keys and tokens taken
 out. Cancelling the job on the board, or its timeout, stops it and every
 process it started. With `worktree` on (or `auto`, when two runners share a
 directory) each job gets a git worktree of its own, on the branch
-`card-<id>`. A merge job merges the card's pull request only if it is in the
+`card-<id>`: a new branch starts from the origin's default branch, fetched
+first, never from whatever the runner's checkout has out, and a branch
+already there (a rejected card's) is used as it is. A runner alone in its
+directory gets none under `auto`, so set `on` for a checkout people or
+other tools also use. A merge job merges the card's pull request only if it is in the
 runner's repository, still open, and at the accepted commit. A runner that
 crashes is started again, and the machine's other runners carry on.
 
@@ -566,6 +576,12 @@ machine's own limits.
   code, and they apply only inside the machine's ceiling. A setting
   outside the ceiling is refused on the machine, and the runner keeps the
   settings it last accepted.
+- Start a release. On a board that releases in batches, a `release` job
+  has a runner here run `gh workflow run <workflow> --ref <branch>` in its
+  repository, as the account `gh` is signed in as. The board names the
+  workflow file and the branch (by default the repository's default
+  branch), and the daemon checks both as plain names before it uses them.
+  `no_release: true` in `local.json` turns this off.
 - Name a newer version of the daemon.
 
 #### What the server cannot do
@@ -573,7 +589,10 @@ machine's own limits.
 - Run a command on this machine. The daemon never runs anything the
   server sends. The agents, custom commands and hooks it can run are
   defined in files on the machine, and the server can only pick one of
-  them by name.
+  them by name. A board's release command is no exception: one that isn't
+  the `gh workflow run` above runs only when `local.json` lists it, word
+  for word, under `release_commands`; any other is refused and nothing
+  runs.
 - Change a hook or a command, or add one.
 - Change the ceiling. It is a file on the machine (`ceiling.json`) that
   the server never reads or writes; only someone at the machine edits it.
@@ -793,8 +812,12 @@ What the board sees meanwhile: a runner shows offline once it hasn't been
 heard from for three of its leases (4½ minutes), and online again at its
 first claim after the machine wakes. A job it held while it slept keeps
 its lease only 90 seconds without a heartbeat; after that the server puts
-it back in the queue for any runner of the pool, and the runner that woke
-stops its copy when its next heartbeat is refused. The log says
+it back in the queue for any runner of the pool. If none has taken it by
+the time the machine wakes, the runner's next heartbeat takes the job back
+and its agent carries on where it was, at no cost to the job's three
+tries (the card's activity says `took job #N back`). If another runner
+has taken it, the runner that woke stops its copy when its next heartbeat
+is refused, and the card is worked afresh there. The log says
 `could not reach the queue` while the connection is down and `the clock
 jumped` on waking; nothing needs restarting.
 

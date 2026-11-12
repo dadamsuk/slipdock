@@ -167,6 +167,15 @@ defmodule SlipdockWeb.HelpLive.Agents do
        {:yes, "through the CLI or MCP"},
        {:no, "one way only"}
      ]},
+    {"Release a batched board's merged work now, and see where its releases stand",
+     [
+       {:yes, "POST and GET /api/boards/:id/release"},
+       {:yes, "release_now (check: true to read)"},
+       {:yes, "slipdock release, slipdock releases"},
+       {:yes, "only when asked: a card is done on merge"},
+       {:yes, "a runner's release job fires it"},
+       {:no, "one way only"}
+     ]},
     {"Read and change what a person sees of a card (their card views)",
      [
        {:yes, "/api/card-views"},
@@ -1327,6 +1336,9 @@ defmodule SlipdockWeb.HelpLive.Agents do
         the clock jumps (the machine woke from sleep) drops its connections and asks for work
         again at once. Meanwhile the machine shows offline after about 4½ minutes unheard
         from, and a job it held goes back in the queue once its 90-second lease runs out.
+        If no other runner has taken that job when the machine wakes, its runner takes it
+        back with its next heartbeat and the agent carries on where it was; if one has, the
+        woken runner stops its copy.
       </p>
       <p id="help-machine-page">
         Each machine has a page of its own, opened from that list: whether it is online, the
@@ -1368,6 +1380,17 @@ defmodule SlipdockWeb.HelpLive.Agents do
         green. <code>no_cli_update</code>
         (and <code>no_skills_update</code>) in <code>local.json</code>
         turns it off.
+      </p>
+      <p id="help-machine-release">
+        On a board with batched releases the daemon also fires the release, as it merges: a
+        <code>release</code>
+        job has no agent and no card. It runs
+        <code>gh workflow run &lt;workflow&gt; --ref &lt;branch&gt;</code>
+        itself and logs the run it started. Any other release command a board sets runs only
+        when the machine's <code>local.json</code>
+        lists it, word for word, under <code>release_commands</code>; the daemon refuses the
+        rest, since it never runs what the server sends. <code>no_release: true</code>
+        there turns the kind off.
       </p>
       <p id="help-machine-setup">
         <strong>Set up this machine with Claude</strong>, on the machine's page and at the end of
@@ -1436,7 +1459,7 @@ defmodule SlipdockWeb.HelpLive.Agents do
           from what's on the card, or to open a <strong>wait</strong>
           saying what it needs and stop. The job is <strong>parked</strong>, the card goes back on top of its list
           so the next one runs, and answering the wait (on the card, in My work's <strong>Waiting on you</strong>, or <code>slipdock answer</code>) sends the card to the rule again
-          with the answer at the top of the prompt.
+          with the answer at the top of the prompt, for any free runner of the pool: it isn't held for the runner that asked.
         </li>
         <li>
           A job that ends with its card still open leaves its summary as the card's <strong>handoff</strong>, the note the next person or agent reads first, unless the agent

@@ -54,13 +54,16 @@ defmodule SlipdockWeb.MCP.ResourcesRenderTest do
   describe "card" do
     test "has the handoff, description, checklist, subcards, comments and pages", ctx do
       card = card_fixture(ctx.first, %{"title" => "Epic", "description" => "The brief."})
-      {:ok, _} = Boards.add_checklist_item(card, "Step one")
-      {:ok, _} = Boards.add_comment(card, "Watch the retry limit.", by: ctx.user)
+      {:ok, _} = Boards.Checklists.add_checklist_item(card, "Step one")
+      {:ok, _} = Boards.Comments.add_comment(card, "Watch the retry limit.", by: ctx.user)
 
       {:ok, _} =
-        Boards.leave_handoff(card, ctx.user, %{"next_step" => "Write the test", "via" => "mcp"})
+        Boards.Handoffs.leave_handoff(card, ctx.user, %{
+          "next_step" => "Write the test",
+          "via" => "mcp"
+        })
 
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(card, t)
       child = card_fixture(hd(Boards.get_board!(sub.id).columns), %{"title" => "Child"})
       page = page_fixture(ctx.board, %{"title" => "Spec"}, user: ctx.user)
@@ -81,7 +84,7 @@ defmodule SlipdockWeb.MCP.ResourcesRenderTest do
 
     test "an archived card says so", ctx do
       card = card_fixture(ctx.first, %{"title" => "Old"})
-      {:ok, _} = Boards.archive_card(card)
+      {:ok, _} = Boards.Cards.archive_card(card)
       assert read!(ctx.user, "slipdock://card/#{card.id}") =~ "· archived"
     end
 
@@ -89,7 +92,7 @@ defmodule SlipdockWeb.MCP.ResourcesRenderTest do
       card = card_fixture(ctx.first)
 
       for n <- 1..12 do
-        {:ok, c} = Boards.add_comment(card, "Comment #{n}", by: ctx.user)
+        {:ok, c} = Boards.Comments.add_comment(card, "Comment #{n}", by: ctx.user)
 
         Slipdock.Repo.update_all(
           from(x in Slipdock.Boards.Comment, where: x.id == ^c.id),
@@ -132,7 +135,9 @@ defmodule SlipdockWeb.MCP.ResourcesRenderTest do
   describe "view" do
     test "is the saved view's rows of cards", ctx do
       card = card_fixture(ctx.first, %{"title" => "In the view"})
-      {:ok, view} = Boards.create_saved_view(ctx.board, %{"name" => "All", "config" => %{}})
+
+      {:ok, view} =
+        Boards.SavedViews.create_saved_view(ctx.board, %{"name" => "All", "config" => %{}})
 
       text = read!(ctx.user, "slipdock://view/#{ctx.board.code}/#{view.id}")
       assert text =~ "# All\nSaved view on Payments"

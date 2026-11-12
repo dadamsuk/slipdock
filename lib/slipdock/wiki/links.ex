@@ -207,7 +207,7 @@ defmodule Slipdock.Wiki.Links do
     scope = board_for(board, ref.board, reader)
 
     with %Board{} <- scope,
-         {:ok, view} <- Boards.find_saved_view(scope, ref.target),
+         {:ok, view} <- Boards.SavedViews.find_saved_view(scope, ref.target),
          true <- readable_view?(view, reader) do
       {:view, view}
     else

@@ -91,7 +91,7 @@ defmodule Slipdock.Gardener.ScheduleTest do
       assert alert.board_id == board.id
 
       # Nothing was applied: the card is where it was, the suggestion open.
-      assert Boards.get_card!(card.id).column_id == doing.id
+      assert Boards.Cards.get_card!(card.id).column_id == doing.id
       assert [%{state: "open"}] = Gardener.list_open(board)
       assert %{trigger: "schedule"} = Gardener.last_run(board)
 

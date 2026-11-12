@@ -42,7 +42,7 @@ defmodule Slipdock.VerifiedVerifyTest do
 
   defp submit(ctx, attrs \\ %{}) do
     {:ok, card} =
-      Boards.update_card(ctx.card, Map.merge(%{"completed" => true}, attrs),
+      Boards.Cards.update_card(ctx.card, Map.merge(%{"completed" => true}, attrs),
         actor: ctx.builder,
         by: ctx.owner
       )
@@ -50,7 +50,7 @@ defmodule Slipdock.VerifiedVerifyTest do
     card
   end
 
-  defp bodies(card), do: Boards.get_card!(card.id).comments |> Enum.map(& &1.body)
+  defp bodies(card), do: Boards.Cards.get_card!(card.id).comments |> Enum.map(& &1.body)
 
   test "off (the default): an agent's completion completes", ctx do
     card = submit(ctx)
@@ -79,7 +79,7 @@ defmodule Slipdock.VerifiedVerifyTest do
 
     test "an agent can't move a card into the done list itself", ctx do
       assert {:error, :unprocessable_entity, message} =
-               Boards.move_card(ctx.card.id, ctx.done.id, nil, actor: ctx.builder)
+               Boards.Cards.move_card(ctx.card.id, ctx.done.id, nil, actor: ctx.builder)
 
       assert message =~ "verifies"
       refute Repo.get!(Card, ctx.card.id).completed
@@ -165,14 +165,14 @@ defmodule Slipdock.VerifiedVerifyTest do
       assert first == card.id
       assert Enum.any?(bodies(card), &(&1 =~ "**Rejected** by agent “checker”"))
 
-      handoff = Boards.current_handoff(card)
+      handoff = Boards.Handoffs.current_handoff(card)
 
       assert handoff.next_step ==
                "Rework: rejected by agent “checker”, reason under Verification"
 
       # Fixed and completed again, it is pending again.
       card = Repo.get!(Card, card.id)
-      {:ok, again} = Boards.update_card(card, %{"completed" => true}, actor: ctx.builder)
+      {:ok, again} = Boards.Cards.update_card(card, %{"completed" => true}, actor: ctx.builder)
       assert again.verify_state == "pending"
 
       {:ok, again} =
@@ -182,15 +182,18 @@ defmodule Slipdock.VerifiedVerifyTest do
     end
 
     test "an epic is not done while a subcard awaits verification (#1624)", ctx do
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = Boards.create_sub_board(ctx.card, t)
       [column | _] = Boards.get_board!(sub.id).columns
       first = card_fixture(column, %{"title" => "One"})
       second = card_fixture(column, %{"title" => "Two"})
-      {:ok, _} = Boards.update_card(first, %{"completed" => true}, actor: Actor.web(ctx.owner))
-      {:ok, _} = Boards.update_card(second, %{"completed" => true}, actor: ctx.builder)
 
-      rollup = Boards.get_card!(ctx.card.id).rollup
+      {:ok, _} =
+        Boards.Cards.update_card(first, %{"completed" => true}, actor: Actor.web(ctx.owner))
+
+      {:ok, _} = Boards.Cards.update_card(second, %{"completed" => true}, actor: ctx.builder)
+
+      rollup = Boards.Cards.get_card!(ctx.card.id).rollup
       assert rollup.done == 1 and rollup.total == 2
       assert rollup.awaiting == 1
       refute rollup.health == :done
@@ -232,7 +235,7 @@ defmodule Slipdock.VerifiedVerifyTest do
       card = submit(ctx)
 
       {:ok, card} =
-        Boards.update_card(card, %{"completed" => true},
+        Boards.Cards.update_card(card, %{"completed" => true},
           actor: Actor.web(ctx.owner),
           by: ctx.owner
         )
@@ -260,7 +263,7 @@ defmodule Slipdock.VerifiedVerifyTest do
     end
 
     test "a card's subcards take the switch, and an export carries it", ctx do
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = Boards.create_sub_board(ctx.card, t)
       assert sub.verify_work
 

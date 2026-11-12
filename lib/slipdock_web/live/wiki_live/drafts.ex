@@ -221,7 +221,7 @@ defmodule SlipdockWeb.WikiLive.Drafts do
   defp uploaded(socket, {:ok, %Attachment{} = attachment}) do
     push_event(socket, "image_uploaded", %{
       upload: "page_image",
-      markdown: "![#{attachment.filename}](#{Boards.attachment_url(attachment)})"
+      markdown: "![#{attachment.filename}](#{Boards.Attachments.attachment_url(attachment)})"
     })
   end
 

@@ -51,7 +51,7 @@ defmodule Slipdock.Work do
     today = opts[:today] || Date.utc_today()
 
     user
-    |> Boards.list_assigned_cards()
+    |> Boards.Cards.list_assigned_cards()
     |> then(&Access.filter_readable_cards(viewer, &1))
     |> then(fn cards ->
       case opts[:board_id] do
@@ -151,7 +151,9 @@ defmodule Slipdock.Work do
       while a build job is claimed or running on the card or a card above
       it (#2568): a runner already has the rework in hand;
     * `"needs_owner"` — in a tree `user` owns, an open card in a doing list
-      for over an hour with nobody on it, no open job and no open wait.
+      for over an hour with nobody on it, no open job, no open wait, no
+      answered wait whose answer is held for the runners (#2896) and no
+      epic's job working it (#2899, `Slipdock.CardState.epic_jobs/1`).
 
   `since` is when it started needing them: the newest rejection, the wait's opening, the newest
   run of the flag (from the activity log), the job's end, the card's entry
@@ -636,13 +638,31 @@ defmodule Slipdock.Work do
           )
         ),
       where: c.id not in subquery(from(w in Wait, where: is_nil(w.closed_at), select: w.card_id)),
+      # Answered, and the answer is on its way to the runners (#2896).
+      where: c.id not in subquery(answer_held()),
       select: {c.id, m.at}
     )
     |> in_trees(owned)
     |> live()
     |> Slipdock.Snooze.not_snoozed(now)
     |> Repo.all()
+    |> worked_by_no_epic()
     |> Enum.map(fn {id, at} -> %{card_id: id, reason: "needs_owner", since: at} end)
+  end
+
+  # Cards whose answered wait is held until a job a runner has closes
+  # (`Slipdock.Runners.Requeue`, `pending`): nothing there waits on a
+  # person. The card whose job asked has that job open, so only the card
+  # the question was on needs saying.
+  defp answer_held, do: from(w in Wait, where: w.requeue_state == "pending", select: w.card_id)
+
+  # Drops the subcards an epic's job is working inside itself (#2899: its
+  # step names them): somebody is on those.
+  defp worked_by_no_epic([]), do: []
+
+  defp worked_by_no_epic(rows) do
+    worked = rows |> Enum.map(&elem(&1, 0)) |> Slipdock.CardState.epic_jobs()
+    Enum.reject(rows, fn {id, _at} -> Map.has_key?(worked, id) end)
   end
 
   # A card left in a Scheduled list (#2100) past the end of its due day, in

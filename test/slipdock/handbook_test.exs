@@ -89,7 +89,7 @@ defmodule Slipdock.HandbookTest do
          %{user: user, board: board} do
       [col | _] = board.columns
       epic = card_fixture(col, %{"title" => "Epic"})
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(epic, t)
 
       assert {:ok, result} = Handbook.install(user, sub)
@@ -142,14 +142,14 @@ defmodule Slipdock.HandbookTest do
       assert rec.description =~ "Handbook: no change (nothing landed)"
       assert rec.description =~ "tomorrow"
 
-      assert Enum.map(Boards.get_card!(rec.id).blocked_by, & &1.id) == [seed.id]
+      assert Enum.map(Boards.Cards.get_card!(rec.id).blocked_by, & &1.id) == [seed.id]
     end
 
     test "installing again (even after the seed is done) makes no second pair",
          %{user: user, board: board} do
       {:ok, _} = Handbook.install(user, board)
       seed = Repo.get_by!(Slipdock.Boards.Card, board_id: board.id, title: "Seed the handbook")
-      {:ok, _} = Boards.update_card(seed, %{"completed" => true})
+      {:ok, _} = Boards.Cards.update_card(seed, %{"completed" => true})
 
       {:ok, again} = Handbook.install(user, board)
       assert again.report.added["cards"] == []
@@ -221,7 +221,7 @@ defmodule Slipdock.HandbookTest do
   describe "for_card/3 (#1264)" do
     setup %{user: user, board: board} do
       {:ok, _} = Handbook.install(user, board)
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       [col | _] = board.columns
       epic = card_fixture(col, %{"title" => "Epic"})
       {:ok, sub} = sub_board(epic, t)
@@ -428,12 +428,16 @@ defmodule Slipdock.HandbookTest do
       assert triage.description =~ "never left open a second time"
       assert triage.description =~ "<n> leftovers decided; <n> left open (<ids>: why)"
       # A literal `--desc -` from an old CLI is refused (#2686): it says the stdin form.
-      assert triage.description =~ "or `--desc -` with a heredoc for more than a line"
+      assert triage.description =~ "`--desc -` with a heredoc for more than a line"
+      # Fixes to Housekeeping, design questions to Triage (#2779).
+      assert triage.description =~ "--column Housekeeping --origin findings"
+      assert triage.description =~ "--column Triage --origin findings"
+      assert triage.description =~ "or the backlog on a board with no Housekeeping list"
 
       assert triage.description =~
                "Only a finding that arrived since the last triage may stay open"
 
-      assert Enum.map(Boards.get_card!(triage.id).blocked_by, & &1.id) == [seed.id]
+      assert Enum.map(Boards.Cards.get_card!(triage.id).blocked_by, & &1.id) == [seed.id]
 
       index = Handbook.find(board).index
       assert {:ok, log} = Wiki.Section.read(index.body, "Handbook/Triage")
@@ -445,7 +449,7 @@ defmodule Slipdock.HandbookTest do
       {:ok, _} = Handbook.install(user, board)
 
       {:ok, _} =
-        Boards.update_card(card_titled(board, "Seed the handbook"), %{"completed" => true})
+        Boards.Cards.update_card(card_titled(board, "Seed the handbook"), %{"completed" => true})
 
       Repo.delete!(card_titled(board, "Triage findings"))
       index = Handbook.find(board).index
@@ -469,7 +473,7 @@ defmodule Slipdock.HandbookTest do
       triage = card_titled(board, "Triage findings")
       assert Slipdock.Recurrence.for_card(triage).rule == "FREQ=DAILY"
       # The seed is done: nothing to wait for.
-      assert Boards.get_card!(triage.id).blocked_by == []
+      assert Boards.Cards.get_card!(triage.id).blocked_by == []
 
       index = Handbook.find(board).index
       assert String.starts_with?(index.body, String.trim_trailing(index_before))
@@ -495,7 +499,39 @@ defmodule Slipdock.HandbookTest do
       {:ok, _} = Handbook.install(user, board)
       triage = card_titled(board, "Triage findings")
       seed = card_titled(board, "Seed the handbook")
-      assert Enum.map(Boards.get_card!(triage.id).blocked_by, & &1.id) == [seed.id]
+      assert Enum.map(Boards.Cards.get_card!(triage.id).blocked_by, & &1.id) == [seed.id]
+    end
+  end
+
+  describe "upgrading the triage card (#2779)" do
+    test "installing over an older one gives it the current procedure, once",
+         %{user: user, board: board} do
+      {:ok, _} = Handbook.install(user, board)
+      triage = Repo.get_by!(Slipdock.Boards.Card, board_id: board.id, title: "Triage findings")
+
+      {:ok, _} =
+        Boards.Cards.update_card(triage, %{"description" => "It becomes a card in Backlog."})
+
+      {:ok, again} = Handbook.install(user, board)
+      assert again.upgraded
+      assert "Triage findings (updated: procedure)" in again.report.added["cards"]
+      assert Repo.reload!(triage).description =~ "--column Housekeeping --origin findings"
+
+      {:ok, third} = Handbook.install(user, board)
+      refute "Triage findings (updated: procedure)" in third.report.added["cards"]
+    end
+
+    test "a done triage card is left alone", %{user: user, board: board} do
+      {:ok, _} = Handbook.install(user, board)
+      triage = Repo.get_by!(Slipdock.Boards.Card, board_id: board.id, title: "Triage findings")
+
+      Repo.update_all(from(c in Slipdock.Boards.Card, where: c.id == ^triage.id),
+        set: [description: "Old.", completed: true]
+      )
+
+      {:ok, again} = Handbook.install(user, board)
+      refute "Triage findings (updated: procedure)" in again.report.added["cards"]
+      assert Repo.reload!(triage).description == "Old."
     end
   end
 
@@ -508,7 +544,7 @@ defmodule Slipdock.HandbookTest do
         Repo.get_by!(Slipdock.Boards.Card, board_id: board.id, title: "Reconcile the handbook")
 
       {:ok, rec} =
-        Boards.update_card(rec, %{
+        Boards.Cards.update_card(rec, %{
           "description" => "Weekly: `git log --stat <last>..HEAD`.",
           "priority" => "high",
           "due_date" => ~D[2026-11-02]
@@ -550,10 +586,10 @@ defmodule Slipdock.HandbookTest do
     test "the series' current card is the one changed, not an older copy",
          %{user: user, board: board} do
       rec = weekly_reconcile(user, board)
-      {:ok, old} = Boards.copy_card(rec)
+      {:ok, old} = Boards.Cards.copy_card(rec)
       # The copy is newer by id but not the series' instance.
       assert old.id > rec.id
-      {:ok, old} = Boards.update_card(old, %{"description" => "an old week"})
+      {:ok, old} = Boards.Cards.update_card(old, %{"description" => "an old week"})
 
       {:ok, _} = Handbook.install(user, board)
       assert Repo.reload!(rec).description =~ "at most 20 of those commits"
@@ -588,7 +624,7 @@ defmodule Slipdock.HandbookTest do
       rec =
         Repo.get_by!(Slipdock.Boards.Card, board_id: board.id, title: "Reconcile the handbook")
 
-      {:ok, _} = Boards.update_card(rec, %{"title" => "Renamed by a person"})
+      {:ok, _} = Boards.Cards.update_card(rec, %{"title" => "Renamed by a person"})
 
       {:ok, again} = Handbook.install(user, board)
       refute again.upgraded
@@ -812,7 +848,7 @@ defmodule Slipdock.HandbookTest do
 
       {:ok, _} = Wiki.update_page(page, %{"body" => old})
       rec = card_titled(board, "Reconcile the handbook")
-      {:ok, _} = Boards.update_card(rec, %{"description" => "The 1.3.0 procedure."})
+      {:ok, _} = Boards.Cards.update_card(rec, %{"description" => "The 1.3.0 procedure."})
       others = for p <- handbook_pages(board), p.id != page.id, into: %{}, do: {p.id, p.body}
 
       {:ok, again} = Handbook.install(user, board)

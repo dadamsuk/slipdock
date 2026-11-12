@@ -19,15 +19,19 @@ defmodule SlipdockWeb.WaitingOnMeApiTest do
 
     epic = card_fixture(todo, %{"title" => "Epic"})
     plain = card_fixture(todo, %{"title" => "Plain"})
-    {:ok, t} = Boards.find_template(nil, "Simple")
+    {:ok, t} = Boards.Templates.find_template(nil, "Simple")
     {:ok, sub} = sub_board(epic, t)
     sub = Boards.get_board!(sub.id)
     asked = card_fixture(hd(sub.columns), %{"title" => "Region"})
     theirs = card_fixture(hd(sub.columns), %{"title" => "Hers"})
 
     agent = %{Actor.unknown() | kind: "agent", via: "mcp", user_id: owner.id}
-    {:ok, _} = Boards.open_wait(asked, agent, %{"needs" => "EU or US?", "on_user_id" => owner.id})
-    {:ok, _} = Boards.open_wait(theirs, agent, %{"needs" => "Copy?", "on_user_id" => dana.id})
+
+    {:ok, _} =
+      Boards.Waits.open_wait(asked, agent, %{"needs" => "EU or US?", "on_user_id" => owner.id})
+
+    {:ok, _} =
+      Boards.Waits.open_wait(theirs, agent, %{"needs" => "Copy?", "on_user_id" => dana.id})
 
     %{owner: owner, board: board, epic: epic, plain: plain, asked: asked, theirs: theirs}
   end

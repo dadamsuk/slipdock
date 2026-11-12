@@ -153,7 +153,7 @@ func TestAMergeJobReportsTheMergeCommit(t *testing.T) {
 	r = newRig(t, Config{})
 	r.w.Local.NoMerge = true
 	f = r.runJob(fakeJob{id: 152, kind: "merge", card: 42, pr: "https://github.com/dadamsuk/slipdock/pull/7", sha: "abc123"})
-	if f.exit != 127 || r.srv.header(11).Get("X-Runner-Kinds") != "claude,verify,probe" {
+	if f.exit != 127 || r.srv.header(11).Get("X-Runner-Kinds") != "claude,verify,release,probe" {
 		t.Fatalf("finish = %+v, kinds %q", f, r.srv.header(11).Get("X-Runner-Kinds"))
 	}
 }

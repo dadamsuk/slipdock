@@ -181,7 +181,12 @@ which kind of job to queue; it can never choose a command.
 lease, renewed by a heartbeat every 20 seconds or so; if the lease runs out
 (the machine slept, the network went), the job goes back in the queue for
 another runner, and after three tries it fails and the card is flagged with
-a comment. A card never has more than one open job from any rule (jobs no
+a comment. Until another runner takes it, the job is still its last
+runner's to carry on with: that runner's next heartbeat (or its finish)
+takes the job back on a fresh lease, with its agent and worktree as they
+were, and that costs no try. So a laptop that sleeps with nothing else in
+its pool carries on when it wakes. Once another runner has taken the job,
+the first is told the job is no longer its own and stops its copy. A card never has more than one open job from any rule (jobs no
 rule queued, such as verify, merge and overseer, aside), so a card moved in
 and out of a list, or on a list two rules work, does not pile up work, and
 answering a wait sends the card as one job. The card's **Runner jobs**
@@ -389,7 +394,7 @@ own work rather than from a background loop, so it holds its job on a
 | `slipdock job <id> --keep` | Keeps an ended job's log: written as a page `Pass <card> (<date>)` in the card's folder, so it never expires. |
 | `slipdock cancel-job <id>` | Stops a job. |
 | `slipdock claim-job <board> --pool P` | Takes the next job as this session. |
-| `slipdock job-progress [<id>] [--step S] [--message NOTE]` | Renews the lease. `--step` says what the job is doing now: kept on the job (its `step`, shown on the Runners panel and in `slipdock job`/`jobs`), never on the card. The note is also a comment on the card (`--message -` reads it from stdin, line breaks and all). Without an id, the runner job in `$SLIPDOCK_JOB_ID`: the agent a runner started may report on its own job. Prints `ok` or `cancel`. |
+| `slipdock job-progress [<id>] [--step S] [--message NOTE]` | Renews the lease. `--step` says what the job is doing now: kept on the job (its `step`, shown on the Runners panel and in `slipdock job`/`jobs`), never a comment on the card. On an epic's job, name the subcard it is on in the step (`#2835 CI running`): that subcard then shows the job as its loop and reads as running, not as nobody on it. The note is also a comment on the card (`--message -` reads it from stdin, line breaks and all). Without an id, the runner job in `$SLIPDOCK_JOB_ID`: the agent a runner started may report on its own job. Prints `ok` or `cancel`. |
 | `slipdock finish-job <id> --status done\|failed\|cancelled\|timeout [--summary S]` | Ends a job this session claimed. |
 
 **A job's live log.** While a job runs, its runner sends its agent's

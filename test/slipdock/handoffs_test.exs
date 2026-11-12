@@ -11,7 +11,9 @@ defmodule Slipdock.HandoffsTest do
   end
 
   defp leave(card, user, next, body \\ nil) do
-    {:ok, h} = Boards.leave_handoff(card, user, %{next_step: next, body: body, via: "ui"})
+    {:ok, h} =
+      Boards.Handoffs.leave_handoff(card, user, %{next_step: next, body: body, via: "ui"})
+
     h
   end
 
@@ -20,21 +22,23 @@ defmodule Slipdock.HandoffsTest do
       card: card,
       user: user
     } do
-      assert Boards.current_handoff(card) == nil
+      assert Boards.Handoffs.current_handoff(card) == nil
 
       first = leave(card, user, "Write the migration")
       second = leave(card, user, "Wire up the API", "State: schema done")
 
       assert %Handoff{id: id, next_step: "Wire up the API", body: "State: schema done"} =
-               Boards.current_handoff(card)
+               Boards.Handoffs.current_handoff(card)
 
       assert id == second.id
-      assert Boards.current_handoff(card).user.id == user.id
-      assert Enum.map(Boards.handoff_history(card), & &1.id) == [second.id, first.id]
+      assert Boards.Handoffs.current_handoff(card).user.id == user.id
+      assert Enum.map(Boards.Handoffs.handoff_history(card), & &1.id) == [second.id, first.id]
     end
 
     test "keeps who wrote it, how and for which job", %{card: card, user: user} do
-      {:ok, h} = Boards.leave_handoff(card, user, %{"next_step" => "Go on", "via" => "mcp"})
+      {:ok, h} =
+        Boards.Handoffs.leave_handoff(card, user, %{"next_step" => "Go on", "via" => "mcp"})
+
       assert h.user_id == user.id
       assert h.via == "mcp"
       assert h.user.email == user.email
@@ -46,23 +50,27 @@ defmodule Slipdock.HandoffsTest do
       user: user
     } do
       for blank <- [nil, "", "   "] do
-        assert {:error, cs} = Boards.leave_handoff(card, user, %{next_step: blank, via: "ui"})
+        assert {:error, cs} =
+                 Boards.Handoffs.leave_handoff(card, user, %{next_step: blank, via: "ui"})
+
         assert %{next_step: ["can't be blank: say the one next step"]} = errors_on(cs)
       end
 
       assert {:error, cs} =
-               Boards.leave_handoff(card, user, %{
+               Boards.Handoffs.leave_handoff(card, user, %{
                  next_step: String.duplicate("x", 281),
                  via: "ui"
                })
 
       assert %{next_step: ["should be at most 280 character(s)"]} = errors_on(cs)
 
-      assert {:error, cs} = Boards.leave_handoff(card, user, %{next_step: "a\nb", via: "ui"})
+      assert {:error, cs} =
+               Boards.Handoffs.leave_handoff(card, user, %{next_step: "a\nb", via: "ui"})
+
       assert %{next_step: ["must be one line"]} = errors_on(cs)
 
       assert {:ok, _} =
-               Boards.leave_handoff(card, user, %{
+               Boards.Handoffs.leave_handoff(card, user, %{
                  next_step: String.duplicate("x", 280),
                  via: "ui"
                })
@@ -70,7 +78,7 @@ defmodule Slipdock.HandoffsTest do
 
     test "the body is capped at 8000 and a blank one is no body", %{card: card, user: user} do
       assert {:error, cs} =
-               Boards.leave_handoff(card, user, %{
+               Boards.Handoffs.leave_handoff(card, user, %{
                  next_step: "n",
                  body: String.duplicate("x", 8001),
                  via: "ui"
@@ -81,9 +89,11 @@ defmodule Slipdock.HandoffsTest do
     end
 
     test "via must be one of the known ways in", %{card: card, user: user} do
-      assert {:error, cs} = Boards.leave_handoff(card, user, %{next_step: "n", via: "fax"})
+      assert {:error, cs} =
+               Boards.Handoffs.leave_handoff(card, user, %{next_step: "n", via: "fax"})
+
       assert %{via: ["is invalid"]} = errors_on(cs)
-      assert {:error, cs} = Boards.leave_handoff(card, user, %{next_step: "n"})
+      assert {:error, cs} = Boards.Handoffs.leave_handoff(card, user, %{next_step: "n"})
       assert %{via: ["can't be blank"]} = errors_on(cs)
     end
 
@@ -91,14 +101,14 @@ defmodule Slipdock.HandoffsTest do
       leave(card, user, "Run the suite")
 
       assert [%{kind: "handoff", message: message}] =
-               Boards.list_activities(board.id, 50, card.id)
+               Boards.ActivityLog.list_activities(board.id, 50, card.id)
                |> Enum.filter(&(&1.kind == "handoff"))
 
       assert message == "left a handoff on “#{card.title}”: Run the suite"
     end
 
     test "is told to the board", %{board: board, card: card, user: user} do
-      Boards.subscribe(board.id)
+      Boards.PubSub.subscribe(board.id)
       leave(card, user, "Next")
       assert_receive {:board_changed, _}
     end
@@ -111,26 +121,26 @@ defmodule Slipdock.HandoffsTest do
       user: user
     } do
       leave(card, user, "Next")
-      assert {:ok, clear} = Boards.clear_handoff(card, user, %{via: "cli"})
+      assert {:ok, clear} = Boards.Handoffs.clear_handoff(card, user, %{via: "cli"})
       assert Handoff.cleared?(clear)
-      assert Boards.current_handoff(card) == nil
-      assert [%{id: id}, %{next_step: "Next"}] = Boards.handoff_history(card)
+      assert Boards.Handoffs.current_handoff(card) == nil
+      assert [%{id: id}, %{next_step: "Next"}] = Boards.Handoffs.handoff_history(card)
       assert id == clear.id
 
       assert Enum.any?(
-               Boards.list_activities(board.id, 50, card.id),
+               Boards.ActivityLog.list_activities(board.id, 50, card.id),
                &(&1.message == "cleared the handoff on “#{card.title}”")
              )
 
       # And a new note after a clear is the handoff again.
       leave(card, user, "Back to it")
-      assert Boards.current_handoff(card).next_step == "Back to it"
+      assert Boards.Handoffs.current_handoff(card).next_step == "Back to it"
     end
 
     test "completing the card keeps the note", %{card: card, user: user} do
       leave(card, user, "Next")
-      {:ok, _} = Boards.update_card(card, %{"completed" => true})
-      assert Boards.current_handoff(card).next_step == "Next"
+      {:ok, _} = Boards.Cards.update_card(card, %{"completed" => true})
+      assert Boards.Handoffs.current_handoff(card).next_step == "Next"
     end
   end
 
@@ -143,13 +153,13 @@ defmodule Slipdock.HandoffsTest do
       first = leave(card, user, "Write the migration")
       second = leave(card, user, "A wrong turn")
 
-      assert {:ok, deleted} = Boards.delete_handoff(card)
+      assert {:ok, deleted} = Boards.Handoffs.delete_handoff(card)
       assert deleted.id == second.id
-      assert Boards.current_handoff(card).id == first.id
-      assert Enum.map(Boards.handoff_history(card), & &1.id) == [first.id]
+      assert Boards.Handoffs.current_handoff(card).id == first.id
+      assert Enum.map(Boards.Handoffs.handoff_history(card), & &1.id) == [first.id]
 
       assert Enum.any?(
-               Boards.list_activities(board.id, 50, card.id),
+               Boards.ActivityLog.list_activities(board.id, 50, card.id),
                &(&1.message == "deleted the handoff on “#{card.title}”: A wrong turn")
              )
     end
@@ -159,34 +169,34 @@ defmodule Slipdock.HandoffsTest do
       user: user
     } do
       leave(card, user, "Only")
-      assert {:ok, _} = Boards.delete_handoff(card)
-      assert Boards.current_handoff(card) == nil
-      assert Boards.handoff_history(card) == []
+      assert {:ok, _} = Boards.Handoffs.delete_handoff(card)
+      assert Boards.Handoffs.current_handoff(card) == nil
+      assert Boards.Handoffs.handoff_history(card) == []
     end
 
     test "after a clear the card still has none: the clear stays", %{card: card, user: user} do
       leave(card, user, "Old")
-      {:ok, _} = Boards.clear_handoff(card, user, %{via: "ui"})
+      {:ok, _} = Boards.Handoffs.clear_handoff(card, user, %{via: "ui"})
       leave(card, user, "New")
 
-      assert {:ok, %{next_step: "New"}} = Boards.delete_handoff(card)
-      assert Boards.current_handoff(card) == nil
-      assert [%{next_step: nil}, %{next_step: "Old"}] = Boards.handoff_history(card)
+      assert {:ok, %{next_step: "New"}} = Boards.Handoffs.delete_handoff(card)
+      assert Boards.Handoffs.current_handoff(card) == nil
+      assert [%{next_step: nil}, %{next_step: "Old"}] = Boards.Handoffs.handoff_history(card)
     end
 
     test "with none, or only a clear, there is nothing to delete", %{card: card, user: user} do
-      assert Boards.delete_handoff(card) == {:error, :none}
+      assert Boards.Handoffs.delete_handoff(card) == {:error, :none}
 
       leave(card, user, "Old")
-      {:ok, _} = Boards.clear_handoff(card, user, %{via: "ui"})
-      assert Boards.delete_handoff(card) == {:error, :none}
-      assert length(Boards.handoff_history(card)) == 2
+      {:ok, _} = Boards.Handoffs.clear_handoff(card, user, %{via: "ui"})
+      assert Boards.Handoffs.delete_handoff(card) == {:error, :none}
+      assert length(Boards.Handoffs.handoff_history(card)) == 2
     end
 
     test "is told to the board", %{board: board, card: card, user: user} do
       leave(card, user, "Next")
-      Boards.subscribe(board.id)
-      {:ok, _} = Boards.delete_handoff(card)
+      Boards.PubSub.subscribe(board.id)
+      {:ok, _} = Boards.Handoffs.delete_handoff(card)
       assert_receive {:board_changed, _}
     end
 
@@ -194,15 +204,15 @@ defmodule Slipdock.HandoffsTest do
       h = leave(card, user, "Mine")
       other = %Slipdock.Accounts.User{id: user.id + 1_000_000}
 
-      assert Boards.may_delete_handoff?(h, user, false)
-      assert Boards.may_delete_handoff?(h, other, true)
-      refute Boards.may_delete_handoff?(h, other, false)
-      refute Boards.may_delete_handoff?(h, nil, false)
+      assert Boards.Handoffs.may_delete_handoff?(h, user, false)
+      assert Boards.Handoffs.may_delete_handoff?(h, other, true)
+      refute Boards.Handoffs.may_delete_handoff?(h, other, false)
+      refute Boards.Handoffs.may_delete_handoff?(h, nil, false)
 
       # A runner's handoff has no author: only an editor.
-      {:ok, ran} = Boards.leave_handoff(card, nil, %{next_step: "Ran", via: "runner"})
-      refute Boards.may_delete_handoff?(ran, user, false)
-      assert Boards.may_delete_handoff?(ran, user, true)
+      {:ok, ran} = Boards.Handoffs.leave_handoff(card, nil, %{next_step: "Ran", via: "runner"})
+      refute Boards.Handoffs.may_delete_handoff?(ran, user, false)
+      assert Boards.Handoffs.may_delete_handoff?(ran, user, true)
     end
   end
 
@@ -220,13 +230,13 @@ defmodule Slipdock.HandoffsTest do
       leave(card, user, "new")
       leave(other, user, "other")
       leave(cleared, user, "gone")
-      Boards.clear_handoff(cleared, user, %{via: "ui"})
+      Boards.Handoffs.clear_handoff(cleared, user, %{via: "ui"})
 
-      map = Boards.current_handoffs([card.id, other.id, cleared.id, none.id])
+      map = Boards.Handoffs.current_handoffs([card.id, other.id, cleared.id, none.id])
       assert map |> Map.keys() |> Enum.sort() == Enum.sort([card.id, other.id])
       assert map[card.id].next_step == "new"
       assert map[other.id].next_step == "other"
-      assert Boards.current_handoffs([]) == %{}
+      assert Boards.Handoffs.current_handoffs([]) == %{}
     end
   end
 
@@ -234,7 +244,7 @@ defmodule Slipdock.HandoffsTest do
     gone = user_fixture("gone@example.com")
     leave(card, gone, "Still here")
     Slipdock.Repo.delete!(gone)
-    assert %{next_step: "Still here", user: nil} = Boards.current_handoff(card)
+    assert %{next_step: "Still here", user: nil} = Boards.Handoffs.current_handoff(card)
   end
 
   test "deleting the card deletes its handoffs", %{card: card, user: user} do
@@ -245,9 +255,9 @@ defmodule Slipdock.HandoffsTest do
 
   test "handoff_written_since?/2 says whether anyone wrote one since", %{card: card, user: user} do
     before = DateTime.add(DateTime.utc_now(), -5) |> DateTime.truncate(:second)
-    refute Boards.handoff_written_since?(card.id, before)
+    refute Boards.Handoffs.handoff_written_since?(card.id, before)
     leave(card, user, "Next")
-    assert Boards.handoff_written_since?(card.id, before)
-    refute Boards.handoff_written_since?(card.id, DateTime.add(DateTime.utc_now(), 60))
+    assert Boards.Handoffs.handoff_written_since?(card.id, before)
+    refute Boards.Handoffs.handoff_written_since?(card.id, DateTime.add(DateTime.utc_now(), 60))
   end
 end

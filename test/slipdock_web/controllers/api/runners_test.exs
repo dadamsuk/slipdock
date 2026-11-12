@@ -125,6 +125,36 @@ defmodule SlipdockWeb.API.RunnersTest do
       assert {job.status, job.exit_code, job.output} == {"timeout", 124, "ran out"}
     end
 
+    # A machine that slept through its lease (#2817).
+    test "a heartbeat after the lease ran out takes the job back, until another runner has it",
+         ctx do
+      lapse = fn ->
+        past = DateTime.utc_now() |> DateTime.add(-60) |> DateTime.truncate(:second)
+        Repo.update_all(Job, set: [lease_expires_at: past])
+        assert Runners.sweep() == 1
+      end
+
+      lapse.()
+      assert Repo.get!(Job, ctx.job.id).status == "queued"
+
+      conn = post(runner_conn(ctx.token), "/api/runner/jobs/#{ctx.job.id}/heartbeat", "awake")
+      assert {conn.status, conn.resp_body} == {200, "ok\n"}
+      job = Repo.get!(Job, ctx.job.id)
+      assert {job.status, job.runner_id, job.attempts} == {"running", ctx.runner.id, 1}
+
+      lapse.()
+      {:ok, other, _} = Runners.create_runner(ctx.board, %{"name" => "other", "pool" => "dev"})
+      assert Runners.claim(other)
+
+      assert post(runner_conn(ctx.token), "/api/runner/jobs/#{ctx.job.id}/heartbeat", "x").status ==
+               404
+
+      assert post(runner_conn(ctx.token), "/api/runner/jobs/#{ctx.job.id}/finish?exit=0", "").status ==
+               404
+
+      assert Repo.get!(Job, ctx.job.id).runner_id == other.id
+    end
+
     test "another runner's job is a 404 for both", ctx do
       {:ok, _, other} = Runners.create_runner(ctx.board, %{"name" => "other", "pool" => "dev"})
 
@@ -369,14 +399,16 @@ defmodule SlipdockWeb.API.RunnersTest do
                |> post(~p"/api/jobs/#{job.id}/progress", %{"note" => "Halfway."})
                |> json_response(200)
 
-      comments = Slipdock.Boards.get_card!(ctx.card.id) |> Repo.preload(:comments)
+      comments = Slipdock.Boards.Cards.get_card!(ctx.card.id) |> Repo.preload(:comments)
       assert Enum.any?(comments.comments, &(&1.body == "Halfway."))
 
       # No note, no comment (#514's "Nothing").
       assert %{"status" => "ok"} =
                ctx.conn |> post(~p"/api/jobs/#{job.id}/progress", %{}) |> json_response(200)
 
-      assert length(Repo.preload(Slipdock.Boards.get_card!(ctx.card.id), :comments).comments) ==
+      assert length(
+               Repo.preload(Slipdock.Boards.Cards.get_card!(ctx.card.id), :comments).comments
+             ) ==
                length(comments.comments)
 
       assert ctx.conn
@@ -621,8 +653,8 @@ defmodule SlipdockWeb.API.RunnersTest do
   describe "parked jobs over HTTP (#1115)" do
     defp ask(ctx, job) do
       {:ok, wait} =
-        Slipdock.Boards.open_wait(
-          Slipdock.Boards.get_card!(ctx.card.id),
+        Slipdock.Boards.Waits.open_wait(
+          Slipdock.Boards.Cards.get_card!(ctx.card.id),
           Slipdock.Actor.runner(ctx.user, job.id),
           %{"needs" => "Which region?", "choices" => ["eu", "us"], "job_id" => job.id}
         )
@@ -671,8 +703,8 @@ defmodule SlipdockWeb.API.RunnersTest do
       )
 
       {:ok, _} =
-        Slipdock.Boards.answer_wait(
-          Slipdock.Boards.get_card!(ctx.card.id),
+        Slipdock.Boards.Waits.answer_wait(
+          Slipdock.Boards.Cards.get_card!(ctx.card.id),
           Slipdock.Actor.web(ctx.user),
           %{"choice" => 2}
         )
@@ -686,7 +718,7 @@ defmodule SlipdockWeb.API.RunnersTest do
       assert prompt =~ "Work on Slipdock card ##{ctx.card.id}"
       assert get_resp_header(again, "x-card-id") == [to_string(ctx.card.id)]
       assert get_resp_header(again, "x-wait-id") == [to_string(wait.id)]
-      handoff = Slipdock.Boards.current_handoff(ctx.card.id)
+      handoff = Slipdock.Boards.Handoffs.current_handoff(ctx.card.id)
       assert get_resp_header(again, "x-handoff-id") == [to_string(handoff.id)]
     end
 
@@ -727,7 +759,7 @@ defmodule SlipdockWeb.API.RunnersTest do
 
       assert body["job"]["status"] == "parked"
       assert body["wait"]["job_id"] == id
-      assert Slipdock.Boards.current_wait(ctx.card).job_id == id
+      assert Slipdock.Boards.Waits.current_wait(ctx.card).job_id == id
     end
   end
 end

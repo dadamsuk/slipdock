@@ -1486,7 +1486,7 @@ defmodule SlipdockWeb.SlipdockComponents do
       </div>
       <img
         :if={@f.image && !@compact}
-        src={Slipdock.Boards.attachment_url(@image)}
+        src={Slipdock.Boards.Attachments.attachment_url(@image)}
         alt={@image.filename}
         loading="lazy"
         draggable="false"
@@ -1500,7 +1500,7 @@ defmodule SlipdockWeb.SlipdockComponents do
         <span :if={@f.cover} class={["size-2 shrink-0 rounded-full", Palette.dot(@cover_color)]}></span>
         <img
           :if={@f.image}
-          src={Slipdock.Boards.attachment_url(@image)}
+          src={Slipdock.Boards.Attachments.attachment_url(@image)}
           alt={@image.filename}
           loading="lazy"
           draggable="false"
@@ -2065,7 +2065,7 @@ defmodule SlipdockWeb.SlipdockComponents do
 
   Two id spaces share one list, so everything that puts an item's id into the
   DOM or onto the wire uses this — the drag-and-drop reads it back with
-  `Slipdock.Boards.item_ref/1`, and a card and a page that happen to share a
+  `Slipdock.Boards.Columns.item_ref/1`, and a card and a page that happen to share a
   number never collide.
   """
   def item_id(item), do: if(page?(item), do: "page-#{item.id}", else: to_string(item.id))

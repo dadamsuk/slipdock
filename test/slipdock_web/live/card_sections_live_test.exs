@@ -23,7 +23,7 @@ defmodule SlipdockWeb.CardSectionsLiveTest do
   defp open(conn, ctx), do: live(conn, ~p"/boards/#{ctx.board}/cards/#{ctx.card.id}")
 
   defp epic!(ctx) do
-    {:ok, t} = Boards.find_template(nil, "Simple")
+    {:ok, t} = Boards.Templates.find_template(nil, "Simple")
     {:ok, sub} = Boards.create_sub_board(ctx.card, t)
     Boards.get_board!(sub.id)
   end
@@ -123,8 +123,8 @@ defmodule SlipdockWeb.CardSectionsLiveTest do
         "column_id" => hd(other.columns).id
       })
 
-      for col <- sub.columns, do: assert(Boards.active_items(col.id) == [])
-      assert Boards.active_items(hd(other.columns).id) == []
+      for col <- sub.columns, do: assert(Boards.Columns.active_items(col.id) == [])
+      assert Boards.Columns.active_items(hd(other.columns).id) == []
     end
 
     test "Remove subcards is in the section's menu, asks first, and removes them", ctx do
@@ -145,7 +145,7 @@ defmodule SlipdockWeb.CardSectionsLiveTest do
              )
 
       view |> element("#delete-sub-board") |> render_click()
-      assert is_nil(Boards.get_card!(ctx.card.id).sub_board)
+      assert is_nil(Boards.Cards.get_card!(ctx.card.id).sub_board)
       refute has_element?(view, "#subcards-more")
       assert has_element?(view, "button[phx-click=pick_template]", "Add subcards")
     end
@@ -182,7 +182,7 @@ defmodule SlipdockWeb.CardSectionsLiveTest do
       on_exit(fn -> File.rm(path) end)
 
       {:ok, _} =
-        Boards.add_attachment(
+        Boards.Attachments.add_attachment(
           ctx.card,
           %{filename: "brief.txt", content_type: "text/plain"},
           path

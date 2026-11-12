@@ -334,7 +334,7 @@ defmodule SlipdockWeb.API.JobController do
 
       case Runners.resume(board, params["pool"], user, Slipdock.Actor.from_conn(conn)) do
         {:ok, pause} ->
-          json(conn, %{pause: V.pause(Slipdock.Repo.preload(pause, :paused_by))})
+          json(conn, %{pause: V.pause(Runners.with_paused_by(pause))})
 
         {:error, "only a person" <> _ = message} ->
           {:error, :forbidden, message}
@@ -412,7 +412,8 @@ defmodule SlipdockWeb.API.JobController do
   @doc """
   A session saying it is still at work: renews the lease, keeps `log` as the
   log tail, keeps `step` as the job's latest progress message (#1668: shown
-  against the job, not on the card) and posts `note`, if given, as a comment
+  against the job and never a comment on the card; a subcard an epic's job
+  names in it shows that job as its loop, #2899) and posts `note`, if given, as a comment
   on the card. Answers `{"status": "ok"}` or `{"status": "cancel"}` — stop,
   somebody cancelled it.
 
@@ -426,7 +427,7 @@ defmodule SlipdockWeb.API.JobController do
          log = if(reporter == :session, do: params["log"] || params["note"]),
          {:ok, answer} <- Runners.heartbeat(runner, job.id, log, step: params["step"]) do
       if note = blank(params["note"]),
-        do: Boards.add_comment(card, note, by: conn.assigns.current_user)
+        do: Boards.Comments.add_comment(card, note, by: conn.assigns.current_user)
 
       json(conn, %{status: to_string(answer)})
     end
@@ -536,7 +537,7 @@ defmodule SlipdockWeb.API.JobController do
 
   defp fetch_job(conn, id, need) do
     with %{} = job <- Runners.get_job(id) || {:error, :not_found, "job"},
-         %{} = card <- Boards.get_card(job.card_id) || {:error, :not_found, "job"},
+         %{} = card <- Boards.Cards.get_card(job.card_id) || {:error, :not_found, "job"},
          :ok <- Authorize.card(conn, card, need) do
       {:ok, job, card}
     end

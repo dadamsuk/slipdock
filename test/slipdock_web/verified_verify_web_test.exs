@@ -208,7 +208,7 @@ defmodule SlipdockWeb.VerifiedVerifyWebTest do
 
     # Assign: one click, and the button goes once they're on the card.
     view |> element("#verify-assign") |> render_submit()
-    assert Card.assigned_to?(Boards.get_card!(ctx.card.id), dana.id)
+    assert Card.assigned_to?(Boards.Cards.get_card!(ctx.card.id), dana.id)
     refute has_element?(view, "#verify-assign")
 
     # Note: the box starts with their @handle; sending posts a comment that mentions them.
@@ -219,7 +219,7 @@ defmodule SlipdockWeb.VerifiedVerifyWebTest do
     |> render_submit(%{"body" => "@dana see the bar"})
 
     assert Enum.any?(
-             Repo.preload(Boards.get_card!(ctx.card.id), :comments).comments,
+             Repo.preload(Boards.Cards.get_card!(ctx.card.id), :comments).comments,
              &(&1.body == "@dana see the bar")
            )
 
@@ -314,7 +314,7 @@ defmodule SlipdockWeb.VerifiedVerifyWebTest do
     assert has_element?(view, "#card-verify-rejections", "rejected 1×")
 
     # An epic with a pending subcard.
-    {:ok, t} = Boards.find_template(nil, "Simple")
+    {:ok, t} = Boards.Templates.find_template(nil, "Simple")
     epic = card_fixture(ctx.doing, %{"title" => "Epic"})
     {:ok, sub} = Boards.create_sub_board(epic, t)
     [column | _] = Boards.get_board!(sub.id).columns

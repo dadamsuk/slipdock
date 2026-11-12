@@ -53,7 +53,7 @@ defmodule SlipdockWeb.TableViewLiveTest do
 
     test "a board with no lists has nowhere to add", %{conn: conn} do
       board = board_fixture()
-      for col <- board.columns, do: {:ok, _} = Boards.delete_column(col)
+      for col <- board.columns, do: {:ok, _} = Boards.Columns.delete_column(col)
 
       {:ok, view, _} = live(conn, ~p"/boards/#{board}/table")
       assert render(view) =~ "This board has no cards yet."
@@ -220,16 +220,16 @@ defmodule SlipdockWeb.TableViewLiveTest do
           "percent_complete" => 40
         })
 
-      {:ok, card} = Boards.update_card(card, %{"assignee_id" => user.id})
-      Boards.toggle_card_tag(card, bug)
-      {:ok, card} = Boards.toggle_flag(card, "blocked")
-      {:ok, item} = Boards.add_checklist_item(card, "one")
-      {:ok, _} = Boards.add_checklist_item(card, "two")
-      Boards.toggle_checklist_item(item)
-      {:ok, _} = Boards.add_comment(card, "A remark")
+      {:ok, card} = Boards.Cards.update_card(card, %{"assignee_id" => user.id})
+      Boards.Tags.toggle_card_tag(card, bug)
+      {:ok, card} = Boards.Cards.toggle_flag(card, "blocked")
+      {:ok, item} = Boards.Checklists.add_checklist_item(card, "one")
+      {:ok, _} = Boards.Checklists.add_checklist_item(card, "two")
+      Boards.Checklists.toggle_checklist_item(item)
+      {:ok, _} = Boards.Comments.add_comment(card, "A remark")
       {:ok, _} = Votes.set(card, user, 2)
-      {:ok, _} = Boards.add_link(card, goal, "contributes")
-      {:ok, _} = Boards.add_link(twin, card, "duplicates")
+      {:ok, _} = Boards.Links.add_link(card, goal, "contributes")
+      {:ok, _} = Boards.Links.add_link(twin, card, "duplicates")
       {:ok, _} = Fields.set_value(card, rating, 3)
       {:ok, _} = Fields.set_value(card, size, "s")
       {:ok, _} = Fields.set_value(card, notes, "free text")
@@ -328,17 +328,17 @@ defmodule SlipdockWeb.TableViewLiveTest do
       {:ok, view, _} = live(conn, everything(ctx))
 
       view |> form("#start-#{card.id}", %{"value" => "2031-05-06"}) |> render_change()
-      assert Boards.get_card!(card.id).start_date == ~D[2031-05-06]
+      assert Boards.Cards.get_card!(card.id).start_date == ~D[2031-05-06]
       view |> form("#percent-#{card.id}", %{"value" => "75"}) |> render_change()
-      assert Boards.get_card!(card.id).percent_complete == 75
+      assert Boards.Cards.get_card!(card.id).percent_complete == 75
 
       view |> form("#start-#{card.id}", %{"value" => ""}) |> render_change()
-      assert is_nil(Boards.get_card!(card.id).start_date)
+      assert is_nil(Boards.Cards.get_card!(card.id).start_date)
     end
 
     test "a list that isn't a number moves nothing", %{conn: conn, card: card} = ctx do
       {:ok, view, _} = live(conn, everything(ctx))
-      before = Boards.get_card!(card.id).column_id
+      before = Boards.Cards.get_card!(card.id).column_id
 
       render_change(view, "table_update", %{
         "card_id" => to_string(card.id),
@@ -346,11 +346,11 @@ defmodule SlipdockWeb.TableViewLiveTest do
         "value" => "nope"
       })
 
-      assert Boards.get_card!(card.id).column_id == before
+      assert Boards.Cards.get_card!(card.id).column_id == before
     end
 
     test "a completed card is dimmed and offers to reopen", %{conn: conn, card: card} = ctx do
-      {:ok, _} = Boards.update_card(card, %{"completed" => true})
+      {:ok, _} = Boards.Cards.update_card(card, %{"completed" => true})
       {:ok, view, _} = live(conn, everything(ctx))
 
       assert has_element?(view, "tr#row-all-#{card.id}.opacity-60")
@@ -386,7 +386,7 @@ defmodule SlipdockWeb.TableViewLiveTest do
         })
 
       assert html =~ "read-only access"
-      assert Boards.get_card!(card.id).priority != "critical"
+      assert Boards.Cards.get_card!(card.id).priority != "critical"
     end
 
     test "an empty board offers no add row either", %{conn: conn, user: user} do
@@ -426,7 +426,7 @@ defmodule SlipdockWeb.TableViewLiveTest do
       assert has_element?(view, "form#table-add")
 
       view |> form("#prio-#{a.id}", %{"value" => "low"}) |> render_change()
-      assert Boards.get_card!(a.id).priority == "low"
+      assert Boards.Cards.get_card!(a.id).priority == "low"
     end
 
     test "groups fold and keep their own add rows", %{conn: conn, board: board, a: a} do
@@ -471,10 +471,10 @@ defmodule SlipdockWeb.TableViewLiveTest do
           "due_date" => Date.to_iso8601(Date.add(today, -2))
         })
 
-      for tag <- tags, do: Boards.toggle_card_tag(many, tag)
+      for tag <- tags, do: Boards.Tags.toggle_card_tag(many, tag)
 
       two = card_fixture(backlog, %{"title" => "Two tags", "due_date" => Date.add(today, 1)})
-      for tag <- Enum.take(tags, 2), do: Boards.toggle_card_tag(two, tag)
+      for tag <- Enum.take(tags, 2), do: Boards.Tags.toggle_card_tag(two, tag)
 
       later = card_fixture(backlog, %{"title" => "Later", "due_date" => Date.add(today, 30)})
 
@@ -521,7 +521,7 @@ defmodule SlipdockWeb.TableViewLiveTest do
 
     test "an assignee shows in the default table, one line",
          %{conn: conn, board: board, user: user, plain: plain} do
-      {:ok, _} = Boards.update_card(plain, %{"assignee_id" => user.id})
+      {:ok, _} = Boards.Cards.update_card(plain, %{"assignee_id" => user.id})
       {:ok, view, _} = live(conn, ~p"/boards/#{board}/table")
 
       assert has_element?(
@@ -624,7 +624,7 @@ defmodule SlipdockWeb.TableViewLiveTest do
       view |> form("#due-#{plain.id}", %{"value" => "2031-04-05"}) |> render_change()
       view |> form("#col-#{plain.id}", %{"value" => to_string(todo.id)}) |> render_change()
 
-      card = Boards.get_card!(plain.id)
+      card = Boards.Cards.get_card!(plain.id)
       assert {card.priority, card.due_date, card.column_id} == {"high", ~D[2031-04-05], todo.id}
       assert has_element?(view, "#due-#{plain.id}[data-due=later]")
 
@@ -636,13 +636,13 @@ defmodule SlipdockWeb.TableViewLiveTest do
 
       # A date that isn't one leaves the card as it was.
       view |> form("#due-#{plain.id}", %{"value" => "not a date"}) |> render_change()
-      assert Boards.get_card!(plain.id).due_date == ~D[2031-04-05]
+      assert Boards.Cards.get_card!(plain.id).due_date == ~D[2031-04-05]
     end
 
     test "an epic shows its subcards' due date muted, and a slip as an icon",
          %{conn: conn, board: board} do
       [backlog | _] = board.columns
-      {:ok, simple} = Boards.find_template(nil, "Simple")
+      {:ok, simple} = Boards.Templates.find_template(nil, "Simple")
 
       rolled = card_fixture(backlog, %{"title" => "Rolled"})
       {:ok, sub} = sub_board(rolled, simple)
@@ -683,7 +683,7 @@ defmodule SlipdockWeb.TableViewLiveTest do
 
     test "a finished epic shows no slip", %{conn: conn, board: board} do
       [backlog | _] = board.columns
-      {:ok, simple} = Boards.find_template(nil, "Simple")
+      {:ok, simple} = Boards.Templates.find_template(nil, "Simple")
       epic = card_fixture(backlog, %{"title" => "Closed epic", "due_date" => "2030-01-15"})
       {:ok, sub} = sub_board(epic, simple)
 
@@ -692,7 +692,7 @@ defmodule SlipdockWeb.TableViewLiveTest do
         "due_date" => "2030-02-01"
       })
 
-      {:ok, _} = Boards.update_card(Boards.get_card!(epic.id), %{"completed" => true})
+      {:ok, _} = Boards.Cards.update_card(Boards.Cards.get_card!(epic.id), %{"completed" => true})
 
       {:ok, view, _} = live(conn, ~p"/boards/#{board}/table")
       assert has_element?(view, "#due-#{epic.id}[data-due=done]")

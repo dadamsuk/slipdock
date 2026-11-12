@@ -252,7 +252,7 @@ defmodule SlipdockWeb.DeploymentAPITest do
   end
 
   test "a card on a sub-board of the board counts", %{token: token, card: card} do
-    {:ok, t} = Boards.find_template(nil, "Simple")
+    {:ok, t} = Boards.Templates.find_template(nil, "Simple")
     {:ok, sub} = sub_board(card, t)
     [first | _] = Boards.get_board!(sub.id).columns
     child = card_fixture(first, %{"title" => "Child"})

@@ -18,7 +18,7 @@ defmodule Slipdock.VerifiedSubcardsTest do
     board = board_fixture(%{"name" => "Epics", "code" => unique_code()}, owner: owner)
     [_backlog, _todo, doing, done] = board.columns
     epic = card_fixture(doing, %{"title" => "Epic"})
-    {:ok, t} = Boards.find_template(nil, "Simple")
+    {:ok, t} = Boards.Templates.find_template(nil, "Simple")
     {:ok, sub} = sub_board(epic, t)
     [column | _] = Boards.get_board!(sub.id).columns
     agent = %{Actor.unknown() | kind: "agent", via: "mcp", user_id: owner.id, agent: "bot"}
@@ -26,7 +26,9 @@ defmodule Slipdock.VerifiedSubcardsTest do
     %{owner: owner, board: board, done: done, epic: epic, sub: sub, column: column, agent: agent}
   end
 
-  defp complete(card, actor), do: Boards.update_card(card, %{"completed" => true}, actor: actor)
+  defp complete(card, actor),
+    do: Boards.Cards.update_card(card, %{"completed" => true}, actor: actor)
+
   defp fresh(card), do: Repo.get!(Card, card.id)
 
   test "with no switch on, an agent completing over open subcards is refused, naming them", ctx do
@@ -59,7 +61,7 @@ defmodule Slipdock.VerifiedSubcardsTest do
   test "with every subcard done or archived it completes as before", ctx do
     card_fixture(ctx.column, %{"title" => "Done", "completed" => true})
     gone = card_fixture(ctx.column, %{"title" => "Gone"})
-    {:ok, _} = Boards.archive_card(gone)
+    {:ok, _} = Boards.Cards.archive_card(gone)
 
     assert Verified.open_subcards(ctx.epic) == []
     assert {:ok, %{completed: true}} = complete(ctx.epic, ctx.agent)
@@ -73,7 +75,7 @@ defmodule Slipdock.VerifiedSubcardsTest do
 
   test "a complete subcard counts as done whatever its own sub-board holds", ctx do
     child = card_fixture(ctx.column, %{"title" => "Child"})
-    {:ok, t} = Boards.find_template(nil, "Simple")
+    {:ok, t} = Boards.Templates.find_template(nil, "Simple")
     {:ok, subsub} = sub_board(child, t)
     card_fixture(hd(Boards.get_board!(subsub.id).columns), %{"title" => "Grandchild"})
     {:ok, _} = complete(child, Actor.web(ctx.owner))
@@ -92,22 +94,22 @@ defmodule Slipdock.VerifiedSubcardsTest do
 
     for actor <- [Actor.web(ctx.owner), %{ctx.agent | via: "assistant"}, Actor.automation()] do
       assert {:ok, %{completed: true}} = complete(fresh(ctx.epic), actor)
-      {:ok, _} = Boards.update_card(fresh(ctx.epic), %{"completed" => false})
+      {:ok, _} = Boards.Cards.update_card(fresh(ctx.epic), %{"completed" => false})
     end
 
-    assert {:ok, %{completed: true}} = Boards.update_card(ctx.epic, %{"completed" => true})
+    assert {:ok, %{completed: true}} = Boards.Cards.update_card(ctx.epic, %{"completed" => true})
   end
 
   test "an edit that doesn't complete the card is untouched", ctx do
     card_fixture(ctx.column, %{"title" => "Foo"})
 
     assert {:ok, %{title: "Renamed"}} =
-             Boards.update_card(ctx.epic, %{"title" => "Renamed"}, actor: ctx.agent)
+             Boards.Cards.update_card(ctx.epic, %{"title" => "Renamed"}, actor: ctx.agent)
 
     {:ok, done} = complete(fresh(ctx.epic), Actor.web(ctx.owner))
 
     assert {:ok, _} =
-             Boards.update_card(done, %{"completed" => true, "title" => "Again"},
+             Boards.Cards.update_card(done, %{"completed" => true, "title" => "Again"},
                actor: ctx.agent
              )
   end
@@ -117,7 +119,7 @@ defmodule Slipdock.VerifiedSubcardsTest do
       one = card_fixture(ctx.column, %{"title" => "Foo"})
 
       assert {:error, :unprocessable_entity, message} =
-               Boards.move_card(ctx.epic.id, ctx.done.id, nil, actor: ctx.agent)
+               Boards.Cards.move_card(ctx.epic.id, ctx.done.id, nil, actor: ctx.agent)
 
       assert message =~ "card ##{ctx.epic.id} has open subcards: ##{one.id} Foo is still open"
       card = fresh(ctx.epic)
@@ -127,15 +129,18 @@ defmodule Slipdock.VerifiedSubcardsTest do
 
     test "by an agent goes through once they are done; a person's always does", ctx do
       one = card_fixture(ctx.column, %{"title" => "Foo"})
-      assert :ok = Boards.move_card(ctx.epic.id, ctx.done.id, nil, actor: Actor.web(ctx.owner))
+
+      assert :ok =
+               Boards.Cards.move_card(ctx.epic.id, ctx.done.id, nil, actor: Actor.web(ctx.owner))
+
       assert fresh(ctx.epic).completed
 
       [_, _, doing, _] = ctx.board.columns
-      :ok = Boards.move_card(ctx.epic.id, doing.id, nil, actor: Actor.web(ctx.owner))
-      {:ok, _} = Boards.update_card(fresh(ctx.epic), %{"completed" => false})
+      :ok = Boards.Cards.move_card(ctx.epic.id, doing.id, nil, actor: Actor.web(ctx.owner))
+      {:ok, _} = Boards.Cards.update_card(fresh(ctx.epic), %{"completed" => false})
       {:ok, _} = complete(one, Actor.web(ctx.owner))
 
-      assert :ok = Boards.move_card(ctx.epic.id, ctx.done.id, nil, actor: ctx.agent)
+      assert :ok = Boards.Cards.move_card(ctx.epic.id, ctx.done.id, nil, actor: ctx.agent)
       assert fresh(ctx.epic).completed
     end
   end

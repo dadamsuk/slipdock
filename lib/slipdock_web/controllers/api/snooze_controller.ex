@@ -36,7 +36,7 @@ defmodule SlipdockWeb.API.SnoozeController do
   end
 
   defp answer(conn, card),
-    do: json(conn, %{card: V.card(Authorize.visible(conn, Boards.get_card!(card.id)))})
+    do: json(conn, %{card: V.card(Authorize.visible(conn, Boards.Cards.get_card!(card.id)))})
 
   # A misspelt "notfy" would otherwise be a snooze that never says it woke.
   defp known(params) do

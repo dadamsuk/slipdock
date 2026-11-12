@@ -48,7 +48,7 @@ defmodule Slipdock.Automations.FeedTest do
     # back on its list, as these cool-down cases need.
     card = Repo.get!(Card, job.card_id)
     todo = Repo.get_by!(Slipdock.Boards.Column, board_id: card.board_id, name: "To Do")
-    :ok = Boards.move_card_to_index(card, todo, :top)
+    :ok = Boards.Cards.move_card_to_index(card, todo, :top)
     {:ok, job} = Runners.finish(runner, job.id, %{status: status})
     job
   end
@@ -117,7 +117,7 @@ defmodule Slipdock.Automations.FeedTest do
       rule = feed_rule(ctx.board)
 
       card_fixture(ctx.todo)
-      Boards.update_card(b, %{"priority" => "high"})
+      Boards.Cards.update_card(b, %{"priority" => "high"})
       assert {:idle, :job_open} = Automations.feed(rule)
       assert Automations.run_rule_now(rule) == 0
 
@@ -190,11 +190,11 @@ defmodule Slipdock.Automations.FeedTest do
       rule = feed_rule(ctx.board)
       job = finish(ctx.runner, "done")
       age(job)
-      Boards.move_card_to_index(Repo.reload!(a), ctx.done, :top)
+      Boards.Cards.move_card_to_index(Repo.reload!(a), ctx.done, :top)
       assert open_jobs(rule) == []
 
       b = card_fixture(hd(ctx.board.columns), %{"title" => "b"})
-      Boards.move_card_to_index(b, ctx.todo, :top)
+      Boards.Cards.move_card_to_index(b, ctx.todo, :top)
       assert queued_cards(rule) == [b.id]
     end
 
@@ -202,7 +202,7 @@ defmodule Slipdock.Automations.FeedTest do
       [a, b] = for t <- ~w(a b), do: card_fixture(ctx.todo, %{"title" => t})
       rule = feed_rule(ctx.board)
 
-      Boards.move_card_to_index(b, ctx.todo, :top)
+      Boards.Cards.move_card_to_index(b, ctx.todo, :top)
       assert queued_cards(rule) == [a.id]
     end
 
@@ -221,7 +221,7 @@ defmodule Slipdock.Automations.FeedTest do
       assert open_jobs(rule) == []
       Enum.each(cancelled, &age/1)
 
-      Boards.move_card_to_index(Repo.reload!(b), ctx.todo, :top)
+      Boards.Cards.move_card_to_index(Repo.reload!(b), ctx.todo, :top)
       assert queued_cards(rule) == [b.id]
     end
 
@@ -230,10 +230,10 @@ defmodule Slipdock.Automations.FeedTest do
       waiting = card_fixture(ctx.todo, %{"title" => "flag waiting", "flags" => ["waiting"]})
       dep = card_fixture(ctx.todo, %{"title" => "waits on another"})
       blocker = card_fixture(ctx.doing, %{"title" => "unfinished"})
-      {:ok, _} = Boards.add_dependency(dep, blocker)
+      {:ok, _} = Boards.Dependencies.add_dependency(dep, blocker)
       complete = card_fixture(ctx.todo, %{"title" => "already done", "completed" => true})
       archived = card_fixture(ctx.todo, %{"title" => "archived"})
-      {:ok, _} = Boards.archive_card(archived)
+      {:ok, _} = Boards.Cards.archive_card(archived)
       mine = card_fixture(ctx.todo, %{"title" => "taken", "assignee_id" => ctx.owner.id})
       free = card_fixture(ctx.todo, %{"title" => "free"})
 
@@ -306,7 +306,7 @@ defmodule Slipdock.Automations.FeedTest do
     test "the clock picks up a card that became ready with no event on the board", ctx do
       blocker = card_fixture(ctx.doing, %{"title" => "blocker"})
       card = card_fixture(ctx.todo, %{"title" => "waits"})
-      {:ok, _} = Boards.add_dependency(card, blocker)
+      {:ok, _} = Boards.Dependencies.add_dependency(card, blocker)
       rule = feed_rule(ctx.board)
       assert jobs(rule) == []
 
@@ -427,7 +427,7 @@ defmodule Slipdock.Automations.FeedTest do
 
     defp pathed(column, title, paths) do
       card = card_fixture(column, %{"title" => title})
-      {:ok, card} = Boards.update_card(card, %{"paths" => paths})
+      {:ok, card} = Boards.Cards.update_card(card, %{"paths" => paths})
       card
     end
 
@@ -480,7 +480,7 @@ defmodule Slipdock.Automations.FeedTest do
 
       # The card in the way is done, and so is the second card's job: the
       # withdrawn card is next, cool-down or not.
-      {:ok, _} = Boards.update_card(ctx.running, %{"completed" => true})
+      {:ok, _} = Boards.Cards.update_card(ctx.running, %{"completed" => true})
       finish(ctx.runner, "done")
       assert queued_cards(rule) == [first.id]
     end
@@ -684,7 +684,7 @@ defmodule Slipdock.Automations.FeedTest do
 
     test "a rule on a sub-board reads its pool's runners on the tree's root", ctx do
       seen(ctx.runner, 5)
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       epic = card_fixture(ctx.todo, %{"title" => "Epic"})
       {:ok, sub} = sub_board(epic, t)
       sub = Boards.get_board!(sub.id)

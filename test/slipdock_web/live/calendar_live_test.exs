@@ -84,15 +84,15 @@ defmodule SlipdockWeb.CalendarLiveTest do
       "before" => nil
     })
 
-    span = Boards.get_card!(span.id)
+    span = Boards.Cards.get_card!(span.id)
     assert span.start_date == ~D[2030-01-15] and span.due_date == ~D[2030-01-25]
     assert has_element?(view, "#cal-2030-01-25-#{span.id}")
 
     # Drop an undated card on a day, and a dated card back into the tray.
     render_hook(view, "cal_move", %{"id" => loose.id, "from" => "none", "to" => "2030-01-03"})
-    assert Boards.get_card!(loose.id).due_date == ~D[2030-01-03]
+    assert Boards.Cards.get_card!(loose.id).due_date == ~D[2030-01-03]
     render_hook(view, "cal_move", %{"id" => due.id, "from" => "2030-01-15", "to" => "none"})
-    assert is_nil(Boards.get_card!(due.id).due_date)
+    assert is_nil(Boards.Cards.get_card!(due.id).due_date)
     assert has_element?(view, "#dateless-#{due.id}")
 
     # Quick add on a day.
@@ -163,7 +163,7 @@ defmodule SlipdockWeb.CalendarLiveTest do
     refute has_element?(view, "#cal-2030-01-20-#{span.id}")
 
     render_hook(view, "cal_move", %{"id" => loose.id, "from" => "none", "to" => "2030-01-03"})
-    loose = Boards.get_card!(loose.id)
+    loose = Boards.Cards.get_card!(loose.id)
     assert loose.start_date == ~D[2030-01-03] and is_nil(loose.due_date)
 
     view |> element("#cal-day-2030-01-16 button[phx-click=swim_start_add]") |> render_click()
@@ -183,7 +183,7 @@ defmodule SlipdockWeb.CalendarLiveTest do
   test "saved views remember the calendar mode", %{conn: conn, board: board} do
     {:ok, view, _} = live(conn, ~p"/boards/#{board}/calendar?unit=week&done=hide&date=2030-01-15")
     view |> form("form[phx-submit=swim_save_view]", %{"name" => "This week"}) |> render_submit()
-    [saved] = Boards.list_saved_views(board.id)
+    [saved] = Boards.SavedViews.list_saved_views(board.id)
     assert saved.config["mode"] == "calendar" and saved.config["unit"] == "week"
     assert saved.config["done"] == "hide"
     refute Map.has_key?(saved.config, "date")
@@ -213,7 +213,7 @@ defmodule SlipdockWeb.CalendarLiveTest do
         })
 
       for name <- ~w(finance ops audit extra) do
-        Boards.toggle_card_tag(long, tag_fixture(board, name, "rose"))
+        Boards.Tags.toggle_card_tag(long, tag_fixture(board, name, "rose"))
       end
 
       %{long: long, title: title}

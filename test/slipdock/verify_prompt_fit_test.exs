@@ -91,7 +91,7 @@ defmodule Slipdock.VerifyPromptFitTest do
       card |> Ecto.Changeset.change(verify_checks: checks, verify_rejections: 1) |> Repo.update!()
 
     {:ok, _} =
-      Boards.add_comment(
+      Boards.Comments.add_comment(
         card,
         "**Rejected** by a verifier.\n\nbar 1: " <>
           String.duplicate("falls short ", div(reason_bytes, 12))

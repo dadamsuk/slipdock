@@ -53,11 +53,11 @@ defmodule SlipdockWeb.CardStateLiveTest do
        ctx do
     card = card_fixture(ctx.doing, %{"title" => "Build"})
     running(ctx, card)
-    {:ok, _} = Boards.leave_handoff(card, nil, %{next_step: "Ship it", via: "ui"})
+    {:ok, _} = Boards.Handoffs.leave_handoff(card, nil, %{next_step: "Ship it", via: "ui"})
 
     {:ok, view, html} = live(ctx.conn, ~p"/boards/#{ctx.board}")
 
-    listed = Enum.find(Boards.list_cards(ctx.board), &(&1.id == card.id))
+    listed = Enum.find(Boards.Cards.list_cards(ctx.board), &(&1.id == card.id))
     golden = SlipdockWeb.MCP.Tools.card_line(listed).state
 
     assert golden == "Running · runner-2 · 7m · Next: Ship it"
@@ -69,7 +69,7 @@ defmodule SlipdockWeb.CardStateLiveTest do
     run = card_fixture(ctx.doing, %{"title" => "Build"})
     running(ctx, run)
     waiting = card_fixture(ctx.doing)
-    {:ok, _} = Boards.open_wait(waiting, Actor.web(ctx.user), %{"needs" => "Region?"})
+    {:ok, _} = Boards.Waits.open_wait(waiting, Actor.web(ctx.user), %{"needs" => "Region?"})
     failed = card_fixture(ctx.doing)
     {:ok, _} = Runners.queue(failed, %{pool: "dev", kind: "claude", prompt: "go"})
     job = Runners.claim(ctx.runner)
@@ -99,11 +99,11 @@ defmodule SlipdockWeb.CardStateLiveTest do
   test "a plain board: age chips, but no line, no mark and no Driver filter", ctx do
     card = card_fixture(ctx.todo)
 
-    Boards.move_card(card.id, ctx.doing.id, nil,
+    Boards.Cards.move_card(card.id, ctx.doing.id, nil,
       actor: %{Actor.unknown() | kind: "agent", via: "mcp", agent: "claude"}
     )
 
-    {:ok, _} = Boards.leave_handoff(card, nil, %{next_step: "Look", via: "ui"})
+    {:ok, _} = Boards.Handoffs.leave_handoff(card, nil, %{next_step: "Look", via: "ui"})
     flagged = card_fixture(ctx.doing, %{"flags" => ["review"]})
 
     {:ok, view, _} =
@@ -134,7 +134,10 @@ defmodule SlipdockWeb.CardStateLiveTest do
     card = card_fixture(ctx.doing)
 
     {:ok, _} =
-      Boards.open_wait(card, Actor.web(ctx.user), %{"needs" => "Region?", "on_user_id" => dana.id})
+      Boards.Waits.open_wait(card, Actor.web(ctx.user), %{
+        "needs" => "Region?",
+        "on_user_id" => dana.id
+      })
 
     {:ok, _view, html} = live(ctx.conn, ~p"/boards/#{ctx.board}")
     assert tile_line(html, card) =~ ~r/^Waiting on Dana · /
@@ -243,7 +246,7 @@ defmodule SlipdockWeb.CardStateLiveTest do
     # The panel reloads the card itself after a change (`fresh/2`): the
     # chip is still there, not gone until the board's next refresh.
     view |> element("#card-title-form") |> render_change(%{"card" => %{"title" => "Slower"}})
-    assert Boards.get_card!(slow.id).title == "Slower"
+    assert Boards.Cards.get_card!(slow.id).title == "Slower"
     assert has_element?(view, "#card-age [data-role=age-chip][data-stuck=true]", "3h")
 
     {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/cards/#{fresh}")
@@ -255,9 +258,9 @@ defmodule SlipdockWeb.CardStateLiveTest do
     runner_rule(ctx.board)
     agent = %{Actor.unknown() | kind: "agent", via: "mcp", agent: "claude"}
     by_agent = for _ <- 1..2, do: card_fixture(ctx.todo)
-    Enum.each(by_agent, &Boards.move_card(&1.id, ctx.doing.id, nil, actor: agent))
+    Enum.each(by_agent, &Boards.Cards.move_card(&1.id, ctx.doing.id, nil, actor: agent))
     by_person = card_fixture(ctx.todo)
-    Boards.move_card(by_person.id, ctx.doing.id, nil, actor: Actor.web(ctx.user))
+    Boards.Cards.move_card(by_person.id, ctx.doing.id, nil, actor: Actor.web(ctx.user))
 
     {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}")
     assert has_element?(view, "#card-#{by_person.id} [data-role=driver-mark][data-driver=human]")

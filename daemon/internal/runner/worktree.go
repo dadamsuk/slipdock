@@ -40,20 +40,52 @@ func openLane(ctx context.Context, run execFunc, isDir func(string) bool, dir st
 		on, _ := run(ctx, path, "git", "rev-parse", "--abbrev-ref", "HEAD")
 		note(fmt.Sprintf("slipdock-runner: worktree %s (kept from before) on %s", path, strings.TrimSpace(on)))
 	} else {
-		var out string
-		if _, err := run(ctx, top, "git", "show-ref", "--verify", "--quiet", "refs/heads/"+branch); err == nil {
-			out, err = run(ctx, top, "git", "worktree", "add", path, branch)
-			if err != nil {
-				note(out)
-				return nil, fmt.Errorf("could not make worktree %s, so the job was not run", path)
-			}
-		} else if out, err = run(ctx, top, "git", "worktree", "add", "-b", branch, path, "HEAD"); err != nil {
+		// A card branch already there (a rejected card's earlier attempt)
+		// is checked out as it is; a new one starts from the origin's
+		// default branch.
+		args, from := []string{"worktree", "add", path, branch}, ""
+		if _, err := run(ctx, top, "git", "show-ref", "--verify", "--quiet", "refs/heads/"+branch); err != nil {
+			from = laneBase(ctx, run, top, note)
+			args = []string{"worktree", "add", "--no-track", "-b", branch, path, from}
+		}
+		if out, err := run(ctx, top, "git", args...); err != nil {
 			note(out)
 			return nil, fmt.Errorf("could not make worktree %s, so the job was not run", path)
 		}
-		note(fmt.Sprintf("slipdock-runner: worktree %s on branch %s", path, branch))
+		if from == "" {
+			note(fmt.Sprintf("slipdock-runner: worktree %s on branch %s", path, branch))
+		} else {
+			note(fmt.Sprintf("slipdock-runner: worktree %s on branch %s, from %s", path, branch, from))
+		}
 	}
 	return &lane{path: path, repo: top, branch: branch}, nil
+}
+
+// laneBase is what a new card branch starts from: the origin's default
+// branch, fetched first, never the shared checkout's HEAD, which can sit
+// on another card's branch (#2758). With no origin, or no default branch
+// on it, HEAD it is, and the log says so. A fetch that fails leaves the
+// origin's branch as it was last fetched.
+func laneBase(ctx context.Context, run execFunc, top string, note func(string)) string {
+	if _, err := run(ctx, top, "git", "remote", "get-url", "origin"); err != nil {
+		note("slipdock-runner: the repository has no origin remote, so the worktree starts from HEAD")
+		return "HEAD"
+	}
+	if out, err := run(ctx, top, "git", "fetch", "--quiet", "origin"); err != nil {
+		note(fmt.Sprintf("slipdock-runner: git fetch origin failed, so the worktree starts from origin as last fetched: %s", strings.TrimSpace(out)))
+	}
+	if ref, err := run(ctx, top, "git", "rev-parse", "--abbrev-ref", "origin/HEAD"); err == nil {
+		if ref = strings.TrimSpace(ref); strings.HasPrefix(ref, "origin/") && ref != "origin/HEAD" {
+			return ref
+		}
+	}
+	for _, ref := range []string{"origin/main", "origin/master"} {
+		if _, err := run(ctx, top, "git", "rev-parse", "--verify", "--quiet", ref+"^{commit}"); err == nil {
+			return ref
+		}
+	}
+	note("slipdock-runner: origin has no default branch here, so the worktree starts from HEAD")
+	return "HEAD"
 }
 
 // close removes a clean worktree, and its branch if it is merged (git

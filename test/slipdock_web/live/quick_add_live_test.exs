@@ -70,7 +70,7 @@ defmodule SlipdockWeb.QuickAddLiveTest do
     assert card.column_id == backlog.id
     assert card.tags == []
     assert card.description == "seen on Safari only"
-    assert [%{body: "ask about #docs"}] = Boards.get_card!(card.id).comments
+    assert [%{body: "ask about #docs"}] = Boards.Cards.get_card!(card.id).comments
 
     # Nothing after the semicolon: just the card.
     render_click(view, "start_add_card", %{"id" => to_string(backlog.id)})
@@ -81,7 +81,7 @@ defmodule SlipdockWeb.QuickAddLiveTest do
     })
 
     bare = Enum.find(cards(board), &(&1.title == "Bare"))
-    assert Boards.get_card!(bare.id).comments == []
+    assert Boards.Cards.get_card!(bare.id).comments == []
   end
 
   test "the description and the comment show as chips while typing", %{conn: conn, board: board} do
@@ -118,7 +118,7 @@ defmodule SlipdockWeb.QuickAddLiveTest do
   } do
     [backlog | _] = board.columns
     epic = card_fixture(backlog, %{"title" => "Epic"})
-    {:ok, t} = Boards.find_template(nil, "Simple")
+    {:ok, t} = Boards.Templates.find_template(nil, "Simple")
     {:ok, _sub} = sub_board(epic, t)
 
     {:ok, view, _} = live(conn, ~p"/boards/#{board}/outline")
@@ -138,7 +138,7 @@ defmodule SlipdockWeb.QuickAddLiveTest do
     refute has_element?(view, "#outline-add-#{sibling.id}")
 
     view |> form("#outline-add-#{epic.id}", %{"title" => "Child task #medium"}) |> render_submit()
-    sub = Boards.get_board!(Boards.get_card!(epic.id).sub_board.id)
+    sub = Boards.get_board!(Boards.Cards.get_card!(epic.id).sub_board.id)
     assert [%{title: "Child task", priority: "medium"}] = Enum.flat_map(sub.columns, & &1.cards)
     assert render(view) =~ "Child task"
     # The row stays open for the next one; the icon again closes it.
@@ -153,13 +153,13 @@ defmodule SlipdockWeb.QuickAddLiveTest do
   } do
     [backlog | _] = board.columns
     leaf = card_fixture(backlog, %{"title" => "Leaf"})
-    refute Boards.get_card!(leaf.id).sub_board
+    refute Boards.Cards.get_card!(leaf.id).sub_board
 
     {:ok, view, _} = live(conn, ~p"/boards/#{board}/outline")
     view |> element("#ol-add-sub-#{leaf.id}") |> render_click()
     view |> form("#outline-add-#{leaf.id}", %{"title" => "First child"}) |> render_submit()
 
-    %{sub_board: %{id: sub_id}} = Boards.get_card!(leaf.id)
+    %{sub_board: %{id: sub_id}} = Boards.Cards.get_card!(leaf.id)
     sub = Boards.get_board!(sub_id)
     assert sub.parent_card_id == leaf.id
     assert ["First child"] = sub.columns |> Enum.flat_map(& &1.cards) |> Enum.map(& &1.title)
@@ -181,7 +181,7 @@ defmodule SlipdockWeb.QuickAddLiveTest do
       })
 
     assert html =~ "That card has no subcards board."
-    refute Boards.get_card!(stray.id).sub_board
+    refute Boards.Cards.get_card!(stray.id).sub_board
   end
 
   test "read-only viewers get no add rows", %{conn: conn, board: board} do

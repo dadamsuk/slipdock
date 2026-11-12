@@ -1279,7 +1279,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
           ]}
         >
           <a
-            href={Boards.attachment_url(a)}
+            href={Boards.Attachments.attachment_url(a)}
             target="_blank"
             rel="noopener"
             class="flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-base-300/60"
@@ -1287,7 +1287,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
           >
             <img
               :if={Attachment.image?(a)}
-              src={Boards.attachment_url(a)}
+              src={Boards.Attachments.attachment_url(a)}
               alt={a.filename}
               loading="lazy"
               class="size-full object-cover"
@@ -1300,7 +1300,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
           </a>
           <div class="min-w-0 flex-1">
             <a
-              href={Boards.attachment_url(a)}
+              href={Boards.Attachments.attachment_url(a)}
               target="_blank"
               rel="noopener"
               class="block truncate text-sm font-medium hover:underline"
@@ -1350,7 +1350,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
             id={"audio-#{a.id}"}
             controls
             preload="metadata"
-            src={Boards.attachment_url(a)}
+            src={Boards.Attachments.attachment_url(a)}
             class="h-9 min-w-0 flex-1 basis-60"
           ></audio>
           <button

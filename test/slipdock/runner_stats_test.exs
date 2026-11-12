@@ -283,7 +283,7 @@ defmodule Slipdock.RunnerStatsTest do
 
   test "a sub-board sees its tree's runners", ctx do
     epic = card_fixture(ctx.todo, %{"title" => "Epic"})
-    {:ok, t} = Slipdock.Boards.find_template(nil, "Simple")
+    {:ok, t} = Slipdock.Boards.Templates.find_template(nil, "Simple")
     {:ok, sub} = sub_board(epic, t)
     assert [%{name: "dev-box"}] = stats(sub).runners
   end

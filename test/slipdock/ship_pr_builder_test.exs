@@ -111,7 +111,7 @@ defmodule Slipdock.ShipPrBuilderTest do
     test "a subcard's prompt finds the section on its root board's handbook", ctx do
       ship_by_pr(ctx)
       {:ok, _} = Slipdock.Handbook.install(ctx.owner, ctx.board)
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
 
       {:ok, sub} =
         Boards.create_sub_board(ctx.card, t, code: "sp#{System.unique_integer([:positive])}")
@@ -151,7 +151,10 @@ defmodule Slipdock.ShipPrBuilderTest do
 
   test "it comes after the bar and the paths", ctx do
     ship_by_pr(ctx)
-    {:ok, card} = Boards.update_card(ctx.card, %{"bar" => "Tests pass", "paths" => ["lib/**"]})
+
+    {:ok, card} =
+      Boards.Cards.update_card(ctx.card, %{"bar" => "Tests pass", "paths" => ["lib/**"]})
+
     prompt = Runners.claimed_prompt(queue(card))
 
     [bar, paths, ship] =
@@ -175,10 +178,10 @@ defmodule Slipdock.ShipPrBuilderTest do
     pr = "https://github.com/acme/app/pull/7"
 
     :ok =
-      Boards.move_card(ctx.card.id, ctx.doing.id, nil, actor: ctx.agent)
+      Boards.Cards.move_card(ctx.card.id, ctx.doing.id, nil, actor: ctx.agent)
 
     {:ok, card} =
-      Boards.update_card(
+      Boards.Cards.update_card(
         Repo.get!(Card, ctx.card.id),
         %{"completed" => true, "evidence_pr" => pr},
         actor: ctx.agent

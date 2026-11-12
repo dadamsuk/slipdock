@@ -63,7 +63,7 @@ defmodule Slipdock.Runners.MachineSetupTest do
   end
 
   test "an archived board is left out; with none served, it says so", ctx do
-    {:ok, _} = Slipdock.Boards.archive_board(ctx.board)
+    {:ok, _} = Slipdock.Boards.Arrangement.archive_board(ctx.board)
     prompt = MachineSetup.prompt(Repo.reload!(ctx.machine), "https://slipdock.example.com")
 
     refute prompt =~ "Served"

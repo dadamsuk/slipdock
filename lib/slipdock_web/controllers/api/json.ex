@@ -78,10 +78,15 @@ defmodule SlipdockWeb.API.JSON do
   @doc """
   A card's delivery lines (#1134), for a card read on its own: `shipped`
   (`Slipdock.Deployments.shipped/1`), `deploy_failed` (where its latest
-  deploy attempt failed, `Slipdock.Deployments.deploy_failed/1`, #2820)
-  and `incident_of`, the deploy it says caused it. Each only when there is one, so a board with delivery metrics
+  deploy attempt failed, `Slipdock.Deployments.deploy_failed/1`, #2820),
+  `incident_of`, the deploy it says caused it, and `release`
+  (`Slipdock.Releases.state/1`, #2834) on a board that releases in
+  batches. Each only when there is one, so a board with delivery metrics
   off answers as it always did. Each line's `text` gives its date and time
-  in `zone`, the reader's (#2022).
+  in `zone`, the reader's (#2022). And `not_shipped` (#2819,
+  `Slipdock.Deployments.NotShipped`), on a merged card no succeeded deploy
+  names once the board's `not_shipped_minutes` have gone by: `sha`,
+  `merged_at`, `seconds` since, `minutes` (the setting) and `text`.
   """
   def put_delivery(map, card, zone \\ "Etc/UTC") do
     map
@@ -115,11 +120,70 @@ defmodule SlipdockWeb.API.JSON do
       end
     end)
     |> then(fn m ->
+      case Slipdock.Deployments.NotShipped.for_card(card) do
+        nil -> m
+        line -> Map.put(m, :not_shipped, line)
+      end
+    end)
+    |> then(fn m ->
       case card do
         %{caused_by_deployment_id: id} when is_integer(id) -> Map.put(m, :incident_of, id)
         _ -> m
       end
     end)
+    |> put_release(card, zone)
+  end
+
+  # Merged, awaiting release, or released (#2834): only on a batched board.
+  defp put_release(map, %Card{} = card, zone) do
+    case Slipdock.Releases.state(card) do
+      nil -> map
+      state -> Map.put(map, :release, Map.put(state, :text, Slipdock.Releases.text(state, zone)))
+    end
+  end
+
+  defp put_release(map, _card, _zone), do: map
+
+  @doc """
+  A release request (#2835, `Slipdock.Releases.Request`): its `status`,
+  every trigger that asked for it (`triggers`: `trigger`, `by`, `at`), the
+  cards it covers (`card_ids`), its runner job and the run it fired.
+  """
+  def release_request(nil), do: nil
+
+  def release_request(%Slipdock.Releases.Request{} = r) do
+    %{
+      id: r.id,
+      board_id: r.board_id,
+      status: r.status,
+      triggers: r.triggers,
+      card_ids: r.card_ids,
+      job_id: r.job_id,
+      run_url: r.run_url,
+      note: r.note,
+      requested_at: r.inserted_at,
+      started_at: r.started_at,
+      finished_at: r.finished_at
+    }
+  end
+
+  @doc """
+  Where a tree's releases stand (#2835, `Slipdock.Releases.status/1`): its
+  `mode`, the `running` and `queued` requests, the `last` one that ended,
+  and the cards `awaiting` release (`id`, `title`, `priority`, `merged_at`).
+  """
+  def release_status(%{} = status) do
+    %{
+      mode: status.mode,
+      running: release_request(status.running),
+      queued: release_request(status.queued),
+      last: release_request(status.last),
+      awaiting:
+        Enum.map(
+          status.awaiting,
+          &%{id: &1.id, title: &1.title, priority: &1.priority, merged_at: &1.completed_at}
+        )
+    }
   end
 
   @doc """
@@ -231,6 +295,7 @@ defmodule SlipdockWeb.API.JSON do
   def board_summary(%Board{} = b, viewer \\ nil) do
     cards = if Ecto.assoc_loaded?(b.cards), do: b.cards, else: []
     columns = if Ecto.assoc_loaded?(b.columns), do: b.columns, else: []
+    release = Slipdock.Releases.settings(b)
 
     %{
       id: b.id,
@@ -249,6 +314,7 @@ defmodule SlipdockWeb.API.JSON do
       card_ref_pattern: b.card_ref_pattern,
       incident_tag: b.incident_tag || "incident",
       hotfix_window_hours: b.hotfix_window_hours,
+      not_shipped_minutes: b.not_shipped_minutes,
       deploy_token: Slipdock.Deployments.token?(b),
       automation_wip: b.automation_wip,
       # Agentic Building (#2011): the board menu's item and page for these
@@ -281,6 +347,11 @@ defmodule SlipdockWeb.API.JSON do
       # Who each kind of question goes to (#1949): kind => people, first is on.
       wait_routes: wait_routes(b),
       ship_via: b.ship_via,
+      # How merged work reaches production (#2834), the tree root's.
+      release_mode: release.mode,
+      release_age_cap_hours: release.age_cap_hours,
+      # The command a release job runs (#2835); nil is the default.
+      release_command: release.command,
       # What the board calls a handoff, and its own drafting instructions
       # (nil: the built-in ones) (#1212).
       handoff_label: Board.handoff_label(b),
@@ -316,6 +387,8 @@ defmodule SlipdockWeb.API.JSON do
   end
 
   def board(%Board{} = b) do
+    release = Slipdock.Releases.settings(b)
+
     %{
       id: b.id,
       name: b.name,
@@ -365,6 +438,7 @@ defmodule SlipdockWeb.API.JSON do
       card_ref_pattern: b.card_ref_pattern,
       incident_tag: b.incident_tag || "incident",
       hotfix_window_hours: b.hotfix_window_hours,
+      not_shipped_minutes: b.not_shipped_minutes,
       deploy_token: Slipdock.Deployments.token?(b),
       automation_wip: b.automation_wip,
       # Agentic Building (#2011): the board menu's item and page for these
@@ -397,6 +471,11 @@ defmodule SlipdockWeb.API.JSON do
       # Who each kind of question goes to (#1949): kind => people, first is on.
       wait_routes: wait_routes(b),
       ship_via: b.ship_via,
+      # How merged work reaches production (#2834), the tree root's.
+      release_mode: release.mode,
+      release_age_cap_hours: release.age_cap_hours,
+      # The command a release job runs (#2835); nil is the default.
+      release_command: release.command,
       # What the board calls a handoff, and its own drafting instructions
       # (nil: the built-in ones) (#1212).
       handoff_label: Board.handoff_label(b),
@@ -950,7 +1029,7 @@ defmodule SlipdockWeb.API.JSON do
       content_type: a.content_type,
       size: a.size,
       sha256: a.sha256,
-      url: Slipdock.Boards.attachment_url(a),
+      url: Slipdock.Boards.Attachments.attachment_url(a),
       hide_on_card: a.hide_on_card,
       transcript_status: a.transcript_status,
       transcript: a.transcript,
@@ -1422,7 +1501,7 @@ defmodule SlipdockWeb.API.JSON do
   is refused for them. Each is left off when there is nothing to say.
   """
   def put_lanes(map, %Card{} = card) do
-    board = Slipdock.Repo.get(Slipdock.Boards.Board, card.board_id)
+    board = Slipdock.Boards.get_board_record(card.board_id)
     shared = Slipdock.Lanes.shared_paths(board)
 
     map

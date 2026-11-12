@@ -37,8 +37,8 @@ defmodule Slipdock.Gardener.Checks.LongOverdueTest do
     card_fixture(todo, %{"due_date" => due(60), "completed" => true})
     card_fixture(todo)
     c = card_fixture(todo, %{"due_date" => due(60)})
-    :ok = Boards.move_card(c.id, done.id)
-    {:ok, _} = Boards.update_card(Boards.get_card!(c.id), %{"completed" => false})
+    :ok = Boards.Cards.move_card(c.id, done.id)
+    {:ok, _} = Boards.Cards.update_card(Boards.Cards.get_card!(c.id), %{"completed" => false})
     assert find(LongOverdue, board) == []
   end
 
@@ -62,7 +62,7 @@ defmodule Slipdock.Gardener.Checks.LongOverdueTest do
     {:ok, _} = Gardener.run(board, only: ["long_overdue"])
     [s] = Gardener.list_open(board)
     {:ok, s} = Gardener.apply(s, owner)
-    {:ok, _} = Boards.update_card(Repo.reload!(card), %{"due_date" => due(-30)})
+    {:ok, _} = Boards.Cards.update_card(Repo.reload!(card), %{"due_date" => due(-30)})
 
     assert {:error, msg} = Gardener.undo(s, owner)
     assert msg =~ "has been given another due date since"

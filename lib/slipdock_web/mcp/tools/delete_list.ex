@@ -53,9 +53,9 @@ defmodule SlipdockWeb.MCP.Tools.DeleteList do
          {:ok, with_cards} <- Args.boolean(args, "with_cards", false),
          {:ok, board} <- Args.refusal(Authorize.fetch_board(auth, ref, :write)),
          {:ok, column} <- column(board, list),
-         {cards, archived} = Boards.column_card_counts(column),
+         {cards, archived} = Boards.Columns.column_card_counts(column),
          :ok <- empty_or_meant(column, cards, archived, with_cards),
-         {:ok, _} <- Args.refusal(Boards.delete_column(column)) do
+         {:ok, _} <- Args.refusal(Boards.Columns.delete_column(column)) do
       {:ok, %{deleted: true, list: column.name, deleted_cards: cards, deleted_archived: archived}}
     end
   end

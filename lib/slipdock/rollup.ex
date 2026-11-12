@@ -201,7 +201,8 @@ defmodule Slipdock.Rollup do
         |> Map.new(fn {card_id, pairs} -> {card_id, Map.new(pairs)} end)
       end
 
-    {boards, cards, open_blocked, Slipdock.Boards.latest_stated_health(card_ids), values}
+    {boards, cards, open_blocked, Slipdock.Boards.StatusUpdates.latest_stated_health(card_ids),
+     values}
   end
 
   # The ids of the cards that are documents: something attached, nothing

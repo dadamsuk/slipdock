@@ -8,9 +8,11 @@ defmodule Slipdock.MergedElsewhereDocsTest do
   monitor's `merge_failing` row and the MergeFailing moduledoc, which said a
   card whose merge fails is back as rejected each time, say it too (#2662):
   the sweep reads the health detectors' moduledocs and their phrasings. An
-  already-merged merge job still ends failed, so it is counted, and the row
-  and moduledoc say so rather than that it doesn't count (the detector's
-  summary, runtime text, is tested in `finishing_detectors_test.exs`).
+  already-merged merge job still ends failed, but it isn't counted as a
+  failing merge, and `merge_missing` flags the card once rather than queuing
+  the merge again (#2759): the rows and moduledocs say so (the detectors'
+  behaviour is tested in `health/finishing_detectors_test.exs` and
+  `health/already_merged_test.exs`).
   """
   use ExUnit.Case, async: true
 
@@ -106,11 +108,32 @@ defmodule Slipdock.MergedElsewhereDocsTest do
       assert text =~ "at another head the card stays merging"
 
       assert text =~
-               "That job still ends failed, so `merge_missing` queues the merge again and a " <>
-                 "repeat is flagged here too, as still merging, not as looping."
+               "That job ends failed but isn't counted here as a failing merge: " <>
+                 "`merge_missing` flags the card once, for a person, rather than queuing the " <>
+                 "merge again"
 
-      # The claim #2662's first submission made, which the detector doesn't do.
+      # What it said before #2759, when the merge was queued again and counted.
+      refute text =~ "queues the merge again and a repeat is flagged here too"
       refute text =~ "count towards"
     end
+  end
+
+  test "the merge_missing row and moduledoc say an already-merged card is flagged, not requeued" do
+    row =
+      File.read!(Path.join(@root, "docs/manual/the-health-monitor.md"))
+      |> String.split("\n")
+      |> Enum.find(&String.starts_with?(&1, "| `merge_missing` |"))
+
+    assert row =~
+             "Not when its last merge job found the pull request already merged at a head it " <>
+               "couldn't match to the accepted commit"
+
+    assert row =~ "the card is flagged at once, after that one failure"
+
+    {:docs_v1, _, _, _, %{"en" => moduledoc}, _, _} =
+      Code.fetch_docs(Slipdock.Health.Detectors.MergeMissing)
+
+    moduledoc = String.replace(moduledoc, ~r/\s+/, " ")
+    assert moduledoc =~ "queuing it again would fail the same way, so it is flagged at once"
   end
 end

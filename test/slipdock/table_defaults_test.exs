@@ -46,7 +46,7 @@ defmodule Slipdock.TableDefaultsTest do
     board = board_fixture(%{"name" => "Defaults", "code" => "tbldef1731"}, owner: user)
     [backlog | _] = board.columns
     card = card_fixture(backlog, %{"title" => "Owned"})
-    {:ok, _} = Slipdock.Boards.update_card(card, %{"assignee_id" => user.id})
+    {:ok, _} = Slipdock.Boards.Cards.update_card(card, %{"assignee_id" => user.id})
 
     {:ok, query} = Query.parse("view: table")
 

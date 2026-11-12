@@ -42,7 +42,7 @@ defmodule Slipdock.Gardener.Settings do
 
       with {:ok, saved} <- board |> Ecto.Changeset.change(gardening: gardening) |> Repo.update() do
         # Whoever has the board open (its settings panel) reads it again.
-        Slipdock.Boards.broadcast_tree(Board.root_id(saved))
+        Slipdock.Boards.PubSub.broadcast_tree(Board.root_id(saved))
         {:ok, saved}
       end
     end

@@ -105,7 +105,7 @@ defmodule Slipdock.Automations.NotifierReplyTest do
 
   describe "the callers" do
     test "a mention email can be replied to", ctx do
-      {:ok, _} = Boards.add_comment(ctx.card, "@colleague have a look", by: ctx.owner)
+      {:ok, _} = Boards.Comments.add_comment(ctx.card, "@colleague have a look", by: ctx.owner)
 
       assert_email_sent(fn email ->
         assert email.subject =~ "mentioned you"

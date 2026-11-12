@@ -4,11 +4,13 @@ defmodule Slipdock.Health.Detectors.MergeFailing do
   latest merge job failed too. A merge that fails sends the card back as
   rejected each time; the flag tells a person it is looping. A merge job
   that finds the pull request already merged isn't a rejection (#2637): at
-  the accepted commit it records a merge, and at another head the card
-  stays merging, for a person to mark merged by hand. That job still ends
-  failed, so `merge_missing` queues the merge again and a repeat is flagged
-  here too, as still merging, not as looping. No fix: flagged, with the
-  merges' reasons.
+  the accepted commit, whoever merged it, it records a merge, and at another
+  head the card stays merging, for a person to mark merged by hand. That
+  job ends failed but isn't counted here as a failing merge:
+  `merge_missing` flags the card once, for a person, rather than queuing the
+  merge again (`Slipdock.Verified.already_merged?/1`, #2759). A card still
+  merging because no runner could merge it here is flagged as still
+  merging, not as looping. No fix: flagged, with the merges' reasons.
   """
   @behaviour Slipdock.Health.Detector
 
@@ -40,9 +42,12 @@ defmodule Slipdock.Health.Detectors.MergeFailing do
       Repo.all(from(c in Card, where: c.id in ^ids and c.verify_state == "merging", select: c.id))
       |> MapSet.new()
 
-    for {card_id, [latest | _] = jobs} <- Finishing.jobs(ids, Verified.merge_kind()),
+    for {card_id, jobs} <- Finishing.jobs(ids, Verified.merge_kind()),
+        # A merge that found the pull request already merged isn't a failing
+        # merge (#2759): no merge was tried, and none would succeed.
+        [latest | _] = counted <- [Enum.reject(jobs, &Verified.already_merged?/1)],
         latest.status == "failed",
-        failed = Enum.filter(jobs, &(&1.status == "failed")),
+        failed = Enum.filter(counted, &(&1.status == "failed")),
         length(failed) >= failures do
       reasons =
         failed
@@ -62,8 +67,9 @@ defmodule Slipdock.Health.Detectors.MergeFailing do
     |> Enum.sort_by(& &1.card_id)
   end
 
-  # A card still merging wasn't sent back: its merge found the pull request
-  # already merged, or no runner could merge it here (#2662).
+  # A card still merging wasn't sent back: no runner could merge it here
+  # (#2662). (One whose merge found the pull request already merged isn't
+  # counted at all, #2759.)
   defp looping(true), do: "it is still merging, not sent back as rejected"
   defp looping(false), do: "it is looping between accepted and rejected"
 end

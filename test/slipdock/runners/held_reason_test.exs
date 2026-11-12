@@ -78,7 +78,7 @@ defmodule Slipdock.Runners.HeldReasonTest do
     Repo.update_all(from(b in Board, where: b.id == ^ctx.board.id), set: [automation_wip: false])
     assert Runners.held_reason(job) == "##{busy.id} is in progress"
 
-    {:ok, _} = Slipdock.Boards.toggle_completed(busy)
+    {:ok, _} = Slipdock.Boards.Cards.toggle_completed(busy)
     # Never seen at all: no runner online.
     assert Runners.held_reason(job) == "No runner online for pool dev"
   end
@@ -113,8 +113,11 @@ defmodule Slipdock.Runners.HeldReasonTest do
     assert agree.()[waiting.id] == "##{busy.id} is in progress"
 
     seen(ctx.runner, 0)
-    {:ok, _} = Slipdock.Boards.toggle_completed(busy)
-    {:ok, _} = Slipdock.Boards.toggle_completed(Repo.get!(Slipdock.Boards.Card, in_doing.card_id))
+    {:ok, _} = Slipdock.Boards.Cards.toggle_completed(busy)
+
+    {:ok, _} =
+      Slipdock.Boards.Cards.toggle_completed(Repo.get!(Slipdock.Boards.Card, in_doing.card_id))
+
     assert agree.() == %{}
   end
 end

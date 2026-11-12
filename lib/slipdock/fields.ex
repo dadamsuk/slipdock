@@ -103,19 +103,19 @@ defmodule Slipdock.Fields do
     %FieldDefinition{board_id: root_id, position: position + 1}
     |> FieldDefinition.changeset(attrs)
     |> Repo.insert()
-    |> tap_ok(fn _ -> Slipdock.Boards.broadcast_tree(root_id) end)
+    |> tap_ok(fn _ -> Slipdock.Boards.PubSub.broadcast_tree(root_id) end)
   end
 
   def update_field(%FieldDefinition{} = field, attrs) do
     field
     |> FieldDefinition.changeset(attrs)
     |> Repo.update()
-    |> tap_ok(fn f -> Slipdock.Boards.broadcast_tree(f.board_id) end)
+    |> tap_ok(fn f -> Slipdock.Boards.PubSub.broadcast_tree(f.board_id) end)
   end
 
   def delete_field(%FieldDefinition{} = field) do
     Repo.delete(field)
-    |> tap_ok(fn f -> Slipdock.Boards.broadcast_tree(f.board_id) end)
+    |> tap_ok(fn f -> Slipdock.Boards.PubSub.broadcast_tree(f.board_id) end)
   end
 
   @doc """
@@ -268,7 +268,7 @@ defmodule Slipdock.Fields do
   defp after_set(card, field, attrs) do
     shown = attrs && format(field, attrs |> Map.values() |> Enum.find(&(not is_nil(&1))))
 
-    Slipdock.Boards.log_activity_for(
+    Slipdock.Boards.ActivityLog.log_activity_for(
       card,
       "card",
       if(shown,
@@ -277,12 +277,12 @@ defmodule Slipdock.Fields do
       )
     )
 
-    Slipdock.Boards.broadcast_tree(Slipdock.Boards.root_of_board(card.board_id))
+    Slipdock.Boards.PubSub.broadcast_tree(Slipdock.Boards.root_of_board(card.board_id))
     reload(card)
   end
 
   defp reload(%Page{id: id}), do: {:ok, Slipdock.Wiki.get_page!(id)}
-  defp reload(%Card{id: id}), do: {:ok, Slipdock.Boards.get_card!(id)}
+  defp reload(%Card{id: id}), do: {:ok, Slipdock.Boards.Cards.get_card!(id)}
 
   # What to store for a raw value, by kind. Empty means "clear".
   defp cast(_field, raw) when raw in [nil, ""], do: {:ok, nil}

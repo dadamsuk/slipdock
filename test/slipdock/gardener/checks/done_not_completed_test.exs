@@ -15,8 +15,11 @@ defmodule Slipdock.Gardener.Checks.DoneNotCompletedTest do
 
   defp in_done_open(todo, done, attrs \\ %{}) do
     card = card_fixture(todo, attrs)
-    :ok = Boards.move_card(card.id, done.id)
-    {:ok, card} = Boards.update_card(Boards.get_card!(card.id), %{"completed" => false})
+    :ok = Boards.Cards.move_card(card.id, done.id)
+
+    {:ok, card} =
+      Boards.Cards.update_card(Boards.Cards.get_card!(card.id), %{"completed" => false})
+
     card
   end
 
@@ -35,8 +38,8 @@ defmodule Slipdock.Gardener.Checks.DoneNotCompletedTest do
   } do
     card_fixture(todo)
     c = card_fixture(todo)
-    :ok = Boards.move_card(c.id, done.id)
-    assert Boards.get_card!(c.id).completed
+    :ok = Boards.Cards.move_card(c.id, done.id)
+    assert Boards.Cards.get_card!(c.id).completed
     assert find(DoneNotCompleted, board) == []
   end
 
@@ -46,7 +49,7 @@ defmodule Slipdock.Gardener.Checks.DoneNotCompletedTest do
     done: done
   } do
     epic = in_done_open(todo, done)
-    {:ok, t} = Boards.find_template(nil, "Simple")
+    {:ok, t} = Boards.Templates.find_template(nil, "Simple")
     {:ok, sub} = sub_board(epic, t)
     card_fixture(hd(Boards.get_board!(sub.id).columns))
 

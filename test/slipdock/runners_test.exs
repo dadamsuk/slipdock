@@ -52,7 +52,7 @@ defmodule Slipdock.RunnersTest do
     end
 
     test "a runner made on a sub-board belongs to the whole tree", %{board: board, card: card} do
-      {:ok, template} = Boards.find_template(nil, "Simple")
+      {:ok, template} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(card, template)
       {:ok, runner, _} = Runners.create_runner(sub, %{"name" => "r", "pool" => "dev"})
       assert runner.board_id == board.id
@@ -323,7 +323,7 @@ defmodule Slipdock.RunnersTest do
     end
 
     test "a subcard's job goes to the runners of the tree it is in", ctx do
-      {:ok, template} = Boards.find_template(nil, "Simple")
+      {:ok, template} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(ctx.card, template)
       sub = Boards.get_board!(sub.id)
       subcard = card_fixture(hd(sub.columns), %{"title" => "Subtask"})
@@ -481,13 +481,18 @@ defmodule Slipdock.RunnersTest do
       job = fresh(ctx.job)
       assert job.status == "queued"
       assert job.runner_id == nil
+      # It remembers who held it (#2817).
+      assert job.last_runner_id == ctx.runner.id
       assert Repo.get!(Runner, ctx.runner.id).current_job_id == nil
+
+      {:ok, other, _} = Runners.create_runner(ctx.board, %{"name" => "other", "pool" => "dev"})
+      assert %Job{attempts: 2, last_runner_id: nil} = Runners.claim(other)
 
       # The runner that lost it hears it is no longer its job.
       assert {:error, :not_found} = Runners.heartbeat(ctx.runner, job.id, "late")
-
-      {:ok, other, _} = Runners.create_runner(ctx.board, %{"name" => "other", "pool" => "dev"})
-      assert %Job{attempts: 2} = Runners.claim(other)
+      assert {:error, :not_found} = Runners.finish(ctx.runner, job.id, %{exit: 0})
+      assert %Job{status: "claimed", runner_id: other_id} = fresh(job)
+      assert other_id == other.id
     end
 
     test "after the retry cap, fails the job and flags the card", ctx do
@@ -503,7 +508,7 @@ defmodule Slipdock.RunnersTest do
       assert job.error =~ "lease ran out"
       assert Runners.claim(ctx.runner) == nil
 
-      card = Boards.get_card!(ctx.card.id) |> Repo.preload(:comments)
+      card = Boards.Cards.get_card!(ctx.card.id) |> Repo.preload(:comments)
       assert "flagged" in card.flags
       assert Enum.any?(card.comments, &(&1.body =~ "Runner job ##{job.id}"))
     end
@@ -513,6 +518,196 @@ defmodule Slipdock.RunnersTest do
       expire_lease(ctx.job)
       Runners.sweep()
       assert fresh(ctx.job).status == "cancelled"
+    end
+  end
+
+  # A machine that slept through its lease (#2817): the sweep requeued its
+  # job, and until another runner claims it the job is still its to carry on.
+  describe "a runner taking its own job back after its lease ran out" do
+    setup ctx do
+      {:ok, _} = queue(ctx.card)
+      %{job: Runners.claim(ctx.runner)}
+    end
+
+    defp lapse(job) do
+      expire_lease(job)
+      assert Runners.sweep() == 1
+      assert fresh(job).status == "queued"
+    end
+
+    test "its next heartbeat takes a running job back, on a fresh lease", ctx do
+      {:ok, :ok} = Runners.heartbeat(ctx.runner, ctx.job.id, "started")
+      # An hour into its run, so that a reclaim restarting the clock shows
+      # (the column is in seconds, and the test runs within one).
+      started_at = DateTime.add(DateTime.utc_now(), -3600) |> DateTime.truncate(:second)
+
+      Repo.update_all(from(j in Job, where: j.id == ^ctx.job.id), set: [started_at: started_at])
+
+      lapse(ctx.job)
+
+      assert {:ok, :ok} = Runners.heartbeat(ctx.runner, ctx.job.id, "awake again")
+
+      job = fresh(ctx.job)
+      assert job.status == "running"
+      assert job.runner_id == ctx.runner.id
+      assert job.runner_name == ctx.runner.name
+      assert job.last_runner_id == nil
+      assert job.claimed_at
+      assert job.started_at == started_at
+      assert job.log_tail == "awake again"
+      assert DateTime.diff(job.lease_expires_at, DateTime.utc_now()) in 80..91
+      assert Repo.get!(Runner, ctx.runner.id).current_job_id == job.id
+      assert Runners.busy?(ctx.runner)
+
+      # Nobody else can take it now, and the next sweep leaves it alone.
+      {:ok, other, _} = Runners.create_runner(ctx.board, %{"name" => "other", "pool" => "dev"})
+      assert Runners.claim(other) == nil
+      assert Runners.sweep() == 0
+
+      assert Enum.any?(
+               Boards.ActivityLog.list_activities(ctx.board.id),
+               &(&1.message =~ "dev-box took job ##{job.id} back")
+             )
+    end
+
+    test "a job that had not started comes back claimed, and starts at that heartbeat", ctx do
+      lapse(ctx.job)
+      assert {:ok, :ok} = Runners.heartbeat(ctx.runner, ctx.job.id)
+
+      job = fresh(ctx.job)
+      assert job.status == "running"
+      assert job.started_at
+    end
+
+    test "costs no attempt, however often the machine sleeps", ctx do
+      for _ <- 1..(Runners.max_attempts() + 2) do
+        lapse(ctx.job)
+        assert {:ok, :ok} = Runners.heartbeat(ctx.runner, ctx.job.id)
+      end
+
+      job = fresh(ctx.job)
+      assert job.attempts == 1
+      assert job.status == "running"
+      refute "flagged" in Boards.Cards.get_card!(ctx.card.id).flags
+    end
+
+    test "a finish takes it back and ends it", ctx do
+      lapse(ctx.job)
+
+      assert {:ok, %Job{status: "done"}} =
+               Runners.finish(ctx.runner, ctx.job.id, %{exit: 0, output: "all done"})
+
+      job = fresh(ctx.job)
+      assert {job.status, job.runner_id, job.output} == {"done", ctx.runner.id, "all done"}
+      assert job.last_runner_id == nil
+    end
+
+    test "a refused finish after taking it back leaves it held, on a lease the sweep keeps",
+         ctx do
+      lapse(ctx.job)
+
+      # Parked with no wait: the finish is refused, but the job came back.
+      assert {:error, _} = Runners.finish(ctx.runner, ctx.job.id, %{status: "parked"})
+
+      job = fresh(ctx.job)
+      assert {job.status, job.runner_id} == {"claimed", ctx.runner.id}
+      assert DateTime.diff(job.lease_expires_at, DateTime.utc_now()) in 80..91
+
+      # Should the machine sleep again, the sweep still puts it back.
+      expire_lease(job)
+      assert Runners.sweep() == 1
+      assert %Job{status: "queued", last_runner_id: id} = fresh(job)
+      assert id == ctx.runner.id
+    end
+
+    test "another runner of the pool can't take it back", ctx do
+      {:ok, other, _} = Runners.create_runner(ctx.board, %{"name" => "other", "pool" => "dev"})
+      lapse(ctx.job)
+
+      assert {:error, :not_found} = Runners.heartbeat(other, ctx.job.id, "mine?")
+      assert {:error, :not_found} = Runners.finish(other, ctx.job.id, %{exit: 0})
+      assert %Job{status: "queued", runner_id: nil} = fresh(ctx.job)
+    end
+
+    test "a job cancelled while it sat in the queue stays cancelled", ctx do
+      lapse(ctx.job)
+      {:ok, _} = Runners.cancel_job(fresh(ctx.job))
+
+      assert {:error, :not_found} = Runners.heartbeat(ctx.runner, ctx.job.id)
+      assert fresh(ctx.job).status == "cancelled"
+      # Nor has its agent a runner to report through any more.
+      assert {:error, :not_found} = Runners.job_agent_runner(ctx.job.id, ctx.job.id)
+    end
+
+    test "a job that failed at the retry cap is not taken back", ctx do
+      Repo.update_all(from(j in Job, where: j.id == ^ctx.job.id),
+        set: [attempts: Runners.max_attempts()]
+      )
+
+      expire_lease(ctx.job)
+      Runners.sweep()
+
+      job = fresh(ctx.job)
+      assert {job.status, job.last_runner_id} == {"failed", nil}
+      # Failed with its runner still on it: the heartbeat is told to stop.
+      assert {:ok, :cancel} = Runners.heartbeat(ctx.runner, job.id)
+      assert fresh(job).status == "failed"
+    end
+
+    test "not while the runner holds another job", ctx do
+      lapse(ctx.job)
+      card = card_fixture(ctx.todo, %{"title" => "Another"})
+      {:ok, second} = queue(card)
+      # The older job is the one a claim hands out, so park it out of reach.
+      Repo.update_all(from(j in Job, where: j.id == ^ctx.job.id), set: [pool: "elsewhere"])
+      assert %Job{id: id} = Runners.claim(ctx.runner)
+      assert id == second.id
+
+      assert {:error, :not_found} = Runners.heartbeat(ctx.runner, ctx.job.id)
+      assert %Job{status: "queued", runner_id: nil} = fresh(ctx.job)
+    end
+
+    test "a job id that isn't a number is not found", ctx do
+      assert {:error, :not_found} = Runners.heartbeat(ctx.runner, "nope")
+    end
+
+    test "the job's own agent can still report on it, and that takes it back", ctx do
+      assert {:ok, runner} = Runners.job_agent_runner(ctx.job.id, ctx.job.id)
+      lapse(ctx.job)
+
+      assert {:ok, %Runner{id: same}} = Runners.job_agent_runner(ctx.job.id, ctx.job.id)
+      assert same == runner.id and same == ctx.runner.id
+      assert {:ok, :ok} = Runners.heartbeat(runner, ctx.job.id, nil, step: "tests running")
+      assert %Job{status: "running", step: "tests running"} = fresh(ctx.job)
+
+      # Once another runner has it, the agent reports through that one.
+      lapse(ctx.job)
+      {:ok, other, _} = Runners.create_runner(ctx.board, %{"name" => "other", "pool" => "dev"})
+      assert Runners.claim(other)
+      assert {:ok, %Runner{id: id}} = Runners.job_agent_runner(ctx.job.id, ctx.job.id)
+      assert id == other.id
+    end
+
+    test "a queued job nobody has held has no runner to report through", ctx do
+      card = card_fixture(ctx.todo, %{"title" => "Never claimed"})
+      {:ok, job} = queue(card)
+      assert {:error, :not_found} = Runners.job_agent_runner(job.id, job.id)
+    end
+
+    test "a session takes back the job it claimed, and no other token's", ctx do
+      {_token, api_token} = Slipdock.Accounts.create_api_token(ctx.owner, "desktop")
+      {_token, stranger} = Slipdock.Accounts.create_api_token(ctx.owner, "laptop")
+      {:ok, session} = Runners.session_runner(ctx.board, "dev", api_token, ctx.owner)
+      card = card_fixture(ctx.todo, %{"title" => "A session's"})
+      {:ok, _} = queue(card)
+      job = Runners.claim(session)
+      lapse(job)
+
+      assert {:error, :not_found} = Runners.session_job_runner(job.id, stranger)
+      assert {:ok, %Runner{id: id} = session} = Runners.session_job_runner(job.id, api_token)
+      assert id == session.id
+      assert {:ok, :ok} = Runners.heartbeat(session, job.id, "back")
+      assert %Job{status: "running", runner_id: ^id} = fresh(job)
     end
   end
 

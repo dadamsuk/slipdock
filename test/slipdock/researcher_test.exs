@@ -16,7 +16,7 @@ defmodule Slipdock.ResearcherTest do
     column = hd(board.columns)
 
     card = card_fixture(column, %{"title" => "Refund rounding is wrong", "priority" => "high"})
-    {:ok, _} = Boards.add_comment(card, "finance want this fixed before the audit")
+    {:ok, _} = Boards.Comments.add_comment(card, "finance want this fixed before the audit")
 
     %{owner: owner, board: board, column: column, card: card}
   end
@@ -192,7 +192,7 @@ defmodule Slipdock.ResearcherTest do
   end
 
   test "list_cards counts subcards when asked for depth, and says so when it isn't", ctx do
-    {:ok, template} = Boards.find_template(nil, "Simple")
+    {:ok, template} = Boards.Templates.find_template(nil, "Simple")
     {:ok, sub} = Boards.create_sub_board(ctx.card, template)
     sub = Boards.get_board!(sub.id)
     card_fixture(hd(sub.columns), %{"title" => "Check the rounding maths"})
@@ -239,8 +239,8 @@ defmodule Slipdock.ResearcherTest do
     late = card_fixture(todo, %{"title" => "Overdue thing", "due_date" => "2020-01-01"})
     card_fixture(todo, %{"title" => "Far off thing", "due_date" => "2099-01-01"})
     blocked = card_fixture(todo, %{"title" => "Waiting on the overdue one"})
-    {:ok, _} = Boards.add_dependency(blocked, late)
-    {:ok, _} = Boards.update_card(late, %{"assignee_id" => jess.id})
+    {:ok, _} = Boards.Dependencies.add_dependency(blocked, late)
+    {:ok, _} = Boards.Cards.update_card(late, %{"assignee_id" => jess.id})
 
     # Titles are quoted in a card's line; a blocker is named without quotes,
     # so quoting is what tells "listed" from "mentioned".
@@ -267,7 +267,7 @@ defmodule Slipdock.ResearcherTest do
   end
 
   test "read_board describes the board without listing its cards", ctx do
-    {:ok, _} = Boards.create_tag(ctx.board, %{"name" => "finance"})
+    {:ok, _} = Boards.Tags.create_tag(ctx.board, %{"name" => "finance"})
 
     Slipdock.AIStub.reply_sequence([
       {:tool_calls, [{"read_board", %{"board" => "launch"}}]},
@@ -292,16 +292,16 @@ defmodule Slipdock.ResearcherTest do
     jess = user_fixture("jess@example.com")
     {:ok, jess} = Slipdock.Accounts.update_profile(jess, %{"name" => "Jess Smith"})
     share_fixture(ctx.board, jess)
-    {:ok, template} = Boards.find_template(nil, "Simple")
+    {:ok, template} = Boards.Templates.find_template(nil, "Simple")
     {:ok, sub} = Boards.create_sub_board(ctx.card, template)
     sub = Boards.get_board!(sub.id)
 
     deep = card_fixture(hd(sub.columns), %{"title" => "Deep task", "due_date" => "2020-01-01"})
-    {:ok, _} = Boards.update_card(deep, %{"assignee_id" => jess.id})
+    {:ok, _} = Boards.Cards.update_card(deep, %{"assignee_id" => jess.id})
 
     other = board_fixture(%{"name" => "Elsewhere"}, owner: ctx.owner) |> share_fixture(jess)
     mine = card_fixture(hd(other.columns), %{"title" => "Shallow task"})
-    {:ok, _} = Boards.update_card(mine, %{"assignee_id" => jess.id})
+    {:ok, _} = Boards.Cards.update_card(mine, %{"assignee_id" => jess.id})
 
     Slipdock.AIStub.reply_sequence([
       {:tool_calls, [{"assigned_cards", %{"person" => "Jess"}}]},
@@ -327,8 +327,8 @@ defmodule Slipdock.ResearcherTest do
            ]
 
     # Everything done is not the same as nothing assigned.
-    {:ok, _} = Boards.update_card(mine, %{"completed" => true})
-    {:ok, _} = Boards.update_card(deep, %{"completed" => true})
+    {:ok, _} = Boards.Cards.update_card(mine, %{"completed" => true})
+    {:ok, _} = Boards.Cards.update_card(deep, %{"completed" => true})
 
     Slipdock.AIStub.reply_sequence([
       {:tool_calls, [{"assigned_cards", %{"person" => fixture_email("jess@example.com")}}]},
@@ -359,7 +359,7 @@ defmodule Slipdock.ResearcherTest do
 
   test "recent_activity reports what happened, with what was said", ctx do
     {:ok, _} =
-      Boards.add_status_update(ctx.card, ctx.owner, %{
+      Boards.StatusUpdates.add_status_update(ctx.card, ctx.owner, %{
         "health" => "at_risk",
         "body" => "vendor is late"
       })
@@ -584,7 +584,7 @@ defmodule Slipdock.ResearcherTest do
 
     test "each board has its code, card count and lists, and archived ones say so", ctx do
       old = board_fixture(%{"name" => "Old plans", "code" => "old"}, owner: ctx.owner)
-      {:ok, _} = Boards.archive_board(old)
+      {:ok, _} = Boards.Arrangement.archive_board(old)
 
       {content, _} = tool_output(ctx.owner, "list_boards", %{})
       lines = String.split(content, "\n")
@@ -599,7 +599,7 @@ defmodule Slipdock.ResearcherTest do
     test "describes a board's description, lists and done count", ctx do
       {:ok, board} = Boards.update_board(ctx.board, %{"description" => "Everything for launch"})
       done = card_fixture(ctx.column, %{"title" => "Shipped"})
-      {:ok, _} = Boards.update_card(done, %{"completed" => true})
+      {:ok, _} = Boards.Cards.update_card(done, %{"completed" => true})
 
       {content, _} = tool_output(ctx.owner, "read_board", %{"board" => board.code})
       assert content =~ "# Board: Launch [launch]"
@@ -609,7 +609,7 @@ defmodule Slipdock.ResearcherTest do
     end
 
     test "an archived board says so", ctx do
-      {:ok, _} = Boards.archive_board(ctx.board)
+      {:ok, _} = Boards.Arrangement.archive_board(ctx.board)
       {content, _} = tool_output(ctx.owner, "read_board", %{"board" => "Launch"})
       assert content =~ "This board is archived."
     end
@@ -683,7 +683,7 @@ defmodule Slipdock.ResearcherTest do
 
     test "completed cards are left out and counted, unless asked for", ctx do
       {:ok, _} =
-        Boards.update_card(ctx.card, %{"assignee_id" => ctx.owner.id, "completed" => true})
+        Boards.Cards.update_card(ctx.card, %{"assignee_id" => ctx.owner.id, "completed" => true})
 
       {content, answer} = tool_output(ctx.owner, "assigned_cards", %{"person" => "me"})
       assert content =~ "0 unfinished cards assigned to"
@@ -701,7 +701,7 @@ defmodule Slipdock.ResearcherTest do
 
   describe "recent_activity arguments" do
     test "a limit shows the most recent entries and says how many there were", ctx do
-      for n <- 1..3, do: {:ok, _} = Boards.add_comment(ctx.card, "note #{n}")
+      for n <- 1..3, do: {:ok, _} = Boards.Comments.add_comment(ctx.card, "note #{n}")
 
       {content, _} = tool_output(ctx.owner, "recent_activity", %{"limit" => 2})
       assert content =~ "the 2 most recent of"

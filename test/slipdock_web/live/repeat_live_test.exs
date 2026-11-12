@@ -184,7 +184,7 @@ defmodule SlipdockWeb.RepeatLiveTest do
 
   test "an earlier instance says the series moved on", ctx do
     {:ok, _} = Recurrence.set(ctx.card, %{"rule" => "tue"}, ctx.owner)
-    {:ok, _} = Boards.update_card(ctx.card, %{"completed" => true})
+    {:ok, _} = Boards.Cards.update_card(ctx.card, %{"completed" => true})
     Recurrence.tick(~U[2027-01-19 07:00:00Z])
 
     {:ok, view, _} = open(ctx.conn, ctx)
@@ -193,7 +193,7 @@ defmodule SlipdockWeb.RepeatLiveTest do
 
   test "a later instance says which it was copied from, linked (#2081)", ctx do
     {:ok, series} = Recurrence.set(ctx.card, %{"rule" => "tue"}, ctx.owner)
-    {:ok, _} = Boards.update_card(ctx.card, %{"completed" => true})
+    {:ok, _} = Boards.Cards.update_card(ctx.card, %{"completed" => true})
     Recurrence.tick(~U[2027-01-19 07:00:00Z])
     new = Slipdock.Repo.get!(Slipdock.Recurrence.Series, series.id).card_id
 

@@ -18,24 +18,24 @@ defmodule Slipdock.DependenciesTest do
   end
 
   test "adding and removing dependencies, blocked state", %{a: a, b: b, c: c, board: board} do
-    assert {:ok, a} = Boards.add_dependency(a, b)
+    assert {:ok, a} = Boards.Dependencies.add_dependency(a, b)
     assert Enum.map(a.blocked_by, & &1.title) == ["B"]
     assert Card.blocked?(a)
-    assert Enum.map(Boards.get_card!(b.id).blocks, & &1.title) == ["A"]
+    assert Enum.map(Boards.Cards.get_card!(b.id).blocks, & &1.title) == ["A"]
 
     # Completing the blocker unblocks the card; archiving it does too.
-    {:ok, _} = Boards.toggle_completed(b)
-    refute Card.blocked?(Boards.get_card!(a.id))
-    {:ok, _} = Boards.toggle_completed(Boards.get_card!(b.id))
-    assert Card.blocked?(Boards.get_card!(a.id))
-    {:ok, _} = Boards.archive_card(Boards.get_card!(b.id))
-    refute Card.blocked?(Boards.get_card!(a.id))
-    {:ok, _} = Boards.unarchive_card(Boards.get_card!(b.id))
+    {:ok, _} = Boards.Cards.toggle_completed(b)
+    refute Card.blocked?(Boards.Cards.get_card!(a.id))
+    {:ok, _} = Boards.Cards.toggle_completed(Boards.Cards.get_card!(b.id))
+    assert Card.blocked?(Boards.Cards.get_card!(a.id))
+    {:ok, _} = Boards.Cards.archive_card(Boards.Cards.get_card!(b.id))
+    refute Card.blocked?(Boards.Cards.get_card!(a.id))
+    {:ok, _} = Boards.Cards.unarchive_card(Boards.Cards.get_card!(b.id))
 
     assert {:error, "That dependency already exists."} =
-             Boards.add_dependency(Boards.get_card!(a.id), b)
+             Boards.Dependencies.add_dependency(Boards.Cards.get_card!(a.id), b)
 
-    assert {:error, msg} = Boards.add_dependency(a, a)
+    assert {:error, msg} = Boards.Dependencies.add_dependency(a, a)
     assert msg =~ "itself"
 
     # Board cards carry dependency stubs too.
@@ -43,20 +43,25 @@ defmodule Slipdock.DependenciesTest do
     loaded_a = board.columns |> Enum.flat_map(& &1.cards) |> Enum.find(&(&1.id == a.id))
     assert [%{title: "B"}] = loaded_a.blocked_by
 
-    {:ok, _} = Boards.remove_dependency(Boards.get_card!(b.id), Boards.get_card!(a.id))
-    assert Boards.get_card!(a.id).blocked_by == []
-    assert Enum.any?(Boards.list_activities(board.id), &(&1.message =~ "depend on"))
+    {:ok, _} =
+      Boards.Dependencies.remove_dependency(
+        Boards.Cards.get_card!(b.id),
+        Boards.Cards.get_card!(a.id)
+      )
+
+    assert Boards.Cards.get_card!(a.id).blocked_by == []
+    assert Enum.any?(Boards.ActivityLog.list_activities(board.id), &(&1.message =~ "depend on"))
 
     # Deleting a card removes its links.
-    {:ok, _} = Boards.add_dependency(Boards.get_card!(a.id), c)
-    {:ok, _} = Boards.delete_card(Boards.get_card!(c.id))
-    assert Boards.get_card!(a.id).blocked_by == []
+    {:ok, _} = Boards.Dependencies.add_dependency(Boards.Cards.get_card!(a.id), c)
+    {:ok, _} = Boards.Cards.delete_card(Boards.Cards.get_card!(c.id))
+    assert Boards.Cards.get_card!(a.id).blocked_by == []
   end
 
   test "cycles are rejected", %{a: a, b: b, c: c} do
-    {:ok, _} = Boards.add_dependency(a, b)
-    {:ok, _} = Boards.add_dependency(b, c)
-    assert {:error, msg} = Boards.add_dependency(c, a)
+    {:ok, _} = Boards.Dependencies.add_dependency(a, b)
+    {:ok, _} = Boards.Dependencies.add_dependency(b, c)
+    assert {:error, msg} = Boards.Dependencies.add_dependency(c, a)
     assert msg =~ "circular"
   end
 
@@ -69,67 +74,67 @@ defmodule Slipdock.DependenciesTest do
         Repo.all(from(c in Slipdock.Boards.Comment, where: c.card_id == ^card.id, select: c.body))
 
     defp flagged(card) do
-      {:ok, card} = Boards.update_card(card, %{"flags" => ["blocked", "starred"]})
+      {:ok, card} = Boards.Cards.update_card(card, %{"flags" => ["blocked", "starred"]})
       card
     end
 
     test "completing the last open blocker takes the blocked flag off, with a comment",
          %{a: a, b: b, c: c} do
       a = flagged(a)
-      {:ok, _} = Boards.add_dependency(a, b)
-      {:ok, _} = Boards.add_dependency(a, c)
+      {:ok, _} = Boards.Dependencies.add_dependency(a, b)
+      {:ok, _} = Boards.Dependencies.add_dependency(a, c)
 
       # One blocker left open: still blocked, flag stays.
-      {:ok, _} = Boards.toggle_completed(b)
-      assert Boards.get_card!(a.id).flags == ["blocked", "starred"]
+      {:ok, _} = Boards.Cards.toggle_completed(b)
+      assert Boards.Cards.get_card!(a.id).flags == ["blocked", "starred"]
       assert comments(a) == []
 
-      {:ok, _} = Boards.toggle_completed(c)
-      assert Boards.get_card!(a.id).flags == ["starred"]
+      {:ok, _} = Boards.Cards.toggle_completed(c)
+      assert Boards.Cards.get_card!(a.id).flags == ["starred"]
       assert [comment] = comments(a)
       assert comment =~ "Unblocked: ##{c.id} “C” is done"
     end
 
     test "archiving the last open blocker does it too", %{a: a, b: b} do
       a = flagged(a)
-      {:ok, _} = Boards.add_dependency(a, b)
-      {:ok, _} = Boards.archive_card(b)
+      {:ok, _} = Boards.Dependencies.add_dependency(a, b)
+      {:ok, _} = Boards.Cards.archive_card(b)
 
-      assert Boards.get_card!(a.id).flags == ["starred"]
+      assert Boards.Cards.get_card!(a.id).flags == ["starred"]
       assert [comment] = comments(a)
       assert comment =~ "“B” is archived"
     end
 
     test "archiving a blocker that was already done does not unblock twice", %{a: a, b: b} do
       a = flagged(a)
-      {:ok, _} = Boards.add_dependency(a, b)
-      {:ok, b} = Boards.toggle_completed(b)
-      {:ok, _} = Boards.archive_card(b)
+      {:ok, _} = Boards.Dependencies.add_dependency(a, b)
+      {:ok, b} = Boards.Cards.toggle_completed(b)
+      {:ok, _} = Boards.Cards.archive_card(b)
 
       assert length(comments(a)) == 1
     end
 
     test "a card without the flag is left alone, and finished cards are not touched",
          %{a: a, b: b, c: c} do
-      {:ok, _} = Boards.add_dependency(a, b)
-      {:ok, c} = Boards.update_card(c, %{"flags" => ["blocked"], "completed" => true})
-      {:ok, _} = Boards.add_dependency(c, b)
+      {:ok, _} = Boards.Dependencies.add_dependency(a, b)
+      {:ok, c} = Boards.Cards.update_card(c, %{"flags" => ["blocked"], "completed" => true})
+      {:ok, _} = Boards.Dependencies.add_dependency(c, b)
 
-      {:ok, _} = Boards.toggle_completed(b)
+      {:ok, _} = Boards.Cards.toggle_completed(b)
 
-      assert Boards.get_card!(a.id).flags == []
+      assert Boards.Cards.get_card!(a.id).flags == []
       assert comments(a) == []
-      assert Boards.get_card!(c.id).flags == ["blocked"]
+      assert Boards.Cards.get_card!(c.id).flags == ["blocked"]
       assert comments(c) == []
     end
 
     test "reopening the blocker does not put the flag back", %{a: a, b: b} do
       a = flagged(a)
-      {:ok, _} = Boards.add_dependency(a, b)
-      {:ok, b} = Boards.toggle_completed(b)
-      {:ok, _} = Boards.toggle_completed(b)
+      {:ok, _} = Boards.Dependencies.add_dependency(a, b)
+      {:ok, b} = Boards.Cards.toggle_completed(b)
+      {:ok, _} = Boards.Cards.toggle_completed(b)
 
-      a = Boards.get_card!(a.id)
+      a = Boards.Cards.get_card!(a.id)
       assert a.flags == ["starred"]
       assert Card.blocked?(a)
     end
@@ -138,8 +143,8 @@ defmodule Slipdock.DependenciesTest do
       other = board_fixture(%{"name" => "Other"})
       foreign = card_fixture(hd(other.columns), %{"title" => "Elsewhere"})
       a = flagged(a)
-      {:ok, _} = Boards.add_dependency(a, foreign)
-      {:ok, _} = Boards.toggle_completed(foreign)
+      {:ok, _} = Boards.Dependencies.add_dependency(a, foreign)
+      {:ok, _} = Boards.Cards.toggle_completed(foreign)
 
       assert [comment] = comments(a)
       assert comment =~ "card ##{foreign.id} on another board is done"
@@ -157,12 +162,12 @@ defmodule Slipdock.DependenciesTest do
         "actions" => [%{"type" => "add_flags", "flags" => ["review"]}]
       })
 
-      {:ok, _} = Boards.add_dependency(a, b)
-      {:ok, _} = Boards.toggle_completed(b)
+      {:ok, _} = Boards.Dependencies.add_dependency(a, b)
+      {:ok, _} = Boards.Cards.toggle_completed(b)
 
-      assert "review" in Boards.get_card!(a.id).flags
-      refute "review" in Boards.get_card!(b.id).flags
-      refute "review" in Boards.get_card!(c.id).flags
+      assert "review" in Boards.Cards.get_card!(a.id).flags
+      refute "review" in Boards.Cards.get_card!(b.id).flags
+      refute "review" in Boards.Cards.get_card!(c.id).flags
     end
 
     test "card_unblocked is in the automation vocabulary" do
@@ -187,44 +192,49 @@ defmodule Slipdock.DependenciesTest do
 
     test "a card can wait on a card on another board, and it is logged and broadcast on both",
          %{home: home, other: other, a: a, foreign: foreign} do
-      Boards.subscribe(home.id)
-      Boards.subscribe(other.id)
+      Boards.PubSub.subscribe(home.id)
+      Boards.PubSub.subscribe(other.id)
 
-      assert {:ok, a} = Boards.add_dependency(a, foreign)
+      assert {:ok, a} = Boards.Dependencies.add_dependency(a, foreign)
       assert [%{id: fid, title: "Elsewhere"}] = a.blocked_by
       assert fid == foreign.id
       assert Card.blocked?(a)
-      assert [%{title: "A"}] = Boards.get_card!(foreign.id).blocks
+      assert [%{title: "A"}] = Boards.Cards.get_card!(foreign.id).blocks
 
       assert_receive {:board_changed, id} when id == home.id
       assert_receive {:board_changed, id} when id == other.id
 
       # Each board's log names its own card and only numbers the other.
       assert Enum.any?(
-               Boards.list_activities(home.id),
+               Boards.ActivityLog.list_activities(home.id),
                &(&1.message == "made “A” depend on card ##{foreign.id} on another board")
              )
 
       assert Enum.any?(
-               Boards.list_activities(other.id),
+               Boards.ActivityLog.list_activities(other.id),
                &(&1.message == "made card ##{a.id} on another board depend on “Elsewhere”")
              )
 
-      refute Enum.any?(Boards.list_activities(other.id), &(&1.message =~ "“A”"))
+      refute Enum.any?(Boards.ActivityLog.list_activities(other.id), &(&1.message =~ "“A”"))
 
       # Removing it, from the blocker's side, is logged and broadcast on both too.
-      {:ok, _} = Boards.remove_dependency(Boards.get_card!(foreign.id), Boards.get_card!(a.id))
-      assert Boards.get_card!(a.id).blocked_by == []
+      {:ok, _} =
+        Boards.Dependencies.remove_dependency(
+          Boards.Cards.get_card!(foreign.id),
+          Boards.Cards.get_card!(a.id)
+        )
+
+      assert Boards.Cards.get_card!(a.id).blocked_by == []
       assert_receive {:board_changed, id} when id == home.id
       assert_receive {:board_changed, id} when id == other.id
 
       assert Enum.any?(
-               Boards.list_activities(home.id),
+               Boards.ActivityLog.list_activities(home.id),
                &(&1.message =~ "removed the dependency between card ##{foreign.id}")
              )
 
       assert Enum.any?(
-               Boards.list_activities(other.id),
+               Boards.ActivityLog.list_activities(other.id),
                &(&1.message =~ "removed the dependency between “Elsewhere”")
              )
     end
@@ -233,22 +243,25 @@ defmodule Slipdock.DependenciesTest do
       third = board_fixture(%{"name" => "Third"})
       t = card_fixture(hd(third.columns), %{"title" => "Third card"})
 
-      {:ok, _} = Boards.add_dependency(a, foreign)
-      {:ok, _} = Boards.add_dependency(foreign, t)
-      assert {:error, msg} = Boards.add_dependency(t, a)
+      {:ok, _} = Boards.Dependencies.add_dependency(a, foreign)
+      {:ok, _} = Boards.Dependencies.add_dependency(foreign, t)
+      assert {:error, msg} = Boards.Dependencies.add_dependency(t, a)
       assert msg =~ "circular"
-      assert Boards.get_card!(t.id).blocked_by == []
+      assert Boards.Cards.get_card!(t.id).blocked_by == []
     end
 
     test "--deps ready, blocked state and the rollup hold across boards",
          %{home: home, a: a, foreign: foreign} do
-      {:ok, _} = Boards.add_dependency(a, foreign)
-      titles = fn deps -> Boards.list_cards(home, %{"deps" => deps}) |> Enum.map(& &1.title) end
+      {:ok, _} = Boards.Dependencies.add_dependency(a, foreign)
+
+      titles = fn deps ->
+        Boards.Cards.list_cards(home, %{"deps" => deps}) |> Enum.map(& &1.title)
+      end
 
       assert "A" in titles.("blocked")
       refute "A" in titles.("ready")
 
-      {:ok, _} = Boards.toggle_completed(Boards.get_card!(foreign.id))
+      {:ok, _} = Boards.Cards.toggle_completed(Boards.Cards.get_card!(foreign.id))
       refute "A" in titles.("blocked")
       assert "A" in titles.("ready")
     end
@@ -257,9 +270,9 @@ defmodule Slipdock.DependenciesTest do
          %{home: home, a: a, foreign: foreign} do
       reader = user_fixture("reader-#{System.unique_integer([:positive])}@example.com")
       share_fixture(home, reader, "read")
-      {:ok, _} = Boards.add_dependency(a, foreign)
+      {:ok, _} = Boards.Dependencies.add_dependency(a, foreign)
 
-      card = Access.hide_unreadable_dependencies(reader, Boards.get_card!(a.id))
+      card = Access.hide_unreadable_dependencies(reader, Boards.Cards.get_card!(a.id))
 
       assert [%Card{id: fid, hidden: true, title: "A card you can't see", board_id: nil}] =
                card.blocked_by
@@ -268,7 +281,9 @@ defmodule Slipdock.DependenciesTest do
       assert Card.blocked?(card)
 
       # The owner, who can read both, sees it as it is.
-      owner_view = Access.hide_unreadable_dependencies(user_fixture(), Boards.get_card!(a.id))
+      owner_view =
+        Access.hide_unreadable_dependencies(user_fixture(), Boards.Cards.get_card!(a.id))
+
       assert [%{hidden: false, title: "Elsewhere"}] = owner_view.blocked_by
 
       # The same over a whole board.
@@ -279,35 +294,41 @@ defmodule Slipdock.DependenciesTest do
       # And on the blocker's side, for somebody who can only see that board.
       far = user_fixture("far-#{System.unique_integer([:positive])}@example.com")
       share_fixture(Boards.get_board!(foreign.board_id), far, "read")
-      blocker = Access.hide_unreadable_dependencies(far, Boards.get_card!(foreign.id))
+      blocker = Access.hide_unreadable_dependencies(far, Boards.Cards.get_card!(foreign.id))
       assert [%{hidden: true, title: "A card you can't see"}] = blocker.blocks
 
       # A token scoped to one board hides cards on the other, even for the owner.
       scoped = %{scope: "write", scope_boards: [home.id]}
-      card = Access.hide_unreadable_dependencies(user_fixture(), Boards.get_card!(a.id), scoped)
+
+      card =
+        Access.hide_unreadable_dependencies(user_fixture(), Boards.Cards.get_card!(a.id), scoped)
+
       assert [%{hidden: true}] = card.blocked_by
     end
 
     test "nothing to hide is left alone, and nobody signed in sees nothing", %{a: a, b: b} do
       assert [%Card{blocked_by: []}] =
-               Access.hide_unreadable_dependencies(user_fixture(), [Boards.get_card!(a.id)])
+               Access.hide_unreadable_dependencies(user_fixture(), [Boards.Cards.get_card!(a.id)])
 
-      {:ok, _} = Boards.add_dependency(a, b)
-      owner_view = Access.hide_unreadable_dependencies(user_fixture(), Boards.get_card!(a.id))
+      {:ok, _} = Boards.Dependencies.add_dependency(a, b)
+
+      owner_view =
+        Access.hide_unreadable_dependencies(user_fixture(), Boards.Cards.get_card!(a.id))
+
       assert [%{title: "B", hidden: false}] = owner_view.blocked_by
 
       assert [%{hidden: true}] =
-               Access.hide_unreadable_dependencies(nil, Boards.get_card!(a.id)).blocked_by
+               Access.hide_unreadable_dependencies(nil, Boards.Cards.get_card!(a.id)).blocked_by
     end
   end
 
   test "search excludes the card itself and given ids", %{board: board, a: a, b: b} do
-    assert Enum.map(Boards.search_cards(board.id, "", [a.id]), & &1.title) == ["B", "C"]
-    assert Enum.map(Boards.search_cards(board.id, "c", [a.id, b.id]), & &1.title) == ["C"]
+    assert Enum.map(Boards.Links.search_cards(board.id, "", [a.id]), & &1.title) == ["B", "C"]
+    assert Enum.map(Boards.Links.search_cards(board.id, "c", [a.id, b.id]), & &1.title) == ["C"]
   end
 
   test "swimlane dependencies axis and filter", %{board: board, a: a, b: b} do
-    {:ok, _} = Boards.add_dependency(a, b)
+    {:ok, _} = Boards.Dependencies.add_dependency(a, b)
     board = reload(board)
 
     grid = Swimlanes.grid(board, %Config{rows: "dependencies", cols: "none"})

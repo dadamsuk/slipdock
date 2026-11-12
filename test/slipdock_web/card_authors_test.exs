@@ -186,7 +186,7 @@ defmodule SlipdockWeb.CardAuthorsTest do
     end
 
     test "a move in the web UI names the person, in the sidebar", ctx do
-      card = Boards.get_card!(ctx.id)
+      card = Boards.Cards.get_card!(ctx.id)
       [_backlog, _todo, doing, _done] = Boards.get_board!(ctx.board.id).columns
       {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/cards/#{card.id}")
 

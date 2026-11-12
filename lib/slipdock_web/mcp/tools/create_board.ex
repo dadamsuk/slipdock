@@ -92,12 +92,12 @@ defmodule SlipdockWeb.MCP.Tools.CreateBoard do
   defp template(_user, nil), do: {:ok, nil}
 
   defp template(user, ref) do
-    case Boards.find_template(user, ref) do
+    case Boards.Templates.find_template(user, ref) do
       {:ok, t} ->
         {:ok, t}
 
       _ ->
-        names = Enum.map_join(Boards.list_templates(user), ", ", & &1.name)
+        names = Enum.map_join(Boards.Templates.list_templates(user), ", ", & &1.name)
         {:error, "no template called #{inspect(ref)}; there are: #{names}"}
     end
   end

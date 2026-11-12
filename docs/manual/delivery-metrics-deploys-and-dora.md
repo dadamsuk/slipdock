@@ -94,6 +94,12 @@ gh run list --workflow release.yml --branch main --status success --limit 100 \
   slipdock deploy backfill --from-runs - --env production
 ```
 
+With [batched releases](verified-work.md), a push to the default branch
+deploys nothing and its run still ends `success`, so count only the
+dispatched releases: add `event` to `--json` and pipe through
+`jq '[.[] | select(.event != "push")]'` first (Slipdock's own `release.yml`
+does that while its `RELEASE_MODE` variable is `batched`).
+
 **Incidents** are ordinary cards tagged `incident` (the tag is a board setting).
 `slipdock incident-of <card> <deploy>` says which deploy caused one. A deploy
 is a **failed change** when it failed, was rolled back, has an incident linked
@@ -119,6 +125,30 @@ zone, and *rolled back since* when a rollback went past it — in its panel, in
 latest deploy attempt failed shows *Deploy failed at build · production ·
 <run link> · 11 Nov 20:41* the same ways (`deploy_failed` in its JSON) until a
 succeeded deploy naming it replaces the line.
+
+**Merged, not shipped.** A pipeline that fails before its deploy job records
+no deploy at all, so the server notices by itself. A card counts as merged
+when it is done and accepted with a merge commit (a board that ships by pull
+request) or with the commit it was accepted at (a board that ships by push).
+If no succeeded deploy names it 20 minutes after that, the card shows an amber
+*Merged 1a634c6 · not shipped after 45m* — in its panel, as *Not shipped* in
+`slipdock card` and as `not_shipped` in its JSON and `get_card` (`text`, `sha`,
+`merged_at`, `seconds`, `minutes`) — and the tree's root board gets one warning
+alert, with an email to its owner, saying when it merged and what to do. A
+succeeded deploy that names the card clears the line and, within a minute, the
+alert. The minutes are the board's *Not shipped after (minutes)* beside the
+other delivery settings (`not_shipped_minutes`, `slipdock set-board B
+--not-shipped-minutes N`; 0 never, at most 10080, a week).
+
+It is one of [the overseer](the-overseer.md)'s watch checks, `not_shipped`,
+and the only one that **runs whether or not the overseer is on**: it costs no
+tokens, and delivery metrics being on is what turns it on. Only cards merged
+after the board turned delivery metrics on count (or, on a board that had them
+on already, after this watch arrived), so nothing merged earlier fires. An
+epic never counts (it ships through its subcards), nor a card finished with no
+commit, a stand-in or an archived card: archive a card that will never ship.
+In a tree, the settings are the root board's when it has delivery metrics on,
+else those of the first board in the tree that has.
 
 ---
 

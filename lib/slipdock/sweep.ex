@@ -40,7 +40,7 @@ defmodule Slipdock.Sweep do
   alias Slipdock.Wiki.{FrontMatter, Page}
 
   @name "sweep"
-  @version "1.0.0"
+  @version "1.1.0"
   @page_title "Sweeps"
   @triage_list "Triage"
   @card_title "Sweep the code"
@@ -74,14 +74,14 @@ defmodule Slipdock.Sweep do
   ## The Tool --------------------------------------------------------------------
 
   @card_description """
-  Read one area of the code through one lens, and file what you find for a person to triage. It comes every day. Spec: W-2310 §Sweeps and static checks.
+  Read one area of the code through one lens, and file what you find: fixes and investigations for the runners, design questions for a person. It comes every day. Spec: W-2310 §Sweeps and static checks.
 
   **Two limits.** One area and one lens per run, never more. Security issues get the `security` tag and stay vague anywhere public (commit messages, PR titles and bodies, the log): the detail goes on the card.
 
   1. Pick: open the `Sweeps` page and take the stalest cell of its Rotation table, a `—` first, else the oldest date; ties go to the area higher in the table. With no areas yet, add a row per area first: the handbook's pages and their `covers:` (`slipdock handbook <board>`), else the top-level contexts (`lib/<app>/*`, one row each), and say so in the closing comment.
   2. Check out the default branch's head in a clean tree, so nothing uncommitted counts: `git fetch origin && git worktree add /tmp/sweep-<this card> origin/<default>`. Note the short sha.
   3. Read the area's paths through the lens (the page's Lenses section says what each looks for). Read; don't change code on this card.
-  4. File each issue as a card in the `Triage` list, never in the ready list: `slipdock add <board> "<what is wrong, where>" --column Triage --desc - <<'EOF'` with the description on the lines after it and `EOF` to end it (`--desc -` reads it from stdin, so a heredoc keeps its lines), saying where (file and function), why it matters and the fix. Security issues get `--tag security`. One issue a card; nothing found is a normal result.
+  4. File each issue as its own card, never in the ready list. A **fix or investigation** (something already decided is broken, missing, untested or unexplained) goes to the `Housekeeping` list, which runners work after the ready list: `slipdock add <board> "<what is wrong, where>" --column Housekeeping --origin sweep --desc - <<'EOF'` with the description on the lines after it and `EOF` to end it (`--desc -` reads it from stdin, so a heredoc keeps its lines), saying where (file and function), why it matters and the fix. A **design question** (the answer would change how the product or a process behaves) goes to `Triage` for a person instead (`--column Triage --origin sweep`). On a board with no Housekeeping list, everything goes to Triage. Security issues get `--tag security`. One issue a card; nothing found is a normal result.
   5. Name each card you filed in the closing comment's `Findings:` block with the arrow, `- gotcha: <what is wrong> → #<card>` (or `- rule: …`), so it is kept promoted rather than left open: a fix is a card, not a finding, and the card is where it gets done. Only what is uncertain or cuts across cards, and isn't a card, is a plain finding.
   6. Update the page by section, with `--message "#<this card> sweep <area> × <lens>"`: the cell gets `<sha> <date>`, and the Log gets a line `- <date>: <area> × <lens> at <sha>, filed <card ids or nothing>`.
   7. Remove the worktree, and close the card with what was swept (area, lens, sha) and the cards filed. The next one comes by itself tomorrow.
@@ -96,7 +96,7 @@ defmodule Slipdock.Sweep do
   def card_bar(code) do
     """
     Swept the stalest cell of #{code}'s Rotation table (a `—` first, else the oldest date; ties to the area higher in the table): one area through one lens, at the default branch's head
-    Each issue found filed as its own card in the Triage list (security ones tagged `security`), and named in the closing comment's Findings block, or none found said so
+    Each issue found filed as its own card: fixes and investigations in the Housekeeping list (Triage on a board without one), design questions in Triage (security ones tagged `security`), and named in the closing comment's Findings block, or none found said so
     #{code}'s Rotation cell for that area and lens, and its Log, updated with the sha and date; the closing comment names the area, the lens and the sha
     """
     |> String.trim_trailing()
@@ -153,7 +153,7 @@ defmodule Slipdock.Sweep do
     """
     # Sweeps
 
-    The code read one area and one lens at a time, by the *#{@card_title}* card each day. It files what it finds in the `#{@triage_list}` list, for a person to triage: nothing there goes to the loop by itself.
+    The code read one area and one lens at a time, by the *#{@card_title}* card each day. It files fixes and investigations in the `Housekeeping` list, which runners work after the ready list, and design questions in the `#{@triage_list}` list, for a person to triage: nothing in Triage goes to the loop by itself. On a board with no Housekeeping list, everything goes to Triage.
 
     ## Lenses
 
@@ -241,12 +241,13 @@ defmodule Slipdock.Sweep do
         {:ok, report} ->
           report = categorise_triage(root, report)
           :ok = put_bar(root, user)
+          {report, upgraded} = refresh_card(root, user, report)
 
           {:ok,
            %{
              board: Boards.get_board!(root.id),
              created: created,
-             upgraded: false,
+             upgraded: upgraded,
              version: %{version: @version},
              install: %{version: @version},
              report: report
@@ -284,11 +285,27 @@ defmodule Slipdock.Sweep do
     case find(root) do
       %{card: %Card{bar: bar, bar_locked_at: nil} = card, page: %Page{code: code}}
       when bar in [nil, ""] and is_binary(code) ->
-        {:ok, _} = Boards.update_card(card, %{"bar" => card_bar(code)}, by: user)
+        {:ok, _} = Boards.Cards.update_card(card, %{"bar" => card_bar(code)}, by: user)
         :ok
 
       _ ->
         :ok
+    end
+  end
+
+  # 1.1.0 (#2779) files fixes to Housekeeping and design questions to
+  # Triage. Installing over an older sweep moves its open card to the
+  # current procedure; a card already current is left alone. Reported as
+  # "Sweep the code (updated: procedure)".
+  defp refresh_card(root, user, report) do
+    with %{card: %Card{description: description} = card} <- find(root),
+         true <- description != @card_description,
+         {:ok, _} <-
+           Boards.Cards.update_card(card, %{"description" => @card_description}, by: user) do
+      name = "#{@card_title} (updated: procedure)"
+      {update_in(report, [:added, "cards"], &(&1 ++ [name])), true}
+    else
+      _ -> {report, false}
     end
   end
 

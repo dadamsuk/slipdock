@@ -154,8 +154,8 @@ defmodule Slipdock.Onboarding do
 
     # A WIP limit on one list and a colour on Done, so the two list settings
     # the tour mentions are already visible on it.
-    Boards.update_column(doing, %{"wip_limit" => 3})
-    Boards.update_column(done, %{"color" => "emerald"})
+    Boards.Columns.update_column(doing, %{"wip_limit" => 3})
+    Boards.Columns.update_column(done, %{"color" => "emerald"})
 
     tags = tags(board)
     welcome_page = pages(board, user)
@@ -171,7 +171,7 @@ defmodule Slipdock.Onboarding do
     # boxes in it.
     {:ok, _} = Wiki.pin(welcome_page, {:card, wiki_card})
 
-    Boards.add_comment(
+    Boards.Comments.add_comment(
       first,
       "Comments are the running conversation on a card — this one was left " <>
         "by the tour. Yours go in the same place."
@@ -188,7 +188,7 @@ defmodule Slipdock.Onboarding do
           {"agents", "teal"}
         ],
         into: %{} do
-      {:ok, tag} = Boards.create_tag(board, %{"name" => name, "color" => color})
+      {:ok, tag} = Boards.Tags.create_tag(board, %{"name" => name, "color" => color})
       {name, tag}
     end
   end
@@ -250,10 +250,10 @@ defmodule Slipdock.Onboarding do
         ["tour", "keyboard"]
       )
 
-    Boards.add_checklist_item(card, "Drag this card into Done, then back again")
-    Boards.add_checklist_item(card, "Press ? and read the keyboard sheet")
-    {:ok, ticked} = Boards.add_checklist_item(card, "Tick a checklist item")
-    Boards.toggle_checklist_item(ticked.id)
+    Boards.Checklists.add_checklist_item(card, "Drag this card into Done, then back again")
+    Boards.Checklists.add_checklist_item(card, "Press ? and read the keyboard sheet")
+    {:ok, ticked} = Boards.Checklists.add_checklist_item(card, "Tick a checklist item")
+    Boards.Checklists.toggle_checklist_item(ticked.id)
     card
   end
 
@@ -537,7 +537,7 @@ defmodule Slipdock.Onboarding do
   # to explain in a paragraph, so this card is the explanation.
   defp epic(column, tags, today) do
     {:ok, card} =
-      Boards.create_card(column, %{
+      Boards.Cards.create_card(column, %{
         "title" => "Break a big job into subcards",
         "description" => """
         This card has a board of its own — open it and look at **Subcards**.
@@ -558,52 +558,52 @@ defmodule Slipdock.Onboarding do
         "due_date" => Date.add(today, 10)
       })
 
-    Enum.each(["tour"], &Boards.toggle_card_tag(card, tags[&1]))
+    Enum.each(["tour"], &Boards.Tags.toggle_card_tag(card, tags[&1]))
 
     {:ok, sub} = Boards.create_sub_board(card, subcard_template())
     sub = Boards.get_board!(sub.id)
     [sub_todo, sub_doing, sub_done] = sub.columns
 
     {:ok, _} =
-      Boards.create_card(sub_done, %{
+      Boards.Cards.create_card(sub_done, %{
         "title" => "Decide what “done” means here",
         "completed" => true
       })
 
     {:ok, _} =
-      Boards.create_card(sub_doing, %{
+      Boards.Cards.create_card(sub_doing, %{
         "title" => "Do the first piece",
         "percent_complete" => 50
       })
 
     {:ok, blocker} =
-      Boards.create_card(sub_todo, %{
+      Boards.Cards.create_card(sub_todo, %{
         "title" => "Then the next piece",
         "due_date" => Date.add(today, 8)
       })
 
     {:ok, blocked} =
-      Boards.create_card(sub_todo, %{
+      Boards.Cards.create_card(sub_todo, %{
         "title" => "This one cannot start until the one above is finished"
       })
 
     # A real dependency, not a flag that says so: this is what puts the blocked
     # badge on the card and draws the line on the timeline, red if the dates
     # contradict it.
-    {:ok, _} = Boards.add_dependency(blocked, blocker)
+    {:ok, _} = Boards.Dependencies.add_dependency(blocked, blocker)
     card
   end
 
   # The same lists the demo workspace uses, by the same name, so a server with
   # both does not end up with two templates that say the same thing.
   defp subcard_template do
-    case Boards.find_template(nil, "Task breakdown") do
+    case Boards.Templates.find_template(nil, "Task breakdown") do
       {:ok, template} ->
         template
 
       {:error, :not_found} ->
         {:ok, template} =
-          Boards.create_system_template(%{
+          Boards.Templates.create_system_template(%{
             "name" => "Task breakdown",
             "description" => "Lists for the subcards of one epic.",
             "columns" => [
@@ -651,8 +651,8 @@ defmodule Slipdock.Onboarding do
   end
 
   defp add(column, attrs, tags, tag_names) do
-    {:ok, card} = Boards.create_card(column, attrs)
-    Enum.each(tag_names, &Boards.toggle_card_tag(card, tags[&1]))
+    {:ok, card} = Boards.Cards.create_card(column, attrs)
+    Enum.each(tag_names, &Boards.Tags.toggle_card_tag(card, tags[&1]))
     card
   end
 

@@ -67,7 +67,7 @@ defmodule Slipdock.Runners.ClaimMove do
   defp to_doing(%Card{column_id: id}, %Column{id: id} = list, _actor), do: {:already, list}
 
   defp to_doing(%Card{} = card, %Column{} = list, actor) do
-    case Boards.move_card_to_index(card, list, :top, actor: actor) do
+    case Boards.Cards.move_card_to_index(card, list, :top, actor: actor) do
       :ok -> {:moved, list}
       {:error, _status, message} -> {:refused, message}
       {:error, reason} -> {:refused, to_string(reason)}

@@ -506,15 +506,17 @@ defmodule Slipdock.Automations do
   @doc """
   Keeps a `list_top` rule's pool fed: if nothing the rule queued is still
   open, fires the rule on the top eligible card of its list (see
-  `next_card/2`), which queues it for the runners. At most one open job per
-  rule, so a list is worked one card after another, in its order — except
+  `next_card/2`), which queues it for the runners. The feed sends at most
+  one card at a time, so a list is worked one card after another, in its
+  order (an answered question's job may be open beside it, #2896: the feed
+  waits for both) — except
   that a card its lane would hold is passed over (#2102): a rule whose queued
   job a lane holds withdraws it and sends the next card that could start,
   and the held card keeps its place for when its lane frees.
 
   Called whenever the answer could have changed — a card event on the
   rule's board, a job ending, the rule being saved — and by the clock as a
-  backstop. A card whose question was answered while the rule had a job open
+  backstop. A card whose question was answered while a runner had its job
   goes first (`Slipdock.Runners.Requeue.drain/1`). Answers `{:ok, card}` when it sent one, else `{:idle, reason}`:
   `:paused` while its pool or tree is, `:wip_full` while its board holds
   automated work at the WIP limit (`Slipdock.Runners.wip_full/1`),
@@ -586,10 +588,11 @@ defmodule Slipdock.Automations do
 
   defp feed_step(rule, opts) do
     cond do
-      # An answer held while the rule's job was handed out takes its
-      # place if that job has gone back to the queue since (#1750).
+      # An answer held while a runner had its card's job goes once that
+      # job has closed or gone back to the queue (#1750), whatever else
+      # the rule has open (#2896).
       feed_job_open?(rule) ->
-        case feed_job_queued?(rule) && Slipdock.Runners.Requeue.drain(rule) do
+        case Slipdock.Runners.Requeue.drain(rule) do
           %Slipdock.Runners.Job{} = job -> {:ok, Repo.get(Card, job.card_id)}
           _ -> pass_lane_held(rule, opts)
         end
@@ -666,7 +669,7 @@ defmodule Slipdock.Automations do
 
   defp tell_passed_over(job, other, card) do
     with %Card{} = held <- Repo.get(Card, job.card_id) do
-      Slipdock.Boards.add_comment(
+      Slipdock.Boards.Comments.add_comment(
         held,
         "Job ##{job.id} was held: its paths overlap ##{other.id}, in progress. It gave " <>
           "way to ##{card.id}, which could start now. This card keeps its place in the " <>
@@ -713,7 +716,7 @@ defmodule Slipdock.Automations do
 
   defp tell_given_back(job) do
     with %Card{} = card <- Repo.get(Card, job.card_id) do
-      Slipdock.Boards.add_comment(
+      Slipdock.Boards.Comments.add_comment(
         card,
         "Job ##{job.id} gave this card back: no runner of pool #{job.pool} has been online " <>
           "for a while. A runner that is online can take it now; pool #{job.pool} is sent " <>
@@ -790,12 +793,6 @@ defmodule Slipdock.Automations do
       from(j in Slipdock.Runners.Job,
         where: j.rule_id == ^rule.id and j.status in ^Slipdock.Runners.Job.open_statuses()
       )
-    )
-  end
-
-  defp feed_job_queued?(rule) do
-    Repo.exists?(
-      from(j in Slipdock.Runners.Job, where: j.rule_id == ^rule.id and j.status == "queued")
     )
   end
 
@@ -1309,7 +1306,7 @@ defmodule Slipdock.Automations do
   ## Helpers ------------------------------------------------------------------
 
   defp log_rule(%Rule{} = rule, message) do
-    Slipdock.Boards.log_activity(rule.board_id, nil, "automation", message)
+    Slipdock.Boards.ActivityLog.log_activity(rule.board_id, nil, "automation", message)
   end
 
   defp tap_ok({:ok, value} = result, fun) do

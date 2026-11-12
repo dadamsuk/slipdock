@@ -24,7 +24,7 @@ defmodule SlipdockWeb.WaitLiveTest do
     agent = %{Actor.unknown() | kind: "agent", via: "mcp", user_id: ctx.owner.id, agent: "claude"}
 
     {:ok, wait} =
-      Boards.open_wait(ctx.card, agent, Map.merge(%{"needs" => "Which region?"}, attrs))
+      Boards.Waits.open_wait(ctx.card, agent, Map.merge(%{"needs" => "Which region?"}, attrs))
 
     wait
   end
@@ -52,15 +52,17 @@ defmodule SlipdockWeb.WaitLiveTest do
 
     view |> element("#wait-choice-2") |> render_click()
 
-    assert %{close_reason: "answered", choice: 2, kind: "agent"} = Boards.last_wait(ctx.card)
-    assert Boards.last_wait(ctx.card).closed_by_id == ctx.owner.id
+    assert %{close_reason: "answered", choice: 2, kind: "agent"} =
+             Boards.Waits.last_wait(ctx.card)
+
+    assert Boards.Waits.last_wait(ctx.card).closed_by_id == ctx.owner.id
     refute has_element?(view, "#card-wait")
-    refute "waiting" in Boards.get_card!(ctx.card.id).flags
+    refute "waiting" in Boards.Cards.get_card!(ctx.card.id).flags
   end
 
   test "an answer in words, and the count once the card has asked more than once", ctx do
     ask(ctx)
-    {:ok, _} = Boards.withdraw_wait(ctx.card, Actor.web(ctx.owner))
+    {:ok, _} = Boards.Waits.withdraw_wait(ctx.card, Actor.web(ctx.owner))
     ask(ctx, %{"needs" => "Size?"})
     {:ok, view, _} = open(ctx.conn, ctx)
 
@@ -70,14 +72,14 @@ defmodule SlipdockWeb.WaitLiveTest do
     |> form("#wait-answer-form", %{"wait" => %{"answers" => %{"1" => "Large"}}})
     |> render_submit()
 
-    assert %{answer: "Large", close_reason: "answered"} = Boards.last_wait(ctx.card)
+    assert %{answer: "Large", close_reason: "answered"} = Boards.Waits.last_wait(ctx.card)
   end
 
   test "Withdraw closes it", ctx do
     ask(ctx)
     {:ok, view, _} = open(ctx.conn, ctx)
     view |> element("#wait-withdraw") |> render_click()
-    assert %{close_reason: "withdrawn"} = Boards.last_wait(ctx.card)
+    assert %{close_reason: "withdrawn"} = Boards.Waits.last_wait(ctx.card)
   end
 
   test "turning the waiting flag off in the panel withdraws it, naming who (AE4)", ctx do
@@ -87,7 +89,7 @@ defmodule SlipdockWeb.WaitLiveTest do
     # The applied flag's chip, and its × (#1727).
     view |> element("#card-modal #card-flag-waiting button") |> render_click()
 
-    assert %{close_reason: "withdrawn", closed_by_id: id} = Boards.last_wait(ctx.card)
+    assert %{close_reason: "withdrawn", closed_by_id: id} = Boards.Waits.last_wait(ctx.card)
     assert id == ctx.owner.id
   end
 
@@ -110,7 +112,7 @@ defmodule SlipdockWeb.WaitLiveTest do
     assert has_element?(view, "#card-#{ctx.card.id} [data-role='wait-mark']", "Which region?")
     refute has_element?(view, "#card-#{plain.id} [data-role='wait-mark']")
 
-    {:ok, _} = Boards.answer_wait(ctx.card, Actor.web(ctx.owner), %{"answer" => "eu"})
+    {:ok, _} = Boards.Waits.answer_wait(ctx.card, Actor.web(ctx.owner), %{"answer" => "eu"})
     {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}")
     refute has_element?(view, "[data-role='wait-mark']")
   end

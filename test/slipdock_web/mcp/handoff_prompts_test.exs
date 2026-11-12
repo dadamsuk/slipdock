@@ -17,12 +17,12 @@ defmodule SlipdockWeb.MCP.HandoffPromptsTest do
     [col | _] = board.columns
     card = card_fixture(col, %{"title" => "Fix the retry", "description" => "Backoff is wrong."})
     blocker = card_fixture(col, %{"title" => "Upgrade the client"})
-    {:ok, _} = Boards.add_dependency(card, blocker)
-    {:ok, _} = Boards.add_comment(card, "first look: it doubles")
-    {:ok, _} = Boards.add_comment(card, "found it in the jitter")
+    {:ok, _} = Boards.Dependencies.add_dependency(card, blocker)
+    {:ok, _} = Boards.Comments.add_comment(card, "first look: it doubles")
+    {:ok, _} = Boards.Comments.add_comment(card, "found it in the jitter")
 
     {:ok, _} =
-      Boards.leave_handoff(card, user, %{
+      Boards.Handoffs.leave_handoff(card, user, %{
         next_step: "Write the failing test",
         body: "State: cause found.\nGotchas: the clock is mocked.",
         via: "ui"
@@ -97,14 +97,14 @@ defmodule SlipdockWeb.MCP.HandoffPromptsTest do
     end
 
     test "a cleared handoff reads as none", ctx do
-      {:ok, _} = Boards.clear_handoff(ctx.card, ctx.user, %{via: "ui"})
+      {:ok, _} = Boards.Handoffs.clear_handoff(ctx.card, ctx.user, %{via: "ui"})
       text = ctx.conn |> prompt("resume", %{card: "#{ctx.card.id}"}) |> text!()
       assert text =~ "No handoff note"
       refute text =~ "Write the failing test"
     end
 
     test "an epic's open subcards are listed; done ones aren't", ctx do
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(ctx.card, t)
       [sub_col | _] = Boards.get_board!(sub.id).columns
       open = card_fixture(sub_col, %{"title" => "Open child"})

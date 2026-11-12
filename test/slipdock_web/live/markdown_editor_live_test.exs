@@ -64,7 +64,7 @@ defmodule SlipdockWeb.MarkdownEditorLiveTest do
       |> form("#card-form", %{"card" => %{"description" => "## Plan\n\n- [ ] **ship** it"}})
       |> render_change()
 
-      assert Boards.get_card!(card.id).description == "## Plan\n\n- [ ] **ship** it"
+      assert Boards.Cards.get_card!(card.id).description == "## Plan\n\n- [ ] **ship** it"
     end
 
     test "takes a photo over the old 10 MB limit", %{conn: conn, board: board, card: card} do
@@ -80,7 +80,7 @@ defmodule SlipdockWeb.MarkdownEditorLiveTest do
       render_upload(input, "IMG_1234.jpg")
 
       assert_push_event(view, "image_uploaded", %{upload: "desc_image"})
-      assert [%{size: 11_000_000}] = Boards.get_card!(card.id).attachments
+      assert [%{size: 11_000_000}] = Boards.Cards.get_card!(card.id).attachments
     end
 
     test "is not given an editor for a reader", %{board: board, card: card, user: owner} do
@@ -109,7 +109,7 @@ defmodule SlipdockWeb.MarkdownEditorLiveTest do
 
       view |> form("#add-comment-0", %{"body" => "Looks **good**"}) |> render_submit()
 
-      assert [%{body: "Looks **good**"}] = Boards.get_card!(card.id).comments
+      assert [%{body: "Looks **good**"}] = Boards.Cards.get_card!(card.id).comments
       # The ignored wrapper would keep the posted text; a new id replaces it.
       refute has_element?(view, "#comment-editor-0")
       assert has_element?(view, "#comment-editor-1[phx-hook=MarkdownEditor] textarea[name=body]")
