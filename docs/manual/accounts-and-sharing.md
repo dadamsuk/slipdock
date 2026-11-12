@@ -190,9 +190,10 @@ requests cannot also stop you entering the code you were sent. All of these
 count in memory on this node and are forgotten on restart.
 
 "Per IP" means the visitor's address. Behind a reverse proxy that comes from
-`X-Forwarded-For`, believed only from a trusted proxy — loopback and the private
-ranges by default, or the CIDRs in `SLIPDOCK_TRUSTED_PROXIES` (`none` trusts
-nobody). A proxy connecting from a public address has to be listed there, or
+`X-Forwarded-For`, believed only from a trusted proxy — loopback by default
+(under compose, loopback and the compose network: `compose.yaml` sets `local`),
+or the CIDRs in `SLIPDOCK_TRUSTED_PROXIES` (`none` trusts nobody). A proxy
+anywhere else, on your LAN or at a public address, has to be listed there, or
 every visitor shares its address and its limit.
 
 Browser responses carry a Content-Security-Policy that allows script from this

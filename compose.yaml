@@ -73,6 +73,15 @@ services:
       - POSTGRES_PASSWORD
       - POSTGRES_DB
       - DATABASE_URL
+      # Whose X-Forwarded-For is believed. Outside a container the default is
+      # loopback alone; in here a proxy reaches the app from the compose
+      # network (Caddy, or a host proxy through the published port, which
+      # arrives from the network's gateway), so compose names that network:
+      # "local" is loopback and the networks of the container's own
+      # interfaces. A visitor through the published port keeps their own
+      # address, and so is not believed. Interpolated from .env too, so a
+      # value there still wins.
+      - SLIPDOCK_TRUSTED_PROXIES=${SLIPDOCK_TRUSTED_PROXIES:-local}
     volumes:
       # Uploaded files, each person's OpenRouter key and the generated secret.
       # The database is in slipdock-db; back up both.

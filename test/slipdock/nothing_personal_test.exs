@@ -34,8 +34,8 @@ defmodule Slipdock.NothingPersonalTest do
     "test/slipdock/egress_test.exs",
     # The CLI's own: which private addresses plain http may go to unwarned.
     "cli/test/security_test.exs",
-    # The default trusted proxies: the private ranges, by name.
-    "lib/slipdock_web/client_ip.ex",
+    # The trusted-proxy tests: a private peer's header is what they ignore.
+    "test/slipdock_web/client_ip_test.exs",
     # npm's lockfile for the vendored Excalidraw build: version ranges such
     # of node versions starting at ten read as addresses.
     "assets/excalidraw/package-lock.json"

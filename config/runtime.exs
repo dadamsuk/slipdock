@@ -373,9 +373,10 @@ case System.get_env("SLIPDOCK_EGRESS_ALLOW") do
 end
 
 # Which peers may tell us the visitor's address in X-Forwarded-For (see
-# `SlipdockWeb.ClientIP`). Unset: loopback and the private ranges, which fits a
-# proxy on this host or in the same Docker network. A comma-separated list of
-# CIDRs replaces that; "none" believes nobody and uses the peer address as-is.
+# `SlipdockWeb.ClientIP`). Unset: loopback only, which fits a proxy on this
+# host. A comma-separated list of CIDRs replaces that, and "local" in it stands
+# for loopback and this machine's own networks (compose.yaml sets that, for the
+# compose network); "none" believes nobody and uses the peer address as-is.
 case System.get_env("SLIPDOCK_TRUSTED_PROXIES") do
   nil ->
     :ok
