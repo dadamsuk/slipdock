@@ -82,6 +82,26 @@ defmodule SlipdockWeb.OverseerTest do
       assert body["overseer"]["next_run_at"]
     end
 
+    test "the morning digest's time: 07:00, set by PATCH, refused when not a time (#2781)",
+         ctx do
+      conn = with_token(ctx.user)
+      body = conn |> get("/api/boards/#{ctx.board.id}/overseer") |> json_response(200)
+      assert body["overseer"]["digest_at"] == "07:00"
+      assert body["overseer"]["housekeeping_digest_at"] == nil
+
+      body =
+        conn
+        |> patch("/api/boards/#{ctx.board.code}/overseer", %{digest_at: "06:15"})
+        |> json_response(200)
+
+      assert body["overseer"]["digest_at"] == "06:15"
+
+      assert conn
+             |> patch("/api/boards/#{ctx.board.code}/overseer", %{digest_at: "noon"})
+             |> json_response(422)
+             |> inspect() =~ "time of day"
+    end
+
     test "GET lists the open conditions with why and what to do", ctx do
       {card, condition} = waiting(ctx)
 
@@ -139,6 +159,12 @@ defmodule SlipdockWeb.OverseerTest do
 
       assert %{"overseer" => %{"enabled" => true, "max_minutes" => 60}} =
                Jason.decode!(text(result))
+
+      # The morning digest's time (#2781).
+      result =
+        mcp(conn, "update_board", %{board: ctx.board.code, overseer: %{digest_at: "05:45"}})
+
+      assert %{"overseer" => %{"digest_at" => "05:45"}} = Jason.decode!(text(result))
 
       result = mcp(conn, "get_board", %{board: ctx.board.code, overseer: true})
 
@@ -260,6 +286,10 @@ defmodule SlipdockWeb.OverseerTest do
       settings = Overseer.settings(ctx.board)
       assert settings.enabled
       assert {settings.min_minutes, settings.max_minutes} == {20, 90}
+
+      # The morning digest's time (#2781).
+      view |> form("#overseer-form", overseer: %{digest_at: "06:45"}) |> render_submit()
+      assert Overseer.settings(ctx.board).digest_at == "06:45"
 
       view
       |> form("#overseer-form", overseer: %{min_minutes: "100", max_minutes: "90"})

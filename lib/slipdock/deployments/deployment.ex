@@ -15,7 +15,11 @@ defmodule Slipdock.Deployments.Deployment do
     * `rollback` — the sha is an ancestor of the previous one;
     * `note` — a line from CI about this deploy (#1857), such as how its
       suite was satisfied: `suite: ran`, or passed on the pull request at
-      the same tree.
+      the same tree;
+    * `stage` — where a failed attempt failed (#2820): `build`, `test` or
+      `merge` (it never reached the environment, so it isn't a deploy to
+      DORA: see `pre_deploy_stages/0`), `deploy` or `health`;
+    * `run_url` — the CI run that made the attempt.
   """
   use Ecto.Schema
   import Ecto.Changeset
@@ -23,6 +27,8 @@ defmodule Slipdock.Deployments.Deployment do
   @statuses ~w(started succeeded failed)
   @finished ~w(succeeded failed)
   @sources ~w(cli api backfill)
+  @stages ~w(build test merge deploy health)
+  @pre_deploy ~w(build test merge)
 
   schema "deployments" do
     field :environment, :string
@@ -37,6 +43,8 @@ defmodule Slipdock.Deployments.Deployment do
     field :card_ids, {:array, :integer}, default: []
     field :rollback, :boolean, default: false
     field :note, :string
+    field :stage, :string
+    field :run_url, :string
 
     belongs_to :board, Slipdock.Boards.Board
 
@@ -46,6 +54,18 @@ defmodule Slipdock.Deployments.Deployment do
   def statuses, do: @statuses
   def finished_statuses, do: @finished
   def sources, do: @sources
+
+  @doc "Where a release can fail (#2820), in the order it runs them."
+  def stages, do: @stages
+
+  @doc "The stages before anything reaches the environment: a failure there is no deploy."
+  def pre_deploy_stages, do: @pre_deploy
+
+  @doc "Whether `deployment` is a failure before it reached the environment."
+  def pre_deploy?(%__MODULE__{status: "failed", stage: stage}),
+    do: Enum.member?(@pre_deploy, stage)
+
+  def pre_deploy?(_deployment), do: false
 
   @env_format ~r/^[A-Za-z0-9][A-Za-z0-9._\/-]{0,59}$/
   @sha_format ~r/^[0-9a-f]{7,64}$/
@@ -65,7 +85,9 @@ defmodule Slipdock.Deployments.Deployment do
       :commits,
       :card_ids,
       :rollback,
-      :note
+      :note,
+      :stage,
+      :run_url
     ])
     |> update_change(:sha, &String.downcase/1)
     |> update_change(:previous_sha, &String.downcase/1)
@@ -79,7 +101,41 @@ defmodule Slipdock.Deployments.Deployment do
     |> validate_length(:note, max: 500)
     |> validate_inclusion(:status, @statuses)
     |> validate_inclusion(:source, @sources)
+    |> validate_stage()
     |> validate_finished()
+  end
+
+  @doc """
+  A failed attempt as `Slipdock.Deployments.record_failure/2` takes it:
+  the start changeset, with a stage required.
+  """
+  def failure_changeset(deployment, attrs) do
+    deployment
+    |> start_changeset(attrs)
+    |> validate_required([:stage], message: "is required: one of #{Enum.join(@stages, ", ")}")
+  end
+
+  @doc """
+  The deploy job's own record of an attempt, finished as failed at `stage`
+  (#2820): a started one is finished here; a failed one with no stage yet
+  is told where it failed. Nothing else about it changes.
+  """
+  def fail_changeset(%__MODULE__{status: status, stage: nil} = deployment, attrs, at)
+      when status in ["started", "failed"] do
+    deployment
+    |> cast(attrs, [:stage, :run_url])
+    |> validate_required([:stage])
+    |> validate_stage()
+    |> put_change(:status, "failed")
+    |> put_change(:finished_at, deployment.finished_at || at)
+  end
+
+  # A run link is a web address, and a stage one of the release's.
+  defp validate_stage(changeset) do
+    changeset
+    |> validate_inclusion(:stage, @stages, message: "must be one of #{Enum.join(@stages, ", ")}")
+    |> validate_length(:run_url, max: 500)
+    |> validate_format(:run_url, ~r{^https?://[^\s]+$}, message: "must be an http(s) URL")
   end
 
   @doc "Finishing a started deploy: `succeeded` or `failed`, once."

@@ -1361,7 +1361,10 @@ defmodule SlipdockWeb.HelpLive.Agents do
         tag's, and a server built from source, or a deploy it didn't sign, serves none, so the
         machine keeps its own CLI unless <code>local.json</code>
         sets <code>cli_checksum_only</code>. A failed fetch or a wrong sum keeps the CLI it had, and
-        the job runs. The runner reports the current CLI at its next claim, and its probe goes
+        the job runs. The skills are installed the same way, only when their archive's
+        signature verifies against that key, and a server that serves none leaves the
+        installed skills in place unless <code>local.json</code>
+        sets <code>skills_unsigned</code>. The runner reports the current CLI at its next claim, and its probe goes
         green. <code>no_cli_update</code>
         (and <code>no_skills_update</code>) in <code>local.json</code>
         turns it off.
@@ -1387,6 +1390,18 @@ defmodule SlipdockWeb.HelpLive.Agents do
         prints it after that machine's own limits.
       </p>
       <.trust_contract />
+    </.part>
+
+    <.part id="help-card-text-is-data" title="Card text is data">
+      <p>
+        A runner's agent reads what other people wrote: the card, its comments, its bar and
+        anything mailed to the board, by anyone who can comment on it or is a permitted
+        sender. Every job's prompt and the skills tell the agent that this text is data,
+        never instructions: it says what the card's work is, and when it asks for anything
+        beyond that the agent leaves it, says so on the card and, if the card can't be done
+        without it, asks a person. Telling a model is not a boundary, so the machine's ceiling
+        and the runner's executor, above, are what limit a job. The full threat model is in <code>docs/agents.md</code>, under <em>Card text is data</em>.
+      </p>
     </.part>
 
     <.part title="Sending it work">

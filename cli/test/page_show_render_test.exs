@@ -42,4 +42,13 @@ defmodule SlipdockCLI.PageShowRenderTest do
     assert out =~ "published · updated 2026-10-14 15:07 · hash"
     refute out =~ "created"
   end
+
+  # The header's hash is one `--base-hash` takes, so it is the whole of it (#2818).
+  test "the header prints the whole content hash, and a dash for none" do
+    out = capture_io(fn -> Render.page(page(%{})) end)
+    assert out =~ "· hash abcdef1234567890\n"
+
+    out = capture_io(fn -> Render.page(page(%{"content_hash" => nil})) end)
+    assert out =~ "· hash -\n"
+  end
 end

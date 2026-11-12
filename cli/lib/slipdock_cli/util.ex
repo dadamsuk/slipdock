@@ -40,14 +40,7 @@ defmodule SlipdockCLI.Util do
   # it rather than just refusing: the hash to re-base on, and where to read the
   # version that got there first.
   def out({:error, 409, %{"current" => current}}, _o, _render) do
-    IO.puts(:stderr, "error: this page changed since you read it. Nothing was overwritten.")
-
-    IO.puts(
-      :stderr,
-      "  it now reads #{current["title"] |> inspect()}, hash #{String.slice(to_string(current["content_hash"]), 0, 12)}"
-    )
-
-    IO.puts(:stderr, "  read it again, merge, then save with --base-hash <the new hash>")
+    IO.puts(:stderr, conflict_message(current))
     System.halt(1)
   end
 
@@ -59,6 +52,18 @@ defmodule SlipdockCLI.Util do
   end
 
   def out({:error, status, data}, _o, _render), do: fail("HTTP #{status}: #{inspect(data)}")
+
+  @doc """
+  What a refused wiki save says. The hash is the whole `content_hash`, since
+  the server accepts nothing shorter as `--base-hash` (#2818).
+  """
+  def conflict_message(current) do
+    """
+    error: this page changed since you read it. Nothing was overwritten.
+      it now reads #{inspect(current["title"])}, hash #{current["content_hash"]}
+      read it again, merge, then save with --base-hash #{current["content_hash"]}\
+    """
+  end
 
   def enc(s), do: HTTP.seg(s)
 

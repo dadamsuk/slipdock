@@ -11,6 +11,23 @@ on:
   pull_request:
   workflow_call:
 
+# Where the jobs run (#2829). With the repository variable CI_RUNNER unset,
+# on GitHub's runners. Set (to `slipdock-local`), on the self-hosted runners
+# with that label: a private repository pays for GitHub's minutes, a
+# self-hosted runner's are free. Unset it before the repository goes public,
+# or a pull request from a fork runs its code on that machine (W-1951
+# §Self-hosted CI runners). Self-hosted, several jobs share one machine, so a
+# job keeps its files under RUNNER_TEMP rather than /tmp and publishes no
+# fixed port.
+
+# A newer push to a pull request cancels its older run, queued or running
+# (#2829): on the self-hosted runners every superseded run held a runner
+# the next PR was waiting for. Called from release.yml, the group is the
+# run's own, so a push to main is never cancelled.
+concurrency:
+  group: ci-${{ github.event.pull_request.number && format('pr-{0}', github.event.pull_request.number) || github.run_id }}
+  cancel-in-progress: true
+
 # Everything runs in the test environment, so the warnings check compiles the
 # same build `mix test` then reuses instead of a separate dev one.
 env:
@@ -27,18 +44,17 @@ jobs:
   # along with partition 1.
   test:
     name: test (${{ matrix.partition }}/4)
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
 
     strategy:
       fail-fast: false
       matrix:
         partition: [1, 2, 3, 4]
 
-    # The test suite needs a real Postgres. config/test.exs defaults to
-    # localhost:5434, so that is the port this is published on rather than the
-    # usual one — the same address `compose.dev.yaml` gives a developer, which
-    # means CI and a laptop run the suite against the same URL and neither
-    # needs TEST_DATABASE_URL set.
+    # The test suite needs a real Postgres, published on a port Docker picks
+    # (a fixed one would clash between jobs sharing a self-hosted machine, and
+    # with a developer's own database on 5434); the Test step hands it over
+    # in TEST_DATABASE_URL.
     #
     # Images come through mirror.gcr.io (Google's cache of Docker Hub), not
     # Docker Hub itself: Hub's anonymous pulls from runners time out or are
@@ -50,7 +66,7 @@ jobs:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
         ports:
-          - 5434:5432
+          - 5432
         options: >-
           --health-cmd "pg_isready -U postgres"
           --health-interval 5s
@@ -138,6 +154,7 @@ jobs:
           mix test --cover --export-coverage "partition-$MIX_TEST_PARTITION" $files
         env:
           MIX_TEST_PARTITION: ${{ matrix.partition }}
+          TEST_DATABASE_URL: postgres://postgres:postgres@localhost:${{ job.services.postgres.ports['5432'] }}/slipdock_test
           TEST_TIMINGS_FILE: test-timings/test-timings-${{ matrix.partition }}.tsv
 
       - uses: actions/upload-artifact@v4
@@ -226,7 +243,7 @@ jobs:
   # database or a compiled app, so they run beside the suite, not in it.
   static:
     name: static checks
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
 
     steps:
       # Whole history, so credo can find where the branch left main.
@@ -286,7 +303,7 @@ jobs:
   # once by hand when this was added (#1769).
   secrets:
     name: secret scan
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     if: github.event_name == 'pull_request'
 
     steps:
@@ -296,23 +313,23 @@ jobs:
 
       - name: Install gitleaks
         run: |
-          curl -sSfL -o /tmp/gitleaks.tgz \
+          curl -sSfL -o "$RUNNER_TEMP/gitleaks.tgz" \
             https://github.com/gitleaks/gitleaks/releases/download/v8.28.0/gitleaks_8.28.0_linux_x64.tar.gz
-          echo "a65b5253807a68ac0cafa4414031fd740aeb55f54fb7e55f386acb52e6a840eb  /tmp/gitleaks.tgz" | sha256sum -c -
-          tar -xzf /tmp/gitleaks.tgz -C /tmp gitleaks
+          echo "a65b5253807a68ac0cafa4414031fd740aeb55f54fb7e55f386acb52e6a840eb  $RUNNER_TEMP/gitleaks.tgz" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/gitleaks.tgz" -C "$RUNNER_TEMP" gitleaks
 
       - name: Secret scan of this pull request's commits (gitleaks)
         env:
           BASE: ${{ github.event.pull_request.base.sha }}
           HEAD: ${{ github.event.pull_request.head.sha }}
-        run: /tmp/gitleaks git --redact --no-banner --verbose --log-opts="$BASE..$HEAD" .
+        run: $RUNNER_TEMP/gitleaks git --redact --no-banner --verbose --log-opts="$BASE..$HEAD" .
 
   # The CLI (cli/) is its own Mix project with its own suite. The Docker build
   # only compiles it, so without this job nothing checks its formatting,
   # warnings or tests (#798).
   cli:
     name: cli
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
 
     defaults:
       run:
@@ -361,14 +378,16 @@ jobs:
 
   # The runner daemon (daemon/, a Go module: W-2540) on the three OSes it
   # ships for (#2573). No Elixir or Postgres: its tests fake the server.
-  # `mix pre_push` runs the same vet and tests.
+  # `mix pre_push` runs the same vet and tests. On the self-hosted runners
+  # (CI_RUNNER set, #2829) on Linux alone, the only OS they have; macOS and
+  # Windows are paid minutes on a private repository.
   daemon:
     name: daemon (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: ${{ fromJSON(vars.CI_RUNNER && format('["{0}"]', vars.CI_RUNNER) || '["ubuntu-latest", "macos-latest", "windows-latest"]') }}
 
     defaults:
       run:

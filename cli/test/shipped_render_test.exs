@@ -94,9 +94,25 @@ defmodule SlipdockCLI.ShippedRenderTest do
     refute out =~ "Outcome"
   end
 
+  test "a deploy attempt that failed (#2820)" do
+    card =
+      Map.put(@card, "deploy_failed", [
+        %{
+          "text" =>
+            "Deploy failed at build · production · https://ci.example.com/runs/42 · 11 Nov 20:41"
+        }
+      ])
+
+    out = capture_io(fn -> Render.card(card) end)
+
+    assert out =~
+             ~r{Deploy:\s+failed at build · production · https://ci.example.com/runs/42 · 11 Nov 20:41}
+  end
+
   test "nothing when there is none" do
     out = capture_io(fn -> Render.card(@card) end)
     refute out =~ "Shipped"
+    refute out =~ "Deploy:"
     refute out =~ "Incident of"
   end
 end

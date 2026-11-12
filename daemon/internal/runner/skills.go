@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/dadamsuk/slipdock/daemon/internal/executor"
+	"github.com/dadamsuk/slipdock/daemon/internal/release"
 )
 
 // The server's skills, before each agent job (#2614), as the shell
@@ -35,15 +36,35 @@ import (
 //   - a failed fetch or unpack keeps the installed copies, and the job
 //     runs.
 //
+// And one of its own (#2784): the archive is the server's, and the server
+// could be anybody's who took it over, so it is installed only when its
+// signature (/api/skills.tar.gz.sig) verifies against the release key
+// built into the daemon, as the CLI is (#2669, W-2542). The release job
+// signs it on a v* tag, in the namespace slipdock-skills, and the image
+// serves those bytes. A signature that is there and doesn't verify is
+// refused whatever local.json says; a server that serves none (one built
+// from source, or from a commit the release job didn't sign) has its
+// archive installed only when local.json's skills_unsigned says so.
+// Refused, the installed copies are kept and the job runs. Every file is
+// written 0644, whatever mode the archive gives it: a skill is text.
+//
 // local.json's no_skills_update turns it off. Under the user executor the
 // skills are the account's, which the daemon doesn't write as itself: the
 // archive is checked here as for any other, and only the entries that
 // passed are packed again and unpacked by the account (putSkillsAs, #2642),
 // with the same swap and the same symlink rule.
 
-// skillsPath is where the server serves every skill as one archive. It
-// needs no key, so none is sent.
-const skillsPath = "/api/skills.tar.gz"
+// skillsPath is where the server serves every skill as one archive, and
+// skillsSigPath its signature with the release key. Neither needs a key,
+// so none is sent.
+const (
+	skillsPath    = "/api/skills.tar.gz"
+	skillsSigPath = "/api/skills.tar.gz.sig"
+)
+
+// skillFileMode is every installed skill file's mode: the archive's own
+// modes are not kept.
+const skillFileMode os.FileMode = 0o644
 
 // skillsMax bounds the archive, packed and unpacked.
 const skillsMax = 8 << 20
@@ -82,10 +103,9 @@ func (c *Client) fetchSkills(ctx context.Context) ([]byte, error) {
 }
 
 // skillFile is one file from the archive: its path inside its skill's
-// folder, its mode and its contents.
+// folder and its contents.
 type skillFile struct {
 	rel  string
-	mode os.FileMode
 	data []byte
 }
 
@@ -134,7 +154,7 @@ func readSkills(archive []byte) (map[string][]skillFile, error) {
 		if err != nil {
 			return nil, fmt.Errorf("could not unpack the server's skills: %v", err)
 		}
-		skills[skill] = append(skills[skill], skillFile{rel: rel, mode: os.FileMode(h.Mode).Perm() | 0o600, data: data})
+		skills[skill] = append(skills[skill], skillFile{rel: rel, data: data})
 	}
 	if entries == 0 {
 		return nil, errors.New("the server's archive has an entry outside a slipdock skill (empty)")
@@ -200,7 +220,7 @@ func putSkill(target string, files []skillFile) error {
 			_ = os.RemoveAll(staged)
 			return err
 		}
-		if err := os.WriteFile(p, f.data, f.mode); err != nil {
+		if err := os.WriteFile(p, f.data, skillFileMode); err != nil {
 			_ = os.RemoveAll(staged)
 			return err
 		}
@@ -238,6 +258,11 @@ func (w *Worker) keepSkills(ctx context.Context, j *jobRun) {
 		say("could not fetch the server's skills (%v); keeping the ones in %s", err, dir)
 		return
 	}
+	how, why := w.skillsSigned(ctx, archive)
+	if why != "" {
+		say("%s; keeping the ones in %s", why, dir)
+		return
+	}
 	skills, err := readSkills(archive)
 	if err != nil {
 		say("%v; keeping the ones in %s", err, dir)
@@ -253,8 +278,39 @@ func (w *Worker) keepSkills(ctx context.Context, j *jobRun) {
 		say("%s", n)
 	}
 	if len(put) > 0 {
-		say("installed the server's %s in %s", strings.Join(put, " "), dir)
+		say("installed the server's %s (%s) in %s", strings.Join(put, " "), how, dir)
 	}
+}
+
+// skillsSigned checks the server's skills archive against the release key:
+// how it was checked when it may be installed, else why not. A signature
+// that is there and doesn't verify is refused whatever local.json says; a
+// server that serves none, or a daemon built with no key, is accepted
+// only with skills_unsigned.
+func (w *Worker) skillsSigned(ctx context.Context, archive []byte) (how, why string) {
+	const unsigned = "unsigned, as skills_unsigned allows"
+	const optIn = " (skills_unsigned in local.json accepts an unsigned archive)"
+	key, err := w.ReleaseKey()
+	if err != nil {
+		if w.Local.SkillsUnsigned {
+			return unsigned, ""
+		}
+		return "", "this daemon has no release key to check the server's skills with" + optIn
+	}
+	sig, err := w.Client.fetch(ctx, skillsSigPath, 4096)
+	switch {
+	case errors.Is(err, errNotServed):
+		if w.Local.SkillsUnsigned {
+			return unsigned, ""
+		}
+		return "", "the server's skills are not signed with the release key" + optIn
+	case err != nil:
+		return "", fmt.Sprintf("could not read the server's %s (%v)", skillsSigPath, err)
+	}
+	if err := release.VerifyIn(release.SkillsNamespace, key, archive, sig); err != nil {
+		return "", fmt.Sprintf("the server's skills do not verify against the release key (%v)", err)
+	}
+	return "signed with the release key", ""
 }
 
 // putSkillsScript puts the skills on its stdin (a tar of checked entries)
@@ -348,7 +404,7 @@ func packSkills(names []string, skills map[string][]skillFile) ([]byte, error) {
 			if err := addParents(addDir, name, f.rel); err != nil {
 				return nil, err
 			}
-			if err := tw.WriteHeader(&tar.Header{Name: p, Typeflag: tar.TypeReg, Mode: int64(f.mode), Size: int64(len(f.data))}); err != nil {
+			if err := tw.WriteHeader(&tar.Header{Name: p, Typeflag: tar.TypeReg, Mode: int64(skillFileMode), Size: int64(len(f.data))}); err != nil {
 				return nil, err
 			}
 			if _, err := tw.Write(f.data); err != nil {

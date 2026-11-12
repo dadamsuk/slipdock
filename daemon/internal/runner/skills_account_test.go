@@ -91,7 +91,7 @@ func TestUnderTheUserExecutorTheAccountUnpacksTheServersSkills(t *testing.T) {
 	if left, _ := filepath.Glob(filepath.Join(dir, ".slipdock-skills.*")); len(left) != 0 {
 		t.Errorf("the staging folder was left behind: %v", left)
 	}
-	if !strings.Contains(r.logged.String(), "skills: installed the server's slipdock slipdock-loop slipdock-wiki in "+dir) {
+	if !strings.Contains(r.logged.String(), "skills: installed the server's slipdock slipdock-loop slipdock-wiki (signed with the release key) in "+dir) {
 		t.Errorf("the daemon's log says what it installed:\n%s", r.logged)
 	}
 	if !strings.Contains(r.srv.finishes[720].body, "skills: installed the server's") {
@@ -154,7 +154,7 @@ func TestUnderTheUserExecutorASymlinkedSkillIsLeftAlone(t *testing.T) {
 	if !strings.Contains(log, filepath.Join(dir, "slipdock-loop")+" is a symlink; left alone") {
 		t.Errorf("the log says it was left alone:\n%s", log)
 	}
-	if !strings.Contains(log, "installed the server's slipdock slipdock-wiki in") {
+	if !strings.Contains(log, "installed the server's slipdock slipdock-wiki (signed with the release key) in") {
 		t.Errorf("the log names only the skills put in place:\n%s", log)
 	}
 }

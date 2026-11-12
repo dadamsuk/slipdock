@@ -51,6 +51,7 @@ npm-debug.log
 /cli/_build/
 /cli/kanban
 /priv/cli/slipdock.escript
+/priv/skills_signed/
 
 # Files attached to cards
 /priv/uploads/

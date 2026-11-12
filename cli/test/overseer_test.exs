@@ -48,6 +48,7 @@ defmodule SlipdockCLI.OverseerTest do
       "max_minutes" => 120,
       "idle_minutes" => 15,
       "email" => true,
+      "digest_at" => "07:00",
       "next_run_at" => "2026-11-08T01:30:00Z",
       "open_job" => nil,
       "last_digest" => %{
@@ -67,6 +68,7 @@ defmodule SlipdockCLI.OverseerTest do
     assert_received {:request, "GET", "/api/boards/ops/overseer", _}
     assert out =~ "Overseer: on"
     assert out =~ "every 10–120 min"
+    assert out =~ "Housekeeping digest at 07:00"
     assert out =~ "next pass: 2026-11-08T01:30:00Z"
     assert out =~ "last digest (at_risk, 2026-11-08T01:20:00Z)"
     assert out =~ "#2040 took 3 rounds"
@@ -134,5 +136,12 @@ defmodule SlipdockCLI.OverseerTest do
     out = capture_io(fn -> Boards.run("work", [], []) end)
     assert out =~ "Overseer: Only you can move Ops on"
     assert out =~ "What to do: Answer the waits."
+  end
+
+  test "--digest-at sends the morning digest's time (#2781)" do
+    serve(@state)
+    capture_io(fn -> Overseer.run("overseer", ["ops"], digest_at: "06:30") end)
+    assert_received {:request, "PATCH", "/api/boards/ops/overseer", body}
+    assert JSON.decode!(body) == %{"digest_at" => "06:30"}
   end
 end

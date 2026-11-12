@@ -177,6 +177,7 @@ defmodule SlipdockWeb.Router do
 
     get "/last", DeploymentController, :last
     post "/", DeploymentController, :create
+    post "/failed", DeploymentController, :failed
     patch "/:id", DeploymentController, :finish
   end
 
@@ -489,6 +490,9 @@ defmodule SlipdockWeb.Router do
     # Every skill in one gzipped tar — what `/install.sh` unpacks. A machine
     # with only `curl` and `tar` cannot walk the JSON file list below.
     get "/skills.tar.gz", SkillController, :archive
+    # Its signature with the release key, when the release job made one
+    # (#2784): the runner daemon installs the archive only if it verifies.
+    get "/skills.tar.gz.sig", SkillController, :signature
 
     get "/skills", SkillController, :index
     # One skill rewritten for ChatGPT (see `Slipdock.Skills.ChatGPT`), as the

@@ -13,7 +13,9 @@ defmodule Slipdock.MigrationOrderTest do
   Main's newest is read off `origin/main` (or `main`) itself, not the merge
   base, so a newer one that main gained after the branch left it counts too.
   With neither ref (a shallow checkout) there is nothing to compare, and the
-  check passes.
+  check passes; so too when the ref shares no history with HEAD that the
+  checkout has: a self-hosted runner keeps one job's full `origin/main` in
+  the workspace the next job checks out shallowly (#2829).
 
   The fix it asks for: `mix ecto.gen.migration` again, or rename the file to a
   version later than main's newest (W-1950 §Tests, Migration versions).
@@ -150,6 +152,20 @@ defmodule Slipdock.MigrationOrderTest do
       assert message =~ "main's newest is 20261108125537"
     end
 
+    test "with a main that shares no history with HEAD, there is nothing to compare",
+         %{tmp_dir: tmp} do
+      repo = init_repo!(Path.join(tmp, "apart"), ["20261108125537_main.exs"])
+      git!(repo, ["checkout", "--quiet", "--orphan", "branch"])
+      git!(repo, ["rm", "-r", "--quiet", "--cached", "."])
+      add_migration!(repo, "20261108120000_older.exs")
+      commit!(repo, "branch")
+
+      # The same migration with main's history joined up fails (above), so
+      # this passes only because there is no merge base.
+      assert {_, 1} = System.cmd("git", ["merge-base", "main", "HEAD"], cd: repo)
+      assert :ok == check_repo(repo)
+    end
+
     test "with neither origin/main nor main, there is nothing to compare", %{tmp_dir: tmp} do
       repo = init_repo!(Path.join(tmp, "solo"), ["20261108125537_main.exs"])
       git!(repo, ["branch", "-m", "trunk"])
@@ -168,8 +184,10 @@ defmodule Slipdock.MigrationOrderTest do
         :ok
 
       ref ->
-        {base, 0} = git(root, ["merge-base", ref, "HEAD"])
-        check(main_versions(root, ref), added_migrations(root, String.trim(base)))
+        case git(root, ["merge-base", ref, "HEAD"]) do
+          {base, 0} -> check(main_versions(root, ref), added_migrations(root, String.trim(base)))
+          {_, _} -> :ok
+        end
     end
   end
 

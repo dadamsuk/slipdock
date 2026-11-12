@@ -18,6 +18,16 @@ defmodule Slipdock.Deployments do
   alias Slipdock.Deployments.Deployment
   alias Slipdock.Repo
 
+  # A release that failed before anything reached the environment (#2820).
+  # `stage` is nil on most rows, and `nil in [...]` is NULL in SQL, hence
+  # the coalesce.
+  defmacrop pre_deploy_failure?(d) do
+    quote do
+      unquote(d).status == "failed" and
+        fragment("coalesce(?, '') = ANY(?)", unquote(d).stage, ^Deployment.pre_deploy_stages())
+    end
+  end
+
   @doc "Whether `board` takes deploys and shows delivery metrics."
   def enabled?(%Board{delivery_metrics: on}), do: on == true
 
@@ -55,7 +65,8 @@ defmodule Slipdock.Deployments do
     Repo.one(
       from d in Deployment,
         where:
-          d.board_id == ^board.id and d.environment == ^env and d.sha == ^String.downcase(sha),
+          d.board_id == ^board.id and d.environment == ^env and d.sha == ^String.downcase(sha) and
+            not pre_deploy_failure?(d),
         order_by: [asc: d.id],
         limit: 1
     )
@@ -89,6 +100,78 @@ defmodule Slipdock.Deployments do
   end
 
   defp post_shipped(_result), do: :ok
+
+  @doc """
+  Records a failed release attempt on `board` (#2820): where it failed
+  (`stage`: build, test, merge, deploy or health) and its CI run
+  (`run_url`), with the commits since the environment's last succeeded
+  deploy, so each card they name shows the failure.
+
+  When the deploy job had already recorded this attempt (the environment's
+  latest record of this sha, started or failed, with no stage yet and the
+  same run or none), that record is the one finished as failed at `stage`:
+  one attempt is one row. Otherwise a new row is recorded, already failed.
+
+  `{:ok, deployment}`, `{:error, :off}` or `{:error, changeset}`.
+  """
+  def record_failure(%Board{} = board, attrs) do
+    attrs = Map.new(attrs, fn {k, v} -> {to_string(k), v} end)
+
+    cond do
+      not enabled?(board) ->
+        {:error, :off}
+
+      own = own_attempt(board, attrs) ->
+        own
+        |> Deployment.fail_changeset(attrs, DateTime.utc_now())
+        |> Repo.update()
+        |> tap(&broadcast(board, &1))
+
+      true ->
+        {commits, card_ids} = prepare_commits(board, attrs["commits"] || [])
+        now = DateTime.utc_now()
+
+        attrs =
+          attrs
+          |> Map.merge(%{"commits" => commits, "card_ids" => card_ids, "status" => "failed"})
+          |> Map.put_new("started_at", now)
+          |> Map.put_new("finished_at", now)
+          |> Map.put_new_lazy("previous_sha", fn -> last_sha(board, attrs["environment"]) end)
+
+        %Deployment{board_id: board.id}
+        |> Deployment.failure_changeset(attrs)
+        |> Repo.insert()
+        |> tap(&broadcast(board, &1))
+    end
+  end
+
+  # The deploy job's own record of this attempt, if it made one.
+  defp own_attempt(board, %{"environment" => env, "sha" => sha} = attrs)
+       when is_binary(env) and is_binary(sha) do
+    run_url = attrs["run_url"]
+
+    latest =
+      Repo.one(
+        from d in Deployment,
+          where:
+            d.board_id == ^board.id and d.environment == ^env and
+              d.sha == ^String.downcase(sha),
+          order_by: [desc: d.id],
+          limit: 1
+      )
+
+    case latest do
+      %Deployment{status: status, stage: nil} = d
+      when status in ["started", "failed"] and
+             (is_nil(d.run_url) or d.run_url == run_url) ->
+        d
+
+      _ ->
+        nil
+    end
+  end
+
+  defp own_attempt(_board, _attrs), do: nil
 
   @doc """
   Finishes deploy `id` on `board` as `succeeded` or `failed`. A deploy that
@@ -156,7 +239,9 @@ defmodule Slipdock.Deployments do
 
   @doc """
   `board`'s deploys started in a window, oldest first. Options: `:since`
-  and `:until` (DateTimes), `:environment`, `:status`.
+  and `:until` (DateTimes), `:environment`, `:status`, and `deploys_only:
+  true` to leave out the attempts that failed before reaching the
+  environment (a build, test or merge failure, #2820), as DORA does.
   """
   def list(%Board{id: board_id}, opts \\ []) do
     Deployment
@@ -172,6 +257,7 @@ defmodule Slipdock.Deployments do
       {:until, %DateTime{} = t}, q -> where(q, [d], d.started_at < ^t)
       {:environment, env}, q when is_binary(env) -> where(q, [d], d.environment == ^env)
       {:status, s}, q when is_binary(s) -> where(q, [d], d.status == ^s)
+      {:deploys_only, true}, q -> where(q, [d], not pre_deploy_failure?(d))
       _, q -> q
     end)
   end
@@ -363,6 +449,51 @@ defmodule Slipdock.Deployments do
       }
     end)
     |> Enum.sort_by(& &1.at, {:desc, DateTime})
+  end
+
+  @doc """
+  Where `card`'s latest deploy attempt failed (#2820): for each
+  environment, when the latest finished attempt whose commits name the card
+  failed, `%{environment, deployment_id, sha, stage, run_url, at}`, latest
+  first. A later succeeded deploy naming the card takes the line away. Only
+  boards whose delivery metrics are on count.
+  """
+  def deploy_failed(%{id: card_id}) do
+    Repo.all(
+      from d in Deployment,
+        join: b in Board,
+        on: b.id == d.board_id,
+        where:
+          b.delivery_metrics and d.status in ["succeeded", "failed"] and
+            fragment("? @> ?", d.card_ids, type(^[card_id], {:array, :integer})),
+        distinct: [d.board_id, d.environment],
+        order_by: [d.board_id, d.environment, desc: d.started_at, desc: d.id]
+    )
+    |> Enum.filter(&(&1.status == "failed"))
+    |> Enum.map(fn d ->
+      %{
+        environment: d.environment,
+        deployment_id: d.id,
+        sha: d.sha,
+        stage: d.stage,
+        run_url: d.run_url,
+        at: d.finished_at || d.started_at
+      }
+    end)
+    |> Enum.sort_by(& &1.at, {:desc, DateTime})
+  end
+
+  @doc """
+  A failed attempt in words: `Deploy failed at build · production ·
+  https://… · 6 Nov 20:41` (without the stage or link when it has none),
+  the time in `zone`.
+  """
+  def deploy_failed_text(%{} = f, zone \\ "Etc/UTC") do
+    "Deploy failed" <>
+      if(f.stage, do: " at #{f.stage}", else: "") <>
+      " · #{f.environment}" <>
+      if(f.run_url, do: " · #{f.run_url}", else: "") <>
+      " · #{time_text(f.at, zone)}"
   end
 
   # A later rollback in the environment to a sha deployed before `d`.

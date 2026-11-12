@@ -417,7 +417,8 @@ defmodule Slipdock.Runners.AnswerRequeueTest do
 
   describe "a prompt that would be too long" do
     test "cuts the handoff first, and still names the card", ctx do
-      rule_fixture(ctx.board, spec(%{"prompt" => String.duplicate("x", 18_000)}))
+      # Room for the paragraphs every job's prompt ends with (#2783).
+      rule_fixture(ctx.board, spec(%{"prompt" => String.duplicate("x", 16_500)}))
       park(ctx)
 
       {:ok, _} =

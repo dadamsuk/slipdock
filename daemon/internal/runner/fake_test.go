@@ -22,6 +22,7 @@ import (
 
 	"github.com/dadamsuk/slipdock/daemon/internal/executor"
 	"github.com/dadamsuk/slipdock/daemon/internal/machine"
+	"github.com/dadamsuk/slipdock/daemon/internal/release"
 )
 
 // TestMain doubles as the agent and the hooks: run as `<test binary>
@@ -196,6 +197,15 @@ type server struct {
 	skillsCode int
 	skillsGets int
 	skillsKey  string
+	// skillsSigner signs skills for /api/skills.tar.gz.sig (the rig's
+	// release key), unless skillsSig says what it answers instead or
+	// skillsUnsigned makes it a 404 (as it is when skills is nil);
+	// skillsSigCode fails its fetch, and skillsSigGets counts them.
+	skillsSigner   ed25519.PrivateKey
+	skillsSig      []byte
+	skillsUnsigned bool
+	skillsSigCode  int
+	skillsSigGets  int
 	// cli and cliSums are what /cli/slipdock.escript and /cli/SHA256SUMS
 	// answer (404 when nil); cliCode fails the escript's fetch; cliGets
 	// counts the escript's fetches and cliKeys the Authorization each of
@@ -277,6 +287,22 @@ func (s *server) handle(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(404)
 		default:
 			_, _ = w.Write(body)
+		}
+		return
+	}
+	if r.URL.Path == "/api/skills.tar.gz.sig" {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		s.skillsSigGets++
+		switch {
+		case s.skillsSigCode != 0:
+			w.WriteHeader(s.skillsSigCode)
+		case s.skillsSig != nil:
+			_, _ = w.Write(s.skillsSig)
+		case s.skillsUnsigned || s.skills == nil || s.skillsSigner == nil:
+			w.WriteHeader(404)
+		default:
+			_, _ = w.Write(release.SignIn(release.SkillsNamespace, s.skillsSigner, s.skills))
 		}
 		return
 	}
@@ -519,6 +545,7 @@ func newRig(t *testing.T, cfg Config) *rig {
 		t.Fatal(err)
 	}
 	r.releaseKey = priv
+	srv.skillsSigner = priv
 	r.w.ReleaseKey = func() (ed25519.PublicKey, error) { return pub, nil }
 	return r
 }

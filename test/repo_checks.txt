@@ -46,7 +46,10 @@ test/slipdock/regex_unicode_test.exs
 # Docs and skills held to the server
 test/slipdock/builder_mutation_review_docs_test.exs
 test/slipdock/verify_evidence_stance_test.exs
+test/slipdock_web/controllers/api/skills_signature_test.exs
 test/slipdock_web/controllers/api/skills_test.exs
+test/slipdock/card_text_is_data_test.exs
+test/slipdock_web/live/card_text_help_live_test.exs
 test/slipdock_web/handbook_skills_test.exs
 test/slipdock/handbook/rules_docs_test.exs
 test/slipdock/handbook/seed_docs_test.exs
@@ -133,6 +136,7 @@ test/slipdock_web/verified_preexisting_web_test.exs
 test/slipdock_web/verify_progress_test.exs
 
 # CI's workflow and the pre-push alias against the repo
+test/slipdock/ci_runner_test.exs
 test/slipdock/ci_workflow_test.exs
 test/slipdock/daemon_release_workflow_test.exs
 
