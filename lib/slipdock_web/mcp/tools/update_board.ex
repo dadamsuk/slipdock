@@ -17,7 +17,8 @@ defmodule SlipdockWeb.MCP.Tools.UpdateBoard do
 
   @fields ~w(name description color simple default_view agentic_building handoff_label bar_required
              evidence_required verify_work verify_pool lanes lane_mode shared_paths profiles profile_tiers ship_via job_log_hours
-             failure_log_hours findings_propose_at wait_default_after release_mode release_age_cap_hours)
+             failure_log_hours findings_propose_at wait_default_after release_mode release_age_cap_hours
+             release_command)
 
   @impl true
   def name, do: "update_board"
@@ -72,6 +73,12 @@ defmodule SlipdockWeb.MCP.Tools.UpdateBoard do
           description:
             "Batched: release once the oldest waiting merge has waited this many hours; " <>
               "null off. Root board only."
+        },
+        release_command: %{
+          type: ["string", "null"],
+          description:
+            "Batched: the one-line command a runner's release job runs; null for the " <>
+              "default (gh workflow run release.yml). Root board only."
         },
         lanes: %{
           type: "boolean",

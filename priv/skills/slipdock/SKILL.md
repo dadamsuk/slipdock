@@ -572,6 +572,12 @@ slipdock set-board <board> --job-log-hours 24 --failure-log-hours 168   # how lo
 slipdock cancel-job <id>                      # queued: at once; running: on the next heartbeat
 slipdock claim-job <board> --pool P           # take the next job as this session ("nothing queued")
 slipdock pause <board> [--pool P] --reason "…"   # owner: hold runner work (tree or pool); a person resumes
+slipdock release <board>                      # owner, on a board with batched releases: Release now. A runner's release job runs the
+                                              # board's release command for every merged card awaiting release; one at a time
+                                              # (during a release it queues one follow-up). Only when the person asks: a card is done on merge
+slipdock releases <board>                     # where its releases stand: running, queued, the last ended, the cards awaiting
+slipdock set-board <board> --release-command "make release"   # the one line a release job runs (default: gh workflow run release.yml
+                                              # --ref {default_branch}); `default` clears it
 slipdock resume <board> [--pool P]            # let exactly that pause off (refused under an agent)
 slipdock job-progress <id> [--message NOTE]   # renew the lease (20 min for a session); note → card
 slipdock job-progress [<id>] --step "…"       # what the job is doing now: on the job only, not the card

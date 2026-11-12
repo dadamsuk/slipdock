@@ -216,7 +216,7 @@ defmodule SlipdockWeb.API.BoardController do
                   failure_log_hours handoff_label
                   handoff_prompt inbound_senders bar_required
                   evidence_required verify_work verify_pool verify_rejection_limit verify_audit lanes lane_mode shared_paths profiles profile_tiers ship_via findings_propose_at wait_default_after
-                  release_mode release_age_cap_hours)
+                  release_mode release_age_cap_hours release_command)
              )
            ) do
       json(

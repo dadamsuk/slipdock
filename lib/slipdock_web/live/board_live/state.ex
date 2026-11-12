@@ -351,6 +351,19 @@ defmodule SlipdockWeb.BoardLive.State do
   end
 
   @doc """
+  Where a batched tree's releases stand (#2835), for the banner; nil on any
+  other, and for someone who can't read the tree's root board, whose cards
+  it counts.
+  """
+  def board_release(board, user) do
+    if Slipdock.Releases.batched?(board) and reads_root?(board, user),
+      do: Slipdock.Releases.status(board)
+  end
+
+  defp reads_root?(%Board{} = board, user),
+    do: Access.can_read?(Access.board_permission(user, Boards.root_board(board)))
+
+  @doc """
   The open runner pauses on the board's tree (#1116), each with the root
   board it is kept on, for the banner every board in the tree shows.
   """

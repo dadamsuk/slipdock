@@ -216,7 +216,7 @@ that connects gets a small set of tools rather than the whole API:
 
 | Reading | Writing |
 |---|---|
-| `whoami`, `get_guide`, `list_boards`, `get_board`, `list_cards`, `get_card`, `search`, `ask`, `read_page`, `list_pages`, `page_info`, `page_history`, `wiki_info`, `activity`, `download_file`, `list_automations`, `list_tools`, `garden`, `page_tool`, `job_log` | `create_card`, `update_card`, `move_card`, `comment`, `leave_handoff`, `garden_decide`, `upload_file`, `delete_attachment`, `complete_card`, `verify_card`, `status_update`, `archive_card`, `delete_card`, `create_list`, `create_tag`, `delete_list`, `create_board`, `update_board`, `archive_board`, `delete_board`, `write_page`, `quick_note`, `update_page`, `file_folder`, `share`, `revert_page`, `manage_wiki`, `card_views`, `manage_automation`, `install_tool`, `skill_registry`, `claim_job`, `job_progress`, `finish_job`, `keep_job_log` |
+| `whoami`, `get_guide`, `list_boards`, `get_board`, `list_cards`, `get_card`, `search`, `ask`, `read_page`, `list_pages`, `page_info`, `page_history`, `wiki_info`, `activity`, `download_file`, `list_automations`, `list_tools`, `garden`, `page_tool`, `job_log` | `create_card`, `update_card`, `move_card`, `comment`, `leave_handoff`, `garden_decide`, `upload_file`, `delete_attachment`, `complete_card`, `verify_card`, `status_update`, `archive_card`, `delete_card`, `create_list`, `create_tag`, `delete_list`, `create_board`, `update_board`, `archive_board`, `delete_board`, `write_page`, `quick_note`, `update_page`, `file_folder`, `share`, `revert_page`, `manage_wiki`, `card_views`, `manage_automation`, `install_tool`, `skill_registry`, `claim_job`, `job_progress`, `finish_job`, `keep_job_log`, `release_now` |
 
 Files move without passing through the model: with a shell, `upload_file`
 with `card` (or `page`) and `link: true` answers with a single-use
@@ -1225,6 +1225,21 @@ dependents; its `release` (`get_card`, the card's JSON, the *Release*
 line in `slipdock card`) is `awaiting` until a succeeded deploy names it,
 then `released` with the environment and the time. Don't wait for a
 release before calling a card done.
+
+**Batched releases.** A board tree whose root sets `release_mode: batched`
+merges as above but doesn't deploy on a merge: a release is asked for, by
+a `critical` card merging, by **Release now** (`slipdock release <board>`,
+`POST /api/boards/:board/release`, MCP `release_now`, the button on the
+board and its Agentic Building page; the board owner's) or by the age cap
+(`release_age_cap_hours`). Releases run one at a time: a trigger during
+one queues a single follow-up, and further triggers join it. Each request
+queues a runner job of kind `release`, with no card, for the pool that
+merges; its prompt is the board's `release_command` (default `gh workflow
+run release.yml --ref {default_branch}`), and it goes only to runners
+whose claims list `release` in `X-Runner-Kinds`. `slipdock releases
+<board>` (`GET /api/boards/:board/release`, `release_now` with `check:
+true`) says what is running, queued and awaiting release, for the whole
+tree: asked of a sub-board, it needs read on the root board too.
 
 **Epics close over finished subcards.** On every board, with no switch, an
 agent can't complete (or submit) a card while its sub-board has open cards

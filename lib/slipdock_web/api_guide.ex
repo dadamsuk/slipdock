@@ -581,7 +581,8 @@ defmodule SlipdockWeb.APIGuide do
     `manage_automation` (owner only), `list_tools`, `install_tool`, `garden` and
     `garden_decide` (tidy-up suggestions), and `claim_job`,
     `job_progress` and `finish_job` to take runner jobs from a board's
-    queue (see "Runners" below). Archiving can be undone; the
+    queue (see "Runners" below), and `release_now` (Release now on a board
+    with batched releases; `check: true` only reads). Archiving can be undone; the
     deletes can't, so `delete_card`
     needs `confirm: true`, `delete_board` needs `confirm` set to the board's
     code, and `delete_list` refuses a list holding cards unless
@@ -2270,6 +2271,37 @@ defmodule SlipdockWeb.APIGuide do
     *Release* line in `slipdock card`) is `awaiting` (*Merged 1a2b3c4,
     awaiting release · since 12 Nov 10:04*) until a succeeded deploy names
     it, then `released` with the environment and the time.
+
+    A release is asked for, one at a time per tree. Three things ask: a
+    card of priority `critical` merging; **Release now** (`POST
+    /api/boards/:board/release`, `slipdock release B`, MCP `release_now`,
+    the button on the board's release banner and the Agentic Building page:
+    the board owner's); and the age cap. The answer's `how` is `started`,
+    `queued` (one is running: this is the single follow-up) or `joined`
+    (a follow-up was queued already), with the `request` (`status`
+    `queued`, `running`, `released`, `failed` or `timed_out`; `triggers`,
+    each `trigger` `critical`, `manual` or `age_cap` with `by` and `at`;
+    `card_ids`; `job_id`; `run_url`; `note`) and the tree's `release`
+    status. `GET /api/boards/:board/release` (`slipdock releases B`,
+    `release_now` with `check: true`) reads that status alone: `mode`,
+    `running`, `queued`, `last` and the cards `awaiting`. It is the whole
+    tree's: asked of a sub-board, it needs read on the root board too
+    (`403`). A board that releases on merge answers `409`.
+
+    A request starts a runner job of kind `release`, with no card, for the
+    pool that merges: its prompt is the root board's `release_command`
+    (set like the other two; `set-board --release-command "…"`, `default`
+    to clear), one line, by default `gh workflow run release.yml --ref
+    {default_branch}`, the runner putting the repository's default branch
+    in. Lanes and WIP limits never hold it, and it goes only to runners
+    whose claims list `release` in `X-Runner-Kinds`. The request ends
+    `released` when a deploy of the tree is recorded as succeeded (or when
+    the job is done, on a tree with delivery metrics off, where the cards
+    it covered then read `released` with no `environment`), `failed` when
+    the job or the deploy fails, and `timed_out` after 3 hours with
+    neither; then the follow-up starts. After a failed or timed-out
+    release the age cap asks for nothing until a person or a critical
+    merge has released. Each step is a line in the root board's activity.
 
     Incidents are ordinary cards tagged `incident` (the board's `incident_tag`),
     optionally linked to the deploy that caused them: `POST

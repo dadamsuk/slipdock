@@ -256,7 +256,7 @@
 - Accounts: passwordless sign-in by emailed magic link, sessions that last
   30 days, API tokens for the CLI
 - **An MCP server** at `/mcp`: claude.ai, the Claude apps, Claude Code and
-  other MCP clients get the boards and the wiki as 55 tools, signing in
+  other MCP clients get the boards and the wiki as 56 tools, signing in
   through the browser or with an API token (see [MCP server](mcp-server.md))
 - Groups of users; boards, single cards and saved views can be shared with
   people or groups as read-only or editable

@@ -26,6 +26,7 @@ defmodule Slipdock.AgenticBuilding do
     {:ship_via, "push", "Shipping by pull request"},
     {:release_mode, "on_merge", "Batched releases"},
     {:release_age_cap_hours, nil, "A release age cap"},
+    {:release_command, nil, "A release command"},
     {:lane_mode, "off", "Lanes"},
     {:shared_paths, [], "Shared paths"},
     {:profiles, false, "Profiles"},

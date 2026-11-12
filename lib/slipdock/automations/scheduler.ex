@@ -79,6 +79,9 @@ defmodule Slipdock.Automations.Scheduler do
       # Approval waits past their board's `wait_default_after`, resolved to
       # their proposal (#2096, see `Slipdock.WaitDefaults`).
       {"Wait defaults", fn -> Slipdock.WaitDefaults.tick() end},
+      # Batched releases (#2835, see `Slipdock.Releases`): the age cap, and
+      # running releases nothing has been heard of.
+      {"Releases", fn -> Slipdock.Releases.tick() end},
       # Snoozed cards whose time has come (see `Slipdock.Snooze`).
       {"Waking snoozed cards", &Slipdock.Snooze.tick/0},
       # Uploaded files still to be read for text (see `Slipdock.OCR`).

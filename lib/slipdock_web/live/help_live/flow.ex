@@ -498,6 +498,13 @@ defmodule SlipdockWeb.HelpLive.Flow do
       ends. The agent doesn't assign the card to anyone, since it signs in with a person's token.
     </p>
     <.person_note>
+      <strong>A batched board releases on a trigger, not on a merge.</strong>
+      A card there is done when it merges; agents don't wait for its release. A release runs when
+      a critical card merges, at the board's age cap, or when the owner presses <em>Release now</em>
+      (<code>slipdock release B</code>): a runner's <code>release</code>
+      job runs the board's release command, one release at a time.
+    </.person_note>
+    <.person_note>
       <strong>A pause is yours to lift.</strong>
       Agents may pause runner work (<code>slipdock pause B --reason "…"</code>), and an agent
       that sees it takes nothing. Only a person resumes it: <code>slipdock resume B</code>

@@ -158,6 +158,10 @@ defmodule Slipdock.Boards.Board do
     # is off). Set and read on the tree's root board only.
     field :release_mode, :string, default: "on_merge"
     field :release_age_cap_hours, :integer
+    # The command a release job runs on a runner (#2835); nil is the default
+    # (`Slipdock.Releases.default_command/0`). The root board's, as the two
+    # above.
+    field :release_command, :string
 
     # The other addresses the board's card addresses take mail from (#1289),
     # besides each address owner's own: lower-cased, at most
@@ -598,6 +602,7 @@ defmodule Slipdock.Boards.Board do
       :ship_via,
       :release_mode,
       :release_age_cap_hours,
+      :release_command,
       :kind,
       :default_view
     ])
@@ -736,6 +741,7 @@ defmodule Slipdock.Boards.Board do
         less_than_or_equal_to: 8760,
         message: "must be 1 hour to 8760 (a year), or blank for off"
       )
+      |> validate_release_command()
 
     case get_field(changeset, :root_id) do
       nil -> changeset
@@ -743,8 +749,20 @@ defmodule Slipdock.Boards.Board do
     end
   end
 
+  # One line a runner's shell runs (#2835). Blank is the default: the cast
+  # has already made a blank one nil.
+  defp validate_release_command(changeset) do
+    changeset
+    |> update_change(:release_command, fn
+      value when is_binary(value) -> String.trim(value)
+      value -> value
+    end)
+    |> validate_length(:release_command, max: 500)
+    |> validate_format(:release_command, ~r/\A[^\r\n\x00]*\z/, message: "must be one line")
+  end
+
   defp refuse_on_sub_board(changeset, root_id) do
-    [:release_mode, :release_age_cap_hours]
+    [:release_mode, :release_age_cap_hours, :release_command]
     |> Enum.filter(&Map.has_key?(changeset.changes, &1))
     |> Enum.reduce(changeset, fn field, cs ->
       add_error(cs, field, "is set on the tree's root board (#{root_code(root_id)})")
