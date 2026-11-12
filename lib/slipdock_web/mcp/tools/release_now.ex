@@ -1,8 +1,9 @@
 defmodule SlipdockWeb.MCP.Tools.ReleaseNow do
   @moduledoc """
   *Release now* over MCP (#2835): asks for a release of a batched board's
-  merged work, or with `check` only says where its releases stand. Asking
-  is the board owner's.
+  merged work, with `check` only says where its releases stand, and with
+  `lift_hold` lifts the hold a red release left (#2838), asking for no
+  release. Asking and lifting are the board owner's.
   """
   @behaviour SlipdockWeb.MCP.Tool
 
@@ -20,9 +21,9 @@ defmodule SlipdockWeb.MCP.Tools.ReleaseNow do
   @impl true
   def description,
     do:
-      "On a board with batched releases, asks for a release of its merged cards now: " <>
-        "started, queued behind the one running, or joined. check = true only reads " <>
-        "where its releases stand."
+      "Batched board: release its merged cards now (started, queued or joined; " <>
+        "refused while a red release holds releases). check: only read the status. " <>
+        "lift_hold: lift the hold, releasing nothing."
 
   @impl true
   def input_schema do
@@ -33,6 +34,10 @@ defmodule SlipdockWeb.MCP.Tools.ReleaseNow do
         check: %{
           type: "boolean",
           description: "Only read the release status; ask for nothing (default false)."
+        },
+        lift_hold: %{
+          type: "boolean",
+          description: "Lift the hold a red release left; asks for no release (default false)."
         }
       },
       required: ["board"],
@@ -49,10 +54,31 @@ defmodule SlipdockWeb.MCP.Tools.ReleaseNow do
 
     with {:ok, ref} <- Args.required(args, "board"),
          {:ok, check} <- Args.boolean(args, "check", false),
-         need = if(check, do: :read, else: :owner),
+         {:ok, lift} <- Args.boolean(args, "lift_hold", false),
+         need = if(check and not lift, do: :read, else: :owner),
          {:ok, board} <- Args.refusal(Authorize.fetch_board(auth, ref, need)),
          {:ok, _root} <- Args.refusal(SlipdockWeb.API.ReleaseController.root(auth, board)) do
-      if check, do: {:ok, status(board)}, else: release(board, auth)
+      cond do
+        lift -> lift(board, auth)
+        check -> {:ok, status(board)}
+        true -> release(board, auth)
+      end
+    end
+  end
+
+  defp lift(board, auth) do
+    by = Slipdock.Verified.who(Slipdock.Actor.from_conn(auth))
+
+    case Releases.lift_hold(board, by) do
+      {:ok, hold} ->
+        {:ok,
+         Map.merge(status(board), %{
+           lifted: V.release_hold(hold),
+           line: "Release hold lifted. Nothing was released."
+         })}
+
+      {:error, reason} ->
+        {:error, Releases.refusal(reason)}
     end
   end
 

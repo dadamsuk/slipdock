@@ -91,6 +91,7 @@ test/slipdock_web/orchestration_fixes_docs_test.exs
 test/slipdock_web/recording_api_docs_test.exs
 test/slipdock_web/recurrence_docs_test.exs
 test/slipdock_web/reply_docs_test.exs
+test/slipdock_web/release_hold_docs_test.exs
 test/slipdock_web/runner_docs_test.exs
 test/slipdock/scripts_retired_docs_test.exs
 test/slipdock_web/saved_multiboard_docs_test.exs

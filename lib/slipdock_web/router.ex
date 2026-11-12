@@ -745,6 +745,7 @@ defmodule SlipdockWeb.Router do
     get "/boards/:board/jobs", JobController, :index
     get "/boards/:board/release", ReleaseController, :show
     post "/boards/:board/release", ReleaseController, :create
+    delete "/boards/:board/release/hold", ReleaseController, :lift_hold
     get "/boards/:board/pause", JobController, :pauses
     post "/boards/:board/pause", JobController, :pause
     delete "/boards/:board/pause", JobController, :resume

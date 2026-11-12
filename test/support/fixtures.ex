@@ -179,6 +179,34 @@ defmodule Slipdock.Fixtures do
   end
 
   @doc """
+  A card titled `title` in `column`, accepted and merged as a merge job
+  leaves it (#2835): completed now, `verify_state` accepted and a
+  `merge_sha`. `fields` override any of those (`priority: "critical"`,
+  `completed_at: …`).
+  """
+  def merged_card_fixture(column, title, fields \\ []) do
+    card = card_fixture(column, %{"title" => title})
+
+    require Ecto.Query
+
+    Slipdock.Repo.update_all(
+      Ecto.Query.where(Slipdock.Boards.Card, id: ^card.id),
+      set:
+        Keyword.merge(
+          [
+            completed: true,
+            completed_at: DateTime.utc_now() |> DateTime.truncate(:second),
+            verify_state: "accepted",
+            merge_sha: "abc1234def5678"
+          ],
+          fields
+        )
+    )
+
+    Slipdock.Repo.get!(Slipdock.Boards.Card, card.id)
+  end
+
+  @doc """
   An open runner job on `card` (running, by default), so the card counts as
   worked: only a card in progress that a runner job is working on holds
   other jobs back or keeps its lane (#1922, `Slipdock.Runners.worked/1`).

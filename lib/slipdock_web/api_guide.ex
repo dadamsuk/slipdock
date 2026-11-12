@@ -1734,7 +1734,7 @@ defmodule SlipdockWeb.APIGuide do
 
     **Where a card came from** (#2778): every card made since then carries
     `origin` (`person`, `sweep`, `findings`, `health`, `overseer`, `verify`,
-    `automation`, `import` or `agent`) and `origin_job_id`, the runner job
+    `release`, `automation`, `import` or `agent`) and `origin_job_id`, the runner job
     an agent made it in; null on older cards. The server sets it from who
     made the card. Inside a runner job an agent may name the generator it
     is running, `"origin": "sweep"` or `"findings"` on `POST
@@ -2327,6 +2327,26 @@ defmodule SlipdockWeb.APIGuide do
     or not the overseer is on. Only cards merged after the board turned
     delivery metrics on count; an epic, a card with no commit, a stand-in
     and an archived card never do.
+
+    **A red release holds releases** (#2838). A failed deploy recorded on a
+    batched tree (a release's suite, build or deploy failing: `slipdock
+    deploy failed --stage S`) sets the root board's hold: the status's
+    `hold` (`reason`, `stage`, `run_url`, `sha`, `deployment_id`,
+    `card_ids`, the batch, `fix_card_id`, `held_at` and `text`; null while
+    releases run). Slipdock files one card of priority `critical` (origin
+    `release`) on top of the root's ready list, naming the batch's cards
+    and linking the failing run. Held, *Release now* is refused (`409`,
+    the refusal saying why with the run), the age cap asks for nothing, a
+    queued follow-up is dropped, and a critical card that isn't the fix
+    card asks for nothing (the board's activity says so). When the fix card
+    merges the hold lifts and its critical trigger releases. A second red
+    release while held keeps the first hold and files no second card. The
+    owner lifts it by hand with `DELETE /api/boards/:board/release/hold`
+    (`slipdock release B --lift-hold`, MCP `release_now` `lift_hold: true`,
+    *Lift hold* on the board's release banner and the Agentic Building
+    page): `200` with the hold `lifted`, `409` when nothing is held; it
+    releases nothing. A release job that failed to fire, a backfilled
+    deploy and a board that releases on merge hold nothing.
 
     Incidents are ordinary cards tagged `incident` (the board's `incident_tag`),
     optionally linked to the deploy that caused them: `POST

@@ -1208,9 +1208,10 @@ defmodule SlipdockWeb.BoardLive.BoardView do
   attr :can_manage, :boolean, required: true
 
   @doc """
-  A batched tree's releases (#2835), on every board of it: the release
-  running, the follow-up queued and how many merged cards await one, with
-  Release now for the owner. Nothing while there is nothing to say.
+  A batched tree's releases (#2835), on every board of it: a hold after a
+  red release (#2838), the release running, the follow-up queued and how
+  many merged cards await one, with Release now (and Lift hold, while
+  held) for the owner. Nothing while there is nothing to say.
   """
   def release_banner(assigns) do
     assigns = assign(assigns, line: assigns.release && Slipdock.Releases.line(assigns.release))
@@ -1233,6 +1234,16 @@ defmodule SlipdockWeb.BoardLive.BoardView do
         data-confirm="Release this board's merged work now?"
       >
         Release now
+      </button>
+      <button
+        :if={@can_manage and @release.hold}
+        type="button"
+        id="release-lift-hold"
+        class="btn btn-xs btn-warning"
+        phx-click="lift_release_hold"
+        data-confirm="Lift the hold? Releases run again; nothing is released now."
+      >
+        Lift hold
       </button>
     </div>
     """

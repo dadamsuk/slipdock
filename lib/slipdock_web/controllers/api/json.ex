@@ -168,13 +168,38 @@ defmodule SlipdockWeb.API.JSON do
   end
 
   @doc """
+  A hold on a tree's releases after a red release (#2838,
+  `Slipdock.Releases.hold/1`): the `reason`, the `stage` that failed, the
+  failing `run_url`, the `sha`, the failed `deployment_id`, the batch's
+  `card_ids`, the `fix_card_id` whose merge lifts it, `held_at` and `text`,
+  the whole of it in words. Null while releases run.
+  """
+  def release_hold(nil), do: nil
+
+  def release_hold(%{} = hold) do
+    %{
+      reason: hold["reason"],
+      stage: hold["stage"],
+      run_url: hold["run_url"],
+      sha: hold["sha"],
+      deployment_id: hold["deployment_id"],
+      card_ids: hold["card_ids"] || [],
+      fix_card_id: hold["fix_card_id"],
+      held_at: hold["held_at"],
+      text: Slipdock.Releases.held_text(hold)
+    }
+  end
+
+  @doc """
   Where a tree's releases stand (#2835, `Slipdock.Releases.status/1`): its
-  `mode`, the `running` and `queued` requests, the `last` one that ended,
-  and the cards `awaiting` release (`id`, `title`, `priority`, `merged_at`).
+  `mode`, the `hold` (#2838, `release_hold/1`, null while releases run),
+  the `running` and `queued` requests, the `last` one that ended, and the
+  cards `awaiting` release (`id`, `title`, `priority`, `merged_at`).
   """
   def release_status(%{} = status) do
     %{
       mode: status.mode,
+      hold: release_hold(Map.get(status, :hold)),
       running: release_request(status.running),
       queued: release_request(status.queued),
       last: release_request(status.last),

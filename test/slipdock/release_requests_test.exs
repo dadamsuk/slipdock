@@ -35,25 +35,7 @@ defmodule Slipdock.ReleaseRequestsTest do
   end
 
   # A card accepted and merged, as the merge job leaves it.
-  defp merged!(column, title, fields \\ []) do
-    card = card_fixture(column, %{"title" => title})
-
-    Repo.update_all(
-      from(c in Card, where: c.id == ^card.id),
-      set:
-        Keyword.merge(
-          [
-            completed: true,
-            completed_at: DateTime.utc_now() |> DateTime.truncate(:second),
-            verify_state: "accepted",
-            merge_sha: "abc1234def5678"
-          ],
-          fields
-        )
-    )
-
-    Repo.get!(Card, card.id)
-  end
+  defp merged!(column, title, fields \\ []), do: merged_card_fixture(column, title, fields)
 
   defp activity(board) do
     Repo.all(

@@ -144,7 +144,23 @@ defmodule SlipdockWeb.AgenticLive.Index do
     {:noreply, assign(socket, release: release_status(board, user))}
   end
 
+  # Lift hold (#2838): a red release's hold, by hand; it releases nothing.
+  def handle_event("lift_release_hold", _params, socket) do
+    %{board: board, current_user: user} = socket.assigns
+    socket = lift_hold(socket, board, user)
+    {:noreply, assign(socket, release: release_status(board, user))}
+  end
+
   def handle_event(_event, _params, socket), do: {:noreply, socket}
+
+  @doc false
+  # Lift hold at the web doors (#2838), the board page's banner and this page.
+  def lift_hold(socket, board, user) do
+    case Slipdock.Releases.lift_hold(board, Slipdock.Accounts.User.display_name(user)) do
+      {:ok, _hold} -> put_flash(socket, :info, "Release hold lifted. Nothing was released.")
+      {:error, reason} -> put_flash(socket, :error, Slipdock.Releases.refusal(reason))
+    end
+  end
 
   # A connected page hears the tree's releases change (#2835).
   defp subscribe_releases(socket, board) do
@@ -623,6 +639,16 @@ defmodule SlipdockWeb.AgenticLive.Index do
                       data-confirm="Release this board's merged work now?"
                     >
                       Release now
+                    </button>
+                    <button
+                      :if={@can_manage and @release.hold}
+                      type="button"
+                      id="board-release-lift-hold"
+                      class="btn btn-sm btn-warning"
+                      phx-click="lift_release_hold"
+                      data-confirm="Lift the hold? Releases run again; nothing is released now."
+                    >
+                      Lift hold
                     </button>
                   </div>
                 </div>

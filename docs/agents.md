@@ -336,7 +336,8 @@ each `{kind, name, user_id}` (`kind` is `person`, `agent`, `runner` or
 checklist included: the later of its newest activity entry and its own
 `updated_at`.
 Every card made since #2778 also records its `origin`: `person`, `sweep`,
-`findings`, `health`, `overseer`, `verify`, `automation`, `import`, or
+`findings`, `health`, `overseer`, `verify`, `release` (a red release's
+fix card), `automation`, `import`, or
 `agent` with `origin_job_id`, the job it was made in (null on older cards).
 The server sets it from who made the card. Inside a runner job you may name
 the generator you are running (`slipdock add B "…" --origin sweep`,
@@ -1264,6 +1265,18 @@ refused otherwise (exit 2, nothing run). `slipdock releases
 <board>` (`GET /api/boards/:board/release`, `release_now` with `check:
 true`) says what is running, queued and awaiting release, for the whole
 tree: asked of a sub-board, it needs read on the root board too.
+
+**A red release holds releases** (#2838). A failed deploy recorded on a
+batched tree holds its releases: the status's `hold` gives the reason, the
+stage and the failing run, and Slipdock files one `critical` fix card on
+top of the root's ready list naming the batch's cards. While held,
+Release now is refused (saying why, with the run), the age cap asks for
+nothing and a critical merge other than the fix card asks for nothing.
+The fix card merging lifts the hold and releases. The owner can lift it by
+hand: `slipdock release <board> --lift-hold`,
+`DELETE /api/boards/:board/release/hold`, MCP `release_now` with
+`lift_hold: true`, or *Lift hold* on the banner and the Agentic Building
+page; lifting releases nothing. An agent doesn't lift a hold on its own: fix the card.
 
 **Epics close over finished subcards.** On every board, with no switch, an
 agent can't complete (or submit) a card while its sub-board has open cards

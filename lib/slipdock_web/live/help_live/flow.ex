@@ -510,7 +510,9 @@ defmodule SlipdockWeb.HelpLive.Flow do
       job runs the board's release command, one release at a time. A command other than the
       default <code>gh workflow run</code>
       runs only on a machine whose <code>local.json</code>
-      lists it under <code>release_commands</code>.
+      lists it under <code>release_commands</code>. A red release holds the next one and files a
+      critical fix card: fix that card, and its merge releases; only the owner lifts a hold by
+      hand.
     </.person_note>
     <.person_note>
       <strong>A pause is yours to lift.</strong>

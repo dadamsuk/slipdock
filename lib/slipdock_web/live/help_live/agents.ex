@@ -167,11 +167,11 @@ defmodule SlipdockWeb.HelpLive.Agents do
        {:yes, "through the CLI or MCP"},
        {:no, "one way only"}
      ]},
-    {"Release a batched board's merged work now, and see where its releases stand",
+    {"Release a batched board's merged work now, see where its releases stand, and lift a red release's hold",
      [
-       {:yes, "POST and GET /api/boards/:id/release"},
-       {:yes, "release_now (check: true to read)"},
-       {:yes, "slipdock release, slipdock releases"},
+       {:yes, "POST and GET /api/boards/:id/release, DELETE …/release/hold"},
+       {:yes, "release_now (check: true to read, lift_hold: true)"},
+       {:yes, "slipdock release [--lift-hold], slipdock releases"},
        {:yes, "only when asked: a card is done on merge"},
        {:yes, "a runner's release job fires it"},
        {:no, "one way only"}
