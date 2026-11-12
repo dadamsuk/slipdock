@@ -124,8 +124,12 @@ defmodule Slipdock.CiRunnerTest do
                step_at(deploy(), "name", "Deploy")
     end
 
-    test "deploys the same way on either runner" do
-      refute Map.has_key?(step(deploy(), "name", "Deploy"), "if")
+    test "deploys the same way on either runner, as LOCAL_DEPLOY_USER on a self-hosted one" do
+      deploy_step = step(deploy(), "name", "Deploy")
+      refute Map.has_key?(deploy_step, "if")
+
+      assert deploy_step["env"]["DEPLOY_USER"] ==
+               "${{ vars.CI_RUNNER && vars.LOCAL_DEPLOY_USER || vars.DEPLOY_USER }}"
     end
   end
 end

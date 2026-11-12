@@ -523,7 +523,9 @@ jobs:
   #
   # Needs, on the production environment: secrets TS_OAUTH_CLIENT_ID,
   # TS_AUDIENCE, DEPLOY_HOST (the server's tailnet name) and DEPLOY_HEALTH_URL
-  # (https://…/healthz), and the variable DEPLOY_USER.
+  # (https://…/healthz), and the variable DEPLOY_USER. On a self-hosted runner
+  # (#2829) the user is the repository variable LOCAL_DEPLOY_USER instead:
+  # the tailnet lets the machine's own node in as that user, not as tag:ci's.
   #
   # The merge job only succeeds once the suite has passed (here, or on the
   # pull request at this tree), so its success is the gate; !cancelled() lets
@@ -641,7 +643,7 @@ jobs:
             { echo "::error::refusing to deploy unpinned tag '$TAG'"; exit 1; }
           sudo tailscale ssh "$DEPLOY_USER@$DEPLOY_HOST" sudo -n /opt/deploy/deploy.sh "$TAG"
         env:
-          DEPLOY_USER: ${{ vars.DEPLOY_USER }}
+          DEPLOY_USER: ${{ vars.CI_RUNNER && vars.LOCAL_DEPLOY_USER || vars.DEPLOY_USER }}
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           TAG: ${{ needs.merge.outputs.deploy-tag }}
 
