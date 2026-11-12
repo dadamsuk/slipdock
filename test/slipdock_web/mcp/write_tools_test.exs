@@ -590,6 +590,21 @@ defmodule SlipdockWeb.MCP.WriteToolsTest do
                api_card(ctx.conn, ctx.card.id)["checklist"]["items"]
     end
 
+    # #2790: with no field arguments the field write doesn't run, so a card
+    # whose fields can't be saved (a stand-in) still takes checklist edits.
+    test "checklist edits alone don't write the card's fields", ctx do
+      {:ok, stand_in} = Boards.Cards.leave_stand_in(ctx.card)
+      {:ok, item} = Boards.Checklists.add_checklist_item(stand_in, "There", log: false)
+
+      ctx.conn
+      |> call("update_card", %{card: stand_in.id, add_checklist: ["Here"], check_items: [item.id]})
+      |> ok!()
+
+      items = Repo.preload(stand_in, :checklist_items).checklist_items
+
+      assert Enum.map(items, &{&1.text, &1.done}) == [{"There", true}, {"Here", false}]
+    end
+
     test "a checklist item from another card is refused, and nothing is ticked", ctx do
       other = card_fixture(ctx.roles.ready, %{"title" => "Other"})
       {:ok, item} = Boards.Checklists.add_checklist_item(other, "Not yours")
