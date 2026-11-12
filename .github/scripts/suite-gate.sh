@@ -9,7 +9,10 @@
 #   - this is a push to main;
 #   - a pull request's merge made this commit;
 #   - that PR's latest CI run (ci.yml, on pull_request, for its final head)
-#     has completed, and every one of its jobs passed;
+#     has completed, every one of its jobs passed or was skipped (#2832: a
+#     pull request skips what its change can't break), and the suite's own
+#     partitions (the `test (N/4)` jobs) ran and passed. A PR that changed
+#     only docs skipped the suite, so its merge still runs it here;
 #   - the commit that run tested has the same tree as this one. The run's
 #     head_sha is the PR's head, not the merge it tested, so ci.yml puts the
 #     tested sha in the run's name ("… · tested <sha>"), and it is read from
@@ -80,11 +83,13 @@ tested=$(grep -Eo 'tested [0-9a-f]{40}$' <<< "$title" | cut -d' ' -f2)
 
 jobs=$(api "repos/$REPO/actions/runs/$id/jobs?per_page=100") ||
   ran "the GitHub API didn't list the jobs of PR #$number's CI run $id"
-failed=$(jq -r '[.jobs[] | select(.conclusion != "success") | .name] | join(", ")' <<< "$jobs" 2>/dev/null) ||
+failed=$(jq -r '[.jobs[] | select(.conclusion != "success" and .conclusion != "skipped") | .name] | join(", ")' <<< "$jobs" 2>/dev/null) ||
   ran "the jobs of PR #$number's CI run $id didn't parse"
 count=$(jq -r '.jobs | length' <<< "$jobs")
 [ "$count" -gt 0 ] || ran "PR #$number's CI run $id has no jobs"
 [ -z "$failed" ] || ran "not every job of PR #$number's CI run $id passed: $failed"
+suite=$(jq -r '[.jobs[] | select(.name | startswith("test ("))] | length > 0 and all(.conclusion == "success")' <<< "$jobs")
+[ "$suite" = true ] || ran "PR #$number's CI run $id didn't run the suite (its change skipped it)"
 
 tested_tree=$(api "repos/$REPO/git/commits/$tested" | jq -r '.tree.sha // empty' 2>/dev/null)
 [ -n "$tested_tree" ] || ran "the GitHub API didn't give the tree of $tested, the commit PR #$number's CI tested"

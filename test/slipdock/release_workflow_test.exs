@@ -2,7 +2,8 @@ defmodule Slipdock.ReleaseWorkflowTest do
   @moduledoc """
   The deploy job in .github/workflows/release.yml. These are the lines whose
   loss would not show until it mattered: a deploy reachable from a pull
-  request, one that cancels another mid-restart, or one of a tag that moves.
+  request, one that cancels another mid-restart, one of a tag that moves, or
+  one whose suite a newer push could cancel (#2832).
   """
   use ExUnit.Case, async: true
 
@@ -110,6 +111,37 @@ defmodule Slipdock.ReleaseWorkflowTest do
 
     assert has?(job, "HEALTH_URL: ${{ secrets.DEPLOY_HEALTH_URL }}")
     refute Enum.any?(job, &(&1 =~ ~r/ts\.net|BEGIN OPENSSH|ssh-ed25519/))
+  end
+
+  # OPS-2: the suite a deploy waits for is ci.yml, called from here (#2832).
+  describe "the suite it calls" do
+    defp yaml(text) do
+      {:ok, yaml} = YamlElixir.read_from_string(text)
+      yaml
+    end
+
+    test "is never cancelled: only a pull request's run cancels, in a group a release can't share" do
+      concurrency = yaml(@ci)["concurrency"]
+      assert concurrency["cancel-in-progress"] == "${{ github.event_name == 'pull_request' }}"
+      assert concurrency["group"] =~ "|| github.run_id }}"
+    end
+
+    test "is called for every push and tag, so the static checks run on main and the release" do
+      test_job = yaml(@release)["jobs"]["test"]
+      assert test_job["uses"] == "./.github/workflows/ci.yml"
+      assert test_job["if"] == "${{ !cancelled() }}"
+
+      # Skipped in ci.yml only on events a release never is.
+      assert yaml(@ci)["jobs"]["static"]["if"] ==
+               "github.event_name != 'pull_request' && github.event_name != 'schedule'"
+    end
+
+    test "passes only when every job in it passed or was skipped, so merge and deploy wait on it" do
+      passed = yaml(@ci)["jobs"]["passed"]
+      assert passed["if"] == "always()"
+      assert yaml(@release)["jobs"]["merge"]["if"] =~ "needs.test.result == 'success'"
+      assert "merge" in yaml(@release)["jobs"]["deploy"]["needs"]
+    end
   end
 
   test "fails unless the server is healthy on the deployed commit" do

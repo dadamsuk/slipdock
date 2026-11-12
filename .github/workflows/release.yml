@@ -42,9 +42,21 @@ jobs:
   # Does the suite need to run again? (#1857) A merged pull request's CI
   # already tested the PR merged into main; if main hadn't moved since, this
   # commit has that tree exactly, and a second run tests nothing new. The
-  # script says skip only for a push to main whose PR has a finished, all-green
-  # CI run on the same tree; anything else, its own failure included, runs the
+  # script says skip only for a push to main whose PR has a finished CI run
+  # on the same tree, every job passed or skipped and the suite's own
+  # partitions passed; anything else, its own failure included, runs the
   # suite. Its note goes in the run summary and on the deploy record.
+  #
+  # When it says skip, the same job keeps main's build cache warm (#1913;
+  # its own job until #2832, which folded it in: each job is billed in
+  # whole minutes, and the warming only ever ran after the gate). Partition
+  # 1 of the suite is what saves the build under main's key, and a pull
+  # request restores only from its own ref's caches and main's, so after a
+  # skip every new PR would restore an older main build and compile more.
+  # This compiles the same build the suite would and saves it under the
+  # same key. Its steps may fail without failing the job: a failure here
+  # costs a slower PR, never a deploy. The keys, paths and steps are
+  # ci.yml's test job's, which ci_workflow_test.exs holds them to.
   suite:
     runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     permissions:
@@ -54,10 +66,11 @@ jobs:
     outputs:
       run: ${{ steps.gate.outputs.run }}
       note: ${{ steps.gate.outputs.note }}
+    env:
+      MIX_ENV: test
+
     steps:
       - uses: actions/checkout@v4
-        with:
-          sparse-checkout: .github/scripts
 
       - name: Decide whether the suite runs
         id: gate
@@ -69,49 +82,19 @@ jobs:
           SHA: ${{ github.sha }}
           REPO: ${{ github.repository }}
 
-  # Nothing is published that the suite has not passed. An image built from a
-  # red tree is worse than no image, because somebody will run it.
-  #
-  # The suite and the image build run side by side rather than one after the
-  # other: the build only pushes by digest, which nobody pulls, and nothing
-  # gets a tag until the merge job, which needs both. A red suite therefore
-  # still publishes nothing, but a green one is not kept waiting for the build.
-  #
-  # Skipped only when the gate said so in as many words: a gate that failed
-  # or said nothing leaves the suite to run.
-  test:
-    needs: suite
-    if: ${{ !cancelled() && needs.suite.outputs.run != 'false' }}
-    uses: ./.github/workflows/ci.yml
-
-  # Keeps main's build cache warm when the suite is skipped (#1913). Partition
-  # 1 of the suite is what saves the build under main's key, and a pull
-  # request restores only from its own ref's caches and main's, so after a
-  # skip every new PR would restore an older main build and compile more.
-  # This compiles the same build the suite would and saves it under the same
-  # key. Nothing needs it: it is off the merge and deploy path, and a failure
-  # here costs a slower PR, never a deploy. The keys, paths and steps are
-  # ci.yml's test job's, which ci_workflow_test.exs holds them to.
-  warm-cache:
-    needs: suite
-    if: ${{ needs.suite.outputs.run == 'false' }}
-    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
-    permissions:
-      contents: read
-    env:
-      MIX_ENV: test
-
-    steps:
-      - uses: actions/checkout@v4
-
+      # The rest warms the cache, only when the gate said skip.
       - uses: erlef/setup-beam@v1
         id: beam
+        if: steps.gate.outputs.run == 'false'
+        continue-on-error: true
         with:
           elixir-version: "1.20"
           otp-version: "27"
 
       - name: Cache keys
         id: keys
+        if: steps.gate.outputs.run == 'false'
+        continue-on-error: true
         run: |
           deps="${{ runner.os }}-mix-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-${{ hashFiles('**/mix.lock') }}"
           config="$deps-${{ hashFiles('mix.exs', 'config/**') }}"
@@ -121,6 +104,8 @@ jobs:
 
       - uses: actions/cache/restore@v4
         id: mix-cache
+        if: steps.gate.outputs.run == 'false'
+        continue-on-error: true
         with:
           path: |
             deps
@@ -134,25 +119,51 @@ jobs:
       # An exact hit means this tree's build is saved already, and the
       # rest of the job has nothing to do.
       - name: Backdate mix.exs and config to the cached build
-        if: steps.mix-cache.outputs.cache-hit != 'true' && startsWith(steps.mix-cache.outputs.cache-matched-key, format('{0}-', steps.keys.outputs.config))
+        if: steps.gate.outputs.run == 'false' && steps.mix-cache.outputs.cache-hit != 'true' && startsWith(steps.mix-cache.outputs.cache-matched-key, format('{0}-', steps.keys.outputs.config))
+        continue-on-error: true
         run: touch -d 2000-01-01 mix.exs config/*.exs
 
-      - if: steps.mix-cache.outputs.cache-hit != 'true'
+      - if: steps.gate.outputs.run == 'false' && steps.mix-cache.outputs.cache-hit != 'true'
+        continue-on-error: true
         run: mix deps.get
 
       # The suite's compile, so the manifest it saves carries the same
       # warnings (none, since the PR's CI passed on this tree).
       - name: Compile without warnings
-        if: steps.mix-cache.outputs.cache-hit != 'true'
+        id: compile
+        if: steps.gate.outputs.run == 'false' && steps.mix-cache.outputs.cache-hit != 'true'
+        continue-on-error: true
         run: mix compile --warnings-as-errors
 
+      # Never a build that didn't compile clean.
       - uses: actions/cache/save@v4
-        if: steps.mix-cache.outputs.cache-hit != 'true'
+        if: steps.gate.outputs.run == 'false' && steps.mix-cache.outputs.cache-hit != 'true' && steps.compile.outcome == 'success'
+        continue-on-error: true
         with:
           path: |
             deps
             _build
           key: ${{ steps.keys.outputs.code }}
+
+  # Nothing is published that the suite has not passed. An image built from a
+  # red tree is worse than no image, because somebody will run it.
+  #
+  # The suite and the image build run side by side rather than one after the
+  # other: the build only pushes by digest, which nobody pulls, and nothing
+  # gets a tag until the merge job, which needs both. A red suite therefore
+  # still publishes nothing, but a green one is not kept waiting for the build.
+  #
+  # Always called (#2832), with the gate's answer: the suite (and the cli
+  # and daemon jobs) skipped only when the gate said so in as many words (a
+  # gate that failed or said nothing leaves the suite to run), and the
+  # static checks run either way, so every push to main and every release
+  # gets them.
+  test:
+    needs: suite
+    if: ${{ !cancelled() }}
+    uses: ./.github/workflows/ci.yml
+    with:
+      suite: ${{ needs.suite.outputs.run != 'false' }}
 
   # The slipdock CLI the image serves, signed (#2669, W-2542): on a v* tag
   # the CLI is built here, signed in the next job with the release key (in
@@ -351,11 +362,16 @@ jobs:
           retention-days: 1
 
   # The suite passed here, or the gate skipped it because it had passed on the
-  # pull request at this tree. A skip anything else caused (a failed gate, a
-  # cancelled run) is not a pass.
+  # pull request at this tree; either way ci.yml ran, the static checks
+  # passed, and test succeeded. A test that didn't (a failed or cancelled
+  # run) is not a pass.
+  #
+  # Its own job, not folded into the gate or the build (#2832): it needs
+  # both the suite and the image, which run side by side, and folding it
+  # into either would make the other wait.
   merge:
     needs: [suite, test, build]
-    if: ${{ !cancelled() && needs.build.result == 'success' && (needs.test.result == 'success' || (needs.test.result == 'skipped' && needs.suite.outputs.run == 'false')) }}
+    if: ${{ !cancelled() && needs.build.result == 'success' && needs.test.result == 'success' }}
     runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     permissions:
       contents: read

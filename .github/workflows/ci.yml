@@ -9,7 +9,19 @@ run-name: "${{ github.event.pull_request.title }} · tested ${{ github.sha }}"
 
 on:
   pull_request:
+  # release.yml, for a push to main or a v* tag. `suite` is its gate's
+  # answer: false when the pull request's CI already passed on this tree,
+  # and then only the static checks run (.github/scripts/changes.sh).
   workflow_call:
+    inputs:
+      suite:
+        type: boolean
+        default: true
+  # The daemon on macOS and Windows, nightly (#2832): a pull request runs it
+  # on Linux alone.
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
 
 # Where the jobs run (#2829). With the repository variable CI_RUNNER unset,
 # on GitHub's runners. Set (to `slipdock-local`), on the self-hosted runners
@@ -23,10 +35,11 @@ on:
 # A newer push to a pull request cancels its older run, queued or running
 # (#2829): on the self-hosted runners every superseded run held a runner
 # the next PR was waiting for. Called from release.yml, the group is the
-# run's own, so a push to main is never cancelled.
+# run's own and nothing cancels, so a push to main or a release is never
+# cancelled (OPS-2).
 concurrency:
   group: ci-${{ github.event.pull_request.number && format('pr-{0}', github.event.pull_request.number) || github.run_id }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # Everything runs in the test environment, so the warnings check compiles the
 # same build `mix test` then reuses instead of a separate dev one.
@@ -34,6 +47,60 @@ env:
   MIX_ENV: test
 
 jobs:
+  # What this run needs to run (#2832): .github/scripts/changes.sh reads the
+  # pull request's diff and says which of the suite, the repo checks, the
+  # cli and the daemon (and on which OSes) it can break. Every job billed
+  # in whole minutes, so the secret scan rides here too: this job has the
+  # whole history checked out already, for the diff.
+  #
+  # Secrets in the commits a pull request adds (gitleaks; allowlists in
+  # .gitleaks.toml, each with its reason). Values are redacted in the log,
+  # since this repository and its logs are public. A real secret found is
+  # rotated, not rewritten out of history. The whole history was scanned
+  # once by hand when this was added (#1769). A hit fails this job, and
+  # with it every job that needs it: a leaked secret comes first.
+  changes:
+    name: changes and secret scan
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
+    outputs:
+      suite: ${{ steps.changes.outputs.suite }}
+      repo_checks: ${{ steps.changes.outputs.repo_checks }}
+      cli: ${{ steps.changes.outputs.cli }}
+      daemon: ${{ steps.changes.outputs.daemon }}
+      daemon_os: ${{ steps.changes.outputs.daemon_os }}
+
+    steps:
+      # Whole history on a pull request, for the diff and the scan.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: ${{ github.event_name == 'pull_request' && '0' || '1' }}
+
+      - name: Decide what runs
+        id: changes
+        run: .github/scripts/changes.sh
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF: ${{ github.ref }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+          SUITE: ${{ inputs.suite }}
+          CI_RUNNER: ${{ vars.CI_RUNNER }}
+
+      - name: Install gitleaks
+        if: github.event_name == 'pull_request'
+        run: |
+          curl -sSfL -o "$RUNNER_TEMP/gitleaks.tgz" \
+            https://github.com/gitleaks/gitleaks/releases/download/v8.28.0/gitleaks_8.28.0_linux_x64.tar.gz
+          echo "a65b5253807a68ac0cafa4414031fd740aeb55f54fb7e55f386acb52e6a840eb  $RUNNER_TEMP/gitleaks.tgz" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/gitleaks.tgz" -C "$RUNNER_TEMP" gitleaks
+
+      - name: Secret scan of this pull request's commits (gitleaks)
+        if: github.event_name == 'pull_request'
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: $RUNNER_TEMP/gitleaks git --redact --no-banner --verbose --log-opts="$BASE..$HEAD" .
+
   # The suite split four ways, each on its own runner with its own Postgres.
   # The files are split by how long each took (test/support/test_partitions.ex,
   # weights in test/support/partition_weights.tsv), not by `mix test
@@ -44,6 +111,8 @@ jobs:
   # along with partition 1.
   test:
     name: test (${{ matrix.partition }}/4)
+    needs: changes
+    if: needs.changes.outputs.suite == 'true'
     runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
 
     strategy:
@@ -237,12 +306,92 @@ jobs:
       - name: Coverage across the partitions, against the threshold
         run: mix slipdock.coverage
 
-  # Static checks: the mechanical part of a security review, on every pull
-  # request. Each started at zero findings (fixed, or skipped with a reason
-  # in its config), so anything new fails the build. None of them needs the
-  # database or a compiled app, so they run beside the suite, not in it.
+  # The repo checks (test/repo_checks.txt, #1867) in the suite's place, when
+  # a pull request changes only docs, skills, the CLI or the daemon (#2832):
+  # they are the tests that read those files, and the compile catches what
+  # the app builds from them. `mix pre_push` runs the same list. A Postgres
+  # of its own, as a partition has.
+  repo-checks:
+    name: repo checks
+    needs: changes
+    if: needs.changes.outputs.repo_checks == 'true'
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
+
+    services:
+      postgres:
+        image: mirror.gcr.io/library/postgres:17-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: erlef/setup-beam@v1
+        id: beam
+        with:
+          elixir-version: "1.20"
+          otp-version: "27"
+
+      - name: Cache keys
+        id: keys
+        run: |
+          deps="${{ runner.os }}-mix-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-${{ hashFiles('**/mix.lock') }}"
+          config="$deps-${{ hashFiles('mix.exs', 'config/**') }}"
+          echo "deps=$deps" >> "$GITHUB_OUTPUT"
+          echo "config=$config" >> "$GITHUB_OUTPUT"
+          echo "code=$config-${{ hashFiles('lib/**', 'test/support/**', 'priv/**', 'docs/**') }}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache/restore@v4
+        id: mix-cache
+        with:
+          path: |
+            deps
+            _build
+          key: ${{ steps.keys.outputs.code }}
+          restore-keys: |
+            ${{ steps.keys.outputs.config }}-
+            ${{ steps.keys.outputs.deps }}-
+            ${{ runner.os }}-mix-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-
+
+      - name: Backdate mix.exs and config to the cached build
+        if: startsWith(steps.mix-cache.outputs.cache-matched-key, format('{0}-', steps.keys.outputs.config))
+        run: touch -d 2000-01-01 mix.exs config/*.exs
+
+      - run: mix deps.get
+
+      - name: Compile without warnings
+        run: mix compile --warnings-as-errors
+
+      # The list's test paths: what Mix.Project's repo_checks/0 reads
+      # (ci_workflow_test holds the two to the same list).
+      - name: Repo checks
+        run: mix test $(grep -Ev '^[[:space:]]*(#|except |$)' test/repo_checks.txt)
+        env:
+          TEST_DATABASE_URL: postgres://postgres:postgres@localhost:${{ job.services.postgres.ports['5432'] }}/slipdock_test
+
+  # Static checks: the mechanical part of a security review. Each started at
+  # zero findings (fixed, or skipped with a reason in its config), so
+  # anything new fails the build. None of them needs the database or a
+  # compiled app, so they run beside the suite, not in it.
+  #
+  # Not on a pull request (#2832): `mix pre_push` runs every one of them,
+  # in this order, before the push, and the card's evidence carries its
+  # result. Here they run on every push to main and every release
+  # (release.yml calls this workflow either way, the suite skipped or not),
+  # so nothing escapes them, and on a dispatch. Not on the nightly
+  # schedule, which runs the daemon alone. Needs nothing, so it starts at
+  # once.
   static:
     name: static checks
+    if: github.event_name != 'pull_request' && github.event_name != 'schedule'
     runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
 
     steps:
@@ -291,44 +440,21 @@ jobs:
       # code that was here before is not rewritten wholesale. Settings, our
       # own checks (credo/checks/) and the reasons for each tuning are in
       # .credo.exs, which judges both sides, so a change to it isn't read
-      # as new issues everywhere. On a push to main the merge base is the
-      # commit itself.
+      # as new issues everywhere. On a push to main the merge base with
+      # origin/main is the commit itself, which would lint nothing, so
+      # there it is the commit main was at before the push.
       - name: Lint what this change adds (credo diff)
-        run: mix credo diff --from-git-merge-base origin/main --config-file "$PWD/.credo.exs"
-
-  # Secrets in the commits a pull request adds (gitleaks; allowlists in
-  # .gitleaks.toml, each with its reason). Values are redacted in the log,
-  # since this repository and its logs are public. A real secret found is
-  # rotated, not rewritten out of history. The whole history was scanned
-  # once by hand when this was added (#1769).
-  secrets:
-    name: secret scan
-    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
-    if: github.event_name == 'pull_request'
-
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Install gitleaks
-        run: |
-          curl -sSfL -o "$RUNNER_TEMP/gitleaks.tgz" \
-            https://github.com/gitleaks/gitleaks/releases/download/v8.28.0/gitleaks_8.28.0_linux_x64.tar.gz
-          echo "a65b5253807a68ac0cafa4414031fd740aeb55f54fb7e55f386acb52e6a840eb  $RUNNER_TEMP/gitleaks.tgz" | sha256sum -c -
-          tar -xzf "$RUNNER_TEMP/gitleaks.tgz" -C "$RUNNER_TEMP" gitleaks
-
-      - name: Secret scan of this pull request's commits (gitleaks)
+        run: mix credo diff --from-git-merge-base "$CREDO_BASE" --config-file "$PWD/.credo.exs"
         env:
-          BASE: ${{ github.event.pull_request.base.sha }}
-          HEAD: ${{ github.event.pull_request.head.sha }}
-        run: $RUNNER_TEMP/gitleaks git --redact --no-banner --verbose --log-opts="$BASE..$HEAD" .
+          CREDO_BASE: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.event.before || 'origin/main' }}
 
   # The CLI (cli/) is its own Mix project with its own suite. The Docker build
   # only compiles it, so without this job nothing checks its formatting,
-  # warnings or tests (#798).
+  # warnings or tests (#798). Only when cli/ changed, on a pull request.
   cli:
     name: cli
+    needs: changes
+    if: needs.changes.outputs.cli == 'true'
     runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
 
     defaults:
@@ -376,18 +502,22 @@ jobs:
       - name: Test
         run: mix test
 
-  # The runner daemon (daemon/, a Go module: W-2540) on the three OSes it
-  # ships for (#2573). No Elixir or Postgres: its tests fake the server.
-  # `mix pre_push` runs the same vet and tests. On the self-hosted runners
-  # (CI_RUNNER set, #2829) on Linux alone, the only OS they have; macOS and
-  # Windows are paid minutes on a private repository.
+  # The runner daemon (daemon/, a Go module: W-2540). No Elixir or
+  # Postgres: its tests fake the server. `mix pre_push` runs the same vet
+  # and tests. On a pull request only when daemon/ changed, and on Linux
+  # alone (CI_RUNNER's, or GitHub's); on the three OSes it ships for
+  # (#2573) only on a v* tag, the nightly schedule and a dispatch (#2832):
+  # macOS and Windows are GitHub's runners, paid by the minute on a
+  # private repository (10× and 2×). changes.sh gives the list.
   daemon:
     name: daemon (${{ matrix.os }})
+    needs: changes
+    if: needs.changes.outputs.daemon == 'true'
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: ${{ fromJSON(vars.CI_RUNNER && format('["{0}"]', vars.CI_RUNNER) || '["ubuntu-latest", "macos-latest", "windows-latest"]') }}
+        os: ${{ fromJSON(needs.changes.outputs.daemon_os) }}
 
     defaults:
       run:
@@ -426,3 +556,26 @@ jobs:
         run: go test -race ./...
         env:
           SLIPDOCK_EXECUTOR_TESTS: ${{ matrix.os != 'windows-latest' && '1' || '' }}
+
+  # The one check branch protection needs (#2832): it passes when every job
+  # it needs passed or was skipped, so a pull request that skips the suite,
+  # the cli or the daemon still reports green, and fails on any failure or
+  # cancellation. A skipped job reports by the name it would have had, and
+  # a skipped matrix job by its unexpanded one, so naming those as required
+  # would leave a pull request waiting forever.
+  passed:
+    name: all checks
+    needs: [changes, test, coverage, repo-checks, static, cli, daemon]
+    if: always()
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
+
+    steps:
+      - name: Every job passed or was skipped
+        run: |
+          echo "$RESULTS"
+          if grep -Eq '"(failure|cancelled)"' <<< "$RESULTS"; then
+            echo "::error::a job failed or was cancelled"
+            exit 1
+          fi
+        env:
+          RESULTS: ${{ toJSON(needs.*.result) }}
