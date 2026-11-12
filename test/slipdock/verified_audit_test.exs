@@ -266,6 +266,47 @@ defmodule Slipdock.VerifiedAuditTest do
       assert Enum.any?(Automations.list_alerts(ctx.owner), &(&1.id == alert.id))
     end
 
+    test "with a Housekeeping list, the rework card goes there (#2779)", ctx do
+      {:ok, housekeeping} = Boards.create_column(ctx.board, %{"name" => "Housekeeping"})
+
+      {:ok, _} =
+        Verified.decide(
+          Repo.get!(Card, ctx.card.id),
+          "disagree",
+          %{"reason" => "bar 1: short", "checks" => ["bar:1=fail"]},
+          ctx.auditor,
+          ctx.owner
+        )
+
+      assert [rework] = Repo.all(from(c in Card, where: c.caused_by_id == ^ctx.card.id))
+      assert rework.column_id == housekeeping.id
+    end
+
+    test "a subcard's rework goes to its root's Housekeeping list", ctx do
+      {:ok, housekeeping} = Boards.create_column(ctx.board, %{"name" => "Housekeeping"})
+      epic = card_fixture(ctx.doing, %{"title" => "Epic"})
+      {:ok, sub} = Boards.create_sub_board(epic, hd(Boards.list_templates(nil)))
+      [sub_todo | _] = Boards.get_board!(sub.id).columns
+      sub_card = card_fixture(sub_todo, %{"title" => "Subcard"})
+
+      Repo.update_all(from(c in Card, where: c.id == ^sub_card.id),
+        set: [verify_state: "accepted", completed: true]
+      )
+
+      {:ok, _} =
+        Verified.decide(
+          Repo.get!(Card, sub_card.id),
+          "disagree",
+          %{"reason" => "bar 1: short", "checks" => ["bar:1=fail"]},
+          # A person may audit any card at any time.
+          Actor.web(ctx.owner),
+          ctx.owner
+        )
+
+      assert [rework] = Repo.all(from(c in Card, where: c.caused_by_id == ^sub_card.id))
+      assert rework.column_id == housekeeping.id
+    end
+
     test "agree files no rework card", ctx do
       {:ok, _} =
         Verified.decide(Repo.get!(Card, ctx.card.id), "agree", %{}, ctx.auditor, ctx.owner)

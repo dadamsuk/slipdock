@@ -115,4 +115,20 @@ defmodule SlipdockCLI.ShippedRenderTest do
     refute out =~ "Deploy:"
     refute out =~ "Incident of"
   end
+
+  # #2834: a batched board's merged card, awaiting release or released.
+  test "a Release line on a batched board, none without one" do
+    card =
+      Map.merge(@card, %{
+        "completed" => true,
+        "release" => %{
+          "state" => "awaiting",
+          "text" => "Merged abc1234, awaiting release · since 12 Nov 10:04"
+        }
+      })
+
+    out = capture_io(fn -> Render.card(card) end)
+    assert out =~ ~r/Release:\s+Merged abc1234, awaiting release · since 12 Nov 10:04/
+    refute capture_io(fn -> Render.card(@card) end) =~ "Release:"
+  end
 end

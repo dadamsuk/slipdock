@@ -37,6 +37,19 @@ defmodule Slipdock.CiRunnerTest do
     end
   end
 
+  test "a newer push to a pull request cancels its older run, never a push to main's" do
+    ci = workflow("ci.yml")
+
+    assert ci["concurrency"] == %{
+             "group" =>
+               "ci-${{ github.event.pull_request.number && format('pr-{0}', github.event.pull_request.number) || github.run_id }}",
+             "cancel-in-progress" => true
+           }
+
+    # release.yml has no group of its own that a cancelling CI run could share.
+    refute Map.has_key?(workflow("release.yml"), "concurrency")
+  end
+
   test "the daemon's OS list is CI_RUNNER alone when set, the three OSes when not" do
     os = jobs("ci.yml")["daemon"]["strategy"]["matrix"]["os"]
 
@@ -95,6 +108,18 @@ defmodule Slipdock.CiRunnerTest do
     assert step(jobs["merge"], "name", "Stitch the architectures into one tag")[
              "working-directory"
            ] == "${{ runner.temp }}/digests"
+  end
+
+  test "the image build takes BuildKit's settings from BUILDKITD_CONFIG, and names no server" do
+    buildx = step(jobs("release.yml")["build"], "uses", "docker/setup-buildx-action@v3")
+    assert buildx["with"]["buildkitd-config-inline"] == "${{ vars.BUILDKITD_CONFIG }}"
+
+    # The nameservers are the machine's, kept in the repository's settings,
+    # never in this public file.
+    refute Enum.any?(
+             code_lines("release.yml"),
+             &(&1 =~ ~r/nameservers|\b\d{1,3}(\.\d{1,3}){3}\b/)
+           )
   end
 
   test "the image is built for amd64 alone, and the README says so" do

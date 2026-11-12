@@ -461,9 +461,10 @@ See [the manual](manual/tidying-up.md).
 
 Never take work from a **Triage** list (category `triage`; the guide marks
 it `triage: for a person`). The code sweep (`slipdock tools install-board
-sweep --board B`, or `install_tool` with `tool: "sweep"`) files what it finds
-there for a person to triage, one area and one lens a night; nothing feeds a
-runner from it. See [the manual](manual/tools.md).
+sweep --board B`, or `install_tool` with `tool: "sweep"`) files its design
+questions there for a person to triage, one area and one lens a night, and
+its fixes and investigations in the Housekeeping list when the board has one
+(everything in Triage when it doesn't); nothing feeds a runner from Triage. See [the manual](manual/tools.md).
 
 Never take work from a **Scheduled** list either (category `scheduled`; the
 guide marks it `scheduled: worked by feed rules`). It is where recurring agent
@@ -898,7 +899,10 @@ own.
 A Claude or ChatGPT session takes jobs from the same queue with the token it already
 has — the MCP tools `claim_job`, `job_progress` and `finish_job`, or
 `slipdock claim-job` — so a `/loop` and a machine's runner never work the same
-card. `job_progress` with `step` (`slipdock job-progress --step`) says what a
+card. A job whose lease ran out goes back in the queue, and until another
+runner claims it the runner that held it takes it back with its next
+heartbeat, `job_progress` or finish (a machine that slept, a session that
+went quiet), at no cost to the job's three tries. `job_progress` with `step` (`slipdock job-progress --step`) says what a
 job is doing now on the job alone, not the card: a verify job reports each
 step that way, and every runner job's prompt asks for its milestones too (on
 an epic, each subcard as it starts, is submitted and merges). Every step is
@@ -969,7 +973,13 @@ model) is handed those conditions and the pulse in its prompt, and nothing
 else: it reads nothing more, takes no action, and answers with one line of
 JSON, `{"health", "digest", "look_now"}`, kept as a status update on the
 board's *Overseer* card. Passes come every 10 minutes while cards are active,
-longer when little or nothing is in flight. `GET`/`PATCH
+longer when little or nothing is in flight. Once a day, at its `digest_at`
+(`HH:MM`, 07:00 by default, in the owner's time zone; `slipdock overseer
+<board> --digest-at 06:30`), the server also writes the morning digest of
+Housekeeping's work there: what the Housekeeping feeds worked since the last
+one, grouped by theme, naming only the cards rejected, escalated to Triage,
+given up on or overlapping a card in progress under an epic; no model, no
+tokens. `GET`/`PATCH
 /api/boards/:board/overseer` (reading needs read on the tree's root, not
 just the sub-board named), MCP `get_board overseer: true` and
 `update_board overseer: {…}`; see [the manual](manual/the-overseer.md).
@@ -988,9 +998,13 @@ settled in the handbook, `- tooling: … → #2087` when a card was filed for it
 A fix is a card, not a finding: a concrete change you could hand to someone
 (a missing test such as "no test pins `slipdock done`'s exit codes", a stale
 moduledoc or doc entry, a tooling bug such as "`page section --append -`
-writes a literal `-`") goes on the board as a card now (`slipdock add <board>
-"…" --desc "…" --column Backlog`; `--desc -` reads the description from
-stdin, for a heredoc) and into the block as `→ #<card>`. A
+writes a literal `-`") goes on the board as a card now, in the Housekeeping
+list when the board has one, where runners take it after the ready list
+(`slipdock add <board> "…" --desc "…" --column Housekeeping`), else the
+backlog (`--column Backlog`); `--desc -` reads the description from stdin,
+for a heredoc. A design question (the answer would change how the product or
+a process behaves) goes to Triage for a person (`--column Triage`). Name the
+card in the block as `→ #<card>`. A
 finding is only for what is uncertain, cuts across cards, or shows the
 handbook wrong ("`mix format` can need two passes", "the shared `_pre_push`
 database can hold another branch's migration", "W-1950 §Tests says async is
@@ -1199,6 +1213,18 @@ doesn't wait for a pass to end; a runner that can't merge in that
 repository hands it on rather than failing the card. The skills
 (`slipdock-loop`, `slipdock-work`) say what changes in a pass; see
 [the manual](manual/verified-work.md).
+
+**Release mode.** A board tree's root sets how merged work reaches
+production: `release_mode` `on_merge` (each merge deploys, the default) or
+`batched` (merges wait for a release), with `release_age_cap_hours` for
+how long the oldest waiting merge may wait (`slipdock set-board <board>
+--release-mode batched --release-age-cap 24`, `PATCH /api/boards/:board`,
+`update_board`; a sub-board refuses them and reads its root's). On a
+batched board a merged card is still completed and still unblocks its
+dependents; its `release` (`get_card`, the card's JSON, the *Release*
+line in `slipdock card`) is `awaiting` until a succeeded deploy names it,
+then `released` with the environment and the time. Don't wait for a
+release before calling a card done.
 
 **Epics close over finished subcards.** On every board, with no switch, an
 agent can't complete (or submit) a card while its sub-board has open cards

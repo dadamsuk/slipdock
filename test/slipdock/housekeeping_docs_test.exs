@@ -42,6 +42,7 @@ defmodule Slipdock.HousekeepingDocsTest do
     for {path, words} <- [
           {"README.md", "digest of the Housekeeping list's overnight work"},
           {"docs/manual/the-overseer.md", "**The morning digest of Housekeeping's work.**"},
+          {"docs/agents.md", "the morning digest of\nHousekeeping's work there"},
           {"lib/slipdock_web/api_guide.ex",
            "morning digest of\n    Housekeeping's work on its card (#2781)"},
           {"lib/slipdock_web/live/help_live/flow.ex", "digest of what Housekeeping worked"},

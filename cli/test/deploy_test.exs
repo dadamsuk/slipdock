@@ -149,6 +149,36 @@ defmodule SlipdockCLI.DeployTest do
       assert JSON.decode!(body)["run_url"] == @run <> "1"
     end
 
+    test "a blank $SLIPDOCK_DEPLOY_RUN_URL sends no run, and a padded one is trimmed", %{
+      repo: repo
+    } do
+      commit!(repo, "one")
+
+      for blank <- ["", "   "] do
+        System.put_env("SLIPDOCK_DEPLOY_RUN_URL", blank)
+        serve([last(nil), created()])
+        assert {:ok, _} = Deploy.record_failure(dir: repo, stage: "build")
+        assert_received {:request, "POST", "/api/deployments/failed", body}
+        assert JSON.decode!(body)["run_url"] == nil
+
+        serve([last(nil), created()])
+        assert {:ok, _} = Deploy.record_start(dir: repo)
+        assert_received {:request, "POST", "/api/deployments", body}
+        assert JSON.decode!(body)["run_url"] == nil
+      end
+
+      System.put_env("SLIPDOCK_DEPLOY_RUN_URL", "  #{@run} \n")
+      serve([last(nil), created()])
+      assert {:ok, _} = Deploy.record_failure(dir: repo, stage: "build")
+      assert_received {:request, "POST", "/api/deployments/failed", body}
+      assert JSON.decode!(body)["run_url"] == @run
+
+      serve([last(nil), created()])
+      assert {:ok, _} = Deploy.record_start(dir: repo, run_url: " #{@run} ")
+      assert_received {:request, "POST", "/api/deployments", body}
+      assert JSON.decode!(body)["run_url"] == @run
+    end
+
     test "deploy start sends the run too, when there is one", %{repo: repo} do
       commit!(repo, "one")
       System.put_env("SLIPDOCK_DEPLOY_RUN_URL", @run)

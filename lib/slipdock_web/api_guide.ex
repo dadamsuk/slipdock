@@ -2258,6 +2258,19 @@ defmodule SlipdockWeb.APIGuide do
     Nov 14:32*, the time in your time zone) and the step status *Shipped
     to production*.
 
+    **Batched releases** (#2833). A board's `release_mode` is `on_merge`
+    (each merge deploys; the default) or `batched` (a merge waits for a
+    release), and `release_age_cap_hours` is how long the oldest waiting
+    merge may wait before it triggers one (`null` is off). Both are the
+    tree's, set on its root board only (`PATCH /api/boards/:board`,
+    `update_board`, `slipdock set-board B --release-mode batched
+    --release-age-cap 24`, the Agentic Building page) and read back on every
+    board of the tree. On a batched board a merged card still completes and
+    unblocks its dependents; its `release` (card JSON and `get_card`, the
+    *Release* line in `slipdock card`) is `awaiting` (*Merged 1a2b3c4,
+    awaiting release · since 12 Nov 10:04*) until a succeeded deploy names
+    it, then `released` with the environment and the time.
+
     Incidents are ordinary cards tagged `incident` (the board's `incident_tag`),
     optionally linked to the deploy that caused them: `POST
     /api/cards/:id/incident-of {"deployment": N}`, `slipdock incident-of`. A
@@ -2402,7 +2415,11 @@ defmodule SlipdockWeb.APIGuide do
     A job goes `queued → claimed → running → done | failed | cancelled |
     timeout`. A claim holds a lease (90 seconds) that each heartbeat renews;
     a lease that runs out puts the job back in the queue, and after three
-    tries the job fails and its card is flagged.
+    tries the job fails and its card is flagged. Until another runner claims
+    it, the runner that held it takes it back with its next heartbeat,
+    `progress` or finish (a machine that slept, a session that went quiet):
+    the answer is `ok` as if the lease had never lapsed, and it costs no try.
+    Once another runner has it, those answer `404`.
 
     **Taking jobs from a Claude session** (`/loop`, a scheduled task) uses the
     token you already have — over MCP the `claim_job`, `job_progress` and
@@ -2422,7 +2439,8 @@ defmodule SlipdockWeb.APIGuide do
 
     A session holds its job on a 20-minute lease (a runner on a machine, 90
     seconds): report between steps, and never let 20 minutes pass without a
-    `progress`, or the lease runs out and somebody else gets the card. `note` also goes on the card as a
+    `progress`, or the lease runs out and somebody else may get the card (a
+    late `progress` takes the job back only if nobody has). `note` also goes on the card as a
     comment; `step` (what you're doing now, ≤ 300 characters) is kept on the
     job only, as its `step` and `step_at`, and shows on the Runners panel and
     in `slipdock job`/`jobs`. Every step is also kept on the job with its time
@@ -3802,7 +3820,8 @@ defmodule SlipdockWeb.APIGuide do
     It adds a `Sweeps` page (the rotation table: areas from the handbook's
     `covers:`, against the lenses, each cell the commit last swept), a
     **Triage** list and a daily *Sweep the code* card whose description is
-    the procedure. Installing again adds only what is missing. The card's
+    the procedure. Installing again adds only what is missing, and gives an
+    open card from an older version the current procedure. The card's
     bar names no cell ("Swept the stalest cell of W-…'s Rotation table…"),
     and each new instance starts from that template, not the last run's
     bar: work to the stalest cell on the day, not one a bar names.
@@ -3810,10 +3829,11 @@ defmodule SlipdockWeb.APIGuide do
     **Never take work from a Triage list.** Its category is `triage`, and
     the boards below mark it `triage: for a person`: it is never the ready
     list or the backlog, a `list_top` feed sends nothing from it, and a
-    rule's runner action skips a card that arrives there. What a sweep
-    files waits there for a person, who moves what is worth doing into the
-    ready list. A sweep files one card per issue (where, why it matters,
-    the fix); a security issue gets the `security` tag and stays vague
+    rule's runner action skips a card that arrives there. A sweep files
+    its design questions there, for a person, who moves what is worth doing
+    into the ready list; its fixes and investigations go to the Housekeeping
+    list when the board has one (everything to Triage when it doesn't). A
+    sweep files one card per issue (where, why it matters, the fix); a security issue gets the `security` tag and stays vague
     anywhere public.
     """
   end
@@ -3856,8 +3876,10 @@ defmodule SlipdockWeb.APIGuide do
     someone (a missing test such as "no test pins `slipdock done`'s exit
     codes", a stale moduledoc or doc entry, a tooling bug such as "`page
     section --append -` writes a literal `-`") goes on the board as a card
-    now (`POST /api/boards/:board/cards`, `create_card`, `slipdock add`, in
-    the backlog) and into the block as `→ #<card>`. A finding is only for
+    now (`POST /api/boards/:board/cards`, `create_card`, `slipdock add`: in
+    the Housekeeping list when the board has one, else the backlog; a
+    design question, whose answer changes how the product or a process
+    behaves, in Triage) and into the block as `→ #<card>`. A finding is only for
     what is uncertain, cuts across cards, or shows the handbook wrong
     ("`mix format` can need two passes", "W-1950 §Tests says async is safe,
     but the fixture is one user").

@@ -276,8 +276,10 @@ slipdock claim-job <board> --pool <pool>     # or the MCP tool claim_job
 
 A resumed card (step 2) whose *Picked up* comment names a job is still that
 job's: report and finish on it as above. If its lease ran out while the pass
-was gone, `job-progress` and `finish-job` answer that it was not claimed
-with this token — note that on the card and carry on without the job.
+was gone, the first `job-progress` or `finish-job` takes the job back,
+unless another runner has claimed it since: then they answer that it was
+not claimed with this token — note that on the card and carry on without
+the job.
 
 ## 3. Pick the top card
 
@@ -302,8 +304,9 @@ stand-in (`↪stand-in-for:#N`, `stand_in_for` in the JSON): it marks where a
 card went into a sprint, and the work is that card, not the stand-in.
 Never take a card from a **Triage** list (category `triage`, which the guide
 marks `triage: for a person`), even when it is the only list with cards: a
-code sweep files there for a person to triage, and they move what is worth
-doing into the ready list.
+code sweep files its design questions there for a person to triage (its
+fixes go to Housekeeping when the board has one), and they move what is
+worth doing into the ready list.
 Nor from a **Scheduled** list (category `scheduled`, which the guide marks
 `scheduled: worked by feed rules`): recurring agent work lands there, and its
 feed rules send each card to a runner on its day. A pass asked what to do next
@@ -711,10 +714,14 @@ anybody reads later:
    **A fix is a card, not a finding.** A concrete change you could hand
    to someone (a missing test, a stale moduledoc or doc entry, a tooling
    bug) waits a day for triage as a finding, and triage turns it into a
-   card anyway. So file the card now, in the backlog (`slipdock add
-   <board> "<title>" --desc "<what, where, why>" --column Backlog`, or
-   `--desc -` with a heredoc for more than a line), and
-   put it in the block with the arrow, so it is kept promoted. A finding
+   card anyway. So file the card now, in the Housekeeping list when the
+   board has one, where runners take it after the ready list (`slipdock
+   add <board> "<title>" --desc "<what, where, why>" --column
+   Housekeeping`), else the backlog (`--column Backlog`); `--desc -` with
+   a heredoc for more than a line. A **design question** (the answer would
+   change how the product or a process behaves) goes to Triage for a
+   person instead (`--column Triage`). Put it in the block with the arrow,
+   so it is kept promoted. A finding
    is only for what is uncertain, cuts across cards, or shows the
    handbook wrong:
 

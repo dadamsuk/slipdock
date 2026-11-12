@@ -185,16 +185,54 @@ defmodule Slipdock.Runners.ParkedTest do
       assert Repo.reload!(job).status == "claimed"
     end
 
-    test "after the lease has lapsed, opens no wait", ctx do
+    test "after the lease has lapsed and another runner took the job, opens no wait", ctx do
+      rule_fixture(ctx.board, spec())
+      job = take(ctx)
+      Runners.sweep(DateTime.add(DateTime.utc_now(), 3600))
+      assert Repo.reload!(job).status == "queued"
+      {:ok, other, _} = Runners.create_runner(ctx.board, %{"name" => "other", "pool" => "loop"})
+      assert %Job{} = Runners.claim(other)
+
+      assert {:error, :not_found} =
+               Runners.finish_waiting(ctx.runner, job.id, fn _ -> flunk("opened a wait") end)
+
+
+      assert Boards.current_wait(ctx.a) == nil
+      assert Repo.reload!(job).runner_id == other.id
+    end
+
+    # The runner that held it may still take it back (#2817).
+    test "after the lease has lapsed with nobody else on the job, takes it back and parks it",
+         ctx do
       rule_fixture(ctx.board, spec())
       job = take(ctx)
       Runners.sweep(DateTime.add(DateTime.utc_now(), 3600))
       assert Repo.reload!(job).status == "queued"
 
-      assert {:error, :not_found} =
-               Runners.finish_waiting(ctx.runner, job.id, fn _ -> flunk("opened a wait") end)
+      assert {:ok, %Job{status: "parked"}, wait} =
+               Runners.finish_waiting(ctx.runner, job.id, fn job ->
+                 Boards.open_wait(card(ctx.a), Actor.runner(ctx.owner, job.id), %{
+                   "needs" => "Which region?",
+                   "job_id" => job.id
+                 })
+               end)
 
-      assert Boards.Waits.current_wait(ctx.a) == nil
+      assert wait.job_id == job.id
+      job = Repo.reload!(job)
+      assert {job.status, job.runner_id, job.attempts} == {"parked", ctx.runner.id, 1}
+    end
+
+    test "a refused wait after a lapsed lease leaves the job in the queue", ctx do
+      rule_fixture(ctx.board, spec())
+      job = take(ctx)
+      Runners.sweep(DateTime.add(DateTime.utc_now(), 3600))
+
+      assert {:error, "nope"} =
+               Runners.finish_waiting(ctx.runner, job.id, fn _ -> {:error, "nope"} end)
+
+      job = Repo.reload!(job)
+      assert {job.status, job.runner_id, job.last_runner_id} == {"queued", nil, ctx.runner.id}
+
     end
   end
 

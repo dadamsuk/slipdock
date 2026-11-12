@@ -82,12 +82,15 @@ deploy script, say) says why in its commit message. A refactor that changes no
 behaviour is covered by the tests already there.
 
 `mix test --cover` prints line coverage for `lib/`, worst module first, with a
-page per module in `cover/`, and fails under 65%. It runs through
+page per module in `cover/`, and fails under the threshold in `mix.exs` (71%).
+CI holds the whole suite to it: each partition exports its share (`mix test
+--cover --export-coverage NAME`), and `mix slipdock.coverage` merges the
+exports and fails below the threshold. It runs through
 `test/support/coverage.ex` rather than Mix's own tool: `:cover` on this
 Elixir and OTP cannot instrument some uses of `x in [...]` outside a guard, and Mix's tool dies on the first one. So outside a guard write
 `Enum.member?([...], x)` instead (it is the same test); in a guard, `in` is
 fine. A module that slips through is named at the end of the report as not
-measured, not counted as covered. Every module in `lib/` is measured today.
+measured, not counted as covered.
 
 ### async: true unless something is genuinely shared
 

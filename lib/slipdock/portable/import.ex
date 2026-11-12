@@ -545,7 +545,8 @@ defmodule Slipdock.Portable.Import do
             ),
           kind: if(Enum.member?(Board.kinds(), doc[:kind]), do: doc[:kind])
         }
-        |> put_agentic(doc),
+        |> put_agentic(doc)
+        |> Map.merge(release_settings(doc, root_id)),
         named("board", doc[:name]) <> if(root_id, do: ", and everything on it,", else: "")
       )
 
@@ -1223,6 +1224,21 @@ defmodule Slipdock.Portable.Import do
   defp now, do: DateTime.utc_now() |> DateTime.truncate(:second)
 
   # A job log time (#1872): the board's own when it is one Slipdock takes.
+  # Batched releases (#2834) are the root's alone: a sub-board keeps the
+  # defaults, as its changeset asks; an unknown mode or cap is the default.
+  defp release_settings(doc, nil) do
+    %{
+      release_mode:
+        if(Enum.member?(Board.release_modes(), doc[:release_mode]),
+          do: doc[:release_mode],
+          else: "on_merge"
+        ),
+      release_age_cap_hours: hours(doc[:release_age_cap_hours], nil)
+    }
+  end
+
+  defp release_settings(_doc, _root_id), do: %{}
+
   defp hours(n, _default) when is_integer(n) and n >= 1 and n <= 8760, do: n
   defp hours(_, default), do: default
 end

@@ -421,6 +421,14 @@ defmodule SlipdockWeb.HelpLive.Guides do
           opens a card with its chat. Ten minutes' reading instead of approving each card.
         </li>
         <li>
+          <strong>Batched releases</strong>: Agentic Building → <em>Releases</em>
+          on the root board chooses how merged work reaches production: with each merge, or in
+          batches, with an age cap in hours for how long the oldest merge may wait. A merged
+          card is still done; on a batched board it shows <em>merged, awaiting release</em>
+          until a deploy ships it, then <em>released</em>
+          with the time.
+        </li>
+        <li>
           <strong>Who gets asked</strong>: Agentic Building → <em>Who gets asked</em>
           names a person for each kind of question an agent asks (product, UX, security,
           release, anything else). Their waits go to that person, and to the board's owner

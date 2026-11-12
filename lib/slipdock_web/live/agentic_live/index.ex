@@ -141,6 +141,8 @@ defmodule SlipdockWeb.AgenticLive.Index do
   def summary(%Board{} = b, routes) do
     # `WaitRoutes.routes/1` lists every kind, an unrouted one with nobody.
     routed = Enum.count(routes, fn {_kind, people} -> people != [] end)
+    # A tree's release settings are its root's (#2834).
+    release = Slipdock.Releases.settings(b)
 
     [
       {"bar", "verified", "Bar before work", b.bar_required, nil},
@@ -148,6 +150,9 @@ defmodule SlipdockWeb.AgenticLive.Index do
       {"verify", "verified", "Second agent verifies", b.verify_work,
        b.verify_work && b.verify_pool && "pool #{b.verify_pool}"},
       {"ship", "verified", "Ships by pull request", b.ship_via == "pull_request", nil},
+      {"release", "releases", "Batched releases", release.mode == "batched",
+       release.mode == "batched" && release.age_cap_hours &&
+         "at most #{release.age_cap_hours}h"},
       {"lanes", "lanes", "Lanes", b.lane_mode != "off", b.lane_mode != "off" && b.lane_mode},
       {"profiles", "profiles", "Profiles", b.profiles, nil},
       {"routes", "questions", "Questions routed", routed > 0,
@@ -159,6 +164,15 @@ defmodule SlipdockWeb.AgenticLive.Index do
       {"wip", "runners", "WIP holds automation", b.automation_wip, nil}
     ]
   end
+
+  # The root's release settings, read from a sub-board (#2834).
+  defp release_text(%Board{release_mode: "batched", release_age_cap_hours: nil}),
+    do: "Batched: merges wait for a release, with no age cap."
+
+  defp release_text(%Board{release_mode: "batched", release_age_cap_hours: hours}),
+    do: "Batched: merges wait for a release, at most #{hours} hours."
+
+  defp release_text(_root), do: "On merge: each merge deploys."
 
   # `wait_default_after` (#2096) as typed, else the saved minutes as `4h`.
   defp wait_default_text(form) do
@@ -505,6 +519,47 @@ defmodule SlipdockWeb.AgenticLive.Index do
                       sends a runner a merge job, and the merge deploys.
                     </p>
                   </div>
+                </div>
+              </.section>
+
+              <.section id="releases" icon="hero-rocket-launch" title="Releases">
+                <:about>
+                  When merged work reaches production: with each merge, or in batches.
+                </:about>
+                <div id="board-releases" class="space-y-1">
+                  <%= if @root do %>
+                    <p id="board-releases-read" class="text-sm text-base-content/70">
+                      {release_text(@root)}
+                    </p>
+                    <.set_on_root root={@root} what="How merged work is released" />
+                  <% else %>
+                    <.input
+                      field={@form[:release_mode]}
+                      id="board-release-mode"
+                      type="select"
+                      label="Release merged work"
+                      options={[
+                        {"On merge: each merge deploys", "on_merge"},
+                        {"Batched: merges wait for a release", "batched"}
+                      ]}
+                      class="select field w-full"
+                    />
+                    <.input
+                      field={@form[:release_age_cap_hours]}
+                      id="board-release-age-cap"
+                      type="number"
+                      min="1"
+                      max="8760"
+                      label="Release once a merge has waited (hours)"
+                      class="input field w-24"
+                    />
+                    <p class="text-xs text-base-content/60">
+                      Batched, a merged card still completes and unblocks its dependents, and shows
+                      <em>merged, awaiting release</em>
+                      until a release ships it. Leave the hours
+                      blank for no age cap.
+                    </p>
+                  <% end %>
                 </div>
               </.section>
 

@@ -152,6 +152,12 @@ defmodule Slipdock.Boards.Board do
     # pull request, and accepting the card queues a merge job). pull_request
     # needs `verify_work`; see `ship_via_values/0`.
     field :ship_via, :string, default: "push"
+    # How merged work reaches production (#2834, `Slipdock.Releases`):
+    # "on_merge" (each merge deploys) or "batched" (merges wait for a
+    # release), and the hours a merge may wait before it triggers one (nil
+    # is off). Set and read on the tree's root board only.
+    field :release_mode, :string, default: "on_merge"
+    field :release_age_cap_hours, :integer
 
     # The other addresses the board's card addresses take mail from (#1289),
     # besides each address owner's own: lower-cased, at most
@@ -590,6 +596,8 @@ defmodule Slipdock.Boards.Board do
       :findings_propose_at,
       :wait_default_after,
       :ship_via,
+      :release_mode,
+      :release_age_cap_hours,
       :kind,
       :default_view
     ])
@@ -635,6 +643,7 @@ defmodule Slipdock.Boards.Board do
     |> update_change(:profile_tiers, &Slipdock.Profiles.overrides/1)
     |> validate_change(:profile_tiers, fn _, tiers -> Slipdock.Profiles.tier_errors(tiers) end)
     |> put_ship_via()
+    |> validate_release()
     |> update_change(:handoff_label, &trim_to_nil/1)
     |> update_change(:handoff_prompt, &trim_to_nil/1)
     |> validate_length(:handoff_label, max: @handoff_label_length)
@@ -703,6 +712,47 @@ defmodule Slipdock.Boards.Board do
     do: Map.has_key?(attrs, key) or Map.has_key?(attrs, Atom.to_string(key))
 
   defp has_attr?(_attrs, _key), do: false
+
+  @release_modes ~w(on_merge batched)
+
+  @doc "How a board's merged work can reach production (#2834): `on_merge` or `batched`."
+  def release_modes, do: @release_modes
+
+  # The release settings (#2834) belong to the tree: set on its root, read
+  # from there by `Slipdock.Releases`, so a sub-board refuses them.
+  defp validate_release(changeset) do
+    changeset =
+      changeset
+      |> update_change(:release_mode, fn
+        value when is_binary(value) ->
+          value |> String.trim() |> String.downcase() |> String.replace("-", "_")
+
+        value ->
+          value
+      end)
+      |> validate_inclusion(:release_mode, @release_modes, message: "must be on_merge or batched")
+      |> validate_number(:release_age_cap_hours,
+        greater_than_or_equal_to: 1,
+        less_than_or_equal_to: 8760,
+        message: "must be 1 hour to 8760 (a year), or blank for off"
+      )
+
+    case get_field(changeset, :root_id) do
+      nil -> changeset
+      root_id -> refuse_on_sub_board(changeset, root_id)
+    end
+  end
+
+  defp refuse_on_sub_board(changeset, root_id) do
+    [:release_mode, :release_age_cap_hours]
+    |> Enum.filter(&Map.has_key?(changeset.changes, &1))
+    |> Enum.reduce(changeset, fn field, cs ->
+      add_error(cs, field, "is set on the tree's root board (#{root_code(root_id)})")
+    end)
+  end
+
+  defp root_code(root_id),
+    do: Slipdock.Repo.one(from(b in __MODULE__, where: b.id == ^root_id, select: b.code))
 
   @ship_via ~w(push pull_request)
 

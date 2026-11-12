@@ -197,4 +197,40 @@ defmodule SlipdockCLI.SetBoardTest do
       assert JSON.decode!(body) == %{"inbound_senders" => ""}
     end
   end
+
+  # #2834: batched releases.
+  test "--release-mode and --release-age-cap send the tree's release settings" do
+    serve([{200, @updated}])
+
+    capture_io(fn ->
+      Boards.run("set-board", ["docs"], release_mode: "on-merge", release_age_cap: "24")
+    end)
+
+    assert_received {:request, "PATCH", "/api/boards/docs", body}
+    assert JSON.decode!(body) == %{"release_mode" => "on_merge", "release_age_cap_hours" => 24}
+  end
+
+  test "--release-age-cap off clears it" do
+    serve([{200, @updated}])
+    capture_io(fn -> Boards.run("set-board", ["docs"], release_age_cap: "off") end)
+    assert_received {:request, "PATCH", "/api/boards/docs", body}
+    assert JSON.decode!(body) == %{"release_age_cap_hours" => ""}
+  end
+
+  # A usage error halts, so the parse is checked on its own.
+  test "off, none and an empty value all clear the cap; hours are a number; unset sends nothing" do
+    assert Boards.parse_release_age_cap("off") == ""
+    assert Boards.parse_release_age_cap("none") == ""
+    assert Boards.parse_release_age_cap("") == ""
+    assert Boards.parse_release_age_cap("36") == 36
+    assert Boards.parse_release_age_cap(nil) == nil
+  end
+
+  test "--release-age-cap that isn't hours is a usage error" do
+    assert Boards.parse_release_age_cap("1d") ==
+             {:error, ~s(--release-age-cap takes a number of hours or off, not "1d")}
+
+    assert Boards.parse_release_age_cap("12") == 12
+    assert Boards.parse_release_age_cap(nil) == nil
+  end
 end

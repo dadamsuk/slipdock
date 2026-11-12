@@ -2759,10 +2759,23 @@ defmodule Slipdock.Verified do
       nil
   end
 
+  # Where an audit's rework card goes: a fix, so the Housekeeping list
+  # (#2779) when the card's board has one, else its root's, else the ready
+  # list as before.
+  defp rework_list(board, columns) do
+    root =
+      if board.parent_card_id,
+        do: Repo.preload(Repo.get(Board, Slipdock.Boards.root_of_board(board.id)), :columns)
+
+    Enum.find(columns, &Column.housekeeping?/1) ||
+      (root && Enum.find(root.columns, &Column.housekeeping?/1)) ||
+      Slipdock.Flow.ready_list(columns) || List.first(columns)
+  end
+
   defp new_rework(card, reason, checks, link, failed, by) do
     board = card |> board() |> Repo.preload(:columns)
     columns = Enum.sort_by(board.columns, & &1.position)
-    column = Slipdock.Flow.ready_list(columns) || List.first(columns)
+    column = rework_list(board, columns)
 
     description =
       "#{@rework_lead}#{card.id} “#{card.title}” (accepted by #{who(card.verify_by)}): " <>

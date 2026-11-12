@@ -322,7 +322,11 @@ defmodule SlipdockWeb.MCP.ReadToolsTest do
       assert code == ctx.page.code
       assert top["url"] == "http://www.example.com/boards/#{ctx.board.id}/cards/#{ctx.top.id}"
 
-      assert top == ctx.conn |> call("get_card", %{card: ctx.top.id}) |> ok!()
+      # The same card, but age is seconds in the list: a second may tick
+      # between the two calls on a busy machine.
+      got = ctx.conn |> call("get_card", %{card: ctx.top.id}) |> ok!()
+      assert Map.delete(top, "age") == Map.delete(got, "age")
+      assert (got["age"] - top["age"]) in 0..1
 
       blocked = Enum.find(cards, &(&1["id"] == ctx.blocked.id))
       assert [%{"title" => "Blocker"}] = blocked["blocked_by"]

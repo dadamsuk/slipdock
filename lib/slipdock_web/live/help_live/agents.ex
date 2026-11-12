@@ -1327,6 +1327,9 @@ defmodule SlipdockWeb.HelpLive.Agents do
         the clock jumps (the machine woke from sleep) drops its connections and asks for work
         again at once. Meanwhile the machine shows offline after about 4½ minutes unheard
         from, and a job it held goes back in the queue once its 90-second lease runs out.
+        If no other runner has taken that job when the machine wakes, its runner takes it
+        back with its next heartbeat and the agent carries on where it was; if one has, the
+        woken runner stops its copy.
       </p>
       <p id="help-machine-page">
         Each machine has a page of its own, opened from that list: whether it is online, the

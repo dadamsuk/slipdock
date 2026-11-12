@@ -25,7 +25,9 @@ defmodule Slipdock.Runners.Job do
 
   A claim comes with a lease; heartbeats extend it. A lease that runs out
   puts the job back in the queue, up to a retry cap (see
-  `Slipdock.Runners.sweep/1`).
+  `Slipdock.Runners.sweep/1`). The runner that held it (`last_runner_id`)
+  may take it back while nobody else has claimed it (#2817): a machine
+  that slept and woke carries on with its job.
   """
   use Ecto.Schema
 
@@ -106,6 +108,9 @@ defmodule Slipdock.Runners.Job do
     belongs_to :card, Slipdock.Boards.Card
     belongs_to :rule, Slipdock.Automations.Rule
     belongs_to :runner, Slipdock.Runners.Runner
+    # The runner that held it when its lease ran out (#2817): set by the
+    # sweep as it requeues the job, cleared by any claim. Never cast.
+    field :last_runner_id, :integer
     # The one runner that may take it (#2580): a probe's.
     belongs_to :for_runner, Slipdock.Runners.Runner
 

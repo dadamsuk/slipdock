@@ -125,6 +125,36 @@ defmodule SlipdockWeb.API.RunnersTest do
       assert {job.status, job.exit_code, job.output} == {"timeout", 124, "ran out"}
     end
 
+    # A machine that slept through its lease (#2817).
+    test "a heartbeat after the lease ran out takes the job back, until another runner has it",
+         ctx do
+      lapse = fn ->
+        past = DateTime.utc_now() |> DateTime.add(-60) |> DateTime.truncate(:second)
+        Repo.update_all(Job, set: [lease_expires_at: past])
+        assert Runners.sweep() == 1
+      end
+
+      lapse.()
+      assert Repo.get!(Job, ctx.job.id).status == "queued"
+
+      conn = post(runner_conn(ctx.token), "/api/runner/jobs/#{ctx.job.id}/heartbeat", "awake")
+      assert {conn.status, conn.resp_body} == {200, "ok\n"}
+      job = Repo.get!(Job, ctx.job.id)
+      assert {job.status, job.runner_id, job.attempts} == {"running", ctx.runner.id, 1}
+
+      lapse.()
+      {:ok, other, _} = Runners.create_runner(ctx.board, %{"name" => "other", "pool" => "dev"})
+      assert Runners.claim(other)
+
+      assert post(runner_conn(ctx.token), "/api/runner/jobs/#{ctx.job.id}/heartbeat", "x").status ==
+               404
+
+      assert post(runner_conn(ctx.token), "/api/runner/jobs/#{ctx.job.id}/finish?exit=0", "").status ==
+               404
+
+      assert Repo.get!(Job, ctx.job.id).runner_id == other.id
+    end
+
     test "another runner's job is a 404 for both", ctx do
       {:ok, _, other} = Runners.create_runner(ctx.board, %{"name" => "other", "pool" => "dev"})
 

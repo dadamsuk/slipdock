@@ -21,6 +21,14 @@ defmodule SlipdockWeb.MCP.JobToolsTest do
   defp queue(card, pool \\ "default"),
     do: Runners.queue(card, %{pool: pool, kind: "claude", prompt: "Work on it"})
 
+  # The job's lease runs out and the sweep puts it back in the queue.
+  defp lapse(job) do
+    past = DateTime.utc_now() |> DateTime.add(-5) |> DateTime.truncate(:second)
+    Repo.update_all(from(j in Job, where: j.id == ^job.id), set: [lease_expires_at: past])
+    Runners.sweep()
+    assert Repo.get!(Job, job.id).status == "queued"
+  end
+
   defp call(conn, name, args) do
     conn
     |> put_req_header("content-type", "application/json")
@@ -279,13 +287,27 @@ defmodule SlipdockWeb.MCP.JobToolsTest do
       assert ctx.conn |> call("job_progress", %{job: 999_999_999}) |> error!() =~ "no job"
     end
 
-    test "a lease the session let run out goes back to the queue", ctx do
-      past = DateTime.utc_now() |> DateTime.add(-5) |> DateTime.truncate(:second)
-      Repo.update_all(from(j in Job, where: j.id == ^ctx.job.id), set: [lease_expires_at: past])
-      Runners.sweep()
+    # A job its lease put back is still the session's until another runner
+    # claims it (#2817).
+    test "a lease the session let run out goes back to the queue, and its next report takes it back",
+         ctx do
+      lapse(ctx.job)
 
-      assert Repo.get!(Job, ctx.job.id).status == "queued"
+      assert ctx.conn |> call("job_progress", %{job: ctx.job.id, step: "back"}) |> ok!()
+      assert %Job{status: "running", attempts: 1, step: "back"} = Repo.get!(Job, ctx.job.id)
+    end
+
+    test "once another runner has claimed a lapsed job, the session is refused", ctx do
+      lapse(ctx.job)
+      {:ok, other, _} = Runners.create_runner(ctx.board, %{"name" => "box", "pool" => "default"})
+      assert %Job{} = Runners.claim(other)
+
       assert ctx.conn |> call("job_progress", %{job: ctx.job.id}) |> error!() =~ "wasn't claimed"
+
+      assert ctx.conn |> call("finish_job", %{job: ctx.job.id, outcome: "done"}) |> error!() =~
+               "wasn't claimed"
+
+      assert Repo.get!(Job, ctx.job.id).runner_id == other.id
     end
   end
 
@@ -323,10 +345,11 @@ defmodule SlipdockWeb.MCP.JobToolsTest do
       assert Repo.get!(Job, ctx.job.id).status == "claimed"
     end
 
-    test "after the lease has lapsed, it errors and opens no wait", ctx do
-      past = DateTime.utc_now() |> DateTime.add(-5) |> DateTime.truncate(:second)
-      Repo.update_all(from(j in Job, where: j.id == ^ctx.job.id), set: [lease_expires_at: past])
-      Runners.sweep()
+    test "after the lease has lapsed and another runner took the job, it errors and opens no wait",
+         ctx do
+      lapse(ctx.job)
+      {:ok, other, _} = Runners.create_runner(ctx.board, %{"name" => "box", "pool" => "default"})
+      assert %Job{} = Runners.claim(other)
 
       assert ctx.conn
              |> call("finish_job", %{
@@ -336,8 +359,25 @@ defmodule SlipdockWeb.MCP.JobToolsTest do
              })
              |> error!() =~ "wasn't claimed"
 
-      assert Slipdock.Boards.Waits.current_wait(ctx.card) == nil
-      assert Repo.get!(Job, ctx.job.id).status == "queued"
+      assert Slipdock.Boards.current_wait(ctx.card) == nil
+      assert Repo.get!(Job, ctx.job.id).status == "claimed"
+    end
+
+    test "after the lease has lapsed with nobody else on the job, it is taken back and parked",
+         ctx do
+      lapse(ctx.job)
+
+      out =
+        ctx.conn
+        |> call("finish_job", %{
+          job: ctx.job.id,
+          outcome: "waiting",
+          wait: %{needs: "Which region?"}
+        })
+        |> ok!()
+
+      assert out["status"] == "parked"
+      assert Slipdock.Boards.current_wait(ctx.card).job_id == ctx.job.id
     end
 
     test "update_card wait and then a plain done ends the job parked", ctx do

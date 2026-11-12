@@ -18,7 +18,9 @@ defmodule Slipdock.Runners do
   A claim holds a lease (`lease_seconds`, 90 by default) that every heartbeat
   renews. `sweep/1`, run by the automation scheduler's clock, puts a job whose
   lease has run out back in the queue, and after `max_attempts` fails it and
-  flags the card instead of handing it out for ever.
+  flags the card instead of handing it out for ever. Until another runner
+  claims a requeued job, the runner that held it takes it back with its next
+  heartbeat or finish (#2817): a machine that slept carries on where it was.
   """
 
   import Ecto.Query
@@ -360,7 +362,7 @@ defmodule Slipdock.Runners do
   `{:error, :not_found}`: a session reports only on jobs it claimed itself.
   """
   def session_job_runner(job_id, %UserToken{id: token_id}) do
-    with %Job{runner_id: runner_id} when not is_nil(runner_id) <- get_job(job_id),
+    with runner_id when not is_nil(runner_id) <- holder_id(get_job(job_id)),
          %Runner{api_token_id: ^token_id} = runner <- Repo.get(Runner, runner_id) do
       {:ok, touch(runner)}
     else
@@ -1188,6 +1190,7 @@ defmodule Slipdock.Runners do
                    runner_id: runner.id,
                    runner_name: runner.name,
                    claimed_at: now,
+                   last_runner_id: nil,
                    lease_expires_at: DateTime.add(now, lease_for(runner)),
                    updated_at: now
                  ],
@@ -1350,7 +1353,7 @@ defmodule Slipdock.Runners do
   `step_at`, and never posted on the card.
   """
   def heartbeat(%Runner{} = runner, job_id, log \\ nil, opts \\ []) do
-    with {:ok, job} <- runner_job(runner, job_id) do
+    with {:ok, job} <- held_job(runner, job_id) do
       cond do
         not Enum.member?(~w(claimed running), job.status) ->
           {:ok, :cancel}
@@ -1395,7 +1398,7 @@ defmodule Slipdock.Runners do
   from a job with no such wait is refused, as `{:error, message}`.
   """
   def finish(%Runner{} = runner, job_id, attrs) do
-    with {:ok, job} <- runner_job(runner, job_id) do
+    with {:ok, job} <- held_job(runner, job_id) do
       if Enum.member?(Job.finished_statuses(), job.status) do
         {:ok, job}
       else
@@ -1420,7 +1423,7 @@ defmodule Slipdock.Runners do
     {result, effects} =
       Slipdock.Deferred.collect(fn ->
         Repo.transaction(fn ->
-          with {:ok, job} <- runner_job(runner, job_id),
+          with {:ok, job} <- held_job(runner, job_id),
                %Job{} = job <-
                  Repo.one(from(j in Job, where: j.id == ^job.id, lock: "FOR UPDATE")),
                :ok <- can_park(job),
@@ -1624,7 +1627,8 @@ defmodule Slipdock.Runners do
   """
   def job_agent_runner(job_id, actor_job_id) do
     with id when is_integer(id) <- actor_job_id,
-         %Job{id: ^id, runner_id: runner_id} when not is_nil(runner_id) <- get_job(job_id),
+         %Job{id: ^id} = job <- get_job(job_id),
+         runner_id when not is_nil(runner_id) <- holder_id(job),
          %Runner{} = runner <- Repo.get(Runner, runner_id) do
       {:ok, runner}
     else
@@ -1632,9 +1636,72 @@ defmodule Slipdock.Runners do
     end
   end
 
+  # The runner a job is with: the one holding it, or, for a job its lease
+  # put back in the queue, the one that may still take it back (#2817).
+  defp holder_id(%Job{runner_id: nil, status: "queued", last_runner_id: last}), do: last
+  defp holder_id(%Job{runner_id: runner_id}), do: runner_id
+  defp holder_id(_), do: nil
+
   defp runner_job(runner, job_id) do
     with {id, ""} <- Integer.parse(to_string(job_id)),
          %Job{runner_id: runner_id} = job when runner_id == runner.id <- Repo.get(Job, id) do
+      {:ok, job}
+    else
+      _ -> {:error, :not_found}
+    end
+  end
+
+  # The runner's job, taken back first if its lease ran out and nobody has
+  # claimed it since (#2817).
+  defp held_job(runner, job_id) do
+    with {:error, :not_found} <- runner_job(runner, job_id), do: reclaim(runner, job_id)
+  end
+
+  # A job the sweep put back in the queue is still its last runner's to
+  # carry on with, until another runner claims it: a machine that slept
+  # through its lease wakes with the agent and its worktree as they were.
+  # The job goes back to running on a fresh lease, and costs no attempt (a
+  # claim counts one, this doesn't). Not while the runner holds another job.
+  defp reclaim(runner, job_id) do
+    now = now()
+
+    with {id, ""} <- Integer.parse(to_string(job_id)),
+         false <- busy?(runner),
+         {1, [job]} <-
+           Repo.update_all(
+             from(j in Job,
+               where: j.id == ^id and j.status == "queued" and j.last_runner_id == ^runner.id,
+               # As it was: claimed if it had not started, else running.
+               update: [
+                 set: [
+                   status:
+                     fragment(
+                       "CASE WHEN ? IS NULL THEN 'claimed' ELSE 'running' END",
+                       j.started_at
+                     )
+                 ]
+               ],
+               select: j
+             ),
+             set: [
+               runner_id: runner.id,
+               runner_name: runner.name,
+               last_runner_id: nil,
+               claimed_at: now,
+               lease_expires_at: DateTime.add(now, lease_for(runner)),
+               updated_at: now
+             ]
+           ) do
+      Repo.update_all(from(r in Runner, where: r.id == ^runner.id), set: [current_job_id: job.id])
+
+      Boards.log_activity(
+        job.board_id,
+        job.card_id,
+        "runner",
+        "#{runner.name} took job ##{job.id} back: its lease had run out and no other runner had taken it"
+      )
+
+      changed(job)
       {:ok, job}
     else
       _ -> {:error, :not_found}
@@ -1803,7 +1870,17 @@ defmodule Slipdock.Runners do
         refill(job)
 
       true ->
-        if settle(job, %{status: "queued", runner_id: nil, lease_expires_at: nil, claimed_at: nil}) do
+        # The runner that held it may take it back while it is still
+        # queued (#2817, `held_job/2`): a machine that slept, say.
+        requeued = %{
+          status: "queued",
+          runner_id: nil,
+          last_runner_id: job.runner_id,
+          lease_expires_at: nil,
+          claimed_at: nil
+        }
+
+        if settle(job, requeued) do
           Phoenix.PubSub.broadcast(@pubsub, pool_topic(job.root_board_id, job.pool), :job_queued)
         end
     end

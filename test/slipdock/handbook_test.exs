@@ -428,7 +428,11 @@ defmodule Slipdock.HandbookTest do
       assert triage.description =~ "never left open a second time"
       assert triage.description =~ "<n> leftovers decided; <n> left open (<ids>: why)"
       # A literal `--desc -` from an old CLI is refused (#2686): it says the stdin form.
-      assert triage.description =~ "or `--desc -` with a heredoc for more than a line"
+      assert triage.description =~ "`--desc -` with a heredoc for more than a line"
+      # Fixes to Housekeeping, design questions to Triage (#2779).
+      assert triage.description =~ "--column Housekeeping --origin findings"
+      assert triage.description =~ "--column Triage --origin findings"
+      assert triage.description =~ "or the backlog on a board with no Housekeeping list"
 
       assert triage.description =~
                "Only a finding that arrived since the last triage may stay open"
@@ -496,6 +500,36 @@ defmodule Slipdock.HandbookTest do
       triage = card_titled(board, "Triage findings")
       seed = card_titled(board, "Seed the handbook")
       assert Enum.map(Boards.Cards.get_card!(triage.id).blocked_by, & &1.id) == [seed.id]
+    end
+  end
+
+  describe "upgrading the triage card (#2779)" do
+    test "installing over an older one gives it the current procedure, once",
+         %{user: user, board: board} do
+      {:ok, _} = Handbook.install(user, board)
+      triage = Repo.get_by!(Slipdock.Boards.Card, board_id: board.id, title: "Triage findings")
+      {:ok, _} = Boards.update_card(triage, %{"description" => "It becomes a card in Backlog."})
+
+      {:ok, again} = Handbook.install(user, board)
+      assert again.upgraded
+      assert "Triage findings (updated: procedure)" in again.report.added["cards"]
+      assert Repo.reload!(triage).description =~ "--column Housekeeping --origin findings"
+
+      {:ok, third} = Handbook.install(user, board)
+      refute "Triage findings (updated: procedure)" in third.report.added["cards"]
+    end
+
+    test "a done triage card is left alone", %{user: user, board: board} do
+      {:ok, _} = Handbook.install(user, board)
+      triage = Repo.get_by!(Slipdock.Boards.Card, board_id: board.id, title: "Triage findings")
+
+      Repo.update_all(from(c in Slipdock.Boards.Card, where: c.id == ^triage.id),
+        set: [description: "Old.", completed: true]
+      )
+
+      {:ok, again} = Handbook.install(user, board)
+      refute "Triage findings (updated: procedure)" in again.report.added["cards"]
+      assert Repo.reload!(triage).description == "Old."
     end
   end
 
