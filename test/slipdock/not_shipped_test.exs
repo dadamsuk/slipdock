@@ -222,6 +222,44 @@ defmodule Slipdock.NotShippedTest do
       assert NotShipped.for_card(pushed, @now) == nil
     end
 
+    test "ship by push: an acceptance that gave only evidence counts its evidence commit", ctx do
+      card =
+        merged(ctx.done, 45, merge_sha: nil, verify_commit: nil, evidence_commit: "0f690f1f99")
+
+      assert [%{card_id: id, sha: "0f690f1f99"}] = tree(ctx.board)
+      assert id == card.id
+      assert NotShipped.for_card(card, @now).text == "Merged 0f690f1 · not shipped after 45m"
+    end
+
+    test "a board set to pull requests that doesn't verify work ships by push", ctx do
+      Repo.update_all(from(b in Board, where: b.id == ^ctx.board.id),
+        set: [ship_via: "pull_request", verify_work: false]
+      )
+
+      card = merged(ctx.done, 45, merge_sha: nil, verify_commit: "abcdef1234567890")
+      assert [%{card_id: id, sha: "abcdef1234567890"}] = tree(fresh(ctx.board))
+      assert id == card.id
+      assert NotShipped.for_card(card, @now).text == "Merged abcdef1 · not shipped after 45m"
+    end
+
+    test "a deploy on a tree board whose delivery metrics are off since covers nothing", ctx do
+      epic = card_fixture(ctx.done, %{"title" => "Epic"})
+      sub = sub_board!(epic)
+      {:ok, sub} = Boards.update_board(sub, %{"delivery_metrics" => true})
+      card = merged(ctx.done, 45)
+
+      deploy!(sub, card)
+      assert [_] = Deployments.shipped(card)
+      assert tree(ctx.board) == []
+
+      Repo.update_all(from(b in Board, where: b.id == ^sub.id), set: [delivery_metrics: false])
+
+      assert Deployments.shipped(card) == []
+      assert [%{card_id: id}] = tree(ctx.board)
+      assert id == card.id
+      assert %{text: "Merged 1a634c6 · not shipped after 45m"} = NotShipped.for_card(card, @now)
+    end
+
     test "an epic ships through its subcards, and a subcard counts on the root's tree", ctx do
       epic = merged(ctx.done, 45, title: "Epic")
       sub = sub_board!(epic)
@@ -393,6 +431,59 @@ defmodule Slipdock.NotShippedTest do
       assert id == child.id
       assert board_id == ctx.board.id
       assert Repo.get!(Alert, alert_id).board_id == ctx.board.id
+    end
+
+    test "with the overseer off it runs this check alone: other conditions stay, watched_at unset",
+         ctx do
+      {:ok, settings} = Overseer.put_settings(ctx.board, %{"enabled" => false})
+
+      # Another check's condition, which a full watch would clear (card:1 is nothing).
+      {1, _} =
+        Repo.insert_all(Condition, [
+          %{
+            board_id: ctx.board.id,
+            check: "slow",
+            subject: "card:1",
+            severity: "warning",
+            title: "Slow",
+            why: "w",
+            todo: "t",
+            opened_at: @now,
+            inserted_at: @now,
+            updated_at: @now
+          }
+        ])
+
+      card = merged(ctx.done, 45)
+      Overseer.tick(@now)
+
+      open = Watch.open_conditions(ctx.board.id)
+      assert open |> Enum.map(& &1.check) |> Enum.sort() == ["not_shipped", "slow"]
+      assert [%{card_id: id}] = conditions(ctx.board)
+      assert id == card.id
+      assert Repo.get!(Settings, settings.id).watched_at == nil
+    end
+
+    test "an archived root whose sub-board has delivery metrics on is left alone", ctx do
+      {:ok, root} = Boards.update_board(ctx.board, %{"delivery_metrics" => false})
+      epic = card_fixture(ctx.done, %{"title" => "Epic"})
+      sub = sub_board!(epic)
+      {:ok, sub} = Boards.update_board(sub, %{"delivery_metrics" => true})
+
+      Repo.update_all(from(b in Board, where: b.id == ^sub.id),
+        set: [delivery_metrics_since: @since]
+      )
+
+      child = merged(hd(sub.columns), 45)
+      # Live, the tree would fire for it.
+      assert [%{card_id: id}] = NotShipped.in_tree(fresh(root), [root.id, sub.id], @now)
+      assert id == child.id
+
+      Repo.update_all(from(b in Board, where: b.id == ^root.id), set: [archived_at: @now])
+      Overseer.tick(@now)
+
+      assert conditions(root) == []
+      assert Repo.aggregate(from(a in Alert, where: a.card_id == ^child.id), :count) == 0
     end
 
     test "a board with delivery metrics off, or archived, is left alone", ctx do
