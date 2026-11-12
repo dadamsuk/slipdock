@@ -282,17 +282,46 @@ defmodule Slipdock.Health.FinishingDetectorsTest do
       refute f.summary =~ "still merging"
     end
 
-    test "two already-merged failures leave the card merging: flagged, not as looping", ctx do
+    # #2759: a merge that found the pull request already merged isn't a
+    # failing merge; merge_missing flags the card once instead.
+    test "already-merged failures aren't counted as failing merges", ctx do
       set_card(ctx.card, verify_state: "merging")
-      said = "merge: #9 was already merged at head abc1234, not the accepted commit"
-      job(ctx.card, kind: "merge", status: "failed", error: said)
-      last = job(ctx.card, kind: "merge", status: "failed", error: said)
+
+      for said <- [
+            "merge: #9 was already merged at head abc1234, not the accepted commit 1a2b",
+            "merge: #9 is MERGED, not open; nothing merged"
+          ] do
+        job(ctx.card, kind: "merge", status: "failed", output: "x\n" <> said)
+      end
+
+      job(ctx.card, kind: "merge", status: "failed", output: "merge: #9 is MERGED, not open")
+      assert detect(MergeFailing, ctx.board) == []
+
+      # One real failure among them is one, not four.
+      job(ctx.card, kind: "merge", status: "failed", error: "checks red")
+      assert detect(MergeFailing, ctx.board) == []
+    end
+
+    test "two real failures still count with an already-merged one latest", ctx do
+      job(ctx.card, kind: "merge", status: "failed", error: "conflict in mix.lock")
+      real = job(ctx.card, kind: "merge", status: "failed", error: "checks red")
+      job(ctx.card, kind: "merge", status: "failed", output: "merge: #9 is MERGED, not open")
+
+      assert [f] = detect(MergeFailing, ctx.board)
+      assert f.state == real.id
+      assert f.summary =~ "has failed 2 times, most recently job ##{real.id}"
+      refute f.summary =~ "MERGED"
+    end
+
+    test "a card still merging that no runner could merge is flagged, not as looping", ctx do
+      set_card(ctx.card, verify_state: "merging")
+      said = "merge: the pull request is in acme/app, but this runner's repository is x"
+      job(ctx.card, kind: "merge", status: "failed", output: said, error: said)
+      last = job(ctx.card, kind: "merge", status: "failed", output: said, error: said)
 
       assert [f] = detect(MergeFailing, ctx.board)
       assert f.state == last.id
-      assert f.summary =~ "has failed 2 times, most recently job ##{last.id}"
       assert f.summary =~ "it is still merging, not sent back as rejected"
-      assert f.summary =~ "was already merged at head abc1234"
       refute f.summary =~ "looping"
     end
 

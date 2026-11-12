@@ -2200,10 +2200,16 @@ defmodule Slipdock.Verified do
       else: "**Merged** by runner #{runner_name}"
   end
 
-  # A merge that failed because the pull request was already merged (#2637):
-  # at another head (the daemon's words), or at a head the runner didn't say
-  # (older runners: `is MERGED, not open`).
-  defp already_merged?(%{status: "failed"} = job) do
+  @doc """
+  Whether a merge job failed because the pull request was already merged
+  (#2637): at another head (the daemon's words), or at a head the runner
+  didn't say (older runners: `is MERGED, not open`). Only the runner's own
+  `merge:` line counts. Such a job leaves its card merging for a person
+  (`merged_elsewhere`), so queuing the merge again would fail the same way:
+  the health monitor's `merge_missing` flags it rather than requeuing, and
+  `merge_failing` doesn't count it as a failing merge (#2759).
+  """
+  def already_merged?(%{status: "failed"} = job) do
     said = merge_reason(job)
 
     String.starts_with?(said, "merge: ") and
@@ -2211,7 +2217,7 @@ defmodule Slipdock.Verified do
          String.contains?(said, "is MERGED, not open"))
   end
 
-  defp already_merged?(_job), do: false
+  def already_merged?(_job), do: false
 
   # Already merged, but not at a head the runner could match to the
   # accepted commit: no rebase or resubmission changes a merged pull
