@@ -164,7 +164,12 @@ defmodule SlipdockWeb.Wiki.Renderer do
     end
   end
 
-  defp id_key, do: "k" <> Base.encode16(:crypto.strong_rand_bytes(12), case: :lower) <> "-"
+  # The key in front of every id a render generates. Its randomness is the
+  # whole defence: a constant key, public in this repository, would let an
+  # author write `<h2 id="<key>x">` and get `id="x"` through. Public only so
+  # a test can check that each call gives a fresh one.
+  @doc false
+  def id_key, do: "k" <> Base.encode16(:crypto.strong_rand_bytes(12), case: :lower) <> "-"
 
   @doc """
   The body with every reference resolved to Markdown rather than HTML — what

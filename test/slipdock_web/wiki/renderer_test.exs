@@ -474,12 +474,28 @@ defmodule SlipdockWeb.Wiki.RendererTest do
                [["setup-steps"], ["setup-steps-1"], ["fnref-why"], ["^blk1"], ["fn-why"]]
     end
 
-    test "nothing of the render's key is left behind, and it differs each time" do
+    test "nothing of the render's key is left behind, so two renders are the same" do
       body = "## One\n\nBlock ^b1\n"
       html = Renderer.to_html(body)
 
       assert html == Renderer.to_html(body)
       refute html =~ ~r/k[0-9a-f]{24}-/
+    end
+
+    test "each render's key is random, 96 bits in a fixed shape" do
+      keys = for _ <- 1..50, do: Renderer.id_key()
+
+      assert Enum.all?(keys, &(&1 =~ ~r/\Ak[0-9a-f]{24}-\z/))
+      assert keys |> Enum.uniq() |> length() == 50
+    end
+
+    test "a key a render did not use, hand-written as an id, is stripped" do
+      key = Renderer.id_key()
+      html = Renderer.to_html(~s|## Real\n\n<h2 id="#{key}x">Forged</h2>\n|)
+
+      assert html =~ "<h2>Forged</h2>"
+      refute html =~ ~s|id="x"|
+      refute html =~ key
     end
 
     test "an author cannot write an id that passes for a generated one" do
