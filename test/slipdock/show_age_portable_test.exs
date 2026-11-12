@@ -11,7 +11,7 @@ defmodule Slipdock.ShowAgePortableTest do
     owner = user_fixture("owner@example.com")
     board = board_fixture(%{"name" => "Ages", "code" => unique_code()}, owner: owner)
     [_backlog, todo | _] = board.columns
-    {:ok, _} = Boards.update_column(todo, %{"show_age" => false})
+    {:ok, _} = Boards.Columns.update_column(todo, %{"show_age" => false})
 
     document = Portable.export(owner, boards: [board])
     [tree] = document.boards

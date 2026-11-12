@@ -19,7 +19,7 @@ defmodule Slipdock.Gardener.Checks.HandbookGapTest do
 
   defp done_card(col, title) do
     card = card_fixture(col, %{"title" => title})
-    {:ok, card} = Boards.update_card(card, %{"completed" => true})
+    {:ok, card} = Boards.Cards.update_card(card, %{"completed" => true})
     card
   end
 
@@ -64,9 +64,14 @@ defmodule Slipdock.Gardener.Checks.HandbookGapTest do
     install(user, board)
     updated = done_card(todo, "Updated")
     unchanged = done_card(todo, "Unchanged")
-    {:ok, _} = Boards.add_comment(updated, "**Done.**\n\n- Handbook: updated W-3 §Contexts")
-    {:ok, _} = Boards.add_comment(unchanged, "**Done.**\n\nHandbook: no change (tests only)")
-    {:ok, _} = Boards.add_comment(done_card(todo, "Mentioned"), "the handbook: later")
+
+    {:ok, _} =
+      Boards.Comments.add_comment(updated, "**Done.**\n\n- Handbook: updated W-3 §Contexts")
+
+    {:ok, _} =
+      Boards.Comments.add_comment(unchanged, "**Done.**\n\nHandbook: no change (tests only)")
+
+    {:ok, _} = Boards.Comments.add_comment(done_card(todo, "Mentioned"), "the handbook: later")
 
     assert [%{explanation: e}] = find(HandbookGap, board)
     assert e =~ "closed without a Handbook line"
@@ -83,7 +88,7 @@ defmodule Slipdock.Gardener.Checks.HandbookGapTest do
     )
 
     card_fixture(todo, %{"title" => "Open"})
-    {:ok, _} = Boards.archive_card(done_card(todo, "Archived"))
+    {:ok, _} = Boards.Cards.archive_card(done_card(todo, "Archived"))
 
     assert find(HandbookGap, board) == []
   end
@@ -92,7 +97,7 @@ defmodule Slipdock.Gardener.Checks.HandbookGapTest do
        %{user: user, board: board, todo: todo} do
     install(user, board)
     epic = card_fixture(todo, %{"title" => "Epic"})
-    {:ok, t} = Boards.find_template(nil, "Simple")
+    {:ok, t} = Boards.Templates.find_template(nil, "Simple")
     {:ok, sub} = sub_board(epic, t)
     [sub_col | _] = Boards.get_board!(sub.id).columns
     sub_card = done_card(sub_col, "Deep")
@@ -109,7 +114,7 @@ defmodule Slipdock.Gardener.Checks.HandbookGapTest do
     {:ok, run} = Gardener.run(board, only: ["handbook_gap"])
     assert run.counts["total"] == 1
 
-    {:ok, _} = Boards.add_comment(card, "Handbook: no change (copy edit)")
+    {:ok, _} = Boards.Comments.add_comment(card, "Handbook: no change (copy edit)")
     {:ok, run} = Gardener.run(board, only: ["handbook_gap"])
     assert run.counts["total"] == 0
     assert Gardener.list_open(board) == []

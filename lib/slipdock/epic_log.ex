@@ -68,7 +68,7 @@ defmodule Slipdock.EpicLog do
   defp doing?(%Column{} = column), do: Slipdock.Flow.doing_list?(column)
 
   @doc """
-  A card was saved (`Slipdock.Boards.update_card/3`): a change of
+  A card was saved (`Slipdock.Boards.Cards.update_card/3`): a change of
   verification state, or a completion outside it, is a line; anything that
   changes what is done recounts the epic.
   """
@@ -236,7 +236,7 @@ defmodule Slipdock.EpicLog do
 
     if joins?(last),
       do: update_body(epic, last, last.body <> "\n\n" <> line),
-      else: Boards.add_comment(epic, line, kind: @kind)
+      else: Boards.Comments.add_comment(epic, line, kind: @kind)
 
     recount_epic(epic)
     :ok
@@ -253,7 +253,7 @@ defmodule Slipdock.EpicLog do
       |> Ecto.Changeset.change(body: body, updated_at: DateTime.utc_now(:second))
       |> Repo.update()
 
-    Boards.card_changed(epic)
+    Boards.PubSub.card_changed(epic)
   end
 
   ## The epic ----------------------------------------------------------------
@@ -328,7 +328,7 @@ defmodule Slipdock.EpicLog do
       from(c in Card, where: c.id == ^epic.id)
       |> Repo.update_all(set: [percent_complete: div(done * 100, all)])
 
-      Boards.card_changed(epic)
+      Boards.PubSub.card_changed(epic)
     end
 
     :ok

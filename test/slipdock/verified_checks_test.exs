@@ -145,7 +145,7 @@ defmodule Slipdock.VerifiedChecksTest do
       builder = agent.("builder")
 
       {:ok, card} =
-        Boards.update_card(card, %{"completed" => true, "evidence" => "ran it"},
+        Boards.Cards.update_card(card, %{"completed" => true, "evidence" => "ran it"},
           actor: builder,
           by: owner
         )
@@ -155,7 +155,7 @@ defmodule Slipdock.VerifiedChecksTest do
     end
 
     defp bodies(card),
-      do: Boards.get_card!(card.id).comments |> Enum.sort_by(& &1.id) |> Enum.map(& &1.body)
+      do: Boards.Cards.get_card!(card.id).comments |> Enum.sort_by(& &1.id) |> Enum.map(& &1.body)
 
     test "a rejection stores its parts and says them on its comment", ctx do
       assert {:ok, card} =
@@ -315,7 +315,7 @@ defmodule Slipdock.VerifiedChecksTest do
         )
 
       {:ok, again} =
-        Boards.update_card(
+        Boards.Cards.update_card(
           Repo.get!(Card, ctx.card.id),
           %{"completed" => true, "evidence" => "2"},
           actor: ctx.builder,
@@ -332,7 +332,10 @@ defmodule Slipdock.VerifiedChecksTest do
 
     test "a card update can't set the parts", ctx do
       {:ok, card} =
-        Boards.update_card(ctx.card, %{"verify_checks" => %{"ask" => "ok"}, "title" => "Renamed"})
+        Boards.Cards.update_card(ctx.card, %{
+          "verify_checks" => %{"ask" => "ok"},
+          "title" => "Renamed"
+        })
 
       assert card.title == "Renamed"
       assert Repo.get!(Card, card.id).verify_checks == nil

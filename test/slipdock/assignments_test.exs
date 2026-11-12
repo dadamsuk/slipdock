@@ -18,16 +18,20 @@ defmodule Slipdock.AssignmentsTest do
     b = card_fixture(col, %{"title" => "B", "assignee_id" => bob.id})
     _c = card_fixture(col, %{"title" => "C"})
 
-    assert Boards.get_card!(a.id).assignee.id == ada.id
-    {:ok, _} = Boards.update_card(Boards.get_card!(b.id), %{"assignee_id" => ada.id})
+    assert Boards.Cards.get_card!(a.id).assignee.id == ada.id
+    {:ok, _} = Boards.Cards.update_card(Boards.Cards.get_card!(b.id), %{"assignee_id" => ada.id})
 
     assert Enum.any?(
-             Boards.list_activities(board.id),
+             Boards.ActivityLog.list_activities(board.id),
              &(&1.message =~ "assigned “B” to ada@example.com")
            )
 
-    {:ok, _} = Boards.update_card(Boards.get_card!(b.id), %{"assignee_id" => nil})
-    assert Enum.any?(Boards.list_activities(board.id), &(&1.message =~ "unassigned “B”"))
+    {:ok, _} = Boards.Cards.update_card(Boards.Cards.get_card!(b.id), %{"assignee_id" => nil})
+
+    assert Enum.any?(
+             Boards.ActivityLog.list_activities(board.id),
+             &(&1.message =~ "unassigned “B”")
+           )
 
     grid =
       Swimlanes.grid(
@@ -41,7 +45,7 @@ defmodule Slipdock.AssignmentsTest do
              {"Unassigned", 2}
            ]
 
-    a = Boards.get_card!(a.id)
+    a = Boards.Cards.get_card!(a.id)
 
     assert Swimlanes.move_ops("assignee", a, to_string(ada.id), "none", %Config{}) ==
              [{:attrs, %{"assignee_ids" => []}}]
@@ -49,7 +53,7 @@ defmodule Slipdock.AssignmentsTest do
     assert Swimlanes.move_ops("assignee", a, to_string(ada.id), to_string(bob.id), %Config{}) ==
              [{:attrs, %{"assignee_ids" => [bob.id]}}]
 
-    assert Enum.map(Boards.list_assigned_cards(ada), & &1.title) == ["A"]
+    assert Enum.map(Boards.Cards.list_assigned_cards(ada), & &1.title) == ["A"]
   end
 
   test "a card can have several assignees, the first of them the lead" do
@@ -61,30 +65,30 @@ defmodule Slipdock.AssignmentsTest do
     share_fixture(board, [ada, bob, cy])
 
     card = card_fixture(col, %{"title" => "Pair on it", "assignee_ids" => [bob.id, ada.id]})
-    card = Boards.get_card!(card.id)
+    card = Boards.Cards.get_card!(card.id)
     assert card.assignee_id == bob.id
     assert Enum.map(Card.assignees(card), & &1.id) == [bob.id, ada.id]
 
     # Adding keeps whoever is there; removing the lead hands it on.
-    {:ok, _} = Boards.update_card(card, %{"add_assignee_ids" => [cy.id]})
-    card = Boards.get_card!(card.id)
+    {:ok, _} = Boards.Cards.update_card(card, %{"add_assignee_ids" => [cy.id]})
+    card = Boards.Cards.get_card!(card.id)
     assert Enum.map(Card.assignees(card), & &1.id) == [bob.id, ada.id, cy.id]
 
-    {:ok, _} = Boards.update_card(card, %{"remove_assignee_ids" => [bob.id]})
-    card = Boards.get_card!(card.id)
+    {:ok, _} = Boards.Cards.update_card(card, %{"remove_assignee_ids" => [bob.id]})
+    card = Boards.Cards.get_card!(card.id)
     assert card.assignee_id == ada.id
     assert Enum.sort(Enum.map(Card.assignees(card), & &1.id)) == Enum.sort([ada.id, cy.id])
 
     assert Enum.any?(
-             Boards.list_activities(board.id),
+             Boards.ActivityLog.list_activities(board.id),
              &(&1.message =~ "assigned “Pair on it” to ada@example.com, cy@example.com")
            )
 
     # Everybody on it finds it, in the filters and in their own work.
-    assert [%{id: id}] = Boards.list_cards(reload(board), %{"assignee" => "cy@example.com"})
+    assert [%{id: id}] = Boards.Cards.list_cards(reload(board), %{"assignee" => "cy@example.com"})
     assert id == card.id
-    assert Boards.list_cards(reload(board), %{"assignee" => "bob@example.com"}) == []
-    assert Enum.map(Boards.list_assigned_cards(cy), & &1.id) == [card.id]
+    assert Boards.Cards.list_cards(reload(board), %{"assignee" => "bob@example.com"}) == []
+    assert Enum.map(Boards.Cards.list_assigned_cards(cy), & &1.id) == [card.id]
 
     # The card sits in each person's lane, and dragging it from one person to
     # another swaps just those two.
@@ -98,11 +102,11 @@ defmodule Slipdock.AssignmentsTest do
 
     # A bare assignee_id is what a single-person caller sends, and still means
     # "this person and nobody else".
-    {:ok, _} = Boards.update_card(card, %{"assignee_id" => bob.id})
-    assert Enum.map(Card.assignees(Boards.get_card!(card.id)), & &1.id) == [bob.id]
+    {:ok, _} = Boards.Cards.update_card(card, %{"assignee_id" => bob.id})
+    assert Enum.map(Card.assignees(Boards.Cards.get_card!(card.id)), & &1.id) == [bob.id]
 
-    {:ok, _} = Boards.update_card(Boards.get_card!(card.id), %{"assignee_ids" => []})
-    card = Boards.get_card!(card.id)
+    {:ok, _} = Boards.Cards.update_card(Boards.Cards.get_card!(card.id), %{"assignee_ids" => []})
+    card = Boards.Cards.get_card!(card.id)
     assert card.assignee_id == nil and Card.assignees(card) == []
   end
 
@@ -116,7 +120,7 @@ defmodule Slipdock.AssignmentsTest do
 
     # Take the epic's own date away: it lands where its subcards end (20 Jan, still Jan)
     # and the sub-board's C lands in February through E.
-    {:ok, _} = Boards.update_card(ctx.epic, %{"due_date" => nil})
+    {:ok, _} = Boards.Cards.update_card(ctx.epic, %{"due_date" => nil})
     sub = Boards.get_board!(ctx.sub.id)
     grid = Swimlanes.grid(sub, %{config | unit: "quarter"}, @today)
     assert Enum.map(grid.rows, &{&1.label, &1.count}) == [{"Q1 2030", 2}]

@@ -256,7 +256,7 @@ defmodule SlipdockWeb.MCP.Resources do
   defp resolve({:card, id}, context) do
     auth = Args.auth(context)
 
-    with %Card{} = card <- Boards.get_card(id),
+    with %Card{} = card <- Boards.Cards.get_card(id),
          :ok <- Authorize.card(auth, card, :read) do
       {:ok, {:card, Authorize.visible(auth, Repo.preload(card, :board))}}
     end
@@ -277,7 +277,7 @@ defmodule SlipdockWeb.MCP.Resources do
     auth = Args.auth(context)
 
     with {:ok, board} <- Boards.find_board(board_ref),
-         {:ok, view} <- Boards.find_saved_view(board, view_ref),
+         {:ok, view} <- Boards.SavedViews.find_saved_view(board, view_ref),
          true <- view_readable?(auth, view) do
       {:ok, {:view, Boards.get_board!(board.id), view}}
     end

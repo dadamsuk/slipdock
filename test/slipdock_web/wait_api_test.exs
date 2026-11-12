@@ -167,7 +167,7 @@ defmodule SlipdockWeb.WaitAPITest do
              |> post("/api/cards/#{ctx.card.id}/wait/answer", %{answer: "eu"})
              |> json_response(403)
 
-      assert Wait.open?(Boards.current_wait(ctx.card))
+      assert Wait.open?(Boards.Waits.current_wait(ctx.card))
     end
   end
 
@@ -188,7 +188,7 @@ defmodule SlipdockWeb.WaitAPITest do
 
     test "whoever opened it may withdraw it without write on the card", ctx do
       {:ok, _} =
-        Boards.open_wait(ctx.card, Slipdock.Actor.web(ctx.commenter), %{"needs" => "Mine?"})
+        Boards.Waits.open_wait(ctx.card, Slipdock.Actor.web(ctx.commenter), %{"needs" => "Mine?"})
 
       assert %{"wait" => %{"close_reason" => "withdrawn"}} =
                token(ctx.commenter, "c")
@@ -203,11 +203,11 @@ defmodule SlipdockWeb.WaitAPITest do
       |> patch("/api/cards/#{ctx.card.id}", %{remove_flags: ["waiting"]})
       |> json_response(200)
 
-      assert %{close_reason: "withdrawn", closed_by_id: id} = Boards.last_wait(ctx.card)
+      assert %{close_reason: "withdrawn", closed_by_id: id} = Boards.Waits.last_wait(ctx.card)
       assert id == ctx.dana.id
 
       assert Enum.any?(
-               Boards.get_card!(ctx.card.id).comments,
+               Boards.Cards.get_card!(ctx.card.id).comments,
                &(&1.body ==
                    "Dana took the waiting flag off, which withdrew the wait “Which region?”")
              )

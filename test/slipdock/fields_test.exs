@@ -144,7 +144,7 @@ defmodule Slipdock.FieldsTest do
       {:ok, a} = Fields.set_value(a, by["confidence"], 80)
       {:ok, a} = Fields.set_value(a, by["effort"], 4)
       assert Fields.value(a, rice) == 120.0
-      assert Fields.numeric(Boards.get_card!(ctx.b.id), rice) == nil
+      assert Fields.numeric(Boards.Cards.get_card!(ctx.b.id), rice) == nil
 
       board = reload(ctx.board)
       cards = board.columns |> hd() |> Map.fetch!(:cards)

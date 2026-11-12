@@ -10,7 +10,7 @@ defmodule SlipdockWeb.AILiveTest do
     [backlog, _, _, done] = board.columns
     card = card_fixture(backlog, %{"title" => "Write the plan", "priority" => "low"})
     shipped = card_fixture(backlog, %{"title" => "Shipped thing"})
-    :ok = Boards.move_card(shipped.id, done.id)
+    :ok = Boards.Cards.move_card(shipped.id, done.id)
     %{board: reload(board), card: card, backlog: backlog}
   end
 
@@ -77,17 +77,17 @@ defmodule SlipdockWeb.AILiveTest do
     assert_receive {:ai_request, %{"response_format" => %{"type" => "json_object"}}}
 
     # Nothing has changed yet.
-    assert Boards.get_card!(card.id).priority == "low"
-    refute "fresh" in Enum.map(Boards.list_tags(board.id), & &1.name)
+    assert Boards.Cards.get_card!(card.id).priority == "low"
+    refute "fresh" in Enum.map(Boards.Tags.list_tags(board.id), & &1.name)
 
     html = view |> element("#page-ai button[phx-click=apply]") |> render_click()
     assert html =~ "Applied 3 of 4"
 
-    fresh = Boards.get_card!(card.id)
+    fresh = Boards.Cards.get_card!(card.id)
     assert fresh.priority == "high"
     assert fresh.due_date == ~D[2030-03-05]
     assert Enum.map(fresh.tags, & &1.name) == ["fresh"]
-    assert "fresh" in Enum.map(Boards.list_tags(board.id), & &1.name)
+    assert "fresh" in Enum.map(Boards.Tags.list_tags(board.id), & &1.name)
   end
 
   test "edit mode tags several cards in one step", %{
@@ -113,13 +113,13 @@ defmodule SlipdockWeb.AILiveTest do
     assert html =~
              "Create tag “urgent” and add it to 2 cards: “Write the plan”, “Book the venue”"
 
-    refute "urgent" in Enum.map(Boards.list_tags(board.id), & &1.name)
+    refute "urgent" in Enum.map(Boards.Tags.list_tags(board.id), & &1.name)
 
     html = view |> element("#page-ai button[phx-click=apply]") |> render_click()
     assert html =~ "Applied"
 
     for id <- [card.id, other.id],
-        do: assert(Enum.map(Boards.get_card!(id).tags, & &1.name) == ["urgent"])
+        do: assert(Enum.map(Boards.Cards.get_card!(id).tags, & &1.name) == ["urgent"])
   end
 
   test "read-only users only get chat mode", %{conn: conn, board: board} do
@@ -156,7 +156,7 @@ defmodule SlipdockWeb.AILiveTest do
     board: board,
     card: card
   } do
-    {:ok, _} = Boards.add_comment(card, "CI went red on credo")
+    {:ok, _} = Boards.Comments.add_comment(card, "CI went red on credo")
 
     Slipdock.AIStub.reply_sequence([
       {:tool_calls, [{"card_comments", %{}}]},
@@ -220,7 +220,10 @@ defmodule SlipdockWeb.AILiveTest do
 
   test "the work page chats about the assigned cards", %{conn: conn, card: card} do
     user = user_fixture()
-    {:ok, _} = Boards.update_card(card, %{"assignee_id" => user.id, "due_date" => "2020-01-01"})
+
+    {:ok, _} =
+      Boards.Cards.update_card(card, %{"assignee_id" => user.id, "due_date" => "2020-01-01"})
+
     Slipdock.AIStub.reply_with("One card is overdue.")
 
     {:ok, view, _} = live(conn, ~p"/work")
@@ -258,7 +261,7 @@ defmodule SlipdockWeb.AILiveTest do
       stranger = user_fixture("stranger@example.com")
       theirs = board_fixture(%{"name" => "Theirs"}, owner: stranger)
       secret = card_fixture(hd(theirs.columns), %{"title" => "Secret"})
-      {:ok, _} = Boards.archive_card(card)
+      {:ok, _} = Boards.Cards.archive_card(card)
 
       {:ok, view, _} = live(conn, ~p"/boards/#{board}")
       view |> element("#board-chat") |> render_click()

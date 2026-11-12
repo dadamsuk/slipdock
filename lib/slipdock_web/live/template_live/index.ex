@@ -16,12 +16,12 @@ defmodule SlipdockWeb.TemplateLive.Index do
 
   @impl true
   def mount(_params, _session, socket) do
-    if connected?(socket), do: Boards.subscribe_templates()
+    if connected?(socket), do: Boards.PubSub.subscribe_templates()
     {:ok, socket |> assign(page_title: "Templates", editing: nil) |> load()}
   end
 
   defp load(socket),
-    do: assign(socket, templates: Boards.list_templates(socket.assigns.current_user))
+    do: assign(socket, templates: Boards.Templates.list_templates(socket.assigns.current_user))
 
   @impl true
   def handle_info({:templates_changed}, socket), do: {:noreply, load(socket)}
@@ -37,8 +37,8 @@ defmodule SlipdockWeb.TemplateLive.Index do
   def handle_event("edit", %{"id" => id}, socket) do
     user = socket.assigns.current_user
 
-    with {:ok, template} <- Boards.find_template(user, id),
-         :ok <- Boards.authorize_template(user, template, :write) do
+    with {:ok, template} <- Boards.Templates.find_template(user, id),
+         :ok <- Boards.Templates.authorize_template(user, template, :write) do
       {:noreply, start_editing(socket, template, Enum.map(template.columns, &stringify/1))}
     else
       refused -> {:noreply, refuse(socket, refused)}
@@ -94,8 +94,8 @@ defmodule SlipdockWeb.TemplateLive.Index do
 
     result =
       if editing.template.id,
-        do: Boards.update_template(user, editing.template, attrs),
-        else: Boards.create_template(user, attrs)
+        do: Boards.Templates.update_template(user, editing.template, attrs),
+        else: Boards.Templates.create_template(user, attrs)
 
     case result do
       {:ok, template} ->
@@ -113,8 +113,8 @@ defmodule SlipdockWeb.TemplateLive.Index do
   def handle_event("delete", %{"id" => id}, socket) do
     user = socket.assigns.current_user
 
-    with {:ok, template} <- Boards.find_template(user, id),
-         {:ok, _} <- Boards.delete_template(user, template) do
+    with {:ok, template} <- Boards.Templates.find_template(user, id),
+         {:ok, _} <- Boards.Templates.delete_template(user, template) do
       {:noreply, assign(socket, editing: nil)}
     else
       refused -> {:noreply, refuse(socket, refused)}
@@ -369,7 +369,7 @@ defmodule SlipdockWeb.TemplateLive.Index do
                   <p :if={t.description} class="text-sm text-base-content/60">{t.description}</p>
                 </div>
                 <button
-                  :if={Boards.template_editable?(@current_user, t)}
+                  :if={Boards.Templates.template_editable?(@current_user, t)}
                   type="button"
                   class="btn btn-ghost btn-xs"
                   phx-click="edit"

@@ -25,7 +25,7 @@ defmodule SlipdockWeb.LinksLiveTest do
 
     assert html =~ "Contributes to"
     assert html =~ "Roadmap"
-    assert [%{kind: "contributes"}] = Boards.get_card!(work.id).links_out
+    assert [%{kind: "contributes"}] = Boards.Cards.get_card!(work.id).links_out
 
     {:ok, _gv, html} = live(conn, ~p"/boards/#{roadmap}/cards/#{goal}")
     assert html =~ "Contributions"

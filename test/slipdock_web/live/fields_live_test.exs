@@ -82,7 +82,7 @@ defmodule SlipdockWeb.FieldsLiveTest do
     |> form("#field-form-#{size.id}", %{"field_id" => size.id, "value" => "large"})
     |> render_change()
 
-    card = Boards.get_card!(card.id)
+    card = Boards.Cards.get_card!(card.id)
     assert Fields.value(card, value) == 4.0
     assert Fields.value(card, size) == "large"
     assert Fields.value(card, formula) == 2.0
@@ -102,7 +102,7 @@ defmodule SlipdockWeb.FieldsLiveTest do
     {:ok, view, _} = live(conn, ~p"/boards/#{board}/cards/#{card}")
 
     render_click(card_panel(view), "vote", %{"count" => "2"})
-    assert Slipdock.Boards.Card.vote_total(Boards.get_card!(card.id)) == 2
+    assert Slipdock.Boards.Card.vote_total(Boards.Cards.get_card!(card.id)) == 2
     assert render(view) =~ "0 of 2 left"
 
     render_click(card_panel(view), "vote", %{"count" => "3"})

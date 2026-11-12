@@ -56,7 +56,7 @@ defmodule SlipdockWeb.API.CardControllerTest do
                |> post("/api/cards/#{card.id}/links", %{to: 999_999_999, kind: "relates"})
                |> json_response(404)
 
-      assert Boards.get_card!(card.id).links_out == []
+      assert Boards.Cards.get_card!(card.id).links_out == []
     end
   end
 
@@ -73,7 +73,7 @@ defmodule SlipdockWeb.API.CardControllerTest do
       assert %{"error" => error} = conn |> delete("/api/cards/#{card.id}") |> json_response(403)
       assert error =~ "read-only"
 
-      card = Boards.get_card!(card.id)
+      card = Boards.Cards.get_card!(card.id)
       assert card.comments == []
       assert card.archived_at == nil
     end
@@ -96,13 +96,13 @@ defmodule SlipdockWeb.API.CardControllerTest do
                conn |> patch("/api/cards/#{card.id}", %{title: "Moved"}) |> json_response(403)
 
       assert error =~ "scope"
-      assert Boards.get_card!(card.id).title == "First"
+      assert Boards.Cards.get_card!(card.id).title == "First"
     end
 
     test "cannot list or add cards on a board outside it", %{scoped: conn, board: board} do
       assert conn |> get("/api/boards/cardsapi/cards") |> json_response(403)
       assert conn |> post("/api/boards/cardsapi/cards", %{title: "Sneaky"}) |> json_response(403)
-      refute Enum.any?(Boards.list_cards(board), &(&1.title == "Sneaky"))
+      refute Enum.any?(Boards.Cards.list_cards(board), &(&1.title == "Sneaky"))
     end
   end
 
@@ -118,8 +118,12 @@ defmodule SlipdockWeb.API.CardControllerTest do
         |> Map.fetch!("card")
 
       assert card["archived_at"]
-      refute Enum.any?(Boards.list_cards(board), &(&1.id == card["id"]))
-      assert Enum.any?(Boards.list_cards(board, %{"archived" => "true"}), &(&1.id == card["id"]))
+      refute Enum.any?(Boards.Cards.list_cards(board), &(&1.id == card["id"]))
+
+      assert Enum.any?(
+               Boards.Cards.list_cards(board, %{"archived" => "true"}),
+               &(&1.id == card["id"])
+             )
     end
 
     test "the string \"true\" counts, and \"false\" or leaving it off makes a live card", %{
@@ -217,7 +221,7 @@ defmodule SlipdockWeb.API.CardControllerTest do
       assert card["paths"] == ["lib/x/**", "docs/{a,b}.md"]
       refute card["bar_locked_at"]
 
-      saved = Boards.get_card!(card["id"])
+      saved = Boards.Cards.get_card!(card["id"])
       assert saved.paths == ["lib/x/**", "docs/{a,b}.md"]
       assert saved.bar_locked_at == nil
     end
@@ -359,7 +363,7 @@ defmodule SlipdockWeb.API.CardControllerTest do
 
       assert error =~ ~r/^no tag "nope" on board \S+; its tags are: bug, ux$/
 
-      assert Enum.map(Boards.get_card!(card.id).tags, & &1.name) == ["ux"]
+      assert Enum.map(Boards.Cards.get_card!(card.id).tags, & &1.name) == ["ux"]
     end
 
     test "flags are added and removed without restating the rest", %{conn: conn, card: card} do
@@ -397,7 +401,7 @@ defmodule SlipdockWeb.API.CardControllerTest do
                |> json_response(404)
 
       assert error =~ "Nowhere"
-      assert Boards.get_card!(card.id).column_id == doing.id
+      assert Boards.Cards.get_card!(card.id).column_id == doing.id
     end
 
     test "fields: an unknown field is a 404 and a non-object is a 422", %{
@@ -495,13 +499,13 @@ defmodule SlipdockWeb.API.CardControllerTest do
                conn |> post("/api/cards/#{card.id}/archive") |> json_response(200)
 
       assert archived_at
-      assert Boards.get_card!(card.id).archived_at
+      assert Boards.Cards.get_card!(card.id).archived_at
 
       assert %{"card" => %{"archived_at" => nil}} =
                conn |> post("/api/cards/#{card.id}/restore") |> json_response(200)
 
       assert %{"ok" => true} = conn |> delete("/api/cards/#{card.id}") |> json_response(200)
-      assert Boards.get_card(card.id) == nil
+      assert Boards.Cards.get_card(card.id) == nil
     end
 
     test "listing leaves archived cards out; archived=true lists them alone, all lists both", %{
@@ -510,7 +514,7 @@ defmodule SlipdockWeb.API.CardControllerTest do
       card: card,
       other: other
     } do
-      {:ok, _} = Boards.archive_card(card)
+      {:ok, _} = Boards.Cards.archive_card(card)
 
       ids = fn query ->
         conn
@@ -544,7 +548,7 @@ defmodule SlipdockWeb.API.CardControllerTest do
                conn |> post("/api/cards/#{card.id}/vote", %{count: 99}) |> json_response(422)
 
       assert error =~ "At most"
-      assert Boards.get_card!(card.id) |> Slipdock.Votes.mine(conn_user(conn)) == 0
+      assert Boards.Cards.get_card!(card.id) |> Slipdock.Votes.mine(conn_user(conn)) == 0
     end
 
     test "a count as a string is read as a number", %{conn: conn, card: card} do
@@ -624,7 +628,7 @@ defmodule SlipdockWeb.API.CardControllerTest do
              |> post("/api/cards/#{card.id}/links", %{to: hidden.id, kind: "relates"})
              |> json_response(403)
 
-      assert Boards.get_card!(card.id).links_out == []
+      assert Boards.Cards.get_card!(card.id).links_out == []
     end
   end
 
@@ -648,7 +652,7 @@ defmodule SlipdockWeb.API.CardControllerTest do
                |> post("/api/cards/#{card.id}/status", %{health: "at_risk", body: "slipping"})
                |> json_response(201)
 
-      card = Boards.get_card!(card.id)
+      card = Boards.Cards.get_card!(card.id)
       assert [%{body: "Looks fine"}] = card.comments
       assert [%{text: "Write it"}] = card.checklist_items
     end
@@ -669,7 +673,7 @@ defmodule SlipdockWeb.API.CardControllerTest do
                |> post("/api/cards/#{card.id}/comments", %{body: "Signed"})
                |> json_response(201)
 
-      {:ok, _} = Boards.add_comment(card, "From an automation")
+      {:ok, _} = Boards.Comments.add_comment(card, "From an automation")
 
       %{"card" => %{"comments" => comments}} =
         conn |> get("/api/cards/#{card.id}") |> json_response(200)
@@ -711,10 +715,10 @@ defmodule SlipdockWeb.API.CardControllerTest do
       conn: conn,
       card: card
     } do
-      {:ok, comment} = Boards.add_comment(card, "Typo")
+      {:ok, comment} = Boards.Comments.add_comment(card, "Typo")
 
       assert %{"ok" => true} = conn |> delete("/api/comments/#{comment.id}") |> json_response(200)
-      assert Boards.get_card!(card.id).comments == []
+      assert Boards.Cards.get_card!(card.id).comments == []
 
       for id <- ["999999999", "abc"] do
         assert %{"error" => "item not found"} =
@@ -726,7 +730,7 @@ defmodule SlipdockWeb.API.CardControllerTest do
       card: card,
       board: board
     } do
-      {:ok, url} = Boards.add_card_url(card, %{"url" => "https://example.com"})
+      {:ok, url} = Boards.CardUrls.add_card_url(card, %{"url" => "https://example.com"})
       reader = user_fixture("cards.reader@example.com")
       share_fixture(board, reader, "read")
 
@@ -746,7 +750,7 @@ defmodule SlipdockWeb.API.CardControllerTest do
                |> post("/api/cards/#{card.id}/subboard", %{template: "No Such Template"})
                |> json_response(404)
 
-      assert Boards.get_card!(card.id).sub_board == nil
+      assert Boards.Cards.get_card!(card.id).sub_board == nil
     end
   end
 
@@ -771,7 +775,7 @@ defmodule SlipdockWeb.API.CardControllerTest do
       |> patch("/api/cards/#{card.id}", %{archived: true, title: "Renamed"})
       |> json_response(200)
 
-      reloaded = Boards.get_card!(card.id)
+      reloaded = Boards.Cards.get_card!(card.id)
       assert reloaded.title == "Renamed"
       refute reloaded.archived_at
     end
@@ -781,10 +785,10 @@ defmodule SlipdockWeb.API.CardControllerTest do
       card: card
     } do
       conn |> post("/api/cards/#{card.id}/archive") |> json_response(200)
-      assert Boards.get_card!(card.id).archived_at
+      assert Boards.Cards.get_card!(card.id).archived_at
 
       conn |> post("/api/cards/#{card.id}/restore") |> json_response(200)
-      refute Boards.get_card!(card.id).archived_at
+      refute Boards.Cards.get_card!(card.id).archived_at
     end
   end
 
@@ -853,7 +857,7 @@ defmodule SlipdockWeb.API.CardControllerLimitTest do
   setup %{conn: conn, user: user} do
     board = board_fixture(%{"name" => "Full"}, owner: user)
     card = card_fixture(hd(board.columns), %{"title" => "Archived one"})
-    {:ok, _} = Boards.archive_card(card)
+    {:ok, _} = Boards.Cards.archive_card(card)
 
     {:ok, _} =
       Settings.complete_setup(%{"admin_email" => "admin@example.com", "free_card_limit" => 1})
@@ -871,6 +875,6 @@ defmodule SlipdockWeb.API.CardControllerLimitTest do
 
     assert body["error"] == "card_limit_reached"
     assert body["retryable"] == false
-    assert Boards.get_card!(card.id).archived_at
+    assert Boards.Cards.get_card!(card.id).archived_at
   end
 end

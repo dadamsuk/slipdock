@@ -46,7 +46,7 @@ defmodule SlipdockWeb.MCP.Tools.KeepJobLog do
     with {:ok, id} <- Args.id(args, "job"),
          %Job{} = job <- Runners.get_job(id) || {:error, "no job you can see matches that"},
          %Boards.Card{} = card <-
-           Boards.get_card(job.card_id) || {:error, "no job you can see matches that"},
+           Boards.Cards.get_card(job.card_id) || {:error, "no job you can see matches that"},
          :ok <- Args.refusal(Authorize.card(Args.auth(context), card, :write)),
          {:ok, page, job} <- kept(TranscriptRetention.keep(job, context.user, via: "mcp")) do
       {:ok,

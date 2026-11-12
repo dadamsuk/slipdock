@@ -22,7 +22,7 @@ defmodule Slipdock.Work.TreeTest do
     {:ok, _} = Slipdock.Access.grant(board, dana, "write", owner)
 
     epic = card_fixture(todo, %{"title" => "Epic"})
-    {:ok, t} = Boards.find_template(nil, "Simple")
+    {:ok, t} = Boards.Templates.find_template(nil, "Simple")
     {:ok, sub} = sub_board(epic, t)
     sub = Boards.get_board!(sub.id)
 
@@ -35,7 +35,7 @@ defmodule Slipdock.Work.TreeTest do
 
   defp wait_on(card, by, on) do
     {:ok, wait} =
-      Boards.open_wait(card, agent(by), %{"needs" => "Which region?", "on_user_id" => on.id})
+      Boards.Waits.open_wait(card, agent(by), %{"needs" => "Which region?", "on_user_id" => on.id})
 
     wait
   end
@@ -148,7 +148,7 @@ defmodule Slipdock.Work.TreeTest do
 
   test "deeper levels count under the top epic; for_card reads the epic's tree", ctx do
     mid = sub_card(ctx, "Middle")
-    {:ok, t} = Boards.find_template(nil, "Simple")
+    {:ok, t} = Boards.Templates.find_template(nil, "Simple")
     {:ok, deep} = sub_board(mid, t)
     deep = Boards.get_board!(deep.id)
     leaf = card_fixture(hd(deep.columns), %{"title" => "Leaf"})

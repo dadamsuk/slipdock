@@ -42,7 +42,7 @@ defmodule SlipdockWeb.MCP.SearchToolTest do
 
   test "says what the excerpt is from, and links straight to it", ctx do
     {:ok, comment} =
-      Slipdock.Boards.add_comment(ctx.card, "the refunds rounding is off by a penny")
+      Slipdock.Boards.Comments.add_comment(ctx.card, "the refunds rounding is off by a penny")
 
     {:ok, _} = Search.index_card(ctx.card.id)
 
@@ -71,7 +71,7 @@ defmodule SlipdockWeb.MCP.SearchToolTest do
   end
 
   test "archived cards come back only with archived: true, and say so", ctx do
-    {:ok, _} = Slipdock.Boards.archive_card(ctx.card)
+    {:ok, _} = Slipdock.Boards.Cards.archive_card(ctx.card)
     {:ok, _} = Search.index_card(ctx.card.id)
 
     refute ctx.card.id in ids(search(ctx.conn, %{q: "invoice rounding refunds"}))
@@ -86,7 +86,7 @@ defmodule SlipdockWeb.MCP.SearchToolTest do
   end
 
   test "a card's link finds that card, archived or not; a stranger's finds nothing", ctx do
-    {:ok, _} = Slipdock.Boards.archive_card(ctx.card)
+    {:ok, _} = Slipdock.Boards.Cards.archive_card(ctx.card)
 
     assert ids(
              search(ctx.conn, %{

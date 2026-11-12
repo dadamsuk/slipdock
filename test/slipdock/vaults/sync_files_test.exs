@@ -216,7 +216,12 @@ defmodule Slipdock.Vaults.SyncFilesTest do
 
   test "deleting a board takes its files' bytes with it", %{kb: kb} do
     {:ok, file} = Files.create(kb, %{name: "x.bin"}, source("bytes"))
-    keys = Slipdock.Boards.file_keys(from(b in Slipdock.Boards.Board, where: b.id == ^kb.id))
+
+    keys =
+      Slipdock.Boards.Attachments.file_keys(
+        from(b in Slipdock.Boards.Board, where: b.id == ^kb.id)
+      )
+
     assert file.key in keys
   end
 

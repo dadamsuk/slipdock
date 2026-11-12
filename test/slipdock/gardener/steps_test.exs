@@ -15,7 +15,7 @@ defmodule Slipdock.Gardener.StepsTest do
     %{owner: owner, board: board, todo: todo, doing: doing, done: done, card: card}
   end
 
-  defp card(c), do: Boards.get_card!(c.id)
+  defp card(c), do: Boards.Cards.get_card!(c.id)
 
   test "complete, and reopen to undo", %{card: c, owner: u} do
     {:ok, inverse} = Steps.apply_all([%{"op" => "complete", "card" => c.id}], u)
@@ -40,13 +40,13 @@ defmodule Slipdock.Gardener.StepsTest do
     {:ok, inverse} = Steps.apply_all([%{"op" => "move", "card" => c.id, "column" => done.id}], u)
 
     assert card(c).column_id == done.id
-    assert [{:card, first} | _] = Boards.active_items(done.id)
+    assert [{:card, first} | _] = Boards.Columns.active_items(done.id)
     assert first == c.id
-    assert {:card, other.id} in Boards.active_items(done.id)
+    assert {:card, other.id} in Boards.Columns.active_items(done.id)
 
     assert :ok = Steps.undo_all(inverse, u)
     assert card(c).column_id == todo.id
-    assert [{:card, ^first} | _] = Boards.active_items(todo.id)
+    assert [{:card, ^first} | _] = Boards.Columns.active_items(todo.id)
   end
 
   test "a list on another board is refused", %{card: c, owner: u} do
@@ -98,7 +98,7 @@ defmodule Slipdock.Gardener.StepsTest do
 
   test "unflagging after the flag was taken off by hand refuses", %{card: c, owner: u} do
     {:ok, inverse} = Steps.apply_all([%{"op" => "flag", "card" => c.id, "flag" => "review"}], u)
-    {:ok, _} = Boards.toggle_flag(card(c), "review")
+    {:ok, _} = Boards.Cards.toggle_flag(card(c), "review")
     assert {:error, msg} = Steps.undo_all(inverse, u)
     assert msg =~ "has lost its review flag since"
   end

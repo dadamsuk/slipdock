@@ -9,7 +9,7 @@ defmodule SlipdockWeb.CopyCardAPITest do
     board = board_fixture(%{}, owner: owner)
     [backlog, todo | _] = board.columns
     card = card_fixture(backlog, %{"title" => "Weekly review", "flags" => ["blocked"]})
-    {:ok, _} = Boards.add_checklist_item(card, "Look back")
+    {:ok, _} = Boards.Checklists.add_checklist_item(card, "Look back")
     after_it = card_fixture(backlog, %{"title" => "Next one"})
 
     reader = user_fixture("reader@example.com")
@@ -31,7 +31,7 @@ defmodule SlipdockWeb.CopyCardAPITest do
     assert %{"done" => 0, "items" => [%{"text" => "Look back", "done" => false}]} =
              copy["checklist"]
 
-    ids = ctx.backlog.id |> Boards.active_items() |> Enum.map(fn {:card, id} -> id end)
+    ids = ctx.backlog.id |> Boards.Columns.active_items() |> Enum.map(fn {:card, id} -> id end)
     assert ids == [ctx.card.id, copy["id"], ctx.after_it.id]
   end
 
@@ -49,7 +49,7 @@ defmodule SlipdockWeb.CopyCardAPITest do
 
     assert copy["title"] == "Weekly review (copy)"
     assert copy["column_id"] == ctx.todo.id
-    assert [{:card, top} | _] = Boards.active_items(ctx.todo.id)
+    assert [{:card, top} | _] = Boards.Columns.active_items(ctx.todo.id)
     assert top == copy["id"]
   end
 
@@ -92,7 +92,7 @@ defmodule SlipdockWeb.CopyCardAPITest do
     |> json_response(403)
 
     # Nothing was made either way.
-    assert length(Boards.active_items(ctx.backlog.id)) == 2
+    assert length(Boards.Columns.active_items(ctx.backlog.id)) == 2
   end
 
   test "a reader may copy onto a board of their own", ctx do

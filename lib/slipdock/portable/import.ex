@@ -63,7 +63,7 @@ defmodule Slipdock.Portable.Import do
   that is taken is regenerated, and the report says so.
 
   **Automation rules do not fire.** Cards are inserted directly rather than
-  through `Boards.create_card/2`, because importing four hundred cards through
+  through `Boards.Cards.create_card/2`, because importing four hundred cards through
   the normal path would run every rule on the board four hundred times and
   email somebody about each. Rules are about what happens *here*, and an
   import is history arriving.
@@ -738,7 +738,7 @@ defmodule Slipdock.Portable.Import do
       Repo.insert_all("card_tags", Enum.map(Enum.uniq(tag_ids), &[card_id: card.id, tag_id: &1]))
 
       if column = card.column_id && Repo.get(Column, card.column_id),
-        do: Slipdock.Boards.record_move(card, "created", nil, column, imported_by(user))
+        do: Slipdock.Boards.Moves.record_move(card, "created", nil, column, imported_by(user))
 
       insert_attached!(user, [card_id: card.id], doc, ids)
       insert_handoffs!(user, card, doc)

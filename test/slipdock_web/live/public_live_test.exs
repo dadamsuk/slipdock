@@ -17,7 +17,7 @@ defmodule SlipdockWeb.PublicLiveTest do
       })
 
     gone = card_fixture(todo, %{"title" => "Archived card", "due_date" => "2030-01-21"})
-    {:ok, _} = Boards.archive_card(gone)
+    {:ok, _} = Boards.Cards.archive_card(gone)
 
     other = board_fixture(%{"name" => "Private elsewhere"})
     card_fixture(hd(other.columns), %{"title" => "Secret card"})
@@ -26,8 +26,10 @@ defmodule SlipdockWeb.PublicLiveTest do
   end
 
   defp publish(board, name, config) do
-    {:ok, view} = Boards.create_saved_view(board, %{"name" => name, "config" => config})
-    {:ok, view} = Boards.publish_saved_view(view)
+    {:ok, view} =
+      Boards.SavedViews.create_saved_view(board, %{"name" => name, "config" => config})
+
+    {:ok, view} = Boards.SavedViews.publish_saved_view(view)
     view
   end
 
@@ -62,7 +64,7 @@ defmodule SlipdockWeb.PublicLiveTest do
     } do
       tag = tag_fixture(board, "launch")
       tagged = card_fixture(todo, %{"title" => "Tagged card"})
-      {:ok, _} = Boards.toggle_card_tag(tagged, tag)
+      {:ok, _} = Boards.Tags.toggle_card_tag(tagged, tag)
 
       view = publish(board, "Launch only", %{"mode" => "table", "tags" => [tag.id]})
       {:ok, _lv, html} = live(anon, ~p"/p/#{view.public_token}")
@@ -84,7 +86,7 @@ defmodule SlipdockWeb.PublicLiveTest do
       render_click(lv, "swim_move", %{"id" => to_string(shown.id), "column" => doing.id})
       render_click(lv, "swim_quick_add", %{"title" => "Sneaked in"})
 
-      card = Boards.get_card!(shown.id)
+      card = Boards.Cards.get_card!(shown.id)
       assert card.column_id == shown.column_id
       refute render(lv) =~ "Sneaked in"
 
@@ -102,7 +104,7 @@ defmodule SlipdockWeb.PublicLiveTest do
 
     test "a revoked link stops working", %{board: board, anon: anon} do
       view = publish(board, "Public board", %{"mode" => "board"})
-      {:ok, _} = Boards.unpublish_saved_view(view)
+      {:ok, _} = Boards.SavedViews.unpublish_saved_view(view)
 
       assert {:error, {:redirect, %{to: "/login"}}} = live(anon, ~p"/p/#{view.public_token}")
     end
@@ -111,22 +113,22 @@ defmodule SlipdockWeb.PublicLiveTest do
       view = publish(board, "Public board", %{"mode" => "board"})
       {:ok, lv, _} = live(anon, ~p"/p/#{view.public_token}")
 
-      {:ok, _} = Boards.unpublish_saved_view(view)
+      {:ok, _} = Boards.SavedViews.unpublish_saved_view(view)
 
       assert_redirect(lv, "/login")
     end
 
     test "a deleted view stops working", %{board: board, anon: anon} do
       view = publish(board, "Public board", %{"mode" => "board"})
-      {:ok, _} = Boards.delete_saved_view(view)
+      {:ok, _} = Boards.SavedViews.delete_saved_view(view)
 
       assert {:error, {:redirect, %{to: "/login"}}} = live(anon, ~p"/p/#{view.public_token}")
     end
 
     test "republishing hands out a new link and the old one dies", %{board: board, anon: anon} do
       view = publish(board, "Public board", %{"mode" => "board"})
-      {:ok, _} = Boards.unpublish_saved_view(view)
-      {:ok, again} = Boards.publish_saved_view(view)
+      {:ok, _} = Boards.SavedViews.unpublish_saved_view(view)
+      {:ok, again} = Boards.SavedViews.publish_saved_view(view)
 
       assert again.public_token != view.public_token
       assert {:error, {:redirect, %{to: "/login"}}} = live(anon, ~p"/p/#{view.public_token}")
@@ -145,7 +147,7 @@ defmodule SlipdockWeb.PublicLiveTest do
       {:ok, lv, _} = live(anon, ~p"/p/#{view.public_token}")
 
       card_fixture(todo, %{"title" => "Fresh card"})
-      {:ok, _} = Boards.archive_card(shown)
+      {:ok, _} = Boards.Cards.archive_card(shown)
 
       html = render(lv)
       assert html =~ "Fresh card"
@@ -156,7 +158,7 @@ defmodule SlipdockWeb.PublicLiveTest do
       view = publish(board, "Public board", %{"mode" => "board"})
       {:ok, lv, _} = live(anon, ~p"/p/#{view.public_token}")
 
-      {:ok, _} = Boards.update_saved_view(view, %{"name" => "Renamed view"})
+      {:ok, _} = Boards.SavedViews.update_saved_view(view, %{"name" => "Renamed view"})
 
       assert render(lv) =~ "Renamed view"
     end

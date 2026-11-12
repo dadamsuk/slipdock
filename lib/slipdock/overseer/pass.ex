@@ -277,7 +277,10 @@ defmodule Slipdock.Overseer.Pass do
          %Card{} = card <- Repo.get(Card, job.card_id) do
       body = digest_body(digest)
 
-      Boards.add_status_update(card, nil, %{"health" => digest.health, "body" => body},
+      Boards.StatusUpdates.add_status_update(
+        card,
+        nil,
+        %{"health" => digest.health, "body" => body},
         quiet: true
       )
 

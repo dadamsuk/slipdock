@@ -30,7 +30,7 @@ defmodule SlipdockWeb.API.AttachmentController do
 
   def file(conn, %{"id" => id}) do
     with {:ok, attachment} <- fetch(conn, id) do
-      path = Boards.attachment_path(attachment)
+      path = Boards.Attachments.attachment_path(attachment)
 
       if File.regular?(path) do
         conn

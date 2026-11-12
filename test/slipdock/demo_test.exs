@@ -36,16 +36,16 @@ defmodule Slipdock.DemoTest do
     assert {:ok, board} = Demo.build()
     assert board.name == "Product Launch"
 
-    cards = Boards.list_cards(board)
+    cards = Boards.Cards.list_cards(board)
     assert length(cards) > 10
 
     # An epic with a board of its own.
     epic = Enum.find(cards, &(&1.title == "Self-serve trial sign-up"))
     sub = Repo.get_by!(Board, parent_card_id: epic.id)
-    assert Boards.list_cards(sub) |> length() == 4
+    assert Boards.Cards.list_cards(sub) |> length() == 4
 
     # A dependency, a scoring scheme, a wiki and an automation.
-    notes = Boards.get_card!(Enum.find(cards, &(&1.title == "Write release notes")).id)
+    notes = Boards.Cards.get_card!(Enum.find(cards, &(&1.title == "Write release notes")).id)
     assert [_blocker] = notes.blocked_by
     assert Enum.any?(Fields.list_fields(Board.root_id(board)), &(&1.key == "rice"))
     assert length(Wiki.list_pages(board)) == 2

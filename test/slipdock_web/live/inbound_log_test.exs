@@ -50,7 +50,7 @@ defmodule SlipdockWeb.InboundLogTest do
       [_backlog, todo | _] = board.columns
       card = card_fixture(todo)
       page = page_fixture(board)
-      {:ok, comment} = Boards.add_comment(card, "From mail")
+      {:ok, comment} = Boards.Comments.add_comment(card, "From mail")
 
       log(user, outcome: "accepted", reason: nil, card_id: card.id)
       log(user, outcome: "accepted", reason: nil, page_id: page.id)

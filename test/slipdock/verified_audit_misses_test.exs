@@ -220,7 +220,7 @@ defmodule Slipdock.VerifiedAuditMissesTest do
     test "a rework since accepted still appears", ctx do
       card = disagree(ctx, ctx.doing, "Done since", "bar 2 was skipped", ["bar:2=fail"])
       rework = Verified.open_rework(card)
-      {:ok, _} = Boards.update_card(rework, %{"completed" => true})
+      {:ok, _} = Boards.Cards.update_card(rework, %{"completed" => true})
       refute Verified.open_rework(card)
 
       assert prompt(ctx) =~ "“Audit of ##{card.id}: bar 2 was skipped”"
@@ -230,7 +230,7 @@ defmodule Slipdock.VerifiedAuditMissesTest do
     test "a sub-board's card reads its root's misses", ctx do
       card = disagree(ctx, ctx.doing, "Root work", "the bar dropped a part", ["ask=misses"])
       epic = card_fixture(ctx.doing, %{"title" => "Epic"})
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(epic, t)
       [column | _] = Boards.get_board!(sub.id).columns
 

@@ -183,7 +183,7 @@ defmodule Slipdock.WikiQueryTest do
 
     test "a sub-board's cards come in with `board: tree`", %{board: board, user: user} do
       card = card_fixture(hd(board.columns), %{"title" => "Epic"})
-      {:ok, template} = Boards.find_template(nil, "Simple")
+      {:ok, template} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = Boards.create_sub_board(card, template)
       card_fixture(hd(Boards.get_board!(sub.id).columns), %{"title" => "Subtask"})
 
@@ -196,7 +196,7 @@ defmodule Slipdock.WikiQueryTest do
   describe "one card's tree, and one person's work" do
     test "progress rolls a card's subcards up", %{board: board, user: user} do
       card = card_fixture(hd(board.columns), %{"title" => "Epic"})
-      {:ok, template} = Boards.find_template(nil, "Simple")
+      {:ok, template} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = Boards.create_sub_board(card, template)
       column = hd(Boards.get_board!(sub.id).columns)
       card_fixture(column, %{"title" => "One", "completed" => true})
@@ -207,7 +207,7 @@ defmodule Slipdock.WikiQueryTest do
     end
 
     test "assigned: me is the reader's own work", %{board: board, user: user, cards: cards} do
-      {:ok, _} = Boards.update_card(cards.blocked, %{"assignee_id" => user.id})
+      {:ok, _} = Boards.Cards.update_card(cards.blocked, %{"assignee_id" => user.id})
 
       assert titles(run("view: list\nassigned: me", %{board: board, reader: user})) ==
                ["Blocked and soon"]
@@ -499,7 +499,7 @@ defmodule Slipdock.WikiQueryTest do
 
     test "a saved view is embedded, or named as missing", %{board: board, user: user} do
       {:ok, view} =
-        Boards.create_saved_view(board, %{
+        Boards.SavedViews.create_saved_view(board, %{
           "name" => "Open only",
           "config" => %{"done" => "hide"}
         })
@@ -544,7 +544,7 @@ defmodule Slipdock.WikiQueryTest do
       user: user,
       cards: cards
     } do
-      {:ok, _} = Boards.update_card(cards.blocked, %{"assignee_id" => user.id})
+      {:ok, _} = Boards.Cards.update_card(cards.blocked, %{"assignee_id" => user.id})
       context = %{board: board, reader: user}
       handle = Slipdock.Wiki.Links.handle(user)
 
@@ -579,8 +579,8 @@ defmodule Slipdock.WikiQueryTest do
     } do
       elsewhere = board_fixture(%{"name" => "Elsewhere", "code" => "elsewhere6"}, owner: user)
       away = card_fixture(hd(elsewhere.columns), %{"title" => "Away"})
-      {:ok, _} = Boards.update_card(away, %{"assignee_id" => user.id})
-      {:ok, _} = Boards.update_card(cards.blocked, %{"assignee_id" => user.id})
+      {:ok, _} = Boards.Cards.update_card(away, %{"assignee_id" => user.id})
+      {:ok, _} = Boards.Cards.update_card(cards.blocked, %{"assignee_id" => user.id})
 
       here = titles(run("view: list\nassigned: me", %{board: board, reader: user}))
       assert here == ["Blocked and soon"]
@@ -609,8 +609,8 @@ defmodule Slipdock.WikiQueryTest do
           "completed" => true
         })
 
-      {:ok, _} = Boards.update_card(card, %{"assignee_id" => user.id})
-      {:ok, _} = Boards.toggle_card_tag(card, tag)
+      {:ok, _} = Boards.Cards.update_card(card, %{"assignee_id" => user.id})
+      {:ok, _} = Boards.Tags.toggle_card_tag(card, tag)
 
       card =
         Slipdock.Repo.get!(Slipdock.Boards.Card, card.id)
@@ -788,9 +788,9 @@ defmodule Slipdock.WikiQueryTest do
       context = %{board: board, reader: user}
       later = cards.later
 
-      {:ok, _} = Boards.add_checklist_item(later, "one")
-      {:ok, _} = Boards.add_comment(later, "a note")
-      {:ok, _} = Boards.add_dependency(later, cards.blocked)
+      {:ok, _} = Boards.Checklists.add_checklist_item(later, "one")
+      {:ok, _} = Boards.Comments.add_comment(later, "a note")
+      {:ok, _} = Boards.Dependencies.add_dependency(later, cards.blocked)
 
       assert {:ok, "Queries"} = Query.inline("card:#{later.id}.board", context)
       assert {:ok, "0/1"} = Query.inline("card:#{later.id}.checklist", context)

@@ -651,7 +651,7 @@ defmodule Slipdock.Handbook do
   without one leaves them to the ready list, as before.
   """
   def scheduled_cards(%{"cards" => cards} = blueprint, %Board{} = board) do
-    case Boards.scheduled_column(board) do
+    case Boards.Columns.scheduled_column(board) do
       nil -> blueprint
       column -> %{blueprint | "cards" => Enum.map(cards, &into_list(&1, column.name))}
     end
@@ -947,7 +947,7 @@ defmodule Slipdock.Handbook do
       card.description != @reconcile_description and
         match?(
           {:ok, _},
-          Boards.update_card(card, %{"description" => @reconcile_description}, by: user)
+          Boards.Cards.update_card(card, %{"description" => @reconcile_description}, by: user)
         )
 
     nightly_now =
@@ -988,7 +988,9 @@ defmodule Slipdock.Handbook do
 
     with [_ | _] <- waiting,
          %{completed: false} = seed <- newest_card(root, @seed_title) do
-      for title <- waiting, card = newest_card(root, title), do: Boards.add_dependency(card, seed)
+      for title <- waiting,
+          card = newest_card(root, title),
+          do: Boards.Dependencies.add_dependency(card, seed)
     end
   end
 

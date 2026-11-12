@@ -10,7 +10,7 @@ defmodule SlipdockWeb.BoardLive.Items do
 
   @doc "The live (unarchived) card `card_id`, if it is on `board`, with its state."
   def load_card(board, card_id) do
-    card = Boards.get_card!(card_id)
+    card = Boards.Cards.get_card!(card_id)
 
     if card.board_id == board.id and is_nil(card.archived_at),
       do: {:ok, with_state(card, board)},
@@ -45,14 +45,14 @@ defmodule SlipdockWeb.BoardLive.Items do
 
   @doc """
   The ids a form posts are the browser's to choose, so whoever they name
-  goes through the same gate as the API (`Boards.resolve_assignees/3`):
+  goes through the same gate as the API (`Boards.Cards.resolve_assignees/3`):
   somebody this user can see, who can open `target`.
   """
   def scope_assignees(params, target, user) do
     Enum.reduce_while(~w(assignee_id add_assignee_ids), {:ok, params}, fn key, {:ok, acc} ->
       refs = acc |> Map.get(key) |> List.wrap() |> Enum.reject(&Enum.member?([nil, ""], &1))
 
-      case refs != [] && Boards.resolve_assignees(target, user, refs) do
+      case refs != [] && Boards.Cards.resolve_assignees(target, user, refs) do
         false -> {:cont, {:ok, acc}}
         {:ok, ids} when key == "assignee_id" -> {:cont, {:ok, Map.put(acc, key, hd(ids))}}
         {:ok, ids} -> {:cont, {:ok, Map.put(acc, key, ids)}}

@@ -25,7 +25,7 @@ defmodule SlipdockWeb.CardFinderOpenTest do
     # A completed card far down a long Done list, as #1885 was (position 179).
     for n <- 1..40, do: card_fixture(done, %{"title" => "Shipped #{n}"})
     deep = card_fixture(done, %{"title" => "Deep in Done"})
-    {:ok, deep} = Boards.update_card(deep, %{"completed" => true})
+    {:ok, deep} = Boards.Cards.update_card(deep, %{"completed" => true})
 
     %{board: board, doing: doing, deep: deep}
   end
@@ -73,8 +73,11 @@ defmodule SlipdockWeb.CardFinderOpenTest do
       assert_patch(view, ~p"/boards/#{ctx.board}/cards/#{card}?density=compact")
 
       # The runner writes while it is open: a comment, a handoff, a step.
-      {:ok, _} = Boards.add_comment(card, "Building it now.", by: nil)
-      {:ok, _} = Boards.leave_handoff(card, nil, %{next_step: "Tests next", via: "runner"})
+      {:ok, _} = Boards.Comments.add_comment(card, "Building it now.", by: nil)
+
+      {:ok, _} =
+        Boards.Handoffs.leave_handoff(card, nil, %{next_step: "Tests next", via: "runner"})
+
       {:ok, :ok} = Runners.heartbeat(runner, job.id)
 
       assert card_open?(view, card)
@@ -124,7 +127,7 @@ defmodule SlipdockWeb.CardFinderOpenTest do
 
     test "a flash the mount put survives the patch", ctx do
       # Opening an archived card's address says so, in the board's archive.
-      {:ok, archived} = Boards.archive_card(card_fixture(ctx.doing, %{"title" => "Gone"}))
+      {:ok, archived} = Boards.Cards.archive_card(card_fixture(ctx.doing, %{"title" => "Gone"}))
 
       {:ok, view, _} =
         ctx.conn

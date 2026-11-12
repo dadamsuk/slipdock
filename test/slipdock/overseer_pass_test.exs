@@ -103,7 +103,9 @@ defmodule Slipdock.OverseerPassTest do
       epic = card_fixture(ctx.doing)
 
       {:ok, sub} =
-        Boards.create_sub_board(epic, hd(Boards.list_templates(nil)), code: unique_code())
+        Boards.create_sub_board(epic, hd(Boards.Templates.list_templates(nil)),
+          code: unique_code()
+        )
 
       {:ok, _} = Overseer.put_settings(Repo.get!(Board, sub.id), %{"enabled" => true})
       assert Overseer.settings(ctx.board).enabled
@@ -120,9 +122,9 @@ defmodule Slipdock.OverseerPassTest do
           "description" => "SECRET-DESCRIPTION do not read"
         })
 
-      {:ok, _} = Boards.add_comment(card, "SECRET-COMMENT", by: ctx.owner)
+      {:ok, _} = Boards.Comments.add_comment(card, "SECRET-COMMENT", by: ctx.owner)
       working_job_fixture(card, %{status: "running", log_tail: "SECRET-LOG", step: "SECRET-STEP"})
-      {:ok, _} = Boards.open_wait(card, Actor.web(ctx.owner), %{"needs" => "SECRET-WAIT"})
+      {:ok, _} = Boards.Waits.open_wait(card, Actor.web(ctx.owner), %{"needs" => "SECRET-WAIT"})
 
       Overseer.Watch.run(root(ctx), Repo.reload!(settings))
       inputs = Pass.inputs(root(ctx), Repo.reload!(settings))
@@ -146,7 +148,7 @@ defmodule Slipdock.OverseerPassTest do
     test "the watch's conditions are in it, with why and what to do", ctx do
       settings = on(ctx)
       card = card_fixture(ctx.doing, %{"title" => "Waiting on you"})
-      {:ok, _} = Boards.open_wait(card, Actor.web(ctx.owner), %{"needs" => "Which?"})
+      {:ok, _} = Boards.Waits.open_wait(card, Actor.web(ctx.owner), %{"needs" => "Which?"})
       %{fired: [condition]} = Overseer.Watch.run(root(ctx), Repo.reload!(settings))
 
       prompt = ctx |> root() |> Pass.inputs(Repo.reload!(settings)) |> Pass.prompt()
@@ -258,7 +260,7 @@ defmodule Slipdock.OverseerPassTest do
       assert settings.last_health == "at_risk"
       assert settings.last_digest =~ "#2040 took 3 rounds"
       # The overseer's card is done: a pass leaves no handoff on it.
-      refute Boards.current_handoff(settings.card_id)
+      refute Boards.Handoffs.current_handoff(settings.card_id)
     end
 
     test "an answer with no digest leaves nothing" do

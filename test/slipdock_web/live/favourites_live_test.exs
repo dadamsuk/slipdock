@@ -111,7 +111,10 @@ defmodule SlipdockWeb.FavouritesLiveTest do
     todo = Enum.at(board.columns, 1)
 
     {:ok, view} =
-      Boards.create_saved_view(board, %{"name" => "By tag", "config" => %{"rows" => "tag"}})
+      Boards.SavedViews.create_saved_view(board, %{
+        "name" => "By tag",
+        "config" => %{"rows" => "tag"}
+      })
 
     for {kind, id} <- [{:board, board.id}, {:column, todo.id}, {:card, card.id}, {:view, view.id}],
         do: {:ok, :added} = Favourites.toggle(user, kind, id)

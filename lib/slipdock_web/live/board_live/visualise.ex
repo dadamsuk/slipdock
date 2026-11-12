@@ -42,7 +42,7 @@ defmodule SlipdockWeb.BoardLive.Visualise do
       board = Repo.preload(board, [:saved_views])
 
       if connected?(socket) do
-        Boards.subscribe(board.id)
+        Boards.PubSub.subscribe(board.id)
         Slipdock.Runners.subscribe_board(board.id)
         Phoenix.PubSub.subscribe(Slipdock.PubSub, Slipdock.Deployments.topic(board))
       end
@@ -197,7 +197,7 @@ defmodule SlipdockWeb.BoardLive.Visualise do
       tags:
         board
         |> Board.root_id()
-        |> Boards.list_tags()
+        |> Boards.Tags.list_tags()
         |> Enum.map(&%{tag: &1, count: Map.get(counts, &1.id, 0)})
         |> Enum.sort_by(&{-&1.count, String.downcase(&1.tag.name)})
     }

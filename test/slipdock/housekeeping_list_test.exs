@@ -35,13 +35,13 @@ defmodule Slipdock.HousekeepingListTest do
   end
 
   defp housekeeping(board) do
-    {:ok, col} = Boards.create_column(board, %{"name" => "Housekeeping"})
+    {:ok, col} = Boards.Columns.create_column(board, %{"name" => "Housekeeping"})
     col
   end
 
   defp scheduled(board) do
     {:ok, col} =
-      Boards.create_column(board, %{"name" => "Scheduled", "category" => "scheduled"})
+      Boards.Columns.create_column(board, %{"name" => "Scheduled", "category" => "scheduled"})
 
     col
   end
@@ -88,20 +88,23 @@ defmodule Slipdock.HousekeepingListTest do
     test "a new list called Housekeeping takes it; one given a category keeps that", ctx do
       assert housekeeping(ctx.board).category == "housekeeping"
 
-      {:ok, col} = Boards.create_column(ctx.board, %{"name" => " housekeeping "})
+      {:ok, col} = Boards.Columns.create_column(ctx.board, %{"name" => " housekeeping "})
       assert col.category == "housekeeping"
 
       {:ok, col} =
-        Boards.create_column(ctx.board, %{"name" => "Housekeeping", "category" => "triage"})
+        Boards.Columns.create_column(ctx.board, %{
+          "name" => "Housekeeping",
+          "category" => "triage"
+        })
 
       assert col.category == "triage"
 
-      {:ok, col} = Boards.create_column(ctx.board, %{"name" => "Chores"})
+      {:ok, col} = Boards.Columns.create_column(ctx.board, %{"name" => "Chores"})
       assert col.category == nil
 
       # A form sends a blank category for none.
       {:ok, col} =
-        Boards.create_column(ctx.board, %{"name" => "Housekeeping", "category" => ""})
+        Boards.Columns.create_column(ctx.board, %{"name" => "Housekeeping", "category" => ""})
 
       assert col.category == "housekeeping"
     end
@@ -155,10 +158,10 @@ defmodule Slipdock.HousekeepingListTest do
          ctx do
       feed(ctx.board, "To Do")
       scheduled(ctx.board)
-      {:ok, col} = Boards.create_column(ctx.board, %{"name" => "Chores"})
+      {:ok, col} = Boards.Columns.create_column(ctx.board, %{"name" => "Chores"})
       assert feeds_on(ctx.board, "Chores") == []
 
-      {:ok, _} = Boards.update_column(col, %{"category" => "housekeeping"})
+      {:ok, _} = Boards.Columns.update_column(col, %{"category" => "housekeeping"})
 
       assert [%{spec: %{"trigger" => %{"backfill" => true}}}] = feeds_on(ctx.board, "Chores")
       assert [scheduled] = feeds_on(ctx.board, "Scheduled")
@@ -244,7 +247,7 @@ defmodule Slipdock.HousekeepingListTest do
       assert open_cards(ctx.sibling) == []
 
       # Once To Do has nothing more to send, Housekeeping goes.
-      {:ok, _} = Boards.update_card(second, %{"flags" => ["blocked"]})
+      {:ok, _} = Boards.Cards.update_card(second, %{"flags" => ["blocked"]})
       refute Automations.yielding?(ctx.sibling)
       assert open_cards(ctx.sibling) == [chore.id]
     end
@@ -257,7 +260,7 @@ defmodule Slipdock.HousekeepingListTest do
     for flag <- ["blocked", "waiting"] do
       test "a To Do card flagged #{flag} doesn't count", ctx do
         card = card_fixture(ctx.todo, %{"title" => "Stuck"})
-        {:ok, _} = Boards.update_card(card, %{"flags" => [unquote(flag)]})
+        {:ok, _} = Boards.Cards.update_card(card, %{"flags" => [unquote(flag)]})
         # The To Do feed had sent it before the flag; that job ends.
         Repo.update_all(from(j in Job, where: j.card_id == ^card.id), set: [status: "cancelled"])
 
@@ -270,8 +273,8 @@ defmodule Slipdock.HousekeepingListTest do
     test "a To Do card waiting on an unfinished card doesn't count", ctx do
       blocker = card_fixture(ctx.backlog, %{"title" => "First"})
       waiting = card_fixture(ctx.backlog, %{"title" => "Then"})
-      {:ok, _} = Boards.add_dependency(waiting, blocker)
-      assert :ok = Boards.move_card_to_index(Repo.get!(Card, waiting.id), ctx.todo, :top)
+      {:ok, _} = Boards.Dependencies.add_dependency(waiting, blocker)
+      assert :ok = Boards.Cards.move_card_to_index(Repo.get!(Card, waiting.id), ctx.todo, :top)
 
       chore = card_fixture(ctx.housekeeping, %{"title" => "Chore"})
       assert open_cards(ctx.todo_feed) == []
@@ -281,12 +284,12 @@ defmodule Slipdock.HousekeepingListTest do
     test "a To Do card its lane holds doesn't count", ctx do
       {:ok, _} = Boards.update_board(ctx.board, %{"lanes" => true})
       running = card_fixture(ctx.doing, %{"title" => "Running"})
-      {:ok, _} = Boards.update_card(running, %{"paths" => "lib/**"})
+      {:ok, _} = Boards.Cards.update_card(running, %{"paths" => "lib/**"})
       working_job_fixture(running)
 
       held = card_fixture(ctx.backlog, %{"title" => "Held"})
-      {:ok, held} = Boards.update_card(held, %{"paths" => "lib/a.ex"})
-      assert :ok = Boards.move_card_to_index(held, ctx.todo, :top)
+      {:ok, held} = Boards.Cards.update_card(held, %{"paths" => "lib/a.ex"})
+      assert :ok = Boards.Cards.move_card_to_index(held, ctx.todo, :top)
 
       chore = card_fixture(ctx.housekeeping, %{"title" => "Chore"})
       assert open_cards(ctx.todo_feed) == []
@@ -325,8 +328,8 @@ defmodule Slipdock.HousekeepingListTest do
 
       mine = card_fixture(ctx.backlog, %{"title" => "Mine"})
       later = card_fixture(ctx.backlog, %{"title" => "Mine too"})
-      assert :ok = Boards.move_card_to_index(mine, ctx.todo, :top)
-      assert :ok = Boards.move_card_to_index(later, ctx.todo, :bottom)
+      assert :ok = Boards.Cards.move_card_to_index(mine, ctx.todo, :top)
+      assert :ok = Boards.Cards.move_card_to_index(later, ctx.todo, :bottom)
       # Sent at once, beside the chore already running, which is never stopped.
       assert open_cards(ctx.todo_feed) == [mine.id]
       assert open_cards(ctx.sibling) == [first.id]
@@ -384,19 +387,19 @@ defmodule Slipdock.HousekeepingListTest do
     test "a queued job its lane holds isn't swapped for the next chore while To Do has work",
          ctx do
       held = card_fixture(ctx.housekeeping, %{"title" => "Held"})
-      {:ok, _} = Boards.update_card(held, %{"paths" => "lib/a.ex"})
+      {:ok, _} = Boards.Cards.update_card(held, %{"paths" => "lib/a.ex"})
       assert open_cards(ctx.sibling) == [held.id]
 
       # Now a card in progress holds its lane.
       {:ok, _} = Boards.update_board(ctx.board, %{"lanes" => true})
       running = card_fixture(ctx.doing, %{"title" => "Running"})
-      {:ok, _} = Boards.update_card(running, %{"paths" => "lib/**"})
+      {:ok, _} = Boards.Cards.update_card(running, %{"paths" => "lib/**"})
       working_job_fixture(running)
 
       first = card_fixture(ctx.todo, %{"title" => "Mine"})
       card_fixture(ctx.todo, %{"title" => "Mine too"})
       free = card_fixture(ctx.housekeeping, %{"title" => "Free"})
-      {:ok, _} = Boards.update_card(free, %{"paths" => "docs/**"})
+      {:ok, _} = Boards.Cards.update_card(free, %{"paths" => "docs/**"})
 
       assert open_cards(ctx.todo_feed) == [first.id]
       # To Do still has a card it could send: the held chore keeps its job.

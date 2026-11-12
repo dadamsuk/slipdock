@@ -19,7 +19,7 @@ defmodule SlipdockWeb.Components.CardIdTest do
     [todo | _] = board.columns
     plain = card_fixture(todo, %{"title" => "Plain card"})
     tagged = card_fixture(todo, %{"title" => "Tagged card"})
-    {:ok, _} = Boards.set_card_tags(tagged, [tag_fixture(board, "Design")])
+    {:ok, _} = Boards.Cards.set_card_tags(tagged, [tag_fixture(board, "Design")])
     %{board: board, todo: todo, plain: plain, tagged: tagged, user: user}
   end
 

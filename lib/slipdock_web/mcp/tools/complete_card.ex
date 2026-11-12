@@ -137,7 +137,7 @@ defmodule SlipdockWeb.MCP.Tools.CompleteCard do
   defp comment(_card, nil, _user), do: :ok
 
   defp comment(card, body, user) do
-    with {:ok, _} <- Args.refusal(Boards.add_comment(card, body, by: user)), do: :ok
+    with {:ok, _} <- Args.refusal(Boards.Comments.add_comment(card, body, by: user)), do: :ok
   end
 
   defp done_list(card) do

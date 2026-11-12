@@ -54,8 +54,8 @@ defmodule SlipdockWeb.MCP.Tools.MoveCard do
          {:ok, board} <- Args.refusal(Authorize.fetch_board(auth, ref, :write)),
          {:ok, column} <- Args.refusal(CardWrites.resolve_column(board, column_ref)),
          {:ok, _summary} <-
-           Args.refusal(Boards.move_card_to_board(card, column, actor: Actor.mcp(context))) do
-      {:ok, Tools.card_written(Boards.get_card!(card.id), context.base_url)}
+           Args.refusal(Boards.Moves.move_card_to_board(card, column, actor: Actor.mcp(context))) do
+      {:ok, Tools.card_written(Boards.Cards.get_card!(card.id), context.base_url)}
     end
   end
 
@@ -70,8 +70,10 @@ defmodule SlipdockWeb.MCP.Tools.MoveCard do
          board = Boards.get_board!(card.board_id),
          {:ok, column} <- Args.refusal(CardWrites.resolve_column(board, ref || card.column_id)),
          :ok <-
-           Args.refusal(Boards.move_card_to_index(card, column, index, actor: Actor.mcp(context))) do
-      {:ok, Tools.card_written(Boards.get_card!(card.id), context.base_url)}
+           Args.refusal(
+             Boards.Cards.move_card_to_index(card, column, index, actor: Actor.mcp(context))
+           ) do
+      {:ok, Tools.card_written(Boards.Cards.get_card!(card.id), context.base_url)}
     end
   end
 

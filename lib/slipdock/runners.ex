@@ -383,7 +383,7 @@ defmodule Slipdock.Runners do
         nil
 
       card ->
-        ids = [card.id | Boards.ancestor_card_ids(card)]
+        ids = [card.id | Boards.Cards.ancestor_card_ids(card)]
 
         jobs =
           from(j in Job,
@@ -917,14 +917,14 @@ defmodule Slipdock.Runners do
           {:ok, pause} ->
             pause = Repo.preload(pause, :paused_by)
 
-            Boards.log_activity(
+            Boards.ActivityLog.log_activity(
               root_id,
               nil,
               "runner",
               "#{Pause.who(pause)} paused #{Pause.scope(pause)}: #{pause.reason}"
             )
 
-            Boards.broadcast_tree(root_id)
+            Boards.PubSub.broadcast_tree(root_id)
             {:ok, pause}
 
           error ->
@@ -951,14 +951,14 @@ defmodule Slipdock.Runners do
         |> Ecto.Changeset.change(resumed_at: now(), resumed_by_id: user && user.id)
         |> Repo.update()
 
-      Boards.log_activity(
+      Boards.ActivityLog.log_activity(
         root_id,
         nil,
         "runner",
         "#{user_name(user)} resumed #{Pause.scope(pause)}"
       )
 
-      Boards.broadcast_tree(root_id)
+      Boards.PubSub.broadcast_tree(root_id)
       release(root_id)
       {:ok, pause}
     else
@@ -1208,7 +1208,7 @@ defmodule Slipdock.Runners do
       # The card goes to its board's doing list on claim (#2633).
       moved = ClaimMove.move(claimed, runner)
 
-      Boards.log_activity(
+      Boards.ActivityLog.log_activity(
         claimed.board_id,
         claimed.card_id,
         "runner",
@@ -1230,7 +1230,7 @@ defmodule Slipdock.Runners do
           :ok
 
         card ->
-          Boards.infer_profile(
+          Boards.Cards.infer_profile(
             card,
             Slipdock.Actor.runner(runner.created_by_id, job.id, runner.name)
           )
@@ -1522,7 +1522,7 @@ defmodule Slipdock.Runners do
   end
 
   defp after_end(runner, job, status) do
-    Boards.log_activity(
+    Boards.ActivityLog.log_activity(
       job.board_id,
       job.card_id,
       "runner",
@@ -1559,8 +1559,8 @@ defmodule Slipdock.Runners do
     case Repo.get(Slipdock.Boards.Card, job.card_id) do
       %{completed: false, verify_state: state} = card
       when state not in ["merging", "held", "accepted"] ->
-        unless Boards.handoff_written_since?(card.id, since) do
-          Boards.leave_handoff(card, nil, handoff_attrs(job, runner, status))
+        unless Boards.Handoffs.handoff_written_since?(card.id, since) do
+          Boards.Handoffs.leave_handoff(card, nil, handoff_attrs(job, runner, status))
         end
 
       _ ->
@@ -1773,7 +1773,7 @@ defmodule Slipdock.Runners do
 
       open_linked_wait(job) ->
         if settle(job, %{status: "parked", finished_at: now, lease_expires_at: nil}) do
-          Boards.log_activity(
+          Boards.ActivityLog.log_activity(
             job.board_id,
             job.card_id,
             "runner",
@@ -1861,9 +1861,9 @@ defmodule Slipdock.Runners do
         :ok
 
       card ->
-        Boards.update_card(card, %{"flags" => Enum.uniq(card.flags ++ ["flagged"])})
+        Boards.Cards.update_card(card, %{"flags" => Enum.uniq(card.flags ++ ["flagged"])})
 
-        Boards.add_comment(
+        Boards.Comments.add_comment(
           card,
           "Runner job ##{job.id} (pool #{job.pool}, #{job.kind}) failed: no runner finished it " <>
             "after #{job.attempts} tries. Check the runner is running, then send the card again."
@@ -2137,9 +2137,13 @@ defmodule Slipdock.Runners do
           limit: 1,
           preload: [:on_user, :opened_by, :closed_by]
         )
-      ) || Boards.current_wait(job.card_id)
+      ) || Boards.Waits.current_wait(job.card_id)
 
-    %{wait: wait, handoff: Boards.current_handoff(job.card_id), profile: job_profile(job)}
+    %{
+      wait: wait,
+      handoff: Boards.Handoffs.current_handoff(job.card_id),
+      profile: job_profile(job)
+    }
   end
 
   @doc """

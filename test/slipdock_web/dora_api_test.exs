@@ -155,7 +155,7 @@ defmodule SlipdockWeb.DoraAPITest do
     board = turn_on(board)
     deploy!(board)
     viewer = user_fixture("dora-viewer#{System.unique_integer([:positive])}@example.com")
-    {:ok, saved} = Boards.create_saved_view(board, %{"name" => "Everything"})
+    {:ok, saved} = Boards.SavedViews.create_saved_view(board, %{"name" => "Everything"})
     {:ok, _} = Slipdock.Access.grant(saved, viewer, "read", user)
     conn = log_in_user(build_conn(), viewer)
 

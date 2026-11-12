@@ -105,14 +105,14 @@ defmodule Slipdock.AccessTest do
     assert Access.card_permission(ctx.other, ctx.card) == :write
 
     # A sub-board inside a granted card inherits the card's permission.
-    {:ok, t} = Boards.find_template(nil, "Simple")
+    {:ok, t} = Boards.Templates.find_template(nil, "Simple")
     {:ok, sub} = sub_board(ctx.card, t)
     assert Access.board_permission(ctx.other, sub) == :write
   end
 
   test "view grants open the board only through that view", ctx do
     {:ok, view} =
-      Boards.create_saved_view(ctx.board, %{
+      Boards.SavedViews.create_saved_view(ctx.board, %{
         "name" => "Mine",
         "config" => Config.to_map(%Config{q: "secret"})
       })
@@ -134,7 +134,7 @@ defmodule Slipdock.AccessTest do
     hidden = card_fixture(hd(ctx.board.columns), %{"title" => "Payroll"})
 
     {:ok, view} =
-      Boards.create_saved_view(ctx.board, %{
+      Boards.SavedViews.create_saved_view(ctx.board, %{
         "name" => "Secrets",
         "config" => Config.to_map(%Config{q: "secret"})
       })
@@ -148,7 +148,7 @@ defmodule Slipdock.AccessTest do
     refute Access.view_shows_card?(nil, ctx.card)
 
     # An archived card is gone from every view.
-    {:ok, archived} = Boards.archive_card(ctx.card)
+    {:ok, archived} = Boards.Cards.archive_card(ctx.card)
     refute Access.view_shows_card?(ctx.other, archived)
 
     # A view on another board is no way into this one's cards.
@@ -198,7 +198,7 @@ defmodule Slipdock.AccessTest do
       assert Access.card_permission(ctx.other, ctx.card) == :comment
       assert Access.filter_readable_cards(ctx.other, [ctx.card]) == [ctx.card]
 
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(ctx.card, t)
       assert Access.board_permission(ctx.other, sub) == :comment
     end
@@ -224,7 +224,7 @@ defmodule Slipdock.AccessTest do
     # POST /api/device takes any board id, a sub-board's included, so a token
     # can name the sub-board itself rather than the root above it.
     test "a token scoped to a sub-board's own id reaches that sub-board", ctx do
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(ctx.card, t)
       other = board_fixture(%{"name" => "Elsewhere"}, owner: ctx.owner)
 

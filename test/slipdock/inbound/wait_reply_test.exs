@@ -26,7 +26,11 @@ defmodule Slipdock.Inbound.WaitReplyTest do
 
   defp open(ctx, attrs) do
     {:ok, wait} =
-      Boards.open_wait(ctx.card, Actor.web(ctx.owner), Map.put(attrs, :on_user_id, ctx.dee.id))
+      Boards.Waits.open_wait(
+        ctx.card,
+        Actor.web(ctx.owner),
+        Map.put(attrs, :on_user_id, ctx.dee.id)
+      )
 
     wait
   end
@@ -87,11 +91,14 @@ defmodule Slipdock.Inbound.WaitReplyTest do
     end
 
     test "nobody is emailed for a wait on anyone, or on the asker", ctx do
-      {:ok, w} = Boards.open_wait(ctx.card, Actor.web(ctx.owner), %{needs: "Anyone?"})
-      {:ok, _} = Boards.answer_wait(w, Actor.web(ctx.owner), %{answer: "x"})
+      {:ok, w} = Boards.Waits.open_wait(ctx.card, Actor.web(ctx.owner), %{needs: "Anyone?"})
+      {:ok, _} = Boards.Waits.answer_wait(w, Actor.web(ctx.owner), %{answer: "x"})
 
       {:ok, _} =
-        Boards.open_wait(ctx.card, Actor.web(ctx.owner), %{needs: "Me?", on_user_id: ctx.owner.id})
+        Boards.Waits.open_wait(ctx.card, Actor.web(ctx.owner), %{
+          needs: "Me?",
+          on_user_id: ctx.owner.id
+        })
 
       refute_email_sent()
     end

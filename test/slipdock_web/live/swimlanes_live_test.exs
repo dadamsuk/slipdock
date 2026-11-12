@@ -20,7 +20,7 @@ defmodule SlipdockWeb.SwimlanesLiveTest do
         "due_date" => "2030-01-15"
       })
 
-    Boards.toggle_card_tag(a, bug)
+    Boards.Tags.toggle_card_tag(a, bug)
     %{board: reload(board), a: a, b: b, bug: bug, backlog: backlog, todo: todo}
   end
 
@@ -104,7 +104,7 @@ defmodule SlipdockWeb.SwimlanesLiveTest do
       "before" => nil
     })
 
-    card = Boards.get_card!(a.id)
+    card = Boards.Cards.get_card!(a.id)
     assert card.priority == "critical"
     assert card.column_id == todo.id
   end
@@ -121,7 +121,7 @@ defmodule SlipdockWeb.SwimlanesLiveTest do
       live(conn, ~p"/boards/#{board}/swimlanes?rows=created&cols=none&unit=year&empty=show")
 
     render_hook(view, "swim_move", %{"id" => to_string(a.id), "from" => "0:0", "to" => "0:0"})
-    assert Boards.get_card!(a.id).priority == "high"
+    assert Boards.Cards.get_card!(a.id).priority == "high"
   end
 
   test "quick add inside a cell sets the axis attributes", %{conn: conn, board: board, todo: todo} do
@@ -149,7 +149,7 @@ defmodule SlipdockWeb.SwimlanesLiveTest do
     |> render_change()
 
     view |> form("form[phx-submit=swim_save_view]", %{"name" => "By tag"}) |> render_submit()
-    [saved] = Boards.list_saved_views(board.id)
+    [saved] = Boards.SavedViews.list_saved_views(board.id)
     assert Config.from_map(saved.config) == %Config{rows: "tag", sort: "title"}
     assert_patch(view, ~p"/boards/#{board}/swimlanes?view=#{saved.id}")
     assert render(view) =~ "By tag"
@@ -165,21 +165,21 @@ defmodule SlipdockWeb.SwimlanesLiveTest do
 
     view |> element("button[title='Save these settings to the view']") |> render_click()
     assert_patch(view, ~p"/boards/#{board}/swimlanes?view=#{saved.id}")
-    assert Config.from_map(Boards.get_saved_view!(saved.id).config).sort == "due_date"
+    assert Config.from_map(Boards.SavedViews.get_saved_view!(saved.id).config).sort == "due_date"
     refute render(view) =~ "modified"
 
     view |> form("form[phx-submit=swim_rename_view]", %{"name" => "Renamed"}) |> render_submit()
-    assert Boards.get_saved_view!(saved.id).name == "Renamed"
+    assert Boards.SavedViews.get_saved_view!(saved.id).name == "Renamed"
     assert render(view) =~ "Renamed"
 
     view |> element("button[phx-click=swim_delete_view]") |> render_click()
     assert_patch(view, ~p"/boards/#{board}/swimlanes?rows=tag&sort=due_date")
-    assert Boards.list_saved_views(board.id) == []
+    assert Boards.SavedViews.list_saved_views(board.id) == []
   end
 
   test "favourite views are listed in the view switcher", %{conn: conn, board: board, user: user} do
     {:ok, saved} =
-      Boards.create_saved_view(board, %{
+      Boards.SavedViews.create_saved_view(board, %{
         "name" => "By tag",
         "config" => %{"mode" => "swimlanes", "rows" => "tag"}
       })
@@ -208,7 +208,7 @@ defmodule SlipdockWeb.SwimlanesLiveTest do
     board: board
   } do
     {:ok, saved} =
-      Boards.create_saved_view(board, %{
+      Boards.SavedViews.create_saved_view(board, %{
         "name" => "By tag",
         "config" => %{"mode" => "swimlanes", "rows" => "tag"}
       })

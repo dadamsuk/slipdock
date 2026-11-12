@@ -29,7 +29,7 @@ defmodule Slipdock.WikiPlacementTest do
     }
   end
 
-  defp order(column), do: Boards.active_items(column.id)
+  defp order(column), do: Boards.Columns.active_items(column.id)
 
   describe "placing" do
     test "puts a page at the end of a list, and takes it off again", %{
@@ -82,10 +82,10 @@ defmodule Slipdock.WikiPlacementTest do
       assert order(todo) == [page: page.id, card: one.id, card: two.id]
 
       # The drag sends `page-<id>` back, which is what the board reads.
-      Boards.move_card(two.id, todo.id, "page-#{page.id}")
+      Boards.Cards.move_card(two.id, todo.id, "page-#{page.id}")
       assert order(todo) == [card: two.id, page: page.id, card: one.id]
 
-      Boards.move_card(two.id, todo.id, nil)
+      Boards.Cards.move_card(two.id, todo.id, nil)
       assert order(todo) == [page: page.id, card: one.id, card: two.id]
     end
 
@@ -107,8 +107,8 @@ defmodule Slipdock.WikiPlacementTest do
 
       # Positions close up rather than leaving gaps behind.
       assert Enum.map(Boards.get_board!(board.id).columns, & &1.id) != []
-      assert Boards.get_card!(one.id).position == 0
-      assert Boards.get_card!(two.id).position == 1
+      assert Boards.Cards.get_card!(one.id).position == 0
+      assert Boards.Cards.get_card!(two.id).position == 1
     end
 
     test "refuses a list on another board", %{board: board, user: user} do
@@ -135,7 +135,7 @@ defmodule Slipdock.WikiPlacementTest do
       # "Second from the top" is what the reader sees, not what the cards
       # table says: index 1 is the page's slot.
       three = card_fixture(todo, %{"title" => "Three"})
-      :ok = Boards.move_card_to_index(three, todo, 1)
+      :ok = Boards.Cards.move_card_to_index(three, todo, 1)
 
       assert order(todo) == [card: one.id, card: three.id, page: page.id, card: two.id]
     end
@@ -182,7 +182,7 @@ defmodule Slipdock.WikiPlacementTest do
       {:ok, page} = Wiki.create_page(board, %{"title" => "The spec"}, user: user)
       {:ok, _} = Wiki.place(page, todo)
 
-      {:ok, _} = Boards.delete_column(Boards.get_column!(todo.id))
+      {:ok, _} = Boards.Columns.delete_column(Boards.Columns.get_column!(todo.id))
 
       assert %Page{column_id: nil} = Wiki.get_page!(page.id)
       assert [%{page: %{title: "The spec"}}] = Wiki.tree(board)
@@ -191,14 +191,14 @@ defmodule Slipdock.WikiPlacementTest do
 
   describe "reading a drag" do
     test "tells a card from a page, and refuses nonsense" do
-      assert Boards.item_ref("12") == {:card, 12}
-      assert Boards.item_ref(12) == {:card, 12}
-      assert Boards.item_ref("page-7") == {:page, 7}
-      assert Boards.item_ref({:page, 7}) == {:page, 7}
-      assert Boards.item_ref("") == nil
-      assert Boards.item_ref(nil) == nil
-      assert Boards.item_ref("page-") == nil
-      assert Boards.item_ref("nonsense") == nil
+      assert Boards.Columns.item_ref("12") == {:card, 12}
+      assert Boards.Columns.item_ref(12) == {:card, 12}
+      assert Boards.Columns.item_ref("page-7") == {:page, 7}
+      assert Boards.Columns.item_ref({:page, 7}) == {:page, 7}
+      assert Boards.Columns.item_ref("") == nil
+      assert Boards.Columns.item_ref(nil) == nil
+      assert Boards.Columns.item_ref("page-") == nil
+      assert Boards.Columns.item_ref("nonsense") == nil
     end
   end
 end

@@ -16,7 +16,7 @@ defmodule Slipdock.RecurrenceCleanStartTest do
     board = board_fixture(%{}, owner: owner)
     [_backlog, todo, doing, _done] = board.columns
 
-    {:ok, tag} = Boards.create_tag(board, %{"name" => "chore", "color" => "sky"})
+    {:ok, tag} = Boards.Tags.create_tag(board, %{"name" => "chore", "color" => "sky"})
 
     card =
       card_fixture(todo, %{
@@ -29,9 +29,9 @@ defmodule Slipdock.RecurrenceCleanStartTest do
         "profile" => "fix"
       })
 
-    {:ok, _} = Boards.set_card_tags(card, [tag])
-    {:ok, item} = Boards.add_checklist_item(card, "Read the log")
-    {:ok, _} = Boards.toggle_checklist_item(item)
+    {:ok, _} = Boards.Cards.set_card_tags(card, [tag])
+    {:ok, item} = Boards.Checklists.add_checklist_item(card, "Read the log")
+    {:ok, _} = Boards.Checklists.toggle_checklist_item(item)
     {:ok, series} = Recurrence.set(card, %{"rule" => "mon", "on_missed" => "stack"}, owner)
 
     %{owner: owner, board: board, todo: todo, doing: doing, card: card, series: series}
@@ -44,20 +44,20 @@ defmodule Slipdock.RecurrenceCleanStartTest do
     card = Repo.get!(Card, ctx.card.id)
 
     {:ok, card} =
-      Boards.update_card(card, %{
+      Boards.Cards.update_card(card, %{
         "assignee_ids" => [ctx.owner.id],
         "flags" => ["review", "flagged", "starred", "stuck", "blocked"],
         "percent_complete" => 60
       })
 
     {:ok, _} =
-      Boards.leave_handoff(card, ctx.owner, %{
+      Boards.Handoffs.leave_handoff(card, ctx.owner, %{
         next_step: "Read the rest of the log",
         body: "Half way",
         via: "ui"
       })
 
-    {:ok, _} = Boards.open_wait(card, Actor.web(ctx.owner), %{"needs" => "Which day?"})
+    {:ok, _} = Boards.Waits.open_wait(card, Actor.web(ctx.owner), %{"needs" => "Which day?"})
 
     from(c in Card, where: c.id == ^card.id)
     |> Repo.update_all(
@@ -71,12 +71,12 @@ defmodule Slipdock.RecurrenceCleanStartTest do
       ]
     )
 
-    Boards.get_card!(card.id)
+    Boards.Cards.get_card!(card.id)
   end
 
   defp next_instance(ctx) do
     assert Recurrence.tick(~U[2027-01-18 07:00:00Z]) == 1
-    Boards.get_card!(Repo.get!(Series, ctx.series.id).card_id)
+    Boards.Cards.get_card!(Repo.get!(Series, ctx.series.id).card_id)
   end
 
   describe "the next instance carries none of the last one's work state" do
@@ -86,10 +86,10 @@ defmodule Slipdock.RecurrenceCleanStartTest do
       assert [_] = previous.assignees
       assert "review" in previous.flags
       assert previous.percent_complete == 60
-      assert Boards.current_handoff(previous)
+      assert Boards.Handoffs.current_handoff(previous)
       assert previous.bar_locked_at
       assert previous.evidence_commit == "abc1234"
-      assert Boards.current_wait(previous)
+      assert Boards.Waits.current_wait(previous)
       %{previous: previous, new: next_instance(ctx)}
     end
 
@@ -112,7 +112,7 @@ defmodule Slipdock.RecurrenceCleanStartTest do
     end
 
     test "no handoff", %{new: new} do
-      assert Boards.current_handoff(new) == nil
+      assert Boards.Handoffs.current_handoff(new) == nil
     end
 
     test "no bar lock", %{new: new} do
@@ -127,15 +127,15 @@ defmodule Slipdock.RecurrenceCleanStartTest do
     end
 
     test "no waits", %{new: new} do
-      assert Boards.current_wait(new) == nil
-      assert Boards.list_waits(new) == []
+      assert Boards.Waits.current_wait(new) == nil
+      assert Boards.Waits.list_waits(new) == []
     end
 
     test "the previous instance keeps its state", %{previous: previous} do
-      kept = Boards.get_card!(previous.id)
+      kept = Boards.Cards.get_card!(previous.id)
       assert [_] = kept.assignees
       assert "review" in kept.flags
-      assert Boards.current_wait(kept)
+      assert Boards.Waits.current_wait(kept)
     end
   end
 
@@ -174,8 +174,8 @@ defmodule Slipdock.RecurrenceCleanStartTest do
     # A runner worked it and assigned it to itself (its token's owner), then
     # finished it in place.
     card = Repo.get!(Card, ctx.card.id)
-    {:ok, card} = Boards.update_card(card, %{"assignee_ids" => [ctx.owner.id]})
-    {:ok, _} = Boards.update_card(card, %{"completed" => true})
+    {:ok, card} = Boards.Cards.update_card(card, %{"assignee_ids" => [ctx.owner.id]})
+    {:ok, _} = Boards.Cards.update_card(card, %{"completed" => true})
     assert Automations.next_card(rule) == nil
 
     new = next_instance(ctx)

@@ -199,14 +199,14 @@ defmodule SlipdockWeb.BoardLive.Keyboard do
 
   defp drop_into(columns, id, ci, index, actor) do
     %{column: column, cards: cards} = Enum.at(columns, ci)
-    Boards.move_card(id, column.id, before_id(cards, index), actor: actor)
+    Boards.Cards.move_card(id, column.id, before_id(cards, index), actor: actor)
   end
 
   # The card is already in this list, so it has to come out of the order before
   # the target index means what it looks like it means.
   defp reorder_within(columns, id, ci, index) do
     %{column: column, cards: cards} = Enum.at(columns, ci)
-    Boards.move_card(id, column.id, before_id(Enum.reject(cards, &(&1.id == id)), index))
+    Boards.Cards.move_card(id, column.id, before_id(Enum.reject(cards, &(&1.id == id)), index))
   end
 
   # The card the moved one lands in front of; nil parks it at the end.

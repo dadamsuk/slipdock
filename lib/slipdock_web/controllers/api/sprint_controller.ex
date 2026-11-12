@@ -183,7 +183,7 @@ defmodule SlipdockWeb.API.SprintController do
          {:ok, %{added: added, skipped: skipped}} <-
            sprint_result(Sprints.add_cards(sprint, cards, actor: Slipdock.Actor.from_conn(conn))) do
       json(conn, %{
-        card: V.card(Authorize.visible(conn, Boards.get_card!(sprint.id))),
+        card: V.card(Authorize.visible(conn, Boards.Cards.get_card!(sprint.id))),
         added: Enum.map(added, &%{id: &1.id, title: &1.title}),
         skipped:
           Enum.map(skipped, fn {card, reason} -> %{id: card && card.id, reason: reason} end)
@@ -215,7 +215,7 @@ defmodule SlipdockWeb.API.SprintController do
 
   defp fetch_card(id) do
     with {int, ""} <- Integer.parse(to_string(id)),
-         %Card{} = card <- Boards.get_card(int) do
+         %Card{} = card <- Boards.Cards.get_card(int) do
       {:ok, card}
     else
       _ -> {:error, :not_found, "card #{id}"}

@@ -79,18 +79,18 @@ defmodule Slipdock.Health.Detectors.OrphanInProgress do
   def resolve(%{data: %{"card" => id}}, _attempt) do
     with %Card{archived_at: nil, completed: false} = card <- Repo.get(Card, id),
          {:ok, column} <- home(card) do
-      Boards.add_comment(
+      Boards.Comments.add_comment(
         card,
         "**Health monitor:** this card sat in progress with no job on it and nothing " <>
           "happening. Moved back to the top of #{column.name}, so it is picked up again; " <>
           "the next job carries on from the comments and the working tree."
       )
 
-      Boards.move_card_to_index(Repo.get!(Card, card.id), column, :top,
+      Boards.Cards.move_card_to_index(Repo.get!(Card, card.id), column, :top,
         actor: Slipdock.Actor.automation()
       )
 
-      Boards.log_activity(
+      Boards.ActivityLog.log_activity(
         card.board_id,
         card.id,
         "health",

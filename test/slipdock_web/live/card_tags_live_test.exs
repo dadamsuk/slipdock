@@ -21,7 +21,7 @@ defmodule SlipdockWeb.CardTagsLiveTest do
   defp open(conn, ctx), do: live(conn, ~p"/boards/#{ctx.board}/cards/#{ctx.card.id}")
 
   defp tag!(ctx, name, colour \\ "slate") do
-    {:ok, tag} = Boards.create_tag(ctx.board, %{"name" => name, "color" => colour})
+    {:ok, tag} = Boards.Tags.create_tag(ctx.board, %{"name" => name, "color" => colour})
     tag
   end
 
@@ -55,18 +55,18 @@ defmodule SlipdockWeb.CardTagsLiveTest do
       {:ok, view, _} = open(ctx.conn, ctx)
 
       view |> element("#card-flag-pick-blocked") |> render_click()
-      assert "blocked" in Boards.get_card!(ctx.card.id).flags
+      assert "blocked" in Boards.Cards.get_card!(ctx.card.id).flags
       assert has_element?(view, "#card-flag-blocked[data-role=flag-chip]", "Blocked")
       assert has_element?(view, ~s(#card-flag-pick-blocked[aria-checked="true"]))
 
       view |> element("#card-flag-blocked button") |> render_click()
-      refute "blocked" in Boards.get_card!(ctx.card.id).flags
+      refute "blocked" in Boards.Cards.get_card!(ctx.card.id).flags
       refute has_element?(view, "#card-flag-blocked")
     end
 
     test "chips come in the picker's order, whatever order they were set in", ctx do
-      {:ok, card} = Boards.toggle_flag(ctx.card, "starred")
-      {:ok, _} = Boards.toggle_flag(card, "flagged")
+      {:ok, card} = Boards.Cards.toggle_flag(ctx.card, "starred")
+      {:ok, _} = Boards.Cards.toggle_flag(card, "flagged")
       {:ok, view, _} = open(ctx.conn, ctx)
 
       assert view |> chips("flag") |> Enum.map(&Floki.attribute(&1, "id")) ==
@@ -77,7 +77,7 @@ defmodule SlipdockWeb.CardTagsLiveTest do
   describe "tags" do
     test "on a board of 40 tags, only the applied ones are chips", ctx do
       tags = for i <- 1..40, do: tag!(ctx, "Tag #{i}")
-      {:ok, _} = Boards.toggle_card_tag(ctx.card, Enum.at(tags, 4))
+      {:ok, _} = Boards.Tags.toggle_card_tag(ctx.card, Enum.at(tags, 4))
       {:ok, view, _} = open(ctx.conn, ctx)
 
       assert length(chips(view, "tag")) == 1
@@ -100,15 +100,15 @@ defmodule SlipdockWeb.CardTagsLiveTest do
       {:ok, view, _} = open(ctx.conn, ctx)
 
       view |> element("#card-tag-pick-#{tag.id}") |> render_click()
-      assert [%{name: "Design"}] = Boards.get_card!(ctx.card.id).tags
+      assert [%{name: "Design"}] = Boards.Cards.get_card!(ctx.card.id).tags
       assert has_element?(view, "#card-tag-#{tag.id}", "Design")
 
       view |> element("#card-tag-pick-#{tag.id}") |> render_click()
-      assert Boards.get_card!(ctx.card.id).tags == []
+      assert Boards.Cards.get_card!(ctx.card.id).tags == []
 
       view |> element("#card-tag-pick-#{tag.id}") |> render_click()
       view |> element("#card-tag-#{tag.id} button") |> render_click()
-      assert Boards.get_card!(ctx.card.id).tags == []
+      assert Boards.Cards.get_card!(ctx.card.id).tags == []
       refute has_element?(view, "#card-tag-#{tag.id}")
     end
 
@@ -117,9 +117,9 @@ defmodule SlipdockWeb.CardTagsLiveTest do
 
       view |> form("#card-tag-search", %{"name" => "  Launch week "}) |> render_submit()
 
-      assert [tag] = Boards.list_tags(ctx.board.id)
+      assert [tag] = Boards.Tags.list_tags(ctx.board.id)
       assert tag.name == "Launch week"
-      assert [%{name: "Launch week"}] = Boards.get_card!(ctx.card.id).tags
+      assert [%{name: "Launch week"}] = Boards.Cards.get_card!(ctx.card.id).tags
       assert has_element?(view, "#card-tags [data-role=tag-chip]", "Launch week")
     end
 
@@ -128,26 +128,26 @@ defmodule SlipdockWeb.CardTagsLiveTest do
       {:ok, view, _} = open(ctx.conn, ctx)
 
       view |> form("#card-tag-search", %{"name" => "backend"}) |> render_submit()
-      assert [%{id: id}] = Boards.list_tags(ctx.board.id)
+      assert [%{id: id}] = Boards.Tags.list_tags(ctx.board.id)
       assert id == tag.id
-      assert [%{id: ^id}] = Boards.get_card!(ctx.card.id).tags
+      assert [%{id: ^id}] = Boards.Cards.get_card!(ctx.card.id).tags
 
       # Again, with it already on: still on, still one.
       view |> form("#card-tag-search", %{"name" => "BACKEND"}) |> render_submit()
-      assert [%{id: ^id}] = Boards.get_card!(ctx.card.id).tags
+      assert [%{id: ^id}] = Boards.Cards.get_card!(ctx.card.id).tags
     end
 
     test "nothing typed makes nothing; a name too long is said, not crashed on", ctx do
       {:ok, view, _} = open(ctx.conn, ctx)
 
       view |> form("#card-tag-search", %{"name" => "   "}) |> render_submit()
-      assert Boards.list_tags(ctx.board.id) == []
+      assert Boards.Tags.list_tags(ctx.board.id) == []
 
       view
       |> with_target("#board-card")
       |> render_submit("create_tag", %{"name" => String.duplicate("x", 31)})
 
-      assert Boards.list_tags(ctx.board.id) == []
+      assert Boards.Tags.list_tags(ctx.board.id) == []
 
       assert view |> element("#card-modal #panel-notice[data-callout=error]") |> render() =~
                "Tag not made"
@@ -182,8 +182,8 @@ defmodule SlipdockWeb.CardTagsLiveTest do
 
   test "a reader sees the chips, with no × and no pickers, and New tag is refused", ctx do
     tag = tag!(ctx, "Design")
-    {:ok, card} = Boards.toggle_card_tag(ctx.card, tag)
-    {:ok, _} = Boards.toggle_flag(card, "starred")
+    {:ok, card} = Boards.Tags.toggle_card_tag(ctx.card, tag)
+    {:ok, _} = Boards.Cards.toggle_flag(card, "starred")
     reader = user_fixture("tags.reader@example.com")
     {:ok, _} = Access.grant(ctx.board, reader, "read", ctx.owner)
 
@@ -197,7 +197,7 @@ defmodule SlipdockWeb.CardTagsLiveTest do
     refute has_element?(view, "#card-flags-menu")
 
     view |> with_target("#board-card") |> render_submit("create_tag", %{"name" => "Sneaky"})
-    assert Boards.list_tags(ctx.board.id) |> Enum.map(& &1.name) == ["Design"]
+    assert Boards.Tags.list_tags(ctx.board.id) |> Enum.map(& &1.name) == ["Design"]
   end
 
   test "a reader with nothing applied sees None", ctx do

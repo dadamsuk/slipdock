@@ -54,7 +54,7 @@ defmodule SlipdockWeb.PrioritiseLiveTest do
     |> element("#prio-field-#{b.id}-#{impact.id} button[value='4']")
     |> render_click()
 
-    assert Fields.value(Boards.get_card!(b.id), impact) == 4.0
+    assert Fields.value(Boards.Cards.get_card!(b.id), impact) == 4.0
 
     for {field, value} <- [{reach, "100"}, {confidence, "80"}] do
       view
@@ -64,7 +64,7 @@ defmodule SlipdockWeb.PrioritiseLiveTest do
 
     # Enter in a field submits the form rather than reloading the page.
     view |> form("#prio-field-#{b.id}-#{effort.id}", %{"value" => "2"}) |> render_submit()
-    assert Fields.value(Boards.get_card!(b.id), effort) == 2.0
+    assert Fields.value(Boards.Cards.get_card!(b.id), effort) == 2.0
 
     html = render(view)
 
@@ -76,14 +76,14 @@ defmodule SlipdockWeb.PrioritiseLiveTest do
 
     # Priority through the shared table_update form.
     view |> form("#prio-priority-#{a.id}", %{"value" => "high"}) |> render_change()
-    assert Boards.get_card!(a.id).priority == "high"
+    assert Boards.Cards.get_card!(a.id).priority == "high"
 
     # Votes: + adds one of mine, within the budget.
     view
     |> element("#prio-#{a.id} button[phx-click=prio_vote][phx-value-count='1']")
     |> render_click()
 
-    assert Boards.get_card!(a.id) |> Slipdock.Boards.Card.vote_total() == 1
+    assert Boards.Cards.get_card!(a.id) |> Slipdock.Boards.Card.vote_total() == 1
     assert render(view) =~ ~r{<strong>9</strong>\s+of 10}
 
     # Clicking a header sorts explicitly.
@@ -146,7 +146,7 @@ defmodule SlipdockWeb.PrioritiseLiveTest do
     |> element("#prio-#{a.id} button[phx-click=prio_vote][phx-value-count='1']")
     |> render_click()
 
-    assert Votes.mine(Boards.get_card!(a.id), stranger) == 1
+    assert Votes.mine(Boards.Cards.get_card!(a.id), stranger) == 1
   end
 
   describe "numbers read as values (#1734)" do
@@ -157,7 +157,7 @@ defmodule SlipdockWeb.PrioritiseLiveTest do
       [reach, _impact, confidence, effort, _rice | _] = board.fields
 
       for {f, v} <- [{reach, "4000"}, {confidence, "80"}, {effort, "0.5"}, {plain, "12"}] do
-        {:ok, _} = Fields.set_value(Boards.get_card!(b.id), f, v)
+        {:ok, _} = Fields.set_value(Boards.Cards.get_card!(b.id), f, v)
       end
 
       %{board: board, reach: reach, confidence: confidence, effort: effort, plain: plain}
@@ -198,7 +198,7 @@ defmodule SlipdockWeb.PrioritiseLiveTest do
 
       # Editing still saves through the same form.
       view |> form(field.(ctx.reach), %{"value" => "4500"}) |> render_change()
-      assert Fields.value(Boards.get_card!(ctx.b.id), ctx.reach) == 4500.0
+      assert Fields.value(Boards.Cards.get_card!(ctx.b.id), ctx.reach) == 4500.0
 
       assert has_element?(
                view,

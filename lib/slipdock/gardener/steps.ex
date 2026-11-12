@@ -168,7 +168,7 @@ defmodule Slipdock.Gardener.Steps do
       if card.completed do
         {:ok, []}
       else
-        with {:ok, _} <- Boards.update_card(card, %{"completed" => true}, by: user),
+        with {:ok, _} <- Boards.Cards.update_card(card, %{"completed" => true}, by: user),
              do: {:ok, [%{"op" => "reopen", "card" => id}]}
       end
     end
@@ -176,7 +176,7 @@ defmodule Slipdock.Gardener.Steps do
 
   defp apply_step(%{"op" => "reopen", "card" => id}, user) do
     with {:ok, card} <- card(id),
-         {:ok, _} <- Boards.update_card(card, %{"completed" => false}, by: user),
+         {:ok, _} <- Boards.Cards.update_card(card, %{"completed" => false}, by: user),
          do: {:ok, []}
   end
 
@@ -186,7 +186,7 @@ defmodule Slipdock.Gardener.Steps do
       from = card.column_id
       index = index_in(card)
 
-      case Boards.move_card_to_index(card, column, step["index"] || :top,
+      case Boards.Cards.move_card_to_index(card, column, step["index"] || :top,
              actor: Slipdock.Actor.automation()
            ) do
         :ok ->
@@ -212,7 +212,7 @@ defmodule Slipdock.Gardener.Steps do
       if card.archived_at do
         {:ok, []}
       else
-        with {:ok, _} <- Boards.archive_card(card),
+        with {:ok, _} <- Boards.Cards.archive_card(card),
              do: {:ok, [%{"op" => "restore", "card" => id}]}
       end
     end
@@ -229,7 +229,7 @@ defmodule Slipdock.Gardener.Steps do
   end
 
   defp apply_step(%{"op" => "restore", "card" => id}, _user) do
-    with {:ok, card} <- card(id), {:ok, _} <- Boards.unarchive_card(card), do: {:ok, []}
+    with {:ok, card} <- card(id), {:ok, _} <- Boards.Cards.unarchive_card(card), do: {:ok, []}
   end
 
   defp apply_step(%{"op" => "restore", "page" => id}, _user) do
@@ -239,14 +239,14 @@ defmodule Slipdock.Gardener.Steps do
   defp apply_step(%{"op" => "link_duplicate", "card" => id, "other" => other_id}, _user) do
     with {:ok, card} <- card(id),
          {:ok, other} <- card(other_id),
-         {:ok, link} <- Boards.add_link(card, other, "duplicates"),
+         {:ok, link} <- Boards.Links.add_link(card, other, "duplicates"),
          do: {:ok, [%{"op" => "unlink", "link" => link.id}]}
   end
 
   defp apply_step(%{"op" => "unlink", "link" => id}, _user) do
     case Repo.get(CardLink, id) do
       nil -> {:ok, []}
-      link -> with {:ok, _} <- Boards.remove_link(link), do: {:ok, []}
+      link -> with {:ok, _} <- Boards.Links.remove_link(link), do: {:ok, []}
     end
   end
 
@@ -255,7 +255,8 @@ defmodule Slipdock.Gardener.Steps do
       if Enum.member?(card.flags, flag) do
         {:ok, []}
       else
-        with {:ok, _} <- Boards.update_card(card, %{"flags" => card.flags ++ [flag]}, by: user),
+        with {:ok, _} <-
+               Boards.Cards.update_card(card, %{"flags" => card.flags ++ [flag]}, by: user),
              do: {:ok, [%{"op" => "unflag", "card" => id, "flag" => flag}]}
       end
     end
@@ -264,27 +265,27 @@ defmodule Slipdock.Gardener.Steps do
   defp apply_step(%{"op" => "unflag", "card" => id, "flag" => flag}, user) do
     with {:ok, card} <- card(id),
          {:ok, _} <-
-           Boards.update_card(card, %{"flags" => List.delete(card.flags, flag)}, by: user),
+           Boards.Cards.update_card(card, %{"flags" => List.delete(card.flags, flag)}, by: user),
          do: {:ok, []}
   end
 
   defp apply_step(%{"op" => "comment", "page" => id, "body" => body}, user)
        when not is_nil(id) do
     with {:ok, page} <- page(id),
-         {:ok, comment} <- Boards.add_comment(page, body, by: user),
+         {:ok, comment} <- Boards.Comments.add_comment(page, body, by: user),
          do: {:ok, [%{"op" => "uncomment", "comment" => comment.id}]}
   end
 
   defp apply_step(%{"op" => "comment", "card" => id, "body" => body}, user) do
     with {:ok, card} <- card(id),
-         {:ok, comment} <- Boards.add_comment(card, body, by: user),
+         {:ok, comment} <- Boards.Comments.add_comment(card, body, by: user),
          do: {:ok, [%{"op" => "uncomment", "comment" => comment.id}]}
   end
 
   defp apply_step(%{"op" => "uncomment", "comment" => id}, _user) do
     case Repo.get(Comment, id) do
       nil -> {:ok, []}
-      comment -> with {:ok, _} <- Boards.delete_comment(comment), do: {:ok, []}
+      comment -> with {:ok, _} <- Boards.Comments.delete_comment(comment), do: {:ok, []}
     end
   end
 
@@ -310,7 +311,7 @@ defmodule Slipdock.Gardener.Steps do
     with {:ok, card} <- card(id) do
       from = card.due_date && Date.to_iso8601(card.due_date)
 
-      case Boards.update_card(card, %{"due_date" => due}, by: user) do
+      case Boards.Cards.update_card(card, %{"due_date" => due}, by: user) do
         {:ok, updated} ->
           to = updated.due_date && Date.to_iso8601(updated.due_date)
           {:ok, [%{"op" => "redate", "card" => id, "due" => from, "expect" => to}]}
@@ -552,9 +553,9 @@ defmodule Slipdock.Gardener.Steps do
   end
 
   # Where the card sits in its list, counting pages placed there too, as
-  # `Boards.move_card_to_index/3` counts.
+  # `Boards.Cards.move_card_to_index/3` counts.
   defp index_in(%Card{} = card) do
-    card.column_id |> Boards.active_items() |> Enum.find_index(&(&1 == {:card, card.id}))
+    card.column_id |> Boards.Columns.active_items() |> Enum.find_index(&(&1 == {:card, card.id}))
   end
 
   defp to_int(id) when is_integer(id), do: id

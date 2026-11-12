@@ -97,8 +97,8 @@ defmodule SlipdockWeb.MCP.Tools.CreateCard do
          {:ok, column} <- column(args, board),
          params = params(args, title, column, tags, assignees) |> Map.put("archived", archived),
          {:ok, card} <- Args.refusal(CardWrites.create(auth, board, params)),
-         :ok <- if(top, do: Boards.move_card_to_index(card, card.column, :top), else: :ok) do
-      {:ok, Tools.card_written(Boards.get_card!(card.id), context.base_url)}
+         :ok <- if(top, do: Boards.Cards.move_card_to_index(card, card.column, :top), else: :ok) do
+      {:ok, Tools.card_written(Boards.Cards.get_card!(card.id), context.base_url)}
     end
   end
 
@@ -144,12 +144,12 @@ defmodule SlipdockWeb.MCP.Tools.CreateCard do
   end
 
   defp template(user, ref) do
-    case Boards.find_template(user, ref) do
+    case Boards.Templates.find_template(user, ref) do
       {:ok, t} ->
         {:ok, t}
 
       _ ->
-        names = Enum.map_join(Boards.list_templates(user), ", ", & &1.name)
+        names = Enum.map_join(Boards.Templates.list_templates(user), ", ", & &1.name)
         {:error, "no template called #{inspect(ref)}; there are: #{names}"}
     end
   end

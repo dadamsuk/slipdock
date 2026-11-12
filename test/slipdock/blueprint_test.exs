@@ -33,7 +33,7 @@ defmodule Slipdock.BlueprintTest do
   defp bare_board(user) do
     board = board_fixture(%{}, owner: user)
     # A board with no lists of its own, as a Tool's install starts from.
-    Enum.each(board.columns, &Boards.delete_column/1)
+    Enum.each(board.columns, &Boards.Columns.delete_column/1)
     Boards.get_board!(board.id)
   end
 
@@ -201,7 +201,7 @@ defmodule Slipdock.BlueprintTest do
       assert {:ok, archive} = Folders.find(board, "Runs/Archive")
       assert archive.parent_id
 
-      assert board.id |> Boards.list_tags() |> Enum.map(& &1.name) |> Enum.sort() ==
+      assert board.id |> Boards.Tags.list_tags() |> Enum.map(& &1.name) |> Enum.sort() ==
                ["interim", "urgent"]
 
       {:ok, config} = Folders.find(board, "Config")
@@ -269,7 +269,7 @@ defmodule Slipdock.BlueprintTest do
       counts = fn ->
         b = Boards.get_board!(board.id)
 
-        {length(b.columns), length(Folders.list(b)), length(Boards.list_tags(b.id)),
+        {length(b.columns), length(Folders.list(b)), length(Boards.Tags.list_tags(b.id)),
          length(Wiki.list_pages(b)), length(Automations.list_rules(b.id))}
       end
 
@@ -304,7 +304,7 @@ defmodule Slipdock.BlueprintTest do
 
       assert {:error, message} = Blueprint.apply(board, extras, user: user)
       assert message =~ "the board has no list called “Nowhere”"
-      assert Boards.list_tags(board.id) == []
+      assert Boards.Tags.list_tags(board.id) == []
     end
 
     test "only replaces a page nobody edited, and only when asked to" do
@@ -337,7 +337,7 @@ defmodule Slipdock.BlueprintTest do
       user = user_fixture()
 
       {:ok, template} =
-        Boards.create_template(user, %{
+        Boards.Templates.create_template(user, %{
           "name" => "Blueprinted #{System.unique_integer([:positive])}",
           "columns" => ["To Do", "Doing", "Done"],
           "folders" => ["Notes"],
@@ -352,19 +352,19 @@ defmodule Slipdock.BlueprintTest do
       assert {:ok, notes} = Folders.find(board, "Notes")
       assert [%{title: "Read me", folder_id: folder_id}] = Wiki.list_pages(board)
       assert folder_id == notes.id
-      assert [%{name: "bug"}] = Boards.list_tags(board.id)
+      assert [%{name: "bug"}] = Boards.Tags.list_tags(board.id)
       assert [%{name: "Followed: Done"}] = Automations.list_rules(board.id)
     end
 
     test "a built-in template still builds the same board" do
-      {:ok, template} = Boards.find_template(nil, "Checklist")
+      {:ok, template} = Boards.Templates.find_template(nil, "Checklist")
       board = board_fixture(%{}, template: template)
 
       assert Enum.map(board.columns, & &1.name) ==
                Enum.map(template.columns, & &1["name"])
 
       assert length(Wiki.list_pages(board)) == length(template.pages || [])
-      assert Boards.list_tags(board.id) == []
+      assert Boards.Tags.list_tags(board.id) == []
       assert Automations.list_rules(board.id) == []
     end
 
@@ -372,7 +372,7 @@ defmodule Slipdock.BlueprintTest do
       user = user_fixture()
 
       assert {:error, cs} =
-               Boards.create_template(user, %{
+               Boards.Templates.create_template(user, %{
                  "name" => "Bad extras",
                  "columns" => ["A"],
                  "automations" => [%{"preset" => "nope"}]

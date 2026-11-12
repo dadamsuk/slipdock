@@ -37,7 +37,8 @@ defmodule Slipdock.Automations.VerifiedFieldsTest do
     })
   end
 
-  defp retitle(card), do: {:ok, _} = Boards.update_card(card, %{"title" => card.title <> "!"})
+  defp retitle(card),
+    do: {:ok, _} = Boards.Cards.update_card(card, %{"title" => card.title <> "!"})
 
   describe "conditions" do
     test "bar, paths, profile and verify_state read the card", ctx do
@@ -102,9 +103,9 @@ defmodule Slipdock.Automations.VerifiedFieldsTest do
       end
 
       card = card_fixture(ctx.todo, %{"title" => "Watched"})
-      {:ok, card} = Boards.update_card(card, %{"bar" => "It works"})
-      {:ok, card} = Boards.update_card(card, %{"paths" => "lib/a/**"})
-      {:ok, _} = Boards.update_card(card, %{"profile" => "docs"})
+      {:ok, card} = Boards.Cards.update_card(card, %{"bar" => "It works"})
+      {:ok, card} = Boards.Cards.update_card(card, %{"paths" => "lib/a/**"})
+      {:ok, _} = Boards.Cards.update_card(card, %{"profile" => "docs"})
 
       logged =
         Repo.all(
@@ -134,7 +135,9 @@ defmodule Slipdock.Automations.VerifiedFieldsTest do
       agent = %{Slipdock.Actor.unknown() | kind: "agent", via: "api", user_id: ctx.owner.id}
 
       {:ok, _} =
-        Boards.update_card(card, %{"completed" => true, "evidence" => "tests pass"}, actor: agent)
+        Boards.Cards.update_card(card, %{"completed" => true, "evidence" => "tests pass"},
+          actor: agent
+        )
 
       card = fresh(card)
       assert card.verify_state == "pending"
@@ -163,7 +166,7 @@ defmodule Slipdock.Automations.VerifiedFieldsTest do
       })
 
       card = card_fixture(ctx.todo, %{"title" => "Quiet"})
-      {:ok, _} = Boards.update_card(card, %{"priority" => "high"})
+      {:ok, _} = Boards.Cards.update_card(card, %{"priority" => "high"})
       assert fresh(card).flags == []
     end
   end
@@ -267,13 +270,13 @@ defmodule Slipdock.Automations.VerifiedFieldsTest do
       rule = on_title(board, [%{"type" => "set_bar", "bar" => "Reworded by the rule"}])
 
       card = card_fixture(ctx.todo, %{"title" => "Locked", "bar" => "The real bar"})
-      :ok = Boards.move_card(card.id, ctx.doing.id, nil)
+      :ok = Boards.Cards.move_card(card.id, ctx.doing.id, nil)
       assert fresh(card).bar_locked_at
 
       agent = %{Slipdock.Actor.unknown() | kind: "agent", via: "api", user_id: ctx.owner.id}
 
       assert {:error, changeset} =
-               Boards.update_card(fresh(card), %{"bar" => "Easier"}, actor: agent)
+               Boards.Cards.update_card(fresh(card), %{"bar" => "Easier"}, actor: agent)
 
       assert changeset.errors[:bar]
 
@@ -426,7 +429,9 @@ defmodule Slipdock.Automations.VerifiedFieldsTest do
       card = card_fixture(ctx.doing, %{"title" => "Started", "profile" => "feature"})
       agent = %{Slipdock.Actor.unknown() | kind: "agent", via: "api", user_id: ctx.owner.id}
 
-      assert {:error, _} = Boards.update_card(fresh(card), %{"profile" => "docs"}, actor: agent)
+      assert {:error, _} =
+               Boards.Cards.update_card(fresh(card), %{"profile" => "docs"}, actor: agent)
+
       assert fresh(card).profile == "feature"
 
       lower = on_title(board, [%{"type" => "set_profile", "profile" => "docs"}])

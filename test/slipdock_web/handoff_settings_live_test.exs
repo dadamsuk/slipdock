@@ -14,7 +14,9 @@ defmodule SlipdockWeb.HandoffSettingsLiveTest do
   setup %{conn: conn, user: owner} do
     board = board_fixture(%{}, owner: owner)
     card = card_fixture(hd(board.columns), %{"title" => "Half done"})
-    {:ok, _} = Boards.leave_handoff(card, owner, %{next_step: "Write the tests", via: "ui"})
+
+    {:ok, _} =
+      Boards.Handoffs.leave_handoff(card, owner, %{next_step: "Write the tests", via: "ui"})
 
     %{
       board: board,
@@ -101,7 +103,7 @@ defmodule SlipdockWeb.HandoffSettingsLiveTest do
     refute view |> element("#card-handoff") |> render() =~ "Left off"
 
     # With none, the meta line's link says it too.
-    {:ok, _} = Boards.clear_handoff(ctx.card, ctx.owner, %{via: "ui"})
+    {:ok, _} = Boards.Handoffs.clear_handoff(ctx.card, ctx.owner, %{via: "ui"})
     {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/cards/#{ctx.card.id}")
     assert has_element?(view, ~s(#card-toolbar #handoff-edit[aria-label="Add “Parked”"]))
 

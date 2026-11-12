@@ -41,7 +41,7 @@ defmodule SlipdockWeb.MCP.Tools.ListBoards do
           token: token,
           wiki: false
         )
-        |> Boards.sort_boards(user.board_sort || "manual")
+        |> Boards.Arrangement.sort_boards(user.board_sort || "manual")
         |> Enum.map(&summary(&1, user))
 
       {:ok, %{boards: boards}}

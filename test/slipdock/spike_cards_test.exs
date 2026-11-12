@@ -41,18 +41,18 @@ defmodule Slipdock.SpikeCardsTest do
   end
 
   defp tagged(card, board, name) do
-    {:ok, card} = Boards.set_card_tags(card, [tag_fixture(board, name)])
+    {:ok, card} = Boards.Cards.set_card_tags(card, [tag_fixture(board, name)])
     card
   end
 
   defp spike(ctx, attrs \\ %{}) do
     card = card_fixture(ctx.doing, Map.merge(%{"title" => "Does the API page?"}, attrs))
-    {:ok, card} = Boards.update_card(card, %{"profile" => "spike"})
+    {:ok, card} = Boards.Cards.update_card(card, %{"profile" => "spike"})
     card
   end
 
   defp complete(card, attrs, actor) do
-    Boards.update_card(
+    Boards.Cards.update_card(
       Repo.get!(Card, card.id),
       Map.merge(%{"completed" => true, "evidence" => "ran it against the sandbox"}, attrs),
       actor: actor
@@ -72,7 +72,7 @@ defmodule Slipdock.SpikeCardsTest do
       assert Profiles.spike?(hand)
 
       # A profile someone set wins over the tag.
-      {:ok, featured} = Boards.update_card(hand, %{"profile" => "feature"})
+      {:ok, featured} = Boards.Cards.update_card(hand, %{"profile" => "feature"})
       refute Profiles.spike?(featured)
       refute Profiles.spike?(%Card{})
     end
@@ -144,23 +144,23 @@ defmodule Slipdock.SpikeCardsTest do
   describe "lanes" do
     test "a spike in progress with paths blocks no overlapping card", ctx do
       running = spike(ctx)
-      {:ok, running} = Boards.update_card(running, %{"paths" => ["lib/a/**"]})
+      {:ok, running} = Boards.Cards.update_card(running, %{"paths" => ["lib/a/**"]})
       working_job_fixture(running)
 
       next = card_fixture(ctx.todo, %{"title" => "Next"})
-      {:ok, next} = Boards.update_card(next, %{"paths" => ["lib/a/b.ex"]})
+      {:ok, next} = Boards.Cards.update_card(next, %{"paths" => ["lib/a/b.ex"]})
 
       assert Lanes.conflict(next) == nil
-      assert :ok = Boards.move_card(next.id, ctx.doing.id, nil, actor: ctx.builder)
+      assert :ok = Boards.Cards.move_card(next.id, ctx.doing.id, nil, actor: ctx.builder)
     end
 
     test "a hand-tagged spike holds none either; untagged, the same card does", ctx do
       running = card_fixture(ctx.doing, %{"title" => "Prototype"})
-      {:ok, running} = Boards.update_card(running, %{"paths" => ["lib/a/**"]})
+      {:ok, running} = Boards.Cards.update_card(running, %{"paths" => ["lib/a/**"]})
       working_job_fixture(running)
 
       next = card_fixture(ctx.todo, %{"title" => "Next"})
-      {:ok, next} = Boards.update_card(next, %{"paths" => ["lib/a/b.ex"]})
+      {:ok, next} = Boards.Cards.update_card(next, %{"paths" => ["lib/a/b.ex"]})
       assert %Card{id: id} = Lanes.conflict(next)
       assert id == running.id
 
@@ -171,11 +171,11 @@ defmodule Slipdock.SpikeCardsTest do
     test "a spike isn't held behind a card in progress, nor its job", ctx do
       {:ok, runner, _} = Runners.create_runner(ctx.board, %{"name" => "r", "pool" => "dev"})
       running = card_fixture(ctx.doing, %{"title" => "Running"})
-      {:ok, running} = Boards.update_card(running, %{"paths" => ["lib/a/**"]})
+      {:ok, running} = Boards.Cards.update_card(running, %{"paths" => ["lib/a/**"]})
       working_job_fixture(running)
 
       queued = card_fixture(ctx.todo, %{"title" => "Spike it"})
-      {:ok, queued} = Boards.update_card(queued, %{"paths" => ["lib/a/b.ex"]})
+      {:ok, queued} = Boards.Cards.update_card(queued, %{"paths" => ["lib/a/b.ex"]})
       queued = tagged(queued, ctx.board, "spike")
 
       assert Lanes.conflict(Repo.get!(Card, queued.id)) == nil
@@ -188,11 +188,11 @@ defmodule Slipdock.SpikeCardsTest do
     test "no job is held behind a spike in progress", ctx do
       {:ok, runner, _} = Runners.create_runner(ctx.board, %{"name" => "r", "pool" => "dev"})
       running = spike(ctx)
-      {:ok, running} = Boards.update_card(running, %{"paths" => ["lib/a/**"]})
+      {:ok, running} = Boards.Cards.update_card(running, %{"paths" => ["lib/a/**"]})
       working_job_fixture(running)
 
       next = card_fixture(ctx.todo, %{"title" => "Next"})
-      {:ok, next} = Boards.update_card(next, %{"paths" => ["lib/a/b.ex"]})
+      {:ok, next} = Boards.Cards.update_card(next, %{"paths" => ["lib/a/b.ex"]})
       {:ok, job} = Runners.queue(next, %{pool: "dev", kind: "claude", prompt: "go"})
 
       assert Lanes.held_cards(ctx.board.id) == %{}

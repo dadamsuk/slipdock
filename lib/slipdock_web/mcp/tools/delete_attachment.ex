@@ -54,7 +54,7 @@ defmodule SlipdockWeb.MCP.Tools.DeleteAttachment do
          :ok <- Args.confirmed(args, "a file deleted is gone for good"),
          {:ok, attachment} <- fetch(id),
          :ok <- allowed(attachment, auth),
-         {:ok, _} <- Args.refusal(Boards.delete_attachment(attachment)) do
+         {:ok, _} <- Args.refusal(Boards.Attachments.delete_attachment(attachment)) do
       {:ok,
        Map.merge(
          %{deleted: true, attachment: id, filename: attachment.filename},

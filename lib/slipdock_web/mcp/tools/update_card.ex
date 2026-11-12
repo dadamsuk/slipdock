@@ -286,7 +286,7 @@ defmodule SlipdockWeb.MCP.Tools.UpdateCard do
              {recurrence, snooze}
            ),
          {:ok, wait} <- write_wait(auth, card, wait_op) do
-      card = if wait_op == :untouched, do: card, else: Boards.get_card!(card.id)
+      card = if wait_op == :untouched, do: card, else: Boards.Cards.get_card!(card.id)
       written = Tools.card_written(card, context.base_url)
 
       written =
@@ -444,20 +444,20 @@ defmodule SlipdockWeb.MCP.Tools.UpdateCard do
            :ok <- write_recurrence(auth, card, recurrence),
            :ok <- write_snooze(auth, card, snooze),
            :ok <- each(blockers, &add_blocker(card, &1)),
-           :ok <- each(unblockers, &Boards.remove_dependency(card, &1)),
+           :ok <- each(unblockers, &Boards.Dependencies.remove_dependency(card, &1)),
            added = params["add_checklist"] || [],
            ticked = Enum.reject(to_check, & &1.done),
            unticked = Enum.filter(to_uncheck, & &1.done),
-           :ok <- each(added, &Boards.add_checklist_item(card, &1, log: false)),
-           :ok <- each(ticked, &Boards.toggle_checklist_item(&1, log: false)),
-           :ok <- each(unticked, &Boards.toggle_checklist_item(&1, log: false)),
+           :ok <- each(added, &Boards.Checklists.add_checklist_item(card, &1, log: false)),
+           :ok <- each(ticked, &Boards.Checklists.toggle_checklist_item(&1, log: false)),
+           :ok <- each(unticked, &Boards.Checklists.toggle_checklist_item(&1, log: false)),
            :ok <-
-             Boards.log_checklist(card,
+             Boards.Checklists.log_checklist(card,
                added: length(added),
                ticked: length(ticked),
                unticked: length(unticked)
              ) do
-        Boards.get_card!(card.id)
+        Boards.Cards.get_card!(card.id)
       else
         error -> Repo.rollback(error)
       end
@@ -475,7 +475,7 @@ defmodule SlipdockWeb.MCP.Tools.UpdateCard do
   defp add_blocker(card, blocker) do
     if Enum.any?(card.blocked_by, &(&1.id == blocker.id)),
       do: {:ok, card},
-      else: Boards.add_dependency(card, blocker)
+      else: Boards.Dependencies.add_dependency(card, blocker)
   end
 
   defp each(things, fun) do

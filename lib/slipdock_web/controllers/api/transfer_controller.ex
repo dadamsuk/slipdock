@@ -72,7 +72,7 @@ defmodule SlipdockWeb.API.TransferController do
 
   defp send_link(conn, link) do
     attachment = link.attachment
-    path = Boards.attachment_path(attachment)
+    path = Boards.Attachments.attachment_path(attachment)
 
     with :ok <- readable(conn, attachment),
          true <- File.regular?(path) || {:error, :not_found, "the file's bytes"} do
@@ -143,7 +143,7 @@ defmodule SlipdockWeb.API.TransferController do
     with :ok <- Authorize.card(conn, card, :write),
          {:ok, meta, path} <- Uploads.take(params),
          {:ok, replace?} <- Uploads.replace(params),
-         {:ok, attachment} <- Boards.add_attachment(card, meta, path) do
+         {:ok, attachment} <- Boards.Attachments.add_attachment(card, meta, path) do
       {:ok, Uploads.stored(attachment, replace?)}
     end
   end

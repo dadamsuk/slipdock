@@ -84,10 +84,10 @@ defmodule Slipdock.HeaderLinksTest do
     test "leaves out an archived board, and draws it again when it comes back",
          %{user: user, plan: plan} do
       {:ok, _} = HeaderLinks.add(user, plan, "star")
-      {:ok, archived} = Boards.archive_board(plan)
+      {:ok, archived} = Boards.Arrangement.archive_board(plan)
       assert HeaderLinks.list(user) == []
 
-      {:ok, _} = Boards.unarchive_board(archived)
+      {:ok, _} = Boards.Arrangement.unarchive_board(archived)
       assert names(user) == ["Plan"]
     end
 

@@ -103,7 +103,7 @@ defmodule Slipdock.Runners.PauseTest do
     end
 
     test "pausing from a sub-board keeps it on the root, and holds the sub-board's rules", ctx do
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       epic = card_fixture(ctx.todo, %{"title" => "Epic"})
       {:ok, sub} = Boards.create_sub_board(epic, t)
       sub = Boards.get_board!(sub.id)

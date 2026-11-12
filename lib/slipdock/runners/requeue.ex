@@ -255,7 +255,7 @@ defmodule Slipdock.Runners.Requeue do
 
   defp tell_withdrawn(job, card) do
     with %Card{} = withdrawn <- Repo.get(Card, job.card_id) do
-      Boards.add_comment(
+      Boards.Comments.add_comment(
         withdrawn,
         "Job ##{job.id} gave way to the answer on ##{card.id}, which went to the runners " <>
           "first. This card keeps its place in the list and goes next."
@@ -269,7 +269,7 @@ defmodule Slipdock.Runners.Requeue do
          {:ok, %Job{} = job} <- Runners.queue(card, attrs) do
       record(wait, "queued", "job ##{job.id}" <> note, job.id)
 
-      Boards.log_activity(
+      Boards.ActivityLog.log_activity(
         card.board_id,
         card.id,
         "runner",
@@ -322,7 +322,7 @@ defmodule Slipdock.Runners.Requeue do
         do: "it carries another answer, which goes first",
         else: "it is already with a runner"
 
-    Boards.add_comment(
+    Boards.Comments.add_comment(
       told(wait, card),
       "The answer goes to the runners once job ##{job.id} (#{job.status} #{where}) " <>
         "has closed: #{why}."
@@ -334,7 +334,7 @@ defmodule Slipdock.Runners.Requeue do
   defp skip(wait, card, why) do
     record(wait, "skipped", why, nil)
 
-    Boards.add_comment(
+    Boards.Comments.add_comment(
       told(wait, card),
       "#{done(wait)}, but #{why}; nothing was sent to the runners."
     )
@@ -345,7 +345,7 @@ defmodule Slipdock.Runners.Requeue do
   defp fail(wait, card, reason) do
     record(wait, "failed", reason, nil)
 
-    Boards.add_comment(
+    Boards.Comments.add_comment(
       told(wait, card),
       "#{done(wait)}, but #{the_card(wait, card)} couldn't be sent to the runners again: #{reason}. " <>
         "Send it again by hand once that clears."
@@ -389,7 +389,7 @@ defmodule Slipdock.Runners.Requeue do
         else: Wait.answered_text(wait)
 
     handoff =
-      case Boards.current_handoff(card.id) do
+      case Boards.Handoffs.current_handoff(card.id) do
         nil -> nil
         h -> Enum.join(Enum.reject([h.next_step, h.body], &Enum.member?([nil, ""], &1)), "\n")
       end

@@ -18,10 +18,10 @@ defmodule Slipdock.Vaults.Vault do
     # from the same set as boards' keys, so none means two things.
     field :shortcut, :string
     # Where its owner has put it among their boards on the home page, in the
-    # same numbering as their board orders (see `Slipdock.Boards.reorder_boards/2`);
+    # same numbering as their board orders (see `Slipdock.Boards.Arrangement.reorder_boards/2`);
     # nil until it has been placed.
     field :position, :integer
-    # Filled in for the home page, so `Slipdock.Boards.sort_boards/2` can
+    # Filled in for the home page, so `Slipdock.Boards.Arrangement.sort_boards/2` can
     # sort the vault among the boards: the last thing that happened on its
     # boards or the last sync, and those boards' cards.
     field :last_activity_at, :utc_datetime, virtual: true

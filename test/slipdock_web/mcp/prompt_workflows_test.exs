@@ -93,7 +93,7 @@ defmodule SlipdockWeb.MCP.PromptWorkflowsTest do
       doing = mine(cols["In Progress"], user, %{"title" => "Halfway"})
       ready = card_fixture(cols["To Do"], %{"title" => "Up next"})
       gone = mine(cols["To Do"], user, %{"title" => "Archived mine", "due_date" => today()})
-      {:ok, _} = Boards.archive_card(gone)
+      {:ok, _} = Boards.Cards.archive_card(gone)
       done = mine(cols["Done"], user, %{"title" => "Finished mine", "completed" => true})
       secret = card_fixture(hd(ctx.theirs.columns), %{"title" => "Their secret"})
 
@@ -186,16 +186,21 @@ defmodule SlipdockWeb.MCP.PromptWorkflowsTest do
       older = card_fixture(cols["To Do"], %{"title" => "Region question"})
 
       {:ok, wait} =
-        Boards.open_wait(older, asker, %{"needs" => "Which region?", "on_user_id" => user.id})
+        Boards.Waits.open_wait(older, asker, %{
+          "needs" => "Which region?",
+          "on_user_id" => user.id
+        })
 
       from(w in Slipdock.Boards.Wait, where: w.id == ^wait.id)
       |> Repo.update_all(set: [inserted_at: DateTime.add(DateTime.utc_now(), -7200, :second)])
 
       review = mine(cols["To Do"], user, %{"title" => "Please review"})
-      {:ok, _} = Boards.update_card(review, %{"flags" => ["review"]})
+      {:ok, _} = Boards.Cards.update_card(review, %{"flags" => ["review"]})
       # Waiting on Dana, not on me.
       hers = card_fixture(cols["To Do"], %{"title" => "Dana's question"})
-      {:ok, _} = Boards.open_wait(hers, asker, %{"needs" => "Hers", "on_user_id" => dana.id})
+
+      {:ok, _} =
+        Boards.Waits.open_wait(hers, asker, %{"needs" => "Hers", "on_user_id" => dana.id})
 
       text = conn |> prompt("plan-my-day") |> text!()
 
@@ -220,7 +225,9 @@ defmodule SlipdockWeb.MCP.PromptWorkflowsTest do
       %{conn: conn, user: user} = ctx
       asker = %{Slipdock.Actor.unknown() | kind: "agent", via: "mcp", user_id: user.id}
       out = card_fixture(hd(ctx.other.columns), %{"title" => "Out there"})
-      {:ok, _} = Boards.open_wait(out, asker, %{"needs" => "Elsewhere?", "on_user_id" => user.id})
+
+      {:ok, _} =
+        Boards.Waits.open_wait(out, asker, %{"needs" => "Elsewhere?", "on_user_id" => user.id})
 
       text =
         conn |> scoped(user, scope_boards: [ctx.board.id]) |> prompt("plan-my-day") |> text!()
@@ -250,7 +257,7 @@ defmodule SlipdockWeb.MCP.PromptWorkflowsTest do
     test "finished, activity, slipped and stale; archived and others' left out", ctx do
       %{conn: conn, cols: cols} = ctx
       shipped = card_fixture(cols["To Do"], %{"title" => "Shipped it"})
-      {:ok, _} = Boards.toggle_completed(shipped)
+      {:ok, _} = Boards.Cards.toggle_completed(shipped)
 
       slipped =
         card_fixture(cols["To Do"], %{
@@ -273,7 +280,7 @@ defmodule SlipdockWeb.MCP.PromptWorkflowsTest do
           "due_date" => Date.add(today(), -3)
         })
 
-      {:ok, _} = Boards.archive_card(gone)
+      {:ok, _} = Boards.Cards.archive_card(gone)
 
       card_fixture(hd(ctx.theirs.columns), %{
         "title" => "Their slip",
@@ -298,7 +305,7 @@ defmodule SlipdockWeb.MCP.PromptWorkflowsTest do
 
     test "subcards count: a sub-board's slipped card is in the review", ctx do
       epic = card_fixture(ctx.cols["To Do"], %{"title" => "Epic"})
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(epic, t)
       sub = Boards.get_board!(sub.id)
 
@@ -347,7 +354,7 @@ defmodule SlipdockWeb.MCP.PromptWorkflowsTest do
       b = card_fixture(ctx.cols["Backlog"], %{"title" => "Idea two"})
       card_fixture(ctx.cols["Backlog"], %{"title" => "Old done", "completed" => true})
       gone = card_fixture(ctx.cols["Backlog"], %{"title" => "Archived idea"})
-      {:ok, _} = Boards.archive_card(gone)
+      {:ok, _} = Boards.Cards.archive_card(gone)
       card_fixture(ctx.cols["To Do"], %{"title" => "Not intake"})
 
       text = ctx.conn |> prompt("triage", %{board: "deliv1"}) |> text!()
@@ -370,7 +377,9 @@ defmodule SlipdockWeb.MCP.PromptWorkflowsTest do
       assert %{"error" => %{"code" => -32602}} = prompt(ctx.conn, "triage", %{board: "theirs1pw"})
 
       flat = board_fixture(%{"name" => "Flat", "code" => "flat1"}, owner: ctx.user)
-      {:ok, _} = flat.columns |> Enum.find(&(&1.name == "Backlog")) |> Boards.delete_column()
+
+      {:ok, _} =
+        flat.columns |> Enum.find(&(&1.name == "Backlog")) |> Boards.Columns.delete_column()
 
       assert %{"error" => %{"message" => msg}} = prompt(ctx.conn, "triage", %{board: "flat1"})
       assert msg =~ "Flat has no intake list"

@@ -47,10 +47,10 @@ defmodule Slipdock.Runners.AnswerOneJobTest do
   defp park(ctx) do
     job = Runners.claim(ctx.loop)
     assert job.card_id == ctx.a.id
-    :ok = Boards.move_card_to_index(Repo.get!(Card, job.card_id), ctx.doing, :top)
+    :ok = Boards.Cards.move_card_to_index(Repo.get!(Card, job.card_id), ctx.doing, :top)
 
     {:ok, _} =
-      Boards.open_wait(Repo.get!(Card, job.card_id), Actor.runner(ctx.owner, job.id), %{
+      Boards.Waits.open_wait(Repo.get!(Card, job.card_id), Actor.runner(ctx.owner, job.id), %{
         "needs" => "Which region?",
         "choices" => ["eu", "us"],
         "job_id" => job.id
@@ -83,7 +83,9 @@ defmodule Slipdock.Runners.AnswerOneJobTest do
       parked = park(ctx)
 
       {:ok, wait} =
-        Boards.answer_wait(Boards.get_card!(ctx.a.id), Actor.web(ctx.dana), %{"choice" => 1})
+        Boards.Waits.answer_wait(Boards.Cards.get_card!(ctx.a.id), Actor.web(ctx.dana), %{
+          "choice" => 1
+        })
 
       assert [fresh] = open_card_jobs(ctx.a)
       assert fresh.id != parked.id
@@ -105,7 +107,7 @@ defmodule Slipdock.Runners.AnswerOneJobTest do
       park(ctx)
       wait = Repo.one!(from(w in Wait, where: w.card_id == ^ctx.a.id))
 
-      {:ok, wait} = Boards.answer_wait(wait, Actor.web(ctx.dana), %{"skip" => true})
+      {:ok, wait} = Boards.Waits.answer_wait(wait, Actor.web(ctx.dana), %{"skip" => true})
 
       assert [fresh] = open_card_jobs(ctx.a)
       assert fresh.rule_id == loop_rule.id
@@ -125,7 +127,9 @@ defmodule Slipdock.Runners.AnswerOneJobTest do
         })
 
       {:ok, wait} =
-        Boards.answer_wait(Boards.get_card!(ctx.a.id), Actor.web(ctx.dana), %{"choice" => 2})
+        Boards.Waits.answer_wait(Boards.Cards.get_card!(ctx.a.id), Actor.web(ctx.dana), %{
+          "choice" => 2
+        })
 
       assert [same] = open_card_jobs(ctx.a)
       assert same.id == plain.id
@@ -148,7 +152,9 @@ defmodule Slipdock.Runners.AnswerOneJobTest do
         })
 
       {:ok, _wait} =
-        Boards.answer_wait(Boards.get_card!(ctx.a.id), Actor.web(ctx.dana), %{"choice" => 1})
+        Boards.Waits.answer_wait(Boards.Cards.get_card!(ctx.a.id), Actor.web(ctx.dana), %{
+          "choice" => 1
+        })
 
       assert [same] = open_card_jobs(ctx.a)
       assert same.id == plain.id
@@ -169,7 +175,9 @@ defmodule Slipdock.Runners.AnswerOneJobTest do
         Runners.queue(Repo.get!(Card, ctx.a.id), %{pool: "v", kind: "verify", prompt: "check it"})
 
       {:ok, wait} =
-        Boards.answer_wait(Boards.get_card!(ctx.a.id), Actor.web(ctx.dana), %{"choice" => 1})
+        Boards.Waits.answer_wait(Boards.Cards.get_card!(ctx.a.id), Actor.web(ctx.dana), %{
+          "choice" => 1
+        })
 
       assert Repo.reload!(verify).prompt == "check it"
       assert Repo.reload!(verify).status == "queued"
@@ -194,7 +202,9 @@ defmodule Slipdock.Runners.AnswerOneJobTest do
       assert id == plain.id
 
       {:ok, wait} =
-        Boards.answer_wait(Boards.get_card!(ctx.a.id), Actor.web(ctx.dana), %{"choice" => 1})
+        Boards.Waits.answer_wait(Boards.Cards.get_card!(ctx.a.id), Actor.web(ctx.dana), %{
+          "choice" => 1
+        })
 
       assert wait.requeue_state == "pending"
       assert [%Job{id: ^id}] = open_card_jobs(ctx.a)
@@ -208,7 +218,7 @@ defmodule Slipdock.Runners.AnswerOneJobTest do
     # root board (#2645).
     setup ctx do
       epic = card_fixture(ctx.backlog, %{"title" => "Epic"})
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(epic, t)
       sub = Boards.get_board!(sub.id)
       [sub_todo | _] = sub.columns
@@ -238,10 +248,10 @@ defmodule Slipdock.Runners.AnswerOneJobTest do
       # The loop runner takes the card, asks and parks.
       job = Runners.claim(ctx.loop)
       assert job.card_id == ctx.s.id
-      :ok = Boards.move_card_to_index(Repo.get!(Card, ctx.s.id), ctx.sub_doing, :top)
+      :ok = Boards.Cards.move_card_to_index(Repo.get!(Card, ctx.s.id), ctx.sub_doing, :top)
 
       {:ok, _} =
-        Boards.open_wait(Repo.get!(Card, ctx.s.id), Actor.runner(ctx.owner, job.id), %{
+        Boards.Waits.open_wait(Repo.get!(Card, ctx.s.id), Actor.runner(ctx.owner, job.id), %{
           "needs" => "Which region?",
           "choices" => ["eu", "us"],
           "job_id" => job.id
@@ -258,7 +268,9 @@ defmodule Slipdock.Runners.AnswerOneJobTest do
       assert Repo.get!(Card, ctx.s.id).column_id == ctx.sub_todo.id
 
       {:ok, wait} =
-        Boards.answer_wait(Boards.get_card!(ctx.s.id), Actor.web(ctx.dana), %{"choice" => 1})
+        Boards.Waits.answer_wait(Boards.Cards.get_card!(ctx.s.id), Actor.web(ctx.dana), %{
+          "choice" => 1
+        })
 
       assert [fresh] = open_card_jobs(ctx.s)
       assert fresh.id != parked.id
@@ -316,7 +328,9 @@ defmodule Slipdock.Runners.AnswerOneJobTest do
       park(ctx)
 
       {:ok, wait} =
-        Boards.answer_wait(Boards.get_card!(ctx.a.id), Actor.web(ctx.dana), %{"choice" => 1})
+        Boards.Waits.answer_wait(Boards.Cards.get_card!(ctx.a.id), Actor.web(ctx.dana), %{
+          "choice" => 1
+        })
 
       # A feed let through would have queued the card with its plain prompt,
       # and the answer would say it rewrote that job ("still queued").
@@ -355,7 +369,7 @@ defmodule Slipdock.Runners.AnswerOneJobTest do
       # sub-board, which has a feed of its own. The hold is found from the
       # root of the waiting card's tree, not from the board it is on.
       {loop_rule, white_rule} = setup_two_feeds(ctx)
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(ctx.a, t)
       sub = Boards.get_board!(sub.id)
       [sub_todo | _] = sub.columns
@@ -375,7 +389,7 @@ defmodule Slipdock.Runners.AnswerOneJobTest do
       assert {job.card_id, job.rule_id} == {ctx.a.id, loop_rule.id}
 
       {:ok, wait} =
-        Boards.open_wait(Repo.get!(Card, s.id), Actor.runner(ctx.owner, job.id), %{
+        Boards.Waits.open_wait(Repo.get!(Card, s.id), Actor.runner(ctx.owner, job.id), %{
           "needs" => "Which region?",
           "job_id" => job.id
         })
@@ -404,7 +418,7 @@ defmodule Slipdock.Runners.AnswerOneJobTest do
     # the feeds' own check keeps the other pool's rule off the epic.
     setup ctx do
       {loop_rule, white_rule} = setup_two_feeds(ctx)
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(ctx.a, t)
       [sub_todo | _] = Boards.get_board!(sub.id).columns
       s = card_fixture(sub_todo, %{"title" => "s"})
@@ -414,10 +428,10 @@ defmodule Slipdock.Runners.AnswerOneJobTest do
     defp park_on_subcard(ctx) do
       job = Runners.claim(ctx.loop)
       assert {job.card_id, job.rule_id} == {ctx.a.id, ctx.loop_rule.id}
-      :ok = Boards.move_card_to_index(Repo.get!(Card, ctx.a.id), ctx.doing, :top)
+      :ok = Boards.Cards.move_card_to_index(Repo.get!(Card, ctx.a.id), ctx.doing, :top)
 
       {:ok, wait} =
-        Boards.open_wait(Repo.get!(Card, ctx.s.id), Actor.runner(ctx.owner, job.id), %{
+        Boards.Waits.open_wait(Repo.get!(Card, ctx.s.id), Actor.runner(ctx.owner, job.id), %{
           "needs" => "Which region?",
           "choices" => ["eu", "us"],
           "job_id" => job.id
@@ -440,7 +454,7 @@ defmodule Slipdock.Runners.AnswerOneJobTest do
       epic = Repo.get!(Card, ctx.a.id)
       assert epic.column_id == ctx.todo.id
       refute "waiting" in epic.flags
-      assert Boards.current_wait(epic) == nil
+      assert Boards.Waits.current_wait(epic) == nil
 
       # Neither pool's rule sends it, cool-down or not.
       assert open_card_jobs(ctx.a) == []
@@ -451,7 +465,7 @@ defmodule Slipdock.Runners.AnswerOneJobTest do
       assert {:idle, _} = Automations.feed(ctx.loop_rule, force: true)
       assert open_card_jobs(ctx.a) == []
 
-      {:ok, wait} = Boards.answer_wait(wait, Actor.web(ctx.dana), %{"choice" => 1})
+      {:ok, wait} = Boards.Waits.answer_wait(wait, Actor.web(ctx.dana), %{"choice" => 1})
 
       # One job, the asking rule's, carrying the answer: not a rewritten
       # job the other pool's rule had queued with its plain prompt.
@@ -478,7 +492,9 @@ defmodule Slipdock.Runners.AnswerOneJobTest do
     test "a wait on the subcard no job of the epic's asked holds the epic for nobody", ctx do
       # Asked by hand: no job.
       {:ok, _} =
-        Boards.open_wait(Repo.get!(Card, ctx.s.id), Actor.web(ctx.owner), %{"needs" => "Why?"})
+        Boards.Waits.open_wait(Repo.get!(Card, ctx.s.id), Actor.web(ctx.owner), %{
+          "needs" => "Why?"
+        })
 
       # Asked by a job on another card.
       other = card_fixture(ctx.backlog, %{"title" => "other"})
@@ -486,7 +502,7 @@ defmodule Slipdock.Runners.AnswerOneJobTest do
       Repo.update_all(from(j in Job, where: j.id == ^job.id), set: [status: "running"])
 
       {:ok, _} =
-        Boards.open_wait(Repo.get!(Card, other.id), Actor.runner(ctx.owner, job.id), %{
+        Boards.Waits.open_wait(Repo.get!(Card, other.id), Actor.runner(ctx.owner, job.id), %{
           "needs" => "Which?",
           "job_id" => job.id
         })
@@ -513,7 +529,9 @@ defmodule Slipdock.Runners.AnswerOneJobTest do
       # open_wait refuses a job that isn't the card's, so the row is made
       # to point at the probe directly.
       {:ok, wait} =
-        Boards.open_wait(Repo.get!(Card, ctx.s.id), Actor.web(ctx.owner), %{"needs" => "Why?"})
+        Boards.Waits.open_wait(Repo.get!(Card, ctx.s.id), Actor.web(ctx.owner), %{
+          "needs" => "Why?"
+        })
 
       Repo.update_all(from(w in Wait, where: w.id == ^wait.id), set: [job_id: probe.id])
       assert %Wait{job_id: job_id, closed_at: nil} = Repo.get!(Wait, wait.id)
@@ -539,7 +557,7 @@ defmodule Slipdock.Runners.AnswerOneJobTest do
       job = Runners.claim(ctx.loop)
       Runners.heartbeat(ctx.loop, job.id)
       assert Repo.reload!(job).status in ~w(claimed running)
-      :ok = Boards.move_card_to_index(Repo.get!(Card, ctx.a.id), ctx.doing, :top)
+      :ok = Boards.Cards.move_card_to_index(Repo.get!(Card, ctx.a.id), ctx.doing, :top)
 
       # The move fired the third rule, and both feeds have had their turn.
       assert {:idle, _} = Automations.feed(white_rule)
@@ -550,7 +568,7 @@ defmodule Slipdock.Runners.AnswerOneJobTest do
       # A card whose only open job no rule queued (a verify job): sent.
       c = card_fixture(ctx.backlog, %{"title" => "c"})
       {:ok, verify} = Runners.queue(c, %{pool: "v", kind: "verify", prompt: "check it"})
-      :ok = Boards.move_card_to_index(Repo.get!(Card, c.id), ctx.doing, :top)
+      :ok = Boards.Cards.move_card_to_index(Repo.get!(Card, c.id), ctx.doing, :top)
       assert Enum.any?(open_card_jobs(c), &(&1.rule_id == moved.id))
       assert Repo.reload!(verify).prompt == "check it"
 
@@ -558,7 +576,7 @@ defmodule Slipdock.Runners.AnswerOneJobTest do
       # same rule sends it.
       b = card_fixture(ctx.backlog, %{"title" => "b"})
       assert open_card_jobs(b) == []
-      :ok = Boards.move_card_to_index(Repo.get!(Card, b.id), ctx.doing, :top)
+      :ok = Boards.Cards.move_card_to_index(Repo.get!(Card, b.id), ctx.doing, :top)
       assert Enum.any?(open_card_jobs(b), &(&1.rule_id == moved.id))
     end
   end

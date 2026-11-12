@@ -62,7 +62,9 @@ defmodule SlipdockWeb.ListOrderLiveTest do
     board: board,
     column: column
   } do
-    {:ok, _} = Boards.update_column(column, %{"sort_by" => "priority", "group_by" => "tag"})
+    {:ok, _} =
+      Boards.Columns.update_column(column, %{"sort_by" => "priority", "group_by" => "tag"})
+
     view = open_settings(conn, board, column)
 
     view |> form("#column-form", column: %{sort_by: "", group_by: ""}) |> render_submit()
@@ -80,7 +82,9 @@ defmodule SlipdockWeb.ListOrderLiveTest do
     assert has_element?(view, ~s|#cards-#{column.id}[data-sort="true"]|)
     assert drawn(view, column) == ~w(Low Critical Medium)
 
-    {:ok, _} = Boards.update_column(column, %{"sort_by" => "priority", "sort_dir" => "desc"})
+    {:ok, _} =
+      Boards.Columns.update_column(column, %{"sort_by" => "priority", "sort_dir" => "desc"})
+
     {:ok, view, _} = live(conn, ~p"/boards/#{board}")
 
     assert drawn(view, column) == ~w(Critical Medium Low)
@@ -94,7 +98,7 @@ defmodule SlipdockWeb.ListOrderLiveTest do
     assert headings(view, column) == []
 
     # The stored order is untouched: back to board order, back as they were.
-    {:ok, _} = Boards.update_column(Repo.get!(Column, column.id), %{"sort_by" => ""})
+    {:ok, _} = Boards.Columns.update_column(Repo.get!(Column, column.id), %{"sort_by" => ""})
     {:ok, view, _} = live(conn, ~p"/boards/#{board}")
     assert drawn(view, column) == ~w(Low Critical Medium)
   end
@@ -108,7 +112,7 @@ defmodule SlipdockWeb.ListOrderLiveTest do
     card_fixture(column, %{"title" => "Stuck", "flags" => ["blocked"]})
     card_fixture(column, %{"title" => "Also stuck", "flags" => ["blocked", "waiting"]})
 
-    {:ok, _} = Boards.update_column(column, %{"group_by" => "flag"})
+    {:ok, _} = Boards.Columns.update_column(column, %{"group_by" => "flag"})
     {:ok, view, _} = live(conn, ~p"/boards/#{board}")
 
     assert headings(view, column) == ["Blocked 2", "No flag 1"]
@@ -120,7 +124,7 @@ defmodule SlipdockWeb.ListOrderLiveTest do
   test "filters still apply inside groups", %{conn: conn, board: board, column: column} do
     card_fixture(column, %{"title" => "Needle", "flags" => ["blocked"]})
     card_fixture(column, %{"title" => "Haystack"})
-    {:ok, _} = Boards.update_column(column, %{"group_by" => "flag"})
+    {:ok, _} = Boards.Columns.update_column(column, %{"group_by" => "flag"})
 
     {:ok, view, _} = live(conn, ~p"/boards/#{board}")
     render_hook(view, "search", %{"q" => "needle"})

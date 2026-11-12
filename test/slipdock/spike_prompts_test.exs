@@ -32,7 +32,7 @@ defmodule Slipdock.SpikePromptsTest do
 
   defp spike(ctx) do
     card = card_fixture(ctx.doing, %{"title" => "Does the API page?"})
-    {:ok, card} = Boards.update_card(card, %{"profile" => "spike"})
+    {:ok, card} = Boards.Cards.update_card(card, %{"profile" => "spike"})
     Repo.get!(Card, card.id)
   end
 
@@ -62,7 +62,7 @@ defmodule Slipdock.SpikePromptsTest do
 
     test "a hand-tagged spike gets it", ctx do
       card = card_fixture(ctx.doing, %{"title" => "Tagged"})
-      {:ok, _} = Boards.set_card_tags(card, [tag_fixture(ctx.board, "spike")])
+      {:ok, _} = Boards.Cards.set_card_tags(card, [tag_fixture(ctx.board, "spike")])
       assert Verified.ship_instructions(Repo.get!(Card, card.id)) =~ "This card is a spike"
     end
 
@@ -83,7 +83,7 @@ defmodule Slipdock.SpikePromptsTest do
       card = spike(ctx)
 
       {:ok, card} =
-        Boards.update_card(
+        Boards.Cards.update_card(
           card,
           %{
             "completed" => true,
@@ -112,7 +112,7 @@ defmodule Slipdock.SpikePromptsTest do
       why = "spike: answer on W-9"
 
       {:ok, named} =
-        Boards.update_card(
+        Boards.Cards.update_card(
           card,
           %{
             "completed" => true,
@@ -130,7 +130,7 @@ defmodule Slipdock.SpikePromptsTest do
       other = spike(ctx)
 
       {:ok, blank} =
-        Boards.update_card(
+        Boards.Cards.update_card(
           other,
           %{"completed" => true, "evidence" => "built it", "evidence_no_code" => why},
           actor: ctx.builder
@@ -145,7 +145,7 @@ defmodule Slipdock.SpikePromptsTest do
       card = card_fixture(ctx.doing, %{"title" => "Sweep"})
 
       {:ok, card} =
-        Boards.update_card(
+        Boards.Cards.update_card(
           card,
           %{"completed" => true, "evidence" => "swept", "evidence_no_code" => "a sweep"},
           actor: ctx.builder

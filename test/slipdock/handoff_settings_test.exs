@@ -63,7 +63,7 @@ defmodule Slipdock.HandoffSettingsTest do
       Boards.update_board(ctx.board, %{"handoff_label" => "Parked", "handoff_prompt" => "Brief."})
 
     card = card_fixture(hd(board.columns), %{"title" => "Epic"})
-    {:ok, t} = Boards.find_template(nil, "Simple")
+    {:ok, t} = Boards.Templates.find_template(nil, "Simple")
     {:ok, sub} = Boards.create_sub_board(card, t)
 
     assert sub.handoff_label == "Parked"

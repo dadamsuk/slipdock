@@ -165,10 +165,10 @@ defmodule Slipdock.WikiPublishTest do
       card = card_fixture(column, %{"title" => "Ship it"})
       conditions = [%{"field" => "has_doc", "op" => "is", "value" => true}]
 
-      refute Automations.Runner.conditions_match?(conditions, Boards.get_card!(card.id))
+      refute Automations.Runner.conditions_match?(conditions, Boards.Cards.get_card!(card.id))
 
       {:ok, _} = Wiki.create_page_from_card(card, user: user)
-      assert Automations.Runner.conditions_match?(conditions, Boards.get_card!(card.id))
+      assert Automations.Runner.conditions_match?(conditions, Boards.Cards.get_card!(card.id))
     end
 
     test "create_page writes a page for the card and pins it", %{
@@ -184,7 +184,7 @@ defmodule Slipdock.WikiPublishTest do
           "actions" => [%{"type" => "create_page", "title" => "Spec for {{card.title}}"}]
         })
 
-      Automations.run_now(rule, Boards.get_card!(card.id))
+      Automations.run_now(rule, Boards.Cards.get_card!(card.id))
 
       assert [%{pinned: true, page: page}] = Wiki.pages_for_card(card)
       assert page.title == "Spec for Needs a spec"

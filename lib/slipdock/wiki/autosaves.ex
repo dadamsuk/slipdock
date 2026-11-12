@@ -155,7 +155,7 @@ defmodule Slipdock.Wiki.Autosaves do
 
     with :ok <- check_room(autosave, user, size),
          {:ok, _} <- Ecto.Changeset.apply_action(changeset, :insert),
-         :ok <- Boards.put_file(source, key),
+         :ok <- Boards.Attachments.put_file(source, key),
          {:ok, file} <- Repo.insert(changeset) do
       {:ok, file}
     else
@@ -211,7 +211,7 @@ defmodule Slipdock.Wiki.Autosaves do
   def file_url(%AutosaveFile{} = file),
     do: "/autosave-files/#{file.id}/#{URI.encode(file.filename)}"
 
-  def file_path(%AutosaveFile{key: key}), do: Path.join(Boards.uploads_dir(), key)
+  def file_path(%AutosaveFile{key: key}), do: Path.join(Boards.Attachments.uploads_dir(), key)
 
   @doc """
   Turns the held images `body` still shows into attachments of `page`, and
@@ -227,7 +227,9 @@ defmodule Slipdock.Wiki.Autosaves do
 
       case Wiki.add_attachment(page, meta, file_path(file)) do
         {:ok, %Attachment{} = attachment} ->
-          {:cont, {:ok, String.replace(body, file_url(file), Boards.attachment_url(attachment))}}
+          {:cont,
+           {:ok,
+            String.replace(body, file_url(file), Boards.Attachments.attachment_url(attachment))}}
 
         {:error, _} ->
           {:halt, {:error, "“#{file.filename}” couldn't be attached, so nothing was saved."}}
@@ -244,7 +246,7 @@ defmodule Slipdock.Wiki.Autosaves do
   def discard(%Autosave{id: id} = autosave) do
     keys = Repo.all(from(f in AutosaveFile, where: f.autosave_id == ^id, select: f.key))
     Repo.delete(autosave, stale_error_field: :id)
-    Boards.remove_files(keys)
+    Boards.Attachments.remove_files(keys)
     :ok
   end
 
@@ -254,7 +256,7 @@ defmodule Slipdock.Wiki.Autosaves do
     stale = from(a in Autosave, where: a.updated_at < ^cutoff)
     keys = keys_of(stale)
     {count, _} = Repo.delete_all(stale)
-    Boards.remove_files(keys)
+    Boards.Attachments.remove_files(keys)
     count
   end
 

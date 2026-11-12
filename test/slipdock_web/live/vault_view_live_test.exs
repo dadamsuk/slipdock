@@ -68,13 +68,13 @@ defmodule SlipdockWeb.VaultViewLiveTest do
 
   test "its top stands on a live board when the first is archived", ctx do
     %{conn: conn, kb: kb, hunt: hunt} = ctx
-    {:ok, _} = Slipdock.Boards.archive_board(hunt)
+    {:ok, _} = Slipdock.Boards.Arrangement.archive_board(hunt)
     {:ok, view, _html} = live(conn, "/wiki")
     assert has_element?(view, "#wiki-tree[data-board='#{kb.id}']")
   end
 
   test "an archived board keeps its address", %{conn: conn, hunt: hunt} do
-    {:ok, _} = Slipdock.Boards.archive_board(hunt)
+    {:ok, _} = Slipdock.Boards.Arrangement.archive_board(hunt)
     {:ok, _view, html} = live(conn, "/wiki/Journal%20Desk/Intake%20Questions")
     assert html =~ "Why us?"
   end
@@ -225,7 +225,7 @@ defmodule SlipdockWeb.VaultViewLiveTest do
   test "a page on a sub-board opens at its address in its epic's folder", ctx do
     %{conn: conn, user: user} = ctx
     board = board_fixture(%{"name" => "Plans", "code" => "vvsub"}, owner: user)
-    {:ok, template} = Slipdock.Boards.find_template(nil, "Simple")
+    {:ok, template} = Slipdock.Boards.Templates.find_template(nil, "Simple")
     [column | _] = board.columns
     epic = card_fixture(column, %{"title" => "Launch"})
     {:ok, sub} = sub_board(epic, template)

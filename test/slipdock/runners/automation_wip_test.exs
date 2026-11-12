@@ -77,7 +77,7 @@ defmodule Slipdock.Runners.AutomationWipTest do
 
     test "a person can still drag a fourth card in", ctx do
       card = card_fixture(ctx.todo, %{"title" => "By hand"})
-      assert :ok = Boards.move_card(card.id, ctx.doing.id, nil, actor: Actor.web(ctx.owner))
+      assert :ok = Boards.Cards.move_card(card.id, ctx.doing.id, nil, actor: Actor.web(ctx.owner))
       assert Repo.reload!(card).column_id == ctx.doing.id
     end
 
@@ -85,7 +85,7 @@ defmodule Slipdock.Runners.AutomationWipTest do
       {:ok, job} = queue(card_fixture(ctx.todo))
       assert Runners.claim(ctx.runner) == nil
 
-      {:ok, _} = Boards.toggle_completed(hd(ctx.in_progress))
+      {:ok, _} = Boards.Cards.toggle_completed(hd(ctx.in_progress))
       assert %Job{id: id} = Runners.claim(ctx.runner)
       assert id == job.id
     end
@@ -125,7 +125,9 @@ defmodule Slipdock.Runners.AutomationWipTest do
 
     test "a card with an open wait does", ctx do
       asking = List.last(ctx.in_progress)
-      {:ok, _} = Boards.open_wait(asking, Actor.web(ctx.owner), %{"needs" => "Which region?"})
+
+      {:ok, _} =
+        Boards.Waits.open_wait(asking, Actor.web(ctx.owner), %{"needs" => "Which region?"})
 
       assert {_column, 3} = Runners.wip_full(ctx.board.id)
     end

@@ -29,13 +29,13 @@ defmodule Slipdock.TableCsvTest do
 
     empty = card_fixture(backlog, %{"title" => "Empty"})
 
-    Boards.toggle_card_tag(full, tag_fixture(board, "bug"))
-    Boards.toggle_card_tag(full, tag_fixture(board, "ui"))
-    {:ok, item} = Boards.add_checklist_item(full, "one")
-    {:ok, _} = Boards.add_checklist_item(full, "two")
-    {:ok, _} = Boards.toggle_checklist_item(item)
-    {:ok, _} = Boards.add_comment(full, "First", by: owner)
-    {:ok, _} = Boards.add_dependency(full, empty)
+    Boards.Tags.toggle_card_tag(full, tag_fixture(board, "bug"))
+    Boards.Tags.toggle_card_tag(full, tag_fixture(board, "ui"))
+    {:ok, item} = Boards.Checklists.add_checklist_item(full, "one")
+    {:ok, _} = Boards.Checklists.add_checklist_item(full, "two")
+    {:ok, _} = Boards.Checklists.toggle_checklist_item(item)
+    {:ok, _} = Boards.Comments.add_comment(full, "First", by: owner)
+    {:ok, _} = Boards.Dependencies.add_dependency(full, empty)
     {:ok, _} = Fields.set_value(full, points, "5")
     {:ok, _} = Fields.set_value(empty, points, "3")
 

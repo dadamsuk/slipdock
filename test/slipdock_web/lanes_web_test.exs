@@ -17,7 +17,7 @@ defmodule SlipdockWeb.LanesWebTest do
     board = board_fixture(%{"name" => "Lane doors", "code" => unique_code()}, owner: user)
     [_backlog, todo, doing, _done] = board.columns
     running = card_fixture(doing, %{"title" => "Running"})
-    {:ok, running} = Boards.update_card(running, %{"paths" => ["lib/runners/**"]})
+    {:ok, running} = Boards.Cards.update_card(running, %{"paths" => ["lib/runners/**"]})
     working_job_fixture(running)
     card = card_fixture(todo, %{"title" => "Next"})
     {token, _} = Accounts.create_api_token(user, "bot")
@@ -98,7 +98,7 @@ defmodule SlipdockWeb.LanesWebTest do
   end
 
   test "off: an agent starts an overlapping card", ctx do
-    {:ok, _} = Boards.update_card(ctx.card, %{"paths" => "lib/runners/a.ex"})
+    {:ok, _} = Boards.Cards.update_card(ctx.card, %{"paths" => "lib/runners/a.ex"})
 
     ctx.agent
     |> patch(~p"/api/cards/#{ctx.card.id}", %{"column" => ctx.doing.id})
@@ -110,7 +110,7 @@ defmodule SlipdockWeb.LanesWebTest do
   test "on: an agent is refused over PATCH and move, naming the card; a person on the CLI is not",
        ctx do
     {:ok, _} = on(ctx)
-    {:ok, _} = Boards.update_card(ctx.card, %{"paths" => "lib/runners/a.ex"})
+    {:ok, _} = Boards.Cards.update_card(ctx.card, %{"paths" => "lib/runners/a.ex"})
 
     body =
       ctx.agent
@@ -182,7 +182,9 @@ defmodule SlipdockWeb.LanesWebTest do
     assert has_element?(view, "#card-paths-overlap", "Overlaps ##{ctx.running.id} Running")
 
     # A person moving it is the override.
-    :ok = Boards.move_card(ctx.card.id, ctx.doing.id, nil, actor: Slipdock.Actor.web(ctx.user))
+    :ok =
+      Boards.Cards.move_card(ctx.card.id, ctx.doing.id, nil, actor: Slipdock.Actor.web(ctx.user))
+
     assert Repo.get!(Card, ctx.card.id).column_id == ctx.doing.id
   end
 

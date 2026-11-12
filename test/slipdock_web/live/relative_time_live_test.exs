@@ -23,9 +23,12 @@ defmodule SlipdockWeb.RelativeTimeLiveTest do
     at = DateTime.utc_now() |> DateTime.add(-@days_ago) |> DateTime.truncate(:second)
 
     {:ok, update} =
-      Boards.add_status_update(card, owner, %{"health" => "at_risk", "body" => "Waiting on CI"})
+      Boards.StatusUpdates.add_status_update(card, owner, %{
+        "health" => "at_risk",
+        "body" => "Waiting on CI"
+      })
 
-    {:ok, comment} = Boards.add_comment(card, "Looks right", by: owner)
+    {:ok, comment} = Boards.Comments.add_comment(card, "Looks right", by: owner)
     Repo.update_all(from(u in StatusUpdate, where: u.id == ^update.id), set: [inserted_at: at])
     Repo.update_all(from(c in Comment, where: c.id == ^comment.id), set: [inserted_at: at])
 
@@ -63,7 +66,9 @@ defmodule SlipdockWeb.RelativeTimeLiveTest do
   test "a re-render keeps the marks the browser rewrites the stale text by", ctx do
     {:ok, view, _html} = open(ctx)
 
-    {:ok, _} = Boards.add_status_update(ctx.card, ctx.owner, %{"health" => "on_track"})
+    {:ok, _} =
+      Boards.StatusUpdates.add_status_update(ctx.card, ctx.owner, %{"health" => "on_track"})
+
     :sys.get_state(view.pid)
     :sys.get_state(view.pid)
     html = render(view)

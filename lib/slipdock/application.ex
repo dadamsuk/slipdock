@@ -85,7 +85,7 @@ defmodule Slipdock.Application do
         require Logger
 
         try do
-          n = Slipdock.Boards.backfill_attachment_hashes()
+          n = Slipdock.Boards.Attachments.backfill_attachment_hashes()
           if n > 0, do: Logger.info("Hashed #{n} attachment(s) stored before sha256 was kept.")
         rescue
           e -> Logger.warning("Attachment hash backfill failed: #{Exception.message(e)}")

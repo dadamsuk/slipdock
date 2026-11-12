@@ -45,7 +45,7 @@ defmodule SlipdockWeb.CardMarkdownLiveTest do
 
   test "comments are rendered as Markdown", ctx do
     {:ok, comment} =
-      Boards.add_comment(ctx.card, "Done:\n\n1. *one*\n2. [docs](https://example.com/d)")
+      Boards.Comments.add_comment(ctx.card, "Done:\n\n1. *one*\n2. [docs](https://example.com/d)")
 
     {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/cards/#{ctx.card.id}")
 

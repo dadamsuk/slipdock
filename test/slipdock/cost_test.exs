@@ -331,7 +331,7 @@ defmodule Slipdock.CostTest do
 
     test "an epic rolls up its subcards' costs with its own jobs'", ctx do
       epic = card_fixture(ctx.doing, %{"title" => "The epic"})
-      {:ok, template} = Boards.find_template(nil, "Simple")
+      {:ok, template} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(epic, template)
       [sub_todo | _] = Boards.get_board!(sub.id).columns
       one = card_fixture(sub_todo, %{"title" => "One"})

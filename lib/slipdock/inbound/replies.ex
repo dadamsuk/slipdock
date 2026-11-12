@@ -10,7 +10,7 @@ defmodule Slipdock.Inbound.Replies do
     * **Files** go to the card, and the comment links to each one. Any that
       don't fit the account's limits are left off and named in a comment.
     * **Mentions** in the reply tell the people mentioned, as a comment
-      typed on the card does (`Slipdock.Boards.add_comment/3`), and never
+      typed on the card does (`Slipdock.Boards.Comments.add_comment/3`), and never
       the sender.
     * **Nothing to add**: a reply that is empty once trimmed, with no
       files, bounces.
@@ -45,7 +45,7 @@ defmodule Slipdock.Inbound.Replies do
       {:reject, @nothing}
     else
       {stored, left_off} = store_all(card, files)
-      cid = fn id -> if a = stored[{:cid, id}], do: Boards.attachment_url(a) end
+      cid = fn id -> if a = stored[{:cid, id}], do: Boards.Attachments.attachment_url(a) end
 
       said = body(message, cid)
       links = links(stored, message)
@@ -68,26 +68,29 @@ defmodule Slipdock.Inbound.Replies do
 
   # The card's open wait, when it waits on this very person (#1259).
   defp waiting_on(card, user) do
-    case Boards.current_wait(card) do
+    case Boards.Waits.current_wait(card) do
       %Wait{on_user_id: id} = wait when id == user.id -> wait
       _ -> nil
     end
   end
 
   # The reply as the wait's answer; the answer is the comment
-  # `Boards.answer_wait/3` posts, with any files linked in one after it.
+  # `Boards.Waits.answer_wait/3` posts, with any files linked in one after it.
   # A reply that can't be read as an answer is a plain comment, with a
   # second saying why the wait is still open.
   defp answer(user, card, wait, said, links, left_off) do
     with {:ok, attrs} <- WaitReply.attrs(wait, said),
-         {:ok, _closed} <- Boards.answer_wait(wait, Actor.email(user), attrs) do
-      if links != "", do: Boards.add_comment(card, links, by: user)
-      if left_off != [], do: Boards.add_comment(card, Cards.left_off_comment(left_off), by: user)
+         {:ok, _closed} <- Boards.Waits.answer_wait(wait, Actor.email(user), attrs) do
+      if links != "", do: Boards.Comments.add_comment(card, links, by: user)
+
+      if left_off != [],
+        do: Boards.Comments.add_comment(card, Cards.left_off_comment(left_off), by: user)
+
       {:ok, %{comment_id: answer_comment_id(card, user), user_id: user.id}}
     else
       {:error, why} ->
         with {:ok, attrs} <- comment(user, card, join(said, links), left_off) do
-          Boards.add_comment(
+          Boards.Comments.add_comment(
             card,
             "**Not taken as the answer** to “#{wait.needs}”: #{why}. The wait is still open.",
             by: user
@@ -115,10 +118,10 @@ defmodule Slipdock.Inbound.Replies do
   defp comment(_user, _card, "", left_off), do: {:reject, files_refused(left_off)}
 
   defp comment(user, card, text, left_off) do
-    case Boards.add_comment(card, text, by: user) do
+    case Boards.Comments.add_comment(card, text, by: user) do
       {:ok, comment} ->
         if left_off != [],
-          do: Boards.add_comment(card, Cards.left_off_comment(left_off), by: user)
+          do: Boards.Comments.add_comment(card, Cards.left_off_comment(left_off), by: user)
 
         {:ok, %{comment_id: comment.id, user_id: user.id}}
 
@@ -181,7 +184,7 @@ defmodule Slipdock.Inbound.Replies do
     |> Enum.sort_by(fn {i, _} -> i end)
     |> Enum.reject(fn {_, {file, _}} -> shown_inline and file.inline and file.content_id end)
     |> Enum.map(fn {_, {file, attachment}} ->
-      "- [#{file.filename}](#{Boards.attachment_url(attachment)})"
+      "- [#{file.filename}](#{Boards.Attachments.attachment_url(attachment)})"
     end)
     |> case do
       [] -> ""

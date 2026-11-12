@@ -30,7 +30,7 @@ defmodule SlipdockWeb.DesktopNotifyTest do
     other = user_fixture("toaster-#{System.unique_integer([:positive])}@example.com")
     {:ok, _} = Access.grant(ctx.board, other, "write", ctx.user)
     handle = ctx.user.email |> String.split("@") |> hd()
-    {:ok, _} = Boards.add_comment(ctx.card, "@#{handle} look", by: other)
+    {:ok, _} = Boards.Comments.add_comment(ctx.card, "@#{handle} look", by: other)
 
     path = "/boards/#{ctx.board.id}/cards/#{ctx.card.id}"
     assert_push_event(view, "desktop-notify", %{kind: "mention", path: ^path, id: "notify-" <> _})
@@ -49,7 +49,10 @@ defmodule SlipdockWeb.DesktopNotifyTest do
       }
 
       {:ok, _} =
-        Boards.open_wait(ctx.card, agent, %{"needs" => "Which tier?", "on_user_id" => ctx.user.id})
+        Boards.Waits.open_wait(ctx.card, agent, %{
+          "needs" => "Which tier?",
+          "on_user_id" => ctx.user.id
+        })
 
       path = "/boards/#{ctx.board.id}/cards/#{ctx.card.id}"
       assert_push_event(view, "desktop-notify", %{kind: "wait", by_id: nil, path: ^path})
@@ -59,7 +62,7 @@ defmodule SlipdockWeb.DesktopNotifyTest do
       {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}")
 
       {:ok, _} =
-        Boards.open_wait(ctx.card, Slipdock.Actor.web(ctx.user), %{
+        Boards.Waits.open_wait(ctx.card, Slipdock.Actor.web(ctx.user), %{
           "needs" => "Note to self",
           "on_user_id" => ctx.user.id
         })
@@ -76,7 +79,7 @@ defmodule SlipdockWeb.DesktopNotifyTest do
       {:ok, _} = Access.grant(ctx.board, other, "write", user)
 
       {:ok, _} =
-        Boards.open_wait(ctx.card, Slipdock.Actor.web(other), %{
+        Boards.Waits.open_wait(ctx.card, Slipdock.Actor.web(other), %{
           "needs" => "Ship it?",
           "on_user_id" => user.id
         })

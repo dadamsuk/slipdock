@@ -44,7 +44,7 @@ defmodule Slipdock.FindingsLessonsTest do
   end
 
   defp say(card, owner, block) do
-    {:ok, comment} = Boards.add_comment(card, block, by: owner)
+    {:ok, comment} = Boards.Comments.add_comment(card, block, by: owner)
     comment
   end
 
@@ -165,11 +165,11 @@ defmodule Slipdock.FindingsLessonsTest do
       first = say(ctx.one, ctx.owner, block(["gotcha: run it twice"]))
       second = say(ctx.one, ctx.owner, block(["gotcha: run it twice"]))
 
-      {:ok, _} = Boards.delete_comment(first)
+      {:ok, _} = Boards.Comments.delete_comment(first)
       assert [%Finding{count: 1, comment_ids: [id], comment_id: id}] = all(ctx.board)
       assert id == second.id
 
-      {:ok, _} = Boards.delete_comment(second)
+      {:ok, _} = Boards.Comments.delete_comment(second)
       assert all(ctx.board) == []
     end
 
@@ -233,7 +233,7 @@ defmodule Slipdock.FindingsLessonsTest do
       # Parsing the comment again takes back what it made, as for any item.
       comment = say(ctx.two, ctx.owner, block(["gotcha: → #5"]))
       assert length(all(ctx.board)) == 2
-      {:ok, _} = Boards.delete_comment(comment)
+      {:ok, _} = Boards.Comments.delete_comment(comment)
       assert length(all(ctx.board)) == 2
     end
   end
@@ -328,7 +328,7 @@ defmodule Slipdock.FindingsLessonsTest do
     end
 
     test "a sub-board's card merges into its root's", ctx do
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(ctx.one, t)
       sub = Boards.get_board!(sub.id)
       subcard = card_fixture(hd(sub.columns), %{"title" => "Below"})
@@ -378,7 +378,7 @@ defmodule Slipdock.FindingsLessonsTest do
       say(ctx.one, ctx.owner, block(["gotcha: keep it once"]))
       repeat = say(ctx.two, ctx.owner, block(["gotcha: keep it once"]))
 
-      {:ok, _} = Boards.delete_comment(repeat)
+      {:ok, _} = Boards.Comments.delete_comment(repeat)
       assert [%{count: 1, card_id: one}] = all(ctx.board)
       assert one == ctx.one.id
     end
@@ -420,7 +420,7 @@ defmodule Slipdock.FindingsLessonsTest do
       {:ok, job} = Runners.queue(ctx.one, %{pool: "dev", kind: "claude", prompt: "go"})
       Runners.claim(runner)
 
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(ctx.one, t)
       subcard = card_fixture(hd(Boards.get_board!(sub.id).columns), %{"title" => "Sub"})
 

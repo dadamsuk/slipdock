@@ -134,12 +134,15 @@ defmodule SlipdockWeb.CardStateAPITest do
   test "a plain board: no state and no driver keys, even for a card an agent moved", ctx do
     card = card_fixture(ctx.todo)
 
-    Boards.move_card(card.id, ctx.doing.id, nil,
+    Boards.Cards.move_card(card.id, ctx.doing.id, nil,
       actor: %{Actor.unknown() | kind: "agent", via: "mcp", agent: "claude"}
     )
 
     {:ok, _} =
-      Boards.leave_handoff(Repo.get!(Card, card.id), ctx.user, %{next_step: "x", via: "ui"})
+      Boards.Handoffs.leave_handoff(Repo.get!(Card, card.id), ctx.user, %{
+        next_step: "x",
+        via: "ui"
+      })
 
     conn = api(ctx.user)
 
@@ -183,9 +186,9 @@ defmodule SlipdockWeb.CardStateAPITest do
     runner_rule(ctx.board)
     agent = %{Actor.unknown() | kind: "agent", via: "mcp", agent: "claude"}
     by_agent = for _ <- 1..2, do: card_fixture(ctx.todo)
-    Enum.each(by_agent, &Boards.move_card(&1.id, ctx.doing.id, nil, actor: agent))
+    Enum.each(by_agent, &Boards.Cards.move_card(&1.id, ctx.doing.id, nil, actor: agent))
     by_person = card_fixture(ctx.todo)
-    Boards.move_card(by_person.id, ctx.doing.id, nil, actor: Actor.web(ctx.user))
+    Boards.Cards.move_card(by_person.id, ctx.doing.id, nil, actor: Actor.web(ctx.user))
     conn = api(ctx.user)
 
     rest = fn driver ->

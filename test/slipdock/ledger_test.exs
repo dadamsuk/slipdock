@@ -351,7 +351,7 @@ defmodule Slipdock.LedgerTest do
   test "an epic's line rolls up its subcards, which have lines of their own",
        %{board: board, done: done} do
     epic = completed!(done, 1, %{"title" => "Epic"})
-    {:ok, t} = Boards.find_template(nil, "Simple")
+    {:ok, t} = Boards.Templates.find_template(nil, "Simple")
     {:ok, sub} = sub_board(epic, t)
     sub = Boards.get_board!(sub.id)
     [first | _] = sub.columns

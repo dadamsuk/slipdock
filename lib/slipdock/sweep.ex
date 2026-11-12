@@ -284,7 +284,7 @@ defmodule Slipdock.Sweep do
     case find(root) do
       %{card: %Card{bar: bar, bar_locked_at: nil} = card, page: %Page{code: code}}
       when bar in [nil, ""] and is_binary(code) ->
-        {:ok, _} = Boards.update_card(card, %{"bar" => card_bar(code)}, by: user)
+        {:ok, _} = Boards.Cards.update_card(card, %{"bar" => card_bar(code)}, by: user)
         :ok
 
       _ ->

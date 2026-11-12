@@ -96,7 +96,7 @@ defmodule SlipdockWeb.LedgerLiveTest do
 
   test "an unverified card says so, and an epic shows its subcards' rollup", ctx do
     epic = shipped!(ctx.done, %{"title" => "Epic"}, [])
-    {:ok, t} = Boards.find_template(nil, "Simple")
+    {:ok, t} = Boards.Templates.find_template(nil, "Simple")
     {:ok, sub} = sub_board(epic, t)
     [first | _] = Boards.get_board!(sub.id).columns
     sub_card = shipped!(first, %{"title" => "Child"}, [])

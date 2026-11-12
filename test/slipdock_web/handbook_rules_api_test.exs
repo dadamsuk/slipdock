@@ -120,7 +120,7 @@ defmodule SlipdockWeb.HandbookRulesAPITest do
   test "get_card and the REST card carry the rules for the card's paths",
        %{user: user, col: col} do
     card = card_fixture(col, %{"title" => "Add a column"})
-    {:ok, _} = Boards.update_card(card, %{"paths" => ["priv/repo/migrations/**"]})
+    {:ok, _} = Boards.Cards.update_card(card, %{"paths" => ["priv/repo/migrations/**"]})
 
     mcp = get_card(token_conn(user), card.id)["handbook"]
     rest = (user |> token_conn() |> get("/api/cards/#{card.id}") |> json_response(200))["card"]

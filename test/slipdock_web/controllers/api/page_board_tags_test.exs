@@ -109,7 +109,7 @@ defmodule SlipdockWeb.API.PageBoardTagsTest do
 
   test "a page on a sub-board takes its root board's tags", ctx do
     card = card_fixture(hd(ctx.board.columns))
-    {:ok, sub} = sub_board(card, hd(Slipdock.Boards.list_templates(nil)))
+    {:ok, sub} = sub_board(card, hd(Slipdock.Boards.Templates.list_templates(nil)))
     page = page_fixture(sub, %{"title" => "Sub doc"}, user: ctx.user)
 
     assert ctx.conn |> patch_page(page, %{add_tags: ~w(alpha)}) |> json_response(200)

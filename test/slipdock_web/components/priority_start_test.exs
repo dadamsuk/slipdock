@@ -495,7 +495,7 @@ defmodule SlipdockWeb.Components.PriorityStartTest do
           "due_date" => iso(20)
         })
 
-      {:ok, template} = Slipdock.Boards.find_template(nil, "Simple")
+      {:ok, template} = Slipdock.Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(parent, template)
       [sub_todo | _] = Slipdock.Boards.get_board!(sub.id).columns
       card_fixture(sub_todo, %{"title" => "Child", "start_date" => iso(-3), "due_date" => iso(5)})

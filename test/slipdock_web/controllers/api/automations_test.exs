@@ -326,7 +326,7 @@ defmodule SlipdockWeb.API.AutomationsTest do
 
       assert body["fired"] == 1
       assert body["automation"]["run_count"] == 1
-      assert Boards.get_card!(card.id).flags == ["blocked"]
+      assert Boards.Cards.get_card!(card.id).flags == ["blocked"]
     end
   end
 

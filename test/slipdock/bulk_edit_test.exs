@@ -44,7 +44,7 @@ defmodule Slipdock.BulkEditTest do
 
     test "adds a tag only once, and removes it", %{owner: o, board: bd} = ctx do
       tag = tag_fixture(bd, "ops")
-      {:ok, _} = Boards.set_card_tags(ctx.a, [tag])
+      {:ok, _} = Boards.Cards.set_card_tags(ctx.a, [tag])
 
       assert {:ok, %{changed: 2, failed: []}} =
                BulkEdit.apply(o, bd, ids([ctx.a, ctx.b]), {:add_tag, to_string(tag.id)})
@@ -74,7 +74,7 @@ defmodule Slipdock.BulkEditTest do
 
       assert fresh(ctx.a).priority == "high" and fresh(ctx.b).priority == "high"
 
-      {:ok, _} = Boards.update_card(ctx.a, %{"flags" => ["blocked"]})
+      {:ok, _} = Boards.Cards.update_card(ctx.a, %{"flags" => ["blocked"]})
       assert {:ok, _} = BulkEdit.apply(o, bd, ids([ctx.a, ctx.b]), {:add_flag, "blocked"})
       assert fresh(ctx.a).flags == ["blocked"]
       assert fresh(ctx.b).flags == ["blocked"]
@@ -129,7 +129,7 @@ defmodule Slipdock.BulkEditTest do
     test "leaves out cards on other boards, archived cards and junk ids",
          %{owner: o, board: bd} = ctx do
       elsewhere = card_fixture(hd(board_fixture(%{}, owner: o).columns))
-      {:ok, _} = Boards.archive_card(ctx.b)
+      {:ok, _} = Boards.Cards.archive_card(ctx.b)
 
       assert {:ok, %{changed: 1, failed: []}} =
                BulkEdit.apply(o, bd, [ctx.a.id, ctx.b.id, elsewhere.id, "x", nil], :complete)
@@ -158,7 +158,7 @@ defmodule Slipdock.BulkEditTest do
 
     test "one card refusing doesn't stop the rest", %{owner: o, board: bd} = ctx do
       # Into A's own subcards: A can't go there, B can.
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
 
       {:ok, sub} =
         Boards.create_sub_board(ctx.a, t, code: "bk#{System.unique_integer([:positive])}")

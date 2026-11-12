@@ -90,7 +90,10 @@ defmodule SlipdockWeb.MCP.Tools.Activity do
       {:ok,
        %{
          board: %{id: board.id, code: board.code, name: board.name},
-         activity: board.id |> Boards.list_activities(limit, card_id) |> Enum.map(&V.activity/1)
+         activity:
+           board.id
+           |> Boards.ActivityLog.list_activities(limit, card_id)
+           |> Enum.map(&V.activity/1)
        }}
     end
   end

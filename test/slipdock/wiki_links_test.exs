@@ -253,7 +253,7 @@ defmodule Slipdock.WikiLinksTest do
       assert [%{page: %{id: id}}] = Wiki.pages_for_card(card, user)
       assert id == page.id
 
-      {:ok, _} = Slipdock.Boards.archive_board(shelved)
+      {:ok, _} = Slipdock.Boards.Arrangement.archive_board(shelved)
 
       assert [] = Wiki.pages_for_card(card, user)
     end
@@ -563,7 +563,7 @@ defmodule Slipdock.WikiLinksTest do
     test "refuses no source, and refuses two", %{board: board, user: user, column: column} do
       {:ok, page} = Wiki.create_page(board, %{"title" => "Source"}, user: user)
       card = card_fixture(column)
-      {:ok, comment} = Slipdock.Boards.add_comment(card, "see [[Source]]")
+      {:ok, comment} = Slipdock.Boards.Comments.add_comment(card, "see [[Source]]")
 
       assert %{page_id: ["exactly one source must be set"]} =
                errors_on(link_changeset(%{kind: "page", raw: "r"}))

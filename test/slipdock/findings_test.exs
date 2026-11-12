@@ -164,7 +164,7 @@ defmodule Slipdock.FindingsTest do
       board: board,
       owner: owner
     } do
-      {:ok, comment} = Boards.add_comment(card, @wrap_up, by: owner)
+      {:ok, comment} = Boards.Comments.add_comment(card, @wrap_up, by: owner)
       found = findings(card)
 
       assert Enum.map(found, & &1.kind) ==
@@ -178,8 +178,8 @@ defmodule Slipdock.FindingsTest do
     end
 
     test "none makes none; a comment without a block makes none", %{card: card} do
-      {:ok, _} = Boards.add_comment(card, "- Handbook: no change\n- Findings: none")
-      {:ok, _} = Boards.add_comment(card, "Picked up.")
+      {:ok, _} = Boards.Comments.add_comment(card, "- Handbook: no change\n- Findings: none")
+      {:ok, _} = Boards.Comments.add_comment(card, "Picked up.")
       assert findings(card) == []
     end
 
@@ -188,24 +188,31 @@ defmodule Slipdock.FindingsTest do
       doing: doing
     } do
       other = card_fixture(doing, %{"title" => "Also pointed"})
-      {:ok, _} = Boards.add_comment(card, "- Handbook: no change\n- Findings: in the evidence")
-      {:ok, _} = Boards.add_comment(other, "- Findings: in the evidence")
-      {:ok, _} = Boards.add_comment(other, "Findings:\n- in the subcards' evidence (#1958)")
+
+      {:ok, _} =
+        Boards.Comments.add_comment(card, "- Handbook: no change\n- Findings: in the evidence")
+
+      {:ok, _} = Boards.Comments.add_comment(other, "- Findings: in the evidence")
+
+      {:ok, _} =
+        Boards.Comments.add_comment(other, "Findings:\n- in the subcards' evidence (#1958)")
 
       assert findings(card) == []
       assert findings(other) == []
 
-      {:ok, _} = Boards.add_comment(card, "Evidence\n- Findings:\n  - gotcha: the real one")
+      {:ok, _} =
+        Boards.Comments.add_comment(card, "Evidence\n- Findings:\n  - gotcha: the real one")
+
       assert [%Finding{text: "the real one", count: 1}] = findings(card)
     end
 
     test "a subcard's findings are kept on the root board", %{card: card, board: board} do
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(card, t)
       [first | _] = Boards.get_board!(sub.id).columns
       child = card_fixture(first, %{"title" => "Child"})
 
-      {:ok, _} = Boards.add_comment(child, "Findings:\n- gotcha: deep down")
+      {:ok, _} = Boards.Comments.add_comment(child, "Findings:\n- gotcha: deep down")
       assert [%Finding{board_id: root}] = findings(child)
       assert root == board.id
     end
@@ -213,7 +220,7 @@ defmodule Slipdock.FindingsTest do
     test "parsing again after an edit replaces its open findings, and is idempotent", %{
       card: card
     } do
-      {:ok, comment} = Boards.add_comment(card, "Findings:\n- gotcha: one\n- rule: two")
+      {:ok, comment} = Boards.Comments.add_comment(card, "Findings:\n- gotcha: one\n- rule: two")
       assert length(findings(card)) == 2
 
       {:ok, _} = Findings.from_comment(comment)
@@ -228,7 +235,7 @@ defmodule Slipdock.FindingsTest do
     end
 
     test "an edit keeps a triaged finding and doesn't make it twice", %{card: card} do
-      {:ok, comment} = Boards.add_comment(card, "Findings:\n- gotcha: one")
+      {:ok, comment} = Boards.Comments.add_comment(card, "Findings:\n- gotcha: one")
       [f] = findings(card)
       {:ok, _} = Findings.triage(f, "dismiss")
 
@@ -237,23 +244,23 @@ defmodule Slipdock.FindingsTest do
     end
 
     test "the same item in the evidence and the wrap-up is kept once", %{card: card} do
-      {:ok, _} = Boards.add_comment(card, "Findings:\n- gotcha: once")
-      {:ok, _} = Boards.add_comment(card, "**Done.**\n- Findings:\n  - gotcha: once")
+      {:ok, _} = Boards.Comments.add_comment(card, "Findings:\n- gotcha: once")
+      {:ok, _} = Boards.Comments.add_comment(card, "**Done.**\n- Findings:\n  - gotcha: once")
       assert [_] = findings(card)
     end
 
     test "deleting the comment drops its open findings, keeps triaged ones", %{card: card} do
-      {:ok, comment} = Boards.add_comment(card, "Findings:\n- gotcha: one\n- rule: two")
+      {:ok, comment} = Boards.Comments.add_comment(card, "Findings:\n- gotcha: one\n- rule: two")
       [one, _two] = findings(card)
       {:ok, _} = Findings.triage(one, "promote", %{"note" => "W-1950 §Tests TEST-9"})
 
-      {:ok, _} = Boards.delete_comment(comment)
+      {:ok, _} = Boards.Comments.delete_comment(comment)
       assert [%{text: "one", status: "promoted", comment_id: nil}] = findings(card)
     end
 
     test "a comment on a page makes none", %{board: board} do
       {:ok, page} = Slipdock.Wiki.create_page(board, %{"title" => "Notes", "body" => "x"})
-      assert {:ok, _} = Boards.add_comment(page, "Findings:\n- gotcha: on a page")
+      assert {:ok, _} = Boards.Comments.add_comment(page, "Findings:\n- gotcha: on a page")
       assert Repo.aggregate(Finding, :count) == 0
     end
   end
@@ -279,7 +286,7 @@ defmodule Slipdock.FindingsTest do
 
   describe "list/2" do
     setup %{card: card} do
-      {:ok, _} = Boards.add_comment(card, "Findings:\n- gotcha: one\n- rule: two")
+      {:ok, _} = Boards.Comments.add_comment(card, "Findings:\n- gotcha: one\n- rule: two")
       :ok
     end
 
@@ -307,7 +314,9 @@ defmodule Slipdock.FindingsTest do
 
   describe "triage/3" do
     setup %{card: card} do
-      {:ok, _} = Boards.add_comment(card, "Findings:\n- gotcha: one\n- gotcha: same thing")
+      {:ok, _} =
+        Boards.Comments.add_comment(card, "Findings:\n- gotcha: one\n- gotcha: same thing")
+
       [a, b] = findings(card)
       %{a: a, b: b}
     end
@@ -349,7 +358,7 @@ defmodule Slipdock.FindingsTest do
 
       other = Boards.get_board!(board_fixture(%{"name" => "Elsewhere"}, owner: owner).id)
       [_, doing | _] = other.columns
-      {:ok, _} = Boards.add_comment(card_fixture(doing), "Findings:\n- gotcha: far")
+      {:ok, _} = Boards.Comments.add_comment(card_fixture(doing), "Findings:\n- gotcha: far")
       far = Repo.one!(from(f in Finding, where: f.board_id == ^other.id))
 
       assert {:error, "that finding is on another board tree"} =

@@ -94,7 +94,7 @@ defmodule SlipdockWeb.MCP.Tools.DownloadFile do
         attachment
         |> Uploads.json()
         |> Map.merge(owner(attachment))
-        |> Map.put(:url, context.base_url <> Boards.attachment_url(attachment))
+        |> Map.put(:url, context.base_url <> Boards.Attachments.attachment_url(attachment))
 
       answer(attachment, bytes, info)
     end
@@ -183,7 +183,7 @@ defmodule SlipdockWeb.MCP.Tools.DownloadFile do
   defp readable(_attachment, _auth), do: not_found()
 
   defp read(attachment) do
-    case File.read(Boards.attachment_path(attachment)) do
+    case File.read(Boards.Attachments.attachment_path(attachment)) do
       {:ok, bytes} -> {:ok, bytes}
       {:error, _} -> {:error, "the file's bytes are missing on the server, so it can't be sent"}
     end

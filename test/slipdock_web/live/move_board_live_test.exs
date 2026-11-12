@@ -50,7 +50,7 @@ defmodule SlipdockWeb.MoveBoardLiveTest do
 
     # The flash is the board's, handed over by the picker's component.
     assert render(view) =~ "Moved “Call the printers” to Errands › Backlog."
-    moved = Boards.get_card!(card.id)
+    moved = Boards.Cards.get_card!(card.id)
     assert moved.board_id == to.id and moved.column_id == backlog.id
 
     # It is gone from the board it left.
@@ -64,7 +64,7 @@ defmodule SlipdockWeb.MoveBoardLiveTest do
     card: card
   } do
     bug = tag_fixture(from, "bug")
-    Boards.set_card_tags(card, [bug])
+    Boards.Cards.set_card_tags(card, [bug])
 
     {:ok, view, _} = live(conn, ~p"/boards/#{from}")
     open_picker(view, card)
@@ -152,7 +152,7 @@ defmodule SlipdockWeb.MoveBoardLiveTest do
 
     assert render(view) =~ "read-only access to that card"
     refute has_element?(view, "#move-board-modal")
-    assert Boards.get_card!(other_card.id).board_id == theirs.id
+    assert Boards.Cards.get_card!(other_card.id).board_id == theirs.id
     assert card.board_id
   end
 
@@ -248,7 +248,7 @@ defmodule SlipdockWeb.MoveBoardLiveTest do
       |> element("button[phx-click=move_card_board][phx-value-column='#{backlog.id}']")
       |> render_click()
 
-      assert Boards.get_card!(card.id).board_id == to.id
+      assert Boards.Cards.get_card!(card.id).board_id == to.id
     end
 
     test "going back from the lists keeps what was typed", %{

@@ -177,7 +177,7 @@ defmodule Slipdock.AITest do
     test "an open card says its rolled-up health when late or blocked, not when ok or unknown" do
       board = board_fixture()
       card = card_fixture(hd(board.columns), %{"title" => "Deep card"})
-      card = Boards.get_card!(card.id)
+      card = Boards.Cards.get_card!(card.id)
       board = reload(board)
 
       text = fn health -> Context.card_text(%{card | rollup: %{health: health}}, board) end
@@ -203,7 +203,7 @@ defmodule Slipdock.AITest do
           "description" => "All the details."
         })
 
-      {:ok, _} = Boards.toggle_card_tag(card, tag)
+      {:ok, _} = Boards.Tags.toggle_card_tag(card, tag)
       other = card_fixture(doing, %{"title" => "Ship it", "flags" => ["blocked"]})
       board = reload(board)
       cards = Enum.flat_map(board.columns, & &1.cards)
@@ -234,9 +234,9 @@ defmodule Slipdock.AITest do
       board = board_fixture()
       [backlog | _] = board.columns
       card = card_fixture(backlog, %{"title" => "Deep card", "description" => "Body text"})
-      {:ok, _} = Boards.add_checklist_item(card, "First step")
-      {:ok, _} = Boards.add_comment(card, "Looks good")
-      card = Boards.get_card!(card.id)
+      {:ok, _} = Boards.Checklists.add_checklist_item(card, "First step")
+      {:ok, _} = Boards.Comments.add_comment(card, "Looks good")
+      card = Boards.Cards.get_card!(card.id)
 
       text = Context.build(%{kind: :card, board: reload(board), card: card})
       assert text =~ "Card ##{card.id}: “Deep card”"
@@ -249,7 +249,7 @@ defmodule Slipdock.AITest do
       board = board_fixture()
       [backlog, _, _, done] = board.columns
       card = card_fixture(backlog, %{"title" => "Shipped thing"})
-      :ok = Boards.move_card(card.id, done.id)
+      :ok = Boards.Cards.move_card(card.id, done.id)
       board = reload(board)
       config = Slipdock.Swimlanes.Config.defaults("narrative")
       narrative = Slipdock.Narrative.build(board, config)
@@ -268,9 +268,9 @@ defmodule Slipdock.AITest do
       [backlog, doing | _] = board.columns
       tag = tag_fixture(board, "ops")
       card = card_fixture(backlog, %{"title" => "Alpha"})
-      {:ok, _} = Boards.add_checklist_item(card, "Draft it")
+      {:ok, _} = Boards.Checklists.add_checklist_item(card, "Draft it")
       board = reload(board)
-      card = Boards.get_card!(card.id)
+      card = Boards.Cards.get_card!(card.id)
       %{user: user, board: board, backlog: backlog, doing: doing, tag: tag, card: card}
     end
 
@@ -299,7 +299,7 @@ defmodule Slipdock.AITest do
 
       assert [%{result: :ok}] = Actions.apply(steps)
       assert Slipdock.Wiki.get_page!(page.id).archived_at
-      refute Boards.get_card!(decoy.id).archived_at
+      refute Boards.Cards.get_card!(decoy.id).archived_at
 
       # By title too, and a name that matches nothing is refused rather than
       # guessed at.
@@ -362,7 +362,7 @@ defmodule Slipdock.AITest do
       applied = Actions.apply(steps)
       assert Enum.all?(applied, &(&1.result == :ok)), inspect(applied)
 
-      card = Boards.get_card!(ctx.card.id)
+      card = Boards.Cards.get_card!(ctx.card.id)
       assert card.due_date == ~D[2030-03-05]
       assert card.priority == "high"
       assert card.column_id == ctx.doing.id
@@ -439,7 +439,7 @@ defmodule Slipdock.AITest do
       assert beta.column_id == ctx.doing.id
       assert Enum.map(beta.tags, & &1.name) == ["ops"]
 
-      alpha = Boards.get_card!(ctx.card.id)
+      alpha = Boards.Cards.get_card!(ctx.card.id)
       assert alpha.archived_at
       assert Enum.map(alpha.comments, & &1.body) == ["Discussed with the team"]
 
@@ -452,7 +452,7 @@ defmodule Slipdock.AITest do
     test "the assistant adding several checklist items is one line in the activity log", ctx do
       lines = fn ->
         ctx.card.board_id
-        |> Boards.list_activities(50, ctx.card.id)
+        |> Boards.ActivityLog.list_activities(50, ctx.card.id)
         |> Enum.filter(&(&1.kind == "checklist"))
         |> Enum.map(& &1.message)
       end
@@ -477,7 +477,7 @@ defmodule Slipdock.AITest do
       assert ok.label == "Remove “Draft it” from the checklist of “Alpha”"
       assert missing.error == "no such checklist item"
       assert [%{result: :ok}, _] = Actions.apply(steps)
-      assert Boards.get_card!(ctx.card.id).checklist_items == []
+      assert Boards.Cards.get_card!(ctx.card.id).checklist_items == []
     end
 
     test "subcards are added beneath a card, creating its sub-board when needed", ctx do
@@ -502,7 +502,7 @@ defmodule Slipdock.AITest do
       assert remove.error == nil
       assert Enum.all?(Actions.apply(steps), &(&1.result == :ok))
 
-      card = Boards.get_card!(ctx.card.id)
+      card = Boards.Cards.get_card!(ctx.card.id)
       # The preload has no order of its own; ids say which was made first.
       assert card.sub_board.cards |> Enum.sort_by(& &1.id) |> Enum.map(& &1.title) ==
                ["Draft it", "Review it"]
@@ -518,7 +518,7 @@ defmodule Slipdock.AITest do
 
       assert again.label == "Add 1 subcard to “Alpha”: Ship it"
       assert [%{result: :ok}] = Actions.apply([again])
-      assert length(Boards.get_card!(card.id).sub_board.cards) == 3
+      assert length(Boards.Cards.get_card!(card.id).sub_board.cards) == 3
     end
 
     test "a user without write access gets every step refused", ctx do
@@ -548,9 +548,9 @@ defmodule Slipdock.AITest do
       tag_fixture(board, "ops")
       tag_fixture(board, "ux")
       card = card_fixture(backlog, %{"title" => "Alpha"})
-      {:ok, _} = Boards.add_checklist_item(card, "Draft it")
+      {:ok, _} = Boards.Checklists.add_checklist_item(card, "Draft it")
       board = reload(board)
-      card = Boards.get_card!(card.id)
+      card = Boards.Cards.get_card!(card.id)
       %{user: user, board: board, backlog: backlog, doing: doing, card: card}
     end
 
@@ -622,7 +622,7 @@ defmodule Slipdock.AITest do
                steps = propose_change(ctx, %{"title" => "Alpha prime"})
 
       run!(steps)
-      assert Boards.get_card!(ctx.card.id).title == "Alpha prime"
+      assert Boards.Cards.get_card!(ctx.card.id).title == "Alpha prime"
     end
 
     test "a description is set with an excerpt in the label, and cleared", ctx do
@@ -631,15 +631,15 @@ defmodule Slipdock.AITest do
       assert step.label =~ "Update the description of “Alpha”: “word word"
       assert step.label =~ "…”"
       run!([step])
-      assert Boards.get_card!(ctx.card.id).description =~ "word word"
+      assert Boards.Cards.get_card!(ctx.card.id).description =~ "word word"
 
-      card = Boards.get_card!(ctx.card.id)
+      card = Boards.Cards.get_card!(ctx.card.id)
 
       assert [%{label: "Clear the description of “Alpha”"} = clear] =
                propose_change(ctx, %{"description" => nil}, card)
 
       run!([clear])
-      assert Boards.get_card!(ctx.card.id).description in [nil, ""]
+      assert Boards.Cards.get_card!(ctx.card.id).description in [nil, ""]
     end
 
     test "priority must be one of the priorities", ctx do
@@ -658,7 +658,7 @@ defmodule Slipdock.AITest do
 
       run!([step])
 
-      card = Boards.get_card!(ctx.card.id)
+      card = Boards.Cards.get_card!(ctx.card.id)
       assert card.start_date == ~D[2030-01-02]
       assert [] = propose_change(ctx, %{"start_date" => " 2030-01-02 "}, card)
       assert [] = propose_change(ctx, %{"due_date" => "none"}, card)
@@ -667,7 +667,7 @@ defmodule Slipdock.AITest do
                propose_change(ctx, %{"start_date" => "null"}, card)
 
       run!([clear])
-      assert Boards.get_card!(ctx.card.id).start_date == nil
+      assert Boards.Cards.get_card!(ctx.card.id).start_date == nil
       assert [%{error: "“42” isn't a date" <> _}] = propose_change(ctx, %{"due_date" => 42})
     end
 
@@ -679,7 +679,7 @@ defmodule Slipdock.AITest do
 
       run!([done])
 
-      card = Boards.get_card!(ctx.card.id)
+      card = Boards.Cards.get_card!(ctx.card.id)
       assert card.completed
       assert [] = propose_change(ctx, %{"completed" => 1}, card)
 
@@ -687,7 +687,7 @@ defmodule Slipdock.AITest do
                propose_change(ctx, %{"completed" => false}, card)
 
       run!([reopen])
-      refute Boards.get_card!(ctx.card.id).completed
+      refute Boards.Cards.get_card!(ctx.card.id).completed
     end
 
     test "percent complete takes whole numbers, \"40%\" and floats, and refuses the rest", ctx do
@@ -695,7 +695,7 @@ defmodule Slipdock.AITest do
                propose_change(ctx, %{"percent_complete" => "40%"})
 
       run!([step])
-      card = Boards.get_card!(ctx.card.id)
+      card = Boards.Cards.get_card!(ctx.card.id)
       assert card.percent_complete == 40
 
       assert [] = propose_change(ctx, %{"percent_complete" => 40.2}, card)
@@ -715,7 +715,7 @@ defmodule Slipdock.AITest do
       [step] = propose_change(ctx, %{"assignee" => "TESTER"})
       assert step.label =~ "Assign “Alpha” to"
       run!([step])
-      card = Boards.get_card!(ctx.card.id)
+      card = Boards.Cards.get_card!(ctx.card.id)
       assert card.assignee_id == ctx.user.id
       assert [] = propose_change(ctx, %{"assignee" => ctx.user.email}, card)
 
@@ -723,7 +723,7 @@ defmodule Slipdock.AITest do
                propose_change(ctx, %{"assignee" => ""}, card)
 
       run!([unassign])
-      assert Boards.get_card!(ctx.card.id).assignee_id == nil
+      assert Boards.Cards.get_card!(ctx.card.id).assignee_id == nil
 
       assert [%{error: "nobody called “zed” can be assigned"}] =
                propose_change(ctx, %{"assignee" => "zed"})
@@ -762,7 +762,7 @@ defmodule Slipdock.AITest do
 
       [add] = propose_change(ctx, %{"add_tags" => "ops"})
       run!([add])
-      card = Boards.get_card!(ctx.card.id)
+      card = Boards.Cards.get_card!(ctx.card.id)
       assert Enum.map(card.tags, & &1.name) == ["ops"]
 
       # Adding what is there, or removing what isn't, is no step at all.
@@ -774,37 +774,41 @@ defmodule Slipdock.AITest do
                ["Add tag “ux” to “Alpha”", "Remove tag “ops” from “Alpha”"]
 
       run!(steps)
-      assert Enum.map(Boards.get_card!(ctx.card.id).tags, & &1.name) == ["ux"]
+      assert Enum.map(Boards.Cards.get_card!(ctx.card.id).tags, & &1.name) == ["ux"]
     end
 
     test "a tag the board doesn't have is created when the step is applied, not before", ctx do
       [step] = propose_change(ctx, %{"add_tags" => ["  Release 2  "]})
       assert step.error == nil
       assert step.label == "Create tag “Release 2” and add it to “Alpha”"
-      refute "Release 2" in Enum.map(Boards.list_tags(ctx.board.id), & &1.name)
+      refute "Release 2" in Enum.map(Boards.Tags.list_tags(ctx.board.id), & &1.name)
 
       run!([step])
 
-      tag = Enum.find(Boards.list_tags(ctx.board.id), &(&1.name == "Release 2"))
+      tag = Enum.find(Boards.Tags.list_tags(ctx.board.id), &(&1.name == "Release 2"))
       assert tag.color == "slate"
-      assert Enum.map(Boards.get_card!(ctx.card.id).tags, & &1.name) == ["Release 2"]
+      assert Enum.map(Boards.Cards.get_card!(ctx.card.id).tags, & &1.name) == ["Release 2"]
     end
 
     test "a new tag made in the meantime is used, not doubled", ctx do
       [step] = propose_change(ctx, %{"tags" => ["perf"]})
-      {:ok, made} = Boards.create_tag(ctx.board, %{"name" => "Perf"})
+      {:ok, made} = Boards.Tags.create_tag(ctx.board, %{"name" => "Perf"})
 
       run!([step])
 
-      assert Enum.count(Boards.list_tags(ctx.board.id), &(String.downcase(&1.name) == "perf")) ==
+      assert Enum.count(
+               Boards.Tags.list_tags(ctx.board.id),
+               &(String.downcase(&1.name) == "perf")
+             ) ==
                1
 
-      assert [%{id: id}] = Boards.get_card!(ctx.card.id).tags
+      assert [%{id: id}] = Boards.Cards.get_card!(ctx.card.id).tags
       assert id == made.id
     end
 
     test "two cards asking for the same new tag share one", ctx do
-      other = card_fixture(ctx.backlog, %{"title" => "Beta"}) |> then(&Boards.get_card!(&1.id))
+      other =
+        card_fixture(ctx.backlog, %{"title" => "Beta"}) |> then(&Boards.Cards.get_card!(&1.id))
 
       steps =
         Actions.prepare(
@@ -821,18 +825,19 @@ defmodule Slipdock.AITest do
 
       run!(steps)
 
-      assert [tag] = Enum.filter(Boards.list_tags(ctx.board.id), &(&1.name =~ ~r/infra/i))
-      assert Enum.map(Boards.get_card!(ctx.card.id).tags, & &1.id) == [tag.id]
-      assert Enum.map(Boards.get_card!(other.id).tags, & &1.id) == [tag.id]
+      assert [tag] = Enum.filter(Boards.Tags.list_tags(ctx.board.id), &(&1.name =~ ~r/infra/i))
+      assert Enum.map(Boards.Cards.get_card!(ctx.card.id).tags, & &1.id) == [tag.id]
+      assert Enum.map(Boards.Cards.get_card!(other.id).tags, & &1.id) == [tag.id]
     end
 
     test "a card on a sub-board gets the new tag on the root, shared by the tree", ctx do
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(ctx.card, t)
       sub = Boards.get_board!(sub.id)
 
       child =
-        card_fixture(hd(sub.columns), %{"title" => "Child"}) |> then(&Boards.get_card!(&1.id))
+        card_fixture(hd(sub.columns), %{"title" => "Child"})
+        |> then(&Boards.Cards.get_card!(&1.id))
 
       [step] =
         Actions.prepare(
@@ -842,8 +847,8 @@ defmodule Slipdock.AITest do
 
       run!([step])
 
-      assert "deep" in Enum.map(Boards.list_tags(ctx.board.id), & &1.name)
-      assert Enum.map(Boards.get_card!(child.id).tags, & &1.name) == ["deep"]
+      assert "deep" in Enum.map(Boards.Tags.list_tags(ctx.board.id), & &1.name)
+      assert Enum.map(Boards.Cards.get_card!(child.id).tags, & &1.name) == ["deep"]
     end
 
     test "a name that can't be a tag is refused before anything is applied", ctx do
@@ -857,7 +862,11 @@ defmodule Slipdock.AITest do
       # Removing a tag that isn't there never makes one.
       assert [gone] = propose_change(ctx, %{"remove_tags" => ["ghost"]})
       assert gone.error =~ "no tag called “ghost”"
-      assert Enum.map(Boards.list_tags(ctx.board.id), & &1.name) |> Enum.sort() == ["ops", "ux"]
+
+      assert Enum.map(Boards.Tags.list_tags(ctx.board.id), & &1.name) |> Enum.sort() == [
+               "ops",
+               "ux"
+             ]
     end
 
     test "a read-only user makes no tag", ctx do
@@ -877,15 +886,20 @@ defmodule Slipdock.AITest do
 
       assert step.error =~ "read-only"
       Actions.apply([step])
-      refute "new" in Enum.map(Boards.list_tags(ctx.board.id), & &1.name)
+      refute "new" in Enum.map(Boards.Tags.list_tags(ctx.board.id), & &1.name)
     end
 
     test "a tag action tags several cards in one step, leaving out those that have it", ctx do
       ops = Enum.find(ctx.board.tags, &(&1.name == "ops"))
-      beta = card_fixture(ctx.backlog, %{"title" => "Beta"}) |> then(&Boards.get_card!(&1.id))
-      gamma = card_fixture(ctx.doing, %{"title" => "Gamma"}) |> then(&Boards.get_card!(&1.id))
-      {:ok, _} = Boards.toggle_card_tag(gamma, ops)
-      gamma = Boards.get_card!(gamma.id)
+
+      beta =
+        card_fixture(ctx.backlog, %{"title" => "Beta"}) |> then(&Boards.Cards.get_card!(&1.id))
+
+      gamma =
+        card_fixture(ctx.doing, %{"title" => "Gamma"}) |> then(&Boards.Cards.get_card!(&1.id))
+
+      {:ok, _} = Boards.Tags.toggle_card_tag(gamma, ops)
+      gamma = Boards.Cards.get_card!(gamma.id)
       scope = %{scope_for(ctx) | cards: [ctx.card, beta, gamma]}
 
       [step] =
@@ -904,10 +918,10 @@ defmodule Slipdock.AITest do
       run!([step])
 
       for card <- [ctx.card, beta, gamma],
-          do: assert(Enum.map(Boards.get_card!(card.id).tags, & &1.name) == ["ops"])
+          do: assert(Enum.map(Boards.Cards.get_card!(card.id).tags, & &1.name) == ["ops"])
 
       # Everything already tagged: adding is no step; removing is one, for all three.
-      cards = Enum.map([ctx.card, beta, gamma], &Boards.get_card!(&1.id))
+      cards = Enum.map([ctx.card, beta, gamma], &Boards.Cards.get_card!(&1.id))
       ids = Enum.map(cards, & &1.id)
 
       assert [] =
@@ -924,11 +938,12 @@ defmodule Slipdock.AITest do
 
       assert off.label == "Remove tag “ops” from 3 cards: “Alpha”, “Beta”, “Gamma”"
       run!([off])
-      assert Enum.all?(ids, &(Boards.get_card!(&1).tags == []))
+      assert Enum.all?(ids, &(Boards.Cards.get_card!(&1).tags == []))
     end
 
     test "a tag action naming a new tag creates it once, on Apply, for every card", ctx do
-      beta = card_fixture(ctx.backlog, %{"title" => "Beta"}) |> then(&Boards.get_card!(&1.id))
+      beta =
+        card_fixture(ctx.backlog, %{"title" => "Beta"}) |> then(&Boards.Cards.get_card!(&1.id))
 
       steps =
         Actions.prepare(
@@ -947,13 +962,13 @@ defmodule Slipdock.AITest do
                "Add tag “ux” to 2 cards: “Alpha”, “Beta”"
              ]
 
-      refute "Urgent" in Enum.map(Boards.list_tags(ctx.board.id), & &1.name)
+      refute "Urgent" in Enum.map(Boards.Tags.list_tags(ctx.board.id), & &1.name)
       run!(steps)
 
-      assert [urgent] = Enum.filter(Boards.list_tags(ctx.board.id), &(&1.name == "Urgent"))
+      assert [urgent] = Enum.filter(Boards.Tags.list_tags(ctx.board.id), &(&1.name == "Urgent"))
 
       for card <- [ctx.card, beta] do
-        tags = Boards.get_card!(card.id).tags
+        tags = Boards.Cards.get_card!(card.id).tags
         assert Enum.sort(Enum.map(tags, & &1.name)) == ["Urgent", "ux"]
         assert urgent.id in Enum.map(tags, & &1.id)
       end
@@ -999,11 +1014,16 @@ defmodule Slipdock.AITest do
       assert blank.error == "a tag needs a name"
       assert too_long.error == "a tag name is at most 30 characters"
       assert ghost.error =~ "no tag called “ghost”"
-      assert Enum.map(Boards.list_tags(ctx.board.id), & &1.name) |> Enum.sort() == ["ops", "ux"]
+
+      assert Enum.map(Boards.Tags.list_tags(ctx.board.id), & &1.name) |> Enum.sort() == [
+               "ops",
+               "ux"
+             ]
     end
 
     test "a tag action tags the cards still there when one is archived before Apply", ctx do
-      beta = card_fixture(ctx.backlog, %{"title" => "Beta"}) |> then(&Boards.get_card!(&1.id))
+      beta =
+        card_fixture(ctx.backlog, %{"title" => "Beta"}) |> then(&Boards.Cards.get_card!(&1.id))
 
       [step] =
         Actions.prepare(
@@ -1011,16 +1031,19 @@ defmodule Slipdock.AITest do
           %{scope_for(ctx) | cards: [ctx.card, beta]}
         )
 
-      {:ok, _} = Boards.archive_card(beta)
+      {:ok, _} = Boards.Cards.archive_card(beta)
       [applied] = Actions.apply([step])
 
       assert applied.result == {:error, "“Beta”: the card was archived"}
-      assert Enum.map(Boards.get_card!(ctx.card.id).tags, & &1.name) == ["ux"]
+      assert Enum.map(Boards.Cards.get_card!(ctx.card.id).tags, & &1.name) == ["ux"]
     end
 
     test "one archive action names several cards, a step each, refusals beside", ctx do
-      beta = card_fixture(ctx.backlog, %{"title" => "Beta"}) |> then(&Boards.get_card!(&1.id))
-      gamma = card_fixture(ctx.backlog, %{"title" => "Gamma"}) |> then(&Boards.get_card!(&1.id))
+      beta =
+        card_fixture(ctx.backlog, %{"title" => "Beta"}) |> then(&Boards.Cards.get_card!(&1.id))
+
+      gamma =
+        card_fixture(ctx.backlog, %{"title" => "Gamma"}) |> then(&Boards.Cards.get_card!(&1.id))
 
       steps =
         Actions.prepare(
@@ -1048,9 +1071,9 @@ defmodule Slipdock.AITest do
                {:error, "card #999999 isn't on this page"}
              ]
 
-      assert Boards.get_card!(ctx.card.id).archived_at
-      assert Boards.get_card!(beta.id).archived_at
-      refute Boards.get_card!(gamma.id).archived_at
+      assert Boards.Cards.get_card!(ctx.card.id).archived_at
+      assert Boards.Cards.get_card!(beta.id).archived_at
+      refute Boards.Cards.get_card!(gamma.id).archived_at
     end
 
     test "an archive action without cards is refused, and a single card_id still works", ctx do
@@ -1062,15 +1085,17 @@ defmodule Slipdock.AITest do
 
       [step] = Actions.prepare([%{"type" => "archive", "cards" => [ctx.card.id]}], scope_for(ctx))
       run!([step])
-      assert Boards.get_card!(ctx.card.id).archived_at
+      assert Boards.Cards.get_card!(ctx.card.id).archived_at
     end
 
     test "a tag step is idempotent if the card changed in between", ctx do
       [add] = propose_change(ctx, %{"add_tags" => ["ops"]})
       # Someone else tags it first; the step must not toggle it back off.
-      {:ok, _} = Boards.toggle_card_tag(ctx.card, Enum.find(ctx.board.tags, &(&1.name == "ops")))
+      {:ok, _} =
+        Boards.Tags.toggle_card_tag(ctx.card, Enum.find(ctx.board.tags, &(&1.name == "ops")))
+
       run!([add])
-      assert Enum.map(Boards.get_card!(ctx.card.id).tags, & &1.name) == ["ops"]
+      assert Enum.map(Boards.Cards.get_card!(ctx.card.id).tags, & &1.name) == ["ops"]
     end
 
     test "flags are added and removed, unknown ones refused alongside", ctx do
@@ -1078,7 +1103,7 @@ defmodule Slipdock.AITest do
       assert [%{label: "Flag “Alpha”: blocked", error: nil}, %{error: "no such flag"}] = steps
       run!([hd(steps)])
 
-      card = Boards.get_card!(ctx.card.id)
+      card = Boards.Cards.get_card!(ctx.card.id)
       assert card.flags == ["blocked"]
       assert [] = propose_change(ctx, %{"add_flags" => ["blocked"]}, card)
 
@@ -1086,7 +1111,7 @@ defmodule Slipdock.AITest do
                propose_change(ctx, %{"remove_flags" => "blocked"}, card)
 
       run!([unflag])
-      assert Boards.get_card!(ctx.card.id).flags == []
+      assert Boards.Cards.get_card!(ctx.card.id).flags == []
     end
 
     test "flags may be set outright, to a set or to none", ctx do
@@ -1094,7 +1119,7 @@ defmodule Slipdock.AITest do
       assert set.label == "Set flags of “Alpha” to review, starred"
       run!([set])
 
-      card = Boards.get_card!(ctx.card.id)
+      card = Boards.Cards.get_card!(ctx.card.id)
       assert Enum.sort(card.flags) == ["review", "starred"]
       assert [] = propose_change(ctx, %{"flags" => ["starred", "review"]}, card)
 
@@ -1112,7 +1137,7 @@ defmodule Slipdock.AITest do
       [step] = propose_change(ctx, %{"date_precision" => "quarter"})
       assert step.label == "Schedule “Alpha” by quarter"
       run!([step])
-      card = Boards.get_card!(ctx.card.id)
+      card = Boards.Cards.get_card!(ctx.card.id)
       assert card.date_precision == "quarter"
       assert [] = propose_change(ctx, %{"date_precision" => "quarter"}, card)
     end
@@ -1157,7 +1182,7 @@ defmodule Slipdock.AITest do
       assert gamma.assignee_id == ctx.user.id
       assert gamma.flags == ["starred"]
       assert Enum.map(gamma.tags, & &1.name) |> Enum.sort() == ["missing", "ops"]
-      assert "missing" in Enum.map(Boards.list_tags(ctx.board.id), & &1.name)
+      assert "missing" in Enum.map(Boards.Tags.list_tags(ctx.board.id), & &1.name)
     end
 
     test "creating is refused without a title, a board, or valid details", ctx do
@@ -1196,8 +1221,8 @@ defmodule Slipdock.AITest do
 
     test "checklist: checking what is checked, unchecking, and items that aren't there", ctx do
       item = hd(ctx.card.checklist_items)
-      {:ok, _} = Boards.toggle_checklist_item(item.id)
-      card = Boards.get_card!(ctx.card.id)
+      {:ok, _} = Boards.Checklists.toggle_checklist_item(item.id)
+      card = Boards.Cards.get_card!(ctx.card.id)
 
       steps =
         Actions.prepare(
@@ -1218,9 +1243,9 @@ defmodule Slipdock.AITest do
       assert ghost.error == "no such checklist item"
       assert uncheck.label == "Uncheck “Draft it” on “Alpha”"
       run!([uncheck])
-      refute hd(Boards.get_card!(card.id).checklist_items).done
+      refute hd(Boards.Cards.get_card!(card.id).checklist_items).done
 
-      fresh = Boards.get_card!(card.id)
+      fresh = Boards.Cards.get_card!(card.id)
 
       assert [%{error: "already unchecked"}] =
                Actions.prepare(
@@ -1290,7 +1315,7 @@ defmodule Slipdock.AITest do
           scope_for(ctx)
         )
 
-      {:ok, _} = Boards.archive_card(ctx.card)
+      {:ok, _} = Boards.Cards.archive_card(ctx.card)
 
       assert [
                %{result: {:error, "the card was archived"}},
@@ -1298,14 +1323,14 @@ defmodule Slipdock.AITest do
              ] =
                Actions.apply([rename, comment])
 
-      assert Boards.get_card!(ctx.card.id).title == "Alpha"
+      assert Boards.Cards.get_card!(ctx.card.id).title == "Alpha"
 
       other = card_fixture(ctx.backlog, %{"title" => "Beta"})
 
       [archive] =
         Actions.prepare([%{"type" => "archive", "card_id" => other.id}], scope_for(ctx, other))
 
-      {:ok, _} = Boards.delete_card(other)
+      {:ok, _} = Boards.Cards.delete_card(other)
       assert [%{result: {:error, "the card no longer exists"}}] = Actions.apply([archive])
     end
 
@@ -1323,7 +1348,7 @@ defmodule Slipdock.AITest do
       assert step.error == nil
       Agent.update(allow, fn _ -> false end)
       assert [%{result: {:error, "you have read-only access to “Alpha”"}}] = Actions.apply([step])
-      assert Boards.get_card!(ctx.card.id).title == "Alpha"
+      assert Boards.Cards.get_card!(ctx.card.id).title == "Alpha"
     end
 
     test "a step that fails validation or raises reports it rather than crashing", ctx do

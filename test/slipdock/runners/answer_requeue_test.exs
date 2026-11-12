@@ -57,17 +57,21 @@ defmodule Slipdock.Runners.AnswerRequeueTest do
 
   defp take(ctx) do
     job = Runners.claim(ctx.runner)
-    :ok = Boards.move_card_to_index(Repo.get!(Boards.Card, job.card_id), ctx.doing, :top)
+    :ok = Boards.Cards.move_card_to_index(Repo.get!(Boards.Card, job.card_id), ctx.doing, :top)
     job
   end
 
   defp ask(ctx, job) do
     {:ok, wait} =
-      Boards.open_wait(Repo.get!(Boards.Card, job.card_id), Actor.runner(ctx.owner, job.id), %{
-        "needs" => "Which region?",
-        "choices" => ["eu", "us"],
-        "job_id" => job.id
-      })
+      Boards.Waits.open_wait(
+        Repo.get!(Boards.Card, job.card_id),
+        Actor.runner(ctx.owner, job.id),
+        %{
+          "needs" => "Which region?",
+          "choices" => ["eu", "us"],
+          "job_id" => job.id
+        }
+      )
 
     wait
   end
@@ -84,11 +88,13 @@ defmodule Slipdock.Runners.AnswerRequeueTest do
   end
 
   defp answer(ctx, card, attrs \\ %{"choice" => 1, "answer" => "eu, and soon"}) do
-    {:ok, wait} = Boards.answer_wait(Boards.get_card!(card.id), Actor.web(ctx.dana), attrs)
+    {:ok, wait} =
+      Boards.Waits.answer_wait(Boards.Cards.get_card!(card.id), Actor.web(ctx.dana), attrs)
+
     wait
   end
 
-  defp comments(card), do: Enum.map(Boards.get_card!(card.id).comments, & &1.body)
+  defp comments(card), do: Enum.map(Boards.Cards.get_card!(card.id).comments, & &1.body)
 
   describe "answering a parked wait" do
     test "queues exactly one job for the same rule and pool, with the answer on top", ctx do
@@ -143,7 +149,9 @@ defmodule Slipdock.Runners.AnswerRequeueTest do
       {:ok, _} = Runners.finish(ctx.runner, job.id, %{exit: "0"})
 
       {:ok, _} =
-        Boards.open_wait(Boards.get_card!(ctx.a.id), Actor.web(ctx.owner), %{"needs" => "Why?"})
+        Boards.Waits.open_wait(Boards.Cards.get_card!(ctx.a.id), Actor.web(ctx.owner), %{
+          "needs" => "Why?"
+        })
 
       wait = answer(ctx, ctx.a, %{"answer" => "because"})
 
@@ -229,7 +237,7 @@ defmodule Slipdock.Runners.AnswerRequeueTest do
           "actions" => [%{"type" => "runner", "pool" => "loop"}]
         })
 
-      {:ok, _} = Boards.update_card(ctx.a, %{"flags" => ["starred"]})
+      {:ok, _} = Boards.Cards.update_card(ctx.a, %{"flags" => ["starred"]})
       job = take(ctx)
       ask(ctx, job)
 
@@ -246,7 +254,7 @@ defmodule Slipdock.Runners.AnswerRequeueTest do
     # its job yet.
     defp queued_behind(ctx, title, paths \\ []) do
       next = card_fixture(ctx.todo, %{"title" => title})
-      {:ok, next} = Boards.update_card(next, %{"paths" => paths})
+      {:ok, next} = Boards.Cards.update_card(next, %{"paths" => paths})
       park(ctx)
       job = Repo.one!(from(j in Job, where: j.card_id == ^next.id and j.status == "queued"))
       {next, job}
@@ -254,11 +262,11 @@ defmodule Slipdock.Runners.AnswerRequeueTest do
 
     test "the answered epic's own subcard lane-holds it: the answer takes its slot", ctx do
       {:ok, board} = Boards.update_board(ctx.board, %{"lanes" => true})
-      {:ok, a} = Boards.update_card(ctx.a, %{"paths" => ["docs/design/**"]})
+      {:ok, a} = Boards.Cards.update_card(ctx.a, %{"paths" => ["docs/design/**"]})
       rule = rule_fixture(board, spec())
 
       # The epic's subcard sits in progress, holding docs/design/**.
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(a, t)
       sub = Boards.get_board!(sub.id)
 
@@ -269,7 +277,7 @@ defmodule Slipdock.Runners.AnswerRequeueTest do
         |> Repo.update!()
 
       child = card_fixture(sub_doing, %{"title" => "child"})
-      {:ok, child} = Boards.update_card(child, %{"paths" => ["docs/design/**"]})
+      {:ok, child} = Boards.Cards.update_card(child, %{"paths" => ["docs/design/**"]})
 
       {next, held} = queued_behind(ctx, "next", ["docs/**"])
 
@@ -422,7 +430,7 @@ defmodule Slipdock.Runners.AnswerRequeueTest do
       park(ctx)
 
       {:ok, _} =
-        Boards.leave_handoff(Boards.get_card!(ctx.a.id), ctx.owner, %{
+        Boards.Handoffs.leave_handoff(Boards.Cards.get_card!(ctx.a.id), ctx.owner, %{
           next_step: "Pick a region",
           body: String.duplicate("é", 4_000),
           via: "ui"
@@ -488,7 +496,9 @@ defmodule Slipdock.Runners.AnswerRequeueTest do
       rule = rule_fixture(ctx.board, spec())
       park(ctx)
       other = board_fixture(%{"name" => "Elsewhere"}, owner: ctx.owner)
-      {:ok, _} = Boards.move_card_to_board(Boards.get_card!(ctx.a.id), hd(other.columns))
+
+      {:ok, _} =
+        Boards.Moves.move_card_to_board(Boards.Cards.get_card!(ctx.a.id), hd(other.columns))
 
       wait = answer(ctx, ctx.a)
 
@@ -501,10 +511,12 @@ defmodule Slipdock.Runners.AnswerRequeueTest do
       rule = rule_fixture(ctx.board, spec())
       park(ctx)
       epic = card_fixture(ctx.done, %{"title" => "Epic"})
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(epic, t)
       sub = Boards.get_board!(sub.id)
-      {:ok, _} = Boards.move_card_to_board(Boards.get_card!(ctx.a.id), hd(sub.columns))
+
+      {:ok, _} =
+        Boards.Moves.move_card_to_board(Boards.Cards.get_card!(ctx.a.id), hd(sub.columns))
 
       wait = answer(ctx, ctx.a)
 
@@ -516,10 +528,12 @@ defmodule Slipdock.Runners.AnswerRequeueTest do
     test "the card was completed: the wait closed with it, and nothing is sent", ctx do
       rule = rule_fixture(ctx.board, spec())
       park(ctx)
-      {:ok, _} = Boards.update_card(Boards.get_card!(ctx.a.id), %{"completed" => true})
+
+      {:ok, _} =
+        Boards.Cards.update_card(Boards.Cards.get_card!(ctx.a.id), %{"completed" => true})
 
       assert {:error, _} =
-               Boards.answer_wait(Boards.get_card!(ctx.a.id), Actor.web(ctx.dana), %{
+               Boards.Waits.answer_wait(Boards.Cards.get_card!(ctx.a.id), Actor.web(ctx.dana), %{
                  "choice" => 1
                })
 
@@ -564,7 +578,7 @@ defmodule Slipdock.Runners.AnswerRequeueTest do
 
   describe "a wait on a subcard, asked from the epic's job (#1755)" do
     setup ctx do
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, board} = sub_board(ctx.a, t)
       sub = card_fixture(hd(Boards.get_board!(board.id).columns), %{"title" => "Pick region"})
       {:ok, deeper} = sub_board(sub, t)
@@ -578,11 +592,15 @@ defmodule Slipdock.Runners.AnswerRequeueTest do
       assert job.card_id == ctx.a.id
 
       {:ok, wait} =
-        Boards.open_wait(Boards.get_card!(card.id), Actor.runner(ctx.owner, job.id), %{
-          "needs" => "Which region?",
-          "choices" => ["eu", "us"],
-          "job_id" => job.id
-        })
+        Boards.Waits.open_wait(
+          Boards.Cards.get_card!(card.id),
+          Actor.runner(ctx.owner, job.id),
+          %{
+            "needs" => "Which region?",
+            "choices" => ["eu", "us"],
+            "job_id" => job.id
+          }
+        )
 
       {:ok, %Job{status: "parked"} = job} = Runners.finish(ctx.runner, job.id, %{exit: "0"})
       {job, wait}
@@ -607,7 +625,7 @@ defmodule Slipdock.Runners.AnswerRequeueTest do
              )
 
       assert fresh.prompt =~ "Work on Slipdock card ##{ctx.a.id}: a"
-      refute "waiting" in Boards.get_card!(ctx.sub.id).flags
+      refute "waiting" in Boards.Cards.get_card!(ctx.sub.id).flags
 
       claimed = Runners.claim(ctx.runner)
       assert claimed.id == fresh.id
@@ -633,10 +651,14 @@ defmodule Slipdock.Runners.AnswerRequeueTest do
       job = take(ctx)
 
       {:ok, _} =
-        Boards.open_wait(Boards.get_card!(ctx.sub.id), Actor.runner(ctx.owner, job.id), %{
-          "needs" => "Which region?",
-          "job_id" => job.id
-        })
+        Boards.Waits.open_wait(
+          Boards.Cards.get_card!(ctx.sub.id),
+          Actor.runner(ctx.owner, job.id),
+          %{
+            "needs" => "Which region?",
+            "job_id" => job.id
+          }
+        )
 
       wait = answer(ctx, ctx.sub, %{"answer" => "eu"})
 

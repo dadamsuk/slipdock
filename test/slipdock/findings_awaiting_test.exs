@@ -27,7 +27,7 @@ defmodule Slipdock.FindingsAwaitingTest do
     owner = user_fixture()
     board = board_fixture(%{"name" => "Root"}, owner: owner)
     card = card_fixture(hd(board.columns), %{"title" => "Epic"})
-    {:ok, t} = Boards.find_template(nil, "Simple")
+    {:ok, t} = Boards.Templates.find_template(nil, "Simple")
     {:ok, sub} = sub_board(card, t)
     other = board_fixture(%{"name" => "Other"}, owner: owner)
 

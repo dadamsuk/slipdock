@@ -72,7 +72,7 @@ defmodule Slipdock.Runners.ClaimMoveTest do
     moves = Repo.aggregate(from(m in CardMove, where: m.card_id == ^card.id), :count)
 
     actor = Actor.runner(ctx.owner.id, job.id, "Mac Studio")
-    assert :ok = Boards.move_card(card.id, ctx.doing.id, nil, actor: actor)
+    assert :ok = Boards.Cards.move_card(card.id, ctx.doing.id, nil, actor: actor)
 
     assert Repo.reload!(card).column_id == ctx.doing.id
     assert Repo.aggregate(from(m in CardMove, where: m.card_id == ^card.id), :count) == moves

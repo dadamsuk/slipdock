@@ -11,11 +11,13 @@ defmodule SlipdockWeb.TemplateLiveTest do
   setup %{user: user} do
     stranger = user_fixture("templates-page-stranger@example.com")
     n = System.unique_integer([:positive])
-    {:ok, simple} = Boards.find_template(nil, "Simple")
-    {:ok, mine} = Boards.create_template(user, %{"name" => "Mine #{n}", "columns" => ["A"]})
+    {:ok, simple} = Boards.Templates.find_template(nil, "Simple")
+
+    {:ok, mine} =
+      Boards.Templates.create_template(user, %{"name" => "Mine #{n}", "columns" => ["A"]})
 
     {:ok, theirs} =
-      Boards.create_template(stranger, %{"name" => "Theirs #{n}", "columns" => ["B"]})
+      Boards.Templates.create_template(stranger, %{"name" => "Theirs #{n}", "columns" => ["B"]})
 
     %{simple: simple, mine: mine, theirs: theirs}
   end

@@ -13,7 +13,7 @@ defmodule Slipdock.ChunkedUploadsTest do
     :ok
   end
 
-  defp staged(id, ext), do: Path.join([Boards.uploads_dir(), "staging", id <> ext])
+  defp staged(id, ext), do: Path.join([Boards.Attachments.uploads_dir(), "staging", id <> ext])
 
   test "pieces add up to the file, for the user who started it" do
     {:ok, id, 3} = ChunkedUploads.start(1, %{"filename" => "a.txt"}, "abc", 100)

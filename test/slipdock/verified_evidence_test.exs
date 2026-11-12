@@ -37,19 +37,19 @@ defmodule Slipdock.VerifiedEvidenceTest do
   end
 
   defp comments(card) do
-    Boards.get_card!(card.id).comments |> Enum.map(& &1.body)
+    Boards.Cards.get_card!(card.id).comments |> Enum.map(& &1.body)
   end
 
   test "off (the default): an agent completes with no evidence, and nothing is posted", ctx do
     assert Verified.switches(ctx.board) == []
 
     assert {:ok, %{completed: true}} =
-             Boards.update_card(ctx.card, %{"completed" => true}, actor: ctx.agent)
+             Boards.Cards.update_card(ctx.card, %{"completed" => true}, actor: ctx.agent)
 
-    {:ok, _} = Boards.update_card(Repo.get!(Card, ctx.card.id), %{"completed" => false})
+    {:ok, _} = Boards.Cards.update_card(Repo.get!(Card, ctx.card.id), %{"completed" => false})
 
     {:ok, _} =
-      Boards.update_card(
+      Boards.Cards.update_card(
         Repo.get!(Card, ctx.card.id),
         %{"completed" => true, "evidence" => "Ran it"},
         actor: ctx.agent,
@@ -67,20 +67,22 @@ defmodule Slipdock.VerifiedEvidenceTest do
     end
 
     test "an agent completing with no evidence is refused, and the card stays open", ctx do
-      assert {:error, cs} = Boards.update_card(ctx.card, %{"completed" => true}, actor: ctx.agent)
+      assert {:error, cs} =
+               Boards.Cards.update_card(ctx.card, %{"completed" => true}, actor: ctx.agent)
+
       assert %{evidence: [message]} = errors_on(cs)
       assert message =~ "required"
       refute Repo.get!(Card, ctx.card.id).completed
 
       assert {:error, _} =
-               Boards.update_card(ctx.card, %{"completed" => true, "evidence" => "  "},
+               Boards.Cards.update_card(ctx.card, %{"completed" => true, "evidence" => "  "},
                  actor: ctx.agent
                )
     end
 
     test "with evidence and a commit it completes, and the evidence is a comment", ctx do
       assert {:ok, card} =
-               Boards.update_card(
+               Boards.Cards.update_card(
                  ctx.card,
                  %{
                    "completed" => true,
@@ -102,16 +104,16 @@ defmodule Slipdock.VerifiedEvidenceTest do
 
     test "evidence written beforehand counts", ctx do
       {:ok, card} =
-        Boards.update_card(ctx.card, %{"evidence" => "Checked the page"}, actor: ctx.agent)
+        Boards.Cards.update_card(ctx.card, %{"evidence" => "Checked the page"}, actor: ctx.agent)
 
       assert {:ok, %{completed: true}} =
-               Boards.update_card(card, %{"completed" => true}, actor: ctx.agent)
+               Boards.Cards.update_card(card, %{"completed" => true}, actor: ctx.agent)
     end
 
     test "structured evidence counts on its own, is tidied, and is commented in full (#1623)",
          ctx do
       assert {:ok, card} =
-               Boards.update_card(
+               Boards.Cards.update_card(
                  ctx.card,
                  %{
                    "completed" => true,
@@ -140,7 +142,8 @@ defmodule Slipdock.VerifiedEvidenceTest do
       assert body =~ "- `test/b_test.exs`"
 
       # Reopened (by a person: an agent can't, #1850), every part is cleared.
-      {:ok, card} = Boards.update_card(card, %{"completed" => false}, actor: Actor.web(ctx.owner))
+      {:ok, card} =
+        Boards.Cards.update_card(card, %{"completed" => false}, actor: Actor.web(ctx.owner))
 
       assert {card.evidence_commit, card.evidence_branch, card.evidence_tests,
               card.evidence_suite} ==
@@ -149,7 +152,7 @@ defmodule Slipdock.VerifiedEvidenceTest do
 
     test "a suite alone is evidence; a malformed one is refused", ctx do
       assert {:ok, %{completed: true}} =
-               Boards.update_card(
+               Boards.Cards.update_card(
                  ctx.card,
                  %{"completed" => true, "evidence_suite" => %{"result" => "failed"}},
                  actor: ctx.agent
@@ -162,18 +165,18 @@ defmodule Slipdock.VerifiedEvidenceTest do
             %{"result" => "passed", "passed" => -1},
             %{"passed" => 3}
           ] do
-        assert {:error, cs} = Boards.update_card(other, %{"evidence_suite" => bad})
+        assert {:error, cs} = Boards.Cards.update_card(other, %{"evidence_suite" => bad})
         assert %{evidence_suite: [_]} = errors_on(cs)
       end
 
       assert {:error, cs} =
-               Boards.update_card(other, %{"evidence_tests" => [String.duplicate("a", 301)]})
+               Boards.Cards.update_card(other, %{"evidence_tests" => [String.duplicate("a", 301)]})
 
       assert %{evidence_tests: [_]} = errors_on(cs)
     end
 
     test "the refusal names every field that would do", ctx do
-      {:error, cs} = Boards.update_card(ctx.card, %{"completed" => true}, actor: ctx.agent)
+      {:error, cs} = Boards.Cards.update_card(ctx.card, %{"completed" => true}, actor: ctx.agent)
       %{evidence: [message]} = errors_on(cs)
 
       for field <- ~w(evidence_commit evidence_branch evidence_tests evidence_suite),
@@ -182,57 +185,63 @@ defmodule Slipdock.VerifiedEvidenceTest do
 
     test "a commit that isn't a commit id is refused", ctx do
       assert {:error, cs} =
-               Boards.update_card(ctx.card, %{"evidence" => "x", "evidence_commit" => "main; rm"})
+               Boards.Cards.update_card(ctx.card, %{
+                 "evidence" => "x",
+                 "evidence_commit" => "main; rm"
+               })
 
       assert %{evidence_commit: [_]} = errors_on(cs)
     end
 
     test "an agent moving the card into a done list with no evidence is refused", ctx do
       assert {:error, :unprocessable_entity, message} =
-               Boards.move_card(ctx.card.id, ctx.done.id, nil, actor: ctx.agent)
+               Boards.Cards.move_card(ctx.card.id, ctx.done.id, nil, actor: ctx.agent)
 
       assert message =~ "evidence"
       card = Repo.get!(Card, ctx.card.id)
       assert card.column_id == ctx.doing.id
       refute card.completed
 
-      {:ok, _} = Boards.update_card(card, %{"evidence" => "Ran it"})
-      assert :ok = Boards.move_card(ctx.card.id, ctx.done.id, nil, actor: ctx.agent)
+      {:ok, _} = Boards.Cards.update_card(card, %{"evidence" => "Ran it"})
+      assert :ok = Boards.Cards.move_card(ctx.card.id, ctx.done.id, nil, actor: ctx.agent)
       assert Repo.get!(Card, ctx.card.id).completed
     end
 
     test "a person, and an automation, complete with no evidence", ctx do
       assert {:ok, %{completed: true}} =
-               Boards.update_card(ctx.card, %{"completed" => true}, actor: Actor.web(ctx.owner))
+               Boards.Cards.update_card(ctx.card, %{"completed" => true},
+                 actor: Actor.web(ctx.owner)
+               )
 
       other = card_fixture(ctx.doing, %{"title" => "Ruled"})
-      assert :ok = Boards.move_card(other.id, ctx.done.id, nil, actor: Actor.automation())
+      assert :ok = Boards.Cards.move_card(other.id, ctx.done.id, nil, actor: Actor.automation())
       assert Repo.get!(Card, other.id).completed
     end
 
     test "reopening clears it, so the next completion needs its own", ctx do
       {:ok, card} =
-        Boards.update_card(
+        Boards.Cards.update_card(
           ctx.card,
           %{"completed" => true, "evidence" => "First", "evidence_commit" => "abcd"},
           actor: ctx.agent
         )
 
       {:ok, card} =
-        Boards.update_card(card, %{"completed" => false}, actor: Actor.web(ctx.owner))
+        Boards.Cards.update_card(card, %{"completed" => false}, actor: Actor.web(ctx.owner))
 
       assert card.evidence == nil and card.evidence_commit == nil
 
-      assert {:error, _} = Boards.update_card(card, %{"completed" => true}, actor: ctx.agent)
+      assert {:error, _} =
+               Boards.Cards.update_card(card, %{"completed" => true}, actor: ctx.agent)
     end
 
     test "a card's subcards take the switch, and an export carries it and the evidence", ctx do
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = Boards.create_sub_board(ctx.card, t)
       assert sub.evidence_required
 
       {:ok, _} =
-        Boards.update_card(ctx.card, %{
+        Boards.Cards.update_card(ctx.card, %{
           "evidence" => "Ran it",
           "evidence_commit" => "abc1234",
           "evidence_no_code" => "a sweep (#1938)"

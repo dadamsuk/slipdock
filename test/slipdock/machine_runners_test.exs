@@ -384,7 +384,7 @@ defmodule Slipdock.MachineRunnersTest do
       }
 
       {:ok, _} =
-        Boards.update_card(ctx.card, %{"completed" => true}, actor: actor, by: ctx.user)
+        Boards.Cards.update_card(ctx.card, %{"completed" => true}, actor: actor, by: ctx.user)
 
       verify =
         Repo.one!(from(j in Runners.Job, where: j.card_id == ^ctx.card.id and j.kind == "verify"))

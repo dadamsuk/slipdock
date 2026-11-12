@@ -17,7 +17,7 @@ defmodule SlipdockWeb.QuotaAPITest do
       Settings.complete_setup(%{"admin_email" => "admin@example.com", "free_card_limit" => 1})
 
     board = board_fixture(%{"name" => "Full"}, owner: user)
-    {:ok, _} = Boards.create_card(hd(board.columns), %{"title" => "The only one"})
+    {:ok, _} = Boards.Cards.create_card(hd(board.columns), %{"title" => "The only one"})
 
     %{conn: conn, board: board}
   end

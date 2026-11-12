@@ -115,7 +115,7 @@ defmodule SlipdockWeb.CostWebTest do
     end
 
     test "an epic's lead_time rolls up its subcards", ctx do
-      {:ok, template} = Boards.find_template(nil, "Simple")
+      {:ok, template} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(ctx.card, template)
       [s_todo | _] = Boards.get_board!(sub.id).columns
       job!(card_fixture(s_todo, %{"title" => "Sub"}), "claude", log(true))

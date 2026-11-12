@@ -77,7 +77,7 @@ defmodule Slipdock.Verified.Circling do
 
   defp tell(card, count, rounds, user) do
     repeated = repeated_rules(rounds)
-    Slipdock.Boards.add_comment(card, comment_body(count, rounds, repeated), by: user)
+    Slipdock.Boards.Comments.add_comment(card, comment_body(count, rounds, repeated), by: user)
 
     root = root(card)
 

@@ -164,13 +164,13 @@ defmodule Slipdock.Fixtures do
   end
 
   def tag_fixture(board, name, color \\ "sky") do
-    {:ok, tag} = Boards.create_tag(board, %{"name" => name, "color" => color})
+    {:ok, tag} = Boards.Tags.create_tag(board, %{"name" => name, "color" => color})
     tag
   end
 
   def card_fixture(column, attrs \\ %{}) do
     {:ok, card} =
-      Boards.create_card(
+      Boards.Cards.create_card(
         column,
         Map.merge(%{"title" => "Card #{System.unique_integer([:positive])}"}, attrs)
       )
@@ -258,7 +258,7 @@ defmodule Slipdock.Fixtures do
   def tree_fixture do
     board = board_fixture(%{"name" => "Root"})
     [backlog | _] = board.columns
-    {:ok, t} = Boards.find_template(nil, "Simple")
+    {:ok, t} = Boards.Templates.find_template(nil, "Simple")
 
     epic = card_fixture(backlog, %{"title" => "Epic", "due_date" => "2030-01-15"})
 
@@ -290,7 +290,7 @@ defmodule Slipdock.Fixtures do
 
     late = card_fixture(backlog, %{"title" => "Late", "due_date" => "2030-01-01"})
     stuck = card_fixture(backlog, %{"title" => "Stuck"})
-    {:ok, _} = Boards.add_dependency(stuck, late)
+    {:ok, _} = Boards.Dependencies.add_dependency(stuck, late)
     loose = card_fixture(backlog, %{"title" => "Loose"})
 
     %{

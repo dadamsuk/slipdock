@@ -3,7 +3,7 @@ defmodule SlipdockWeb.MCP.Tools.UploadFile do
   A file attached to a card or a wiki page over MCP (#919): what
   `POST /api/cards/:id/attachments` and its page twin do, with the bytes in
   the arguments, since a tool call has no multipart body. It goes through the
-  same `Boards.add_attachment/3` and `Wiki.add_attachment/3`, so the size
+  same `Boards.Attachments.add_attachment/3` and `Wiki.add_attachment/3`, so the size
   limit, the quota and the activity log are the ones every upload meets.
 
   A file can also come in verified pieces (#1016): `append: true` starts or
@@ -513,7 +513,7 @@ defmodule SlipdockWeb.MCP.Tools.UploadFile do
   defp owner(_args, _auth), do: {:error, "say where it goes: card, or page"}
 
   defp attach({:card, card}, meta, path, replace?) do
-    with {:ok, a} <- Args.refusal(Boards.add_attachment(card, meta, path)) do
+    with {:ok, a} <- Args.refusal(Boards.Attachments.add_attachment(card, meta, path)) do
       {:ok, Map.put(Uploads.stored(a, replace?), :card, card.id)}
     end
   end

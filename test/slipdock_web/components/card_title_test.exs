@@ -19,7 +19,7 @@ defmodule SlipdockWeb.Components.CardTitleTest do
     [todo | _] = board.columns
     tag = tag_fixture(board, "Design")
     card = card_fixture(todo, %{"title" => "Paint the shed", "due_date" => "2030-01-15"})
-    {:ok, _} = Boards.set_card_tags(card, [tag])
+    {:ok, _} = Boards.Cards.set_card_tags(card, [tag])
     done = card_fixture(todo, %{"title" => "Buy the paint", "completed" => true})
     %{board: board, card: card, done: done}
   end
@@ -113,7 +113,7 @@ defmodule SlipdockWeb.Components.CardTitleTest do
       |> element("#card-#{card.id} [data-role=complete-toggle]")
       |> render_click()
 
-      assert Boards.get_card!(card.id).completed
+      assert Boards.Cards.get_card!(card.id).completed
     end
   end
 
@@ -135,7 +135,7 @@ defmodule SlipdockWeb.Components.CardTitleTest do
     end
 
     test "a sub-board draws the title at text-sm, title first", %{conn: conn, card: card} do
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(card, t)
       sub = Boards.get_board!(sub.id)
       child = card_fixture(hd(sub.columns), %{"title" => "Sand the boards"})
@@ -171,7 +171,7 @@ defmodule SlipdockWeb.Components.CardTitleTest do
       |> element("#card-#{card.id} [data-role=complete-toggle]")
       |> render_click()
 
-      assert Boards.get_card!(card.id).completed
+      assert Boards.Cards.get_card!(card.id).completed
     end
   end
 end

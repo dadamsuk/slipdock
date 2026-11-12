@@ -108,7 +108,7 @@ defmodule SlipdockWeb.VisualiseLiveTest do
       asked = card_fixture(ctx.doing, %{"title" => "Asked", "flags" => ["waiting"]})
       moved = card_fixture(ctx.todo, %{"title" => "Forward"})
       # Into the done list completes it.
-      :ok = Boards.move_card(moved.id, ctx.done.id, nil, actor: Slipdock.Actor.web(user))
+      :ok = Boards.Cards.move_card(moved.id, ctx.done.id, nil, actor: Slipdock.Actor.web(user))
       assert Repo.get!(Slipdock.Boards.Card, moved.id).completed
 
       now = DateTime.utc_now(:second)
@@ -137,7 +137,7 @@ defmodule SlipdockWeb.VisualiseLiveTest do
     end
 
     test "WIP is shown against the doing list's limit, with a chip at it", %{conn: conn} = ctx do
-      {:ok, _} = Boards.update_column(ctx.doing, %{"wip_limit" => 2})
+      {:ok, _} = Boards.Columns.update_column(ctx.doing, %{"wip_limit" => 2})
       card_fixture(ctx.doing)
 
       {:ok, view, _} = live(conn, ~p"/boards/#{ctx.board}/visualise")
@@ -179,9 +179,9 @@ defmodule SlipdockWeb.VisualiseLiveTest do
          %{conn: conn, user: user} = ctx do
       card_fixture(ctx.todo)
       moved = card_fixture(ctx.todo)
-      :ok = Boards.move_card(moved.id, ctx.doing.id, nil, actor: Slipdock.Actor.web(user))
+      :ok = Boards.Cards.move_card(moved.id, ctx.doing.id, nil, actor: Slipdock.Actor.web(user))
       gone = card_fixture(ctx.done)
-      {:ok, _} = Boards.archive_card(Repo.get!(Slipdock.Boards.Card, gone.id))
+      {:ok, _} = Boards.Cards.archive_card(Repo.get!(Slipdock.Boards.Card, gone.id))
 
       {:ok, view, html} = live(conn, ~p"/boards/#{ctx.board}/visualise")
 
@@ -200,7 +200,7 @@ defmodule SlipdockWeb.VisualiseLiveTest do
 
     test "the doing list shows its count against the WIP limit, warning at it",
          %{conn: conn} = ctx do
-      {:ok, _} = Boards.update_column(ctx.doing, %{"wip_limit" => 2})
+      {:ok, _} = Boards.Columns.update_column(ctx.doing, %{"wip_limit" => 2})
       card_fixture(ctx.doing)
 
       {:ok, view, _} = live(conn, ~p"/boards/#{ctx.board}/visualise")
@@ -213,7 +213,9 @@ defmodule SlipdockWeb.VisualiseLiveTest do
     end
 
     test "uncategorised lists sit at the end, outside the flow", %{conn: conn} = ctx do
-      {:ok, later} = Boards.create_column(ctx.board, %{"name" => "Maybe Later", "position" => 0})
+      {:ok, later} =
+        Boards.Columns.create_column(ctx.board, %{"name" => "Maybe Later", "position" => 0})
+
       card_fixture(later)
 
       {:ok, view, html} = live(conn, ~p"/boards/#{ctx.board}/visualise")
@@ -248,13 +250,13 @@ defmodule SlipdockWeb.VisualiseLiveTest do
 
     test "open cards in doing and ready, oldest first, backlog and done left out",
          %{conn: conn} = ctx do
-      {:ok, tag} = Boards.create_tag(ctx.board, %{"name" => "infra", "color" => "sky"})
+      {:ok, tag} = Boards.Tags.create_tag(ctx.board, %{"name" => "infra", "color" => "sky"})
       older = card_fixture(ctx.doing, %{"title" => "Older"})
       newer = card_fixture(ctx.todo, %{"title" => "Newer"})
-      Boards.set_card_tags(newer, [tag])
+      Boards.Cards.set_card_tags(newer, [tag])
       card_fixture(Enum.at(ctx.board.columns, 0), %{"title" => "Someday"})
       ticked = card_fixture(ctx.doing, %{"title" => "Ticked"})
-      {:ok, _} = Boards.toggle_completed(ticked)
+      {:ok, _} = Boards.Cards.toggle_completed(ticked)
 
       backdate(older, 3 * 3600)
       backdate(newer, 3600)
@@ -315,7 +317,7 @@ defmodule SlipdockWeb.VisualiseLiveTest do
       })
 
       by_hand = card_fixture(ctx.todo, %{"title" => "By hand"})
-      :ok = Boards.move_card(by_hand.id, ctx.doing.id, nil, actor: Slipdock.Actor.web(user))
+      :ok = Boards.Cards.move_card(by_hand.id, ctx.doing.id, nil, actor: Slipdock.Actor.web(user))
 
       Repo.insert!(%Slipdock.Runners.Job{
         pool: "dev",
@@ -333,7 +335,7 @@ defmodule SlipdockWeb.VisualiseLiveTest do
     end
 
     test "cards in uncategorised lists are counted in a note, not aged", %{conn: conn} = ctx do
-      {:ok, later} = Boards.create_column(ctx.board, %{"name" => "Maybe Later"})
+      {:ok, later} = Boards.Columns.create_column(ctx.board, %{"name" => "Maybe Later"})
       parked = card_fixture(later)
       card_fixture(later)
 
@@ -345,15 +347,15 @@ defmodule SlipdockWeb.VisualiseLiveTest do
 
   describe "work mix (#1192)" do
     setup ctx do
-      {:ok, bug} = Boards.create_tag(ctx.board, %{"name" => "bug", "color" => "rose"})
-      {:ok, feat} = Boards.create_tag(ctx.board, %{"name" => "feature", "color" => "sky"})
-      {:ok, docs} = Boards.create_tag(ctx.board, %{"name" => "docs"})
+      {:ok, bug} = Boards.Tags.create_tag(ctx.board, %{"name" => "bug", "color" => "rose"})
+      {:ok, feat} = Boards.Tags.create_tag(ctx.board, %{"name" => "feature", "color" => "sky"})
+      {:ok, docs} = Boards.Tags.create_tag(ctx.board, %{"name" => "docs"})
       %{bug: bug, feat: feat, docs: docs}
     end
 
     defp done_card(ctx, tags, attrs \\ %{}) do
       c = card_fixture(ctx.done, attrs)
-      Boards.set_card_tags(c, tags)
+      Boards.Cards.set_card_tags(c, tags)
       c
     end
 
@@ -365,7 +367,7 @@ defmodule SlipdockWeb.VisualiseLiveTest do
       done_card(ctx, [ctx.feat])
       # Open work is not in the mix.
       c = card_fixture(ctx.doing)
-      Boards.set_card_tags(c, [ctx.docs])
+      Boards.Cards.set_card_tags(c, [ctx.docs])
 
       {:ok, view, html} = live(conn, ~p"/boards/#{ctx.board}/visualise")
       order = Regex.scan(~r/id="mix-tag-(\d+)"/, html) |> Enum.map(fn [_, id] -> id end)

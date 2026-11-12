@@ -213,7 +213,7 @@ defmodule Slipdock.WikiSearchTest do
   describe "searching" do
     setup %{board: board, column: column, user: user} do
       card = card_fixture(column, %{"title" => "Refund rounding is wrong"})
-      {:ok, _} = Slipdock.Boards.add_comment(card, "finance want the rounding fixed")
+      {:ok, _} = Slipdock.Boards.Comments.add_comment(card, "finance want the rounding fixed")
 
       {:ok, page} =
         Wiki.create_page(

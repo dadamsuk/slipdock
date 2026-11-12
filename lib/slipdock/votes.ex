@@ -121,13 +121,13 @@ defmodule Slipdock.Votes do
 
   defp done(owner, user, count) do
     message = "#{User.display_name(user)} put #{count} #{plural(count)} on “#{owner.title}”"
-    Boards.log_activity_for(owner, "vote", message)
-    Boards.broadcast_tree(Boards.root_of_board(owner.board_id))
+    Boards.ActivityLog.log_activity_for(owner, "vote", message)
+    Boards.PubSub.broadcast_tree(Boards.root_of_board(owner.board_id))
     reload(owner)
   end
 
   defp reload(%Page{id: id}), do: {:ok, Slipdock.Wiki.get_page!(id)}
-  defp reload(%Card{id: id}), do: {:ok, Boards.get_card!(id)}
+  defp reload(%Card{id: id}), do: {:ok, Boards.Cards.get_card!(id)}
 
   defp plural(1), do: "vote"
   defp plural(_), do: "votes"

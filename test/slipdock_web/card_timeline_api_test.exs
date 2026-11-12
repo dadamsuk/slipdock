@@ -15,7 +15,7 @@ defmodule SlipdockWeb.CardTimelineAPITest do
     board = board_fixture(%{}, owner: owner)
     [_backlog, todo, doing, _done] = board.columns
     card = card_fixture(todo, %{"title" => "Travelled"})
-    :ok = Boards.move_card(card.id, doing.id, nil, actor: Actor.web(owner))
+    :ok = Boards.Cards.move_card(card.id, doing.id, nil, actor: Actor.web(owner))
 
     stranger = user_fixture("stranger@example.com")
     theirs = board_fixture(%{}, owner: stranger)
@@ -28,7 +28,7 @@ defmodule SlipdockWeb.CardTimelineAPITest do
 
   describe "GET /api/cards/:id/timeline" do
     test "the stays, waits and jobs, each with its seconds", ctx do
-      {:ok, _} = Boards.open_wait(ctx.card, Actor.web(ctx.owner), %{"needs" => "OK?"})
+      {:ok, _} = Boards.Waits.open_wait(ctx.card, Actor.web(ctx.owner), %{"needs" => "OK?"})
       {:ok, job} = Runners.queue(ctx.card, %{pool: "dev", kind: "claude", prompt: "go"})
       id = ctx.card.id
       job_id = job.id

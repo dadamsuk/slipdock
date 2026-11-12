@@ -25,14 +25,17 @@ defmodule Slipdock.NarrativeTest do
     [todo | _] = sub.columns
 
     {:ok, _} =
-      Boards.add_status_update(epic, user, %{"health" => "at_risk", "body" => "Vendor late"})
+      Boards.StatusUpdates.add_status_update(epic, user, %{
+        "health" => "at_risk",
+        "body" => "Vendor late"
+      })
 
-    {:ok, _} = Boards.add_comment(loose, "Parked for now")
+    {:ok, _} = Boards.Comments.add_comment(loose, "Parked for now")
     sub_card = card_fixture(todo, %{"title" => "New subtask"})
-    {:ok, _} = Boards.toggle_completed(sub_card)
+    {:ok, _} = Boards.Cards.toggle_completed(sub_card)
 
     {:ok, _} =
-      Boards.create_milestone(board, %{
+      Boards.Milestones.create_milestone(board, %{
         "name" => "Launch",
         "date" => Date.to_iso8601(Date.utc_today())
       })
@@ -100,7 +103,11 @@ defmodule Slipdock.NarrativeTest do
 
       if health,
         do:
-          {:ok, _} = Boards.add_status_update(card, user, %{"health" => health, "body" => "Now"})
+          {:ok, _} =
+            Boards.StatusUpdates.add_status_update(card, user, %{
+              "health" => health,
+              "body" => "Now"
+            })
     end
 
     narrative = Narrative.build(reload(board), Config.defaults("narrative"), Date.utc_today())
@@ -112,10 +119,13 @@ defmodule Slipdock.NarrativeTest do
   test "the tell list picks which events are told, and comment text can come along" do
     %{board: board, loose: loose, sub: sub} = tree_fixture()
     today = Date.utc_today()
-    {:ok, _} = Boards.update_card(loose, %{"start_date" => Date.to_iso8601(today)})
-    {:ok, _} = Boards.update_card(loose, %{"due_date" => Date.to_iso8601(Date.add(today, 3))})
-    {:ok, _} = Boards.add_comment(loose, "First thought")
-    {:ok, _} = Boards.add_comment(loose, "Second thought ![i](/attachments/1/i.png)")
+    {:ok, _} = Boards.Cards.update_card(loose, %{"start_date" => Date.to_iso8601(today)})
+
+    {:ok, _} =
+      Boards.Cards.update_card(loose, %{"due_date" => Date.to_iso8601(Date.add(today, 3))})
+
+    {:ok, _} = Boards.Comments.add_comment(loose, "First thought")
+    {:ok, _} = Boards.Comments.add_comment(loose, "Second thought ![i](/attachments/1/i.png)")
     [todo | _] = sub.columns
     _subtask = card_fixture(todo, %{"title" => "Subtask under epic"})
 
@@ -337,7 +347,7 @@ defmodule Slipdock.NarrativeTest do
     board = reload(board)
 
     for {f, v} <- Enum.zip(Enum.take(board.fields, 3), ["4000", "3", "80"]) do
-      {:ok, _} = Slipdock.Fields.set_value(Boards.get_card!(card.id), f, v)
+      {:ok, _} = Slipdock.Fields.set_value(Boards.Cards.get_card!(card.id), f, v)
     end
 
     narrative = Narrative.build(reload(board), Config.defaults("narrative"), Date.utc_today())

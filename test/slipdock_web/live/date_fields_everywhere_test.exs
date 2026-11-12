@@ -38,17 +38,17 @@ defmodule SlipdockWeb.DateFieldsEverywhereTest do
     |> form("#card-meta-form", card: %{start_date: "2030-01-10", due_date: "2030-01-20"})
     |> render_change()
 
-    card = Boards.get_card!(ctx.card.id)
+    card = Boards.Cards.get_card!(ctx.card.id)
     assert {card.start_date, card.due_date} == {~D[2030-01-10], ~D[2030-01-20]}
     assert has_element?(view, "#card-start-date-#{card.id} [data-role=date-text]", "10 Jan 2030")
 
     view |> form("#card-meta-form", card: %{start_date: ""}) |> render_change()
-    assert Boards.get_card!(card.id).start_date == nil
+    assert Boards.Cards.get_card!(card.id).start_date == nil
     assert has_element?(view, "#card-start-date-#{card.id} [data-role=date-text]", "Add date")
 
     # A start after the due date is refused, and says so.
     view |> form("#card-meta-form", card: %{start_date: "2030-02-01"}) |> render_change()
-    assert Boards.get_card!(card.id).start_date == nil
+    assert Boards.Cards.get_card!(card.id).start_date == nil
     assert render(view) =~ "Start must be on or before the due date."
   end
 
@@ -70,14 +70,14 @@ defmodule SlipdockWeb.DateFieldsEverywhereTest do
     assert Floki.find(cell, ".chip") == []
 
     view |> form("#due-#{id}", %{"value" => "2030-03-03"}) |> render_change()
-    assert Boards.get_card!(id).due_date == ~D[2030-03-03]
+    assert Boards.Cards.get_card!(id).due_date == ~D[2030-03-03]
     assert has_element?(view, "#due-date-#{id} [data-role=date-text]", "3 Mar 2030")
 
     view |> form("#start-#{id}", %{"value" => "2030-03-01"}) |> render_change()
-    assert Boards.get_card!(id).start_date == ~D[2030-03-01]
+    assert Boards.Cards.get_card!(id).start_date == ~D[2030-03-01]
 
     view |> form("#due-#{id}", %{"value" => ""}) |> render_change()
-    assert Boards.get_card!(id).due_date == nil
+    assert Boards.Cards.get_card!(id).due_date == nil
   end
 
   test "the timeline tray schedules an undated card", %{conn: conn} = ctx do
@@ -88,7 +88,7 @@ defmodule SlipdockWeb.DateFieldsEverywhereTest do
     assert has_element?(view, "#schedule-date-#{loose.id} [data-role=date-text]", "Set due date")
 
     view |> form("#schedule-#{loose.id}", %{"value" => "2030-01-18"}) |> render_change()
-    assert Boards.get_card!(loose.id).due_date == ~D[2030-01-18]
+    assert Boards.Cards.get_card!(loose.id).due_date == ~D[2030-01-18]
     refute has_element?(view, "#schedule-date-#{loose.id}")
   end
 
@@ -98,7 +98,7 @@ defmodule SlipdockWeb.DateFieldsEverywhereTest do
 
     assert date_field?(view, "schedule-date-#{loose.id}")
     view |> form("#schedule-#{loose.id}", %{"value" => "2030-01-20"}) |> render_change()
-    assert Boards.get_card!(loose.id).due_date == ~D[2030-01-20]
+    assert Boards.Cards.get_card!(loose.id).due_date == ~D[2030-01-20]
   end
 
   test "the board narrative's range is two date fields", %{conn: conn} = ctx do

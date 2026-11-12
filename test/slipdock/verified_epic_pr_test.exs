@@ -32,7 +32,7 @@ defmodule Slipdock.VerifiedEpicPrTest do
 
     [_backlog, _todo, doing, done] = board.columns
     epic = card_fixture(doing, %{"title" => "Epic"})
-    {:ok, t} = Boards.find_template(nil, "Simple")
+    {:ok, t} = Boards.Templates.find_template(nil, "Simple")
     {:ok, sub} = sub_board(epic, t)
     [column | _] = Boards.get_board!(sub.id).columns
     sub_card = card_fixture(column, %{"title" => "Part one"})
@@ -64,7 +64,7 @@ defmodule Slipdock.VerifiedEpicPrTest do
   end
 
   defp submit(card, attrs, ctx) do
-    Boards.update_card(
+    Boards.Cards.update_card(
       fresh(card),
       %{"completed" => true, "evidence" => "every subcard merged"}
       |> Map.merge(with_commit(attrs))
@@ -94,7 +94,7 @@ defmodule Slipdock.VerifiedEpicPrTest do
       assert Verified.epic?(ctx.epic)
       refute Verified.epic?(ctx.sub_card)
 
-      {:ok, _} = Boards.archive_card(ctx.sub_card)
+      {:ok, _} = Boards.Cards.archive_card(ctx.sub_card)
       refute Verified.epic?(ctx.epic)
     end
 
@@ -115,7 +115,9 @@ defmodule Slipdock.VerifiedEpicPrTest do
       merged(ctx.sub_card)
 
       assert {:error, cs} =
-               Boards.update_card(fresh(ctx.epic), %{"completed" => true}, actor: ctx.builder)
+               Boards.Cards.update_card(fresh(ctx.epic), %{"completed" => true},
+                 actor: ctx.builder
+               )
 
       assert %{evidence: [_]} = errors_on(cs)
       refute fresh(ctx.epic).verify_state
@@ -137,7 +139,7 @@ defmodule Slipdock.VerifiedEpicPrTest do
     end
 
     test "whose subcards are all archived is no epic, and needs its PR", ctx do
-      {:ok, _} = Boards.archive_card(ctx.sub_card)
+      {:ok, _} = Boards.Cards.archive_card(ctx.sub_card)
 
       assert {:error, cs} = submit(ctx.epic, %{}, ctx)
       assert %{evidence_pr: [_]} = errors_on(cs)

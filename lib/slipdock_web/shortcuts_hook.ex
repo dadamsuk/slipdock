@@ -199,11 +199,11 @@ defmodule SlipdockWeb.ShortcutsHook do
 
         q ->
           page = Wiki.page_by_code_for(user, q)
-          card = Boards.card_by_ref_across(board_ids, q, archived: true)
+          card = Boards.Links.card_by_ref_across(board_ids, q, archived: true)
           except = if card, do: [card.id], else: []
 
           List.wrap(page) ++
-            List.wrap(card) ++ Boards.search_cards_across(board_ids, q, except, @found)
+            List.wrap(card) ++ Boards.Links.search_cards_across(board_ids, q, except, @found)
       end
 
     %{shortcuts | results: results, cursor: 0}

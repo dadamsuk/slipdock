@@ -210,7 +210,7 @@ defmodule Slipdock.AI.CardRecord do
   defp in_tree(%Card{id: id}, %Card{id: id}, _what), do: :ok
 
   defp in_tree(root, card, what) do
-    if Enum.member?(Boards.subtree_board_ids(root.id), card.board_id),
+    if Enum.member?(Boards.Moves.subtree_board_ids(root.id), card.board_id),
       do: :ok,
       else:
         {:error,
@@ -237,7 +237,7 @@ defmodule Slipdock.AI.CardRecord do
     [
       Context.card_text(card, board),
       handoff_line(card.handoff),
-      wait_line(Boards.current_wait(card)),
+      wait_line(Boards.Waits.current_wait(card)),
       verify_line(card),
       "",
       subcards_text(card)
@@ -340,7 +340,7 @@ defmodule Slipdock.AI.CardRecord do
 
   defp render("card_timeline", card, _args) do
     timeline = CardTimeline.for_card(card)
-    waits = Boards.list_waits(card) |> Enum.reverse()
+    waits = Boards.Waits.list_waits(card) |> Enum.reverse()
 
     activity =
       from(a in Activity,

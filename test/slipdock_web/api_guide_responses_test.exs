@@ -16,10 +16,10 @@ defmodule SlipdockWeb.APIGuideResponsesTest do
 
     board = board_fixture(%{"name" => "Delivery", "code" => "delivery"}, owner: user)
     card = card_fixture(hd(board.columns), %{"title" => "Refund rounding"})
-    {:ok, _} = Boards.add_comment(card, "Rollback was blocked on approvals", by: user)
-    {:ok, _} = Boards.add_checklist_item(card, "Write the test")
+    {:ok, _} = Boards.Comments.add_comment(card, "Rollback was blocked on approvals", by: user)
+    {:ok, _} = Boards.Checklists.add_checklist_item(card, "Write the test")
     {:ok, _} = Search.index_cards(Search.load_cards(Search.all_card_ids()))
-    {:ok, _} = Boards.create_tag(board, %{"name" => "api", "color" => "sky"})
+    {:ok, _} = Boards.Tags.create_tag(board, %{"name" => "api", "color" => "sky"})
 
     markdown = SlipdockWeb.APIGuide.markdown()
     [_, section] = String.split(markdown, "### What comes back", parts: 2)

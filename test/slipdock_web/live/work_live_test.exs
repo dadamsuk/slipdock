@@ -13,9 +13,12 @@ defmodule SlipdockWeb.WorkLiveTest do
     today = Date.utc_today()
 
     {:ok, _} =
-      Boards.update_card(ctx.e, %{"assignee_id" => user.id, "due_date" => Date.add(today, -3)})
+      Boards.Cards.update_card(ctx.e, %{
+        "assignee_id" => user.id,
+        "due_date" => Date.add(today, -3)
+      })
 
-    {:ok, _} = Boards.update_card(ctx.b, %{"assignee_id" => user.id})
+    {:ok, _} = Boards.Cards.update_card(ctx.b, %{"assignee_id" => user.id})
 
     soon =
       card_fixture(col, %{
@@ -47,7 +50,7 @@ defmodule SlipdockWeb.WorkLiveTest do
     assert has_element?(view, "#work-done #work-card-#{ctx.b.id}")
 
     view |> element("#work-card-#{soon.id} button[title='Mark complete']") |> render_click()
-    assert Boards.get_card!(soon.id).completed
+    assert Boards.Cards.get_card!(soon.id).completed
     assert has_element?(view, "#work-done #work-card-#{soon.id}")
   end
 
@@ -71,7 +74,7 @@ defmodule SlipdockWeb.WorkLiveTest do
       actor = %{Actor.unknown() | kind: "agent", via: "mcp", user_id: ctx.asker.id}
 
       {:ok, wait} =
-        Boards.open_wait(
+        Boards.Waits.open_wait(
           card,
           actor,
           Map.merge(%{"needs" => "Which region?", "on_user_id" => ctx.user.id}, attrs)
@@ -83,7 +86,9 @@ defmodule SlipdockWeb.WorkLiveTest do
     test "opens My work, first, with the count in the header; a choice answers it", ctx do
       card = card_fixture(ctx.todo, %{"title" => "Deploy"})
       wait = ask(ctx, card, %{"choices" => ["eu", "us"]})
-      {:ok, _} = Boards.update_card(ctx.mine, %{"due_date" => Date.add(Date.utc_today(), 30)})
+
+      {:ok, _} =
+        Boards.Cards.update_card(ctx.mine, %{"due_date" => Date.add(Date.utc_today(), 30)})
 
       {:ok, view, html} = live(log_in_user(build_conn(), ctx.user), ~p"/work")
 
@@ -142,7 +147,7 @@ defmodule SlipdockWeb.WorkLiveTest do
     test "the header count equals the section's length", ctx do
       ask(ctx, ctx.mine)
       other = card_fixture(ctx.todo, %{"title" => "Review me", "assignee_id" => ctx.user.id})
-      {:ok, _} = Boards.update_card(other, %{"flags" => ["review"]})
+      {:ok, _} = Boards.Cards.update_card(other, %{"flags" => ["review"]})
 
       {:ok, view, _} = live(log_in_user(build_conn(), ctx.user), ~p"/work")
 
@@ -248,7 +253,7 @@ defmodule SlipdockWeb.WorkLiveTest do
 
     test "a completed undated card still shows under Show completed", ctx do
       done = undated(ctx, "Finished")
-      {:ok, _} = Boards.toggle_completed(done)
+      {:ok, _} = Boards.Cards.toggle_completed(done)
       open = undated(ctx, "Someday")
 
       {:ok, view, _} = live(log_in_user(build_conn(), ctx.user), ~p"/work")

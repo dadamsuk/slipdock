@@ -63,7 +63,7 @@ defmodule SlipdockWeb.BoardLive.MoveBoardComponent do
 
   defp event("open_move_board", %{"id" => id}, socket) do
     user = socket.assigns.current_user
-    card = Boards.get_card(Params.id(id))
+    card = Boards.Cards.get_card(Params.id(id))
 
     cond do
       is_nil(card) ->
@@ -132,7 +132,7 @@ defmodule SlipdockWeb.BoardLive.MoveBoardComponent do
         {:noreply, flash(socket, :error, "You have read-only access to that board.")}
 
       true ->
-        case Boards.move_card_to_board(card, column, actor: Slipdock.Actor.web(user)) do
+        case Boards.Moves.move_card_to_board(card, column, actor: Slipdock.Actor.web(user)) do
           {:ok, summary} ->
             {:noreply,
              socket

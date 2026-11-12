@@ -52,7 +52,7 @@ defmodule Slipdock.VerifiedTest do
   # inferred, or keeps the one given.
   defp started(ctx, attrs) do
     card = card_fixture(ctx.todo, Map.merge(%{"title" => "Work"}, attrs))
-    :ok = Boards.move_card(card.id, ctx.doing.id, nil, actor: ctx.agent)
+    :ok = Boards.Cards.move_card(card.id, ctx.doing.id, nil, actor: ctx.agent)
     Repo.get!(Card, card.id)
   end
 
@@ -84,27 +84,27 @@ defmodule Slipdock.VerifiedTest do
 
     test "an agent may raise the profile, any case", ctx do
       card = started(ctx, %{"profile" => "fix"})
-      {:ok, card} = Boards.update_card(card, %{"profile" => "Schema"}, actor: ctx.agent)
+      {:ok, card} = Boards.Cards.update_card(card, %{"profile" => "Schema"}, actor: ctx.agent)
       assert card.profile == "schema"
-      {:ok, card} = Boards.update_card(card, %{"profile" => "security"}, actor: ctx.agent)
+      {:ok, card} = Boards.Cards.update_card(card, %{"profile" => "security"}, actor: ctx.agent)
       assert card.profile == "security"
     end
 
     test "spike is above feature: an agent may raise feature to spike, not lower it back",
          ctx do
       card = started(ctx, %{"profile" => "feature"})
-      {:ok, card} = Boards.update_card(card, %{"profile" => "spike"}, actor: ctx.agent)
+      {:ok, card} = Boards.Cards.update_card(card, %{"profile" => "spike"}, actor: ctx.agent)
       assert card.profile == "spike"
 
       assert {:error, _} =
-               Boards.update_card(card, %{"profile" => "feature"}, actor: ctx.agent)
+               Boards.Cards.update_card(card, %{"profile" => "feature"}, actor: ctx.agent)
 
       assert profile(card) == "spike"
     end
 
     test "an agent can't lower it: refused naming the card, and the card is unchanged", ctx do
       card = started(ctx, %{"profile" => "schema"})
-      result = Boards.update_card(card, %{"profile" => "docs"}, actor: ctx.agent)
+      result = Boards.Cards.update_card(card, %{"profile" => "docs"}, actor: ctx.agent)
       message = refused_message(result)
 
       assert message =~ "##{card.id}"
@@ -117,7 +117,7 @@ defmodule Slipdock.VerifiedTest do
       card = started(ctx, %{"profile" => "security"})
 
       for blank <- ["", "  ", nil] do
-        result = Boards.update_card(card, %{"profile" => blank}, actor: ctx.agent)
+        result = Boards.Cards.update_card(card, %{"profile" => blank}, actor: ctx.agent)
         message = refused_message(result)
         assert message =~ "##{card.id}"
         assert message =~ "can't be cleared"
@@ -130,11 +130,11 @@ defmodule Slipdock.VerifiedTest do
       card =
         card_fixture(ctx.todo, %{"title" => "Migrate", "paths" => ["priv/repo/migrations/x.exs"]})
 
-      :ok = Boards.move_card(card.id, ctx.doing.id, nil, actor: ctx.agent)
+      :ok = Boards.Cards.move_card(card.id, ctx.doing.id, nil, actor: ctx.agent)
       card = Repo.get!(Card, card.id)
       assert {card.profile, card.profile_source} == {"schema", "inferred"}
 
-      assert {:error, _} = Boards.update_card(card, %{"profile" => "fix"}, actor: ctx.agent)
+      assert {:error, _} = Boards.Cards.update_card(card, %{"profile" => "fix"}, actor: ctx.agent)
       assert profile(card) == "schema"
     end
 
@@ -143,23 +143,23 @@ defmodule Slipdock.VerifiedTest do
       card =
         card_fixture(ctx.todo, %{"title" => "Migrate", "paths" => ["priv/repo/migrations/x.exs"]})
 
-      :ok = Boards.move_card(card.id, ctx.doing.id, nil, actor: ctx.person)
+      :ok = Boards.Cards.move_card(card.id, ctx.doing.id, nil, actor: ctx.person)
       card = Repo.get!(Card, card.id)
       assert card.profile == nil
 
       message =
-        refused_message(Boards.update_card(card, %{"profile" => "docs"}, actor: ctx.agent))
+        refused_message(Boards.Cards.update_card(card, %{"profile" => "docs"}, actor: ctx.agent))
 
       assert message =~ "schema to docs"
 
-      {:ok, card} = Boards.update_card(card, %{"profile" => "security"}, actor: ctx.agent)
+      {:ok, card} = Boards.Cards.update_card(card, %{"profile" => "security"}, actor: ctx.agent)
       assert card.profile == "security"
     end
 
     test "keeping the same profile, or writing other fields, is fine", ctx do
       card = started(ctx, %{"profile" => "schema"})
-      {:ok, card} = Boards.update_card(card, %{"profile" => "schema"}, actor: ctx.agent)
-      {:ok, card} = Boards.update_card(card, %{"title" => "Again"}, actor: ctx.agent)
+      {:ok, card} = Boards.Cards.update_card(card, %{"profile" => "schema"}, actor: ctx.agent)
+      {:ok, card} = Boards.Cards.update_card(card, %{"title" => "Again"}, actor: ctx.agent)
       assert {card.title, card.profile} == {"Again", "schema"}
     end
 
@@ -167,22 +167,22 @@ defmodule Slipdock.VerifiedTest do
       card = started(ctx, %{"profile" => "schema"})
 
       message =
-        refused_message(Boards.update_card(card, %{"profile" => "chore"}, actor: ctx.agent))
+        refused_message(Boards.Cards.update_card(card, %{"profile" => "chore"}, actor: ctx.agent))
 
       assert message =~ "security, schema, feature, fix, docs, spike"
     end
 
     test "a person may lower or clear it, and so may the assistant", ctx do
       card = started(ctx, %{"profile" => "security"})
-      {:ok, card} = Boards.update_card(card, %{"profile" => "docs"}, actor: ctx.person)
+      {:ok, card} = Boards.Cards.update_card(card, %{"profile" => "docs"}, actor: ctx.person)
       assert card.profile == "docs"
-      {:ok, card} = Boards.update_card(card, %{"profile" => ""}, actor: ctx.person)
+      {:ok, card} = Boards.Cards.update_card(card, %{"profile" => ""}, actor: ctx.person)
       assert card.profile == nil
 
-      {:ok, card} = Boards.update_card(card, %{"profile" => "schema"}, actor: ctx.person)
+      {:ok, card} = Boards.Cards.update_card(card, %{"profile" => "schema"}, actor: ctx.person)
 
       {:ok, card} =
-        Boards.update_card(card, %{"profile" => "fix"}, actor: Actor.assistant(ctx.user))
+        Boards.Cards.update_card(card, %{"profile" => "fix"}, actor: Actor.assistant(ctx.user))
 
       assert card.profile == "fix"
     end
@@ -190,10 +190,11 @@ defmodule Slipdock.VerifiedTest do
     test "a card sent back to the ready list after a rejection stays held", ctx do
       card = started(ctx, %{"profile" => "schema"})
       card = card |> Ecto.Changeset.change(verify_state: "rejected") |> Repo.update!()
-      :ok = Boards.move_card(card.id, ctx.todo.id, nil, actor: ctx.person)
+      :ok = Boards.Cards.move_card(card.id, ctx.todo.id, nil, actor: ctx.person)
       card = Repo.get!(Card, card.id)
 
-      assert {:error, _} = Boards.update_card(card, %{"profile" => "docs"}, actor: ctx.agent)
+      assert {:error, _} =
+               Boards.Cards.update_card(card, %{"profile" => "docs"}, actor: ctx.agent)
     end
 
     test "an agent's own raise, then a move back out of the doing list, still holds it", ctx do
@@ -202,23 +203,23 @@ defmodule Slipdock.VerifiedTest do
       card =
         card_fixture(ctx.todo, %{"title" => "Migrate", "paths" => ["priv/repo/migrations/x.exs"]})
 
-      :ok = Boards.move_card(card.id, ctx.doing.id, nil, actor: ctx.agent)
+      :ok = Boards.Cards.move_card(card.id, ctx.doing.id, nil, actor: ctx.agent)
       card = Repo.get!(Card, card.id)
       assert {card.profile, card.profile_source} == {"schema", "inferred"}
 
-      {:ok, card} = Boards.update_card(card, %{"profile" => "security"}, actor: ctx.agent)
+      {:ok, card} = Boards.Cards.update_card(card, %{"profile" => "security"}, actor: ctx.agent)
       assert card.profile_source == "agent"
 
-      :ok = Boards.move_card(card.id, ctx.todo.id, nil, actor: ctx.agent)
+      :ok = Boards.Cards.move_card(card.id, ctx.todo.id, nil, actor: ctx.agent)
       card = Repo.get!(Card, card.id)
       assert card.column_id == ctx.todo.id
 
       message =
-        refused_message(Boards.update_card(card, %{"profile" => "docs"}, actor: ctx.agent))
+        refused_message(Boards.Cards.update_card(card, %{"profile" => "docs"}, actor: ctx.agent))
 
       assert message =~ "##{card.id}"
       assert message =~ "security to docs"
-      assert {:error, _} = Boards.update_card(card, %{"profile" => ""}, actor: ctx.agent)
+      assert {:error, _} = Boards.Cards.update_card(card, %{"profile" => ""}, actor: ctx.agent)
       assert profile(card) == "security"
     end
 
@@ -226,27 +227,29 @@ defmodule Slipdock.VerifiedTest do
       card =
         card_fixture(ctx.todo, %{"title" => "Migrate", "paths" => ["priv/repo/migrations/x.exs"]})
 
-      :ok = Boards.move_card(card.id, ctx.doing.id, nil, actor: ctx.person)
-      :ok = Boards.move_card(card.id, ctx.todo.id, nil, actor: ctx.agent)
+      :ok = Boards.Cards.move_card(card.id, ctx.doing.id, nil, actor: ctx.person)
+      :ok = Boards.Cards.move_card(card.id, ctx.todo.id, nil, actor: ctx.agent)
       card = Repo.get!(Card, card.id)
       assert {card.profile, card.column_id} == {nil, ctx.todo.id}
 
       message =
-        refused_message(Boards.update_card(card, %{"profile" => "docs"}, actor: ctx.agent))
+        refused_message(Boards.Cards.update_card(card, %{"profile" => "docs"}, actor: ctx.agent))
 
       assert message =~ "schema to docs"
       assert profile(card) == nil
 
-      {:ok, card} = Boards.update_card(card, %{"profile" => "security"}, actor: ctx.agent)
+      {:ok, card} = Boards.Cards.update_card(card, %{"profile" => "security"}, actor: ctx.agent)
       assert card.profile == "security"
     end
 
     test "a card created straight into the doing list is started", ctx do
       card = card_fixture(ctx.doing, %{"title" => "Work", "profile" => "schema"})
-      :ok = Boards.move_card(card.id, ctx.todo.id, nil, actor: ctx.agent)
+      :ok = Boards.Cards.move_card(card.id, ctx.todo.id, nil, actor: ctx.agent)
       card = Repo.get!(Card, card.id)
 
-      assert {:error, _} = Boards.update_card(card, %{"profile" => "docs"}, actor: ctx.agent)
+      assert {:error, _} =
+               Boards.Cards.update_card(card, %{"profile" => "docs"}, actor: ctx.agent)
+
       assert profile(card) == "schema"
     end
   end
@@ -256,11 +259,11 @@ defmodule Slipdock.VerifiedTest do
       board = profiles_on(ctx)
       [backlog, todo, _doing, _done] = board.columns
       card = card_fixture(backlog, %{"title" => "Work"})
-      {:ok, card} = Boards.update_card(card, %{"profile" => "schema"}, actor: ctx.agent)
-      :ok = Boards.move_card(card.id, todo.id, nil, actor: ctx.agent)
+      {:ok, card} = Boards.Cards.update_card(card, %{"profile" => "schema"}, actor: ctx.agent)
+      :ok = Boards.Cards.move_card(card.id, todo.id, nil, actor: ctx.agent)
       card = Repo.get!(Card, card.id)
 
-      {:ok, card} = Boards.update_card(card, %{"profile" => "docs"}, actor: ctx.agent)
+      {:ok, card} = Boards.Cards.update_card(card, %{"profile" => "docs"}, actor: ctx.agent)
       assert card.profile == "docs"
     end
 
@@ -268,24 +271,26 @@ defmodule Slipdock.VerifiedTest do
 
     test "an agent may lower or clear a card's profile it set itself", ctx do
       card = card_fixture(ctx.todo, %{"title" => "Work"})
-      {:ok, card} = Boards.update_card(card, %{"profile" => "schema"}, actor: ctx.agent)
+      {:ok, card} = Boards.Cards.update_card(card, %{"profile" => "schema"}, actor: ctx.agent)
       assert card.profile_source == "agent"
-      {:ok, card} = Boards.update_card(card, %{"profile" => "docs"}, actor: ctx.agent)
+      {:ok, card} = Boards.Cards.update_card(card, %{"profile" => "docs"}, actor: ctx.agent)
       assert card.profile == "docs"
-      {:ok, card} = Boards.update_card(card, %{"profile" => ""}, actor: ctx.agent)
+      {:ok, card} = Boards.Cards.update_card(card, %{"profile" => ""}, actor: ctx.agent)
       assert card.profile == nil
     end
 
     test "a profile a person set is held, though the card hasn't started", ctx do
       card = card_fixture(ctx.todo, %{"title" => "Work"})
-      {:ok, card} = Boards.update_card(card, %{"profile" => "schema"}, actor: ctx.person)
+      {:ok, card} = Boards.Cards.update_card(card, %{"profile" => "schema"}, actor: ctx.person)
       assert card.profile_source == "person"
 
-      message = refused_message(Boards.update_card(card, %{"profile" => "fix"}, actor: ctx.agent))
-      assert message =~ "##{card.id}"
-      assert {:error, _} = Boards.update_card(card, %{"profile" => nil}, actor: ctx.agent)
+      message =
+        refused_message(Boards.Cards.update_card(card, %{"profile" => "fix"}, actor: ctx.agent))
 
-      {:ok, card} = Boards.update_card(card, %{"profile" => "security"}, actor: ctx.agent)
+      assert message =~ "##{card.id}"
+      assert {:error, _} = Boards.Cards.update_card(card, %{"profile" => nil}, actor: ctx.agent)
+
+      {:ok, card} = Boards.Cards.update_card(card, %{"profile" => "security"}, actor: ctx.agent)
       assert card.profile == "security"
     end
   end
@@ -294,9 +299,9 @@ defmodule Slipdock.VerifiedTest do
     test "an agent may lower or clear a started card's profile", ctx do
       refute ctx.board.profiles
       card = started(ctx, %{"profile" => "security"})
-      {:ok, card} = Boards.update_card(card, %{"profile" => "docs"}, actor: ctx.agent)
+      {:ok, card} = Boards.Cards.update_card(card, %{"profile" => "docs"}, actor: ctx.agent)
       assert card.profile == "docs"
-      {:ok, card} = Boards.update_card(card, %{"profile" => ""}, actor: ctx.agent)
+      {:ok, card} = Boards.Cards.update_card(card, %{"profile" => ""}, actor: ctx.agent)
       assert card.profile == nil
     end
   end

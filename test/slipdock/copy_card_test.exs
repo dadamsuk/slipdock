@@ -32,19 +32,19 @@ defmodule Slipdock.CopyCardTest do
         "assignee_ids" => [ctx.owner.id, ctx.other.id]
       })
 
-    {:ok, _} = Boards.set_card_tags(card, [urgent])
-    {:ok, a} = Boards.add_checklist_item(card, "Open the inbox")
-    {:ok, _} = Boards.add_checklist_item(card, "File them")
-    {:ok, _} = Boards.toggle_checklist_item(a)
-    Boards.get_card!(card.id)
+    {:ok, _} = Boards.Cards.set_card_tags(card, [urgent])
+    {:ok, a} = Boards.Checklists.add_checklist_item(card, "Open the inbox")
+    {:ok, _} = Boards.Checklists.add_checklist_item(card, "File them")
+    {:ok, _} = Boards.Checklists.toggle_checklist_item(a)
+    Boards.Cards.get_card!(card.id)
   end
 
   test "copies what the card is, and leaves behind what it has done", ctx do
     card = full_card(ctx)
-    {:ok, _} = Boards.add_comment(card, "Did January", by: ctx.owner)
-    {:ok, _} = Boards.add_dependency(card, card_fixture(ctx.backlog))
+    {:ok, _} = Boards.Comments.add_comment(card, "Did January", by: ctx.owner)
+    {:ok, _} = Boards.Dependencies.add_dependency(card, card_fixture(ctx.backlog))
 
-    assert {:ok, copy} = Boards.copy_card(card)
+    assert {:ok, copy} = Boards.Cards.copy_card(card)
 
     assert copy.id != card.id
     assert copy.column_id == card.column_id
@@ -60,7 +60,7 @@ defmodule Slipdock.CopyCardTest do
     assert copy.due_date == nil
     refute copy.completed
     assert Enum.map(copy.tags, & &1.name) == ["urgent"]
-    assert Boards.assignee_ids(copy) == [ctx.owner.id, ctx.other.id]
+    assert Boards.Cards.assignee_ids(copy) == [ctx.owner.id, ctx.other.id]
 
     assert [{"Open the inbox", false}, {"File them", false}] =
              Enum.map(copy.checklist_items, &{&1.text, &1.done})
@@ -68,7 +68,7 @@ defmodule Slipdock.CopyCardTest do
     assert copy.comments == []
     assert copy.blocked_by == []
     # The original is untouched.
-    assert [%{done: true}, %{done: false}] = Boards.get_card!(card.id).checklist_items
+    assert [%{done: true}, %{done: false}] = Boards.Cards.get_card!(card.id).checklist_items
   end
 
   test "attachments are not copied", ctx do
@@ -82,7 +82,7 @@ defmodule Slipdock.CopyCardTest do
       key: "k-#{System.unique_integer([:positive])}"
     })
 
-    {:ok, copy} = Boards.copy_card(Boards.get_card!(card.id))
+    {:ok, copy} = Boards.Cards.copy_card(Boards.Cards.get_card!(card.id))
     assert Repo.aggregate(from(a in Attachment, where: a.card_id == ^copy.id), :count) == 0
   end
 
@@ -92,7 +92,7 @@ defmodule Slipdock.CopyCardTest do
     _last = card_fixture(ctx.todo, %{"title" => "Third"})
 
     {:ok, top} =
-      Boards.copy_card(card, ctx.todo,
+      Boards.Cards.copy_card(card, ctx.todo,
         at: :top,
         attrs: %{"due_date" => "2031-02-03", "title" => "Second (Feb)"}
       )
@@ -100,19 +100,19 @@ defmodule Slipdock.CopyCardTest do
     assert top.due_date == ~D[2031-02-03]
     assert top.title == "Second (Feb)"
 
-    {:ok, after_it} = Boards.copy_card(card, nil, at: :after)
+    {:ok, after_it} = Boards.Cards.copy_card(card, nil, at: :after)
 
-    ids = ctx.todo.id |> Boards.active_items() |> Enum.map(fn {:card, id} -> id end)
+    ids = ctx.todo.id |> Boards.Columns.active_items() |> Enum.map(fn {:card, id} -> id end)
     assert Enum.take(ids, 4) == [top.id, first.id, card.id, after_it.id]
   end
 
   test "copies into another list, and into another board's tree by tag name", ctx do
     card = full_card(ctx)
-    {:ok, copy} = Boards.copy_card(card, ctx.todo)
+    {:ok, copy} = Boards.Cards.copy_card(card, ctx.todo)
     assert copy.column_id == ctx.todo.id
 
     elsewhere = board_fixture(%{}, owner: ctx.owner)
-    {:ok, moved} = Boards.copy_card(card, hd(elsewhere.columns))
+    {:ok, moved} = Boards.Cards.copy_card(card, hd(elsewhere.columns))
     assert moved.board_id == elsewhere.id
     assert [%{name: "urgent", board_id: board_id}] = moved.tags
     assert board_id == elsewhere.id
@@ -120,23 +120,23 @@ defmodule Slipdock.CopyCardTest do
 
   test "subcards come along, reopened, in the sub-board's ready list", ctx do
     epic = card_fixture(ctx.backlog, %{"title" => "Month end"})
-    {:ok, t} = Boards.find_template(nil, "Simple")
+    {:ok, t} = Boards.Templates.find_template(nil, "Simple")
     {:ok, sub} = sub_board(epic, t)
     sub = Boards.get_board!(sub.id)
     [first_list | rest] = sub.columns
     last_list = List.last(rest)
 
     a = card_fixture(first_list, %{"title" => "A", "flags" => ["blocked"]})
-    {:ok, _} = Boards.add_checklist_item(a, "a1")
+    {:ok, _} = Boards.Checklists.add_checklist_item(a, "a1")
     b = card_fixture(last_list, %{"title" => "B", "completed" => true})
-    {:ok, _} = Boards.archive_card(card_fixture(first_list, %{"title" => "Gone"}))
+    {:ok, _} = Boards.Cards.archive_card(card_fixture(first_list, %{"title" => "Gone"}))
 
     # A grandchild, done.
     {:ok, subsub} = sub_board(b, t)
     subsub = Boards.get_board!(subsub.id)
     card_fixture(List.last(subsub.columns), %{"title" => "B1", "completed" => true})
 
-    {:ok, copy} = Boards.copy_card(Boards.get_card!(epic.id))
+    {:ok, copy} = Boards.Cards.copy_card(Boards.Cards.get_card!(epic.id))
 
     new_sub = Boards.get_board!(copy.sub_board.id)
     assert new_sub.id != sub.id
@@ -148,9 +148,9 @@ defmodule Slipdock.CopyCardTest do
     assert Enum.map(cards, & &1.title) == ["A", "B"]
     assert Enum.all?(cards, &(&1.column_id == ready.id and not &1.completed))
     assert hd(cards).flags == []
-    assert [%{text: "a1", done: false}] = Boards.get_card!(hd(cards).id).checklist_items
+    assert [%{text: "a1", done: false}] = Boards.Cards.get_card!(hd(cards).id).checklist_items
 
-    b_copy = Boards.get_card!(List.last(cards).id)
+    b_copy = Boards.Cards.get_card!(List.last(cards).id)
 
     assert [%{title: "B1", completed: false}] =
              Repo.all(from(c in Card, where: c.board_id == ^b_copy.sub_board.id))
@@ -166,7 +166,7 @@ defmodule Slipdock.CopyCardTest do
     owner = user_fixture("limited@example.com")
     board = board_fixture(%{}, owner: owner)
     epic = card_fixture(hd(board.columns), %{"title" => "Epic"})
-    {:ok, t} = Boards.find_template(nil, "Simple")
+    {:ok, t} = Boards.Templates.find_template(nil, "Simple")
     {:ok, sub} = sub_board(epic, t)
     sub = Boards.get_board!(sub.id)
     card_fixture(hd(sub.columns), %{"title" => "One"})
@@ -175,7 +175,7 @@ defmodule Slipdock.CopyCardTest do
     before = Repo.aggregate(Card, :count)
     boards_before = Repo.aggregate(Slipdock.Boards.Board, :count)
 
-    assert {:error, changeset} = Boards.copy_card(Boards.get_card!(epic.id))
+    assert {:error, changeset} = Boards.Cards.copy_card(Boards.Cards.get_card!(epic.id))
     assert Slipdock.Quota.limit_reached?(changeset)
     assert Repo.aggregate(Card, :count) == before
     assert Repo.aggregate(Slipdock.Boards.Board, :count) == boards_before

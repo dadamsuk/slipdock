@@ -15,31 +15,31 @@ defmodule SlipdockWeb.TimeTrackingTest do
   test "spent and estimate are minutes, read in the card's unit", %{card: card} do
     assert card.time_unit == "hours"
 
-    {:ok, card} = Boards.update_card(card, %{"time_spent" => "1.5", "time_estimate" => "4"})
+    {:ok, card} = Boards.Cards.update_card(card, %{"time_spent" => "1.5", "time_estimate" => "4"})
     assert {card.time_spent, card.time_estimate} == {90, 240}
 
     # Changing the unit doesn't change the time recorded.
-    {:ok, card} = Boards.update_card(card, %{"time_unit" => "days"})
+    {:ok, card} = Boards.Cards.update_card(card, %{"time_unit" => "days"})
     assert {card.time_spent, card.time_estimate} == {90, 240}
 
-    assert {:error, cs} = Boards.update_card(card, %{"time_unit" => "fortnights"})
+    assert {:error, cs} = Boards.Cards.update_card(card, %{"time_unit" => "fortnights"})
     assert cs.errors[:time_unit]
-    assert {:error, cs} = Boards.update_card(card, %{"time_spent" => "a while"})
+    assert {:error, cs} = Boards.Cards.update_card(card, %{"time_spent" => "a while"})
     assert cs.errors[:time_spent]
 
-    {:ok, card} = Boards.update_card(card, %{"time_estimate" => ""})
+    {:ok, card} = Boards.Cards.update_card(card, %{"time_estimate" => ""})
     assert card.time_estimate == nil
   end
 
   test "the timer adds what it ran to time spent, and both are logged",
        %{board: board, card: card} do
-    {:ok, card} = Boards.update_card(card, %{"time_spent" => "1h"})
-    {:ok, card} = Boards.start_timer(card)
+    {:ok, card} = Boards.Cards.update_card(card, %{"time_spent" => "1h"})
+    {:ok, card} = Boards.Cards.start_timer(card)
     assert card.timer_started_at
 
     # Starting again keeps the original start.
     started = card.timer_started_at
-    {:ok, again} = Boards.start_timer(card)
+    {:ok, again} = Boards.Cards.start_timer(card)
     assert again.timer_started_at == started
 
     # Pretend it has been running for 45 minutes.
@@ -48,19 +48,19 @@ defmodule SlipdockWeb.TimeTrackingTest do
       |> Ecto.Changeset.change(timer_started_at: DateTime.add(started, -45 * 60, :second))
       |> Slipdock.Repo.update()
 
-    {:ok, card} = Boards.stop_timer(card)
+    {:ok, card} = Boards.Cards.stop_timer(card)
     assert card.timer_started_at == nil
     assert card.time_spent == 105
 
-    assert {:ok, ^card} = Boards.stop_timer(card)
+    assert {:ok, ^card} = Boards.Cards.stop_timer(card)
 
-    messages = Enum.map(Boards.list_activities(board.id), & &1.message)
+    messages = Enum.map(Boards.ActivityLog.list_activities(board.id), & &1.message)
     assert Enum.any?(messages, &(&1 =~ "started the timer"))
     assert Enum.any?(messages, &(&1 =~ "logged 0.75h"))
   end
 
   test "two stops of one running timer count its minutes once", %{board: board, card: card} do
-    {:ok, card} = Boards.start_timer(card)
+    {:ok, card} = Boards.Cards.start_timer(card)
 
     {:ok, card} =
       card
@@ -70,29 +70,33 @@ defmodule SlipdockWeb.TimeTrackingTest do
       |> Slipdock.Repo.update()
 
     # Both read the card while the timer was running: the API and the board at once.
-    {:ok, first} = Boards.stop_timer(card)
-    {:ok, second} = Boards.stop_timer(card)
+    {:ok, first} = Boards.Cards.stop_timer(card)
+    {:ok, second} = Boards.Cards.stop_timer(card)
 
     assert first.time_spent == 30
     assert second.time_spent == 30
     assert second.timer_started_at == nil
 
     logged =
-      board.id |> Boards.list_activities() |> Enum.count(&(&1.message =~ "with the timer"))
+      board.id
+      |> Boards.ActivityLog.list_activities()
+      |> Enum.count(&(&1.message =~ "with the timer"))
 
     assert logged == 1
   end
 
   test "time values have a ceiling instead of overflowing the column", %{card: card} do
-    assert {:error, cs} = Boards.update_card(card, %{"log_time" => "999999mo"})
+    assert {:error, cs} = Boards.Cards.update_card(card, %{"log_time" => "999999mo"})
     assert cs.errors[:time_spent]
 
     assert {:error, cs} =
-             Boards.update_card(card, %{"time_estimate" => String.duplicate("9", 306) <> "mo"})
+             Boards.Cards.update_card(card, %{
+               "time_estimate" => String.duplicate("9", 306) <> "mo"
+             })
 
     assert cs.errors[:time_estimate]
 
-    assert {:ok, card} = Boards.update_card(card, %{"time_estimate" => "1000000h"})
+    assert {:ok, card} = Boards.Cards.update_card(card, %{"time_estimate" => "1000000h"})
     assert card.time_estimate == Slipdock.TimeTracking.max_minutes()
   end
 
@@ -156,7 +160,7 @@ defmodule SlipdockWeb.TimeTrackingTest do
     |> form("#card-time-form", card: %{time_spent: "3"})
     |> render_change(%{"_target" => ["card", "time_spent"]})
 
-    card = Boards.get_card!(card.id)
+    card = Boards.Cards.get_card!(card.id)
     assert {card.time_spent, card.time_estimate} == {180, 120}
 
     html = render(view)
@@ -169,23 +173,23 @@ defmodule SlipdockWeb.TimeTrackingTest do
     |> form("#card-time-form", card: %{time_unit: "minutes"})
     |> render_change(%{"_target" => ["card", "time_unit"]})
 
-    card = Boards.get_card!(card.id)
+    card = Boards.Cards.get_card!(card.id)
     assert {card.time_unit, card.time_spent, card.time_estimate} == {"minutes", 180, 120}
 
     view |> form("#card-log-time-0", %{amount: "20m"}) |> render_submit()
-    assert Boards.get_card!(card.id).time_spent == 200
+    assert Boards.Cards.get_card!(card.id).time_spent == 200
 
     view |> element("#card-timer-toggle") |> render_click()
-    assert Boards.get_card!(card.id).timer_started_at
+    assert Boards.Cards.get_card!(card.id).timer_started_at
     assert has_element?(view, "#card-timer-toggle [phx-hook=Elapsed]")
 
     view |> element("#card-timer-toggle") |> render_click()
-    assert Boards.get_card!(card.id).timer_started_at == nil
+    assert Boards.Cards.get_card!(card.id).timer_started_at == nil
   end
 
   test "export and import carry it", %{board: board, card: card} do
     {:ok, _} =
-      Boards.update_card(card, %{
+      Boards.Cards.update_card(card, %{
         "time_unit" => "days",
         "time_spent" => "1",
         "time_estimate" => "3"

@@ -248,7 +248,7 @@ defmodule Slipdock.Health.DeadlockTest do
   # the subcard for its merge job, and the merge for the one runner taking
   # merges, which holds the pass.
   defp merge_shape(ctx, runner_attrs) do
-    {:ok, t} = Boards.find_template(nil, "Simple")
+    {:ok, t} = Boards.Templates.find_template(nil, "Simple")
     epic = card_fixture(ctx.doing, %{"title" => "Epic"})
     {:ok, sub} = sub_board(epic, t)
     sub = Boards.get_board!(sub.id)

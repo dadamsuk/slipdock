@@ -41,7 +41,7 @@ defmodule Slipdock.CardLoopTest do
   end
 
   defp listed(ctx, card, filters \\ %{}) do
-    ctx.board |> Boards.list_cards(filters) |> Enum.find(&(&1.id == card.id))
+    ctx.board |> Boards.Cards.list_cards(filters) |> Enum.find(&(&1.id == card.id))
   end
 
   defp loop_of(ctx, card), do: ctx |> listed(card) |> CardState.loop()
@@ -54,7 +54,9 @@ defmodule Slipdock.CardLoopTest do
       assert %{runner: "Mac Studio", kind: "build", job_id: job_id} = loop_of(ctx, card)
       assert job_id == job.id
 
-      assert Boards.with_state(Boards.get_card!(card.id)) |> CardState.loop() |> Map.get(:job_id) ==
+      assert Boards.with_state(Boards.Cards.get_card!(card.id))
+             |> CardState.loop()
+             |> Map.get(:job_id) ==
                job.id
     end
 
@@ -91,7 +93,7 @@ defmodule Slipdock.CardLoopTest do
       card = card_fixture(ctx.doing, %{"title" => "No row"})
       running(ctx, card)
 
-      assert Card.assignees(Boards.get_card!(card.id)) == []
+      assert Card.assignees(Boards.Cards.get_card!(card.id)) == []
 
       assert Repo.aggregate(from(a in "card_assignees", where: a.card_id == ^card.id), :count) ==
                0
@@ -136,7 +138,7 @@ defmodule Slipdock.CardLoopTest do
         Runners.finish_waiting(ctx.runner, job.id, fn job ->
           agent = %{Actor.unknown() | kind: "agent", via: "mcp", user_id: ctx.owner.id}
 
-          Boards.open_wait(card, agent, %{
+          Boards.Waits.open_wait(card, agent, %{
             "question" => "other",
             "needs" => "Which one?",
             "job_id" => job.id
@@ -161,7 +163,7 @@ defmodule Slipdock.CardLoopTest do
   describe "people stay the assignees" do
     test "a person assignee and a loop: both", ctx do
       card = card_fixture(ctx.doing, %{"title" => "Both"})
-      {:ok, _} = Boards.update_card(card, %{"assignee_ids" => [ctx.owner.id]})
+      {:ok, _} = Boards.Cards.update_card(card, %{"assignee_ids" => [ctx.owner.id]})
       running(ctx, card)
 
       listed = listed(ctx, card)
@@ -174,14 +176,14 @@ defmodule Slipdock.CardLoopTest do
       held = card_fixture(ctx.doing, %{"title" => "Held, nobody's"})
       running(ctx, held)
       mine = card_fixture(ctx.doing, %{"title" => "Mine"})
-      {:ok, _} = Boards.update_card(mine, %{"assignee_ids" => [ctx.owner.id]})
+      {:ok, _} = Boards.Cards.update_card(mine, %{"assignee_ids" => [ctx.owner.id]})
 
-      nobodys = Enum.map(Boards.list_cards(ctx.board, %{"assignee" => "none"}), & &1.id)
+      nobodys = Enum.map(Boards.Cards.list_cards(ctx.board, %{"assignee" => "none"}), & &1.id)
       assert held.id in nobodys
       refute mine.id in nobodys
 
       owners =
-        Enum.map(Boards.list_cards(ctx.board, %{"assignee" => ctx.owner.email}), & &1.id)
+        Enum.map(Boards.Cards.list_cards(ctx.board, %{"assignee" => ctx.owner.email}), & &1.id)
 
       assert owners == [mine.id]
     end

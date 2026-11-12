@@ -116,7 +116,7 @@ defmodule Slipdock.Inbound.CardRefTest do
     end
 
     test "a card on a sub-board beneath the board", ctx do
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(ctx.card, t)
       sub = Boards.get_board!(sub.id)
       task = card_fixture(hd(sub.columns), %{"title" => "Hinge"})
@@ -127,13 +127,13 @@ defmodule Slipdock.Inbound.CardRefTest do
 
     test "answers the card's wait on the sender", ctx do
       {:ok, _} =
-        Boards.open_wait(ctx.card, Actor.web(ctx.user), %{
+        Boards.Waits.open_wait(ctx.card, Actor.web(ctx.user), %{
           needs: "Which hinge?",
           on_user_id: ctx.user.id
         })
 
       assert {:accepted, _} = send_to(ctx, "[##{ctx.card.id}] Hinge", "The brass one.")
-      assert Boards.current_wait(Repo.reload!(ctx.card)) == nil
+      assert Boards.Waits.current_wait(Repo.reload!(ctx.card)) == nil
     end
 
     test "#id elsewhere in the subject still makes a new card", ctx do
@@ -159,7 +159,7 @@ defmodule Slipdock.Inbound.CardRefTest do
     end
 
     test "for a card on the board above, from a sub-board's address", ctx do
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(ctx.card, t)
       {:ok, sub_address} = Tokens.address(ctx.user, Boards.get_board!(sub.id), :card)
 
@@ -170,7 +170,7 @@ defmodule Slipdock.Inbound.CardRefTest do
     end
 
     test "for an archived card", ctx do
-      {:ok, _} = Boards.archive_card(ctx.card)
+      {:ok, _} = Boards.Cards.archive_card(ctx.card)
       assert {:rejected, reason, _} = send_to(ctx, "[##{ctx.card.id}] Late", "x")
       assert reason =~ "is archived"
       assert comments(ctx.card) == []

@@ -2,7 +2,7 @@ defmodule Slipdock.Deferred do
   @moduledoc """
   Side effects held back until a transaction has committed.
 
-  A write made through the ordinary functions (`Slipdock.Boards.create_card/3`
+  A write made through the ordinary functions (`Slipdock.Boards.Cards.create_card/3`
   and the rest) also tells people — mention emails — and runs automation
   rules. Inside a transaction that may yet roll back (copying a board, a
   runner's recovery), those must not happen until the rows they are about are

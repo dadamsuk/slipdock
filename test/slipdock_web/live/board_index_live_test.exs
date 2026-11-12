@@ -131,7 +131,7 @@ defmodule SlipdockWeb.BoardIndexLiveTest do
 
       # The other person's index is untouched.
       assert Enum.map(Access.list_boards(other), & &1.id) == [shared.id]
-      assert Boards.board_order(other) == %{}
+      assert Boards.Arrangement.board_order(other) == %{}
     end
   end
 
@@ -196,7 +196,7 @@ defmodule SlipdockWeb.BoardIndexLiveTest do
     end
 
     test "an archived board still opens, and says so", %{conn: conn, b: b} do
-      {:ok, _} = Boards.archive_board(b)
+      {:ok, _} = Boards.Arrangement.archive_board(b)
 
       {:ok, _view, html} = live(conn, ~p"/boards/#{b.id}")
       assert html =~ "archived"
@@ -206,7 +206,7 @@ defmodule SlipdockWeb.BoardIndexLiveTest do
       {:ok, view, _} = live(conn, ~p"/")
       assert render(view) =~ "Bravo"
 
-      {:ok, _} = Boards.archive_board(b)
+      {:ok, _} = Boards.Arrangement.archive_board(b)
       {:ok, _view, html} = live(conn, ~p"/work")
       refute html =~ "Bravo"
     end
@@ -270,7 +270,7 @@ defmodule SlipdockWeb.BoardIndexLiveTest do
     end
 
     test "is not among archived boards", %{conn: conn, a: a} do
-      {:ok, _} = Boards.archive_board(a)
+      {:ok, _} = Boards.Arrangement.archive_board(a)
       {:ok, view, _} = live(conn, ~p"/")
       render_click(view, "toggle_archived", %{})
       assert has_element?(view, "#archived-boards")
@@ -279,7 +279,7 @@ defmodule SlipdockWeb.BoardIndexLiveTest do
 
     test "is the way in when every board is archived, and opens the new-board form",
          %{conn: conn, a: a, b: b, c: c} do
-      for board <- [a, b, c], do: {:ok, _} = Boards.archive_board(board)
+      for board <- [a, b, c], do: {:ok, _} = Boards.Arrangement.archive_board(board)
       {:ok, view, _} = live(conn, ~p"/")
       refute has_element?(view, "#new-board")
 
@@ -360,20 +360,20 @@ defmodule SlipdockWeb.BoardIndexLiveTest do
     end
   end
 
-  describe "Boards.drain_boards_changed/0" do
+  describe "Boards.PubSub.drain_boards_changed/0" do
     test "drops the waiting notices and leaves every other message" do
       send(self(), {:boards_changed})
       send(self(), :something_else)
       send(self(), {:boards_changed})
 
-      assert :ok = Boards.drain_boards_changed()
+      assert :ok = Boards.PubSub.drain_boards_changed()
 
       refute_received {:boards_changed}
       assert_received :something_else
     end
 
     test "returns straight away with nothing waiting" do
-      assert :ok = Boards.drain_boards_changed()
+      assert :ok = Boards.PubSub.drain_boards_changed()
     end
   end
 end

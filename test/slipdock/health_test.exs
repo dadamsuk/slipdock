@@ -261,7 +261,7 @@ defmodule Slipdock.HealthTest do
     end
 
     test "a sub-board's finding is kept on the root board", %{board: board, card: card} do
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(card, t)
       sub = Boards.get_board!(sub.id)
       sub_card = card_fixture(hd(sub.columns), %{"title" => "Deep"})
@@ -281,7 +281,7 @@ defmodule Slipdock.HealthTest do
       Process.put(:probe_findings, [finding(card)])
       run(board)
       c = card!(card)
-      {:ok, _} = Boards.update_card(c, %{"flags" => List.delete(c.flags, "stuck")})
+      {:ok, _} = Boards.Cards.update_card(c, %{"flags" => List.delete(c.flags, "stuck")})
 
       assert {:ok, %{"handled" => 1, "opened" => 0, "flagged" => 0}} = run(board)
       assert [%Incident{status: "handled"}] = incidents(board)

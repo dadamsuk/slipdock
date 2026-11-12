@@ -42,10 +42,10 @@ defmodule SlipdockWeb.AttachmentsLiveTest do
 
     render_upload(input, "brief.pdf")
 
-    [a] = Boards.get_card!(card.id).attachments
+    [a] = Boards.Cards.get_card!(card.id).attachments
     assert a.filename == "brief.pdf"
     assert a.content_type == "application/pdf"
-    assert File.exists?(Boards.attachment_path(a))
+    assert File.exists?(Boards.Attachments.attachment_path(a))
 
     html = render(view)
 
@@ -61,8 +61,8 @@ defmodule SlipdockWeb.AttachmentsLiveTest do
     assert has_element?(view, "#card-#{card.id} span[title='Attachments']", "1")
 
     view |> element("#attachment-#{a.id} button[phx-click=delete_attachment]") |> render_click()
-    assert Boards.get_card!(card.id).attachments == []
-    refute File.exists?(Boards.attachment_path(a))
+    assert Boards.Cards.get_card!(card.id).attachments == []
+    refute File.exists?(Boards.Attachments.attachment_path(a))
     refute has_element?(view, "#attachment-#{a.id}")
   end
 
@@ -88,7 +88,7 @@ defmodule SlipdockWeb.AttachmentsLiveTest do
     # In the browser the file input's change event follows straight away.
     render_change(card_panel(view), "validate_attachments", %{})
     assert render(view) =~ "huge.bin is too large"
-    assert Boards.get_card!(card.id).attachments == []
+    assert Boards.Cards.get_card!(card.id).attachments == []
   end
 
   test "an image pasted into the description is stored and handed back as Markdown", %{
@@ -108,7 +108,7 @@ defmodule SlipdockWeb.AttachmentsLiveTest do
       ])
 
     render_upload(input, "pasted-2026-09-25.png")
-    [a] = Boards.get_card!(card.id).attachments
+    [a] = Boards.Cards.get_card!(card.id).attachments
     assert a.content_type == "image/png"
 
     assert_push_event(view, "image_uploaded", %{upload: "desc_image", markdown: markdown})
@@ -123,7 +123,7 @@ defmodule SlipdockWeb.AttachmentsLiveTest do
     })
     |> render_change()
 
-    assert Boards.get_card!(card.id).description == "Look:\n#{markdown}\n"
+    assert Boards.Cards.get_card!(card.id).description == "Look:\n#{markdown}\n"
 
     view |> element(~s(button[phx-click="stop_editing_description"])) |> render_click()
 
@@ -180,7 +180,7 @@ defmodule SlipdockWeb.AttachmentsLiveTest do
     |> form("#add-comment-0", %{"body" => "Here it is #{markdown} ![Uploading image…]()"})
     |> render_submit()
 
-    [comment] = Boards.get_card!(card.id).comments
+    [comment] = Boards.Cards.get_card!(card.id).comments
     assert comment.body == "Here it is #{markdown}"
     assert has_element?(view, "#comment-#{comment.id} img[alt='clip.png']")
     assert render(view) =~ "Here it is"
@@ -191,7 +191,9 @@ defmodule SlipdockWeb.AttachmentsLiveTest do
     board: board,
     card: card
   } do
-    {:ok, _} = Boards.update_card(card, %{"due_date" => "2030-01-15", "description" => "keep"})
+    {:ok, _} =
+      Boards.Cards.update_card(card, %{"due_date" => "2030-01-15", "description" => "keep"})
+
     {:ok, view, _} = live(conn, ~p"/boards/#{board}/cards/#{card.id}")
     view |> element("button", "Edit") |> render_click()
 
@@ -199,12 +201,12 @@ defmodule SlipdockWeb.AttachmentsLiveTest do
     |> form("#card-form", %{"card" => %{"description" => "changed"}})
     |> render_change()
 
-    assert %{description: "changed", due_date: ~D[2030-01-15]} = Boards.get_card!(card.id)
+    assert %{description: "changed", due_date: ~D[2030-01-15]} = Boards.Cards.get_card!(card.id)
 
     view |> form("#card-meta-form", %{"card" => %{"priority" => "high"}}) |> render_change()
 
     assert %{description: "changed", due_date: ~D[2030-01-15], priority: "high"} =
-             Boards.get_card!(card.id)
+             Boards.Cards.get_card!(card.id)
   end
 
   test "a read-only user sees the description and attachments but cannot change them", %{
@@ -212,7 +214,9 @@ defmodule SlipdockWeb.AttachmentsLiveTest do
     card: card,
     user: owner
   } do
-    {:ok, _} = Boards.update_card(card, %{"description" => "Read me ![i](/attachments/1/i.png)"})
+    {:ok, _} =
+      Boards.Cards.update_card(card, %{"description" => "Read me ![i](/attachments/1/i.png)"})
+
     reader = user_fixture("reader@example.com")
     {:ok, _} = Slipdock.Access.grant(board, reader, "read", owner)
 

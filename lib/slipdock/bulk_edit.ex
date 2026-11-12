@@ -144,24 +144,24 @@ defmodule Slipdock.BulkEdit do
 
   # The action, checked once and turned into a function of one card, so a
   # bad tag or list is refused before any card has changed.
-  defp resolve(_user, _board, :archive), do: {:ok, &Boards.archive_card/1}
-  defp resolve(_user, _board, :delete), do: {:ok, &Boards.delete_card/1}
+  defp resolve(_user, _board, :archive), do: {:ok, &Boards.Cards.archive_card/1}
+  defp resolve(_user, _board, :delete), do: {:ok, &Boards.Cards.delete_card/1}
 
   defp resolve(_user, _board, :complete),
-    do: {:ok, &Boards.update_card(&1, %{"completed" => true})}
+    do: {:ok, &Boards.Cards.update_card(&1, %{"completed" => true})}
 
   defp resolve(_user, _board, :reopen),
-    do: {:ok, &Boards.update_card(&1, %{"completed" => false})}
+    do: {:ok, &Boards.Cards.update_card(&1, %{"completed" => false})}
 
   defp resolve(user, _board, :assign_me),
-    do: {:ok, &Boards.update_card(&1, %{"add_assignee_ids" => [user.id]})}
+    do: {:ok, &Boards.Cards.update_card(&1, %{"add_assignee_ids" => [user.id]})}
 
   defp resolve(_user, _board, :unassign),
-    do: {:ok, &Boards.update_card(&1, %{"assignee_ids" => []})}
+    do: {:ok, &Boards.Cards.update_card(&1, %{"assignee_ids" => []})}
 
   defp resolve(_user, _board, {:priority, p}) do
     if Enum.member?(Card.priorities(), p),
-      do: {:ok, &Boards.update_card(&1, %{"priority" => p})},
+      do: {:ok, &Boards.Cards.update_card(&1, %{"priority" => p})},
       else: {:error, "That isn't a priority."}
   end
 
@@ -174,7 +174,7 @@ defmodule Slipdock.BulkEdit do
              do: Enum.uniq(card.flags ++ [flag]),
              else: List.delete(card.flags, flag)
 
-         Boards.update_card(card, %{"flags" => flags})
+         Boards.Cards.update_card(card, %{"flags" => flags})
        end}
     else
       {:error, "That isn't a flag."}
@@ -182,7 +182,7 @@ defmodule Slipdock.BulkEdit do
   end
 
   defp resolve(_user, board, {op, tag_id}) when op in [:add_tag, :remove_tag] do
-    case Enum.find(Boards.list_tags(Board.root_id(board)), &(&1.id == to_id(tag_id))) do
+    case Enum.find(Boards.Tags.list_tags(Board.root_id(board)), &(&1.id == to_id(tag_id))) do
       nil ->
         {:error, "That tag isn't on this board."}
 
@@ -194,10 +194,10 @@ defmodule Slipdock.BulkEdit do
 
            cond do
              op == :add_tag and not has? ->
-               Boards.set_card_tags(card, card.tags ++ [tag])
+               Boards.Cards.set_card_tags(card, card.tags ++ [tag])
 
              op == :remove_tag and has? ->
-               Boards.set_card_tags(card, Enum.reject(card.tags, &(&1.id == tag.id)))
+               Boards.Cards.set_card_tags(card, Enum.reject(card.tags, &(&1.id == tag.id)))
 
              true ->
                {:ok, card}
@@ -214,8 +214,8 @@ defmodule Slipdock.BulkEdit do
       {:ok,
        fn card ->
          if column.board_id == card.board_id,
-           do: Boards.move_card(card.id, column.id, nil, actor: Slipdock.Actor.web(user)),
-           else: Boards.move_card_to_board(card, column, actor: Slipdock.Actor.web(user))
+           do: Boards.Cards.move_card(card.id, column.id, nil, actor: Slipdock.Actor.web(user)),
+           else: Boards.Moves.move_card_to_board(card, column, actor: Slipdock.Actor.web(user))
        end}
     else
       _ -> {:error, "You can't move cards to that list."}

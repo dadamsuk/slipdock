@@ -92,7 +92,7 @@ defmodule SlipdockWeb.VisualiseChartsTest do
       card_fixture(todo)
       card_fixture(doing)
       finished = card_fixture(doing, %{"title" => "Shipped"})
-      :ok = Slipdock.Boards.move_card(finished.id, done.id, nil)
+      :ok = Slipdock.Boards.Cards.move_card(finished.id, done.id, nil)
 
       {:ok, view, _} = live(conn, ~p"/boards/#{board}/visualise")
 
@@ -128,7 +128,7 @@ defmodule SlipdockWeb.VisualiseChartsTest do
          %{conn: conn, board: board} do
       [_backlog, _todo, doing, done] = board.columns
       c = card_fixture(doing)
-      :ok = Slipdock.Boards.move_card(c.id, done.id, nil)
+      :ok = Slipdock.Boards.Cards.move_card(c.id, done.id, nil)
 
       {:ok, view, _} = live(conn, ~p"/boards/#{board}/visualise")
       assert has_element?(view, "#trends", "Last 30 days")

@@ -1432,7 +1432,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
   defp move_menu(assigns) do
     page? = SlipdockWeb.SlipdockComponents.page?(assigns.card)
     # `page-7` for a page, a bare number for a card — the same id the
-    # drag-and-drop sends, read by `Slipdock.Boards.item_ref/1`. A card keeps
+    # drag-and-drop sends, read by `Slipdock.Boards.Columns.item_ref/1`. A card keeps
     # the ids it always had, so only the pages need a prefix to stay apart.
     item_id = if page?, do: "page-#{assigns.card.id}", else: to_string(assigns.card.id)
 

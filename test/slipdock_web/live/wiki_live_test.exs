@@ -57,7 +57,7 @@ defmodule SlipdockWeb.WikiLiveTest do
     page = page_fixture(board, %{"title" => "Retry policy"}, user: user)
     page_fixture(board, %{"title" => "Runbook", "body" => "See [[Retry policy]]."}, user: user)
     card = card_fixture(hd(Boards.get_board!(board.id).columns), %{"title" => "Ship retries"})
-    {:ok, _} = Boards.add_comment(card, "blocked on [[Retry policy]]")
+    {:ok, _} = Boards.Comments.add_comment(card, "blocked on [[Retry policy]]")
 
     {:ok, view, html} = live(conn, ~p"/boards/#{board}/wiki/#{page.slug}")
 
@@ -681,7 +681,7 @@ defmodule SlipdockWeb.WikiLiveTest do
     })
 
     assert Wiki.get_page!(page.id).column_id == doing.id
-    assert Boards.active_items(todo.id) == [card: card.id]
+    assert Boards.Columns.active_items(todo.id) == [card: card.id]
 
     # And off the board from its panel.
     render_click(view, "open_page", %{"id" => page.id})
@@ -878,7 +878,7 @@ defmodule SlipdockWeb.WikiLiveTest do
       assert [%{text: "a page's item"}] = page.checklist_items
 
       # The open card is a different subject, and stays untouched.
-      card = Slipdock.Boards.get_card!(card.id)
+      card = Slipdock.Boards.Cards.get_card!(card.id)
       assert card.comments == []
       assert card.checklist_items == []
     end

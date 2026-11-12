@@ -28,7 +28,7 @@ defmodule Slipdock.OverviewTest do
     File.write!(path, :binary.copy("x", bytes))
 
     {:ok, _} =
-      Boards.add_attachment(
+      Boards.Attachments.add_attachment(
         card,
         %{filename: "f.txt", content_type: "text/plain", size: bytes},
         path
@@ -79,7 +79,7 @@ defmodule Slipdock.OverviewTest do
       board = board_fixture(%{}, owner: alice)
       [column | _] = board.columns
       epic = card_fixture(column)
-      {:ok, template} = Boards.find_template(nil, "Simple")
+      {:ok, template} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(epic, template)
       sub = Boards.get_board!(sub.id)
       card_fixture(hd(sub.columns))
@@ -96,7 +96,7 @@ defmodule Slipdock.OverviewTest do
       board = board_fixture(%{}, owner: alice)
       card = card_fixture(hd(board.columns))
       card_fixture(hd(board.columns))
-      {:ok, _} = Boards.archive_card(card)
+      {:ok, _} = Boards.Cards.archive_card(card)
 
       assert person(Overview.overview(), alice).cards == 1
     end

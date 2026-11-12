@@ -63,7 +63,7 @@ defmodule SlipdockWeb.BoardLive.TagsComponent do
   defp event("create_tag", %{"tag" => params}, socket) do
     params = Map.put(params, "color", socket.assigns.new_tag_color)
 
-    case Boards.create_tag(socket.assigns.board, params) do
+    case Boards.Tags.create_tag(socket.assigns.board, params) do
       {:ok, _} -> {:noreply, assign(socket, tag_form: new_tag_form(), error: nil)}
       {:error, cs} -> {:noreply, assign(socket, tag_form: to_form(cs, action: :insert))}
     end
@@ -71,7 +71,7 @@ defmodule SlipdockWeb.BoardLive.TagsComponent do
 
   defp event("set_tag_color", %{"id" => id, "color" => color}, socket) do
     with %Tag{} = tag <- board_tag(socket, id),
-         {:ok, _} <- Boards.update_tag(tag, %{"color" => color}) do
+         {:ok, _} <- Boards.Tags.update_tag(tag, %{"color" => color}) do
       {:noreply, assign(socket, error: nil)}
     else
       _ -> {:noreply, assign(socket, error: "That colour couldn't be set.")}
@@ -89,7 +89,7 @@ defmodule SlipdockWeb.BoardLive.TagsComponent do
         {:reply, %{ok: true}, socket}
 
       tag ->
-        case Boards.update_tag(tag, %{"name" => name}) do
+        case Boards.Tags.update_tag(tag, %{"name" => name}) do
           {:ok, tag} ->
             {:reply, %{ok: true, name: tag.name}, assign(socket, error: nil)}
 
@@ -101,7 +101,7 @@ defmodule SlipdockWeb.BoardLive.TagsComponent do
   end
 
   defp event("delete_tag", %{"id" => id}, socket) do
-    if tag = board_tag(socket, id), do: {:ok, _} = Boards.delete_tag(tag)
+    if tag = board_tag(socket, id), do: {:ok, _} = Boards.Tags.delete_tag(tag)
     {:noreply, assign(socket, error: nil)}
   end
 

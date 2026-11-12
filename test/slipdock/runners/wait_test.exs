@@ -54,7 +54,7 @@ defmodule Slipdock.Runners.WaitTest do
       {:ok, job} = queue(ctx.card)
       assert Runners.claim(ctx.runner) == nil
 
-      :ok = Boards.move_card_to_index(busy, ctx.done, :top)
+      :ok = Boards.Cards.move_card_to_index(busy, ctx.done, :top)
       assert %Job{id: id, status: "claimed"} = Runners.claim(ctx.runner)
       assert id == job.id
       assert Runners.held(ctx.board, "loop") == nil
@@ -62,7 +62,7 @@ defmodule Slipdock.Runners.WaitTest do
 
     test "the job's own card in progress doesn't hold it back", ctx do
       {:ok, job} = queue(ctx.card)
-      :ok = Boards.move_card_to_index(ctx.card, ctx.doing, :top)
+      :ok = Boards.Cards.move_card_to_index(ctx.card, ctx.doing, :top)
 
       assert Runners.waiting_on(Repo.reload!(job)) == nil
       assert %Job{id: id} = Runners.claim(ctx.runner)
@@ -71,7 +71,7 @@ defmodule Slipdock.Runners.WaitTest do
 
     test "completed and archived cards in the list don't count", ctx do
       card_fixture(ctx.doing, %{"completed" => true})
-      {:ok, _} = ctx.doing |> card_fixture() |> Boards.archive_card()
+      {:ok, _} = ctx.doing |> card_fixture() |> Boards.Cards.archive_card()
       {:ok, job} = queue(ctx.card)
 
       assert %Job{id: id} = Runners.claim(ctx.runner)

@@ -25,7 +25,7 @@ defmodule Slipdock.VerifyEvidenceStanceTest do
 
   defp card(ctx, profile, attrs \\ %{}) do
     card = card_fixture(ctx.doing, Map.merge(%{"title" => "Work", "bar" => "1. Done"}, attrs))
-    {:ok, card} = Boards.update_card(card, %{"profile" => profile})
+    {:ok, card} = Boards.Cards.update_card(card, %{"profile" => profile})
     card
   end
 

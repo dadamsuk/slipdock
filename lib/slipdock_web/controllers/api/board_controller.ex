@@ -21,7 +21,7 @@ defmodule SlipdockWeb.API.BoardController do
 
   # `archived`: leave it out for the boards in play, "true" for the archived
   # ones alone, "all" for both. `sort` is one of the orders the board index
-  # offers (see `Slipdock.Boards.sort_boards/2`), and defaults to the reader's
+  # offers (see `Slipdock.Boards.Arrangement.sort_boards/2`), and defaults to the reader's
   # own — the order they put their boards in on the web.
   def index(conn, params) do
     user = conn.assigns.current_user
@@ -35,7 +35,7 @@ defmodule SlipdockWeb.API.BoardController do
         token: conn.assigns[:api_token],
         wiki: false
       )
-      |> Boards.sort_boards(sort)
+      |> Boards.Arrangement.sort_boards(sort)
 
     json(conn, %{boards: Enum.map(boards, &V.board_summary(&1, user))})
   end
@@ -46,7 +46,7 @@ defmodule SlipdockWeb.API.BoardController do
 
   def archive(conn, %{"board" => ref}) do
     with {:ok, board} <- fetch_board(conn, ref, :owner),
-         {:ok, board} <- archivable(Boards.archive_board(board)) do
+         {:ok, board} <- archivable(Boards.Arrangement.archive_board(board)) do
       json(conn, %{board: V.board_summary(board, conn.assigns.current_user)})
     end
   end
@@ -61,7 +61,7 @@ defmodule SlipdockWeb.API.BoardController do
 
   def restore(conn, %{"board" => ref}) do
     with {:ok, board} <- fetch_board(conn, ref, :owner),
-         {:ok, board} <- Boards.unarchive_board(board) do
+         {:ok, board} <- Boards.Arrangement.unarchive_board(board) do
       json(conn, %{board: V.board_summary(board, conn.assigns.current_user)})
     end
   end
@@ -81,12 +81,12 @@ defmodule SlipdockWeb.API.BoardController do
 
     with {:ok, boards} <- resolve_all(user, refs),
          {:ok, ids} <- all_visible(boards, visible) do
-      :ok = Boards.reorder_boards(user, ids)
+      :ok = Boards.Arrangement.reorder_boards(user, ids)
 
       boards =
         user
         |> Access.list_boards(token: conn.assigns[:api_token], wiki: false)
-        |> Boards.sort_boards("manual")
+        |> Boards.Arrangement.sort_boards("manual")
 
       json(conn, %{boards: Enum.map(boards, &V.board_summary(&1, user))})
     end
@@ -427,7 +427,7 @@ defmodule SlipdockWeb.API.BoardController do
 
   def create_column(conn, %{"board" => ref} = params) do
     with {:ok, board} <- fetch_board(conn, ref, :write),
-         {:ok, column} <- Boards.create_column(board, Map.take(params, @column_fields)) do
+         {:ok, column} <- Boards.Columns.create_column(board, Map.take(params, @column_fields)) do
       conn |> put_status(:created) |> json(%{column: V.column(column)})
     end
   end
@@ -435,7 +435,7 @@ defmodule SlipdockWeb.API.BoardController do
   def update_column(conn, %{"board" => ref, "id" => id} = params) do
     with {:ok, board} <- fetch_board(conn, ref, :write),
          {:ok, column} <- find(Boards.find_column(board, id), "column"),
-         {:ok, column} <- Boards.update_column(column, Map.take(params, @column_fields)) do
+         {:ok, column} <- Boards.Columns.update_column(column, Map.take(params, @column_fields)) do
       json(conn, %{column: V.column(column)})
     end
   end
@@ -447,9 +447,9 @@ defmodule SlipdockWeb.API.BoardController do
   def delete_column(conn, %{"board" => ref, "id" => id}) do
     with {:ok, board} <- fetch_board(conn, ref, :write),
          {:ok, column} <- find(Boards.find_column(board, id), "column") do
-      case Boards.column_card_counts(column) do
+      case Boards.Columns.column_card_counts(column) do
         {0, _} ->
-          with {:ok, _} <- Boards.delete_column(column), do: json(conn, %{ok: true})
+          with {:ok, _} <- Boards.Columns.delete_column(column), do: json(conn, %{ok: true})
 
         {cards, archived} ->
           conn
@@ -471,8 +471,8 @@ defmodule SlipdockWeb.API.BoardController do
   def recursive_delete(conn, %{"board" => ref, "id" => id}) do
     with {:ok, board} <- fetch_board(conn, ref, :write),
          {:ok, column} <- find(Boards.find_column(board, id), "column"),
-         {cards, archived} = Boards.column_card_counts(column),
-         {:ok, _} <- Boards.delete_column(column) do
+         {cards, archived} = Boards.Columns.column_card_counts(column),
+         {:ok, _} <- Boards.Columns.delete_column(column) do
       json(conn, %{ok: true, deleted_cards: cards, deleted_archived: archived})
     end
   end
@@ -530,14 +530,19 @@ defmodule SlipdockWeb.API.BoardController do
   def milestones(conn, %{"board" => ref}) do
     with {:ok, board} <- fetch_board(conn, ref, :read) do
       json(conn, %{
-        milestones: Enum.map(Boards.list_milestones(Board.root_id(board)), &V.milestone/1)
+        milestones:
+          Enum.map(Boards.Milestones.list_milestones(Board.root_id(board)), &V.milestone/1)
       })
     end
   end
 
   def create_milestone(conn, %{"board" => ref} = params) do
     with {:ok, board} <- fetch_board(conn, ref, :write),
-         {:ok, m} <- Boards.create_milestone(board, Map.take(params, ~w(name date color card_id))) do
+         {:ok, m} <-
+           Boards.Milestones.create_milestone(
+             board,
+             Map.take(params, ~w(name date color card_id))
+           ) do
       conn |> put_status(:created) |> json(%{milestone: V.milestone(m)})
     end
   end
@@ -545,9 +550,12 @@ defmodule SlipdockWeb.API.BoardController do
   def delete_milestone(conn, %{"board" => ref, "id" => id}) do
     with {:ok, board} <- fetch_board(conn, ref, :write),
          %{} = m <-
-           Enum.find(Boards.list_milestones(Board.root_id(board)), &(to_string(&1.id) == id)) ||
+           Enum.find(
+             Boards.Milestones.list_milestones(Board.root_id(board)),
+             &(to_string(&1.id) == id)
+           ) ||
              {:error, :not_found, "milestone"},
-         {:ok, _} <- Boards.delete_milestone(m) do
+         {:ok, _} <- Boards.Milestones.delete_milestone(m) do
       json(conn, %{ok: true})
     end
   end
@@ -569,7 +577,7 @@ defmodule SlipdockWeb.API.BoardController do
 
   def create_tag(conn, %{"board" => ref} = params) do
     with {:ok, board} <- fetch_board(conn, ref, :write),
-         {:ok, tag} <- Boards.create_tag(board, Map.take(params, ~w(name color))) do
+         {:ok, tag} <- Boards.Tags.create_tag(board, Map.take(params, ~w(name color))) do
       conn |> put_status(:created) |> json(%{tag: V.tag(tag)})
     end
   end
@@ -577,7 +585,7 @@ defmodule SlipdockWeb.API.BoardController do
   def delete_tag(conn, %{"board" => ref, "id" => id}) do
     with {:ok, board} <- fetch_board(conn, ref, :write),
          {:ok, tag} <- find(Boards.find_tag(board, id), "tag"),
-         {:ok, _} <- Boards.delete_tag(tag) do
+         {:ok, _} <- Boards.Tags.delete_tag(tag) do
       json(conn, %{ok: true})
     end
   end
@@ -592,7 +600,7 @@ defmodule SlipdockWeb.API.BoardController do
       end
 
     with {:ok, board} <- fetch_board(conn, ref, :read) do
-      activity = Boards.list_activities(board.id, limit, card_id)
+      activity = Boards.ActivityLog.list_activities(board.id, limit, card_id)
       json(conn, %{activity: Enum.map(activity, &V.activity/1)})
     end
   end
@@ -619,7 +627,7 @@ defmodule SlipdockWeb.API.BoardController do
       marks = Favourites.marks(conn.assigns.current_user)
 
       views =
-        for v <- Boards.list_saved_views(board.id),
+        for v <- Boards.SavedViews.list_saved_views(board.id),
             do: V.saved_view(v, Favourites.favourite?(marks, :view, v.id))
 
       json(conn, %{views: views})
@@ -628,7 +636,7 @@ defmodule SlipdockWeb.API.BoardController do
 
   def view(conn, %{"board" => ref, "id" => id}) do
     with {:ok, board} <- fetch_board(conn, ref, :read),
-         {:ok, view} <- find(Boards.find_saved_view(board, id), "view") do
+         {:ok, view} <- find(Boards.SavedViews.find_saved_view(board, id), "view") do
       marks = Favourites.marks(conn.assigns.current_user)
       json(conn, %{view: V.saved_view(view, Favourites.favourite?(marks, :view, view.id))})
     end
@@ -639,7 +647,7 @@ defmodule SlipdockWeb.API.BoardController do
          board = Boards.get_board!(board.id),
          {:ok, config} <- build_config(board, params, nil),
          {:ok, view} <-
-           Boards.create_saved_view(board, %{
+           Boards.SavedViews.create_saved_view(board, %{
              "name" => params["name"],
              "config" => Config.to_map(config)
            }) do
@@ -650,18 +658,18 @@ defmodule SlipdockWeb.API.BoardController do
   def update_view(conn, %{"board" => ref, "id" => id} = params) do
     with {:ok, board} <- fetch_board(conn, ref, :write),
          board = Boards.get_board!(board.id),
-         {:ok, view} <- find(Boards.find_saved_view(board, id), "view"),
+         {:ok, view} <- find(Boards.SavedViews.find_saved_view(board, id), "view"),
          {:ok, config} <- build_config(board, params, view),
          attrs = %{"config" => Config.to_map(config)} |> put_present("name", params["name"]),
-         {:ok, view} <- Boards.update_saved_view(view, attrs) do
+         {:ok, view} <- Boards.SavedViews.update_saved_view(view, attrs) do
       json(conn, %{view: V.saved_view(view)})
     end
   end
 
   def delete_view(conn, %{"board" => ref, "id" => id}) do
     with {:ok, board} <- fetch_board(conn, ref, :write),
-         {:ok, view} <- find(Boards.find_saved_view(board, id), "view"),
-         {:ok, _} <- Boards.delete_saved_view(view) do
+         {:ok, view} <- find(Boards.SavedViews.find_saved_view(board, id), "view"),
+         {:ok, _} <- Boards.SavedViews.delete_saved_view(view) do
       json(conn, %{ok: true})
     end
   end
@@ -670,14 +678,14 @@ defmodule SlipdockWeb.API.BoardController do
   defp optional_template(_conn, ""), do: {:ok, nil}
 
   defp optional_template(conn, ref) do
-    case Boards.find_template(conn.assigns.current_user, ref) do
+    case Boards.Templates.find_template(conn.assigns.current_user, ref) do
       {:ok, t} -> {:ok, t}
       _ -> {:error, :not_found, "template"}
     end
   end
 
   defp optional_view(_board, nil), do: {:ok, nil}
-  defp optional_view(board, ref), do: find(Boards.find_saved_view(board, ref), "view")
+  defp optional_view(board, ref), do: find(Boards.SavedViews.find_saved_view(board, ref), "view")
 
   # Config params sit either flat on the request (`rows=tag&tags=bug,docs`) or
   # under a "config" key. Tags and lists may be given by name or id.

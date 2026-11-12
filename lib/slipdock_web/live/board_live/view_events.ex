@@ -123,7 +123,7 @@ defmodule SlipdockWeb.BoardLive.ViewEvents do
     # Bars of subcards (nested rows) belong to boards deeper in the tree.
     with {:ok, card} <- writable_card(socket, id),
          true <- in_tree?(socket, card) do
-      case Boards.update_card(card, Timeline.shift_attrs(card, edge, delta)) do
+      case Boards.Cards.update_card(card, Timeline.shift_attrs(card, edge, delta)) do
         {:ok, _} -> {:noreply, socket}
         {:error, _} -> {:noreply, put_flash(socket, :error, "Couldn't move that card.")}
       end
@@ -141,7 +141,7 @@ defmodule SlipdockWeb.BoardLive.ViewEvents do
     with true <- day >= 0 and day < days,
          {:ok, card} when card.board_id == socket.assigns.board.id <- writable_card(socket, id),
          {:ok, _} <-
-           Boards.update_card(card, Slipdock.Calendar.move_attrs(card, Date.add(from, day))) do
+           Boards.Cards.update_card(card, Slipdock.Calendar.move_attrs(card, Date.add(from, day))) do
       {:noreply, socket}
     else
       {:error, %Ecto.Changeset{}} ->
@@ -184,7 +184,7 @@ defmodule SlipdockWeb.BoardLive.ViewEvents do
           do: "start_date",
           else: "due_date"
 
-      case Boards.create_card(column, %{"title" => title, date_field => date}) do
+      case Boards.Cards.create_card(column, %{"title" => title, date_field => date}) do
         {:ok, _} -> {:noreply, socket |> assign(swim_adding: nil) |> update(:form_key, &(&1 + 1))}
         {:error, _} -> {:noreply, put_flash(socket, :error, "Couldn't add that card.")}
       end
@@ -280,10 +280,10 @@ defmodule SlipdockWeb.BoardLive.ViewEvents do
 
       attrs = Map.put(swim_attrs(ops), "title", title)
 
-      case Boards.create_card(column, attrs) do
+      case Boards.Cards.create_card(column, attrs) do
         {:ok, card} ->
           if tag_ids = swim_tag_ids(ops),
-            do: Boards.set_card_tags(card, board_tags(board, tag_ids))
+            do: Boards.Cards.set_card_tags(card, board_tags(board, tag_ids))
 
           {:noreply, update(socket, :form_key, &(&1 + 1))}
 
@@ -301,7 +301,10 @@ defmodule SlipdockWeb.BoardLive.ViewEvents do
 
     config = %{config | mode: mode_name(socket)}
 
-    case Boards.create_saved_view(board, %{"name" => name, "config" => Config.to_map(config)}) do
+    case Boards.SavedViews.create_saved_view(board, %{
+           "name" => name,
+           "config" => Config.to_map(config)
+         }) do
       {:ok, view} ->
         {:noreply,
          socket
@@ -316,7 +319,7 @@ defmodule SlipdockWeb.BoardLive.ViewEvents do
 
   def handle_event("swim_update_view", _, %{assigns: %{swim_view: %{} = view}} = socket) do
     config = %{socket.assigns.swim | mode: mode_name(socket)}
-    {:ok, view} = Boards.update_saved_view(view, %{"config" => Config.to_map(config)})
+    {:ok, view} = Boards.SavedViews.update_saved_view(view, %{"config" => Config.to_map(config)})
 
     {:noreply,
      socket
@@ -330,25 +333,25 @@ defmodule SlipdockWeb.BoardLive.ViewEvents do
         %{"name" => name},
         %{assigns: %{swim_view: %{} = view}} = socket
       ) do
-    case Boards.update_saved_view(view, %{"name" => name}) do
+    case Boards.SavedViews.update_saved_view(view, %{"name" => name}) do
       {:ok, _} -> {:noreply, socket}
       {:error, cs} -> {:noreply, put_flash(socket, :error, view_error(cs))}
     end
   end
 
   def handle_event("swim_publish_view", _, %{assigns: %{swim_view: %{} = view}} = socket) do
-    {:ok, _} = Boards.publish_saved_view(view)
+    {:ok, _} = Boards.SavedViews.publish_saved_view(view)
     {:noreply, put_flash(socket, :info, "Published. Anyone with the link can read this view.")}
   end
 
   def handle_event("swim_unpublish_view", _, %{assigns: %{swim_view: %{} = view}} = socket) do
-    {:ok, _} = Boards.unpublish_saved_view(view)
+    {:ok, _} = Boards.SavedViews.unpublish_saved_view(view)
     {:noreply, put_flash(socket, :info, "The public link no longer works.")}
   end
 
   def handle_event("swim_delete_view", _, %{assigns: %{swim_view: %{} = view}} = socket) do
     config = socket.assigns.swim
-    {:ok, _} = Boards.delete_saved_view(view)
+    {:ok, _} = Boards.SavedViews.delete_saved_view(view)
     defaults = Config.defaults(mode_name(socket))
 
     {:noreply,
@@ -425,7 +428,7 @@ defmodule SlipdockWeb.BoardLive.ViewEvents do
           {:field, id, raw}, socket ->
             with false <- SlipdockWeb.SlipdockComponents.page?(item),
                  %{} = field <- Enum.find(board.fields, &(&1.id == id)) do
-              case Fields.set_value(Boards.get_card!(item.id), field, raw) do
+              case Fields.set_value(Boards.Cards.get_card!(item.id), field, raw) do
                 {:ok, _} -> socket
                 {:error, message} -> put_flash(socket, :error, message)
               end

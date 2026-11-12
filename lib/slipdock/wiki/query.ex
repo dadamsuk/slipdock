@@ -789,7 +789,7 @@ defmodule Slipdock.Wiki.Query do
           {:ok, Config.defaults("table")}
 
         name ->
-          case Boards.find_saved_view(hd(boards), name) do
+          case Boards.SavedViews.find_saved_view(hd(boards), name) do
             {:ok, view} ->
               if is_nil(context[:reader]) or
                    Access.can_read?(Access.view_permission(context[:reader], view)),

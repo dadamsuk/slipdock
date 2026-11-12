@@ -2,7 +2,7 @@ defmodule SlipdockWeb.CardIdSearchTest do
   @moduledoc """
   A card's id (`123`, `#123`) or link in a board's search box finds that card
   (#2097): the board's filter matches it (`Slipdock.Filters`,
-  `Slipdock.Swimlanes`), `Slipdock.Boards.list_cards/2`'s `"q"` does for the
+  `Slipdock.Swimlanes`), `Slipdock.Boards.Cards.list_cards/2`'s `"q"` does for the
   API, the CLI and MCP, and a card elsewhere in the board's tree is offered in
   the strip under the toolbar.
   """
@@ -60,12 +60,12 @@ defmodule SlipdockWeb.CardIdSearchTest do
     end
   end
 
-  describe "Boards.list_cards/2 \"q\"" do
+  describe "Boards.Cards.list_cards/2 \"q\"" do
     test "an id or #id finds the card; words still find by title", %{
       board: board,
       wanted: wanted
     } do
-      titles = &(board |> Boards.list_cards(%{"q" => &1}) |> Enum.map(fn c -> c.title end))
+      titles = &(board |> Boards.Cards.list_cards(%{"q" => &1}) |> Enum.map(fn c -> c.title end))
 
       assert titles.("#{wanted.id}") == ["Fix the login page"]
       assert titles.("##{wanted.id}") == ["Fix the login page"]
@@ -76,7 +76,7 @@ defmodule SlipdockWeb.CardIdSearchTest do
     test "a number in a title is still found by text", %{board: board, backlog: backlog} do
       card_fixture(backlog, %{"title" => "Upgrade to 9876"})
 
-      assert board |> Boards.list_cards(%{"q" => "9876"}) |> Enum.map(& &1.title) == [
+      assert board |> Boards.Cards.list_cards(%{"q" => "9876"}) |> Enum.map(& &1.title) == [
                "Upgrade to 9876"
              ]
     end
@@ -104,7 +104,7 @@ defmodule SlipdockWeb.CardIdSearchTest do
       board: board,
       wanted: wanted
     } do
-      {:ok, template} = Boards.find_template(nil, "Simple")
+      {:ok, template} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(wanted, template)
       sub = Boards.get_board!(sub.id)
       subcard = card_fixture(hd(sub.columns), %{"title" => "Style the form"})
@@ -131,11 +131,11 @@ defmodule SlipdockWeb.CardIdSearchTest do
       user: user,
       wanted: wanted
     } do
-      {:ok, template} = Boards.find_template(nil, "Simple")
+      {:ok, template} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(wanted, template)
       sub = Boards.get_board!(sub.id)
       gone = card_fixture(hd(sub.columns), %{"title" => "Old idea"})
-      {:ok, _} = Boards.archive_card(gone)
+      {:ok, _} = Boards.Cards.archive_card(gone)
 
       elsewhere = board_fixture(%{"name" => "Elsewhere"}, owner: user, derive_keys: true)
       far = card_fixture(hd(Boards.get_board!(elsewhere.id).columns), %{"title" => "Far away"})
@@ -153,7 +153,7 @@ defmodule SlipdockWeb.CardIdSearchTest do
       user: user,
       wanted: wanted
     } do
-      {:ok, template} = Boards.find_template(nil, "Simple")
+      {:ok, template} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(wanted, template)
 
       subcard =
@@ -169,9 +169,9 @@ defmodule SlipdockWeb.CardIdSearchTest do
     end
   end
 
-  describe "Boards.card_elsewhere_in_tree/3" do
+  describe "Boards.Links.card_elsewhere_in_tree/3" do
     setup %{wanted: wanted, backlog: backlog} do
-      {:ok, template} = Boards.find_template(nil, "Simple")
+      {:ok, template} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(wanted, template)
       sub = Boards.get_board!(sub.id)
 
@@ -189,7 +189,7 @@ defmodule SlipdockWeb.CardIdSearchTest do
       subcard: subcard
     } do
       for q <- ["#{subcard.id}", "##{subcard.id}", "/boards/#{sub.id}/cards/#{subcard.id}"] do
-        assert %{id: id} = Boards.card_elsewhere_in_tree(user, board, q)
+        assert %{id: id} = Boards.Links.card_elsewhere_in_tree(user, board, q)
         assert id == subcard.id
       end
     end
@@ -199,16 +199,16 @@ defmodule SlipdockWeb.CardIdSearchTest do
       board: board,
       wanted: wanted
     } do
-      assert Boards.card_elsewhere_in_tree(user, board, "##{wanted.id}") == nil
-      assert Boards.card_elsewhere_in_tree(user, board, "Style") == nil
-      assert Boards.card_elsewhere_in_tree(user, board, "") == nil
-      assert Boards.card_elsewhere_in_tree(user, board, nil) == nil
+      assert Boards.Links.card_elsewhere_in_tree(user, board, "##{wanted.id}") == nil
+      assert Boards.Links.card_elsewhere_in_tree(user, board, "Style") == nil
+      assert Boards.Links.card_elsewhere_in_tree(user, board, "") == nil
+      assert Boards.Links.card_elsewhere_in_tree(user, board, nil) == nil
     end
 
     test "nothing for someone who cannot read the card", %{board: board, subcard: subcard} do
       stranger = user_fixture("stranger@example.com")
-      assert Boards.card_elsewhere_in_tree(stranger, board, "##{subcard.id}") == nil
-      assert Boards.card_elsewhere_in_tree(nil, board, "##{subcard.id}") == nil
+      assert Boards.Links.card_elsewhere_in_tree(stranger, board, "##{subcard.id}") == nil
+      assert Boards.Links.card_elsewhere_in_tree(nil, board, "##{subcard.id}") == nil
     end
   end
 end

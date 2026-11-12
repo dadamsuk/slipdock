@@ -56,7 +56,7 @@ defmodule SlipdockWeb.API.CardWrites do
          {:ok, tags} <- resolve_tags(board, params["tags"]),
          {:ok, assignee} <- resolve_assignees(board, params, user),
          {:ok, card} <-
-           Boards.create_card(
+           Boards.Cards.create_card(
              column,
              params |> Map.take(["origin" | @card_fields]) |> Map.merge(assignee),
              by: user,
@@ -66,7 +66,7 @@ defmodule SlipdockWeb.API.CardWrites do
            ),
          {:ok, _} <- maybe_set_tags(card, tags),
          {:ok, _} <- maybe_archive(card, archived) do
-      {:ok, Boards.get_card!(card.id)}
+      {:ok, Boards.Cards.get_card!(card.id)}
     end
   end
 
@@ -74,7 +74,7 @@ defmodule SlipdockWeb.API.CardWrites do
   defp archived?(value) when value in [nil, false, "false"], do: {:ok, false}
   defp archived?(_), do: {:error, :unprocessable_entity, "archived must be true or false"}
 
-  defp maybe_archive(card, true), do: Boards.archive_card(card)
+  defp maybe_archive(card, true), do: Boards.Cards.archive_card(card)
   defp maybe_archive(card, false), do: {:ok, card}
 
   @doc """
@@ -91,7 +91,7 @@ defmodule SlipdockWeb.API.CardWrites do
          {:ok, remove} <- resolve_tags(board, params["remove_tags"]),
          {:ok, assignee} <- resolve_assignees(card, params, user),
          {:ok, card} <-
-           Boards.update_card(card, Map.merge(card_attrs(card, params), assignee),
+           Boards.Cards.update_card(card, Map.merge(card_attrs(card, params), assignee),
              by: user,
              # An incident's cause is checked through the token's scope (#1946).
              token: auth.assigns[:api_token],
@@ -101,7 +101,7 @@ defmodule SlipdockWeb.API.CardWrites do
          {:ok, _} <- maybe_adjust_tags(card, add, remove),
          {:ok, _} <- maybe_move(board, card, params["column"], Slipdock.Actor.from_conn(auth)),
          :ok <- maybe_set_fields(board, card, params["fields"]) do
-      {:ok, Boards.get_card!(card.id)}
+      {:ok, Boards.Cards.get_card!(card.id)}
     end
   end
 
@@ -120,7 +120,7 @@ defmodule SlipdockWeb.API.CardWrites do
           {:halt, {:error, :not_found, "field #{ref}"}}
 
         field ->
-          case Slipdock.Fields.set_value(Boards.get_card!(card.id), field, value) do
+          case Slipdock.Fields.set_value(Boards.Cards.get_card!(card.id), field, value) do
             {:ok, _} -> {:cont, :ok}
             {:error, message} -> {:halt, {:error, :unprocessable_entity, message}}
           end
@@ -160,9 +160,9 @@ defmodule SlipdockWeb.API.CardWrites do
   """
   def write_handoff(card, user, params, via) do
     if Enum.member?([true, "true"], params["clear"]) do
-      Boards.clear_handoff(card, user, %{via: via})
+      Boards.Handoffs.clear_handoff(card, user, %{via: via})
     else
-      Boards.leave_handoff(card, user, %{
+      Boards.Handoffs.leave_handoff(card, user, %{
         next_step: params["next_step"],
         body: params["body"],
         via: via
@@ -180,11 +180,11 @@ defmodule SlipdockWeb.API.CardWrites do
     user = auth.assigns.current_user
 
     with :ok <- SlipdockWeb.API.Authorize.card(auth, card, :comment),
-         %Boards.Handoff{} = handoff <- Boards.current_handoff(card) || {:error, :none} do
+         %Boards.Handoff{} = handoff <- Boards.Handoffs.current_handoff(card) || {:error, :none} do
       can_write? = SlipdockWeb.API.Authorize.card(auth, card, :write) == :ok
 
-      if Boards.may_delete_handoff?(handoff, user, can_write?),
-        do: Boards.delete_handoff(card),
+      if Boards.Handoffs.may_delete_handoff?(handoff, user, can_write?),
+        do: Boards.Handoffs.delete_handoff(card),
         else:
           {:error, :forbidden,
            "only its author or someone who can edit the card may delete a handoff"}
@@ -240,7 +240,7 @@ defmodule SlipdockWeb.API.CardWrites do
             id
         end
 
-      Boards.open_wait(card, Slipdock.Actor.from_conn(auth), %{
+      Boards.Waits.open_wait(card, Slipdock.Actor.from_conn(auth), %{
         "needs" => params["needs"],
         "choices" => choices,
         "questions" => questions,
@@ -257,7 +257,7 @@ defmodule SlipdockWeb.API.CardWrites do
   defp wait_on(_card, _user, blank) when blank in [nil, "", "anyone"], do: {:ok, nil}
 
   defp wait_on(card, user, ref) do
-    case Boards.resolve_assignees(card, user, [ref]) do
+    case Boards.Cards.resolve_assignees(card, user, [ref]) do
       {:ok, [id]} ->
         {:ok, id}
 
@@ -299,7 +299,7 @@ defmodule SlipdockWeb.API.CardWrites do
   def answer_wait(auth, card, params) do
     with :ok <- SlipdockWeb.API.Authorize.card(auth, card, :write) do
       card
-      |> Boards.answer_wait(Slipdock.Actor.from_conn(auth), %{
+      |> Boards.Waits.answer_wait(Slipdock.Actor.from_conn(auth), %{
         "answer" => params["answer"],
         "answers" => params["answers"],
         "choice" => params["choice"],
@@ -316,13 +316,13 @@ defmodule SlipdockWeb.API.CardWrites do
   """
   def withdraw_wait(auth, card, params \\ %{}) do
     user = auth.assigns.current_user
-    wait = Boards.current_wait(card)
+    wait = Boards.Waits.current_wait(card)
     opener? = wait != nil and user != nil and wait.opened_by_id == user.id
 
     with :ok <-
            SlipdockWeb.API.Authorize.card(auth, card, if(opener?, do: :read, else: :write)) do
       card
-      |> Boards.withdraw_wait(Slipdock.Actor.from_conn(auth), reason: params["reason"])
+      |> Boards.Waits.withdraw_wait(Slipdock.Actor.from_conn(auth), reason: params["reason"])
       |> wait_result()
     end
   end
@@ -344,7 +344,7 @@ defmodule SlipdockWeb.API.CardWrites do
   @doc "The card with this id, whoever may read it — check that next."
   def fetch_card(id) do
     with {int, ""} <- Integer.parse(to_string(id)),
-         %Card{} = card <- Boards.get_card(int) do
+         %Card{} = card <- Boards.Cards.get_card(int) do
       {:ok, card}
     else
       _ -> {:error, :not_found, "card"}
@@ -391,19 +391,22 @@ defmodule SlipdockWeb.API.CardWrites do
   defp unknown_tag(board, name) do
     on = "no tag #{inspect(to_string(name))} on board #{board.code || board.id}"
 
-    case board |> Board.root_id() |> Boards.list_tags() do
+    case board |> Board.root_id() |> Boards.Tags.list_tags() do
       [] -> on <> "; it has no tags (they are made on the board, not by naming one here)"
       tags -> on <> "; its tags are: " <> Enum.map_join(tags, ", ", & &1.name)
     end
   end
 
   def maybe_set_tags(_card, nil), do: {:ok, nil}
-  def maybe_set_tags(card, tags), do: Boards.set_card_tags(card, tags)
+  def maybe_set_tags(card, tags), do: Boards.Cards.set_card_tags(card, tags)
 
   def maybe_adjust_tags(_card, nil, nil), do: {:ok, nil}
 
   def maybe_adjust_tags(card, add, remove) do
-    Boards.set_card_tags(card, adjusted_tags(Boards.get_card!(card.id).tags, add, remove))
+    Boards.Cards.set_card_tags(
+      card,
+      adjusted_tags(Boards.Cards.get_card!(card.id).tags, add, remove)
+    )
   end
 
   defp adjusted_tags(current, add, remove) do
@@ -445,7 +448,7 @@ defmodule SlipdockWeb.API.CardWrites do
         {:ok, nil}
       else
         # A move a board's checks refuse (#1620) is the request's answer.
-        case Boards.move_card_to_index(card, column, :bottom, actor: actor) do
+        case Boards.Cards.move_card_to_index(card, column, :bottom, actor: actor) do
           :ok ->
             {:ok, nil}
 
@@ -480,7 +483,7 @@ defmodule SlipdockWeb.API.CardWrites do
   # alone. `target` is the card, or the board a new one is going on.
   #
   # Only people the caller can see and who can read the card can be put on it
-  # (`Boards.resolve_assignees/3`), and anybody else is the same 404 whether
+  # (`Boards.Cards.resolve_assignees/3`), and anybody else is the same 404 whether
   # or not the address has an account, so this is not a way to find out who
   # does. Taking somebody off looks only at who is on the card already.
   def resolve_assignees(target, params, me) do
@@ -510,7 +513,7 @@ defmodule SlipdockWeb.API.CardWrites do
   end
 
   def user_ids(%Card{} = card, "remove_assignee_ids", emails, me) do
-    on_it = Card.assignees(Boards.get_card!(card.id))
+    on_it = Card.assignees(Boards.Cards.get_card!(card.id))
 
     Enum.reduce_while(emails, {:ok, []}, fn email, {:ok, ids} ->
       wanted =
@@ -523,5 +526,5 @@ defmodule SlipdockWeb.API.CardWrites do
     end)
   end
 
-  def user_ids(target, _attr, emails, me), do: Boards.resolve_assignees(target, me, emails)
+  def user_ids(target, _attr, emails, me), do: Boards.Cards.resolve_assignees(target, me, emails)
 end

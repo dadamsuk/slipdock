@@ -426,7 +426,7 @@ defmodule SlipdockWeb.API.JobController do
          log = if(reporter == :session, do: params["log"] || params["note"]),
          {:ok, answer} <- Runners.heartbeat(runner, job.id, log, step: params["step"]) do
       if note = blank(params["note"]),
-        do: Boards.add_comment(card, note, by: conn.assigns.current_user)
+        do: Boards.Comments.add_comment(card, note, by: conn.assigns.current_user)
 
       json(conn, %{status: to_string(answer)})
     end
@@ -536,7 +536,7 @@ defmodule SlipdockWeb.API.JobController do
 
   defp fetch_job(conn, id, need) do
     with %{} = job <- Runners.get_job(id) || {:error, :not_found, "job"},
-         %{} = card <- Boards.get_card(job.card_id) || {:error, :not_found, "job"},
+         %{} = card <- Boards.Cards.get_card(job.card_id) || {:error, :not_found, "job"},
          :ok <- Authorize.card(conn, card, need) do
       {:ok, job, card}
     end

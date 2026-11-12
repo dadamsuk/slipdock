@@ -943,10 +943,10 @@ defmodule Slipdock.AI.Researcher do
   # updates of the period written out in full: the log records that someone
   # commented, not what they said, and what they said is the answer.
   defp activity(board_ids, from, to, limit) do
-    activities = Boards.list_activities_between(board_ids, from, to)
+    activities = Boards.ActivityLog.list_activities_between(board_ids, from, to)
     card_ids = Repo.all(from(c in Card, where: c.board_id in ^board_ids, select: c.id))
-    comments = Boards.list_comments_between(card_ids, from, to)
-    updates = Boards.list_status_updates_between(card_ids, from, to)
+    comments = Boards.ActivityLog.list_comments_between(card_ids, from, to)
+    updates = Boards.ActivityLog.list_status_updates_between(card_ids, from, to)
 
     cards =
       card_map(
@@ -1201,7 +1201,7 @@ defmodule Slipdock.AI.Researcher do
   end
 
   # A board's cards, restricted to the lists the question asked about. The
-  # filters go to `Boards.list_cards`; the column match happens here so that
+  # filters go to `Boards.Cards.list_cards`; the column match happens here so that
   # an ambiguous name can hit more than one list, and so an empty list still
   # gets counted (as zero) rather than vanishing.
   defp listing(board, path, filters, column_ref) do
@@ -1216,7 +1216,9 @@ defmodule Slipdock.AI.Researcher do
       if wanted == [],
         do: [],
         else:
-          board |> Boards.list_cards(filters) |> Enum.filter(&MapSet.member?(ids, &1.column_id))
+          board
+          |> Boards.Cards.list_cards(filters)
+          |> Enum.filter(&MapSet.member?(ids, &1.column_id))
 
     %{
       board: board,
@@ -1301,7 +1303,7 @@ defmodule Slipdock.AI.Researcher do
       to_string(column.id) == ref
   end
 
-  # `Boards.list_cards/2` takes the same string-keyed filters the board page
+  # `Boards.Cards.list_cards/2` takes the same string-keyed filters the board page
   # uses; anything the model left out is left out here too. `completed: false`
   # is a filter in its own right, so only nil is dropped.
   defp list_filters(args) do

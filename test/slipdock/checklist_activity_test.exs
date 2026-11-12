@@ -18,48 +18,48 @@ defmodule Slipdock.ChecklistActivityTest do
 
   defp checklist_lines(board, card) do
     board.id
-    |> Boards.list_activities(50, card.id)
+    |> Boards.ActivityLog.list_activities(50, card.id)
     |> Enum.filter(&(&1.kind == "checklist"))
     |> Enum.map(& &1.message)
   end
 
   test "adding, ticking, unticking and removing each leave one line", ctx do
-    {:ok, item} = Boards.add_checklist_item(ctx.card, "Write it")
+    {:ok, item} = Boards.Checklists.add_checklist_item(ctx.card, "Write it")
     assert checklist_lines(ctx.board, ctx.card) == [~s(added a checklist item to “Ship it”)]
 
-    {:ok, item} = Boards.toggle_checklist_item(item)
+    {:ok, item} = Boards.Checklists.toggle_checklist_item(item)
     assert hd(checklist_lines(ctx.board, ctx.card)) == ~s(ticked a checklist item on “Ship it”)
 
-    {:ok, item} = Boards.toggle_checklist_item(item.id)
+    {:ok, item} = Boards.Checklists.toggle_checklist_item(item.id)
     assert hd(checklist_lines(ctx.board, ctx.card)) == ~s(unticked a checklist item on “Ship it”)
 
-    {:ok, _} = Boards.delete_checklist_item(item.id)
+    {:ok, _} = Boards.Checklists.delete_checklist_item(item.id)
     assert hd(checklist_lines(ctx.board, ctx.card)) == ~s(removed a checklist item from “Ship it”)
 
     assert length(checklist_lines(ctx.board, ctx.card)) == 4
 
     assert [%{card_id: card_id, board_id: board_id} | _] =
-             Boards.list_activities(ctx.board.id, 1, ctx.card.id)
+             Boards.ActivityLog.list_activities(ctx.board.id, 1, ctx.card.id)
 
     assert {card_id, board_id} == {ctx.card.id, ctx.board.id}
   end
 
   test "log: false leaves the line to log_checklist, which writes one for the lot", ctx do
-    {:ok, a} = Boards.add_checklist_item(ctx.card, "One", log: false)
-    {:ok, b} = Boards.add_checklist_item(ctx.card, "Two", log: false)
-    {:ok, _} = Boards.toggle_checklist_item(a, log: false)
-    {:ok, _} = Boards.toggle_checklist_item(b, log: false)
+    {:ok, a} = Boards.Checklists.add_checklist_item(ctx.card, "One", log: false)
+    {:ok, b} = Boards.Checklists.add_checklist_item(ctx.card, "Two", log: false)
+    {:ok, _} = Boards.Checklists.toggle_checklist_item(a, log: false)
+    {:ok, _} = Boards.Checklists.toggle_checklist_item(b, log: false)
     assert checklist_lines(ctx.board, ctx.card) == []
 
-    :ok = Boards.log_checklist(ctx.card, ticked: 2)
+    :ok = Boards.Checklists.log_checklist(ctx.card, ticked: 2)
     assert checklist_lines(ctx.board, ctx.card) == [~s(ticked 2 checklist items on “Ship it”)]
   end
 
   test "several kinds of change in one line, and none when nothing changed", ctx do
-    :ok = Boards.log_checklist(ctx.card, added: 0, ticked: 0)
+    :ok = Boards.Checklists.log_checklist(ctx.card, added: 0, ticked: 0)
     assert checklist_lines(ctx.board, ctx.card) == []
 
-    :ok = Boards.log_checklist(ctx.card, added: 1, ticked: 2, removed: 0)
+    :ok = Boards.Checklists.log_checklist(ctx.card, added: 1, ticked: 2, removed: 0)
 
     assert checklist_lines(ctx.board, ctx.card) ==
              [~s(changed the checklist on “Ship it”: added 1, ticked 2)]
@@ -67,12 +67,12 @@ defmodule Slipdock.ChecklistActivityTest do
 
   test "a page's checklist is logged against the page", ctx do
     page = page_fixture(ctx.board, %{"title" => "Runbook"})
-    {:ok, item} = Boards.add_checklist_item(page, "Step one")
-    {:ok, _} = Boards.toggle_checklist_item(item)
+    {:ok, item} = Boards.Checklists.add_checklist_item(page, "Step one")
+    {:ok, _} = Boards.Checklists.toggle_checklist_item(item)
 
     lines =
       ctx.board.id
-      |> Boards.list_activities(50)
+      |> Boards.ActivityLog.list_activities(50)
       |> Enum.filter(&(&1.kind == "checklist" and &1.page_id == page.id))
       |> Enum.map(& &1.message)
 

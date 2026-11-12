@@ -68,7 +68,7 @@ defmodule Slipdock.Health.Runs do
 
   # Every card beneath `card_id`, however deep.
   defp subcard_ids(card_id) do
-    case Slipdock.Boards.subtree_board_ids(card_id) do
+    case Slipdock.Boards.Moves.subtree_board_ids(card_id) do
       [] -> []
       board_ids -> Repo.all(from(c in Card, where: c.board_id in ^board_ids, select: c.id))
     end

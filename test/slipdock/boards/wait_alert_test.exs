@@ -31,7 +31,7 @@ defmodule Slipdock.Boards.WaitAlertTest do
 
   defp wait_on(card, actor, on) do
     {:ok, wait} =
-      Boards.open_wait(card, actor, %{"needs" => "Which region?", "on_user_id" => on.id})
+      Boards.Waits.open_wait(card, actor, %{"needs" => "Which region?", "on_user_id" => on.id})
 
     wait
   end
@@ -83,7 +83,7 @@ defmodule Slipdock.Boards.WaitAlertTest do
 
   test "a wait on anyone alerts nobody", ctx do
     card = card_fixture(ctx.todo, %{"title" => "Anyone"})
-    {:ok, _} = Boards.open_wait(card, agent(ctx.dana), %{"needs" => "Anyone?"})
+    {:ok, _} = Boards.Waits.open_wait(card, agent(ctx.dana), %{"needs" => "Anyone?"})
     assert Repo.all(from(a in Alert, where: a.card_id == ^card.id)) == []
   end
 
@@ -115,7 +115,7 @@ defmodule Slipdock.Boards.WaitAlertTest do
 
     for _ <- 1..2 do
       {:ok, _} =
-        Boards.update_card(
+        Boards.Cards.update_card(
           Repo.get!(Card, card.id),
           %{"completed" => true, "evidence" => "ran it"},
           actor: agent(ctx.owner, "builder")
@@ -131,7 +131,7 @@ defmodule Slipdock.Boards.WaitAlertTest do
         )
     end
 
-    assert Boards.current_wait(Repo.get!(Card, card.id)).purpose == "verify_limit"
+    assert Boards.Waits.current_wait(Repo.get!(Card, card.id)).purpose == "verify_limit"
     assert [alert] = mine(ctx.owner)
     assert alert.title == "Past the rejection limit: ##{card.id} “Twice”"
     assert mine(ctx.dana) == []
@@ -142,7 +142,7 @@ defmodule Slipdock.Boards.WaitAlertTest do
       card = card_fixture(ctx.todo, %{"title" => title})
 
       {:ok, wait} =
-        Boards.open_wait(
+        Boards.Waits.open_wait(
           card,
           agent(ctx.dana),
           Map.merge(%{"needs" => "Which region?", "on_user_id" => ctx.owner.id}, attrs)
@@ -155,26 +155,26 @@ defmodule Slipdock.Boards.WaitAlertTest do
 
     test "answering it", ctx do
       {card, _} = alerted(ctx, "Answered")
-      {:ok, _} = Boards.answer_wait(card, Actor.web(ctx.owner), %{"answer" => "eu-west"})
+      {:ok, _} = Boards.Waits.answer_wait(card, Actor.web(ctx.owner), %{"answer" => "eu-west"})
       assert mine(ctx.owner) == []
     end
 
     test "skipping it", ctx do
       {card, _} = alerted(ctx, "Skipped")
-      {:ok, _} = Boards.answer_wait(card, Actor.web(ctx.owner), %{"skip" => true})
+      {:ok, _} = Boards.Waits.answer_wait(card, Actor.web(ctx.owner), %{"skip" => true})
       assert mine(ctx.owner) == []
     end
 
     test "withdrawing it", ctx do
       {card, _} = alerted(ctx, "Withdrawn")
-      {:ok, _} = Boards.withdraw_wait(card, agent(ctx.dana))
+      {:ok, _} = Boards.Waits.withdraw_wait(card, agent(ctx.dana))
       assert mine(ctx.owner) == []
     end
 
     test "taking the waiting flag off, which withdraws it", ctx do
       {card, _} = alerted(ctx, "Unflagged")
-      {:ok, _} = Boards.update_card(card, %{"flags" => []}, by: ctx.owner)
-      assert Boards.current_wait(card) == nil
+      {:ok, _} = Boards.Cards.update_card(card, %{"flags" => []}, by: ctx.owner)
+      assert Boards.Waits.current_wait(card) == nil
       assert mine(ctx.owner) == []
     end
 
@@ -186,22 +186,22 @@ defmodule Slipdock.Boards.WaitAlertTest do
           "default_choice" => 1
         })
 
-      {:ok, closed} = Boards.default_wait(wait, "4h")
+      {:ok, closed} = Boards.Waits.default_wait(wait, "4h")
       assert closed.close_reason == "answered"
       assert mine(ctx.owner) == []
     end
 
     test "completing its card", ctx do
       {card, _} = alerted(ctx, "Completed")
-      {:ok, _} = Boards.update_card(card, %{"completed" => true}, by: ctx.owner)
-      assert Boards.last_wait(card).close_reason == "card_completed"
+      {:ok, _} = Boards.Cards.update_card(card, %{"completed" => true}, by: ctx.owner)
+      assert Boards.Waits.last_wait(card).close_reason == "card_completed"
       assert mine(ctx.owner) == []
     end
 
     test "archiving its card", ctx do
       {card, _} = alerted(ctx, "Archived")
-      {:ok, _} = Boards.archive_card(card, by: ctx.owner)
-      assert Boards.last_wait(card).close_reason == "archived"
+      {:ok, _} = Boards.Cards.archive_card(card, by: ctx.owner)
+      assert Boards.Waits.last_wait(card).close_reason == "archived"
       assert mine(ctx.owner) == []
     end
 
@@ -210,7 +210,7 @@ defmodule Slipdock.Boards.WaitAlertTest do
       other = card_fixture(ctx.todo, %{"title" => "Still open"})
       wait_on(other, agent(ctx.dana), ctx.owner)
 
-      {:ok, _} = Boards.answer_wait(card, Actor.web(ctx.owner), %{"answer" => "eu-west"})
+      {:ok, _} = Boards.Waits.answer_wait(card, Actor.web(ctx.owner), %{"answer" => "eu-west"})
       assert [%{card_id: id}] = mine(ctx.owner)
       assert id == other.id
     end
@@ -225,13 +225,13 @@ defmodule Slipdock.Boards.WaitAlertTest do
           "card_id" => card.id
         })
 
-      {:ok, _} = Boards.answer_wait(card, Actor.web(ctx.owner), %{"answer" => "eu-west"})
+      {:ok, _} = Boards.Waits.answer_wait(card, Actor.web(ctx.owner), %{"answer" => "eu-west"})
       assert Enum.map(Automations.list_alerts(ctx.owner), & &1.id) == [rule_alert.id]
     end
 
     test "a later wait on the same card raises an alert that stands", ctx do
       {card, _} = alerted(ctx, "Twice asked")
-      {:ok, _} = Boards.answer_wait(card, Actor.web(ctx.owner), %{"answer" => "eu-west"})
+      {:ok, _} = Boards.Waits.answer_wait(card, Actor.web(ctx.owner), %{"answer" => "eu-west"})
       assert mine(ctx.owner) == []
 
       wait_on(Repo.get!(Card, card.id), agent(ctx.dana), ctx.owner)
@@ -249,7 +249,7 @@ defmodule Slipdock.Boards.WaitAlertTest do
 
     for _ <- 1..2 do
       {:ok, _} =
-        Boards.update_card(
+        Boards.Cards.update_card(
           Repo.get!(Card, card.id),
           %{"completed" => true, "evidence" => "ran it"},
           actor: agent(ctx.owner, "builder")
@@ -268,7 +268,7 @@ defmodule Slipdock.Boards.WaitAlertTest do
     assert [%{title: "Past the rejection limit" <> _}] = mine(ctx.owner)
 
     {:ok, closed} =
-      Boards.answer_wait(Repo.get!(Card, card.id), Actor.web(ctx.owner), %{"choice" => 1})
+      Boards.Waits.answer_wait(Repo.get!(Card, card.id), Actor.web(ctx.owner), %{"choice" => 1})
 
     assert closed.purpose == "verify_limit"
     assert mine(ctx.owner) == []

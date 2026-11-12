@@ -19,7 +19,7 @@ defmodule Slipdock.BoardArchiveTest do
       board = board_fixture(%{"name" => "Old work"}, owner: user)
       card = card_fixture(hd(board.columns), %{"title" => "Still here"})
 
-      {:ok, board} = Boards.archive_board(board)
+      {:ok, board} = Boards.Arrangement.archive_board(board)
       assert Board.archived?(board)
 
       refute board.id in Enum.map(Access.list_boards(user), & &1.id)
@@ -27,7 +27,7 @@ defmodule Slipdock.BoardArchiveTest do
       assert board.id in Enum.map(Access.list_boards(user, archived: :all), & &1.id)
 
       # Everything on it is still there, and still readable.
-      assert Boards.get_card!(card.id).title == "Still here"
+      assert Boards.Cards.get_card!(card.id).title == "Still here"
       assert board.id in Access.readable_board_ids(user)
       assert Access.board_permission(user, board) == :owner
     end
@@ -36,8 +36,8 @@ defmodule Slipdock.BoardArchiveTest do
       user = user_fixture()
       board = board_fixture(%{}, owner: user)
 
-      {:ok, board} = Boards.archive_board(board)
-      {:ok, board} = Boards.unarchive_board(board)
+      {:ok, board} = Boards.Arrangement.archive_board(board)
+      {:ok, board} = Boards.Arrangement.unarchive_board(board)
 
       refute Board.archived?(board)
       assert board.id in Enum.map(Access.list_boards(user), & &1.id)
@@ -45,29 +45,29 @@ defmodule Slipdock.BoardArchiveTest do
 
     test "is recorded in the board's activity" do
       board = board_fixture(%{"name" => "Noted"})
-      {:ok, board} = Boards.archive_board(board)
-      {:ok, board} = Boards.unarchive_board(board)
+      {:ok, board} = Boards.Arrangement.archive_board(board)
+      {:ok, board} = Boards.Arrangement.unarchive_board(board)
 
-      messages = board.id |> Boards.list_activities() |> Enum.map(& &1.message)
+      messages = board.id |> Boards.ActivityLog.list_activities() |> Enum.map(& &1.message)
       assert "archived board “Noted”" in messages
       assert "restored board “Noted”" in messages
     end
 
     test "archiving twice is not an error, and neither is restoring a live board" do
       board = board_fixture()
-      {:ok, archived} = Boards.archive_board(board)
-      assert {:ok, ^archived} = Boards.archive_board(archived)
-      {:ok, live} = Boards.unarchive_board(archived)
-      assert {:ok, ^live} = Boards.unarchive_board(live)
+      {:ok, archived} = Boards.Arrangement.archive_board(board)
+      assert {:ok, ^archived} = Boards.Arrangement.archive_board(archived)
+      {:ok, live} = Boards.Arrangement.unarchive_board(archived)
+      assert {:ok, ^live} = Boards.Arrangement.unarchive_board(live)
     end
 
     test "a sub-board cannot be archived on its own" do
       board = board_fixture()
       card = card_fixture(hd(board.columns))
-      {:ok, template} = Boards.find_template(nil, "Simple")
+      {:ok, template} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(card, template)
 
-      assert {:error, :sub_board} = Boards.archive_board(sub)
+      assert {:error, :sub_board} = Boards.Arrangement.archive_board(sub)
     end
   end
 
@@ -83,7 +83,7 @@ defmodule Slipdock.BoardArchiveTest do
     defp names(user, sort \\ "manual") do
       user
       |> Access.list_boards(activity: true)
-      |> Boards.sort_boards(sort)
+      |> Boards.Arrangement.sort_boards(sort)
       |> Enum.map(& &1.name)
     end
 
@@ -92,7 +92,7 @@ defmodule Slipdock.BoardArchiveTest do
     end
 
     test "is whatever the person sets", ctx do
-      :ok = Boards.reorder_boards(ctx.user, [ctx.c.id, ctx.a.id, ctx.b.id])
+      :ok = Boards.Arrangement.reorder_boards(ctx.user, [ctx.c.id, ctx.a.id, ctx.b.id])
       assert names(ctx.user) == ["Charlie", "Alpha", "Bravo"]
     end
 
@@ -101,7 +101,7 @@ defmodule Slipdock.BoardArchiveTest do
       shared = board_fixture(%{"name" => "Shared"}, owner: other)
       {:ok, _} = Access.grant(shared, ctx.user, "read", other)
 
-      :ok = Boards.reorder_boards(ctx.user, [shared.id, ctx.a.id, ctx.b.id, ctx.c.id])
+      :ok = Boards.Arrangement.reorder_boards(ctx.user, [shared.id, ctx.a.id, ctx.b.id, ctx.c.id])
 
       assert names(ctx.user) == ["Shared", "Alpha", "Bravo", "Charlie"]
       # The owner of the shared board sees it exactly where they left it.
@@ -109,39 +109,39 @@ defmodule Slipdock.BoardArchiveTest do
     end
 
     test "a board left out of the order falls to the end", ctx do
-      :ok = Boards.reorder_boards(ctx.user, [ctx.c.id, ctx.b.id])
+      :ok = Boards.Arrangement.reorder_boards(ctx.user, [ctx.c.id, ctx.b.id])
       assert names(ctx.user) == ["Charlie", "Bravo", "Alpha"]
     end
 
     test "a board made later goes to the end", ctx do
-      :ok = Boards.reorder_boards(ctx.user, [ctx.c.id, ctx.b.id, ctx.a.id])
+      :ok = Boards.Arrangement.reorder_boards(ctx.user, [ctx.c.id, ctx.b.id, ctx.a.id])
       board_fixture(%{"name" => "Delta"}, owner: ctx.user)
       assert names(ctx.user) == ["Charlie", "Bravo", "Alpha", "Delta"]
     end
 
     test "nudging moves one board a place, and stops at the ends", ctx do
-      boards = ctx.user |> Access.list_boards() |> Boards.sort_boards("manual")
+      boards = ctx.user |> Access.list_boards() |> Boards.Arrangement.sort_boards("manual")
 
-      :ok = Boards.nudge_board(ctx.user, ctx.c, :up, boards)
+      :ok = Boards.Arrangement.nudge_board(ctx.user, ctx.c, :up, boards)
       assert names(ctx.user) == ["Alpha", "Charlie", "Bravo"]
 
-      boards = ctx.user |> Access.list_boards() |> Boards.sort_boards("manual")
-      :ok = Boards.nudge_board(ctx.user, ctx.a, :up, boards)
+      boards = ctx.user |> Access.list_boards() |> Boards.Arrangement.sort_boards("manual")
+      :ok = Boards.Arrangement.nudge_board(ctx.user, ctx.a, :up, boards)
       assert names(ctx.user) == ["Alpha", "Charlie", "Bravo"]
     end
 
     test "placing a board drops it in front of another", ctx do
-      boards = ctx.user |> Access.list_boards() |> Boards.sort_boards("manual")
-      :ok = Boards.place_board(ctx.user, ctx.c, ctx.a.id, boards)
+      boards = ctx.user |> Access.list_boards() |> Boards.Arrangement.sort_boards("manual")
+      :ok = Boards.Arrangement.place_board(ctx.user, ctx.c, ctx.a.id, boards)
       assert names(ctx.user) == ["Charlie", "Alpha", "Bravo"]
 
-      boards = ctx.user |> Access.list_boards() |> Boards.sort_boards("manual")
-      :ok = Boards.place_board(ctx.user, ctx.c, nil, boards)
+      boards = ctx.user |> Access.list_boards() |> Boards.Arrangement.sort_boards("manual")
+      :ok = Boards.Arrangement.place_board(ctx.user, ctx.c, nil, boards)
       assert names(ctx.user) == ["Alpha", "Bravo", "Charlie"]
     end
 
     test "the other sorts", ctx do
-      :ok = Boards.reorder_boards(ctx.user, [ctx.c.id, ctx.b.id, ctx.a.id])
+      :ok = Boards.Arrangement.reorder_boards(ctx.user, [ctx.c.id, ctx.b.id, ctx.a.id])
 
       assert names(ctx.user, "name") == ["Alpha", "Bravo", "Charlie"]
       assert names(ctx.user, "oldest") == ["Alpha", "Bravo", "Charlie"]
@@ -173,7 +173,7 @@ defmodule Slipdock.BoardArchiveTest do
     end
 
     test "an unknown sort falls back on the person's own order", ctx do
-      :ok = Boards.reorder_boards(ctx.user, [ctx.b.id, ctx.c.id, ctx.a.id])
+      :ok = Boards.Arrangement.reorder_boards(ctx.user, [ctx.b.id, ctx.c.id, ctx.a.id])
       assert names(ctx.user, "nonsense") == ["Bravo", "Charlie", "Alpha"]
     end
   end

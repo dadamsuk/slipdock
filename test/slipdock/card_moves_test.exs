@@ -3,7 +3,7 @@ defmodule Slipdock.CardMovesTest do
   The movement ledger (#1112, `Slipdock.Boards.CardMove`): a row for every
   change of a card's list, and for its creation, archive and restore, in
   order and with who made it; never for a stand-in. And
-  `Boards.list_entered_at/1`, read from it.
+  `Boards.Moves.list_entered_at/1`, read from it.
   """
   use Slipdock.DataCase, async: true
 
@@ -31,7 +31,7 @@ defmodule Slipdock.CardMovesTest do
   describe "moves" do
     test "To Do → In Progress is one row with both lists and the actor", ctx do
       card = card_fixture(ctx.todo)
-      :ok = Boards.move_card(card.id, ctx.doing.id, nil, actor: Actor.web(ctx.owner))
+      :ok = Boards.Cards.move_card(card.id, ctx.doing.id, nil, actor: Actor.web(ctx.owner))
 
       assert [row] = moves(card.id)
       assert {row.from_column_id, row.to_column_id} == {ctx.todo.id, ctx.doing.id}
@@ -45,7 +45,7 @@ defmodule Slipdock.CardMovesTest do
     test "an agent's label and job are kept, and a job id that names no job is dropped", ctx do
       card = card_fixture(ctx.todo)
       actor = %{Actor.unknown() | kind: "agent", via: "cli", agent: "laptop", job_id: 999_999_999}
-      :ok = Boards.move_card(card.id, ctx.doing.id, nil, actor: actor)
+      :ok = Boards.Cards.move_card(card.id, ctx.doing.id, nil, actor: actor)
 
       assert [%{actor_kind: "agent", via: "cli", agent: "laptop", job_id: nil}] = moves(card.id)
     end
@@ -53,7 +53,7 @@ defmodule Slipdock.CardMovesTest do
     test "a reorder within the list writes nothing", ctx do
       card = card_fixture(ctx.todo)
       _other = card_fixture(ctx.todo)
-      :ok = Boards.move_card_to_index(card, ctx.todo, :bottom, actor: Actor.web(ctx.owner))
+      :ok = Boards.Cards.move_card_to_index(card, ctx.todo, :bottom, actor: Actor.web(ctx.owner))
 
       assert moves(card.id) == []
     end
@@ -65,7 +65,7 @@ defmodule Slipdock.CardMovesTest do
       })
 
       card = card_fixture(ctx.todo)
-      :ok = Boards.move_card(card.id, ctx.doing.id, nil, actor: Actor.web(ctx.owner))
+      :ok = Boards.Cards.move_card(card.id, ctx.doing.id, nil, actor: Actor.web(ctx.owner))
 
       assert [first, second] = moves(card.id)
       assert {first.from_column_name, first.to_column_name} == {"To Do", "In Progress"}
@@ -79,12 +79,12 @@ defmodule Slipdock.CardMovesTest do
       other = board_fixture(%{"name" => "Elsewhere"}, owner: ctx.owner)
       [_, inbox | _] = other.columns
       card = card_fixture(ctx.todo)
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(card, t)
       sub = Boards.get_board!(sub.id)
       child = card_fixture(hd(sub.columns))
 
-      {:ok, _} = Boards.move_card_to_board(card, inbox, actor: Actor.assistant(ctx.owner))
+      {:ok, _} = Boards.Moves.move_card_to_board(card, inbox, actor: Actor.assistant(ctx.owner))
 
       assert [row] = moves(card.id)
       assert {row.from_board_id, row.from_column_id} == {ctx.board.id, ctx.todo.id}
@@ -97,9 +97,9 @@ defmodule Slipdock.CardMovesTest do
       other = board_fixture(%{"name" => "Sprint"}, owner: ctx.owner)
       [_, sprint_todo, _, sprint_done] = other.columns
       card = card_fixture(ctx.todo)
-      {:ok, stand_in} = Boards.leave_stand_in(card)
-      {:ok, _} = Boards.move_card_to_board(card, sprint_todo, actor: Actor.web(ctx.owner))
-      :ok = Boards.move_card(card.id, sprint_done.id, nil, actor: Actor.web(ctx.owner))
+      {:ok, stand_in} = Boards.Cards.leave_stand_in(card)
+      {:ok, _} = Boards.Moves.move_card_to_board(card, sprint_todo, actor: Actor.web(ctx.owner))
+      :ok = Boards.Cards.move_card(card.id, sprint_done.id, nil, actor: Actor.web(ctx.owner))
 
       assert Repo.get!(Card, stand_in.id).column_id == ctx.done.id
       assert rows(stand_in.id) == []
@@ -108,8 +108,8 @@ defmodule Slipdock.CardMovesTest do
 
     test "a stand-in moved by hand gets no row either", ctx do
       card = card_fixture(ctx.todo)
-      {:ok, stand_in} = Boards.leave_stand_in(card)
-      :ok = Boards.move_card(stand_in.id, ctx.doing.id, nil, actor: Actor.web(ctx.owner))
+      {:ok, stand_in} = Boards.Cards.leave_stand_in(card)
+      :ok = Boards.Cards.move_card(stand_in.id, ctx.doing.id, nil, actor: Actor.web(ctx.owner))
 
       assert rows(stand_in.id) == []
     end
@@ -117,7 +117,7 @@ defmodule Slipdock.CardMovesTest do
 
   describe "creation" do
     test "create_card writes a created row in its list, by whoever made it", ctx do
-      {:ok, card} = Boards.create_card(ctx.doing, %{"title" => "New"}, by: ctx.owner)
+      {:ok, card} = Boards.Cards.create_card(ctx.doing, %{"title" => "New"}, by: ctx.owner)
 
       assert [row] = rows(card.id)
       assert {row.kind, row.from_column_id, row.to_column_id} == {"created", nil, ctx.doing.id}
@@ -127,7 +127,7 @@ defmodule Slipdock.CardMovesTest do
 
     test "a copy writes its own created row, in the list it went to", ctx do
       card = card_fixture(ctx.todo)
-      {:ok, copy} = Boards.copy_card(card, ctx.done, by: ctx.owner)
+      {:ok, copy} = Boards.Cards.copy_card(card, ctx.done, by: ctx.owner)
 
       assert [%{kind: "created", to_column_id: done_id}] = rows(copy.id)
       assert done_id == ctx.done.id
@@ -165,10 +165,10 @@ defmodule Slipdock.CardMovesTest do
   describe "archive and restore" do
     test "write archived then restored, and the restore is when it entered its list", ctx do
       card = card_fixture(ctx.doing)
-      {:ok, archived} = Boards.archive_card(card)
+      {:ok, archived} = Boards.Cards.archive_card(card)
       # Archiving again changes nothing it records.
-      {:ok, archived} = Boards.archive_card(archived)
-      {:ok, _} = Boards.unarchive_card(archived)
+      {:ok, archived} = Boards.Cards.archive_card(archived)
+      {:ok, _} = Boards.Cards.unarchive_card(archived)
 
       assert [created, put_away, back] = rows(card.id)
       assert created.kind == "created"
@@ -179,12 +179,12 @@ defmodule Slipdock.CardMovesTest do
       assert {back.kind, back.from_column_id, back.to_column_id} ==
                {"restored", nil, ctx.doing.id}
 
-      assert Boards.list_entered_at(ctx.board)[card.id] == back.inserted_at
+      assert Boards.Moves.list_entered_at(ctx.board)[card.id] == back.inserted_at
     end
 
     test "restoring a card that isn't archived writes nothing", ctx do
       card = card_fixture(ctx.doing)
-      {:ok, _} = Boards.unarchive_card(card)
+      {:ok, _} = Boards.Cards.unarchive_card(card)
 
       assert Enum.map(rows(card.id), & &1.kind) == ["created"]
     end
@@ -194,11 +194,11 @@ defmodule Slipdock.CardMovesTest do
     test "is each open card's latest entry into the list it is in", ctx do
       stays = card_fixture(ctx.todo)
       moved = card_fixture(ctx.todo)
-      :ok = Boards.move_card(moved.id, ctx.doing.id, nil, actor: Actor.web(ctx.owner))
+      :ok = Boards.Cards.move_card(moved.id, ctx.doing.id, nil, actor: Actor.web(ctx.owner))
       shelved = card_fixture(ctx.todo)
-      {:ok, _} = Boards.archive_card(shelved)
+      {:ok, _} = Boards.Cards.archive_card(shelved)
 
-      entered = Boards.list_entered_at(ctx.board.id)
+      entered = Boards.Moves.list_entered_at(ctx.board.id)
 
       assert entered[stays.id] == hd(rows(stays.id)).inserted_at
       assert entered[moved.id] == List.last(rows(moved.id)).inserted_at
@@ -210,20 +210,20 @@ defmodule Slipdock.CardMovesTest do
       # A move the ledger never saw: the list changed behind its back.
       Repo.update_all(from(c in Card, where: c.id == ^card.id), set: [column_id: ctx.done.id])
 
-      refute Map.has_key?(Boards.list_entered_at(ctx.board), card.id)
+      refute Map.has_key?(Boards.Moves.list_entered_at(ctx.board), card.id)
     end
 
     test "is empty for a board with no cards", ctx do
       empty = board_fixture(%{"name" => "Empty"}, owner: ctx.owner)
-      assert Boards.list_entered_at(empty) == %{}
+      assert Boards.Moves.list_entered_at(empty) == %{}
     end
   end
 
   describe "lists changing under the history" do
     test "renaming a list keeps the old rows' names", ctx do
       card = card_fixture(ctx.todo)
-      :ok = Boards.move_card(card.id, ctx.doing.id, nil, actor: Actor.web(ctx.owner))
-      {:ok, _} = Boards.update_column(ctx.doing, %{"name" => "Doing"})
+      :ok = Boards.Cards.move_card(card.id, ctx.doing.id, nil, actor: Actor.web(ctx.owner))
+      {:ok, _} = Boards.Columns.update_column(ctx.doing, %{"name" => "Doing"})
 
       assert [%{to_column_name: "In Progress", to_column_id: id}] = moves(card.id)
       assert id == ctx.doing.id
@@ -231,8 +231,8 @@ defmodule Slipdock.CardMovesTest do
 
     test "deleting a list nilifies its ids and keeps the rows", ctx do
       card = card_fixture(ctx.backlog)
-      :ok = Boards.move_card(card.id, ctx.doing.id, nil, actor: Actor.web(ctx.owner))
-      {:ok, _} = Boards.delete_column(Repo.get!(Column, ctx.backlog.id))
+      :ok = Boards.Cards.move_card(card.id, ctx.doing.id, nil, actor: Actor.web(ctx.owner))
+      {:ok, _} = Boards.Columns.delete_column(Repo.get!(Column, ctx.backlog.id))
 
       assert [created, moved] = rows(card.id)
       assert {created.to_column_id, created.to_column_name} == {nil, "Backlog"}

@@ -108,7 +108,7 @@ defmodule SlipdockWeb.VerifiedNoCodeWebTest do
   end
 
   test "the card panel shows the reason", ctx do
-    {:ok, _} = Boards.update_card(ctx.card, %{"evidence_no_code" => @why})
+    {:ok, _} = Boards.Cards.update_card(ctx.card, %{"evidence_no_code" => @why})
     {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/cards/#{ctx.card}")
     assert view |> element("#card-evidence-no-code") |> render() =~ @why
   end

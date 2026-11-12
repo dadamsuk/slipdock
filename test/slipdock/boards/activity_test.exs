@@ -18,7 +18,7 @@ defmodule Slipdock.Boards.ActivityTest do
     %{owner: owner, board: board, todo: hd(board.columns)}
   end
 
-  defp latest(board), do: board.id |> Boards.list_activities(1) |> hd()
+  defp latest(board), do: board.id |> Boards.ActivityLog.list_activities(1) |> hd()
 
   describe "stamp/2" do
     test "a person: their id and the name given with them", %{owner: owner} do
@@ -101,7 +101,7 @@ defmodule Slipdock.Boards.ActivityTest do
     test "a page and a comment are stamped too", %{owner: owner, board: board, todo: todo} do
       card = card_fixture(todo, %{"title" => "Talked about"})
       Actor.put(Actor.email(owner), "Dana Owner")
-      {:ok, _} = Boards.add_comment(card, "Noted", by: owner)
+      {:ok, _} = Boards.Comments.add_comment(card, "Noted", by: owner)
       assert %{kind: "comment", actor_kind: "email"} = latest(board)
 
       Actor.put(Actor.web(owner), "Dana Owner")
@@ -123,13 +123,19 @@ defmodule Slipdock.Boards.ActivityTest do
       card_fixture(ctx.todo, %{"title" => "Watched"})
 
       [logged] =
-        ctx.board.id |> Boards.list_activities() |> Enum.filter(&(&1.message == "saw a new card"))
+        ctx.board.id
+        |> Boards.ActivityLog.list_activities()
+        |> Enum.filter(&(&1.message == "saw a new card"))
 
       assert {logged.actor_kind, logged.actor_name, logged.message} ==
                {"automation", "Watcher", "saw a new card"}
 
       # The card itself was the person's, and the rule's name is gone after.
-      assert Enum.any?(Boards.list_activities(ctx.board.id), &(&1.actor_kind == "person"))
+      assert Enum.any?(
+               Boards.ActivityLog.list_activities(ctx.board.id),
+               &(&1.actor_kind == "person")
+             )
+
       assert Actor.current().kind == "human"
     end
   end
@@ -167,47 +173,55 @@ defmodule Slipdock.Boards.ActivityTest do
 
     test "pages newest first, with the users loaded and more? said", %{board: board} do
       entries(board, 7)
-      {first, more?} = Boards.page_activities(board.id, limit: 3)
+      {first, more?} = Boards.ActivityLog.page_activities(board.id, limit: 3)
       assert more?
       assert length(first) == 3
       refute Enum.any?(first, &match?(%Ecto.Association.NotLoaded{}, &1.user))
 
-      {second, more?} = Boards.page_activities(board.id, limit: 3, before: List.last(first))
+      {second, more?} =
+        Boards.ActivityLog.page_activities(board.id, limit: 3, before: List.last(first))
+
       assert more?
-      {third, more?} = Boards.page_activities(board.id, limit: 3, before: List.last(second))
+
+      {third, more?} =
+        Boards.ActivityLog.page_activities(board.id, limit: 3, before: List.last(second))
+
       refute more?
 
       all = Enum.map(first ++ second ++ third, & &1.message)
-      own = board.id |> Boards.list_activities(100) |> Enum.map(& &1.message)
+      own = board.id |> Boards.ActivityLog.list_activities(100) |> Enum.map(& &1.message)
       assert all == own
       assert length(Enum.uniq(all)) == length(all)
     end
 
     test "down_to brings what is showing up to date, newest first", %{board: board} do
       all = entries(board, 5)
-      {shown, true} = Boards.page_activities(board.id, limit: 3)
+      {shown, true} = Boards.ActivityLog.page_activities(board.id, limit: 3)
 
-      {again, more?} = Boards.page_activities(board.id, down_to: List.last(shown))
+      {again, more?} = Boards.ActivityLog.page_activities(board.id, down_to: List.last(shown))
       assert Enum.map(again, & &1.id) == Enum.map(shown, & &1.id)
       assert more?
 
       newer = Repo.insert!(%Activity{board_id: board.id, kind: "card", message: "newer"})
-      {again, true} = Boards.page_activities(board.id, down_to: List.last(shown), limit: 1)
+
+      {again, true} =
+        Boards.ActivityLog.page_activities(board.id, down_to: List.last(shown), limit: 1)
+
       assert Enum.map(again, & &1.id) == [newer.id | Enum.map(shown, & &1.id)]
 
-      assert {everything, false} = Boards.page_activities(board.id, down_to: hd(all))
+      assert {everything, false} = Boards.ActivityLog.page_activities(board.id, down_to: hd(all))
       # The five, the newer one and the board's own "created board".
       assert length(everything) == 7
     end
 
     test "an empty board is one empty page", ctx do
       Repo.delete_all(from(a in Activity, where: a.board_id == ^ctx.board.id))
-      assert Boards.page_activities(ctx.board.id) == {[], false}
+      assert Boards.ActivityLog.page_activities(ctx.board.id) == {[], false}
     end
 
     test "a limit below one is one", %{board: board} do
       entries(board, 2)
-      assert {[_], true} = Boards.page_activities(board.id, limit: 0)
+      assert {[_], true} = Boards.ActivityLog.page_activities(board.id, limit: 0)
     end
 
     test "only the board's own entries", %{board: board} do
@@ -215,7 +229,7 @@ defmodule Slipdock.Boards.ActivityTest do
         board_fixture(%{"name" => "Elsewhere"}, owner: user_fixture("activity.other@example.com"))
 
       entries(other, 3)
-      {page, _} = Boards.page_activities(board.id, limit: 50)
+      {page, _} = Boards.ActivityLog.page_activities(board.id, limit: 50)
       assert Enum.all?(page, &(&1.board_id == board.id))
     end
   end

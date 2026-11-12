@@ -154,7 +154,7 @@ defmodule Slipdock.Inbound.TokensTest do
 
     test "an archived board's address bounces", %{user: user, board: board} do
       {:ok, card} = Tokens.address(user, board, :card)
-      {:ok, _} = Boards.archive_board(board)
+      {:ok, _} = Boards.Arrangement.archive_board(board)
 
       assert Tokens.resolve(local(card)) == {:error, :archived}
     end

@@ -20,7 +20,7 @@ defmodule SlipdockWeb.SharedPathsWebTest do
     running = card_fixture(doing, %{"title" => "Running"})
 
     {:ok, running} =
-      Boards.update_card(running, %{"paths" => ["lib/runners/**", "docs/manual.md"]})
+      Boards.Cards.update_card(running, %{"paths" => ["lib/runners/**", "docs/manual.md"]})
 
     working_job_fixture(running)
     card = card_fixture(todo, %{"title" => "Next"})
@@ -130,7 +130,7 @@ defmodule SlipdockWeb.SharedPathsWebTest do
   test "lanes on: an agent starts a card that only overlaps in a shared path, not otherwise",
        ctx do
     {:ok, board} = Boards.update_board(ctx.board, %{"lanes" => true})
-    {:ok, _} = Boards.update_card(ctx.card, %{"paths" => "lib/boards/**,docs/manual.md"})
+    {:ok, _} = Boards.Cards.update_card(ctx.card, %{"paths" => "lib/boards/**,docs/manual.md"})
 
     # Not shared yet: the manual holds the lane.
     ctx.agent
@@ -146,7 +146,7 @@ defmodule SlipdockWeb.SharedPathsWebTest do
     assert Repo.get!(Card, ctx.card.id).column_id == ctx.doing.id
 
     other = card_fixture(ctx.todo, %{"title" => "Runners too"})
-    {:ok, _} = Boards.update_card(other, %{"paths" => "lib/runners/a.ex,docs/manual.md"})
+    {:ok, _} = Boards.Cards.update_card(other, %{"paths" => "lib/runners/a.ex,docs/manual.md"})
 
     body =
       ctx.agent

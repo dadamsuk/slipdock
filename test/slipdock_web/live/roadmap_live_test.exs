@@ -26,7 +26,7 @@ defmodule SlipdockWeb.RoadmapLiveTest do
     html = render(view)
     assert html =~ "Waiting on legal"
     assert html =~ "At risk"
-    assert Slipdock.Boards.Card.stated_health(Boards.get_card!(card.id)) == "at_risk"
+    assert Slipdock.Boards.Card.stated_health(Boards.Cards.get_card!(card.id)) == "at_risk"
   end
 
   test "the list settings modal saves a category and horizon", %{
@@ -52,7 +52,7 @@ defmodule SlipdockWeb.RoadmapLiveTest do
     })
     |> render_submit()
 
-    column = Boards.get_column!(backlog.id)
+    column = Boards.Columns.get_column!(backlog.id)
     assert column.category == "doing"
     assert column.horizon_to == ~D[2030-03-31]
     assert render(view) =~ "Q1 2030"
@@ -68,7 +68,7 @@ defmodule SlipdockWeb.RoadmapLiveTest do
     |> form("#milestone-form-0", %{"name" => "Launch", "date" => "2030-01-25", "color" => "rose"})
     |> render_submit()
 
-    assert [%{name: "Launch"}] = Boards.list_milestones(board.id)
+    assert [%{name: "Launch"}] = Boards.Milestones.list_milestones(board.id)
 
     {:ok, tl, html} = live(conn, ~p"/boards/#{board}/timeline?date=2030-01-15&unit=month")
     assert html =~ "Launch"
@@ -79,12 +79,12 @@ defmodule SlipdockWeb.RoadmapLiveTest do
     board: board
   } do
     {:ok, view} =
-      Boards.create_saved_view(board, %{
+      Boards.SavedViews.create_saved_view(board, %{
         "name" => "Public plan",
         "config" => %{"mode" => "table", "fields" => ["title", "due_date"]}
       })
 
-    {:ok, view} = Boards.publish_saved_view(view)
+    {:ok, view} = Boards.SavedViews.publish_saved_view(view)
     anon = Phoenix.ConnTest.build_conn()
 
     {:ok, lv, html} = live(anon, ~p"/p/#{view.public_token}")
@@ -92,7 +92,7 @@ defmodule SlipdockWeb.RoadmapLiveTest do
     assert html =~ "Thing"
     refute has_element?(lv, "#swim-config")
 
-    {:ok, _} = Boards.unpublish_saved_view(view)
+    {:ok, _} = Boards.SavedViews.unpublish_saved_view(view)
     assert {:error, {:redirect, %{to: "/login"}}} = live(anon, ~p"/p/#{view.public_token}")
     assert {:error, {:redirect, %{to: "/login"}}} = live(anon, ~p"/p/nonsense")
   end
@@ -113,7 +113,7 @@ defmodule SlipdockWeb.RoadmapLiveTest do
     backlog: backlog
   } do
     other = card_fixture(backlog, %{"title" => "First", "due_date" => "2030-01-25"})
-    {:ok, _} = Boards.add_dependency(card, other)
+    {:ok, _} = Boards.Dependencies.add_dependency(card, other)
 
     {:ok, lv, html} =
       live(conn, ~p"/boards/#{board}/timeline?date=2030-01-15&unit=month&color_by=priority")

@@ -31,7 +31,7 @@ defmodule Slipdock.Boards.Owned do
 
   @doc """
   The owner as a ref, the same `{:card, id}` / `{:page, id}` shape the board
-  uses for the things in a list (see `Slipdock.Boards.item_ref/1`).
+  uses for the things in a list (see `Slipdock.Boards.Columns.item_ref/1`).
   """
   def owner_ref(%{card_id: id}) when is_integer(id), do: {:card, id}
   def owner_ref(%{page_id: id}) when is_integer(id), do: {:page, id}

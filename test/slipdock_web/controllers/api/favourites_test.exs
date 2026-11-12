@@ -10,7 +10,10 @@ defmodule SlipdockWeb.API.FavouritesTest do
     card = card_fixture(todo, %{"title" => "Alpha"})
 
     {:ok, view} =
-      Boards.create_saved_view(board, %{"name" => "Bugs", "config" => %{"rows" => "tag"}})
+      Boards.SavedViews.create_saved_view(board, %{
+        "name" => "Bugs",
+        "config" => %{"rows" => "tag"}
+      })
 
     %{
       conn: put_req_header(conn, "accept", "application/json"),

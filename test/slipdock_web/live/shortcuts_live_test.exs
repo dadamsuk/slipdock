@@ -25,7 +25,7 @@ defmodule SlipdockWeb.ShortcutsLiveTest do
       board = board_fixture(%{"name" => "Roadmap"}, derive_keys: true)
       [column | _] = board.columns
       card = card_fixture(column, %{"title" => "Epic"})
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = Boards.create_sub_board(card, t)
 
       assert sub.shortcut == nil
@@ -223,7 +223,7 @@ defmodule SlipdockWeb.ShortcutsLiveTest do
       board: board
     } do
       gone = card_fixture(hd(board.columns), %{"title" => "Gone parser"})
-      {:ok, _} = Boards.archive_card(gone)
+      {:ok, _} = Boards.Cards.archive_card(gone)
       archive = ~p"/boards/#{board}/archive?#{[card: gone.id]}"
 
       render_hook(view, "shortcut_panel", %{"panel" => "find"})

@@ -120,7 +120,8 @@ defmodule Slipdock.AttentionTest do
       board |> Ecto.Changeset.change(verify_work: true, verify_pool: "verify") |> Repo.update!()
       card |> Ecto.Changeset.change(verify_state: "pending", flags: ["review"]) |> Repo.update!()
 
-      assert {"auto", _} = Attention.of("review", Boards.with_state(Boards.get_card!(card.id)))
+      assert {"auto", _} =
+               Attention.of("review", Boards.with_state(Boards.Cards.get_card!(card.id)))
     end
   end
 end

@@ -14,10 +14,18 @@ defmodule SlipdockWeb.AttachmentControllerTest do
     on_exit(fn -> File.rm(src) end)
 
     {:ok, image} =
-      Boards.add_attachment(card, %{filename: "shot one.png", content_type: "image/png"}, src)
+      Boards.Attachments.add_attachment(
+        card,
+        %{filename: "shot one.png", content_type: "image/png"},
+        src
+      )
 
     {:ok, page} =
-      Boards.add_attachment(card, %{filename: "page.html", content_type: "text/html"}, src)
+      Boards.Attachments.add_attachment(
+        card,
+        %{filename: "page.html", content_type: "text/html"},
+        src
+      )
 
     %{board: board, card: card, image: image, page: page}
   end
@@ -27,14 +35,16 @@ defmodule SlipdockWeb.AttachmentControllerTest do
     image: image,
     page: page
   } do
-    conn = get(conn, Boards.attachment_url(image))
+    conn = get(conn, Boards.Attachments.attachment_url(image))
     assert conn.status == 200
     assert conn.resp_body == <<137, 80, 78, 71, 0, 1, 2, 3>>
     assert get_resp_header(conn, "content-type") == ["image/png"]
     assert [disp] = get_resp_header(conn, "content-disposition")
     assert disp =~ "inline" and disp =~ "shot%20one.png"
 
-    conn = get(build_conn() |> log_in_user(user_fixture()), Boards.attachment_url(page))
+    conn =
+      get(build_conn() |> log_in_user(user_fixture()), Boards.Attachments.attachment_url(page))
+
     assert conn.status == 200
     assert get_resp_header(conn, "content-type") == ["application/octet-stream"]
     assert [disp] = get_resp_header(conn, "content-disposition")
@@ -48,11 +58,11 @@ defmodule SlipdockWeb.AttachmentControllerTest do
     user: owner
   } do
     stranger = user_fixture("stranger@example.com")
-    conn = get(conn_as(stranger), Boards.attachment_url(image))
+    conn = get(conn_as(stranger), Boards.Attachments.attachment_url(image))
     assert conn.status == 404
 
     {:ok, _} = Access.grant(card, stranger, "read", owner)
-    conn = get(conn_as(stranger), Boards.attachment_url(image))
+    conn = get(conn_as(stranger), Boards.Attachments.attachment_url(image))
     assert conn.status == 200
   end
 
@@ -63,18 +73,18 @@ defmodule SlipdockWeb.AttachmentControllerTest do
     user: owner
   } do
     viewer = user_fixture("viewer@example.com")
-    {:ok, card} = Boards.update_card(card, %{"title" => "Public notes"})
+    {:ok, card} = Boards.Cards.update_card(card, %{"title" => "Public notes"})
     hidden = card_fixture(hd(board.columns), %{"title" => "Payroll"})
 
     {:ok, hidden_file} =
-      Boards.add_attachment(
+      Boards.Attachments.add_attachment(
         hidden,
         %{filename: "salaries.png", content_type: "image/png"},
-        Boards.attachment_path(image)
+        Boards.Attachments.attachment_path(image)
       )
 
     {:ok, view} =
-      Boards.create_saved_view(board, %{
+      Boards.SavedViews.create_saved_view(board, %{
         "name" => "Public",
         "config" => Slipdock.Swimlanes.Config.to_map(%Slipdock.Swimlanes.Config{q: "public"})
       })
@@ -82,26 +92,26 @@ defmodule SlipdockWeb.AttachmentControllerTest do
     {:ok, _} = Access.grant(view, viewer, "read", owner)
     assert Access.board_permission(viewer, board) == :view
 
-    assert get(conn_as(viewer), Boards.attachment_url(image)).status == 200
-    assert get(conn_as(viewer), Boards.attachment_url(hidden_file)).status == 404
+    assert get(conn_as(viewer), Boards.Attachments.attachment_url(image)).status == 200
+    assert get(conn_as(viewer), Boards.Attachments.attachment_url(hidden_file)).status == 404
 
     # Once the card leaves the view, so do its files.
-    {:ok, _} = Boards.update_card(card, %{"title" => "Notes"})
-    assert get(conn_as(viewer), Boards.attachment_url(image)).status == 404
+    {:ok, _} = Boards.Cards.update_card(card, %{"title" => "Notes"})
+    assert get(conn_as(viewer), Boards.Attachments.attachment_url(image)).status == 404
 
     # The owner still reaches both.
-    assert get(conn_as(owner), Boards.attachment_url(hidden_file)).status == 200
+    assert get(conn_as(owner), Boards.Attachments.attachment_url(hidden_file)).status == 200
   end
 
   @tag :anonymous
   test "signed-out requests are sent to the login page", %{conn: conn, image: image} do
-    conn = get(conn, Boards.attachment_url(image))
+    conn = get(conn, Boards.Attachments.attachment_url(image))
     assert redirected_to(conn) =~ "/login"
   end
 
   test "a missing file on disk is a 404", %{conn: conn, image: image} do
-    File.rm!(Boards.attachment_path(image))
-    assert get(conn, Boards.attachment_url(image)).status == 404
+    File.rm!(Boards.Attachments.attachment_path(image))
+    assert get(conn, Boards.Attachments.attachment_url(image)).status == 404
   end
 
   # The type is the uploader's word: a browser reads `audio/x, text/html` as
@@ -116,12 +126,16 @@ defmodule SlipdockWeb.AttachmentControllerTest do
       on_exit(fn -> File.rm(src) end)
 
       {:ok, file} =
-        Boards.add_attachment(card, %{filename: "x.mp3", content_type: unquote(type)}, src)
+        Boards.Attachments.add_attachment(
+          card,
+          %{filename: "x.mp3", content_type: unquote(type)},
+          src
+        )
 
       refute Slipdock.Boards.Attachment.audio?(file)
 
       for conn <- [conn, put_req_header(conn, "range", "bytes=0-7")] do
-        res = get(conn, Boards.attachment_url(file))
+        res = get(conn, Boards.Attachments.attachment_url(file))
         assert res.status in [200, 206]
         assert [type] = get_resp_header(res, "content-type")
         refute type =~ "html"
@@ -138,13 +152,17 @@ defmodule SlipdockWeb.AttachmentControllerTest do
       on_exit(fn -> File.rm(src) end)
 
       {:ok, audio} =
-        Boards.add_attachment(card, %{filename: "call.mp3", content_type: "audio/mpeg"}, src)
+        Boards.Attachments.add_attachment(
+          card,
+          %{filename: "call.mp3", content_type: "audio/mpeg"},
+          src
+        )
 
       %{audio: audio}
     end
 
     test "is served inline, and says it takes ranges", %{conn: conn, audio: audio} do
-      conn = get(conn, Boards.attachment_url(audio))
+      conn = get(conn, Boards.Attachments.attachment_url(audio))
       assert conn.status == 200
       assert conn.resp_body == "0123456789"
       assert [disp] = get_resp_header(conn, "content-disposition")
@@ -161,7 +179,9 @@ defmodule SlipdockWeb.AttachmentControllerTest do
             {"bytes=8-99", "89", "bytes 8-9/10"},
             {"bytes=-50", "0123456789", "bytes 0-9/10"}
           ] do
-        conn = conn |> put_req_header("range", range) |> get(Boards.attachment_url(audio))
+        conn =
+          conn |> put_req_header("range", range) |> get(Boards.Attachments.attachment_url(audio))
+
         assert conn.status == 206, range
         assert conn.resp_body == body, range
         assert get_resp_header(conn, "content-range") == [content_range], range
@@ -173,7 +193,9 @@ defmodule SlipdockWeb.AttachmentControllerTest do
 
     test "a range that starts past the end is a 416", %{conn: conn, audio: audio} do
       for range <- ["bytes=10-", "bytes=20-30", "bytes=5-2", "bytes=-0"] do
-        conn = conn |> put_req_header("range", range) |> get(Boards.attachment_url(audio))
+        conn =
+          conn |> put_req_header("range", range) |> get(Boards.Attachments.attachment_url(audio))
+
         assert conn.status == 416, range
         assert get_resp_header(conn, "content-range") == ["bytes */10"]
       end
@@ -184,7 +206,9 @@ defmodule SlipdockWeb.AttachmentControllerTest do
       audio: audio
     } do
       for range <- ["bytes=abc", "items=0-1", "bytes=-", "bytes=0-1,4-5"] do
-        conn = conn |> put_req_header("range", range) |> get(Boards.attachment_url(audio))
+        conn =
+          conn |> put_req_header("range", range) |> get(Boards.Attachments.attachment_url(audio))
+
         assert conn.status == 200, range
         assert conn.resp_body == "0123456789"
       end
@@ -196,7 +220,7 @@ defmodule SlipdockWeb.AttachmentControllerTest do
       conn =
         conn_as(stranger)
         |> put_req_header("range", "bytes=0-1")
-        |> get(Boards.attachment_url(audio))
+        |> get(Boards.Attachments.attachment_url(audio))
 
       assert conn.status == 404
     end

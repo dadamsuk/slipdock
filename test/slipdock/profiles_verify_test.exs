@@ -50,7 +50,7 @@ defmodule Slipdock.ProfilesVerifyTest do
       card_fixture(ctx.doing, Map.merge(%{"title" => "Work", "bar" => "1. It reads well"}, attrs))
 
     if profile do
-      {:ok, card} = Boards.update_card(card, %{"profile" => profile})
+      {:ok, card} = Boards.Cards.update_card(card, %{"profile" => profile})
       card
     else
       card
@@ -59,7 +59,7 @@ defmodule Slipdock.ProfilesVerifyTest do
 
   defp submit(card, ctx, attrs \\ %{}) do
     {:ok, card} =
-      Boards.update_card(
+      Boards.Cards.update_card(
         Repo.get!(Card, card.id),
         Map.merge(
           %{
@@ -150,7 +150,7 @@ defmodule Slipdock.ProfilesVerifyTest do
 
       assert card.verify_state == "held"
       assert jobs(card, "merge") == []
-      assert Boards.current_wait(card.id).purpose == "before_merge"
+      assert Boards.Waits.current_wait(card.id).purpose == "before_merge"
     end
 
     test "a failing suite is sent back rather than accepted unverified", ctx do
@@ -170,10 +170,10 @@ defmodule Slipdock.ProfilesVerifyTest do
 
     test "the bar is still required: an agent can't start a docs card without one", ctx do
       bare = card_fixture(hd(ctx.board.columns), %{"title" => "No bar"})
-      {:ok, _} = Boards.update_card(bare, %{"profile" => "docs"})
+      {:ok, _} = Boards.Cards.update_card(bare, %{"profile" => "docs"})
 
       assert {:error, :unprocessable_entity, message} =
-               Boards.move_card(bare.id, ctx.doing.id, nil, actor: ctx.builder)
+               Boards.Cards.move_card(bare.id, ctx.doing.id, nil, actor: ctx.builder)
 
       assert message =~ "bar"
     end

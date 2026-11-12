@@ -399,12 +399,12 @@ defmodule Slipdock.Health do
         cards ->
           Enum.each(cards, fn card ->
             unless Enum.member?(card.flags, "stuck"),
-              do: Boards.update_card(card, %{"flags" => card.flags ++ ["stuck"]})
+              do: Boards.Cards.update_card(card, %{"flags" => card.flags ++ ["stuck"]})
 
             # Its job's log keeps the failure time from now (#1872).
             Slipdock.Runners.TranscriptRetention.card_failed(card, verify: false)
 
-            Boards.add_comment(Repo.get!(Card, card.id), Enum.join(body, "\n"))
+            Boards.Comments.add_comment(Repo.get!(Card, card.id), Enum.join(body, "\n"))
           end)
 
           incident
@@ -429,7 +429,7 @@ defmodule Slipdock.Health do
   # incident's log is the record.
   defp note(incident, detector, line) do
     with %Card{archived_at: nil} = card <- incident.card_id && Repo.get(Card, incident.card_id) do
-      Boards.add_comment(
+      Boards.Comments.add_comment(
         card,
         "**Health monitor** (#{detector.label()}, incident ##{incident.id}).\n\n" <>
           "- Found: #{incident.summary}\n- #{line}"
@@ -503,9 +503,9 @@ defmodule Slipdock.Health do
         |> Enum.any?(&Enum.member?(Incident.card_ids(&1), card.id))
 
       unless still do
-        Boards.update_card(card, %{"flags" => List.delete(card.flags, "stuck")})
+        Boards.Cards.update_card(card, %{"flags" => List.delete(card.flags, "stuck")})
 
-        Boards.add_comment(
+        Boards.Comments.add_comment(
           Repo.get!(Card, card.id),
           "**Health monitor:** cleared (incident ##{incident.id}). It is no longer stuck, " <>
             "so the `stuck` flag is off."

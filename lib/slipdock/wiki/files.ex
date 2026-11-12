@@ -28,7 +28,7 @@ defmodule Slipdock.Wiki.Files do
   end
 
   @doc "Where a file's bytes are on disk."
-  def disk_path(%WikiFile{key: key}), do: Path.join(Boards.uploads_dir(), key)
+  def disk_path(%WikiFile{key: key}), do: Path.join(Boards.Attachments.uploads_dir(), key)
 
   @doc """
   Stores the file at `source` in `board`'s wiki: `attrs` has `name` and
@@ -101,7 +101,7 @@ defmodule Slipdock.Wiki.Files do
     with {:ok, _} <- Ecto.Changeset.apply_action(changeset, :update),
          :ok <- copy(source, key),
          {:ok, updated} <- Repo.update(changeset) do
-      Boards.remove_files([file.key])
+      Boards.Attachments.remove_files([file.key])
       touched(updated)
       Slipdock.OCR.requeue(updated)
 
@@ -169,7 +169,7 @@ defmodule Slipdock.Wiki.Files do
   """
   def delete(%WikiFile{} = file) do
     with {:ok, deleted} <- Repo.delete(file) do
-      Boards.remove_files([file.key])
+      Boards.Attachments.remove_files([file.key])
       Changes.record(file.board_id, "file", file.id, "deleted")
       Wiki.broadcast_board(file.board_id)
       {:ok, deleted}
@@ -277,7 +277,7 @@ defmodule Slipdock.Wiki.Files do
   end
 
   defp copy(source, key) do
-    case Boards.put_file(source, key) do
+    case Boards.Attachments.put_file(source, key) do
       :ok ->
         :ok
 

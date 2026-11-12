@@ -84,7 +84,7 @@ defmodule Slipdock.MultiboardTest do
       Repo.update_all(from(c in Card, where: c.id == ^two.id), set: [snoozed_until: later])
 
       [three] = Repo.all(from c in Card, where: c.title == "three")
-      {:ok, _} = Slipdock.Boards.archive_card(three)
+      {:ok, _} = Slipdock.Boards.Cards.archive_card(three)
 
       choices = Multiboard.choices(ctx.user)
       view = %{lists: [ctx.web_todo.id, ctx.ops_todo.id], top: 2, by: "board"}

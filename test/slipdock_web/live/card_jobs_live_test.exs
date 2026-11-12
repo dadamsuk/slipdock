@@ -88,8 +88,8 @@ defmodule SlipdockWeb.CardJobsLiveTest do
     Runners.claim(ctx.runner)
 
     {:ok, _} =
-      Slipdock.Boards.open_wait(
-        Slipdock.Boards.get_card!(ctx.card.id),
+      Slipdock.Boards.Waits.open_wait(
+        Slipdock.Boards.Cards.get_card!(ctx.card.id),
         Slipdock.Actor.runner(ctx.user, job.id),
         %{"needs" => "Which region?", "job_id" => job.id}
       )

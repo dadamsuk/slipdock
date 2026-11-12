@@ -136,7 +136,7 @@ defmodule Slipdock.Inbound.PagesTest do
       assert {:accepted, email} = send_page(ctx, "Invoice", raw)
       page = page!(email)
       assert [%Attachment{filename: "invoice.pdf"} = a] = files(page)
-      assert File.read!(Boards.attachment_path(a)) == "%PDF-1.4 hello"
+      assert File.read!(Boards.Attachments.attachment_path(a)) == "%PDF-1.4 hello"
       assert page.body =~ "Attached."
     end
 
@@ -147,7 +147,7 @@ defmodule Slipdock.Inbound.PagesTest do
       page = page!(email)
       assert [%Attachment{filename: "shot.png"} = a] = files(page)
       assert page.body =~ "See this:"
-      assert page.body =~ "](#{Boards.attachment_url(a)})"
+      assert page.body =~ "](#{Boards.Attachments.attachment_url(a)})"
     end
 
     test "the card address still makes cards, not pages", ctx do
@@ -169,7 +169,7 @@ defmodule Slipdock.Inbound.PagesTest do
     end
 
     test "an archived board", ctx do
-      {:ok, _} = Boards.archive_board(ctx.board)
+      {:ok, _} = Boards.Arrangement.archive_board(ctx.board)
       assert {:rejected, reason, _} = send_page(ctx, "x", text("x"))
       assert reason =~ "archived"
     end
@@ -281,7 +281,7 @@ defmodule Slipdock.Inbound.PagesTest do
       page = Repo.get!(Page, ctx.page.id)
       assert [%Attachment{filename: "shot.png"} = a] = files(page)
       assert page.body =~ "See this:"
-      assert page.body =~ "](#{Boards.attachment_url(a)})"
+      assert page.body =~ "](#{Boards.Attachments.attachment_url(a)})"
     end
 
     test "a long body goes in whole, in one revision", ctx do

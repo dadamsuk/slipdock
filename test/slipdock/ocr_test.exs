@@ -27,7 +27,9 @@ defmodule Slipdock.OCRTest do
   defp reads_as(text), do: reads(fn _, _ -> {text, 0} end)
 
   defp attach(card, source, name \\ "scan.png", type \\ "image/png") do
-    {:ok, a} = Boards.add_attachment(card, %{filename: name, content_type: type}, source)
+    {:ok, a} =
+      Boards.Attachments.add_attachment(card, %{filename: name, content_type: type}, source)
+
     a
   end
 
@@ -65,7 +67,7 @@ defmodule Slipdock.OCRTest do
 
   describe "reading" do
     test "keeps the text, and tells the card's board", %{card: card, source: source} do
-      Boards.subscribe(card.board_id)
+      Boards.PubSub.subscribe(card.board_id)
       a = attach(card, source)
       reads_as("Invoice 42")
 
@@ -94,7 +96,7 @@ defmodule Slipdock.OCRTest do
 
     test "a file gone from disk fails with a reason", %{card: card, source: source} do
       a = attach(card, source)
-      File.rm!(Boards.attachment_path(a))
+      File.rm!(Boards.Attachments.attachment_path(a))
       reads_as("never")
 
       OCR.run_next()
@@ -113,7 +115,7 @@ defmodule Slipdock.OCRTest do
 
     test "a file deleted in the queue is simply gone", %{card: card, source: source} do
       a = attach(card, source)
-      {:ok, _} = Boards.delete_attachment(a)
+      {:ok, _} = Boards.Attachments.delete_attachment(a)
       reads_as("never")
 
       assert OCR.run_next() == :none

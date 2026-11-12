@@ -724,7 +724,7 @@ can be put in one of its board's lists and dragged about like a card.
 
 `pages.column_id` and `pages.board_position` are a second, optional axis —
 the page keeps its place in the wiki tree either way. The position is shared
-with the list's cards, so the two interleave: `Slipdock.Boards.active_items/1`
+with the list's cards, so the two interleave: `Slipdock.Boards.Columns.active_items/1`
 returns a list's contents as `{:card, id}` / `{:page, id}` refs in one order,
 and both move operations repack that order together. A page that could only
 sit after every card would not really be on the board.
@@ -810,7 +810,7 @@ into a readable message, `owner_key/1` gives the foreign key to `struct!`
 onto a new row, and `owner_ref/1` reports which it is as the board's usual
 `{:card, id}` / `{:page, id}`.
 
-**One writer each.** `Boards.add_comment/2`, `add_status_update/3`,
+**One writer each.** `Boards.Comments.add_comment/2`, `add_status_update/3`,
 `add_checklist_item/2`, `add_card_url/2`, `Votes.set/4` and
 `Fields.set_value/3` take a card or a page and route the three side effects —
 the activity line, the broadcast, the re-index — through `log_owned/3` and
@@ -869,7 +869,7 @@ The board's lists grew **Add a page** and **Add a document** beside **Add a
 card** — one row of three small buttons, named by their hover text, because a
 list is narrow. All three are shortcuts to putting one more item in a list,
 which is why none of them is a new kind of thing: a document becomes a card
-named after the file with the file attached through `Boards.add_attachment/3`.
+named after the file with the file attached through `Boards.Attachments.add_attachment/3`.
 
 **Add a page is a link, not a form.** It goes straight to
 `/boards/:id/wiki/new?column=<id>` — the wiki's own Markdown editor, which is

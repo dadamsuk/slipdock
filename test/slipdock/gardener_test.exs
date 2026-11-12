@@ -92,7 +92,7 @@ defmodule Slipdock.GardenerTest do
       todo: todo
     } do
       epic = card_fixture(todo, %{"title" => "Epic"})
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(epic, t)
       sub = Boards.get_board!(sub.id)
       deep = card_fixture(hd(sub.columns), %{"title" => "Rot deep"})
@@ -220,7 +220,7 @@ defmodule Slipdock.GardenerTest do
 
       assert applied.state == "applied"
       assert applied.decided_by_id == owner.id
-      card = Boards.get_card!(rot.id)
+      card = Boards.Cards.get_card!(rot.id)
       assert card.completed
       assert card.column_id == done.id
 
@@ -238,12 +238,12 @@ defmodule Slipdock.GardenerTest do
       })
 
       {:ok, _} = Gardener.apply(s, owner)
-      assert Enum.any?(Boards.get_card!(rot.id).comments, &(&1.body == "Closed by a rule."))
+      assert Enum.any?(Boards.Cards.get_card!(rot.id).comments, &(&1.body == "Closed by a rule."))
     end
 
     test "an alternative instead of the proposal", %{s: s, rot: rot, owner: owner} do
       {:ok, _} = Gardener.apply(s, owner, choice: "flag")
-      card = Boards.get_card!(rot.id)
+      card = Boards.Cards.get_card!(rot.id)
       assert "review" in card.flags
       refute card.completed
 
@@ -268,7 +268,7 @@ defmodule Slipdock.GardenerTest do
       assert {:error, :forbidden} = Gardener.apply(s, reader)
       assert {:error, :forbidden} = Gardener.dismiss(s, reader)
       assert {:error, :forbidden} = Gardener.apply(s, nil)
-      refute Boards.get_card!(rot.id).completed
+      refute Boards.Cards.get_card!(rot.id).completed
       assert Repo.reload!(s).state == "open"
     end
 
@@ -301,7 +301,7 @@ defmodule Slipdock.GardenerTest do
 
       assert undone.state == "open"
       assert undone.undo == nil
-      card = Boards.get_card!(rot.id)
+      card = Boards.Cards.get_card!(rot.id)
       refute card.completed
       assert card.column_id == todo.id
 
@@ -318,12 +318,12 @@ defmodule Slipdock.GardenerTest do
       owner: owner,
       doing: doing
     } do
-      :ok = Boards.move_card(rot.id, doing.id)
+      :ok = Boards.Cards.move_card(rot.id, doing.id)
 
       assert {:error, reason} = Gardener.undo(applied, owner)
       assert reason =~ "card ##{rot.id} “Rot” has been moved to another list since"
       # Nothing was undone: it stays where it was put, and still applied.
-      assert Boards.get_card!(rot.id).column_id == doing.id
+      assert Boards.Cards.get_card!(rot.id).column_id == doing.id
       assert Repo.reload!(applied).state == "applied"
     end
 

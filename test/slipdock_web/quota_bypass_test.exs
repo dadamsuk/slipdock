@@ -45,10 +45,10 @@ defmodule SlipdockWeb.QuotaBypassTest do
     } do
       settings(%{"free_card_limit" => 1})
       card = card_fixture(column, %{"title" => "Old"})
-      {:ok, card} = Boards.archive_card(card)
+      {:ok, card} = Boards.Cards.archive_card(card)
       _new = card_fixture(column, %{"title" => "New"})
 
-      assert {:error, changeset} = Boards.unarchive_card(card)
+      assert {:error, changeset} = Boards.Cards.unarchive_card(card)
       assert Quota.limit_kind(changeset) == :items
 
       refused(post(conn, ~p"/api/cards/#{card.id}/restore"), "card_limit_reached")
@@ -59,7 +59,7 @@ defmodule SlipdockWeb.QuotaBypassTest do
     test "is refused once the trial has run out", %{conn: conn, user: user, column: column} do
       settings(%{"trial_days" => 30, "trial_enabled" => true})
       card = card_fixture(column, %{"title" => "Old"})
-      {:ok, card} = Boards.archive_card(card)
+      {:ok, card} = Boards.Cards.archive_card(card)
       age(user, 31)
 
       refused(post(conn, ~p"/api/cards/#{card.id}/restore"), "trial_expired")
@@ -68,7 +68,7 @@ defmodule SlipdockWeb.QuotaBypassTest do
     test "goes through with room to spare", %{conn: conn, column: column} do
       settings(%{"free_card_limit" => 2})
       card = card_fixture(column, %{"title" => "Old"})
-      {:ok, card} = Boards.archive_card(card)
+      {:ok, card} = Boards.Cards.archive_card(card)
 
       assert json_response(post(conn, ~p"/api/cards/#{card.id}/restore"), 200)
       refute Repo.reload(card).archived_at
@@ -77,7 +77,7 @@ defmodule SlipdockWeb.QuotaBypassTest do
 
   describe "restoring an archived board" do
     test "is refused at the board limit", %{conn: conn, user: user, board: board} do
-      {:ok, _} = Boards.archive_board(board)
+      {:ok, _} = Boards.Arrangement.archive_board(board)
       _other = board_fixture(%{"name" => "Replacement"}, owner: user)
       settings(%{"board_limit" => 1})
 
@@ -123,7 +123,7 @@ defmodule SlipdockWeb.QuotaBypassTest do
       card_fixture(their_column, %{"title" => "Two"})
 
       epic = card_fixture(column, %{"title" => "Epic"})
-      {:ok, template} = Boards.find_template(nil, "Simple")
+      {:ok, template} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(epic, template)
       [sub_column | _] = Boards.get_board!(sub.id).columns
       card_fixture(sub_column, %{"title" => "Sub one"})
@@ -146,7 +146,7 @@ defmodule SlipdockWeb.QuotaBypassTest do
       their_column: their_column,
       epic: epic
     } do
-      assert {:error, changeset} = Boards.move_card_to_board(epic, their_column)
+      assert {:error, changeset} = Boards.Moves.move_card_to_board(epic, their_column)
       assert Quota.limit_kind(changeset) == :items
 
       conn =
@@ -172,9 +172,9 @@ defmodule SlipdockWeb.QuotaBypassTest do
       |> Repo.update!()
 
       assert Quota.check(user) == {:error, :card_limit_reached}
-      {:ok, farmed} = Boards.create_card(their_column, %{"title" => "Made over there"})
+      {:ok, farmed} = Boards.Cards.create_card(their_column, %{"title" => "Made over there"})
 
-      assert {:error, changeset} = Boards.move_card_to_board(farmed, column)
+      assert {:error, changeset} = Boards.Moves.move_card_to_board(farmed, column)
       assert Quota.limit_kind(changeset) == :items
     end
 
@@ -186,7 +186,7 @@ defmodule SlipdockWeb.QuotaBypassTest do
     } do
       {:ok, _} = Settings.update(%{"free_card_limit" => 10})
 
-      assert {:ok, _} = Boards.move_card_to_board(epic, their_column)
+      assert {:ok, _} = Boards.Moves.move_card_to_board(epic, their_column)
       sub = Repo.reload(sub)
       assert sub.root_id == their_column.board_id
       assert sub.owner_id == other.id
@@ -197,7 +197,7 @@ defmodule SlipdockWeb.QuotaBypassTest do
       second = board_fixture(%{"name" => "Also mine"}, owner: user)
       assert Quota.check(user) == {:error, :card_limit_reached}
 
-      assert {:ok, _} = Boards.move_card_to_board(epic, hd(second.columns))
+      assert {:ok, _} = Boards.Moves.move_card_to_board(epic, hd(second.columns))
     end
   end
 
@@ -206,7 +206,7 @@ defmodule SlipdockWeb.QuotaBypassTest do
       settings(%{"free_card_limit" => 10})
       card_fixture(column, %{"title" => "Kept"})
       gone = card_fixture(column, %{"title" => "Archived"})
-      {:ok, _} = Boards.archive_card(gone)
+      {:ok, _} = Boards.Cards.archive_card(gone)
 
       document = user |> Portable.export(archived_cards: true) |> Jason.encode!()
       receiver = user_fixture("receiver@example.com")

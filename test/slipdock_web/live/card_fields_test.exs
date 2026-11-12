@@ -40,11 +40,13 @@ defmodule SlipdockWeb.CardFieldsTest do
     card =
       card_fixture(todo, %{"title" => "Plan the launch", "description" => "The **plan**."})
 
-    {:ok, card} = Boards.update_card(card, %{"bar" => "Shipped", "paths" => ["lib/launch/**"]})
+    {:ok, card} =
+      Boards.Cards.update_card(card, %{"bar" => "Shipped", "paths" => ["lib/launch/**"]})
+
     other = card_fixture(todo, %{"title" => "Write the post"})
-    {:ok, _} = Boards.add_checklist_item(card, "Book the room")
-    {:ok, _} = Boards.add_card_url(card, %{"url" => "https://example.com/spec"})
-    {:ok, _} = Boards.add_link(card, other, "relates")
+    {:ok, _} = Boards.Checklists.add_checklist_item(card, "Book the room")
+    {:ok, _} = Boards.CardUrls.add_card_url(card, %{"url" => "https://example.com/spec"})
+    {:ok, _} = Boards.Links.add_link(card, other, "relates")
 
     {:ok, view, _} = live(conn, ~p"/boards/#{board}/cards/#{card}")
     view

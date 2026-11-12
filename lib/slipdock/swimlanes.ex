@@ -139,7 +139,7 @@ defmodule Slipdock.Swimlanes do
   no filter. Needs `blocked_by` and `blocks` preloaded.
 
   Public because the same vocabulary filters cards outside a view —
-  `Slipdock.Boards.list_cards/2`, and through it the API, the CLI and the
+  `Slipdock.Boards.Cards.list_cards/2`, and through it the API, the CLI and the
   assistant — and one definition of "blocked" is worth having.
   """
   def deps_matches?(nil, _), do: true

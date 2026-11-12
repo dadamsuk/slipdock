@@ -1,7 +1,7 @@
 defmodule Slipdock.Actor do
   @moduledoc """
   Who made a change, and through which door: the small map a card move
-  carries to its choke points (`Slipdock.Boards.move_card/4` and friends), so
+  carries to its choke points (`Slipdock.Boards.Cards.move_card/4` and friends), so
   a move can be told apart as a person's, an agent's or an automation's.
 
       %{kind: "human" | "agent" | "automation" | nil,

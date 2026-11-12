@@ -81,7 +81,7 @@ defmodule Slipdock.VerifiedDashTest do
       for dash <- ["-", " -\n"] do
         message =
           refusal(
-            Boards.update_card(ctx.card, %{"completed" => true, "evidence" => dash},
+            Boards.Cards.update_card(ctx.card, %{"completed" => true, "evidence" => dash},
               actor: ctx.agent
             )
           )
@@ -97,7 +97,7 @@ defmodule Slipdock.VerifiedDashTest do
 
     test "refused even with other evidence beside it, and on a board that doesn't ask", ctx do
       assert refusal(
-               Boards.update_card(
+               Boards.Cards.update_card(
                  ctx.card,
                  %{"completed" => true, "evidence" => "-", "evidence_commit" => "abc1234"},
                  actor: ctx.agent
@@ -107,7 +107,7 @@ defmodule Slipdock.VerifiedDashTest do
       {:ok, _} = Boards.update_board(ctx.board, %{"evidence_required" => false})
 
       assert refusal(
-               Boards.update_card(card(ctx.card), %{"completed" => true, "evidence" => "-"},
+               Boards.Cards.update_card(card(ctx.card), %{"completed" => true, "evidence" => "-"},
                  actor: ctx.agent
                )
              ) =~ "bare '-'"
@@ -121,15 +121,15 @@ defmodule Slipdock.VerifiedDashTest do
         card = card_fixture(ctx.doing, %{"title" => "Not gated #{actor.via}"})
 
         assert {:ok, %{evidence: "-"}} =
-                 Boards.update_card(card, %{"evidence" => "-"}, actor: actor)
+                 Boards.Cards.update_card(card, %{"evidence" => "-"}, actor: actor)
 
         assert {:ok, %{completed: true}} =
-                 Boards.update_card(card(card), %{"completed" => true}, actor: actor)
+                 Boards.Cards.update_card(card(card), %{"completed" => true}, actor: actor)
       end
     end
 
     test "a write that only sets the dash is refused too", ctx do
-      assert refusal(Boards.update_card(ctx.card, %{"evidence" => "-"}, actor: ctx.agent)) =~
+      assert refusal(Boards.Cards.update_card(ctx.card, %{"evidence" => "-"}, actor: ctx.agent)) =~
                "bare '-'"
     end
 
@@ -137,11 +137,11 @@ defmodule Slipdock.VerifiedDashTest do
          ctx do
       held = ctx.card |> Ecto.Changeset.change(evidence: "-") |> Repo.update!()
 
-      assert refusal(Boards.update_card(held, %{"completed" => true}, actor: ctx.agent)) =~
+      assert refusal(Boards.Cards.update_card(held, %{"completed" => true}, actor: ctx.agent)) =~
                "bare '-'"
 
       assert {:ok, %{completed: true, evidence: "Handbook: no change"}} =
-               Boards.update_card(
+               Boards.Cards.update_card(
                  held,
                  %{"completed" => true, "evidence" => "Handbook: no change"},
                  actor: ctx.agent
@@ -153,7 +153,7 @@ defmodule Slipdock.VerifiedDashTest do
         card = card_fixture(ctx.doing, %{"title" => evidence})
 
         assert {:ok, %{completed: true, evidence: ^evidence}} =
-                 Boards.update_card(card, %{"completed" => true, "evidence" => evidence},
+                 Boards.Cards.update_card(card, %{"completed" => true, "evidence" => evidence},
                    actor: ctx.agent
                  )
       end
@@ -161,7 +161,7 @@ defmodule Slipdock.VerifiedDashTest do
 
     test "a card created done with a dash is refused", ctx do
       assert {:error, cs} =
-               Boards.create_card(
+               Boards.Cards.create_card(
                  ctx.done,
                  %{"title" => "Done already", "evidence" => "-"},
                  actor: ctx.agent
@@ -219,7 +219,7 @@ defmodule Slipdock.VerifiedDashTest do
       for {field, flag} <- [description: "--desc", bar: "--bar"], dash <- ["-", " -\n"] do
         message =
           ctx.todo
-          |> Boards.create_card(%{"title" => "Dashed", to_string(field) => dash},
+          |> Boards.Cards.create_card(%{"title" => "Dashed", to_string(field) => dash},
             actor: ctx.agent
           )
           |> text_refusal(field)
@@ -234,21 +234,21 @@ defmodule Slipdock.VerifiedDashTest do
 
     test "an update is refused for either, and the card keeps what it had", ctx do
       {:ok, held} =
-        Boards.update_card(ctx.card, %{"description" => "The body", "bar" => "The bar"},
+        Boards.Cards.update_card(ctx.card, %{"description" => "The body", "bar" => "The bar"},
           actor: ctx.person
         )
 
       assert held
-             |> Boards.update_card(%{"description" => "-"}, actor: ctx.agent)
+             |> Boards.Cards.update_card(%{"description" => "-"}, actor: ctx.agent)
              |> text_refusal(:description) =~ "no description"
 
       assert held
-             |> Boards.update_card(%{"bar" => "-\n"}, actor: ctx.agent)
+             |> Boards.Cards.update_card(%{"bar" => "-\n"}, actor: ctx.agent)
              |> text_refusal(:bar) =~ "no bar"
 
       # Beside a good field, the dash still refuses the whole write.
       assert held
-             |> Boards.update_card(%{"title" => "Renamed", "description" => "-"},
+             |> Boards.Cards.update_card(%{"title" => "Renamed", "description" => "-"},
                actor: ctx.agent
              )
              |> text_refusal(:description) =~ "bare '-'"
@@ -259,40 +259,42 @@ defmodule Slipdock.VerifiedDashTest do
     test "text that starts with a dash, an empty one and other fields go through", ctx do
       for text <- ["- one\n- two", "--", "-1 flaky test", ""] do
         assert {:ok, _} =
-                 Boards.update_card(card(ctx.card), %{"description" => text, "bar" => text},
+                 Boards.Cards.update_card(card(ctx.card), %{"description" => text, "bar" => text},
                    actor: ctx.agent
                  )
       end
 
       assert {:ok, %{description: "- a list"}} =
-               Boards.create_card(ctx.todo, %{"title" => "Listed", "description" => "- a list"},
+               Boards.Cards.create_card(
+                 ctx.todo,
+                 %{"title" => "Listed", "description" => "- a list"},
                  actor: ctx.agent
                )
 
       # A title of "-" is somebody's title, not a lost body.
       assert {:ok, %{title: "-"}} =
-               Boards.update_card(card(ctx.card), %{"title" => "-"}, actor: ctx.agent)
+               Boards.Cards.update_card(card(ctx.card), %{"title" => "-"}, actor: ctx.agent)
     end
 
     test "a card already holding a dash is left alone by other writes", ctx do
       held = ctx.card |> Ecto.Changeset.change(description: "-", bar: "-") |> Repo.update!()
 
       assert {:ok, %{title: "Renamed", description: "-"}} =
-               Boards.update_card(held, %{"title" => "Renamed"}, actor: ctx.agent)
+               Boards.Cards.update_card(held, %{"title" => "Renamed"}, actor: ctx.agent)
     end
 
     # SPEC-5: a check on agents' work refuses only agents.
     test "a person, the assistant and an automation each go through", ctx do
       for actor <- [ctx.person, Actor.assistant(ctx.user), Actor.automation()] do
         assert {:ok, %{description: "-", bar: "-"} = made} =
-                 Boards.create_card(
+                 Boards.Cards.create_card(
                    ctx.todo,
                    %{"title" => "Not gated #{actor.via}", "description" => "-", "bar" => "-"},
                    actor: actor
                  )
 
         assert {:ok, %{description: "-"}} =
-                 Boards.update_card(made, %{"description" => "-"}, actor: actor)
+                 Boards.Cards.update_card(made, %{"description" => "-"}, actor: actor)
       end
     end
 

@@ -32,7 +32,7 @@ defmodule SlipdockWeb.DependenciesLiveTest do
            )
 
     view |> element("button[phx-click=add_dependency][phx-value-id='#{b.id}']") |> render_click()
-    assert Enum.map(Boards.get_card!(a.id).blocked_by, & &1.id) == [b.id]
+    assert Enum.map(Boards.Cards.get_card!(a.id).blocked_by, & &1.id) == [b.id]
 
     assert has_element?(
              view,
@@ -53,12 +53,12 @@ defmodule SlipdockWeb.DependenciesLiveTest do
     refute has_element?(view, "button[phx-click=add_dependency][phx-value-id='#{b.id}']")
 
     view |> element("#dep-by-#{b.id} button[phx-click=remove_dependency]") |> render_click()
-    assert Boards.get_card!(a.id).blocked_by == []
+    assert Boards.Cards.get_card!(a.id).blocked_by == []
     refute has_element?(view, "#dep-by-#{b.id}")
   end
 
   test "swimlane dependencies axis renders", %{conn: conn, board: board, a: a, b: b} do
-    {:ok, _} = Boards.add_dependency(a, b)
+    {:ok, _} = Boards.Dependencies.add_dependency(a, b)
     {:ok, view, _} = live(conn, ~p"/boards/#{board}/swimlanes?rows=dependencies&cols=none")
     grid = view |> element("#swim-grid") |> render()
     assert grid =~ "Blocked" and grid =~ "Blocks others"
@@ -88,7 +88,7 @@ defmodule SlipdockWeb.DependenciesLiveTest do
       |> element("button[phx-click=add_dependency][phx-value-id='#{foreign.id}']")
       |> render_click()
 
-      assert Enum.map(Boards.get_card!(a.id).blocked_by, & &1.id) == [foreign.id]
+      assert Enum.map(Boards.Cards.get_card!(a.id).blocked_by, & &1.id) == [foreign.id]
 
       # Listed with its board's code, linking to it on its own board.
       assert has_element?(
@@ -102,7 +102,7 @@ defmodule SlipdockWeb.DependenciesLiveTest do
 
     test "a card on a board the reader can't see is shown as hidden",
          %{board: board, a: a, foreign: foreign} do
-      {:ok, _} = Boards.add_dependency(a, foreign)
+      {:ok, _} = Boards.Dependencies.add_dependency(a, foreign)
       reader = user_fixture("reader-#{System.unique_integer([:positive])}@example.com")
       share_fixture(board, reader, "read")
 
@@ -133,7 +133,7 @@ defmodule SlipdockWeb.DependenciesLiveTest do
       |> render_click()
 
       assert render(view) =~ "be made to wait"
-      assert Boards.get_card!(foreign.id).blocked_by == []
+      assert Boards.Cards.get_card!(foreign.id).blocked_by == []
     end
   end
 end

@@ -49,7 +49,7 @@ defmodule Slipdock.WaitRoutesTest do
   end
 
   defp open!(ctx, card, attrs) do
-    {:ok, wait} = Boards.open_wait(card, ctx.agent, attrs)
+    {:ok, wait} = Boards.Waits.open_wait(card, ctx.agent, attrs)
     Repo.preload(wait, :on_user, force: true)
   end
 
@@ -157,15 +157,18 @@ defmodule Slipdock.WaitRoutesTest do
 
     test "an unknown kind is refused", ctx do
       assert {:error, %Ecto.Changeset{errors: errors}} =
-               Boards.open_wait(ctx.card, ctx.agent, %{"needs" => "?", "question" => "finance"})
+               Boards.Waits.open_wait(ctx.card, ctx.agent, %{
+                 "needs" => "?",
+                 "question" => "finance"
+               })
 
       assert {"is product, ux, security, release or other", _} = errors[:question]
-      assert Boards.current_wait(ctx.card) == nil
+      assert Boards.Waits.current_wait(ctx.card) == nil
     end
 
     test "a sub-board uses its own route, else its parent's", ctx do
       routes!(ctx.board, %{"product" => [ctx.pm.email], "ux" => [ctx.ops.email]})
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(ctx.card, t)
       sub = routes!(sub, %{"ux" => [ctx.rel.email]})
       subcard = card_fixture(hd(Boards.get_board!(sub.id).columns), %{"title" => "Child"})
@@ -173,7 +176,7 @@ defmodule Slipdock.WaitRoutesTest do
       assert open!(ctx, subcard, %{"needs" => "?", "question" => "product"}).on_user_id ==
                ctx.pm.id
 
-      {:ok, _} = Boards.withdraw_wait(subcard, Actor.web(ctx.owner))
+      {:ok, _} = Boards.Waits.withdraw_wait(subcard, Actor.web(ctx.owner))
       assert open!(ctx, subcard, %{"needs" => "?", "question" => "ux"}).on_user_id == ctx.rel.id
     end
 
@@ -196,7 +199,7 @@ defmodule Slipdock.WaitRoutesTest do
 
     defp submit(card, actor) do
       {:ok, card} =
-        Boards.update_card(
+        Boards.Cards.update_card(
           Repo.get!(Card, card.id),
           %{"completed" => true, "evidence" => "ran it", "evidence_commit" => "abc1234"},
           actor: actor

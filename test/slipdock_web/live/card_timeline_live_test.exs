@@ -21,7 +21,7 @@ defmodule SlipdockWeb.CardTimelineLiveTest do
     do: element(view, "#card-timeline-#{lane} [data-timeline-span='#{label}']")
 
   test "a moved card shows each list it sat in, the last one open", ctx do
-    :ok = Boards.move_card(ctx.card.id, ctx.doing.id, nil, actor: Actor.web(ctx.user))
+    :ok = Boards.Cards.move_card(ctx.card.id, ctx.doing.id, nil, actor: Actor.web(ctx.user))
 
     # An hour in To Do, then a quarter of an hour in progress.
     now = DateTime.utc_now()
@@ -55,7 +55,9 @@ defmodule SlipdockWeb.CardTimelineLiveTest do
   end
 
   test "waits and jobs get lanes of their own", ctx do
-    {:ok, _} = Boards.open_wait(ctx.card, Actor.web(ctx.user), %{"needs" => "Which colour?"})
+    {:ok, _} =
+      Boards.Waits.open_wait(ctx.card, Actor.web(ctx.user), %{"needs" => "Which colour?"})
+
     {:ok, job} = Runners.queue(ctx.card, %{pool: "dev", kind: "claude", prompt: "go"})
 
     {:ok, view, _html} = live(ctx.conn, ~p"/boards/#{ctx.board}/cards/#{ctx.card}")
@@ -65,7 +67,7 @@ defmodule SlipdockWeb.CardTimelineLiveTest do
   end
 
   test "a backfilled stay is drawn as uncertain", ctx do
-    :ok = Boards.move_card(ctx.card.id, ctx.doing.id, nil, actor: Actor.web(ctx.user))
+    :ok = Boards.Cards.move_card(ctx.card.id, ctx.doing.id, nil, actor: Actor.web(ctx.user))
 
     Repo.update_all(from(m in CardMove, where: m.card_id == ^ctx.card.id and m.kind == "moved"),
       set: [from_column_name: nil, backfilled: true, actor_kind: nil, via: nil, user_id: nil]

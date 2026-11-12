@@ -99,17 +99,17 @@ defmodule SlipdockWeb.MCP.StructureToolsTest do
       result = ctx.conn |> call("delete_card", %{card: ctx.card.id, confirm: true}) |> ok!()
       assert result["deleted"] == true
       assert result["card"] == ctx.card.id
-      assert Boards.get_card(ctx.card.id) == nil
+      assert Boards.Cards.get_card(ctx.card.id) == nil
       assert ctx.conn |> get(~p"/api/cards/#{ctx.card.id}") |> json_response(404)
     end
 
     test "takes its subcards with it", ctx do
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = Boards.create_sub_board(ctx.card, t)
       child = card_fixture(hd(Boards.get_board!(sub.id).columns), %{"title" => "Child"})
 
       ctx.conn |> call("delete_card", %{card: ctx.card.id, confirm: true}) |> ok!()
-      assert Boards.get_card(child.id) == nil
+      assert Boards.Cards.get_card(child.id) == nil
       assert Boards.get_board(sub.id) == nil
     end
 
@@ -124,14 +124,14 @@ defmodule SlipdockWeb.MCP.StructureToolsTest do
         assert text =~ "archive_card"
       end
 
-      assert Boards.get_card(ctx.card.id)
+      assert Boards.Cards.get_card(ctx.card.id)
     end
 
     test "not a stranger's card", ctx do
       assert ctx.conn |> call("delete_card", %{card: ctx.secret.id, confirm: true}) |> error!() =~
                "you don't edit this card"
 
-      assert Boards.get_card(ctx.secret.id)
+      assert Boards.Cards.get_card(ctx.secret.id)
     end
 
     test "an unknown card", ctx do
@@ -145,12 +145,12 @@ defmodule SlipdockWeb.MCP.StructureToolsTest do
              |> call("delete_card", %{card: ctx.card.id, confirm: true})
              |> error!() =~ "read-only"
 
-      assert Boards.get_card(ctx.card.id)
+      assert Boards.Cards.get_card(ctx.card.id)
     end
   end
 
   describe "create_tag" do
-    defp tag_names(board), do: board.id |> Boards.list_tags() |> Enum.map(& &1.name)
+    defp tag_names(board), do: board.id |> Boards.Tags.list_tags() |> Enum.map(& &1.name)
 
     test "adds a tag to the board, with its colour", ctx do
       result =
@@ -160,7 +160,7 @@ defmodule SlipdockWeb.MCP.StructureToolsTest do
 
       assert result["created"] == true
       assert %{"name" => "infra", "color" => "red", "id" => id} = result["tag"]
-      assert [%{id: ^id, color: "red"}] = Boards.list_tags(ctx.board.id)
+      assert [%{id: ^id, color: "red"}] = Boards.Tags.list_tags(ctx.board.id)
     end
 
     test "is listed as a plain write", %{conn: conn} do
@@ -178,7 +178,7 @@ defmodule SlipdockWeb.MCP.StructureToolsTest do
     end
 
     test "a name already there, in any case, is returned rather than doubled", ctx do
-      {:ok, tag} = Boards.create_tag(ctx.board, %{"name" => "Ops"})
+      {:ok, tag} = Boards.Tags.create_tag(ctx.board, %{"name" => "Ops"})
 
       result = ctx.conn |> call("create_tag", %{board: "delivery9", name: " ops "}) |> ok!()
 
@@ -188,7 +188,7 @@ defmodule SlipdockWeb.MCP.StructureToolsTest do
     end
 
     test "a name that looks like an id is still a name", ctx do
-      {:ok, other} = Boards.create_tag(ctx.board, %{"name" => "other"})
+      {:ok, other} = Boards.Tags.create_tag(ctx.board, %{"name" => "other"})
 
       result =
         ctx.conn |> call("create_tag", %{board: "delivery9", name: to_string(other.id)}) |> ok!()
@@ -198,7 +198,7 @@ defmodule SlipdockWeb.MCP.StructureToolsTest do
     end
 
     test "made on a sub-board, it lands on the root and is shared by the tree", ctx do
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(ctx.card, t)
 
       ctx.conn |> call("create_tag", %{board: sub.id, name: "deep"}) |> ok!()
@@ -305,7 +305,7 @@ defmodule SlipdockWeb.MCP.StructureToolsTest do
 
   describe "delete_list" do
     setup ctx do
-      {:ok, empty} = Boards.create_column(ctx.board, %{"name" => "Spare"})
+      {:ok, empty} = Boards.Columns.create_column(ctx.board, %{"name" => "Spare"})
       %{empty: empty}
     end
 
@@ -323,7 +323,7 @@ defmodule SlipdockWeb.MCP.StructureToolsTest do
 
     test "a list holding cards is refused and kept, counting archived ones", ctx do
       other = card_fixture(ctx.roles.ready, %{"title" => "Archived one"})
-      {:ok, _} = Boards.archive_card(other)
+      {:ok, _} = Boards.Cards.archive_card(other)
 
       text =
         ctx.conn
@@ -334,7 +334,7 @@ defmodule SlipdockWeb.MCP.StructureToolsTest do
       assert text =~ "2 card(s), 1 of them archived"
       assert text =~ "with_cards = true"
       assert ctx.roles.ready.name in list_names(ctx.board)
-      assert Boards.get_card(ctx.card.id)
+      assert Boards.Cards.get_card(ctx.card.id)
     end
 
     test "with_cards = true deletes the list and its cards", ctx do
@@ -345,7 +345,7 @@ defmodule SlipdockWeb.MCP.StructureToolsTest do
 
       assert result["deleted_cards"] == 1
       refute ctx.roles.ready.name in list_names(ctx.board)
-      assert Boards.get_card(ctx.card.id) == nil
+      assert Boards.Cards.get_card(ctx.card.id) == nil
     end
 
     test "an unknown list names the real ones", ctx do
@@ -370,7 +370,7 @@ defmodule SlipdockWeb.MCP.StructureToolsTest do
       |> error!()
 
       assert name in list_names(ctx.theirs)
-      assert Boards.get_card(ctx.secret.id)
+      assert Boards.Cards.get_card(ctx.secret.id)
     end
 
     test "a read-only token cannot", ctx do
@@ -400,7 +400,7 @@ defmodule SlipdockWeb.MCP.StructureToolsTest do
 
     test "with a template's lists", ctx do
       result = ctx.conn |> call("create_board", %{name: "Light", template: "Simple"}) |> ok!()
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       assert Enum.map(result["lists"], & &1["name"]) == Enum.map(t.columns, & &1["name"])
     end
 
@@ -417,7 +417,7 @@ defmodule SlipdockWeb.MCP.StructureToolsTest do
         |> ok!()
 
       assert Enum.map(result["lists"], & &1["name"]) == ["Ideas", "In Progress", "Done"]
-      assert {:ok, t} = Boards.find_template(ctx.user, name)
+      assert {:ok, t} = Boards.Templates.find_template(ctx.user, name)
       assert Boards.get_board!(result["id"]).template_id == t.id
     end
 
@@ -493,7 +493,7 @@ defmodule SlipdockWeb.MCP.StructureToolsTest do
     end
 
     test "a sub-board goes with its card", ctx do
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = Boards.create_sub_board(ctx.card, t)
 
       assert ctx.conn |> call("archive_board", %{board: sub.id}) |> error!() =~
@@ -513,7 +513,7 @@ defmodule SlipdockWeb.MCP.StructureToolsTest do
 
       assert result["deleted"] == true
       assert Boards.get_board(ctx.board.id) == nil
-      assert Boards.get_card(ctx.card.id) == nil
+      assert Boards.Cards.get_card(ctx.card.id) == nil
     end
 
     test "a wrong or missing confirm deletes nothing, and names the code", ctx do
@@ -539,7 +539,7 @@ defmodule SlipdockWeb.MCP.StructureToolsTest do
     end
 
     test "a sub-board goes with its card", ctx do
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = Boards.create_sub_board(ctx.card, t)
       sub = Boards.get_board!(sub.id)
 

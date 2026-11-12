@@ -28,7 +28,7 @@ defmodule Slipdock.DoingListOutsideTest do
     [_backlog, _todo, doing, _done] = board.columns
 
     epic = card_fixture(doing, %{"title" => "Epic"})
-    {:ok, t} = Boards.find_template(nil, "Simple")
+    {:ok, t} = Boards.Templates.find_template(nil, "Simple")
     {:ok, sub} = sub_board(epic, t)
     sub = Boards.get_board!(sub.id)
     sub_todo = Enum.find(sub.columns, &(&1.name == "To Do"))
@@ -72,7 +72,7 @@ defmodule Slipdock.DoingListOutsideTest do
       runner = Repo.get!(Runner, runner.id)
       assert %Job{} = job = Runners.claim(runner)
       assert job.card_id == card.id
-      :ok = Boards.move_card_to_index(Repo.get!(Card, card.id), ctx.sub_doing, :top)
+      :ok = Boards.Cards.move_card_to_index(Repo.get!(Card, card.id), ctx.sub_doing, :top)
 
       {:ok, job} = Runners.finish(runner, job.id, %{status: "failed"})
 
@@ -115,7 +115,7 @@ defmodule Slipdock.DoingListOutsideTest do
 
       doing = Repo.get!(Column, doing.id)
       card = card_fixture(todo, %{"title" => "Idea"})
-      :ok = Boards.move_card(card.id, doing.id, nil, actor: Actor.web(ctx.owner))
+      :ok = Boards.Cards.move_card(card.id, doing.id, nil, actor: Actor.web(ctx.owner))
 
       Repo.update_all(
         from(m in CardMove, where: m.card_id == ^card.id and m.to_column_id == ^doing.id),
@@ -153,7 +153,7 @@ defmodule Slipdock.DoingListOutsideTest do
       card = card_fixture(ctx.sub_todo, %{"title" => "Barless"})
 
       assert {:error, :unprocessable_entity, message} =
-               Boards.move_card(card.id, ctx.sub_doing.id, nil, actor: ctx.agent)
+               Boards.Cards.move_card(card.id, ctx.sub_doing.id, nil, actor: ctx.agent)
 
       assert message =~ "bar"
       assert Repo.get!(Card, card.id).column_id == ctx.sub_todo.id
@@ -163,8 +163,8 @@ defmodule Slipdock.DoingListOutsideTest do
       set_board(ctx.sub, profiles: true)
       card = card_fixture(ctx.sub_todo, %{"title" => "Been there", "profile" => "schema"})
       person = Actor.web(ctx.owner)
-      :ok = Boards.move_card(card.id, ctx.sub_doing.id, nil, actor: person)
-      :ok = Boards.move_card(card.id, ctx.sub_todo.id, nil, actor: person)
+      :ok = Boards.Cards.move_card(card.id, ctx.sub_doing.id, nil, actor: person)
+      :ok = Boards.Cards.move_card(card.id, ctx.sub_todo.id, nil, actor: person)
 
       # Only the ledger says it was started.
       Repo.update_all(from(c in Card, where: c.id == ^card.id),
@@ -172,7 +172,10 @@ defmodule Slipdock.DoingListOutsideTest do
       )
 
       card = Repo.get!(Card, card.id)
-      assert {:error, _} = Boards.update_card(card, %{"profile" => "docs"}, actor: ctx.agent)
+
+      assert {:error, _} =
+               Boards.Cards.update_card(card, %{"profile" => "docs"}, actor: ctx.agent)
+
       assert Repo.get!(Card, card.id).profile == "schema"
 
       # A card that never was in progress is free.
@@ -181,7 +184,7 @@ defmodule Slipdock.DoingListOutsideTest do
       Repo.update_all(from(c in Card, where: c.id == ^fresh.id), set: [profile_source: nil])
 
       assert {:ok, %Card{profile: "docs"}} =
-               Boards.update_card(Repo.get!(Card, fresh.id), %{"profile" => "docs"},
+               Boards.Cards.update_card(Repo.get!(Card, fresh.id), %{"profile" => "docs"},
                  actor: ctx.agent
                )
     end

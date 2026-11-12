@@ -59,7 +59,7 @@ defmodule Slipdock.NowTest do
 
   # A sub-board whose second list is its doing list.
   defp sub(epic) do
-    {:ok, t} = Boards.find_template(nil, "Simple")
+    {:ok, t} = Boards.Templates.find_template(nil, "Simple")
     {:ok, sub} = sub_board(epic, t)
     sub = Boards.get_board!(sub.id)
     Repo.update!(Ecto.Changeset.change(Enum.at(sub.columns, 1), category: "doing"))
@@ -137,7 +137,7 @@ defmodule Slipdock.NowTest do
 
   test "what holds each card: a wait, verification, a merge, a flag; and its loop", ctx do
     waiting = card_fixture(ctx.doing, %{"title" => "Asks"})
-    {:ok, _} = Boards.open_wait(waiting, Actor.web(ctx.owner), %{"needs" => "Which?"})
+    {:ok, _} = Boards.Waits.open_wait(waiting, Actor.web(ctx.owner), %{"needs" => "Which?"})
     verifying = card_fixture(ctx.doing, %{"title" => "Checked"})
     Repo.update!(Ecto.Changeset.change(verifying, verify_state: "pending"))
     merging = card_fixture(ctx.doing, %{"title" => "Merging"})

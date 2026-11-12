@@ -45,7 +45,7 @@ defmodule Slipdock.SnoozeTest do
       refute card.snooze_wake_on_activity
       assert Card.snoozed?(card)
 
-      [line | _] = Boards.list_activities(ctx.board.id, 1, card.id)
+      [line | _] = Boards.ActivityLog.list_activities(ctx.board.id, 1, card.id)
       assert line.message =~ "snoozed “#{card.title}” until"
       assert line.message =~ "waiting for the quote"
     end
@@ -92,7 +92,7 @@ defmodule Slipdock.SnoozeTest do
       done = card_fixture(ctx.todo, %{"completed" => true})
       assert {:error, :completed} = Snooze.snooze(done, ctx.owner, later())
 
-      {:ok, archived} = Boards.archive_card(card_fixture(ctx.todo))
+      {:ok, archived} = Boards.Cards.archive_card(card_fixture(ctx.todo))
       assert {:error, :archived} = Snooze.snooze(archived, ctx.owner, later())
 
       %Card{} = other = card_fixture(ctx.todo)
@@ -104,9 +104,9 @@ defmodule Slipdock.SnoozeTest do
 
     test "archiving clears the snooze", ctx do
       card = snoozed(ctx.todo, ctx.owner)
-      {:ok, archived} = Boards.archive_card(Repo.get!(Card, card.id))
+      {:ok, archived} = Boards.Cards.archive_card(Repo.get!(Card, card.id))
       assert archived.snoozed_until == nil
-      {:ok, back} = Boards.unarchive_card(archived)
+      {:ok, back} = Boards.Cards.unarchive_card(archived)
       refute Card.snoozed?(back)
     end
   end
@@ -142,7 +142,7 @@ defmodule Slipdock.SnoozeTest do
     test "a sprint keeps its snoozed work in view", ctx do
       sprints = board_fixture(%{"name" => "Sprints", "kind" => "sprints"}, owner: ctx.owner)
       sprint = card_fixture(hd(sprints.columns), %{"title" => "Sprint 1"})
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(sprint, t)
       sub = reload(sub)
       work = snoozed(hd(sub.columns), ctx.owner)
@@ -154,7 +154,7 @@ defmodule Slipdock.SnoozeTest do
 
     test "a snoozed card on an ordinary sub-board is left out", ctx do
       epic = card_fixture(ctx.todo)
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(epic, t)
       work = snoozed(hd(reload(sub).columns), ctx.owner)
 
@@ -167,7 +167,7 @@ defmodule Slipdock.SnoozeTest do
       awake = card_fixture(ctx.todo, %{"assignee_id" => ctx.owner.id})
       asleep = snoozed(ctx.todo, ctx.owner, %{"assignee_id" => ctx.owner.id})
 
-      mine = ids(Boards.list_assigned_cards(ctx.owner))
+      mine = ids(Boards.Cards.list_assigned_cards(ctx.owner))
       assert awake.id in mine
       refute asleep.id in mine
     end
@@ -176,12 +176,15 @@ defmodule Slipdock.SnoozeTest do
       awake = card_fixture(ctx.todo)
       asleep = snoozed(ctx.todo, ctx.owner)
 
-      assert ids(Boards.list_cards(ctx.board)) == [awake.id]
-      assert ids(Boards.list_cards(ctx.board, %{"snoozed" => "exclude"})) == [awake.id]
-      assert ids(Boards.list_cards(ctx.board, %{"snoozed" => "include"})) == ids([awake, asleep])
-      assert ids(Boards.list_cards(ctx.board, %{"snoozed" => "only"})) == [asleep.id]
+      assert ids(Boards.Cards.list_cards(ctx.board)) == [awake.id]
+      assert ids(Boards.Cards.list_cards(ctx.board, %{"snoozed" => "exclude"})) == [awake.id]
+
+      assert ids(Boards.Cards.list_cards(ctx.board, %{"snoozed" => "include"})) ==
+               ids([awake, asleep])
+
+      assert ids(Boards.Cards.list_cards(ctx.board, %{"snoozed" => "only"})) == [asleep.id]
       # --deps ready reads list_cards, so a snoozed card is never ready.
-      assert ids(Boards.list_cards(ctx.board, %{"deps" => "ready"})) == [awake.id]
+      assert ids(Boards.Cards.list_cards(ctx.board, %{"deps" => "ready"})) == [awake.id]
     end
 
     test "the list_top runner pick", ctx do
@@ -199,7 +202,7 @@ defmodule Slipdock.SnoozeTest do
 
       top = snoozed(ctx.todo, ctx.owner, %{"title" => "Top"})
       next = card_fixture(ctx.todo, %{"title" => "Next"})
-      :ok = Boards.move_card(top.id, ctx.todo.id, next.id)
+      :ok = Boards.Cards.move_card(top.id, ctx.todo.id, next.id)
 
       assert Automations.next_card(rule).id == next.id
     end
@@ -245,20 +248,20 @@ defmodule Slipdock.SnoozeTest do
   describe "still counted" do
     test "an epic whose only open subcards are snoozed isn't done", ctx do
       epic = card_fixture(ctx.todo)
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(epic, t)
       [first | _] = reload(sub).columns
       card_fixture(first, %{"completed" => true})
       snoozed(first, ctx.owner)
 
-      epic = Boards.get_card!(epic.id)
+      epic = Boards.Cards.get_card!(epic.id)
       assert Card.progress(epic) == {1, 2}
       refute Card.health(epic) == :done
     end
 
     test "get_card reads a snoozed card", ctx do
       card = snoozed(ctx.todo, ctx.owner)
-      assert Card.snoozed?(Boards.get_card!(card.id))
+      assert Card.snoozed?(Boards.Cards.get_card!(card.id))
     end
   end
 end

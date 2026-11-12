@@ -72,11 +72,11 @@ defmodule Slipdock.ShipViaTest do
 
     test "a card's subcards take it, and an export carries it and the PR", ctx do
       board = pr_board(ctx)
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = Boards.create_sub_board(Repo.get!(Card, ctx.card.id), t)
       assert sub.ship_via == "pull_request"
 
-      {:ok, _} = Boards.update_card(Repo.get!(Card, ctx.card.id), %{"evidence_pr" => @pr})
+      {:ok, _} = Boards.Cards.update_card(Repo.get!(Card, ctx.card.id), %{"evidence_pr" => @pr})
 
       doc = Portable.export(ctx.owner, boards: [Boards.get_board!(board.id)])
       assert hd(doc.boards).root.ship_via == "pull_request"
@@ -97,12 +97,12 @@ defmodule Slipdock.ShipViaTest do
   describe "the pull request in evidence" do
     test "must be an http(s) URL", ctx do
       for bad <- ["github.com/acme/app/pull/7", "javascript:alert(1)", "https://x"] do
-        assert {:error, cs} = Boards.update_card(ctx.card, %{"evidence_pr" => bad})
+        assert {:error, cs} = Boards.Cards.update_card(ctx.card, %{"evidence_pr" => bad})
         assert %{evidence_pr: [_]} = errors_on(cs)
       end
 
       assert {:ok, %{evidence_pr: @pr}} =
-               Boards.update_card(ctx.card, %{"evidence_pr" => "  #{@pr} "})
+               Boards.Cards.update_card(ctx.card, %{"evidence_pr" => "  #{@pr} "})
     end
 
     test "counts as evidence on its own, and is in the evidence comment", _ctx do
@@ -115,7 +115,7 @@ defmodule Slipdock.ShipViaTest do
       pr_board(ctx, %{"evidence_required" => true})
 
       assert {:error, cs} =
-               Boards.update_card(
+               Boards.Cards.update_card(
                  ctx.card,
                  %{"completed" => true, "evidence" => "mix test: 3 passed"},
                  actor: ctx.agent
@@ -126,7 +126,7 @@ defmodule Slipdock.ShipViaTest do
       refute Repo.get!(Card, ctx.card.id).verify_state
 
       assert {:ok, %{verify_state: "pending", evidence_pr: @pr}} =
-               Boards.update_card(
+               Boards.Cards.update_card(
                  ctx.card,
                  %{
                    "completed" => true,
@@ -143,7 +143,7 @@ defmodule Slipdock.ShipViaTest do
       pr_board(ctx, %{"evidence_required" => true})
 
       assert {:error, cs} =
-               Boards.update_card(
+               Boards.Cards.update_card(
                  ctx.card,
                  %{"completed" => true, "evidence" => "mix test", "evidence_pr" => @pr},
                  actor: ctx.agent
@@ -159,7 +159,7 @@ defmodule Slipdock.ShipViaTest do
 
       # A blank commit is no commit.
       assert {:error, cs} =
-               Boards.update_card(
+               Boards.Cards.update_card(
                  ctx.card,
                  %{"completed" => true, "evidence_pr" => @pr, "evidence_commit" => "  "},
                  actor: ctx.agent
@@ -171,7 +171,7 @@ defmodule Slipdock.ShipViaTest do
     test "a resubmission after a rejection names its commit again (#1976)", ctx do
       pr_board(ctx, %{"evidence_required" => true})
       submit = %{"completed" => true, "evidence_pr" => @pr, "evidence_commit" => "abc1234"}
-      assert {:ok, card} = Boards.update_card(ctx.card, submit, actor: ctx.agent)
+      assert {:ok, card} = Boards.Cards.update_card(ctx.card, submit, actor: ctx.agent)
 
       checker = %{ctx.agent | agent: "checker", via: "api"}
 
@@ -189,7 +189,7 @@ defmodule Slipdock.ShipViaTest do
 
       # The PR alone, as `slipdock done --pr URL` sends it, is refused…
       assert {:error, cs} =
-               Boards.update_card(card, %{"completed" => true, "evidence_pr" => @pr},
+               Boards.Cards.update_card(card, %{"completed" => true, "evidence_pr" => @pr},
                  actor: ctx.agent
                )
 
@@ -197,7 +197,7 @@ defmodule Slipdock.ShipViaTest do
 
       # …and with the new head it is pending again, at that commit.
       assert {:ok, %{verify_state: "pending", evidence_commit: "def5678"}} =
-               Boards.update_card(card, %{submit | "evidence_commit" => "def5678"},
+               Boards.Cards.update_card(card, %{submit | "evidence_commit" => "def5678"},
                  actor: ctx.agent
                )
     end
@@ -206,7 +206,7 @@ defmodule Slipdock.ShipViaTest do
       pr_board(ctx, %{"evidence_required" => true})
 
       assert {:ok, %{completed: true}} =
-               Boards.update_card(ctx.card, %{"completed" => true, "evidence_pr" => @pr},
+               Boards.Cards.update_card(ctx.card, %{"completed" => true, "evidence_pr" => @pr},
                  actor: Actor.web(ctx.owner)
                )
     end
@@ -216,14 +216,16 @@ defmodule Slipdock.ShipViaTest do
         Boards.update_board(ctx.board, %{"verify_work" => true, "evidence_required" => true})
 
       assert {:ok, %{verify_state: "pending"}} =
-               Boards.update_card(ctx.card, %{"completed" => true, "evidence" => "ran it"},
+               Boards.Cards.update_card(ctx.card, %{"completed" => true, "evidence" => "ran it"},
                  actor: ctx.agent
                )
     end
 
     test "a person completes a pull_request board's card with no PR", ctx do
       pr_board(ctx, %{"evidence_required" => true})
-      assert {:ok, %{completed: true}} = Boards.update_card(ctx.card, %{"completed" => true})
+
+      assert {:ok, %{completed: true}} =
+               Boards.Cards.update_card(ctx.card, %{"completed" => true})
     end
   end
 end
