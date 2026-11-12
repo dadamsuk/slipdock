@@ -2537,14 +2537,20 @@ defmodule SlipdockCLI.Render do
   end
 
   # Its installed skills and CLI against what the server serves (#1795):
-  # `current`, `drifted (slipdock-loop)`, `old`, `unknown` (never said).
+  # `current`, `drifted (slipdock-loop)`, `old`, `unsigned on server`,
+  # `unknown` (never said).
   @doc false
   def drift_cell(%{"session" => true}), do: dim("-")
 
   def drift_cell(r) do
     d = r["drift"] || %{}
-    "skills " <> skills_state(d) <> " · cli " <> (d["cli"] || "unknown")
+    "skills " <> skills_state(d) <> " · cli " <> cli_state(d)
   end
+
+  # `unsigned` (#2825): the server's CLI differs, but it serves no signature,
+  # so the machine can't take it; the cause is the server's.
+  defp cli_state(%{"cli" => "unsigned"}), do: "unsigned on server"
+  defp cli_state(d), do: d["cli"] || "unknown"
 
   defp skills_state(%{"skills" => "drifted", "drifted_skills" => names}),
     do: "drifted (#{Enum.join(names, ", ")})"
@@ -2556,7 +2562,7 @@ defmodule SlipdockCLI.Render do
     d = r["drift"] || %{}
     IO.puts("lacks:     " <> lacks_cell(r))
     IO.puts("skills:    " <> skills_state(d))
-    IO.puts("cli:       " <> (d["cli"] || "unknown"))
+    IO.puts("cli:       " <> cli_state(d))
   end
 
   # The kinds its board needs that it doesn't take (#1658). The SCRIPT

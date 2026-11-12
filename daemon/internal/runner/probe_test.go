@@ -278,6 +278,15 @@ func TestProbeDriftReadsTheServersVerdict(t *testing.T) {
 		!strings.Contains(err.Error(), "skills not installed; cli old") {
 		t.Fatalf("err = %v", err)
 	}
+	// A CLI the server serves unsigned isn't the machine's to fix (#2825).
+	if said, err := probeDrift("skills: current\ncli: unsigned on server\n"); err != nil ||
+		said != "skills current, cli unsigned on server" {
+		t.Fatalf("unsigned = %q, %v", said, err)
+	}
+	// Only the CLI has that state: skills that say it still fail.
+	if _, err := probeDrift("skills: unsigned on server\ncli: current\n"); err == nil {
+		t.Fatal("skills unsigned passed")
+	}
 }
 
 func TestScrubURLDropsCredentials(t *testing.T) {

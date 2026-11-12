@@ -821,7 +821,7 @@ Runners also report **drift**: on every claim the SHA-256 of each installed
 slipdock skill's `SKILL.md` and of the `slipdock` CLI, which the server
 compares with what it serves. `slipdock runners` (SKILLS · CLI), the Runners
 panel and the runner's `drift` in the API say current, drifted (naming the
-skills), old or unknown, and a drifted runner raises one alert until it is
+skills), old, unsigned or unknown, and a drifted runner raises one alert until it is
 current again. The server never changes the machine; its daemon does,
 before each agent job (not a merge or a probe): it puts the server's skills
 in place, and when `/cli/SHA256SUMS` differs from the CLI it reports, it
@@ -829,12 +829,18 @@ fetches `/cli/slipdock.escript`, checks its SHA-256 against those sums and
 its signature (`/cli/slipdock.escript.sig`) against the release key built
 into the daemon, and puts it in the daemon's own `bin` folder, first on the job's PATH (or over
 the `cli` its `local.json` names, never over a copy installed elsewhere).
-The next claim reports it, so a deploy leaves no runner *cli old*. A failed
-fetch or a wrong sum keeps the CLI there was, and the job runs. So does a
-CLI with no signature that verifies: the release job signs each `v*` tag's,
-and a server built from source or a deploy it didn't sign serves none, so
-its machines keep their own CLI (and show *cli old*) unless `local.json`
-sets `cli_checksum_only: true`.
+The next claim reports it, so a deploy of a `v*` tag leaves no runner *cli
+old*. A failed fetch or a wrong sum keeps the CLI there was, and the job
+runs. So does a CLI with no signature that verifies: the release job signs
+only each `v*` tag's (in the `daemon-release` environment, which a person
+approves), so a deploy from `main`, like a server built from source, serves
+none. Its machines then keep their own CLI unless `local.json` sets
+`cli_checksum_only: true`, and until the next tag is deployed they show
+*cli unsigned on server* (`unsigned` in the API), not *cli old* (#2825):
+the cause is the server's, there is nothing to do on the machine, and it
+raises no drift alert. *cli old* is kept for a CLI that differs from a
+signed one the machine should have taken (a daemon with `no_cli_update`,
+one that doesn't write its CLI, or a fetch that failed).
 The skills go the same way (#2784): the daemon installs the server's
 `/api/skills.tar.gz` only when its signature (`/api/skills.tar.gz.sig`,
 which the release job makes for each `v*` tag, in the namespace

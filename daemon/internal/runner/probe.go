@@ -182,6 +182,10 @@ func probeDrift(prompt string) (string, error) {
 		case v == "" || v == "unknown":
 			// The server couldn't tell: nothing to hold against the runner.
 		case v == "current":
+		case name == "cli" && strings.HasPrefix(v, "unsigned"):
+			// The server's CLI differs but isn't signed (a deploy from
+			// main, #2825): the machine can't take it, so it isn't the
+			// machine's to fix.
 		case v == "none":
 			bad = append(bad, name+" not installed")
 		default:

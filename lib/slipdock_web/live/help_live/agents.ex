@@ -1372,7 +1372,9 @@ defmodule SlipdockWeb.HelpLive.Agents do
         against the release key built into the daemon: the release job signs each <code>v*</code>
         tag's, and a server built from source, or a deploy it didn't sign, serves none, so the
         machine keeps its own CLI unless <code>local.json</code>
-        sets <code>cli_checksum_only</code>. A failed fetch or a wrong sum keeps the CLI it had, and
+        sets <code>cli_checksum_only</code>. Until the next tag is deployed, its runner shows
+        <em>CLI unsigned on server</em>
+        rather than <em>old CLI</em>: the cause is the server's, not the machine's. A failed fetch or a wrong sum keeps the CLI it had, and
         the job runs. The skills are installed the same way, only when their archive's
         signature verifies against that key, and a server that serves none leaves the
         installed skills in place unless <code>local.json</code>
