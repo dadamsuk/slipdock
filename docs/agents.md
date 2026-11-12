@@ -1203,6 +1203,18 @@ repository hands it on rather than failing the card. The skills
 (`slipdock-loop`, `slipdock-work`) say what changes in a pass; see
 [the manual](manual/verified-work.md).
 
+**Release mode.** A board tree's root sets how merged work reaches
+production: `release_mode` `on_merge` (each merge deploys, the default) or
+`batched` (merges wait for a release), with `release_age_cap_hours` for
+how long the oldest waiting merge may wait (`slipdock set-board <board>
+--release-mode batched --release-age-cap 24`, `PATCH /api/boards/:board`,
+`update_board`; a sub-board refuses them and reads its root's). On a
+batched board a merged card is still completed and still unblocks its
+dependents; its `release` (`get_card`, the card's JSON, the *Release*
+line in `slipdock card`) is `awaiting` until a succeeded deploy names it,
+then `released` with the environment and the time. Don't wait for a
+release before calling a card done.
+
 **Epics close over finished subcards.** On every board, with no switch, an
 agent can't complete (or submit) a card while its sub-board has open cards
 (not done, not archived; one awaiting verification counts as finished), by

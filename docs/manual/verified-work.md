@@ -554,3 +554,36 @@ worktree, since its card's branch is the pull request's.
 ---
 
 ← [Where it was left (handoffs)](where-it-was-left-handoffs.md) · [Contents](../manual.md) · [Lanes](lanes.md) →
+
+### Batched releases
+
+Merging and releasing are separate. A board tree's **release mode** says
+how merged work reaches production: `on_merge`, where each merge deploys
+(the default), or `batched`, where merges wait for a release. With it goes
+an **age cap** in hours: how long the oldest waiting merge may wait before
+it triggers a release (blank is off).
+
+Both belong to the tree, so they are set on its root board: the Agentic
+Building page's *Releases* section, `slipdock set-board <board>
+--release-mode batched --release-age-cap 24` (`on-merge`, and `off` for
+the cap, put them back), `PATCH /api/boards/:board {"release_mode":
+"batched", "release_age_cap_hours": 24}` or MCP `update_board`. A
+sub-board shows its root's, read-only, and refuses its own with a message
+naming the root. Every board's JSON reads the tree's back
+(`release_mode`, `release_age_cap_hours`), `list_boards` gives a batched
+tree's as `release`, and a portable export carries them.
+
+Batched changes nothing about when a card is done. A card still completes
+when it merges, and what depends on it unblocks then. What it adds is the
+card's **release state**, worked out when the card is read:
+
+- *Merged 1a2b3c4, awaiting release · since 12 Nov 10:04*: it has merged
+  and no succeeded deploy names it yet;
+- *Released to production · 12 Nov 14:32*: a succeeded
+  [deploy](delivery-metrics-deploys-and-dora.md) names it.
+
+It is on the card's panel, the *Release* line of `slipdock card`, and
+`release` in the card's JSON and `get_card` (`state` `awaiting` or
+`released`, `sha`, `merged_at`, and once released `environment`,
+`deployment_id` and `at`, with the line above as `text`). A board that
+releases on merge, and a card that hasn't merged, have none.

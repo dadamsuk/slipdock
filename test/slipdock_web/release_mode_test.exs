@@ -263,6 +263,12 @@ defmodule SlipdockWeb.ReleaseModeTest do
     end
   end
 
+  test "the app's help says what batched releases are and where they are set", %{conn: conn} do
+    {:ok, _view, html} = live(conn, ~p"/help/boards")
+    assert html =~ "Batched releases"
+    assert html =~ "merged, awaiting release"
+  end
+
   describe "a card's release" do
     test "nothing on an on_merge board", %{conn: conn, agent: agent, todo: todo} do
       card = todo |> card_fixture(%{"title" => "Feature"}) |> merge!()
