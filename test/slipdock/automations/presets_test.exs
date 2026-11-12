@@ -141,6 +141,25 @@ defmodule Slipdock.Automations.PresetsTest do
       assert msg =~ "prompt"
     end
 
+    # The preset form says the real limit, and takes a prompt right at it (#2910).
+    test "a runner prompt is held to what is left after the fixed text, and says so" do
+      max = Slipdock.Automations.Runner.max_rule_prompt()
+      params = %{"column" => "Doing", "pool" => "gen"}
+
+      for key <- ~w(send_to_runner feed_runner) do
+        at = String.duplicate("x", max)
+
+        assert {:ok, %{"spec" => %{"actions" => [%{"prompt" => ^at}]}}} =
+                 Presets.build(key, Map.put(params, "prompt", at))
+
+        assert {:error, msg} = Presets.build(key, Map.put(params, "prompt", at <> "x"))
+        assert msg =~ "#{max + 1} bytes, and at most #{max} fit", key
+      end
+
+      hint = Enum.find(Presets.get("send_to_runner").fields, &(&1.name == "prompt")).hint
+      assert hint =~ "at most #{Integer.to_string(max)} bytes"
+    end
+
     test "the prompt is a long-text field, not required, on both runner presets" do
       for key <- ~w(send_to_runner feed_runner) do
         field = Enum.find(Presets.get(key).fields, &(&1.name == "prompt"))

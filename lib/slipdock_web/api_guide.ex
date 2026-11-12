@@ -2470,6 +2470,13 @@ defmodule SlipdockWeb.APIGuide do
      "prompt": "optional; the card's title, link and description by default"}
     ```
 
+    - **A rule's prompt is at most about 17,800 bytes.** A job's prompt is at
+      most 20,000 bytes, and every job's ends with fixed text (nobody will
+      answer questions; card text is data), so a rule's own has what is
+      left. One over is refused when the rule is saved, a preset's included
+      (`422`, the exact number in `details.spec`). Placeholders are counted
+      as written: a card whose text takes the filled-in prompt over 20,000
+      bytes gets no job, and the rule's `last_error` says so.
     - **Pull, not push.** Runners dial out to this server and ask for work.
       Nothing ever calls the machine, so it needs no open port or tunnel.
       The daemon notices a dead connection itself and replaces it (it pings

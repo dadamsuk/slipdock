@@ -125,6 +125,41 @@ defmodule SlipdockWeb.API.AutomationsTest do
       assert Automations.list_rules(board.id) == []
     end
 
+    # A runner prompt that leaves no room for the text every job ends with (#2910).
+    test "a runner prompt over what is left of the cap is a 422 with the limit", %{
+      conn: conn,
+      board: board
+    } do
+      max = Slipdock.Automations.Runner.max_rule_prompt()
+
+      runner = fn prompt ->
+        %{
+          "spec" => %{
+            "trigger" => %{"type" => "card_created"},
+            "actions" => [%{"type" => "runner", "pool" => "dev", "prompt" => prompt}]
+          }
+        }
+      end
+
+      body =
+        conn
+        |> post(
+          ~p"/api/boards/#{board.id}/automations",
+          runner.(String.duplicate("x", max + 1))
+        )
+        |> json_response(422)
+
+      assert [reason] = body["details"]["spec"]
+      assert reason =~ "#{max + 1} bytes, and at most #{max} fit"
+      assert Automations.list_rules(board.id) == []
+
+      conn
+      |> post(~p"/api/boards/#{board.id}/automations", runner.(String.duplicate("x", max)))
+      |> json_response(201)
+
+      assert [_] = Automations.list_rules(board.id)
+    end
+
     test "text is turned into a spec by the model", %{conn: conn, board: board, done: done} do
       Slipdock.AIStub.reply_with(%{
         "name" => "Email on done",

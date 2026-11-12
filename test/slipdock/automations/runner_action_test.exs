@@ -38,8 +38,65 @@ defmodule Slipdock.Automations.RunnerActionTest do
 
       long = String.duplicate("x", Runners.limits().max_prompt + 1)
 
-      assert {:error, "action “runner” prompt is too long"} =
+      assert {:error, "action “runner” prompt is too long" <> _} =
                Spec.validate(spec(%{"type" => "runner", "pool" => "dev", "prompt" => long}))
+    end
+
+    # Every job's prompt ends with fixed text, so a rule's own has what is
+    # left of the runners' cap, not all of it (#2910).
+    test "a rule's prompt has the runners' cap less the text every job ends with" do
+      max = Runner.max_rule_prompt()
+      cap = Runners.limits().max_prompt
+
+      assert max == cap - byte_size("\n\n" <> Runner.unattended())
+      assert max > 0 and max < cap
+    end
+
+    test "a prompt of exactly the limit saves, and one byte more is refused with the numbers" do
+      max = Runner.max_rule_prompt()
+      at = String.duplicate("x", max)
+
+      assert {:ok, %{"actions" => [%{"prompt" => ^at}]}} =
+               Spec.validate(spec(%{"type" => "runner", "pool" => "dev", "prompt" => at}))
+
+      assert {:error, reason} =
+               Spec.validate(spec(%{"type" => "runner", "pool" => "dev", "prompt" => at <> "x"}))
+
+      assert reason ==
+               "action “runner” prompt is too long: #{max + 1} bytes, and at most #{max} fit " <>
+                 "(a job's prompt is at most #{Runners.limits().max_prompt}, and every job's " <>
+                 "ends with fixed text)"
+    end
+
+    test "the limit counts bytes, not characters, and not trailing whitespace" do
+      max = Runner.max_rule_prompt()
+      # "é" is two bytes: half as many of them fill it.
+      wide = String.duplicate("é", div(max, 2)) <> String.duplicate("x", rem(max, 2))
+      assert byte_size(wide) == max
+      assert String.length(wide) < max
+
+      assert {:ok, _} =
+               Spec.validate(spec(%{"type" => "runner", "pool" => "dev", "prompt" => wide}))
+
+      assert {:error, reason} =
+               Spec.validate(
+                 spec(%{"type" => "runner", "pool" => "dev", "prompt" => wide <> "é"})
+               )
+
+      assert reason =~ "prompt is too long: #{max + 2} bytes, and at most #{max} fit"
+
+      # The job's prompt drops trailing whitespace, so it isn't counted.
+      assert {:ok, _} =
+               Spec.validate(
+                 spec(%{"type" => "runner", "pool" => "dev", "prompt" => wide <> " \n\n"})
+               )
+    end
+
+    test "a prompt under the runners' cap but over what is left is refused: it used to save" do
+      between = String.duplicate("x", Runners.limits().max_prompt - 10)
+
+      assert {:error, "action “runner” prompt is too long" <> _} =
+               Spec.validate(spec(%{"type" => "runner", "pool" => "dev", "prompt" => between}))
     end
 
     test "drops keys it doesn't know, such as a command to run" do
@@ -130,6 +187,67 @@ defmodule Slipdock.Automations.RunnerActionTest do
       # The rule's prompt replaces the default, and is still told it's unattended.
       assert [%Job{kind: "codex", prompt: prompt}] = Repo.all(Job)
       assert prompt == "Review Ship it\n\n" <> Runner.unattended()
+    end
+
+    # The largest prompt a rule may save is one its job is queued with (#2910).
+    test "a rule whose prompt is exactly at the limit queues a job of exactly the cap", ctx do
+      card = card_fixture(ctx.todo, %{"title" => "Big brief"})
+      at = String.duplicate("x", Runner.max_rule_prompt())
+
+      rule =
+        rule_fixture(ctx.board, %{
+          "trigger" => %{"type" => "schedule", "at" => "23:59"},
+          "actions" => [%{"type" => "runner", "pool" => "dev", "prompt" => at <> "\n"}]
+        })
+
+      assert [{:ok, "queued job #" <> _}] =
+               Runner.run(rule, %{type: "card_updated", card: card, board_id: ctx.board.id})
+
+      assert [%Job{prompt: prompt}] = Repo.all(Job)
+      assert prompt == at <> "\n\n" <> Runner.unattended()
+      assert byte_size(prompt) == Runners.limits().max_prompt
+    end
+
+    test "a rule whose prompt is one byte over the limit is not saved", ctx do
+      over = String.duplicate("x", Runner.max_rule_prompt() + 1)
+
+      assert {:error, changeset} =
+               Slipdock.Automations.create_rule(%{
+                 "name" => "Too big",
+                 "board_id" => ctx.board.id,
+                 "spec" => %{
+                   "trigger" => %{"type" => "schedule", "at" => "23:59"},
+                   "actions" => [%{"type" => "runner", "pool" => "dev", "prompt" => over}]
+                 }
+               })
+
+      assert [reason] = errors_on(changeset).spec
+      assert reason =~ "at most #{Runner.max_rule_prompt()} fit"
+      assert Slipdock.Automations.list_rules(ctx.board.id) == []
+    end
+
+    # A card's own text can still outgrow the cap once it fills a placeholder:
+    # only the queue can see that, and it refuses the job as before.
+    test "a placeholder that takes the prompt over the cap is refused at the queue", ctx do
+      card = card_fixture(ctx.todo, %{"title" => String.duplicate("t", 200)})
+      room = Runner.max_rule_prompt() - byte_size("{{card.title}}")
+
+      rule =
+        rule_fixture(ctx.board, %{
+          "trigger" => %{"type" => "schedule", "at" => "23:59"},
+          "actions" => [
+            %{
+              "type" => "runner",
+              "pool" => "dev",
+              "prompt" => String.duplicate("x", room) <> "{{card.title}}"
+            }
+          ]
+        })
+
+      assert [{:error, "runner: the prompt is over " <> _}] =
+               Runner.run(rule, %{type: "card_updated", card: card, board_id: ctx.board.id})
+
+      assert Repo.all(Job) == []
     end
 
     test "a second run while the first job is open queues nothing new", ctx do
