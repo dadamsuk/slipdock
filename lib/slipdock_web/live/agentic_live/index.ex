@@ -27,6 +27,8 @@ defmodule SlipdockWeb.AgenticLive.Index do
          perm = Access.board_permission(user, board),
          true <- Access.can_read?(perm) do
       if AgenticBuilding.on?(board) do
+        if connected?(socket), do: Slipdock.Releases.subscribe(board)
+
         {:ok,
          socket
          |> assign(
@@ -34,6 +36,7 @@ defmodule SlipdockWeb.AgenticLive.Index do
            root: root(board),
            can_manage: perm == :owner,
            routes_error: nil,
+           release: release_status(board),
            page_title: "Agentic Building · #{board.name}",
            page_jumps: []
          )
@@ -75,6 +78,11 @@ defmodule SlipdockWeb.AgenticLive.Index do
 
   @impl true
   def handle_info(:hub, socket), do: {:noreply, load_hub(socket)}
+
+  # A release was asked for, started or ended on this tree (#2835).
+  def handle_info({:release_changed, _root_id}, socket),
+    do: {:noreply, assign(socket, release: release_status(socket.assigns.board))}
+
   def handle_info(_message, socket), do: {:noreply, socket}
 
   defp root(%Board{root_id: nil}), do: nil
@@ -121,7 +129,25 @@ defmodule SlipdockWeb.AgenticLive.Index do
     end
   end
 
+  # Release now (#2835): the tree's merged work, in the owner's name.
+  def handle_event("release_now", _params, socket) do
+    %{board: board, current_user: user} = socket.assigns
+
+    socket =
+      case Slipdock.Releases.release_now(board, Slipdock.Accounts.User.display_name(user)) do
+        {:ok, how, _request} -> put_flash(socket, :info, Slipdock.Releases.said(how))
+        {:error, reason} -> put_flash(socket, :error, Slipdock.Releases.refusal(reason))
+      end
+
+    {:noreply, assign(socket, release: release_status(board))}
+  end
+
   def handle_event(_event, _params, socket), do: {:noreply, socket}
+
+  # Where the tree's releases stand (#2835); nil unless it is batched.
+  defp release_status(%Board{} = board) do
+    if Slipdock.Releases.batched?(board), do: Slipdock.Releases.status(board)
+  end
 
   defp save_routes(board, %{} = routes) do
     case WaitRoutes.set(board, routes) do
@@ -553,13 +579,43 @@ defmodule SlipdockWeb.AgenticLive.Index do
                       label="Release once a merge has waited (hours)"
                       class="input field w-24"
                     />
+                    <.input
+                      field={@form[:release_command]}
+                      id="board-release-command"
+                      type="text"
+                      maxlength="500"
+                      label="Release command"
+                      placeholder={Slipdock.Releases.default_command()}
+                      class="input field w-full font-mono text-xs"
+                    />
                     <p class="text-xs text-base-content/60">
                       Batched, a merged card still completes and unblocks its dependents, and shows
                       <em>merged, awaiting release</em>
                       until a release ships it. Leave the hours
-                      blank for no age cap.
+                      blank for no age cap. A release runs when a critical card merges, on <em>Release now</em>, or at the age cap: a runner runs the release
+                      command (blank for the default; <code>{"{default_branch}"}</code>
+                      is the repository's default branch).
                     </p>
                   <% end %>
+                  <div
+                    :if={@release}
+                    id="board-release-status"
+                    class="mt-2 flex flex-wrap items-center gap-2 text-sm"
+                  >
+                    <span id="board-release-line" class="min-w-0 flex-1">
+                      {Slipdock.Releases.line(@release) || "Nothing merged is awaiting release."}
+                    </span>
+                    <button
+                      :if={@can_manage}
+                      type="button"
+                      id="board-release-now"
+                      class="btn btn-sm"
+                      phx-click="release_now"
+                      data-confirm="Release this board's merged work now?"
+                    >
+                      Release now
+                    </button>
+                  </div>
                 </div>
               </.section>
 

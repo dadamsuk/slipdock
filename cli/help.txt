@@ -809,6 +809,7 @@ WRITE
       [--findings-propose-at N] [--wait-default-after TIME|off]
       [--ship-via push|pull-request]
       [--release-mode on-merge|batched] [--release-age-cap HOURS|off]
+      [--release-command CMD|default]
       [--lanes | --no-lanes] [--lane-mode off|hold|advise] [--shared-paths GLOBS]
       [--route KIND=EMAIL[,EMAIL]]... [--no-route KIND]...
       [--profiles on|off] [--profile-tier PROFILE=TIER]...
@@ -880,6 +881,10 @@ WRITE
                                       --release-age-cap HOURS: on a batched board,
                                       release once the oldest waiting merge has waited
                                       that long (off, the default, never)
+                                      --release-command CMD: the one line a runner's
+                                      release job runs (default: gh workflow run
+                                      release.yml --ref {default_branch}, the runner
+                                      putting the repository's default branch in)
                                       --lanes: an agent can't start a card whose --paths
                                       overlap a card in progress (a person can)
                                       --lane-mode off|hold|advise: what an overlap does:
@@ -1152,6 +1157,13 @@ WRITE
                                                  The board owner's
   resume <board> [--pool P]                      let exactly that pause off again (a person's:
                                                  refused when run under an agent)
+  release <board>                                Release now, on a board with batched releases:
+                                                 a runner's release job runs the release command
+                                                 for every merged card awaiting release. One at a
+                                                 time: during a release it queues one follow-up,
+                                                 and more join that. The board owner's
+  releases <board>                               where its releases stand: the one running, the
+                                                 one queued, the last ended, the cards awaiting
   job-progress [<id>] [--step S] [--message NOTE] renew the job's lease (a session holds it 20 min);
                                                  --step says what you're doing now, shown on the job
                                                  (Runners panel, job, jobs) and not on the card; the

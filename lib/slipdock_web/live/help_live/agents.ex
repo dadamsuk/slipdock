@@ -167,6 +167,15 @@ defmodule SlipdockWeb.HelpLive.Agents do
        {:yes, "through the CLI or MCP"},
        {:no, "one way only"}
      ]},
+    {"Release a batched board's merged work now, and see where its releases stand",
+     [
+       {:yes, "POST and GET /api/boards/:id/release"},
+       {:yes, "release_now (check: true to read)"},
+       {:yes, "slipdock release, slipdock releases"},
+       {:yes, "only when asked: a card is done on merge"},
+       {:yes, "a runner's release job fires it"},
+       {:no, "one way only"}
+     ]},
     {"Read and change what a person sees of a card (their card views)",
      [
        {:yes, "/api/card-views"},

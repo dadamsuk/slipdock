@@ -149,6 +149,7 @@ defmodule SlipdockWeb.BoardLive.Helpers do
     "milestone" => "hero-flag",
     "view" => "hero-bookmark",
     "automation" => "hero-bolt",
+    "release" => "hero-rocket-launch",
     "column" => "hero-view-columns",
     "page_created" => "hero-document-plus",
     "page_updated" => "hero-pencil-square",

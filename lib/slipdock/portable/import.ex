@@ -1233,11 +1233,22 @@ defmodule Slipdock.Portable.Import do
           do: doc[:release_mode],
           else: "on_merge"
         ),
-      release_age_cap_hours: hours(doc[:release_age_cap_hours], nil)
+      release_age_cap_hours: hours(doc[:release_age_cap_hours], nil),
+      release_command: release_command(doc[:release_command])
     }
   end
 
   defp release_settings(_doc, _root_id), do: %{}
+
+  # One line, as the board's changeset asks (#2835); anything else is the
+  # default.
+  defp release_command(command) when is_binary(command) do
+    if String.length(command) <= 500 and not String.contains?(command, ["\n", "\r", <<0>>]),
+      do: command,
+      else: nil
+  end
+
+  defp release_command(_command), do: nil
 
   defp hours(n, _default) when is_integer(n) and n >= 1 and n <= 8760, do: n
   defp hours(_, default), do: default

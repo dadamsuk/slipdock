@@ -65,7 +65,8 @@ defmodule SlipdockWeb.MCP.Tools do
     Tools.JobProgress,
     Tools.FinishJob,
     Tools.JobLog,
-    Tools.KeepJobLog
+    Tools.KeepJobLog,
+    Tools.ReleaseNow
   ]
 
   @doc """

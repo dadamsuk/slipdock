@@ -82,7 +82,7 @@ defmodule SlipdockWeb.BoardLive.Show do
                  SnoozeEvents.read_events() ++ SearchResults.read_events()
 
   # Events only the board owner may perform.
-  @owner_events ~w(swim_publish_view swim_unpublish_view resume_pause)
+  @owner_events ~w(swim_publish_view swim_unpublish_view resume_pause release_now)
 
   @known_events @owner_events ++ @board_write_events ++ @self_checked_events ++ @read_events
 
@@ -138,6 +138,7 @@ defmodule SlipdockWeb.BoardLive.Show do
       Boards.PubSub.subscribe_templates()
       Automations.subscribe_callbacks(board.id)
       Slipdock.Runners.subscribe_board(board.id)
+      Slipdock.Releases.subscribe(board)
       # A deploy arriving moves the delivery strip (#1134).
       Phoenix.PubSub.subscribe(Slipdock.PubSub, Slipdock.Deployments.topic(board))
       # The reader's card views (#2031), changed here or anywhere else.
@@ -181,6 +182,8 @@ defmodule SlipdockWeb.BoardLive.Show do
       right_now: board_now(board),
       # The tree's open runner pauses, for the banner (#1116).
       pauses: board_pauses(board),
+      # Where a batched tree's releases stand, for the banner (#2835).
+      release: board_release(board),
       # The mute keeping this tree off my Waiting on you, if any (#2069).
       waiting_muted: waiting_muted(socket.assigns.current_user, board),
       # Who `@` offers in a description or a comment: the board's members.
@@ -676,6 +679,10 @@ defmodule SlipdockWeb.BoardLive.Show do
   end
 
   # The reader changed a card view, here or in another tab (#2031).
+  # A release was asked for, started or ended on this tree (#2835).
+  def handle_info({:release_changed, _root_id}, socket),
+    do: {:noreply, assign(socket, release: board_release(socket.assigns.board))}
+
   def handle_info({:card_views_changed, _user_id}, socket) do
     {:noreply, socket |> assign_card_views() |> refresh_swimlanes()}
   end
@@ -835,6 +842,19 @@ defmodule SlipdockWeb.BoardLive.Show do
        :info,
        "Unmuted: #{(muting && muting.name) || board.name} is back on your Waiting on you."
      )}
+  end
+
+  # The release banner's Release now (#2835): the owner's.
+  def handle_event("release_now", _params, socket) do
+    %{board: board, current_user: user} = socket.assigns
+
+    socket =
+      case Slipdock.Releases.release_now(board, Slipdock.Accounts.User.display_name(user)) do
+        {:ok, how, _request} -> put_flash(socket, :info, Slipdock.Releases.said(how))
+        {:error, reason} -> put_flash(socket, :error, Slipdock.Releases.refusal(reason))
+      end
+
+    {:noreply, assign(socket, release: board_release(board))}
   end
 
   # The banner's Resume (#1116): exactly the pause it names, the whole
@@ -1401,6 +1421,7 @@ defmodule SlipdockWeb.BoardLive.Show do
           </:trailing>
         </.swim_toolbar>
         <.pause_banner pauses={@pauses} can_manage={@can_manage} />
+        <.release_banner release={@release} can_manage={@can_manage} />
         <.muted_banner waiting_muted={@waiting_muted} board_id={@board.id} />
         <div class="min-h-0 flex-1">
           <.table_view
@@ -1499,6 +1520,7 @@ defmodule SlipdockWeb.BoardLive.Show do
         dora={@dora}
         right_now={@right_now}
         pauses={@pauses}
+        release={@release}
         waiting_muted={@waiting_muted}
         waiting_filter={@waiting_filter}
         columns={@columns}

@@ -136,6 +136,48 @@ defmodule SlipdockWeb.API.JSON do
   defp put_release(map, _card, _zone), do: map
 
   @doc """
+  A release request (#2835, `Slipdock.Releases.Request`): its `status`,
+  every trigger that asked for it (`triggers`: `trigger`, `by`, `at`), the
+  cards it covers (`card_ids`), its runner job and the run it fired.
+  """
+  def release_request(nil), do: nil
+
+  def release_request(%Slipdock.Releases.Request{} = r) do
+    %{
+      id: r.id,
+      board_id: r.board_id,
+      status: r.status,
+      triggers: r.triggers,
+      card_ids: r.card_ids,
+      job_id: r.job_id,
+      run_url: r.run_url,
+      note: r.note,
+      requested_at: r.inserted_at,
+      started_at: r.started_at,
+      finished_at: r.finished_at
+    }
+  end
+
+  @doc """
+  Where a tree's releases stand (#2835, `Slipdock.Releases.status/1`): its
+  `mode`, the `running` and `queued` requests, the `last` one that ended,
+  and the cards `awaiting` release (`id`, `title`, `priority`, `merged_at`).
+  """
+  def release_status(%{} = status) do
+    %{
+      mode: status.mode,
+      running: release_request(status.running),
+      queued: release_request(status.queued),
+      last: release_request(status.last),
+      awaiting:
+        Enum.map(
+          status.awaiting,
+          &%{id: &1.id, title: &1.title, priority: &1.priority, merged_at: &1.completed_at}
+        )
+    }
+  end
+
+  @doc """
   A finished card's outcome (#2022, `Slipdock.CardOutcome`), for a card
   read on its own: `outcome` (`text`, its time in `zone`, `done_at`,
   `accepted_by`, `pr`, `merge_sha`, `commit`). The handoff written before
@@ -298,6 +340,8 @@ defmodule SlipdockWeb.API.JSON do
       # How merged work reaches production (#2834), the tree root's.
       release_mode: release.mode,
       release_age_cap_hours: release.age_cap_hours,
+      # The command a release job runs (#2835); nil is the default.
+      release_command: release.command,
       # What the board calls a handoff, and its own drafting instructions
       # (nil: the built-in ones) (#1212).
       handoff_label: Board.handoff_label(b),
@@ -419,6 +463,8 @@ defmodule SlipdockWeb.API.JSON do
       # How merged work reaches production (#2834), the tree root's.
       release_mode: release.mode,
       release_age_cap_hours: release.age_cap_hours,
+      # The command a release job runs (#2835); nil is the default.
+      release_command: release.command,
       # What the board calls a handoff, and its own drafting instructions
       # (nil: the built-in ones) (#1212).
       handoff_label: Board.handoff_label(b),

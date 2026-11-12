@@ -350,6 +350,11 @@ defmodule SlipdockWeb.BoardLive.State do
     |> assign_access()
   end
 
+  @doc "Where a batched tree's releases stand (#2835), for the banner; nil on any other."
+  def board_release(board) do
+    if Slipdock.Releases.batched?(board), do: Slipdock.Releases.status(board)
+  end
+
   @doc """
   The open runner pauses on the board's tree (#1116), each with the root
   board it is kept on, for the banner every board in the tree shows.

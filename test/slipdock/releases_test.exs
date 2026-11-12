@@ -68,13 +68,13 @@ defmodule Slipdock.ReleasesTest do
   describe "the settings" do
     test "default to on_merge with no age cap", %{board: board} do
       assert {board.release_mode, board.release_age_cap_hours} == {"on_merge", nil}
-      assert Releases.settings(board) == %{mode: "on_merge", age_cap_hours: nil}
+      assert Releases.settings(board) == %{mode: "on_merge", age_cap_hours: nil, command: nil}
       refute Releases.batched?(board)
     end
 
     test "batched with an age cap; a mode is tidied (Batched, on-merge)", %{board: board} do
       board = batched!(board, %{"release_mode" => " Batched ", "release_age_cap_hours" => 24})
-      assert Releases.settings(board) == %{mode: "batched", age_cap_hours: 24}
+      assert Releases.settings(board) == %{mode: "batched", age_cap_hours: 24, command: nil}
       assert Releases.batched?(board.id)
 
       {:ok, board} = Boards.update_board(board, %{"release_mode" => "on-merge"})
@@ -106,8 +106,8 @@ defmodule Slipdock.ReleasesTest do
       {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(card_fixture(todo, %{"title" => "Epic"}), t)
 
-      assert Releases.settings(sub) == %{mode: "batched", age_cap_hours: 12}
-      assert Releases.settings(sub.id) == %{mode: "batched", age_cap_hours: 12}
+      assert Releases.settings(sub) == %{mode: "batched", age_cap_hours: 12, command: nil}
+      assert Releases.settings(sub.id) == %{mode: "batched", age_cap_hours: 12, command: nil}
 
       {:error, cs} = Boards.update_board(sub, %{"release_mode" => "batched"})
       assert errors_on(cs).release_mode == ["is set on the tree's root board (#{board.code})"]
@@ -123,7 +123,7 @@ defmodule Slipdock.ReleasesTest do
     end
 
     test "a board that isn't there reads as on_merge" do
-      assert Releases.settings(-1) == %{mode: "on_merge", age_cap_hours: nil}
+      assert Releases.settings(-1) == %{mode: "on_merge", age_cap_hours: nil, command: nil}
     end
   end
 

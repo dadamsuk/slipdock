@@ -220,4 +220,25 @@ defmodule SlipdockWeb.RunnerDocsTest do
     assert guide =~ "built into\n    the runner daemon"
     assert guide =~ "`X-Runner-Kinds`"
   end
+
+  test "the release kind and Release now are described where agents read (#2835)" do
+    agents = read("docs/agents.md")
+    assert agents =~ "runner job of kind `release`"
+    assert agents =~ "`release` in `X-Runner-Kinds`"
+    assert agents =~ "`slipdock release <board>`"
+    assert agents =~ "`POST /api/boards/:board/release`"
+    # Whatever the line breaks, the default command is there in full.
+    assert String.replace(agents, ~r/\s+/, " ") =~ Slipdock.Releases.default_command()
+
+    guide = read("lib/slipdock_web/api_guide.ex")
+    assert guide =~ "runner job of kind `release`"
+    assert guide =~ "`release` in `X-Runner-Kinds`"
+    assert guide =~ "`release_command`"
+    assert guide =~ "MCP `release_now`"
+
+    help = read("cli/help.txt")
+    assert help =~ "release <board>"
+    assert help =~ "releases <board>"
+    assert help =~ "--release-command CMD"
+  end
 end

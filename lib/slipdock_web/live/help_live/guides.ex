@@ -426,7 +426,10 @@ defmodule SlipdockWeb.HelpLive.Guides do
           batches, with an age cap in hours for how long the oldest merge may wait. A merged
           card is still done; on a batched board it shows <em>merged, awaiting release</em>
           until a deploy ships it, then <em>released</em>
-          with the time.
+          with the time. A release runs when a card of priority <em>critical</em>
+          merges, when the oldest merge reaches the age cap, or when the board's owner presses <em>Release now</em>, on the board's release banner or on that page. Releases run one at a
+          time: a runner runs the board's release command, and anything asked for meanwhile
+          becomes one follow-up.
         </li>
         <li>
           <strong>Who gets asked</strong>: Agentic Building → <em>Who gets asked</em>

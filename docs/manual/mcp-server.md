@@ -78,6 +78,7 @@ so a token can do exactly as much over MCP as over HTTP — no more.
 | `finish_job` | Ends a claimed job: `outcome` done, failed, cancelled or timeout, and a `summary` kept on the job. Only the token that claimed it may. |
 | `job_log` | A runner job's [live log](runners.md) so far, as `slipdock job-log` prints it: one line per message, tool call or result of its agent. `from` carries on from an earlier call's `next`; `job.open` is false once the job has ended. Anyone who can read the card may. |
 | `keep_job_log` | Keeps an ended runner job's live log, which otherwise [expires](runners.md): writes it as a page `Pass <card> (<date>)` in the card's folder and links it from the job. Again gives the same page. Needs write access to the card. |
+| `release_now` | On a board with batched releases (`release_mode: batched`), asks for a release of its merged work now: `how` is `started`, `queued` (behind the release running) or `joined` (the follow-up already queued), with the `request` and the tree's `release` status (running, queued, last, the cards awaiting). `check: true` only reads that status. Asking is the board owner's; a board that releases on merge refuses. |
 
 The reading tools are marked read-only, so a client can let them run
 without asking each time. The deletes are marked destructive and none of

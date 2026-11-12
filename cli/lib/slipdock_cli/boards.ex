@@ -1175,6 +1175,8 @@ defmodule SlipdockCLI.Boards do
         # and the hours a merge may wait before it triggers a release; off.
         "release_mode" => release_mode(o[:release_mode]),
         "release_age_cap_hours" => release_age_cap(o[:release_age_cap]),
+        # The command a release job runs (#2835); default or "" clears it.
+        "release_command" => release_command(o[:release_command]),
         # Lanes (#1628): agents can't start cards whose paths overlap.
         "lanes" => o[:lanes],
         # What an overlap does (#1972): off, hold or advise; wins over --lanes.
@@ -1215,7 +1217,7 @@ defmodule SlipdockCLI.Boards do
       do:
         fail(
           "nothing to change — pass --name, --code, --shortcut, --desc, --color, " <>
-            "--[no-]add-card / --[no-]add-page / --[no-]add-document, --[no-]sprints, --[no-]simple, --[no-]page-card-features, --[no-]show-pulse, --[no-]automation-wip, --agentic-building on|off, --[no-]delivery-metrics, --incident-tag, --hotfix-hours, --card-ref-pattern, --default-view, --handoff-label, --handoff-prompt(-file), --inbound-senders, --wiki-sort, --[no-]bar-required, --[no-]evidence-required, --[no-]verify-work, --verify-pool, --ship-via, --release-mode, --release-age-cap, --[no-]lanes, --lane-mode, --shared-paths, --profiles on|off, --profile-tier PROFILE=TIER or --route KIND=EMAIL / --no-route KIND"
+            "--[no-]add-card / --[no-]add-page / --[no-]add-document, --[no-]sprints, --[no-]simple, --[no-]page-card-features, --[no-]show-pulse, --[no-]automation-wip, --agentic-building on|off, --[no-]delivery-metrics, --incident-tag, --hotfix-hours, --card-ref-pattern, --default-view, --handoff-label, --handoff-prompt(-file), --inbound-senders, --wiki-sort, --[no-]bar-required, --[no-]evidence-required, --[no-]verify-work, --verify-pool, --ship-via, --release-mode, --release-age-cap, --release-command, --[no-]lanes, --lane-mode, --shared-paths, --profiles on|off, --profile-tier PROFILE=TIER or --route KIND=EMAIL / --no-route KIND"
         )
 
     # The wiki's sort has its own route: a writer may set it, not only the owner.
@@ -2215,6 +2217,13 @@ defmodule SlipdockCLI.Boards do
       value -> value
     end
   end
+
+  @doc false
+  # What --release-command sends: nil (not given), "" (the default again)
+  # or the command.
+  def release_command(nil), do: nil
+  def release_command("default"), do: ""
+  def release_command(command), do: command
 
   defp release_mode(nil), do: nil
   defp release_mode(mode), do: String.replace(mode, "-", "_")

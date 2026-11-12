@@ -1623,6 +1623,8 @@ defmodule Slipdock.Verified do
 
       card = Repo.get!(Card, card.id)
       maybe_audit(card)
+      # Where work ships by push, accepted is merged (#2835).
+      Slipdock.Releases.card_merged(card)
       {:ok, card}
     end
     |> api_error()
@@ -2409,6 +2411,8 @@ defmodule Slipdock.Verified do
       # Merged: an audit now can't hold anything up (#1780).
       card = Repo.get!(Card, card.id)
       maybe_audit(card)
+      # On a batched board a critical card's merge asks for a release (#2835).
+      Slipdock.Releases.card_merged(card)
       {:ok, card}
     end
     |> api_error()

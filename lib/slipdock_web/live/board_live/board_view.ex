@@ -476,6 +476,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
   attr :zone, :string, default: "Etc/UTC", doc: "the reader's timezone"
   attr :pulse, :map, default: nil, doc: "`Slipdock.Pulse.for_board/2`, when the strip is on"
   attr :pauses, :list, default: [], doc: "`State.board_pauses/1`: the tree's runner pauses"
+  attr :release, :any, default: nil, doc: "`State.board_release/1`: a batched tree's releases"
   attr :waiting_muted, :any, default: nil, doc: "the board whose mute covers this one (#2069)"
   attr :waiting_filter, :boolean, default: false, doc: "`?waiting=me` (#2095)"
   attr :dora, :map, default: nil, doc: "`Slipdock.Dora.for_board/2`, when delivery metrics are on"
@@ -528,6 +529,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
         {render_slot(@toolbar_actions)}
       </.board_toolbar>
       <.pause_banner pauses={@pauses} can_manage={@can_manage} />
+      <.release_banner release={@release} can_manage={@can_manage} />
       <.muted_banner waiting_muted={@waiting_muted} board_id={@board.id} />
       <.waiting_banner :if={@waiting_filter} board={@board} />
       <%!-- The board's pulse in plain words (#1113): only when the owner
@@ -1197,6 +1199,40 @@ defmodule SlipdockWeb.BoardLive.BoardView do
         phx-value-pool={p.pool}
       >
         Resume
+      </button>
+    </div>
+    """
+  end
+
+  attr :release, :any, default: nil, doc: "`Slipdock.Releases.status/1`, on a batched tree"
+  attr :can_manage, :boolean, required: true
+
+  @doc """
+  A batched tree's releases (#2835), on every board of it: the release
+  running, the follow-up queued and how many merged cards await one, with
+  Release now for the owner. Nothing while there is nothing to say.
+  """
+  def release_banner(assigns) do
+    assigns = assign(assigns, line: assigns.release && Slipdock.Releases.line(assigns.release))
+
+    ~H"""
+    <div
+      :if={@line}
+      id="release-banner"
+      role="status"
+      class="flex flex-wrap items-center gap-2 border-b border-info/40 bg-info/10 px-4 py-1.5 text-sm"
+    >
+      <.icon name="hero-rocket-launch" class="size-4 shrink-0 text-info" />
+      <span id="release-banner-line" class="min-w-0 flex-1">{@line}</span>
+      <button
+        :if={@can_manage}
+        type="button"
+        id="release-now"
+        class="btn btn-xs"
+        phx-click="release_now"
+        data-confirm="Release this board's merged work now?"
+      >
+        Release now
       </button>
     </div>
     """

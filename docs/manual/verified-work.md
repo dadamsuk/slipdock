@@ -587,3 +587,45 @@ It is on the card's panel, the *Release* line of `slipdock card`, and
 `released`, `sha`, `merged_at`, and once released `environment`,
 `deployment_id` and `at`, with the line above as `text`). A board that
 releases on merge, and a card that hasn't merged, have none.
+
+**What starts a release.** On a batched board a release is asked for, and
+three things ask:
+
+- a card of priority `critical` merges;
+- **Release now**: the button on the board's release banner and on the
+  Agentic Building page, `slipdock release <board>`, `POST
+  /api/boards/:board/release` or MCP `release_now`. It is the board
+  owner's, as pausing is;
+- the age cap: the oldest card awaiting release has waited
+  `release_age_cap_hours`.
+
+Releases run one at a time. A trigger that arrives while one is running
+queues a single follow-up, and further triggers join that follow-up
+rather than queueing more. The answer says which happened (`how`:
+`started`, `queued` or `joined`). A critical release takes whatever else
+has merged since the last one: each of those cards passed its own checks,
+and the release tests the combined tip.
+
+**Who fires it.** A request queues a [runner](runners.md) job of kind
+`release`, with no card, for the pool that merges. Its prompt is the
+board's **release command**: one line, set on the root board (the Agentic
+Building page, `slipdock set-board <board> --release-command "…"`,
+`release_command` over the API and MCP), by default `gh workflow run
+release.yml --ref {default_branch}`, where the runner puts the
+repository's default branch in. Lanes and WIP limits never hold a release
+job, and it goes only to a runner that says it takes `release`. The
+server holds no credentials for your repository.
+
+**How it ends.** The request is `released` when a succeeded deploy of the
+tree is recorded, `failed` when the job or the deploy fails, and
+`timed_out` when nothing is heard for 3 hours; then the follow-up starts.
+On a board with delivery metrics off no deploy is ever recorded, so the
+finished job is the release, and the cards it covered show *Released*
+with its time. After a failed or timed-out release the age cap asks for
+nothing more until a person, or a critical merge, has released.
+
+`slipdock releases <board>` (`GET /api/boards/:board/release`,
+`release_now` with `check: true`) shows the release running, the one
+queued, the last that ended and the cards awaiting release. Every step is
+a line in the root board's activity, naming who or what asked and the
+cards covered.
