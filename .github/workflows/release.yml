@@ -548,7 +548,7 @@ jobs:
   record-failure:
     needs: [suite, test, cli-build, cli-sign, build, merge, deploy]
     if: ${{ failure() && github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')) }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     # For the record's secret and variable, as the deploy job has them.
     environment: production
     permissions:
