@@ -46,8 +46,8 @@ defmodule SlipdockWeb.WaitingOnMeDocsTest do
     assert agents =~ "print a `Waiting on you:` line"
   end
 
-  test "the README gives the chip, the header, the doors and the alert's switches" do
-    readme = flat("README.md")
+  test "the feature digest gives the chip, the header, the doors and the alert's switches" do
+    readme = flat("docs/manual/every-feature-in-brief.md")
     assert readme =~ "`⏸ 2 waiting on you`"
     assert readme =~ "`and 1 on someone else`"
     assert readme =~ "`Waiting on you: N`"

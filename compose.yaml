@@ -24,7 +24,7 @@
 # Pinned, rather than taken from whatever the directory happens to be called.
 # The project name prefixes the volumes (`slipdock_slipdock-data`), so without
 # this a clone into a differently named directory gets different volumes — and
-# the backup instructions in the README would name ones that do not exist.
+# the backup instructions in the manual would name ones that do not exist.
 name: slipdock
 
 services:

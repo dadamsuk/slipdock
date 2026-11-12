@@ -19,7 +19,7 @@ defmodule SlipdockWeb.RunnerDocsTest do
   end
 
   test "each says where to start and draws the same trust line" do
-    for doc <- ["README.md", "docs/manual.md", "docs/agents.md"] do
+    for doc <- ["docs/manual/every-feature-in-brief.md", "docs/manual.md", "docs/agents.md"] do
       text = read(doc)
       assert text =~ "Connect a runner", doc
       assert text =~ ~r/never\s+(calls|connects\s+to)\s+(the\s+machine|them)/, doc
@@ -29,8 +29,8 @@ defmodule SlipdockWeb.RunnerDocsTest do
   test "a worktree per job (#1627) is described, as a machine's runner's setting" do
     assert read("docs/manual.md") =~ "`card-<id>`"
     assert read("docs/manual/machines.md") =~ "With `worktree` on"
-    assert read("README.md") =~ "a worktree per job"
-    assert read("README.md") =~ "`card-<id>`"
+    assert read("docs/manual/every-feature-in-brief.md") =~ "a worktree per job"
+    assert read("docs/manual/every-feature-in-brief.md") =~ "`card-<id>`"
   end
 
   test "the CLI commands the manual's table names are ones the CLI has" do
@@ -73,7 +73,7 @@ defmodule SlipdockWeb.RunnerDocsTest do
     end
 
     assert read("docs/agents.md") =~ "can't use the Slipdock tools"
-    assert read("README.md") =~ "nobody will answer questions"
+    assert read("docs/manual/every-feature-in-brief.md") =~ "nobody will answer questions"
   end
 
   test "the docs call the preset Send cards to a runner, and the old name is gone" do
@@ -280,7 +280,7 @@ defmodule SlipdockWeb.RunnerDocsTest do
     # Every place that says what a board's release command does says a
     # custom one runs only where the machine lists it (#2836).
     for path <- [
-          "README.md",
+          "docs/manual/every-feature-in-brief.md",
           "docs/manual/batched-releases.md",
           "lib/slipdock_web/live/help_live/guides.ex",
           "lib/slipdock_web/live/help_live/flow.ex",
@@ -292,7 +292,7 @@ defmodule SlipdockWeb.RunnerDocsTest do
       assert read(path) =~ "release_commands", "#{path} doesn't name release_commands"
     end
 
-    for path <- ["README.md", "priv/skills/slipdock/SKILL.md"] do
+    for path <- ["docs/manual/every-feature-in-brief.md", "priv/skills/slipdock/SKILL.md"] do
       assert read(path) =~ "no_release: true", "#{path} doesn't name no_release"
     end
 

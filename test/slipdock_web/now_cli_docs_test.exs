@@ -53,8 +53,8 @@ defmodule SlipdockWeb.NowCliDocsTest do
              "`slipdock now <board>` (`--json` for the JSON), `GET /api/boards/:board/now`"
   end
 
-  test "the README and the API guide name the CLI beside REST and MCP" do
-    assert flat(read("README.md")) =~
+  test "the feature digest and the API guide name the CLI beside REST and MCP" do
+    assert flat(read("docs/manual/every-feature-in-brief.md")) =~
              "`slipdock now <board>`, `GET /api/boards/:board/now` or MCP `get_board now: true`"
 
     assert flat(read("lib/slipdock_web/api_guide.ex")) =~

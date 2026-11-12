@@ -69,7 +69,7 @@ defmodule SlipdockWeb.BatchedReleasesDocsTest do
 
   test "every place says Not shipped counts from the release, not the merge" do
     for path <- [
-          "README.md",
+          "docs/manual/every-feature-in-brief.md",
           "docs/agents.md",
           "docs/manual/batched-releases.md",
           "docs/manual/delivery-metrics-deploys-and-dora.md",

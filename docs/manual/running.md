@@ -6,8 +6,8 @@
 
 Nothing but Docker needed — no Elixir, no Node, no database server, and nothing
 to compile: the image is published to `ghcr.io/dadamsuk/slipdock`.
-[The README](../../README.md#with-docker) has the step-by-step version, including
-backups and what to do when something is wrong.
+[Docker, step by step](docker-step-by-step.md) has the step-by-step version,
+including upgrades, backups and what to do when something is wrong.
 
 ```sh
 docker compose up -d
@@ -196,4 +196,4 @@ self-signed certificate needs `SLIPDOCK_SMTP_TLS_VERIFY=false`.
 
 ---
 
-← [Roadmap features in the API and CLI](roadmap-features-in-the-api-and-cli.md) · [Contents](../manual.md) · [As a service](as-a-service.md) →
+← [Roadmap features in the API and CLI](roadmap-features-in-the-api-and-cli.md) · [Contents](../manual.md) · [Docker, step by step](docker-step-by-step.md) →

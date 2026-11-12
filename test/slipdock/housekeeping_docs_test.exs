@@ -14,7 +14,8 @@ defmodule Slipdock.HousekeepingDocsTest do
 
   test "each place names the list and says it comes after the ready list" do
     for {path, words} <- [
-          {"README.md", "**Housekeeping** list (category `housekeeping`)"},
+          {"docs/manual/every-feature-in-brief.md",
+           "**Housekeeping** list (category `housekeeping`)"},
           {"docs/manual/recurring-cards.md", "**The Housekeeping list.**"},
           {"docs/agents.md", "A **Housekeeping** list (category `housekeeping`"},
           {"lib/slipdock_web/live/help_live/flow.ex", "<em>Work Housekeeping with a runner</em>"},
@@ -69,7 +70,8 @@ defmodule Slipdock.HousekeepingDocsTest do
 
   test "each place says the overseer writes a morning digest of it (#2781)" do
     for {path, words} <- [
-          {"README.md", "digest of the Housekeeping list's overnight work"},
+          {"docs/manual/every-feature-in-brief.md",
+           "digest of the Housekeeping list's overnight work"},
           {"docs/manual/the-overseer.md", "**The morning digest of Housekeeping's work.**"},
           {"docs/agents.md", "the morning digest of\nHousekeeping's work there"},
           {"lib/slipdock_web/api_guide.ex",

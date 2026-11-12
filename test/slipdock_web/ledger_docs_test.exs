@@ -59,11 +59,11 @@ defmodule SlipdockWeb.LedgerDocsTest do
     )
   end
 
-  test "the README lists it with its doors" do
-    readme = flat("README.md")
+  test "the feature digest lists it with its doors" do
+    readme = flat("docs/manual/every-feature-in-brief.md")
 
     assert readme =~
-             "- **Ledger** — [what shipped since yesterday, to skim](docs/manual/the-ledger.md)"
+             "- **Ledger** — [what shipped since yesterday, to skim](the-ledger.md)"
 
     assert readme =~ "`slipdock ledger <board> [--since S]`"
     assert readme =~ "`GET /api/boards/:board/ledger?since=`"

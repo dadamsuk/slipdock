@@ -105,11 +105,11 @@ defmodule Slipdock.TrustContractTest do
     end
   end
 
-  test "README and docs/agents.md link to the manual's copy" do
-    assert read("README.md") =~ "](#{@anchor})"
+  test "the security notes and docs/agents.md link to the manual's copy" do
+    assert read("docs/manual/security-notes.md") =~ "](#{Path.basename(@anchor)})"
     assert read("docs/agents.md") =~ "](#{String.replace_prefix(@anchor, "docs/", "")})"
 
-    readme = words(read("README.md"))
+    readme = words(read("docs/manual/security-notes.md"))
 
     for unbounded <- [
           "first-install download trust",

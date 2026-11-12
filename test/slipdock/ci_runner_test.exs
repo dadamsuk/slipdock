@@ -137,11 +137,11 @@ defmodule Slipdock.CiRunnerTest do
            )
   end
 
-  test "the image is built for amd64 alone, and the README says so" do
+  test "the image is built for amd64 alone, and the manual says so" do
     include = jobs("release.yml")["build"]["strategy"]["matrix"]["include"]
     assert include == [%{"platform" => "linux/amd64"}]
 
-    readme = File.read!(Path.join(@root, "README.md"))
+    readme = File.read!(Path.join(@root, "docs/manual/docker-step-by-step.md"))
     assert readme =~ "The image is built for `amd64`."
     refute readme =~ ~r/image is built for[^.]*arm64/
   end

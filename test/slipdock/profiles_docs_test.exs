@@ -20,14 +20,14 @@ defmodule Slipdock.ProfilesDocsTest do
     assert manual =~ ~r/^### The human tier$/m
   end
 
-  test "README's bullet links them, with the switch, the tier setting and every profile" do
-    readme = read("README.md")
+  test "the feature digest's bullet links them, with the switch, the tier setting and every profile" do
+    readme = read("docs/manual/every-feature-in-brief.md")
     [_, bullet] = String.split(readme, "- **Profiles and the human tier**", parts: 2)
     [bullet | _] = String.split(bullet, "\n- **", parts: 2)
 
     for part <- [
-          "docs/manual/profiles.md",
-          "docs/manual/profiles.md#the-human-tier",
+          "(profiles.md)",
+          "(profiles.md#the-human-tier)",
           "set-board --profiles on",
           "--profile-tier",
           "`spike` only by tag"
@@ -54,8 +54,8 @@ defmodule Slipdock.ProfilesDocsTest do
 
   # #2017: both say the profile is checked again when an agent completes the
   # card, raised and never lowered, and that a fix a person set keeps its size.
-  test "README and the in-app help say the profile is raised at completion" do
-    readme = read("README.md")
+  test "the feature digest and the in-app help say the profile is raised at completion" do
+    readme = read("docs/manual/every-feature-in-brief.md")
     [_, bullet] = String.split(readme, "- **Profiles and the human tier**", parts: 2)
     [bullet | _] = String.split(bullet, "\n- **", parts: 2)
     bullet = String.replace(bullet, ~r/\s+/, " ")

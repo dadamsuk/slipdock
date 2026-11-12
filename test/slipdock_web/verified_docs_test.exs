@@ -31,11 +31,11 @@ defmodule SlipdockWeb.VerifiedDocsTest do
     refute manual =~ "job_verify"
   end
 
-  test "README and agents.md name it" do
-    assert read("README.md") =~ "**Verified work**"
+  test "the feature digest and agents.md name it" do
+    assert read("docs/manual/every-feature-in-brief.md") =~ "**Verified work**"
     # Ship by PR (#1653): the merge, the pending-lane release, and (since the
     # scripts' self-update was retired, #2582) the daemon's own updates.
-    readme = "README.md" |> read() |> String.replace(~r/\s+/, " ")
+    readme = "docs/manual/every-feature-in-brief.md" |> read() |> String.replace(~r/\s+/, " ")
     assert readme =~ "`slipdock verify 12 merged`"
     assert_states(readme, "a card awaiting verification frees its lane and its dependents")
     assert_states(readme, "A machine's runner daemon updates itself from signed releases")
@@ -43,7 +43,7 @@ defmodule SlipdockWeb.VerifiedDocsTest do
     assert read("README.md") =~ "`verify_card`"
     assert read("docs/agents.md") =~ "**Verified work.**"
     assert read("docs/agents.md") =~ "**ship by pull request**"
-    assert read("README.md") =~ "--ship-via pull-request"
+    assert read("docs/manual/every-feature-in-brief.md") =~ "--ship-via pull-request"
   end
 
   test "the skills say what changes in a pass, and the CLI skill names the commands" do
@@ -185,7 +185,7 @@ defmodule SlipdockWeb.VerifiedDocsTest do
     assert_states(flat.("docs/agents.md"), "**Done stays done.** On every board, with no switch")
 
     assert_states(
-      flat.("README.md"),
+      flat.("docs/manual/every-feature-in-brief.md"),
       "reopen a done card: done stays done unless a person reopens it"
     )
 
@@ -210,7 +210,12 @@ defmodule SlipdockWeb.VerifiedDocsTest do
 
     assert_states(flat.("docs/agents.md"), "An epic there names none of its own")
     assert_states(flat.("docs/manual.md"), "**Epics have no pull request of their own.**")
-    assert_states(flat.("README.md"), "completes without a pull request of its own")
+
+    assert_states(
+      flat.("docs/manual/every-feature-in-brief.md"),
+      "completes without a pull request of its own"
+    )
+
     loop = flat.("priv/skills/slipdock-loop/SKILL.md")
     assert loop =~ "complete the epic without `--pr`"
     assert loop =~ "never open a token PR"

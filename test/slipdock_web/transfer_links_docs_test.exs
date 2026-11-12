@@ -24,13 +24,12 @@ defmodule SlipdockWeb.TransferLinksDocsTest do
     assert SlipdockWeb.MCP.Tools.DownloadFile.description() =~ "link: true"
   end
 
-  test "the manual, README and docs/agents.md describe it" do
+  test "the manual and docs/agents.md describe it" do
     manual = read("docs/manual.md")
     assert_states(manual, "`upload_url` that works once, for 10 minutes, with no token")
     assert_states(manual, "`download_url` that works once, for 10 minutes, with no token")
     assert manual =~ "`410 link_gone`"
 
-    assert_states(read("README.md"), "a single-use upload URL, good for ten minutes")
     assert read("docs/agents.md") =~ "`curl -F file=@cv.docx -F sha256=<hex> <upload_url>`"
   end
 

@@ -14,7 +14,7 @@ defmodule Slipdock.OriginDocsTest do
 
   test "each place says where a card came from, and that a job may name only a generator" do
     for {path, words} <- [
-          {"README.md", "**Every card says where it came from.**"},
+          {"docs/manual/every-feature-in-brief.md", "**Every card says where it came from.**"},
           {"docs/manual/flow-the-pulse-a-cards-state-and-its-age.md", "**Where it came from.**"},
           {"docs/agents.md", "`sweep` or `findings` only"},
           {"lib/slipdock_web/api_guide.ex", "**Where a card came from** (#2778)"},

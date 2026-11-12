@@ -138,7 +138,7 @@ defmodule SlipdockWeb.LanesDocsTest do
     assert read("docs/agents.md") =~ "A board's `shared_paths`"
 
     assert_states(
-      read("README.md"),
+      read("docs/manual/every-feature-in-brief.md"),
       ~s(board's shared paths that never count toward a lane, for the files nearly\n  every card edits (`slipdock set-board --shared-paths "docs/manual.md,README.md"`\))
     )
 
@@ -172,7 +172,7 @@ defmodule SlipdockWeb.LanesDocsTest do
     assert read("docs/agents.md") =~ "A board's `lane_mode` is `off`, `hold`"
 
     assert_states(
-      read("README.md"),
+      read("docs/manual/every-feature-in-brief.md"),
       "advisory mode starts it and names that card in the job's prompt\n  (`slipdock set-board --lane-mode advise`)"
     )
 

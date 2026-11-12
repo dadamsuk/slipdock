@@ -40,4 +40,4 @@ sign-up rules — belongs in the unit.
 
 ---
 
-← [Running](running.md) · [Contents](../manual.md) · [Licence](licence.md) →
+← [Google Drive, for meeting recordings](google-drive-for-meeting-recordings.md) · [Contents](../manual.md) · [Security notes](security-notes.md) →

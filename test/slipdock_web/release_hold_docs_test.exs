@@ -18,7 +18,7 @@ defmodule SlipdockWeb.ReleaseHoldDocsTest do
       read = &File.read!(Path.expand("../../" <> &1, __DIR__))
 
       for path <- [
-            "README.md",
+            "docs/manual/every-feature-in-brief.md",
             "docs/manual/batched-releases.md",
             "docs/agents.md",
             "lib/slipdock_web/api_guide.ex",

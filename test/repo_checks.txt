@@ -59,6 +59,7 @@ test/slipdock/handbook/rules_for_docs_test.exs
 test/slipdock/handbook_page_lists_test.exs
 test/slipdock/tool_packages_doc_test.exs
 test/slipdock/manual_pages_test.exs
+test/slipdock/readme_overview_test.exs
 test/slipdock_web/board_views_docs_test.exs
 test/slipdock_web/card_face_docs_test.exs
 test/slipdock_web/card_shape_docs_test.exs

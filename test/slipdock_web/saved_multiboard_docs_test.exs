@@ -18,13 +18,17 @@ defmodule SlipdockWeb.SavedMultiboardDocsTest do
     assert guide =~ "B/api/multiboards/4 -d '{\"color\":\"teal\"}'"
   end
 
-  test "the manual, README and the skill name the page and the commands" do
+  test "the manual, the feature digest and the skill name the page and the commands" do
     manual = read("docs/manual.md")
     assert_states(manual, "**Saved multiboards**: press **Save** on the Multiboard page")
     assert manual =~ "`slipdock save-multiboard <name> [--list L]..."
     assert manual =~ "`GET/PATCH/DELETE /api/multiboards/:id`"
 
-    assert_states(read("README.md"), "A view can be **saved** with a name and a colour")
+    assert_states(
+      read("docs/manual/every-feature-in-brief.md"),
+      "A view can be **saved** with a name and a colour"
+    )
+
     assert read("priv/skills/slipdock/SKILL.md") =~ "slipdock save-multiboard \"Ops queue\""
   end
 

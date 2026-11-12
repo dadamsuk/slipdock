@@ -13,8 +13,8 @@ defmodule SlipdockWeb.JobLogsDocsTest do
   @root Path.expand("../..", __DIR__)
   defp read(path), do: Slipdock.DocsText.read!(Path.join(@root, path))
 
-  test "the README tells the whole story in one place" do
-    readme = read("README.md")
+  test "the feature digest tells the whole story in one place" do
+    readme = read("docs/manual/every-feature-in-brief.md")
     assert_states(readme, "**Watch a job as it runs, keep its log only if it matters.**")
     assert readme =~ "`slipdock job <id>\n  --follow`"
     assert readme =~ "MCP `job_log`"

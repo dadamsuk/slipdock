@@ -52,4 +52,4 @@ tour existed, gets one.
 
 ---
 
-← [Features](features.md) · [Contents](../manual.md) · [Swimlanes](swimlanes.md) →
+← [Every feature in brief](every-feature-in-brief.md) · [Contents](../manual.md) · [Swimlanes](swimlanes.md) →

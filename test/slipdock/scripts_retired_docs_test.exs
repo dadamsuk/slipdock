@@ -93,9 +93,9 @@ defmodule Slipdock.ScriptsRetiredDocsTest do
     assert_states(machines, "It replaced the shell and PowerShell runners")
   end
 
-  test "the README, agents.md and the help page say so too" do
+  test "the feature digest, agents.md and the help page say so too" do
     flat = fn path -> path |> read() |> String.replace(~r/\s+/, " ") end
-    assert flat.("README.md") =~ "were retired (#2582)"
+    assert flat.("docs/manual/every-feature-in-brief.md") =~ "were retired (#2582)"
     assert flat.("docs/agents.md") =~ "every path under `/runner/` answers 410 Gone"
     assert read("lib/slipdock_web/live/help_live/agents.ex") =~ ~s(id="help-scripts-retired")
   end

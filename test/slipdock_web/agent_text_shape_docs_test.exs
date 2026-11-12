@@ -80,17 +80,17 @@ defmodule SlipdockWeb.AgentTextShapeDocsTest do
            "#{where} shows --reason \"…\""
   end
 
-  test "the README's Verified work says the shape, with an example on stdin" do
-    readme = read("README.md")
+  test "the feature digest's Verified work says the shape, with an example on stdin" do
+    readme = read("docs/manual/every-feature-in-brief.md")
     flat = flat(readme)
 
     assert flat =~ "`slipdock done 12 --evidence-commit abc1234 --evidence -`"
     assert flat =~ "`slipdock verify 12 accept|reject --reason -`"
     assert_states(flat, "Evidence and a reason are lines, not a paragraph, sent on stdin")
-    assert_says_the_shape(String.downcase(flat), "README.md")
+    assert_says_the_shape(String.downcase(flat), "docs/manual/every-feature-in-brief.md")
     assert flat =~ ~s(--no-code "<why>" --evidence -`)
-    assert_shaped_examples(readme, 1, "README.md")
-    refute_one_argument(flat, "README.md")
+    assert_shaped_examples(readme, 1, "docs/manual/every-feature-in-brief.md")
+    refute_one_argument(flat, "docs/manual/every-feature-in-brief.md")
   end
 
   test "the manual's Verified work page: each example on stdin and in the shape" do

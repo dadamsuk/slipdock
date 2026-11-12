@@ -87,9 +87,11 @@ defmodule Slipdock.Handbook.RulesDocsTest do
     )
   end
 
-  test "README and slipdock-docs, name Principles and Playbook (#2040)" do
+  test "the feature digest and slipdock-docs, name Principles and Playbook (#2040)" do
     readme =
-      Path.join(@root, "README.md") |> Slipdock.DocsText.read!() |> String.replace(~r/\s+/, " ")
+      Path.join(@root, "docs/manual/every-feature-in-brief.md")
+      |> Slipdock.DocsText.read!()
+      |> String.replace(~r/\s+/, " ")
 
     assert_states(readme, "principles (the tie-breakers, each a `PRIN` rule) and the playbook")
 

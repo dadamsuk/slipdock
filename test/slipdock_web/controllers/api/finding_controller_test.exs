@@ -213,14 +213,14 @@ defmodule SlipdockWeb.API.FindingControllerTest do
       assert SlipdockWeb.APIGuide.short() =~ "`findings`"
     end
 
-    test "agents.md, the README and the manual describe them" do
+    test "agents.md, the feature digest and the manual describe them" do
       agents = Slipdock.DocsText.read!("docs/agents.md")
       assert agents =~ "**Findings.**"
       assert agents =~ "slipdock findings <board>"
 
-      readme = Slipdock.DocsText.read!("README.md")
+      readme = Slipdock.DocsText.read!("docs/manual/every-feature-in-brief.md")
       assert readme =~ "**Findings**"
-      assert readme =~ "docs/manual/findings.md"
+      assert readme =~ "(findings.md)"
 
       manual = Slipdock.DocsText.read!("docs/manual.md")
       assert manual =~ "## Findings"

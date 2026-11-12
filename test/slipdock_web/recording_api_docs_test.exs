@@ -37,10 +37,10 @@ defmodule SlipdockWeb.RecordingAPIDocsTest do
     for reason <- @reasons, do: assert(manual =~ "`#{reason}`")
   end
 
-  test "the route lists and the README name it" do
+  test "the route lists and the Google Drive page name it" do
     assert read("docs/manual.md") =~ "GET    #{@route}"
     assert read("docs/wiki.md") =~ "GET    #{@route}"
-    assert read("README.md") =~ "`GET #{@route}`"
+    assert read("docs/manual/google-drive-for-meeting-recordings.md") =~ "`GET #{@route}`"
   end
 
   test "there is no MCP tool for it" do
