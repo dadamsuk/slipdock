@@ -313,7 +313,7 @@ defmodule Slipdock.Releases do
   # A release that couldn't start is said on the board, since a critical
   # merge or the age cap has nobody to tell.
   defp refused(root, message) when is_binary(message),
-    do: Boards.log_activity(root.id, nil, @kind, "Release not started: #{message}")
+    do: Boards.ActivityLog.log_activity(root.id, nil, @kind, "Release not started: #{message}")
 
   defp refused(_root, _reason), do: :ok
 
@@ -398,7 +398,7 @@ defmodule Slipdock.Releases do
     "Covers #{shown}" <> if(more > 0, do: " and #{more} more.", else: ".")
   end
 
-  defp log(root, message), do: Boards.log_activity(root.id, nil, @kind, message)
+  defp log(root, message), do: Boards.ActivityLog.log_activity(root.id, nil, @kind, message)
 
   @doc """
   A `release` job has ended (`Slipdock.Runners`). Failed, cancelled or

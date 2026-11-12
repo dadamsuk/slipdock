@@ -189,7 +189,7 @@ defmodule Slipdock.ReleaseRequestsTest do
     test "a sub-board's request is its root's", %{board: board, todo: todo} do
       runner!(board, "box", ~w(merge release))
       epic = card_fixture(todo, %{"title" => "Epic"})
-      {:ok, template} = Boards.find_template(nil, "Simple")
+      {:ok, template} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(epic, template)
       sub = Repo.preload(sub, :columns)
       inner = merged!(hd(sub.columns), "Inner")
@@ -350,10 +350,10 @@ defmodule Slipdock.ReleaseRequestsTest do
       releaser = runner!(board, "releaser", ~w(claude merge release))
 
       running = card_fixture(doing, %{"title" => "Running"})
-      {:ok, running} = Boards.update_card(running, %{"paths" => "lib/a/**"})
+      {:ok, running} = Boards.Cards.update_card(running, %{"paths" => "lib/a/**"})
       working_job_fixture(running)
       held = card_fixture(todo, %{"title" => "Held"})
-      {:ok, held} = Boards.update_card(held, %{"paths" => "lib/a/b.ex"})
+      {:ok, held} = Boards.Cards.update_card(held, %{"paths" => "lib/a/b.ex"})
       {:ok, _held_job} = Runners.queue(held, %{pool: "dev", kind: "claude", prompt: "go"})
       assert Map.keys(Lanes.held_cards(board.id)) == [held.id]
 
@@ -708,7 +708,7 @@ defmodule Slipdock.ReleaseRequestsTest do
       checker = %{builder | agent: "checker"}
 
       {:ok, card} =
-        Boards.update_card(
+        Boards.Cards.update_card(
           Repo.get!(Card, card.id),
           Map.merge(%{"completed" => true, "evidence_commit" => "abc1234"}, evidence),
           actor: builder
