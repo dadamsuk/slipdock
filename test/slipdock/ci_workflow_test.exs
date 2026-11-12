@@ -111,7 +111,18 @@ defmodule Slipdock.CiWorkflowTest do
       # In the changes job, which has the whole history for the diff (#2832).
       secrets = job("changes")
 
-      assert has?(secrets, "if: github.event_name == 'pull_request'")
+      # Each step on its own: on a push there is no BASE..HEAD to scan and
+      # no binary installed, so either step running there fails the job.
+      steps = ci_yaml()["jobs"]["changes"]["steps"]
+
+      for name <- [
+            "Install gitleaks",
+            "Secret scan of this pull request's commits (gitleaks)"
+          ] do
+        step = Enum.find(steps, &(&1["name"] == name))
+        assert step, name
+        assert step["if"] == "github.event_name == 'pull_request'", name
+      end
 
       assert has?(
                secrets,
@@ -433,9 +444,59 @@ defmodule Slipdock.CiWorkflowTest do
             ["docs/manual/boards.md"],
             ["priv/skills/slipdock/SKILL.md", "priv/skills/slipdock/reference.txt"],
             ["README.md", "CLAUDE.md", "AGENTS.md"],
-            ["docs/agents.md", "lib/slipdock/notes.md"]
+            ["docs/agents.md", "lib/slipdock/notes.md"],
+            # Not Markdown, but under docs/.
+            ["docs/images/board.png"]
           ] do
         assert pr(dir, files) == runs(false, true, false, false), inspect(files)
+      end
+    end
+
+    @tag :tmp_dir
+    test "what main did after the branch left it isn't the change's", %{tmp_dir: dir} do
+      # The base sha is main's tip, which has moved on since the fork with
+      # an app change; the branch itself changes docs alone.
+      git!(dir, ["init", "-q", "-b", "main"])
+      File.write!(Path.join(dir, "mix.exs"), "base")
+      git!(dir, ["add", "."])
+      git!(dir, ["commit", "-q", "-m", "base"])
+      git!(dir, ["switch", "-q", "-c", "card"])
+      File.mkdir_p!(Path.join(dir, "docs"))
+      File.write!(Path.join(dir, "docs/a.md"), "docs")
+      git!(dir, ["add", "."])
+      git!(dir, ["commit", "-q", "-m", "docs"])
+      head = git!(dir, ["rev-parse", "HEAD"])
+      git!(dir, ["switch", "-q", "main"])
+      File.mkdir_p!(Path.join(dir, "lib"))
+      File.write!(Path.join(dir, "lib/a.ex"), "app")
+      git!(dir, ["add", "."])
+      git!(dir, ["commit", "-q", "-m", "app"])
+      base = git!(dir, ["rev-parse", "HEAD"])
+
+      assert changes(dir, [{"BASE", base}, {"HEAD", head}]) == runs(false, true, false, false)
+    end
+
+    @tag :tmp_dir
+    test "a file moved under docs/ or renamed to .md counts where it left too", %{tmp_dir: dir} do
+      for {from, to, expected} <- [
+            {"lib/a.ex", "docs/a.ex", runs(true, false, false, false)},
+            {"daemon/x.go", "docs/x.go", runs(false, true, false, true)},
+            {"cli/lib/c.ex", "priv/skills/c.ex", runs(false, true, true, false)},
+            {"lib/notes.txt", "lib/notes.md", runs(true, false, false, false)}
+          ] do
+        repo = Path.join(dir, Path.basename(from))
+        File.mkdir_p!(Path.join(repo, Path.dirname(from)))
+        git!(repo, ["init", "-q", "-b", "main"])
+        File.write!(Path.join(repo, from), String.duplicate("the same lines\n", 20))
+        git!(repo, ["add", "."])
+        git!(repo, ["commit", "-q", "-m", "base"])
+        base = git!(repo, ["rev-parse", "HEAD"])
+        File.mkdir_p!(Path.join(repo, Path.dirname(to)))
+        git!(repo, ["mv", from, to])
+        git!(repo, ["commit", "-q", "-m", "move"])
+        head = git!(repo, ["rev-parse", "HEAD"])
+
+        assert changes(repo, [{"BASE", base}, {"HEAD", head}]) == expected, from
       end
     end
 

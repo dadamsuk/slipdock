@@ -74,7 +74,11 @@ case "${EVENT_NAME:-}" in
     ;;
 esac
 
-files=$(git diff --name-only "${BASE:-}...${HEAD:-}" 2>/dev/null) ||
+# Both paths of a move: without --no-renames a file moved under docs/ (or
+# renamed to *.md) lists only its new path, and a change to the app or the
+# daemon would read as docs alone. The three dots diff from where the branch
+# left the base, so what main did since doesn't count as the change's.
+files=$(git diff --no-renames --name-only "${BASE:-}...${HEAD:-}" 2>/dev/null) ||
   everything "The diff of ${BASE:-?}...${HEAD:-?} couldn't be read: everything runs."
 [ -n "$files" ] || everything "The diff of ${BASE:-?}...${HEAD:-?} is empty: everything runs."
 
