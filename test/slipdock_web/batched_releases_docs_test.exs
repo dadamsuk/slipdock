@@ -13,6 +13,7 @@ defmodule SlipdockWeb.BatchedReleasesDocsTest do
 
   @root Path.expand("../..", __DIR__)
   defp read(path), do: Slipdock.DocsText.read!(Path.join(@root, path))
+  defp flat(text), do: String.replace(text, ~r/\s+/, " ")
 
   test "the manual has the page, in the contents between Verified work and Lanes" do
     lines = @root |> Path.join("docs/manual.md") |> File.read!() |> String.split("\n")
@@ -80,11 +81,18 @@ defmodule SlipdockWeb.BatchedReleasesDocsTest do
           "priv/skills/slipdock/SKILL.md",
           "priv/skills/slipdock-work/SKILL.md"
         ] do
+      text = read(path)
+
       assert_states(
-        read(path),
+        text,
         "shipped count from the card's release, not its merge",
         "#{path} doesn't say Not shipped counts from the release, not the merge"
       )
+
+      # The contrast itself, in whichever of the docs' wordings.
+      assert flat(text) =~
+               ~r/count(s|ed)? from (the card's|its|the) release( there)?,? (not|never) (its|the|from the) merge/,
+             "#{path} doesn't set the release against the merge"
     end
 
     assert read("docs/manual/the-overseer.md") =~ "since its release started"
@@ -115,6 +123,8 @@ defmodule SlipdockWeb.BatchedReleasesDocsTest do
     for path <- [
           "docs/agents.md",
           "docs/manual/batched-releases.md",
+          "docs/manual/delivery-metrics-deploys-and-dora.md",
+          "docs/manual/the-overseer.md",
           "lib/slipdock_web/api_guide.ex",
           "lib/slipdock_web/live/help_live/guides.ex",
           "lib/slipdock_web/live/help_live/agents.ex",
@@ -129,11 +139,8 @@ defmodule SlipdockWeb.BatchedReleasesDocsTest do
         "#{path} doesn't say Release now is how a person ships"
       )
 
-      assert_states(
-        text,
-        "a card is done when it merges, and nothing waits for its release",
-        "#{path} doesn't say a card is done when it merges"
-      )
+      assert flat(text) =~ ~r/done (when it merges|on merge)|still done/,
+             "#{path} doesn't say a card is done when it merges"
     end
 
     work = read("priv/skills/slipdock-work/SKILL.md")

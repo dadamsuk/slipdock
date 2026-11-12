@@ -411,6 +411,47 @@ defmodule Slipdock.NotShippedTest do
                NotShipped.for_card(child, @now)
     end
 
+    test "the root's mode and requests count when a sub-board is the delivery board", ctx do
+      # The root releases in batches but records no deploys; a sub-board does.
+      {:ok, root} = Boards.update_board(ctx.board, %{"delivery_metrics" => false})
+      epic = card_fixture(ctx.done, %{"title" => "Epic"})
+      sub = sub_board!(epic)
+      {:ok, sub} = Boards.update_board(sub, %{"delivery_metrics" => true})
+
+      Repo.update_all(from(b in Board, where: b.id == ^sub.id),
+        set: [delivery_metrics_since: @since]
+      )
+
+      root = fresh(root)
+      assert root.release_mode == "batched"
+      assert NotShipped.delivery_board(root, [root.id, sub.id]).id == sub.id
+
+      child = merged(hd(sub.columns), 480, title: "Child")
+
+      # Only awaiting release: no line and no alert, though it merged hours ago.
+      assert NotShipped.in_tree(root, [root.id, sub.id], @now) == []
+      assert NotShipped.for_card(child, @now) == nil
+      assert Watch.run(root, Overseer.settings(root), @now, checks: Watch.always()).fired == []
+
+      # The request is the root's, and its start is what the minutes count from.
+      release!(root, [child], 45)
+      assert [line] = NotShipped.in_tree(root, [root.id, sub.id], @now)
+      assert line.card_id == child.id
+      assert line.seconds == 45 * 60
+      assert %DateTime{} = line.release_requested_at
+
+      assert %{
+               text: "Merged 1a634c6 · not shipped 45m after its release started",
+               release_requested_at: %DateTime{}
+             } = NotShipped.for_card(child, @now)
+
+      assert [fired] =
+               Watch.run(root, Overseer.settings(root), @now, checks: Watch.always()).fired
+
+      assert fired.card_id == child.id
+      assert fired.why =~ "its release started at 11 Nov 20:16 UTC"
+    end
+
     test "the alert's words say the release started, and to release again", ctx do
       card = merged(ctx.done, 480, title: "In the batch")
       release!(ctx.board, [card], 45, "failed")

@@ -141,7 +141,8 @@ other delivery settings (`not_shipped_minutes`, `slipdock set-board B
 --not-shipped-minutes N`; 0 never, at most 10080, a week).
 
 On a board with [batched releases](batched-releases.md) a merge is not a
-deploy, so the minutes count from the card's release, not its merge: from the
+deploy. A card there is still done when it merges, and *Release now* is how
+a person ships what has merged, so the minutes count from the card's release, not its merge: from the
 start of the latest release that covered it. A card only awaiting release shows no
 line and raises no alert; one whose release started and brought no deploy
 shows *Merged 1a634c6 · not shipped 45m after its release started*, with
