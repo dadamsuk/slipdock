@@ -521,6 +521,84 @@ func TestAWorktreePerJob(t *testing.T) {
 	}
 }
 
+// A new card branch starts from the origin's default branch, fetched
+// first, never from the shared checkout's HEAD on another card's branch;
+// a card branch already there is checked out as it is (#2758).
+func TestAWorktreeStartsFromTheOriginsDefaultBranch(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("no git")
+	}
+	r := newRig(t, Config{Worktree: "on"})
+	git := func(dir string, args ...string) string {
+		t.Helper()
+		cmd := exec.Command("git", append([]string{"-c", "user.name=t", "-c", "user.email=t@example.com", "-c", "init.defaultBranch=main"}, args...)...)
+		cmd.Dir = dir
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+		return strings.TrimSpace(string(out))
+	}
+	// The origin, and a second clone that pushes to it after the
+	// runner's checkout was cloned.
+	origin := filepath.Join(t.TempDir(), "origin.git")
+	git(filepath.Dir(origin), "init", "-q", "--bare", origin)
+	other := filepath.Join(t.TempDir(), "other")
+	git(filepath.Dir(other), "clone", "-q", origin, other)
+	git(other, "commit", "-q", "--allow-empty", "-m", "first")
+	git(other, "push", "-q", "origin", "HEAD:main")
+	git(r.dir, "clone", "-q", origin, ".")
+	git(other, "commit", "-q", "--allow-empty", "-m", "newer")
+	git(other, "push", "-q", "origin", "HEAD:main")
+	newer := git(other, "rev-parse", "HEAD")
+
+	// The shared checkout sits on another card's branch.
+	git(r.dir, "switch", "-q", "-c", "card-9")
+	git(r.dir, "commit", "-q", "--allow-empty", "-m", "card 9's work")
+	theirs := git(r.dir, "rev-parse", "HEAD")
+
+	f := r.runJob(fakeJob{id: 150, kind: "claude", card: 60, prompt: "x"})
+	if f.exit != 0 || !strings.Contains(f.body, "on branch card-60, from origin/main") {
+		t.Fatalf("finish = %+v", f)
+	}
+	// Nothing committed on it, but it isn't merged into card-9, so the
+	// branch is kept: it is where the worktree started.
+	if got := git(r.dir, "rev-parse", "card-60"); got != newer {
+		t.Fatalf("card-60 starts at %s, want origin/main as fetched now (%s); card-9 is %s", got, newer, theirs)
+	}
+	if up, err := exec.Command("git", "-C", r.dir, "rev-parse", "--abbrev-ref", "card-60@{upstream}").Output(); err == nil {
+		t.Fatalf("card-60 tracks %s: a card branch pushes to its own name, never to main", up)
+	}
+	if got := git(r.dir, "rev-parse", "--abbrev-ref", "HEAD"); got != "card-9" {
+		t.Fatalf("the shared checkout was switched to %s", got)
+	}
+
+	// A card branch already there is used as it is, not moved.
+	git(r.dir, "branch", "card-61", theirs)
+	f = r.runJob(fakeJob{id: 151, kind: "claude", card: 61, prompt: "x"})
+	if !strings.Contains(f.body, "on branch card-61") || strings.Contains(f.body, "card-61, from") {
+		t.Fatalf("log: %s", f.body)
+	}
+
+	// With an origin that can't be reached, the branch starts from
+	// origin/main as last fetched, and the log says the fetch failed.
+	git(r.dir, "remote", "set-url", "origin", filepath.Join(t.TempDir(), "gone.git"))
+	f = r.runJob(fakeJob{id: 152, kind: "claude", card: 62, prompt: "x"})
+	if !strings.Contains(f.body, "git fetch origin failed") || !strings.Contains(f.body, "on branch card-62, from origin/main") {
+		t.Fatalf("log: %s", f.body)
+	}
+	if got := git(r.dir, "rev-parse", "card-62"); got != newer {
+		t.Fatalf("card-62 starts at %s, want %s", got, newer)
+	}
+
+	// No origin: HEAD, and the log says why.
+	git(r.dir, "remote", "remove", "origin")
+	f = r.runJob(fakeJob{id: 153, kind: "claude", card: 63, prompt: "x"})
+	if !strings.Contains(f.body, "no origin remote, so the worktree starts from HEAD") || !strings.Contains(f.body, "card-63, from HEAD") {
+		t.Fatalf("log: %s", f.body)
+	}
+}
+
 func TestClaimsBackOffAndHonourRetryAfter(t *testing.T) {
 	r := newRig(t, Config{})
 	r.w.Client.Server = "http://127.0.0.1:1" // nothing answers

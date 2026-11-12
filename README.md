@@ -1142,7 +1142,8 @@ with the tail of the log — and a Cancel button.
   repository can tread on each other's files. Turn on *a worktree per job*
   in a machine's runner's settings (`slipdock machine add-runner …
   --worktree`) and each job runs in a git worktree of its own, on a
-  branch named for its card (`card-<id>`), beside the repository in
+  branch named for its card (`card-<id>`, started from the origin's
+  default branch), beside the repository in
   `<repo>-lanes/`; a clean one is removed after the job, one with
   uncommitted changes kept for the next job on that card. Off by default.
 - **Each card has a timeline.** Near the bottom of the card, lanes on one
