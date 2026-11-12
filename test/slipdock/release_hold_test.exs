@@ -70,6 +70,50 @@ defmodule Slipdock.ReleaseHoldTest do
     failed
   end
 
+  defp started!(board, sha) do
+    {:ok, started} =
+      Deployments.start(board, %{
+        environment: "production",
+        sha: sha,
+        status: "started",
+        started_at: DateTime.utc_now()
+      })
+
+    started
+  end
+
+  # release.yml's record-failure job: the same row, with the stage and the run.
+  defp failed_again!(board, sha) do
+    Deployments.record_failure(board, %{
+      environment: "production",
+      sha: sha,
+      stage: "health",
+      run_url: @run
+    })
+  end
+
+  # Runs `fun` once, in this process, just after the first card is inserted
+  # here: the window between a fix card being filed and named on the hold.
+  defp on_fix_card_insert(fun) do
+    test = self()
+    id = "fix-card-insert-#{System.unique_integer([:positive])}"
+
+    :telemetry.attach(
+      id,
+      [:slipdock, :repo, :query],
+      fn _event, _measurements, meta, _config ->
+        if self() == test and not Process.get(id, false) and
+             String.starts_with?(meta.query, ~s(INSERT INTO "cards")) do
+          Process.put(id, true)
+          fun.()
+        end
+      end,
+      nil
+    )
+
+    on_exit(fn -> :telemetry.detach(id) end)
+  end
+
   defp fix_cards(board),
     do:
       Repo.all(
@@ -258,6 +302,69 @@ defmodule Slipdock.ReleaseHoldTest do
                "the release failed at test (#{@run}), or the board's owner lifts the hold"
 
       refute Releases.line(Releases.status(ctx.board)) =~ "fix card"
+    end
+
+    test "a root with no lists, its one failure recorded in two steps: the stage, no card, no crash",
+         ctx do
+      Repo.delete_all(from(c in Slipdock.Boards.Column, where: c.board_id == ^ctx.board.id))
+      started = started!(ctx.board, "fade0003")
+      {:ok, _} = Deployments.finish(ctx.board, started.id, "failed")
+      assert Releases.hold(ctx.board)["fix_card_id"] == nil
+
+      {:ok, _} = failed_again!(ctx.board, "fade0003")
+
+      hold = Releases.hold(ctx.board)
+      assert hold["stage"] == "health"
+      assert hold["run_url"] == @run
+      assert hold["fix_card_id"] == nil
+      assert fix_cards(ctx.board) == []
+      assert List.last(activity(ctx.board)) =~ "The failed release is recorded at health"
+    end
+
+    test "the failure recorded again while its fix card is filed: the card says it too", ctx do
+      started = started!(ctx.board, "fade0004")
+      board = ctx.board
+      on_fix_card_insert(fn -> {:ok, _} = failed_again!(board, "fade0004") end)
+
+      {:ok, _} = Deployments.finish(ctx.board, started.id, "failed")
+
+      [fix] = fix_cards(ctx.board)
+      hold = Releases.hold(ctx.board)
+      assert hold["stage"] == "health"
+      assert hold["fix_card_id"] == fix.id
+      assert fix.title == "Red release: fix the health failure"
+      assert fix.description =~ "[the failing run](#{@run})"
+    end
+
+    test "a hold lifted while its fix card is filed stays lifted", ctx do
+      started = started!(ctx.board, "fade0005")
+      board = ctx.board
+      on_fix_card_insert(fn -> {:ok, _} = Releases.lift_hold(board, "Dana") end)
+
+      {:ok, _} = Deployments.finish(ctx.board, started.id, "failed")
+
+      assert [_fix] = fix_cards(ctx.board)
+      assert Releases.hold(ctx.board) == nil
+    end
+
+    test "a hold lifted and held again by another failure while the first fix card is filed " <>
+           "keeps the second's card",
+         ctx do
+      started = started!(ctx.board, "fade0006")
+      board = ctx.board
+
+      on_fix_card_insert(fn ->
+        {:ok, _} = Releases.lift_hold(board, "Dana")
+        red!(board, "deploy")
+      end)
+
+      {:ok, _} = Deployments.finish(ctx.board, started.id, "failed")
+
+      [_first, second] = fix_cards(ctx.board)
+      hold = Releases.hold(ctx.board)
+      assert hold["stage"] == "deploy"
+      assert hold["fix_card_id"] == second.id
+      refute hold["deployment_id"] == started.id
     end
 
     test "drops the queued follow-up rather than start it", ctx do
