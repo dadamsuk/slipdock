@@ -1224,7 +1224,19 @@ defmodule SlipdockWeb.BoardLive.BoardView do
       class="flex flex-wrap items-center gap-2 border-b border-info/40 bg-info/10 px-4 py-1.5 text-sm"
     >
       <.icon name="hero-rocket-launch" class="size-4 shrink-0 text-info" />
-      <span id="release-banner-line" class="min-w-0 flex-1">{@line}</span>
+      <span id="release-banner-line" class="min-w-0 flex-1">
+        {@line}
+        <.link
+          :if={@release.hold && @release.hold["run_url"]}
+          id="release-hold-run"
+          href={@release.hold["run_url"]}
+          target="_blank"
+          rel="noopener noreferrer"
+          class="link"
+        >
+          the failing run
+        </.link>
+      </span>
       <button
         :if={@can_manage}
         type="button"

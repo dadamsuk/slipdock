@@ -629,6 +629,16 @@ defmodule SlipdockWeb.AgenticLive.Index do
                   >
                     <span id="board-release-line" class="min-w-0 flex-1">
                       {Slipdock.Releases.line(@release) || "Nothing merged is awaiting release."}
+                      <.link
+                        :if={@release.hold && @release.hold["run_url"]}
+                        id="board-release-hold-run"
+                        href={@release.hold["run_url"]}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="link"
+                      >
+                        the failing run
+                      </.link>
                     </span>
                     <button
                       :if={@can_manage}

@@ -141,7 +141,123 @@ defmodule Slipdock.ReleaseHoldTest do
 
       assert Releases.hold(ctx.board) == first
       assert [_one] = fix_cards(ctx.board)
-      assert List.last(activity(ctx.board)) =~ "the hold from before stays"
+      assert List.last(activity(ctx.board)) =~ "Another release failed; the hold stays"
+    end
+
+    test "one failure recorded in two steps fills in its own hold: no second card, no 'again'",
+         ctx do
+      merged!(ctx.todo, "In the batch")
+      released!(ctx)
+
+      # release.yml's deploy job: started, then finished failed, with no stage.
+      {:ok, started} =
+        Deployments.start(ctx.board, %{
+          environment: "production",
+          sha: "fade0001",
+          status: "started",
+          started_at: DateTime.utc_now()
+        })
+
+      {:ok, _} = Deployments.finish(ctx.board, started.id, "failed")
+      assert Releases.hold(ctx.board)["reason"] == "the release failed"
+      assert Releases.hold(ctx.board)["run_url"] == nil
+      [fix] = fix_cards(ctx.board)
+      assert fix.title == "Red release: fix the release failure"
+      assert fix.description =~ "no run named"
+
+      # Its record-failure job: the same row, now with the stage and the run.
+      {:ok, again} =
+        Deployments.record_failure(ctx.board, %{
+          environment: "production",
+          sha: "fade0001",
+          stage: "health",
+          run_url: @run
+        })
+
+      assert again.id == started.id
+
+      hold = Releases.hold(ctx.board)
+      assert hold["reason"] == "the release failed at health"
+      assert hold["stage"] == "health"
+      assert hold["run_url"] == @run
+      assert hold["fix_card_id"] == fix.id
+
+      assert [fix] = fix_cards(ctx.board)
+      assert fix.title == "Red release: fix the health failure"
+      assert fix.description =~ "[the failing run](#{@run})"
+
+      refute Enum.any?(activity(ctx.board), &(&1 =~ "Another release failed"))
+      assert List.last(activity(ctx.board)) =~ "The failed release is recorded at health"
+    end
+
+    test "names the cards the failed deploy itself names, beside its request's", ctx do
+      in_request = merged!(ctx.todo, "In the request")
+      released!(ctx)
+      outside = merged!(ctx.todo, "Named by the deploy only")
+
+      red!(ctx.board, "deploy", %{
+        commits: [%{"sha" => "abc1234def5678", "subject" => "feat ##{outside.id}"}]
+      })
+
+      hold = Releases.hold(ctx.board)
+      assert outside.id in hold["card_ids"]
+      assert in_request.id in hold["card_ids"]
+
+      [fix] = fix_cards(ctx.board)
+      assert fix.description =~ "- ##{outside.id} Named by the deploy only"
+      assert fix.description =~ "- ##{in_request.id} In the request"
+    end
+
+    test "with no stage, no run and no card named, the hold and its card say so", ctx do
+      {:ok, _} =
+        Deployments.start(ctx.board, %{
+          environment: "production",
+          sha: "fade0002",
+          status: "failed",
+          started_at: DateTime.utc_now(),
+          finished_at: DateTime.utc_now()
+        })
+
+      hold = Releases.hold(ctx.board)
+      assert hold["reason"] == "the release failed"
+      assert hold["card_ids"] == []
+
+      [fix] = fix_cards(ctx.board)
+      assert fix.title == "Red release: fix the release failure"
+      assert fix.description =~ "no run named"
+      assert fix.description =~ "No merged card was named in it."
+
+      assert Releases.held_text(hold) ==
+               "the release failed; fix card ##{fix.id} releases when it merges, " <>
+                 "or the board's owner lifts the hold"
+    end
+
+    test "a root with no ready list files the card in its first list", ctx do
+      Repo.update_all(
+        from(c in Slipdock.Boards.Column, where: c.board_id == ^ctx.board.id),
+        set: [category: nil]
+      )
+
+      first = hd(Boards.get_board!(ctx.board.id).columns)
+      red!(ctx.board)
+
+      [fix] = fix_cards(ctx.board)
+      assert fix.column_id == first.id
+    end
+
+    test "a root with no lists holds with no fix card, and says only the reason and the run",
+         ctx do
+      Repo.delete_all(from(c in Slipdock.Boards.Column, where: c.board_id == ^ctx.board.id))
+      red!(ctx.board)
+
+      hold = Releases.hold(ctx.board)
+      assert hold["fix_card_id"] == nil
+      assert fix_cards(ctx.board) == []
+
+      assert Releases.held_text(hold) ==
+               "the release failed at test (#{@run}), or the board's owner lifts the hold"
+
+      refute Releases.line(Releases.status(ctx.board)) =~ "fix card"
     end
 
     test "drops the queued follow-up rather than start it", ctx do

@@ -697,50 +697,115 @@ defmodule Slipdock.Releases do
   defp current_hold(root_id),
     do: Repo.one(from(b in Board, where: b.id == ^root_id, select: b.release_hold))
 
-  # A red release: the tree is held, unless it is already (a second red
-  # release keeps the first hold and files no second card). The hold is
-  # set under the root's lock, and the fix card filed after it, outside.
+  # A red release: the tree is held, unless it is already. A second red
+  # release keeps the first hold and files no second card; the same failed
+  # deploy recorded again (release.yml finishes it failed, then its
+  # record-failure job adds the stage and the run to the same row) fills in
+  # what the hold and its fix card say. The hold is set under the root's
+  # lock, and the fix card filed after it, outside.
   defp hold_on(root, %Deployment{} = deployment, running) do
-    batch = Enum.uniq(((running && running.card_ids) || []) ++ deployment.card_ids)
-    stage = deployment.stage
-
     hold = %{
-      "reason" => "the release failed" <> if(stage, do: " at #{stage}", else: ""),
-      "stage" => stage,
+      "reason" => reason(deployment.stage),
+      "stage" => deployment.stage,
       "run_url" => deployment.run_url,
       "sha" => deployment.sha,
       "deployment_id" => deployment.id,
-      "card_ids" => batch,
+      "card_ids" => Enum.uniq(((running && running.card_ids) || []) ++ deployment.card_ids),
       "fix_card_id" => nil,
       "held_at" => DateTime.to_iso8601(DateTime.utc_now())
     }
 
     case locked(root, fn -> set_hold(root, hold) end) do
-      :held ->
-        fix = file_fix_card(root, hold)
-        hold = %{hold | "fix_card_id" => fix && fix.id}
-        Repo.update_all(from(b in Board, where: b.id == ^root.id), set: [release_hold: hold])
-        log(root, "Releases held: #{held_text(hold)}. Release now and the age cap are refused.")
-        broadcast(root)
-
-      :kept ->
-        log(
-          root,
-          "The release failed again; the hold from before stays and no second card is filed."
-        )
+      :held -> held(root, hold)
+      {:same, hold} -> said_more(root, hold)
+      :kept -> log(root, "Another release failed; the hold stays and no second card is filed.")
     end
   end
 
+  defp reason(nil), do: "the release failed"
+  defp reason(stage), do: "the release failed at #{stage}"
+
   defp set_hold(root, hold) do
+    deployment_id = hold["deployment_id"]
+
     case current_hold(root.id) do
       nil ->
-        Repo.update_all(from(b in Board, where: b.id == ^root.id), set: [release_hold: hold])
+        put_hold(root, hold)
         :held
 
-      _held ->
+      %{"deployment_id" => ^deployment_id} = old ->
+        stage = hold["stage"] || old["stage"]
+
+        same = %{
+          old
+          | "stage" => stage,
+            "reason" => reason(stage),
+            "run_url" => hold["run_url"] || old["run_url"],
+            "card_ids" => Enum.uniq(old["card_ids"] ++ hold["card_ids"])
+        }
+
+        put_hold(root, same)
+        {:same, same}
+
+      _another ->
         :kept
     end
   end
+
+  defp put_hold(root, hold),
+    do: Repo.update_all(from(b in Board, where: b.id == ^root.id), set: [release_hold: hold])
+
+  # Newly held: the fix card is filed, then named on the hold as it stands
+  # now (never written back over a lift, or over what was said since).
+  defp held(root, hold) do
+    fix = file_fix_card(root, hold)
+
+    case fix && locked(root, fn -> name_fix_card(root, hold, fix) end) do
+      {:named, now} ->
+        if now != %{hold | "fix_card_id" => fix.id}, do: refresh_fix_card(now)
+        log(root, "Releases held: #{held_text(now)}. Release now and the age cap are refused.")
+
+      _unnamed ->
+        log(root, "Releases held: #{held_text(hold)}. Release now and the age cap are refused.")
+    end
+
+    broadcast(root)
+  end
+
+  defp name_fix_card(root, hold, fix) do
+    held_at = hold["held_at"]
+
+    case current_hold(root.id) do
+      %{"held_at" => ^held_at} = now ->
+        now = Map.put(now, "fix_card_id", fix.id)
+        put_hold(root, now)
+        {:named, now}
+
+      _lifted ->
+        :lifted
+    end
+  end
+
+  # The same failure, recorded again with its stage or run: the fix card
+  # says it too.
+  defp said_more(root, hold) do
+    refresh_fix_card(hold)
+
+    log(
+      root,
+      "The failed release is recorded at #{hold["stage"] || "no stage"}: #{held_text(hold)}."
+    )
+
+    broadcast(root)
+  end
+
+  defp refresh_fix_card(%{"fix_card_id" => id} = hold) when is_integer(id) do
+    with %Card{} = card <- Repo.get(Card, id) do
+      Boards.Cards.update_card(card, fix_attrs(hold), actor: Slipdock.Actor.automation())
+    end
+  end
+
+  defp refresh_fix_card(_hold), do: :ok
 
   defp broadcast(root),
     do: Phoenix.PubSub.broadcast(@pubsub, topic(root.id), {:release_changed, root.id})
@@ -750,17 +815,10 @@ defmodule Slipdock.Releases do
   defp file_fix_card(root, hold) do
     root = Boards.get_board!(root.id)
     column = Slipdock.Flow.ready_list(root.columns) || List.first(root.columns)
-    cards = Repo.all(from(c in Card, where: c.id in ^hold["card_ids"], order_by: c.id))
-
-    attrs = %{
-      "title" => "Red release: fix the #{hold["stage"] || "release"} failure",
-      "description" => fix_description(hold, cards),
-      "priority" => "critical"
-    }
 
     with %{} <- column,
          {:ok, card} <-
-           Boards.Cards.create_card(column, attrs,
+           Boards.Cards.create_card(column, Map.put(fix_attrs(hold), "priority", "critical"),
              actor: Slipdock.Actor.automation(),
              origin: @kind
            ) do
@@ -769,6 +827,15 @@ defmodule Slipdock.Releases do
     else
       _ -> nil
     end
+  end
+
+  defp fix_attrs(hold) do
+    cards = Repo.all(from(c in Card, where: c.id in ^hold["card_ids"], order_by: c.id))
+
+    %{
+      "title" => "Red release: fix the #{hold["stage"] || "release"} failure",
+      "description" => fix_description(hold, cards)
+    }
   end
 
   defp fix_description(hold, cards) do

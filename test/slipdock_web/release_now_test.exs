@@ -383,7 +383,10 @@ defmodule SlipdockWeb.ReleaseNowTest do
 
       assert Releases.hold(ctx.board)
 
-      {false, text} = mcp(ctx.agent, "release_now", %{board: "#{ctx.board.id}", lift_hold: true})
+      # check with lift_hold lifts: the owner's lift wins over the read.
+      {false, text} =
+        mcp(ctx.agent, "release_now", %{board: "#{ctx.board.id}", check: true, lift_hold: true})
+
       body = Jason.decode!(text)
       assert body["lifted"]["stage"] == "test"
       assert body["release"]["hold"] == nil
@@ -393,7 +396,8 @@ defmodule SlipdockWeb.ReleaseNowTest do
       assert text =~ "aren't held"
     end
 
-    test "the board page's banner says it is held, and Lift hold lifts it", ctx do
+    test "the board page's banner says it is held, links the run, and Lift hold lifts it", ctx do
+      merged!(ctx.todo, "Waiting")
       {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}")
 
       assert has_element?(
@@ -404,11 +408,20 @@ defmodule SlipdockWeb.ReleaseNowTest do
 
       assert has_element?(view, "#release-banner-line", "fix card ##{ctx.hold["fix_card_id"]}")
 
+      assert has_element?(
+               view,
+               ~s(#release-hold-run[href="https://github.com/example/app/actions/runs/88"]),
+               "the failing run"
+             )
+
       view |> element("#release-lift-hold") |> render_click()
 
       assert Releases.hold(ctx.board) == nil
       assert Repo.aggregate(Request, :count) == 0
+      # The banner stays for the merged card, without Lift hold or the run.
+      assert has_element?(view, "#release-banner-line", "merged, awaiting release")
       refute has_element?(view, "#release-lift-hold")
+      refute has_element?(view, "#release-hold-run")
     end
 
     test "someone it is shared with sees the hold but no Lift hold", ctx do
@@ -423,14 +436,37 @@ defmodule SlipdockWeb.ReleaseNowTest do
       assert Releases.hold(ctx.board)
     end
 
-    test "the Agentic Building page shows it and lifts it", ctx do
+    test "the Agentic Building page shows it with the run and lifts it", ctx do
       {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/agentic")
       assert has_element?(view, "#board-release-line", "Releases held")
+
+      assert has_element?(
+               view,
+               ~s(#board-release-hold-run[href="https://github.com/example/app/actions/runs/88"])
+             )
 
       view |> element("#board-release-lift-hold") |> render_click()
 
       assert Releases.hold(ctx.board) == nil
       refute has_element?(view, "#board-release-lift-hold")
+      assert render(view) =~ "Release hold lifted. Nothing was released."
+
+      # Lifted already (elsewhere, or a second click): the refusal says so.
+      render_hook(view, "lift_release_hold", %{})
+      assert render(view) =~ "this board&#39;s releases aren&#39;t held"
+    end
+
+    test "on the Agentic Building page someone it is shared with sees it, with no Lift hold",
+         ctx do
+      editor = user_fixture("editor#{System.unique_integer([:positive])}@example.com")
+      share_fixture(ctx.board, [editor], "write")
+
+      {:ok, view, _} = live(log_in_user(build_conn(), editor), ~p"/boards/#{ctx.board}/agentic")
+      assert has_element?(view, "#board-release-line", "Releases held")
+      refute has_element?(view, "#board-release-lift-hold")
+
+      render_hook(view, "lift_release_hold", %{})
+      assert Releases.hold(ctx.board)
     end
   end
 
