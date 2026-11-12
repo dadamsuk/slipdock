@@ -412,7 +412,8 @@ defmodule SlipdockWeb.API.JobController do
   @doc """
   A session saying it is still at work: renews the lease, keeps `log` as the
   log tail, keeps `step` as the job's latest progress message (#1668: shown
-  against the job, not on the card) and posts `note`, if given, as a comment
+  against the job and never a comment on the card; a subcard an epic's job
+  names in it shows that job as its loop, #2899) and posts `note`, if given, as a comment
   on the card. Answers `{"status": "ok"}` or `{"status": "cancel"}` — stop,
   somebody cancelled it.
 

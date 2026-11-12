@@ -581,7 +581,7 @@ slipdock set-board <board> --release-command "make release"   # the one line a r
                                               # machine whose local.json lists it under release_commands (no_release: true: no releases)
 slipdock resume <board> [--pool P]            # let exactly that pause off (refused under an agent)
 slipdock job-progress <id> [--message NOTE]   # renew the lease (20 min for a session); note → card
-slipdock job-progress [<id>] --step "…"       # what the job is doing now: on the job only, not the card
+slipdock job-progress [<id>] --step "…"       # what the job is doing now: on the job, never a card comment; on an epic's job name the subcard ("#2835 CI running") and it shows the job as its loop
 slipdock finish-job <id> --status done|failed|cancelled|timeout [--summary S]
 slipdock finish-job <id> --status waiting --needs "Q" [--choice X]... [--on EMAIL]   # ask and park in one step
 

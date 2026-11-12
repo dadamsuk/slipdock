@@ -186,7 +186,8 @@ defmodule SlipdockCLI.Runners do
 
   # Without an id, the runner job this agent runs under (#1668): a verify
   # job's agent says what it is doing with `--step`, which shows on the job
-  # and not on the card.
+  # and is never a comment on the card (a subcard an epic's job names in it
+  # shows that job as its loop, #2899).
   def run("job-progress", [], o) do
     case String.trim(System.get_env("SLIPDOCK_JOB_ID") || "") do
       "" -> fail("job-progress needs a job id, or $SLIPDOCK_JOB_ID set by a runner")

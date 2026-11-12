@@ -1168,7 +1168,11 @@ WRITE
                                                  one queued, the last ended, the cards awaiting
   job-progress [<id>] [--step S] [--message NOTE] renew the job's lease (a session holds it 20 min);
                                                  --step says what you're doing now, shown on the job
-                                                 (Runners panel, job, jobs) and not on the card; the
+                                                 (Runners panel, job, jobs) and never a comment on
+                                                 the card. On an epic's job, name the subcard you
+                                                 are on in it ("#2835 CI running"): that subcard
+                                                 then shows the job as its loop and reads as
+                                                 running, not as nobody on it. The
                                                  note is also a comment on the card (--message - reads
                                                  it from stdin). Without <id>, the runner job in
                                                  $SLIPDOCK_JOB_ID. Prints ok or cancel

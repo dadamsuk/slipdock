@@ -319,8 +319,11 @@ Every card also carries its `state` line, `driver`, `age` in its list and
 `stuck` (past the list's usual stay; never an epic with open subcards, whose
 stay is theirs), and while a runner job holds it
 (claimed or running) its `loop`: `{runner, kind, job_id}`, the kind `build`,
-`verify` or `merge`. The card shows the loop beside its assignees, and it
-goes when the job ends; it is never an assignee, so `--assignee me`,
+`verify` or `merge`. A subcard with no open job of its own that an epic's
+build job above it is working (the job's current step names it, `#2835 CI
+running`) carries that job's `loop`, and its `state` reads `Running · … ·
+in #<epic>`: so name the subcard in each step. The card shows the loop
+beside its assignees, and it goes when the job ends; it is never an assignee, so `--assignee me`,
 `--no-assignee` and `assignee=none` still mean people, and a runner's agent
 (signed in with its owner's token) doesn't assign the card at all.
 A single card (`slipdock card`, `GET /api/cards/:id`, `get_card`) also
@@ -904,7 +907,8 @@ card. A job whose lease ran out goes back in the queue, and until another
 runner claims it the runner that held it takes it back with its next
 heartbeat, `job_progress` or finish (a machine that slept, a session that
 went quiet), at no cost to the job's three tries. `job_progress` with `step` (`slipdock job-progress --step`) says what a
-job is doing now on the job alone, not the card: a verify job reports each
+job is doing now on the job alone, never as a comment on the card (a subcard
+an epic's job names in its step shows that job as its loop): a verify job reports each
 step that way, and every runner job's prompt asks for its milestones too (on
 an epic, each subcard as it starts, is submitted and merges). Every step is
 kept on the job with its time. The card's own chat (*Ask AI about this card*)

@@ -1716,7 +1716,8 @@ defmodule SlipdockWeb.APIGuide do
     41m", "Held · paused by David: bad deploy", "Running · runner-2 · 7m"),
     `held` (why its queued job waits), `loop` (`{runner, kind, job_id}`
     while a runner job holds it: shown beside the assignees, never one, so
-    a runner's agent doesn't assign the card), `driver` (`agent` while a
+    a runner's agent doesn't assign the card; a subcard an epic's build job
+    is working, its current step naming it, carries that job's), `driver` (`agent` while a
     runner job holds it, else who last moved it — runner boards only), `in_list_since`
     and `age` (seconds in its list), `usual_stay` (the list's 85th-percentile
     stay), `over_usual` and `stuck` (past it). The `stuck` and `driver`
