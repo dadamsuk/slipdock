@@ -8,6 +8,8 @@ defmodule Slipdock.Handbook.RulesForDocsTest do
   # The guide reads the settings, so this needs the database.
   use Slipdock.DataCase, async: true
 
+  import Slipdock.DocsFacts, only: [assert_states: 3]
+
   @root Path.expand("../../..", __DIR__)
 
   test "the guide's handbook section says how to ask, and what get_card carries" do
@@ -30,7 +32,7 @@ defmodule Slipdock.Handbook.RulesForDocsTest do
   test "slipdock-loop checks the diff against the rules before submitting" do
     path = Path.join(@root, "priv/skills/slipdock-loop/SKILL.md")
     text = Slipdock.DocsText.read!(path)
-    assert text =~ "**Before\nsubmitting, check the diff against them**", path
+    assert_states(text, "**Before\nsubmitting, check the diff against them**", path)
     assert text =~ "slipdock handbook <board> --paths-from -", path
   end
 end

@@ -196,6 +196,7 @@ defmodule Slipdock.CiWorkflowTest do
       end
 
       # Nothing credo turns on by default is off, and the opt-ins left off say why.
+      # not a doc: .credo.exs, the config itself
       assert text =~ "Nothing that credo turns on by default is off here."
     end
   end

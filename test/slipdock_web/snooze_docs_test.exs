@@ -7,6 +7,8 @@ defmodule SlipdockWeb.SnoozeDocsTest do
   """
   use SlipdockWeb.ConnCase, async: true
 
+  import Slipdock.DocsFacts, only: [assert_states: 2]
+
   import Phoenix.LiveViewTest
 
   @root Path.expand("../..", __DIR__)
@@ -14,11 +16,11 @@ defmodule SlipdockWeb.SnoozeDocsTest do
 
   test "the guide has the field, the recipe and the counts; MCP's update_card names it" do
     guide = SlipdockWeb.APIGuide.markdown()
-    assert guide =~ "**Snoozed cards** — a card can be hidden until a day"
+    assert_states(guide, "**Snoozed cards** — a card can be hidden until a day")
     assert guide =~ "**Snoozing a card.** `POST /api/cards/:id/snooze`"
     assert guide =~ "`GET /api/boards/:board/cards?snoozed=only`"
     assert guide =~ ~s("snoozed_until": null, "snooze": null)
-    assert guide =~ "Snoozed cards are not in it"
+    assert_states(guide, "Snoozed cards are not in it")
     assert SlipdockWeb.APIGuide.short() =~ "the checklist, recurrence, snooze"
   end
 
@@ -31,14 +33,14 @@ defmodule SlipdockWeb.SnoozeDocsTest do
     assert manual =~ "slipdock snooze 12 next week"
     assert manual =~ "POST   /api/cards/:id/snooze"
     assert manual =~ "(`card_woken`)"
-    assert manual =~ "a snoozed subcard still counts as open"
+    assert_states(manual, "a snoozed subcard still counts as open")
   end
 
   test "README and docs/agents.md link to it" do
     assert read("README.md") =~ "docs/manual/snoozing-cards.md"
     agents = read("docs/agents.md")
     assert agents =~ "manual/snoozing-cards.md"
-    assert agents =~ "snooze it rather than flag it `waiting`"
+    assert_states(agents, "snooze it rather than flag it `waiting`")
   end
 
   test "both copies of the skills have it: commands, when to snooze, never pick one" do
@@ -46,11 +48,11 @@ defmodule SlipdockWeb.SnoozeDocsTest do
     assert skill =~ "slipdock snooze <id>... <when> [--note T] [--notify]"
     assert skill =~ "slipdock wake <id>..."
     assert skill =~ "--snoozed include"
-    assert skill =~ "Never pick a snoozed card to work on"
+    assert_states(skill, "Never pick a snoozed card to work on")
 
     work = read("priv/skills/slipdock-work/SKILL.md")
-    assert work =~ "blocked, waiting, snoozed, or assigned to someone else"
-    assert work =~ "when what it waits for has a date, snooze it instead"
+    assert_states(work, "blocked, waiting, snoozed, or assigned to someone else")
+    assert_states(work, "when what it waits for has a date, snooze it instead")
   end
 
   test "the keyboard sheet lists z" do
@@ -66,7 +68,7 @@ defmodule SlipdockWeb.SnoozeDocsTest do
     assert html =~ "snooze: mon"
 
     {:ok, _view, html} = live(conn, ~p"/help/agents")
-    assert html =~ "Snooze a card until a day, or wake it"
+    assert_states(html, "Snooze a card until a day, or wake it")
 
     {:ok, _view, html} = live(conn, ~p"/help/agents/mcp")
     assert html =~ "snoozed_until"

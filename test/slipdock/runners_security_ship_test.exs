@@ -9,6 +9,8 @@ defmodule Slipdock.RunnersSecurityShipTest do
   """
   use SlipdockWeb.ConnCase, async: true
 
+  import Slipdock.DocsFacts, only: [assert_states: 2]
+
   import Slipdock.Fixtures
 
   alias Slipdock.{Accounts, Boards, Repo, Runners, Verified}
@@ -47,15 +49,15 @@ defmodule Slipdock.RunnersSecurityShipTest do
     assert text =~
              ~s|`gh pr create --head card-#{id} --title "Maintenance (##{id})" --body "Card ##{id}."`|
 
-    assert text =~ "(a neutral title, not the card's)"
+    assert_states(text, "(a neutral title, not the card's)")
     refute text =~ "--fill"
     refute text =~ "Board events skip"
     refute text =~ "/api/x"
 
-    assert text =~ "Describe the change neutrally everywhere they show (commit messages"
-    assert text =~ "never the hole, how to exploit it or a list of the affected endpoints"
-    assert text =~ "The detail stays on this card until the fix is deployed"
-    assert text =~ "the closing comment may link to it"
+    assert_states(text, "Describe the change neutrally everywhere they show (commit messages")
+    assert_states(text, "never the hole, how to exploit it or a list of the affected endpoints")
+    assert_states(text, "The detail stays on this card until the fix is deployed")
+    assert_states(text, "the closing comment may link to it")
     # The rest of the instructions are as for any card.
     assert text =~ "never push the default branch"
     assert text =~ "slipdock done #{id} --pr <url>"
@@ -99,16 +101,22 @@ defmodule Slipdock.RunnersSecurityShipTest do
 
   test "the guide, the manual, agents.md and the loop skill say so", %{user: user} do
     # The guide says it to a reader with a board that ships by pull request.
-    assert SlipdockWeb.APIGuide.markdown(user: user) =~
-             "**A card tagged `security`** gets a neutral pull request"
+    assert_states(
+      SlipdockWeb.APIGuide.markdown(user: user),
+      "**A card tagged `security`** gets a neutral pull request"
+    )
 
     assert Slipdock.DocsText.read!("docs/manual.md") =~
              "**Security fixes don't announce themselves.**"
 
-    assert Slipdock.DocsText.read!("docs/agents.md") =~
-             "A card tagged `security` ships a neutral pull request"
+    assert_states(
+      Slipdock.DocsText.read!("docs/agents.md"),
+      "A card tagged `security` ships a neutral pull request"
+    )
 
-    assert Slipdock.DocsText.read!("priv/skills/slipdock-loop/SKILL.md") =~
-             "**A card tagged `security`** ships a neutral pull request"
+    assert_states(
+      Slipdock.DocsText.read!("priv/skills/slipdock-loop/SKILL.md"),
+      "**A card tagged `security`** ships a neutral pull request"
+    )
   end
 end

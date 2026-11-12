@@ -6,6 +6,8 @@ defmodule SlipdockWeb.AgeChipOptionTest do
   """
   use SlipdockWeb.ConnCase, async: true
 
+  import Slipdock.DocsFacts, only: [assert_states: 2]
+
   import Phoenix.LiveViewTest
   import Slipdock.Fixtures
 
@@ -171,7 +173,7 @@ defmodule SlipdockWeb.AgeChipOptionTest do
     root = Path.expand("../../..", __DIR__)
     manual = Slipdock.DocsText.read!(Path.join(root, "docs/manual.md"))
     # A card view element now (#2031), and still the list's own switch.
-    assert manual =~ "show **Time in list** in your\n[card views](card-views.md)"
+    assert_states(manual, "show **Time in list** in your\n[card views](card-views.md)")
     assert manual =~ "--no-show-age"
     refute manual =~ "untick **Time in list**"
 

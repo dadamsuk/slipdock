@@ -9,6 +9,8 @@ defmodule Slipdock.TrustContractTest do
   """
   use ExUnit.Case, async: true
 
+  import Slipdock.DocsFacts, only: [assert_states: 2, assert_states: 3]
+
   alias Slipdock.Machines.TrustContract
 
   @root Path.expand("../..", __DIR__)
@@ -49,7 +51,7 @@ defmodule Slipdock.TrustContractTest do
             "only when the archive's signature verifies against the same release key",
             "With `skills_unsigned` set in `local.json`"
           ] do
-        assert text =~ promise, "the contract no longer says #{promise}"
+        assert_states(text, promise, "the contract no longer says #{promise}")
       end
     end
 
@@ -115,7 +117,7 @@ defmodule Slipdock.TrustContractTest do
           "the network outside a container",
           "prompts being the board members' instructions within the runner's permission mode"
         ] do
-      assert readme =~ unbounded
+      assert_states(readme, unbounded)
     end
   end
 

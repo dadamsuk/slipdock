@@ -6,6 +6,8 @@ defmodule SlipdockWeb.VerifiedDocsTest do
   """
   use ExUnit.Case, async: true
 
+  import Slipdock.DocsFacts, only: [assert_states: 2, assert_states: 3]
+
   @root Path.expand("../..", __DIR__)
 
   defp read(path), do: Slipdock.DocsText.read!(Path.join(@root, path))
@@ -35,8 +37,8 @@ defmodule SlipdockWeb.VerifiedDocsTest do
     # scripts' self-update was retired, #2582) the daemon's own updates.
     readme = "README.md" |> read() |> String.replace(~r/\s+/, " ")
     assert readme =~ "`slipdock verify 12 merged`"
-    assert readme =~ "a card awaiting verification frees its lane and its dependents"
-    assert readme =~ "A machine's runner daemon updates itself from signed releases"
+    assert_states(readme, "a card awaiting verification frees its lane and its dependents")
+    assert_states(readme, "A machine's runner daemon updates itself from signed releases")
     refute readme =~ "keep themselves current between jobs"
     assert read("README.md") =~ "`verify_card`"
     assert read("docs/agents.md") =~ "**Verified work.**"
@@ -56,10 +58,10 @@ defmodule SlipdockWeb.VerifiedDocsTest do
     assert loop =~ "never try to change it"
     assert loop =~ "--suite"
     assert loop =~ "git worktree add"
-    assert loop =~ "Never verify a card you built"
+    assert_states(loop, "Never verify a card you built")
 
     work = read("priv/skills/slipdock-work/SKILL.md")
-    assert work =~ "**Verified work, where a board has it on**"
+    assert_states(work, "**Verified work, where a board has it on**")
     assert work =~ "read that reason first"
     assert work =~ "clean tree"
 
@@ -87,27 +89,42 @@ defmodule SlipdockWeb.VerifiedDocsTest do
     for skill <- ["slipdock-loop", "slipdock-work"],
         path = Path.join([@root, "priv/skills", skill, "SKILL.md"]),
         text = flat.(Slipdock.DocsText.read!(path)) do
-      assert text =~ "**Check the bar at pickup**, before building", path
-      assert text =~ "needs a person (a handbook rule added, reworded or dropped, a merge", path
+      assert_states(text, "**Check the bar at pickup**, before building", path)
+
+      assert_states(
+        text,
+        "needs a person (a handbook rule added, reworded or dropped, a merge",
+        path
+      )
+
       assert text =~ ~s(slipdock wait <id> "…"), path
       assert text =~ "the conflict to the verifier", path
 
-      assert text =~
-               ~s|"proposed as a garden proposal (rule id, wording)", never "W-x has rule Y"|,
-             path
+      assert_states(
+        text,
+        ~s|"proposed as a garden proposal (rule id, wording)", never "W-x has rule Y"|,
+        path
+      )
     end
 
     manual = flat.(read("docs/manual.md"))
     assert manual =~ "**Checked at pickup.**"
-    assert manual =~ "**Write a bar that can be met.**"
+    assert_states(manual, "**Write a bar that can be met.**")
 
-    assert manual =~
-             ~s|"proposed as a garden proposal (rule id, wording)", never "W-x has rule Y"|
+    assert_states(
+      manual,
+      ~s|"proposed as a garden proposal (rule id, wording)", never "W-x has rule Y"|
+    )
 
-    assert flat.(read("docs/agents.md")) =~
-             ~s|a rule change "proposed as a garden proposal (rule id, wording)", never "W-x has rule Y"|
+    assert_states(
+      flat.(read("docs/agents.md")),
+      ~s|a rule change "proposed as a garden proposal (rule id, wording)", never "W-x has rule Y"|
+    )
 
-    assert flat.(read("docs/agents.md")) =~ "the builder checks it at pickup and asks with a wait"
+    assert_states(
+      flat.(read("docs/agents.md")),
+      "the builder checks it at pickup and asks with a wait"
+    )
   end
 
   test "builders run the project's own pre-push checks and watch with --fail-fast (#1866)" do
@@ -122,7 +139,7 @@ defmodule SlipdockWeb.VerifiedDocsTest do
         text = flat.(path) do
       assert text =~ "the project's own pre-push checks", path
       assert text =~ "contributing guide or handbook", path
-      assert text =~ "formatting and a compile that fails on warnings", path
+      assert_states(text, "formatting and a compile that fails on warnings", path)
       assert text =~ "--watch --fail-fast", path
       refute text =~ "the quick checks", path
     end
@@ -135,12 +152,18 @@ defmodule SlipdockWeb.VerifiedDocsTest do
 
     assert flat.("docs/manual.md") =~ "**Accepting merges.**"
     assert flat.("docs/manual.md") =~ "press **Merged it myself** (`slipdock verify 12 merged"
-    assert flat.("docs/agents.md") =~ "accepting a card there queues the merge"
+    assert_states(flat.("docs/agents.md"), "accepting a card there queues the merge")
     assert flat.("lib/slipdock_web/api_guide.ex") =~ ~s(sets `verify_state: "merging"`)
-    assert flat.("priv/skills/slipdock-loop/SKILL.md") =~ "the card shows *merging* until then"
 
-    assert flat.("priv/skills/slipdock-work/SKILL.md") =~
-             "A failed merge sends the card back rejected"
+    assert_states(
+      flat.("priv/skills/slipdock-loop/SKILL.md"),
+      "the card shows *merging* until then"
+    )
+
+    assert_states(
+      flat.("priv/skills/slipdock-work/SKILL.md"),
+      "A failed merge sends the card back rejected"
+    )
 
     assert flat.("priv/skills/slipdock/SKILL.md") =~ "slipdock verify <id> merged"
     assert flat.("cli/help.txt") =~ "verify <id> accept|reject|merged"
@@ -149,15 +172,34 @@ defmodule SlipdockWeb.VerifiedDocsTest do
   test "done stays done, said where people and agents look (#1850)" do
     flat = fn path -> path |> read() |> String.replace(~r/\s+/, " ") end
 
-    assert flat.("docs/manual.md") =~
-             "**Done stays done.** An agent can't reopen a completed card"
+    assert_states(
+      flat.("docs/manual.md"),
+      "**Done stays done.** An agent can't reopen a completed card"
+    )
 
-    assert flat.("docs/manual.md") =~ "or accepted and waiting for its pull request to merge"
-    assert flat.("docs/agents.md") =~ "**Done stays done.** On every board, with no switch"
-    assert flat.("README.md") =~ "reopen a done card: done stays done unless a person reopens it"
+    assert_states(
+      flat.("docs/manual.md"),
+      "or accepted and waiting for its pull request to merge"
+    )
+
+    assert_states(flat.("docs/agents.md"), "**Done stays done.** On every board, with no switch")
+
+    assert_states(
+      flat.("README.md"),
+      "reopen a done card: done stays done unless a person reopens it"
+    )
+
     assert flat.("lib/slipdock_web/api_guide.ex") =~ "or reopen a done card**"
-    assert flat.("priv/skills/slipdock-loop/SKILL.md") =~ "Nor can an agent reopen a done card"
-    assert flat.("priv/skills/slipdock/SKILL.md") =~ "an agent can't undo or move a done card"
+
+    assert_states(
+      flat.("priv/skills/slipdock-loop/SKILL.md"),
+      "Nor can an agent reopen a done card"
+    )
+
+    assert_states(
+      flat.("priv/skills/slipdock/SKILL.md"),
+      "an agent can't undo or move a done card"
+    )
   end
 
   test "an epic on a pull request board completes without a PR of its own (#1917)" do
@@ -166,15 +208,17 @@ defmodule SlipdockWeb.VerifiedDocsTest do
     assert flat.("lib/slipdock_web/api_guide.ex") =~
              "complete the epic without `--pr`"
 
-    assert flat.("docs/agents.md") =~ "An epic there names none of its own"
-    assert flat.("docs/manual.md") =~ "**Epics have no pull request of their own.**"
-    assert flat.("README.md") =~ "completes without a pull request of its own"
+    assert_states(flat.("docs/agents.md"), "An epic there names none of its own")
+    assert_states(flat.("docs/manual.md"), "**Epics have no pull request of their own.**")
+    assert_states(flat.("README.md"), "completes without a pull request of its own")
     loop = flat.("priv/skills/slipdock-loop/SKILL.md")
     assert loop =~ "complete the epic without `--pr`"
     assert loop =~ "never open a token PR"
     assert flat.("priv/skills/slipdock-work/SKILL.md") =~ "An epic names no PR"
 
-    assert flat.("priv/skills/slipdock/SKILL.md") =~
-             "completes with --evidence alone and accepting merges nothing"
+    assert_states(
+      flat.("priv/skills/slipdock/SKILL.md"),
+      "completes with --evidence alone and accepting merges nothing"
+    )
   end
 end

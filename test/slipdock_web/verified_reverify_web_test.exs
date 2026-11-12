@@ -6,6 +6,8 @@ defmodule SlipdockWeb.VerifiedReverifyWebTest do
   """
   use SlipdockWeb.ConnCase, async: true
 
+  import Slipdock.DocsFacts, only: [assert_states: 2]
+
   import Phoenix.LiveViewTest
   import Slipdock.Fixtures
 
@@ -76,26 +78,30 @@ defmodule SlipdockWeb.VerifiedReverifyWebTest do
 
   test "the guide, the docs and both skills describe carried parts", ctx do
     guide = SlipdockWeb.APIGuide.markdown(user: ctx.user) |> String.replace(~r/\s+/, " ")
-    assert guide =~ "A card resubmitted after a rejection is judged on what changed"
+    assert_states(guide, "A card resubmitted after a rejection is judged on what changed")
     assert guide =~ "(`bar:1=carried`, or left out)"
     assert guide =~ "an audit carries nothing"
 
     flat = fn path -> path |> Slipdock.DocsText.read!() |> String.replace(~r/\s+/, " ") end
 
-    assert flat.("docs/manual.md") =~ "**A resubmission is judged on what changed.**"
+    assert_states(flat.("docs/manual.md"), "**A resubmission is judged on what changed.**")
     assert flat.("docs/manual.md") =~ "shown as *carried from abc1234*"
     assert flat.("docs/agents.md") =~ "shown as *carried from <sha>*"
 
-    assert flat.("docs/agents.md") =~
-             "The builder's resubmission evidence names the rejected commit and what changed since."
+    assert_states(
+      flat.("docs/agents.md"),
+      "The builder's resubmission evidence names the rejected commit and what changed since."
+    )
 
     loop = flat.("priv/skills/slipdock-loop/SKILL.md")
-    assert loop =~ "names the rejected commit and what changed since"
-    assert loop =~ "**A resubmission** (the prompt says the card was judged before"
+    assert_states(loop, "names the rejected commit and what changed since")
+    assert_states(loop, "**A resubmission** (the prompt says the card was judged before")
     assert loop =~ "An audit carries nothing."
 
-    assert flat.("priv/skills/slipdock-work/SKILL.md") =~
-             "Its new evidence names the rejected commit and what changed since"
+    assert_states(
+      flat.("priv/skills/slipdock-work/SKILL.md"),
+      "Its new evidence names the rejected commit and what changed since"
+    )
 
     assert SlipdockWeb.MCP.Tools.VerifyCard.input_schema().properties.checks.description =~
              "=carried"

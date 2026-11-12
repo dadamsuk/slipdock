@@ -6,6 +6,8 @@ defmodule SlipdockWeb.HandbookDocsTest do
   """
   use SlipdockWeb.ConnCase, async: true
 
+  import Slipdock.DocsFacts, only: [assert_states: 2]
+
   @root Path.expand("../..", __DIR__)
   defp read(path), do: Slipdock.DocsText.read!(Path.join(@root, path))
 
@@ -23,7 +25,7 @@ defmodule SlipdockWeb.HandbookDocsTest do
 
   test "the manual documents install, the card key and the commands" do
     manual = read("docs/manual.md")
-    assert manual =~ "**The handbook** is the one built-in Tool"
+    assert_states(manual, "**The handbook** is the one built-in Tool")
     assert manual =~ "`slipdock tools install-board handbook --board B`"
     assert manual =~ "`handbook` key"
     assert manual =~ "`slipdock handbook <board>`"
@@ -32,7 +34,7 @@ defmodule SlipdockWeb.HandbookDocsTest do
   end
 
   test "README, the CLI help and the skill name the commands" do
-    assert read("README.md") =~ "**The handbook.** One Tool is built in"
+    assert_states(read("README.md"), "**The handbook.** One Tool is built in")
     help = read("cli/help.txt")
     assert help =~ "tools install-board handbook --board B"
     assert help =~ "handbook <board>|<card>"
@@ -43,8 +45,10 @@ defmodule SlipdockWeb.HandbookDocsTest do
   end
 
   test "the gardener's check is in the guide's recipe and the manual's table" do
-    assert SlipdockWeb.APIGuide.markdown() =~
-             ~r/cards\s+closed on a handbook board without a `Handbook:` line/
+    assert_states(
+      SlipdockWeb.APIGuide.markdown(),
+      "cards closed on a handbook board without a `Handbook:` line"
+    )
 
     assert read("docs/manual.md") =~ "| Closed without a Handbook line |"
   end

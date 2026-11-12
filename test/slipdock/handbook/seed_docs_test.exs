@@ -8,6 +8,8 @@ defmodule Slipdock.Handbook.SeedDocsTest do
   # The guide reads the settings, so this needs the database.
   use Slipdock.DataCase, async: true
 
+  import Slipdock.DocsFacts, only: [assert_states: 2]
+
   alias Slipdock.Handbook
   alias Slipdock.Handbook.Rules
   alias Slipdock.Wiki.Page
@@ -38,8 +40,12 @@ defmodule Slipdock.Handbook.SeedDocsTest do
     assert Enum.all?(rules, &(&1.severity == "should" and &1.check == "judgement"))
 
     # PRIN-3 splits what grows, as well as extending before adding (#2112).
-    assert List.last(rules).text =~ "extended before a new one is written beside it; "
-    assert List.last(rules).text =~ "is split in the same change, each part about one thing."
+    assert_states(List.last(rules).text, "extended before a new one is written beside it; ")
+
+    assert_states(
+      List.last(rules).text,
+      "is split in the same change, each part about one thing."
+    )
 
     # Every list item under Principles' `## Rules` became a rule.
     {:ok, section} = Slipdock.Wiki.Section.read(seeded("Principles").body, "Principles/Rules")
@@ -80,14 +86,14 @@ defmodule Slipdock.Handbook.SeedDocsTest do
     assert asks =~ "in numbered rounds."
     refute asks =~ "one question at a time"
     # A round is the frontier, and each question comes with an answer to accept.
-    assert asks =~ "A round is every question whose prerequisites are settled"
-    assert asks =~ "each with a recommended answer that a yes accepts"
+    assert_states(asks, "A round is every question whose prerequisites are settled")
+    assert_states(asks, "each with a recommended answer that a yes accepts")
     # Unattended, a round is one wait, not one per question.
-    assert asks =~ "With nobody there, a round goes into one wait, a question each."
+    assert_states(asks, "With nobody there, a round goes into one wait, a question each.")
     # The stop rule, which keeps a feature's grill in proportion.
-    assert asks =~ "It stops when the next answer wouldn't change the plan"
-    assert asks =~ "what is built, for whom, what done looks like and what is out of scope"
-    assert asks =~ "It doesn't ask what the board already answers"
+    assert_states(asks, "It stops when the next answer wouldn't change the plan")
+    assert_states(asks, "what is built, for whom, what done looks like and what is out of scope")
+    assert_states(asks, "It doesn't ask what the board already answers")
 
     # The four parts every stage has are all still there, once each.
     for part <- ["Asks", "Skill", "Produces", "Writes to"] do
@@ -97,7 +103,7 @@ defmodule Slipdock.Handbook.SeedDocsTest do
     # The Skill line's example is a front-matter name, with no collection prefix,
     # and still names no skill for the registry to look up.
     [skill] = Regex.run(~r/^- \*\*Skill:\*\*.*$/m, grill)
-    assert skill =~ "the name in its front matter (`grilling`, with no collection's prefix)"
+    assert_states(skill, "the name in its front matter (`grilling`, with no collection's prefix)")
     refute skill =~ ~r/[\w-]+:grilling/
     refute skill =~ "mattpocock"
   end
@@ -108,33 +114,47 @@ defmodule Slipdock.Handbook.SeedDocsTest do
       |> Slipdock.DocsText.read!()
       |> flat()
 
-    assert manual =~ "It starts with how to write one and a baseline of three"
-    assert manual =~ "**Sizing**, checked in order: a *system*"
-    assert manual =~ "**One section per stage** (Grill, Spike, Decide, Principles, Spec, Cards)"
-    assert manual =~ "Editing these two pages is how a board changes how it decides and plans."
-    assert manual =~ "gets the seed in its place, reported as `(seed added)`"
+    assert_states(manual, "It starts with how to write one and a baseline of three")
+    assert_states(manual, "**Sizing**, checked in order: a *system*")
+
+    assert_states(
+      manual,
+      "**One section per stage** (Grill, Spike, Decide, Principles, Spec, Cards)"
+    )
+
+    assert_states(
+      manual,
+      "Editing these two pages is how a board changes how it decides and plans."
+    )
+
+    assert_states(manual, "gets the seed in its place, reported as `(seed added)`")
     assert manual =~ "`(edited: left alone)`"
 
     # PRIN-3 as 1.6.0 words it, and the upgrade from 1.5.0's seed (#2112).
-    assert manual =~ "extending what is there before adding beside it, and splitting it"
+    assert_states(manual, "extending what is there before adding beside it, and splitting it")
     assert manual =~ "reported as `(seed updated)`"
 
     # The Spike stage, and the upgrade to it (#2352).
-    assert manual =~ "both take a spike after the grill when one is needed"
+    assert_states(manual, "both take a spike after the grill when one is needed")
     assert manual =~ "Installing 1.7.0 (#2352) adds the **Spike** stage"
     assert manual =~ "`(edited: left alone; Spike stage proposed)`, and only once"
 
     # The upgrade from 1.7.0's seed, whose Grill named no registry skill (#2601).
-    assert manual =~ "and so (#2601) does one still holding the 1.7.0 seed"
-    assert manual =~ "names the skill enabled on the board from the skills registry first"
+    assert_states(manual, "and so (#2601) does one still holding the 1.7.0 seed")
+    assert_states(manual, "names the skill enabled on the board from the skills registry first")
     refute manual =~ "gets the 1.7.0 one"
 
     # The upgrade to a Grill that asks in numbered rounds (#2065).
-    assert manual =~ "So (#2065) does one still holding the seed as it stood until then"
-    assert manual =~ "the current seed's Grill asks in numbered rounds"
-    assert manual =~ "each with a recommended answer that a yes accepts"
-    assert manual =~ "stops when the next answer wouldn't change the plan"
-    assert manual =~ "a round goes into one wait (`slipdock wait --question Q --question Q`)"
-    assert manual =~ "as an entry's front matter has it (`grilling`)"
+    assert_states(manual, "So (#2065) does one still holding the seed as it stood until then")
+    assert_states(manual, "the current seed's Grill asks in numbered rounds")
+    assert_states(manual, "each with a recommended answer that a yes accepts")
+    assert_states(manual, "stops when the next answer wouldn't change the plan")
+
+    assert_states(
+      manual,
+      "a round goes into one wait (`slipdock wait --question Q --question Q`)"
+    )
+
+    assert_states(manual, "as an entry's front matter has it (`grilling`)")
   end
 end

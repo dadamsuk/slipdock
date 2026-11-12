@@ -10,6 +10,8 @@ defmodule Slipdock.GardenConfirmDocsTest do
   """
   use ExUnit.Case, async: true
 
+  import Slipdock.DocsFacts, only: [assert_states: 2]
+
   @root Path.expand("../..", __DIR__)
 
   # `--confirm` near a garden decision: the route #2668 closed.
@@ -64,12 +66,17 @@ defmodule Slipdock.GardenConfirmDocsTest do
     garden = File.read!(Path.join(@root, "cli/lib/slipdock_cli/garden.ex"))
     [footer] = Regex.run(~r/" Apply: slipdock garden apply.{0,200}/s, garden)
     assert footer =~ "proposals_footer"
-    assert garden =~ ~s|" (a proposal: on the board's Tidy-up page, \#{tidy_url(s["board_id"])})"|
-    assert garden =~ ~s|"      a person's to decide, on the board's Tidy-up page: "|
+
+    assert_states(
+      garden,
+      ~s|" (a proposal: on the board's Tidy-up page, \#{tidy_url(s["board_id"])})"|
+    )
+
+    assert_states(garden, ~s|"      a person's to decide, on the board's Tidy-up page: "|)
     refute garden =~ "[--confirm]"
 
     findings = File.read!(Path.join(@root, "cli/lib/slipdock_cli/findings.ex"))
-    assert findings =~ ~s|"  Decide each on the board's Tidy-up page: "|
+    assert_states(findings, ~s|"  Decide each on the board's Tidy-up page: "|)
     refute findings =~ "add --confirm"
   end
 

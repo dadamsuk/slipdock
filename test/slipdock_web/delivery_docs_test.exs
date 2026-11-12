@@ -7,6 +7,8 @@ defmodule SlipdockWeb.DeliveryDocsTest do
   """
   use SlipdockWeb.ConnCase, async: true
 
+  import Slipdock.DocsFacts, only: [assert_states: 2]
+
   import Phoenix.LiveViewTest
   import Slipdock.Fixtures
 
@@ -53,12 +55,12 @@ defmodule SlipdockWeb.DeliveryDocsTest do
 
     work = read("priv/skills/slipdock-work/SKILL.md")
     assert work =~ "**Incidents and deploys.**"
-    assert work =~ "Never record or\n  finish deploys by hand"
+    assert_states(work, "Never record or\n  finish deploys by hand")
   end
 
   test "/help/agents has the row", %{conn: conn} do
     {:ok, _view, html} = live(conn, ~p"/help/agents")
-    assert html =~ "Record deploys, and read the delivery (DORA) numbers"
+    assert_states(html, "Record deploys, and read the delivery (DORA) numbers")
     assert html =~ "slipdock deploy run, slipdock dora"
   end
 

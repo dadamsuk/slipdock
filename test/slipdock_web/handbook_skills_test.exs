@@ -8,6 +8,8 @@ defmodule SlipdockWeb.HandbookSkillsTest do
   """
   use ExUnit.Case, async: true
 
+  import Slipdock.DocsFacts, only: [assert_states: 3]
+
   alias Slipdock.Handbook
 
   @root Path.expand("../..", __DIR__)
@@ -34,7 +36,7 @@ defmodule SlipdockWeb.HandbookSkillsTest do
 
   test "slipdock-loop has the read step, the gate and the line" do
     for path <- copies("slipdock-loop"), step <- @loop_steps do
-      assert File.read!(path) =~ step, "#{path} lacks #{inspect(step)}"
+      assert_states(File.read!(path), step, "#{path} lacks #{inspect(step)}")
     end
   end
 
@@ -53,7 +55,12 @@ defmodule SlipdockWeb.HandbookSkillsTest do
   test "slipdock-docs sends durable answers to the handbook first" do
     for path <- copies("slipdock-docs") do
       assert File.read!(path) =~ "**A board with a handbook**", path
-      assert File.read!(path) =~ "each decision as its own page in\n`Handbook/Decisions`", path
+
+      assert_states(
+        File.read!(path),
+        "each decision as its own page in\n`Handbook/Decisions`",
+        path
+      )
     end
   end
 

@@ -9,6 +9,8 @@ defmodule Slipdock.BuilderMutationReviewDocsTest do
   """
   use ExUnit.Case, async: true
 
+  import Slipdock.DocsFacts, only: [assert_states: 2]
+
   alias Slipdock.Verified.Checks
 
   @root Path.expand("../..", __DIR__)
@@ -54,18 +56,25 @@ defmodule Slipdock.BuilderMutationReviewDocsTest do
 
   test "the slipdock-loop skill says the named mutants are a map (#2696)" do
     skill = read("priv/skills/slipdock-loop/SKILL.md")
-    assert skill =~ "reads them as a map, not a verdict"
+    assert_states(skill, "reads them as a map, not a verdict")
 
-    assert skill =~
-             "carries a killed one only when it broke it again or a test you name plainly covers that line"
+    assert_states(
+      skill,
+      "carries a killed one only when it broke it again or a test you name plainly covers that line"
+    )
 
-    assert skill =~ "breaks every guard or branch your diff adds"
+    assert_states(skill, "breaks every guard or branch your diff adds")
     refute skill =~ ~r/verifier\s+carries those and breaks other lines/
   end
 
   test "the slipdock skill says the named mutants are a map (#2696)" do
     skill = read("priv/skills/slipdock/SKILL.md")
-    assert skill =~ "(a map, not a verdict: the verifier carries a killed one only when re-run"
+
+    assert_states(
+      skill,
+      "(a map, not a verdict: the verifier carries a killed one only when re-run"
+    )
+
     assert skill =~ "breaks every guard you add)"
     refute skill =~ "breaks other lines rather than repeat them"
   end
@@ -82,7 +91,7 @@ defmodule Slipdock.BuilderMutationReviewDocsTest do
              "#{unquote(path)} doesn't say to commit the card's work before breaking lines"
 
       assert before_break =~ "git checkout -- <file>"
-      assert before_break =~ "discards every edit the card made to that file"
+      assert_states(before_break, "discards every edit the card made to that file")
     end
   end
 
@@ -103,9 +112,9 @@ defmodule Slipdock.BuilderMutationReviewDocsTest do
 
   test "docs/agents.md says the same, and that every claim is checked (#2696)" do
     agents = read("docs/agents.md")
-    assert agents =~ "lists them as a map, not a verdict"
-    assert agents =~ "every guard or branch the diff adds"
-    assert agents =~ "The verifier checks every claim in your evidence"
+    assert_states(agents, "lists them as a map, not a verdict")
+    assert_states(agents, "every guard or branch the diff adds")
+    assert_states(agents, "The verifier checks every claim in your evidence")
     refute agents =~ "it carries the killed ones"
   end
 end

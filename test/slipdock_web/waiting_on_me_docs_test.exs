@@ -6,6 +6,8 @@ defmodule SlipdockWeb.WaitingOnMeDocsTest do
   """
   use SlipdockWeb.ConnCase, async: true
 
+  import Slipdock.DocsFacts, only: [assert_states: 2]
+
   import Phoenix.LiveViewTest
 
   @root Path.expand("../..", __DIR__)
@@ -27,16 +29,18 @@ defmodule SlipdockWeb.WaitingOnMeDocsTest do
   test "the manual says an epic's subcard list marks the rows waiting on you (#2128)" do
     manual = flat("docs/manual.md")
 
-    assert manual =~
-             "Open the epic and its subcard list marks the same rows: each one waiting on you carries a badge with its reason (*to verify*, *a question*)"
+    assert_states(
+      manual,
+      "Open the epic and its subcard list marks the same rows: each one waiting on you carries a badge with its reason (*to verify*, *a question*)"
+    )
 
-    assert manual =~ "one waiting on someone else a quieter mark naming who it waits on"
-    assert manual =~ "the line's #ids above the list jump to their rows"
+    assert_states(manual, "one waiting on someone else a quieter mark naming who it waits on")
+    assert_states(manual, "the line's #ids above the list jump to their rows")
   end
 
   test "docs/agents.md names the field and the CLI line" do
     agents = flat("docs/agents.md")
-    assert agents =~ "**What in an epic's tree waits on you.**"
+    assert_states(agents, "**What in an epic's tree waits on you.**")
     assert agents =~ "`waiting_on_me`"
     assert agents =~ "`on_others`"
     assert agents =~ "print a `Waiting on you:` line"
@@ -48,29 +52,29 @@ defmodule SlipdockWeb.WaitingOnMeDocsTest do
     assert readme =~ "`and 1 on someone else`"
     assert readme =~ "`Waiting on you: N`"
     assert readme =~ "`waiting_on_me`"
-    assert readme =~ "*When something waits on you*: *Alert me in the header*, *Email me*"
+    assert_states(readme, "*When something waits on you*: *Alert me in the header*, *Email me*")
   end
 
   test "the packaged skill teaches the CLI line and the field" do
     skill = flat("priv/skills/slipdock/SKILL.md")
-    assert skill =~ ~s(on an epic, a "Waiting on you:" line)
+    assert_states(skill, ~s(on an epic, a "Waiting on you:" line))
     assert skill =~ "waiting_on_me: count, cards, on_others, line"
-    assert skill =~ ~s("Waiting on you: N" for the tree)
+    assert_states(skill, ~s("Waiting on you: N" for the tree))
   end
 
   test "the agents page has the doors, and its CLI topic the line", %{conn: conn} do
     conn = log_in_user(conn, Slipdock.Fixtures.user_fixture())
     {:ok, _view, html} = live(conn, ~p"/help/agents")
-    assert html =~ "See what in an epic&#39;s tree is waiting on you"
+    assert_states(html, "See what in an epic&#39;s tree is waiting on you")
     assert html =~ "get_card, get_board: waiting_on_me"
     {:ok, _view, cli} = live(conn, ~p"/help/agents/cli")
     assert cli =~ "<code>on_others</code>"
-    assert cli =~ "an epic whose tree is all waiting on a person has nothing workable"
+    assert_states(cli, "an epic whose tree is all waiting on a person has nothing workable")
   end
 
   test "the API guide gives the shape" do
     guide = String.replace(SlipdockWeb.APIGuide.markdown(), ~r/\s+/, " ")
-    assert guide =~ "**What in an epic's tree waits on you.**"
+    assert_states(guide, "**What in an epic's tree waits on you.**")
     assert guide =~ "`{count, cards, on_others, line}`"
     assert guide =~ "plus `short`"
   end

@@ -6,6 +6,8 @@ defmodule SlipdockWeb.API.FindingControllerTest do
   """
   use SlipdockWeb.ConnCase, async: true
 
+  import Slipdock.DocsFacts, only: [assert_states: 2]
+
   import Ecto.Query
   import Slipdock.Fixtures
 
@@ -204,7 +206,7 @@ defmodule SlipdockWeb.API.FindingControllerTest do
       for kind <- ~w(gotcha rule handbook-wrong tooling process),
           do: assert(section =~ "- #{kind}:")
 
-      assert section =~ "would a card on a different subject want to know"
+      assert_states(section, "would a card on a different subject want to know")
       assert section =~ "`Findings: none` is the usual answer"
       assert section =~ "GET /api/boards/:board/findings"
       assert section =~ "PATCH /api/findings/:id"

@@ -8,6 +8,8 @@ defmodule SlipdockWeb.GardenDocsTest do
   """
   use SlipdockWeb.ConnCase, async: true
 
+  import Slipdock.DocsFacts, only: [assert_states: 2]
+
   import Phoenix.LiveViewTest
 
   @root Path.expand("../..", __DIR__)
@@ -15,9 +17,9 @@ defmodule SlipdockWeb.GardenDocsTest do
 
   test "the guide has the recipe; the short guide's tool list names garden and garden_decide" do
     guide = SlipdockWeb.APIGuide.markdown()
-    assert guide =~ "**Tidying up a board.** The gardener (W-1807)"
+    assert_states(guide, "**Tidying up a board.** The gardener (W-1807)")
     assert guide =~ "`POST /api/garden/suggestions/:id/apply`"
-    assert guide =~ ~r/apply only what they approve; never\s+dismiss one on your own/
+    assert_states(guide, "apply only what they approve; never dismiss one on your own")
 
     assert SlipdockWeb.APIGuide.short() =~
              ~r/`garden` and\s+`garden_decide` \(tidy-up suggestions\)/
@@ -32,7 +34,7 @@ defmodule SlipdockWeb.GardenDocsTest do
       assert manual =~ "| #{check.label()} |", "the manual's table lacks #{check.label()}"
     end
 
-    assert manual =~ "no backlink, no pin and no folder"
+    assert_states(manual, "no backlink, no pin and no folder")
     assert manual =~ "slipdock garden apply 43 --keep 12"
     assert manual =~ "POST  /api/garden/suggestions/:id/apply {keep?, choice?}"
     assert manual =~ "**Weekly tidy-up**"
@@ -49,16 +51,20 @@ defmodule SlipdockWeb.GardenDocsTest do
 
     manual = read("docs/manual.md")
 
-    assert manual =~
-             ~r/The last five keep a \[handbook\]\(tools\.md\) in order, and are off on a board\s+without one/
+    assert_states(
+      manual,
+      "The last five keep a [handbook](tools.md) in order, and are off on a board without one"
+    )
 
-    assert manual =~ "comment on the handbook's Index page"
-    assert manual =~ "the days a `must`\nrule may stay `judgement`"
+    assert_states(manual, "comment on the handbook's Index page")
+    assert_states(manual, "the days a `must`\nrule may stay `judgement`")
 
     agents = read("docs/agents.md")
 
-    assert agents =~
-             ~r/on a handbook board long\s+sections, broad `covers:`, `must` rules left to `judgement`/
+    assert_states(
+      agents,
+      "on a handbook board long sections, broad `covers:`, `must` rules left to `judgement`"
+    )
   end
 
   test "the guide and docs/agents.md describe proposals (#1788)" do
@@ -66,27 +72,29 @@ defmodule SlipdockWeb.GardenDocsTest do
     assert guide =~ "**Proposing a handbook edit.**"
     assert guide =~ "`POST /api/boards/:board/garden/proposals`"
     assert guide =~ "slipdock garden propose <board> <file.json | ->"
-    assert guide =~ ~r/An agent can't apply, dismiss or undo a proposal/
+    assert_states(guide, "An agent can't apply, dismiss or undo a proposal")
 
     agents = read("docs/agents.md")
     assert agents =~ "`POST /api/boards/:board/garden/proposals`"
     assert agents =~ ~r/`edit_section`, `comment` or\s+`file_page` only/
-    assert agents =~ ~r/is a person's to apply, dismiss or undo: the API refuses an agent/
+    assert_states(agents, "is a person's to apply, dismiss or undo: the API refuses an agent")
   end
 
   test "rule_changed and proposing rules are in the guide and docs/agents.md (#1791)" do
     guide = SlipdockWeb.APIGuide.markdown()
-    assert guide =~ ~r/\(`rule_changed`: apply reverts them, dismiss\s+keeps them\)/
+    assert_states(guide, "(`rule_changed`: apply reverts them, dismiss keeps them)")
 
-    assert guide =~
-             ~r/A rule is a person's call:\s+one a card adds, rewords or drops goes in as a proposal/
+    assert_states(
+      guide,
+      "A rule is a person's call: one a card adds, rewords or drops goes in as a proposal"
+    )
 
-    assert guide =~ ~r/the pages whose `covers:`\s+take them in \(`pages`/
+    assert_states(guide, "the pages whose `covers:` take them in (`pages`")
 
     agents = read("docs/agents.md")
-    assert agents =~ "A rule is a person's call."
-    assert agents =~ ~r/the gardener's `rule_changed` check compares each\s+page's rules/
-    assert agents =~ ~r/`covers:` take the paths in \(`pages`/
+    assert_states(agents, "A rule is a person's call.")
+    assert_states(agents, "the gardener's `rule_changed` check compares each page's rules")
+    assert_states(agents, "`covers:` take the paths in (`pages`")
 
     manual = read("docs/manual.md")
     assert manual =~ "| Rules changed by an agent |"
@@ -97,17 +105,17 @@ defmodule SlipdockWeb.GardenDocsTest do
     assert read("README.md") =~ "docs/manual/tidying-up.md"
     agents = read("docs/agents.md")
     assert agents =~ "manual/tidying-up.md"
-    assert agents =~ ~r/apply only what they\s+approve; never dismiss one on your own judgment/
+    assert_states(agents, "apply only what they approve; never dismiss one on your own judgment")
   end
 
   test "both copies of the skills have it: the commands, and apply only what is approved" do
     skill = read("priv/skills/slipdock/SKILL.md")
     assert skill =~ "slipdock garden <board> [--run] [--check K]"
     assert skill =~ "slipdock garden apply <id>... [--keep CARD] [--choice NAME]"
-    assert skill =~ "apply only the ones they say yes to"
+    assert_states(skill, "apply only the ones they say yes to")
 
     work = read("priv/skills/slipdock-work/SKILL.md")
-    assert work =~ "**Tidy-up suggestions are the person's to decide.**"
+    assert_states(work, "**Tidy-up suggestions are the person's to decide.**")
     assert work =~ "never apply or dismiss"
   end
 
@@ -119,7 +127,7 @@ defmodule SlipdockWeb.GardenDocsTest do
     assert html =~ "Weekly tidy-up"
 
     {:ok, _view, html} = live(conn, ~p"/help/agents")
-    assert html =~ "Tidy a board up: see what the gardener found, apply or dismiss"
+    assert_states(html, "Tidy a board up: see what the gardener found, apply or dismiss")
 
     {:ok, _view, html} = live(conn, ~p"/help/agents/mcp")
     assert html =~ "garden_decide"

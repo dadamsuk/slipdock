@@ -6,6 +6,8 @@ defmodule SlipdockWeb.QualityDocsTest do
   """
   use SlipdockWeb.ConnCase, async: true
 
+  import Slipdock.DocsFacts, only: [assert_states: 2]
+
   @root Path.expand("../..", __DIR__)
   defp read(path), do: Slipdock.DocsText.read!(Path.join(@root, path))
 
@@ -23,12 +25,12 @@ defmodule SlipdockWeb.QualityDocsTest do
     agents = read("docs/agents.md")
     assert agents =~ "`slipdock quality <board> [--days N]`"
     assert agents =~ "`GET /api/boards/:id/quality?days=`"
-    assert agents =~ "rejections by\npart and by rule id"
+    assert_states(agents, "rejections by\npart and by rule id")
   end
 
   test "the manual describes the Visualise section and its doors" do
     manual = read("docs/manual.md")
-    assert manual =~ "- **Quality** — how well agent work goes"
+    assert_states(manual, "- **Quality** — how well agent work goes")
     assert manual =~ "**rework by area**"
     assert manual =~ "**rules most broken**"
     assert manual =~ "`slipdock quality <board> --rules` lists every rule"
@@ -39,7 +41,7 @@ defmodule SlipdockWeb.QualityDocsTest do
 
   test "the README lists the quality numbers and their doors" do
     readme = read("README.md")
-    assert readme =~ "- **Quality numbers** — [is the agent loop right first time?]"
+    assert_states(readme, "- **Quality numbers** — [is the agent loop right first time?]")
     assert readme =~ "(docs/manual/visualise-flow-velocity-runners-and-delivery.md)"
     assert readme =~ "`slipdock quality <board> [--days N] [--rules]`"
     assert readme =~ "`GET /api/boards/:id/quality?days=`"
@@ -48,6 +50,6 @@ defmodule SlipdockWeb.QualityDocsTest do
   test "the CLI's help lists the command" do
     help = read("cli/help.txt")
     assert help =~ "quality <board> [--days N]"
-    assert help =~ "--rules           every rule broken in the window"
+    assert_states(help, "--rules           every rule broken in the window")
   end
 end

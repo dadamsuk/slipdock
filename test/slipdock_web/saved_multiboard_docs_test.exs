@@ -5,6 +5,8 @@ defmodule SlipdockWeb.SavedMultiboardDocsTest do
   """
   use SlipdockWeb.ConnCase, async: true
 
+  import Slipdock.DocsFacts, only: [assert_states: 2]
+
   import Phoenix.LiveViewTest
 
   @root Path.expand("../..", __DIR__)
@@ -18,17 +20,17 @@ defmodule SlipdockWeb.SavedMultiboardDocsTest do
 
   test "the manual, README and the skill name the page and the commands" do
     manual = read("docs/manual.md")
-    assert manual =~ "**Saved multiboards**: press **Save** on the Multiboard page"
+    assert_states(manual, "**Saved multiboards**: press **Save** on the Multiboard page")
     assert manual =~ "`slipdock save-multiboard <name> [--list L]..."
     assert manual =~ "`GET/PATCH/DELETE /api/multiboards/:id`"
 
-    assert read("README.md") =~ "A view can be **saved** with a name and a colour"
+    assert_states(read("README.md"), "A view can be **saved** with a name and a colour")
     assert read("priv/skills/slipdock/SKILL.md") =~ "slipdock save-multiboard \"Ops queue\""
   end
 
   test "the agents page lists it", %{conn: conn} do
     {:ok, _view, html} = live(conn, ~p"/help/agents")
-    assert html =~ "Save a multiboard view by name, for the home page"
+    assert_states(html, "Save a multiboard view by name, for the home page")
     assert html =~ "slipdock save-multiboard, multiboards"
   end
 end

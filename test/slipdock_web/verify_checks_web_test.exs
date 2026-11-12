@@ -7,6 +7,8 @@ defmodule SlipdockWeb.VerifyChecksWebTest do
   """
   use SlipdockWeb.ConnCase, async: true
 
+  import Slipdock.DocsFacts, only: [assert_states: 2]
+
   import Slipdock.Fixtures
 
   alias Slipdock.{Accounts, Boards, Repo}
@@ -122,6 +124,8 @@ defmodule SlipdockWeb.VerifyChecksWebTest do
       })
 
     assert result["isError"] == true
+
+    # not a doc: the tool's refusal
     assert hd(result["content"])["text"] =~ "an acceptance can't carry a failing check: ARCH-3"
 
     result =
@@ -197,21 +201,28 @@ defmodule SlipdockWeb.VerifyChecksWebTest do
 
   test "the guide, docs/agents.md and the skills describe the parts", ctx do
     guide = SlipdockWeb.APIGuide.markdown(user: ctx.user) |> String.replace(~r/\s+/, " ")
-    assert guide =~ "giving the verdict in parts as `checks`"
+    assert_states(guide, "giving the verdict in parts as `checks`")
     assert guide =~ "kept as `verify_checks`"
 
     agents = File.read!("docs/agents.md")
     assert agents =~ "(`verify_checks`: the ask, each bar item"
     assert agents =~ "--check bar:2=fail:why"
 
-    assert File.read!("priv/skills/slipdock-loop/SKILL.md") =~
-             "verdict in parts too, one `--check` each"
+    assert_states(
+      File.read!("priv/skills/slipdock-loop/SKILL.md"),
+      "verdict in parts too, one `--check` each"
+    )
 
     assert File.read!("priv/skills/slipdock/SKILL.md") =~ "# the verdict in parts (repeat --check"
 
     prompt = Slipdock.Verified.verify_prompt(Repo.get!(Card, ctx.card.id), ctx.board)
-    assert prompt =~ "Give the verdict in parts, one `--check` each (MCP `verify_card` `checks`)"
-    assert prompt =~ "A rejection names at least one failing part"
+
+    assert_states(
+      prompt,
+      "Give the verdict in parts, one `--check` each (MCP `verify_card` `checks`)"
+    )
+
+    assert_states(prompt, "A rejection names at least one failing part")
     refute prompt =~ "rule:<id>=ok|broken|n/a"
   end
 end

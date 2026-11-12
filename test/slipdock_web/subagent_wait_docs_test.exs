@@ -10,6 +10,8 @@ defmodule SlipdockWeb.SubagentWaitDocsTest do
   """
   use ExUnit.Case, async: true
 
+  import Slipdock.DocsFacts, only: [assert_states: 2, assert_states: 3]
+
   @root Path.expand("../..", __DIR__)
 
   defp read(path), do: Slipdock.DocsText.read!(Path.join(@root, path))
@@ -32,7 +34,7 @@ defmodule SlipdockWeb.SubagentWaitDocsTest do
               "working on it.**",
             "then finish each subcard or hand it back with a handoff"
           ],
-          do: assert(loop =~ part, "#{path}: #{part}")
+          do: assert_states(loop, part, "#{path}: #{part}")
     end
   end
 
@@ -40,7 +42,7 @@ defmodule SlipdockWeb.SubagentWaitDocsTest do
     loop = read("priv/skills/slipdock-loop/SKILL.md")
     [_, section] = String.split(loop, "## 5. Subcards before the parent", parts: 2)
     [section | _] = String.split(section, "\n## ", parts: 2)
-    assert section =~ "Wait for every\nsubagent you started"
+    assert_states(section, "Wait for every\nsubagent you started")
   end
 
   test "the manual's runner section says why, and what a Claude runner exports" do
@@ -57,6 +59,6 @@ defmodule SlipdockWeb.SubagentWaitDocsTest do
           "never end with a subcard it moved in left in progress with nothing working on it",
           "it finishes the subcard or hands it back with a handoff"
         ],
-        do: assert(runners =~ part, part)
+        do: assert_states(runners, part, part)
   end
 end

@@ -9,6 +9,8 @@ defmodule SlipdockWeb.WaitDocsTest do
   """
   use SlipdockWeb.ConnCase, async: true
 
+  import Slipdock.DocsFacts, only: [assert_states: 2]
+
   import Slipdock.Fixtures
 
   @root Path.expand("../..", __DIR__)
@@ -24,7 +26,7 @@ defmodule SlipdockWeb.WaitDocsTest do
       short = SlipdockWeb.APIGuide.short()
       assert short =~ "**Stuck on a person**"
       assert short =~ ~s(open a\n  wait, `POST /api/cards/57/wait {"needs": "…"}`)
-      assert short =~ "If `paused` is set, take nothing and stop."
+      assert_states(short, "If `paused` is set, take nothing and stop.")
 
       refute short =~
                ~s(**Stuck on a person** — a decision, a credential, an approval:\n  `{"add_flags": ["waiting"]})
@@ -51,13 +53,13 @@ defmodule SlipdockWeb.WaitDocsTest do
 
     test "the full guide documents waits, Waiting on you, pauses and a card's state" do
       guide = SlipdockWeb.APIGuide.markdown()
-      assert guide =~ "### Waits, pauses and a card's state"
+      assert_states(guide, "### Waits, pauses and a card's state")
       assert guide =~ "B/api/cards/57/wait/answer"
       assert guide =~ "curl -s -X DELETE -H \"$H\" B/api/cards/57/wait"
       assert guide =~ "curl -s -H \"$H\" B/api/work"
       assert guide =~ "cards?stuck=true&driver=agent"
       assert guide =~ "`waiting_on_you`"
-      assert guide =~ "If it is\nset, take nothing and stop"
+      assert_states(guide, "If it is\nset, take nothing and stop")
       # The runners section keeps the parking and pausing detail.
       assert guide =~ "**Parking on a question.**"
       assert guide =~ "**Pausing.**"
@@ -71,18 +73,21 @@ defmodule SlipdockWeb.WaitDocsTest do
     assert text =~
              "open a wait (`slipdock wait <card> … --kind K` or update_card `wait` with `question`)"
 
-    assert text =~ "the answer starts a fresh job"
+    assert_states(text, "the answer starts a fresh job")
     # Its kind picks who is asked (#1949).
-    assert text =~
-             "(product, ux, security, release or other: the board sends each kind to its person)"
+    assert_states(
+      text,
+      "(product, ux, security, release or other: the board sends each kind to its person)"
+    )
 
-    assert text =~ "If the board answers `paused`, finish this card and take no other."
+    assert_states(text, "If the board answers `paused`, finish this card and take no other.")
   end
 
   describe "the manual, README and docs/agents.md" do
     test "the manual has the waits and flow sections, and the runner paragraphs" do
       manual = read("docs/manual.md")
       assert manual =~ ~r/^## Waiting on a person \(waits\)$/m
+      # not a doc's wording: a section's heading, which the contents link to
       assert manual =~ ~r/^## Flow: the pulse, a card's state and its age$/m
       assert manual =~ ~s(slipdock wait 12 "Which region?" --on dana@example.com)
       assert manual =~ "slipdock answer 12 --choice 1"
@@ -102,14 +107,14 @@ defmodule SlipdockWeb.WaitDocsTest do
       assert readme =~ "**A question parks the job.**"
       assert readme =~ "**A brake with a reason.**"
       assert readme =~ "slipdock pulse <board>"
-      assert readme =~ "take\nnothing more once the board is paused"
+      assert_states(readme, "take\nnothing more once the board is paused")
     end
 
     test "docs/agents.md tells an agent to open a wait, and to stop on paused" do
       agents = read("docs/agents.md")
       assert agents =~ "it **opens a wait**"
       assert agents =~ "manual/waiting-on-a-person-waits.md"
-      assert agents =~ "An agent seeing it takes nothing and stops."
+      assert_states(agents, "An agent seeing it takes nothing and stops.")
       assert agents =~ "manual/flow-the-pulse-a-cards-state-and-its-age.md"
       refute agents =~ "or comment, flag the card `waiting` and stop"
     end
@@ -136,11 +141,13 @@ defmodule SlipdockWeb.WaitDocsTest do
     test "slipdock-loop stops on paused, and opens a wait to hand a decision back" do
       loop = read("priv/skills/slipdock-loop/SKILL.md")
       assert loop =~ "**`nothing queued to take: paused by …`**"
-      assert loop =~ "If the answer starts with a `PAUSED` line"
+      assert_states(loop, "If the answer starts with a `PAUSED` line")
       assert loop =~ "open a wait and stop. `slipdock wait <id> \"the question\""
       # Waiting cards are still skipped by the flag the wait sets.
-      assert loop =~
-               "flagged `blocked` or `waiting` (an open wait\non a person sets `waiting` itself)"
+      assert_states(
+        loop,
+        "flagged `blocked` or `waiting` (an open wait\non a person sets `waiting` itself)"
+      )
     end
 
     test "slipdock-work opens a wait, stops on paused and reads what is waiting on you" do
@@ -149,7 +156,7 @@ defmodule SlipdockWeb.WaitDocsTest do
       assert work =~ "If the\n  board answers `PAUSED`"
       assert work =~ "`slipdock work`: waits on you"
       assert work =~ "Open a wait (`slipdock wait <card> \"…\" --kind K`"
-      assert work =~ "ux, security, release, other) and stop: the job is parked"
+      assert_states(work, "ux, security, release, other) and stop: the job is parked")
     end
 
     test "the slipdock skill lists the wait, answer and work commands and the pause" do
@@ -166,15 +173,15 @@ defmodule SlipdockWeb.WaitDocsTest do
   describe "/help/agents" do
     test "the comparison has the wait, waiting-on-you and pause rows", %{conn: conn} do
       html = help(conn, ~p"/help/agents")
-      assert html =~ "Wait on a person, and answer a wait"
-      assert html =~ "See what is waiting on you, and a board&#39;s pulse"
-      assert html =~ "Pause runner work, and see that it is paused"
-      assert html =~ "parks the job; the answer sends it again"
+      assert_states(html, "Wait on a person, and answer a wait")
+      assert_states(html, "See what is waiting on you, and a board&#39;s pulse")
+      assert_states(html, "Pause runner work, and see that it is paused")
+      assert_states(html, "parks the job; the answer sends it again")
     end
 
     test "the runner, MCP and CLI pages say the same", %{conn: conn} do
       html = help(conn, ~p"/help/agents/runners")
-      assert html =~ "saying what it needs and stop"
+      assert_states(html, "saying what it needs and stop")
       assert html =~ "takes nothing and stops"
       refute html =~ "flag the card <em>waiting</em> and stop"
 
@@ -190,21 +197,21 @@ defmodule SlipdockWeb.WaitDocsTest do
   describe "a series of questions (#1220)" do
     test "the guides, manual, README and agents doc say to ask them one each, and how to skip" do
       short = SlipdockWeb.APIGuide.short()
-      assert short =~ ~s(Several questions go as `{"questions": ["…", "…"]}`, one each)
+      assert_states(short, ~s(Several questions go as `{"questions": ["…", "…"]}`, one each))
 
       guide = SlipdockWeb.APIGuide.markdown()
-      assert guide =~ "**Several questions** go in one wait as `questions`"
+      assert_states(guide, "**Several questions** go in one wait as `questions`")
       assert guide =~ ~s(-d '{"answers": ["eu", "12"]}')
       assert guide =~ ~s(-d '{"skip": true}')
       assert guide =~ "curl -s -H \"$H\" B/api/cards/57/waits"
 
       manual = read("docs/manual.md")
-      assert manual =~ "A wait can ask **several questions** at once."
+      assert_states(manual, "A wait can ask **several questions** at once.")
       assert manual =~ "press **Ask** in the toolbar"
       assert manual =~ "**Questions asked before**"
       assert manual =~ "slipdock answer 12 --skip"
 
-      assert read("README.md") =~ "Several questions are asked as a numbered series"
+      assert_states(read("README.md"), "Several questions are asked as a numbered series")
       assert read("docs/agents.md") =~ "Several questions go\nas `questions`"
     end
 
@@ -230,19 +237,19 @@ defmodule SlipdockWeb.WaitDocsTest do
 
     test "the manual describes the routes, the fallback and every door" do
       manual = flat("docs/manual.md")
-      assert manual =~ "**Who gets asked.** Each wait says what kind of question it is"
+      assert_states(manual, "**Who gets asked.** Each wait says what kind of question it is")
       assert manual =~ "else to the board's owner"
       assert manual =~ "the [rejection limit](verified-work.md)'s wait asks as `release`"
-      assert manual =~ "comes off its routes, and the open waits on them go to the owner"
+      assert_states(manual, "comes off its routes, and the open waits on them go to the owner")
       assert manual =~ "slipdock set-board slipdock --route product=dana@example.com"
-      assert manual =~ "slipdock wait 12 \"Which pricing tier ships first?\" --kind product"
+      assert_states(manual, "slipdock wait 12 \"Which pricing tier ships first?\" --kind product")
       assert manual =~ "`PATCH /api/boards/:board` with `wait_routes`"
       assert manual =~ "`update_board` `wait_routes` and `update_card` `wait` `question`"
     end
 
     test "docs/agents.md, the README and the API guide tell an agent to give its kind" do
       assert flat("docs/agents.md") =~ "**Give a wait its kind**: `question` (`--kind K`)"
-      assert flat("README.md") =~ "**Who gets asked**: a wait says its kind of question"
+      assert_states(flat("README.md"), "**Who gets asked**: a wait says its kind of question")
       guide = SlipdockWeb.APIGuide.markdown()
       assert guide =~ ~s|"question": "product"|
       assert guide =~ ~s|{"wait_routes": {"product": ["dana@example.com"], "release": []}}|
@@ -253,7 +260,7 @@ defmodule SlipdockWeb.WaitDocsTest do
       assert loop =~ "Give it its kind, `--kind product|ux|security|release|other`"
       work = flat("priv/skills/slipdock-work/SKILL.md")
       assert work =~ "give its kind, `--kind product|ux|security|release|other`"
-      assert work =~ "K one of product, ux, security, release, other"
+      assert_states(work, "K one of product, ux, security, release, other")
     end
 
     test "the CLI's help and the in-app help name --route and --kind", %{conn: conn} do
@@ -270,23 +277,34 @@ defmodule SlipdockWeb.WaitDocsTest do
 
   describe "an answer goes to any free runner (#2896)" do
     test "the guide, the manual, the README and docs/agents.md say it isn't held for the asker" do
-      assert SlipdockWeb.APIGuide.markdown() =~
-               ~r/pool's queue for any free runner,\s+not held for the runner that asked/
+      assert_states(
+        SlipdockWeb.APIGuide.markdown(),
+        "pool's queue for any free runner, not held for the runner that asked"
+      )
 
       manual = read("docs/manual/waiting-on-a-person-waits.md")
 
-      assert manual =~
-               ~r/for any free runner of the pool: it isn't\s+held for the runner that asked/
+      assert_states(
+        manual,
+        "for any free runner of the pool: it isn't held for the runner that asked"
+      )
 
-      assert manual =~ ~r/the card is not on anyone's \*Waiting on\s+you\*/
+      assert_states(manual, "the card is not on anyone's *Waiting on you*")
 
-      assert read("README.md") =~ "for any free runner of the pool, not only the one that asked"
+      assert_states(
+        read("README.md"),
+        "for any free runner of the pool, not only the one that asked"
+      )
 
-      assert read("docs/agents.md") =~
-               ~r/any free runner of the pool, not held for the one that asked/
+      assert_states(
+        read("docs/agents.md"),
+        "any free runner of the pool, not held for the one that asked"
+      )
 
-      assert read("docs/manual/the-health-monitor.md") =~
-               "a held answer waiting for the job a runner has on its card"
+      assert_states(
+        read("docs/manual/the-health-monitor.md"),
+        "a held answer waiting for the job a runner has on its card"
+      )
     end
 
     test "the README and the slipdock skill say a feed's answer may be open beside its card" do
@@ -301,10 +319,12 @@ defmodule SlipdockWeb.WaitDocsTest do
     end
 
     test "the runners page and the flow page say so", %{conn: conn} do
-      assert help(conn, "/help/agents/runners") =~
-               "for any free runner of the pool: it isn't held for the runner that asked"
+      assert_states(
+        help(conn, "/help/agents/runners"),
+        "for any free runner of the pool: it isn't held for the runner that asked"
+      )
 
-      assert help(conn, "/help/agents/flow") =~ "to whichever runner of the pool is free"
+      assert_states(help(conn, "/help/agents/flow"), "to whichever runner of the pool is free")
     end
   end
 end

@@ -16,6 +16,8 @@ defmodule Slipdock.MergedElsewhereDocsTest do
   """
   use ExUnit.Case, async: true
 
+  import Slipdock.DocsFacts, only: [assert_states: 2]
+
   @root Path.expand("../..", __DIR__)
 
   # A sentence that makes a failed merge a rejection, and the text after it
@@ -104,13 +106,15 @@ defmodule Slipdock.MergedElsewhereDocsTest do
       Code.fetch_docs(Slipdock.Health.Detectors.MergeFailing)
 
     for text <- [row, String.replace(moduledoc, ~r/\s+/, " ")] do
-      assert text =~ "finds the pull request already merged isn't a rejection"
-      assert text =~ "at another head the card stays merging"
+      assert_states(text, "finds the pull request already merged isn't a rejection")
+      assert_states(text, "at another head the card stays merging")
 
-      assert text =~
-               "That job ends failed but isn't counted here as a failing merge: " <>
-                 "`merge_missing` flags the card once, for a person, rather than queuing the " <>
-                 "merge again"
+      assert_states(
+        text,
+        "That job ends failed but isn't counted here as a failing merge: " <>
+          "`merge_missing` flags the card once, for a person, rather than queuing the " <>
+          "merge again"
+      )
 
       # What it said before #2759, when the merge was queued again and counted.
       refute text =~ "queues the merge again and a repeat is flagged here too"
@@ -124,16 +128,18 @@ defmodule Slipdock.MergedElsewhereDocsTest do
       |> String.split("\n")
       |> Enum.find(&String.starts_with?(&1, "| `merge_missing` |"))
 
-    assert row =~
-             "Not when its last merge job found the pull request already merged at a head it " <>
-               "couldn't match to the accepted commit"
+    assert_states(
+      row,
+      "Not when its last merge job found the pull request already merged at a head it " <>
+        "couldn't match to the accepted commit"
+    )
 
-    assert row =~ "the card is flagged at once, after that one failure"
+    assert_states(row, "the card is flagged at once, after that one failure")
 
     {:docs_v1, _, _, _, %{"en" => moduledoc}, _, _} =
       Code.fetch_docs(Slipdock.Health.Detectors.MergeMissing)
 
     moduledoc = String.replace(moduledoc, ~r/\s+/, " ")
-    assert moduledoc =~ "queuing it again would fail the same way, so it is flagged at once"
+    assert_states(moduledoc, "queuing it again would fail the same way, so it is flagged at once")
   end
 end

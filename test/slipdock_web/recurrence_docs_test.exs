@@ -7,6 +7,8 @@ defmodule SlipdockWeb.RecurrenceDocsTest do
   """
   use SlipdockWeb.ConnCase, async: true
 
+  import Slipdock.DocsFacts, only: [assert_states: 2]
+
   import Phoenix.LiveViewTest
 
   @root Path.expand("../..", __DIR__)
@@ -14,7 +16,7 @@ defmodule SlipdockWeb.RecurrenceDocsTest do
 
   test "the guide has the field, the copy endpoint and the recipe; MCP's update_card names it" do
     guide = SlipdockWeb.APIGuide.markdown()
-    assert guide =~ "**Recurring cards** — a card can repeat"
+    assert_states(guide, "**Recurring cards** — a card can repeat")
     assert guide =~ "`POST /api/cards/:id/copy`"
     assert guide =~ "**A recurring card.** `PUT /api/cards/:id/recurrence`"
     assert guide =~ "`GET /api/boards/:board/recurring`"
@@ -29,7 +31,7 @@ defmodule SlipdockWeb.RecurrenceDocsTest do
     assert manual =~ "slipdock repeat 12 \"every mon\""
     assert manual =~ "PUT    /api/cards/:id/recurrence"
     assert manual =~ "**Not stacking up.**"
-    assert manual =~ "falls on that month's last day"
+    assert_states(manual, "falls on that month's last day")
     assert manual =~ "**Duplicate.**"
   end
 
@@ -43,7 +45,7 @@ defmodule SlipdockWeb.RecurrenceDocsTest do
     assert skill =~ ~s(slipdock repeat <id> "every mon")
     assert skill =~ "slipdock recurring <board>"
     assert skill =~ "slipdock copy <id>"
-    assert skill =~ "Remind me to review invoices every Monday"
+    assert_states(skill, "Remind me to review invoices every Monday")
   end
 
   test "/help and /help/agents describe it", %{conn: conn} do
@@ -52,7 +54,7 @@ defmodule SlipdockWeb.RecurrenceDocsTest do
     assert html =~ "every: mon"
 
     {:ok, _view, html} = live(conn, ~p"/help/agents")
-    assert html =~ "Make a card recurring, skip or stop one"
+    assert_states(html, "Make a card recurring, skip or stop one")
 
     {:ok, _view, html} = live(conn, ~p"/help/agents/mcp")
     assert html =~ "making a card repeat"

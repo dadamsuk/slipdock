@@ -5,6 +5,8 @@ defmodule SlipdockWeb.API.SkillsTest do
   """
   use SlipdockWeb.ConnCase, async: true
 
+  import Slipdock.DocsFacts, only: [assert_states: 2]
+
   alias Slipdock.Skills
 
   @tag :anonymous
@@ -46,13 +48,13 @@ defmodule SlipdockWeb.API.SkillsTest do
     assert %{"content" => body} =
              conn |> get("/api/skills/slipdock-loop") |> json_response(200)
 
-    assert body =~ "## 2b. A job first, when you are given a pool"
+    assert_states(body, "## 2b. A job first, when you are given a pool")
     assert body =~ "slipdock claim-job <board> --pool <pool>"
     # The running log doubles as the heartbeat, and the job ends with the card.
     assert body =~ "slipdock job-progress <job> --message"
     assert body =~ "slipdock finish-job <job> --status done"
     # No job means stop, unless told to fall back; an older server is no reason to fail.
-    assert body =~ "only if the\n  invocation says to fall back"
+    assert_states(body, "only if the\n  invocation says to fall back")
     assert body =~ "one older than runners"
 
     assert %{"content" => work} = conn |> get("/api/skills/slipdock-work") |> json_response(200)
@@ -80,18 +82,20 @@ defmodule SlipdockWeb.API.SkillsTest do
              Enum.sort(Slipdock.Runners.Setup.toggles())
 
     # Nothing written on the card: no comments, and job-progress with no message.
-    assert body =~ ~s("Don't comment on the card at all")
+    assert_states(body, ~s("Don't comment on the card at all"))
     assert body =~ "with no `--message`"
 
-    assert Slipdock.Runners.Setup.instructions(%{
-             "scenario" => "loop",
-             "verbosity" => "nothing",
-             "instructions" => ""
-           }) =~
-             "Don't comment on the card at all"
+    assert_states(
+      Slipdock.Runners.Setup.instructions(%{
+        "scenario" => "loop",
+        "verbosity" => "nothing",
+        "instructions" => ""
+      }),
+      "Don't comment on the card at all"
+    )
 
     # Run by hand, the skill still does all of it.
-    assert body =~ "Run by hand, with nothing said, do all of it"
+    assert_states(body, "Run by hand, with nothing said, do all of it")
   end
 
   @tag :anonymous
@@ -118,13 +122,13 @@ defmodule SlipdockWeb.API.SkillsTest do
     # Headless (`claude -p`) passes exit when the turn ends, so the watch can't
     # be left in the background to report back later.
     assert body =~ "**Run it in the foreground**"
-    assert body =~ "Never run the watch in\n   the background"
+    assert_states(body, "Never run the watch in\n   the background")
     refute body =~ "background and wait to be notified"
     assert body =~ "**Passed:** `Build passed:"
     assert body =~ "**Failed:** `Build failed:"
     assert body =~ "After **two** failed fix attempts"
     assert body =~ "CI: passed"
-    assert body =~ "**Never close a top-level card on a red build.**"
+    assert_states(body, "**Never close a top-level card on a red build.**")
     refute body =~ "**Never close a card on a red build.**"
 
     # The version `skills check` compares moved off the copy without any of it.
@@ -137,26 +141,30 @@ defmodule SlipdockWeb.API.SkillsTest do
              conn |> get("/api/skills/slipdock-loop") |> json_response(200)
 
     # A subcard closes on `Build started`; only the epic (or a lone card) waits.
-    assert body =~ "4. **Wait for the build — for the pass's top-level card only.**"
+    assert_states(body, "4. **Wait for the build — for the pass's top-level card only.**")
     assert body =~ "**A subcard** does not wait."
 
     assert body =~
              "started — <workflow> #<run-id> <run url> (checked before the\n     epic closes)"
 
-    assert body =~ "waits for the build of the last push"
+    assert_states(body, "waits for the build of the last push")
 
     # Between subcards: one look at the latest build, and a red one comes first.
-    assert body =~ "**before\nclaiming the next subcard, look at the latest build on the branch**"
+    assert_states(
+      body,
+      "**before\nclaiming the next subcard, look at the latest build on the branch**"
+    )
+
     assert body =~ "gh run list --branch <branch> --limit 1"
     # The fix goes on a new subcard: the board refuses reopening a done one (#1850, #1853).
     assert body =~ ~s(slipdock add <sub-board> "Build failed: #<id> <title>")
     refute body =~ "`slipdock undone <id>`"
 
     # The epic closes only on a green build of its last push.
-    assert body =~ "the build\nof the last push is green"
+    assert_states(body, "the build\nof the last push is green")
 
     # A red build from a dead pass's subcard is fixed under its epic, not on a new top-level card.
-    assert body =~ "If the commit is a closed subcard's and its epic is still\nopen"
+    assert_states(body, "If the commit is a closed subcard's and its epic is still\nopen")
   end
 
   @tag :anonymous
@@ -166,16 +174,16 @@ defmodule SlipdockWeb.API.SkillsTest do
 
     # Where CI runs the whole suite, only the tests the change touches run
     # locally; without CI the whole suite still runs before the push.
-    assert body =~ "don't run the\n   whole suite here as well"
+    assert_states(body, "don't run the\n   whole suite here as well")
     assert body =~ "`mix test --stale`"
-    assert body =~ "With no CI, run the whole suite."
+    assert_states(body, "With no CI, run the whole suite.")
     refute body =~ "Run the project's test suite if the card touched code"
 
     # A failure that doesn't come back is a card, not a reason to rerun.
-    assert body =~ "do not rerun the suite until it is\n   green, add a card for it"
+    assert_states(body, "do not rerun the suite until it is\n   green, add a card for it")
 
     # The wrap-up example says where the full run happened.
-    assert body =~ "Tests: mix test --stale — 38 passed, 0 failed; full suite in CI"
+    assert_states(body, "Tests: mix test --stale — 38 passed, 0 failed; full suite in CI")
   end
 
   @tag :anonymous
@@ -185,7 +193,7 @@ defmodule SlipdockWeb.API.SkillsTest do
 
     # The token is checked every pass, not once per session.
     refute body =~ "## Preflight, once per session"
-    assert body =~ "`whoami` runs at the start of **every** pass"
+    assert_states(body, "`whoami` runs at the start of **every** pass")
 
     # A dead token mid-card is loud: no retries, no self-auth, an alert, a stopped loop.
     assert body =~ "## When the token dies"
@@ -257,7 +265,7 @@ defmodule SlipdockWeb.API.SkillsTest do
     assert loop =~ "**Done.**\n\n   - What was done:"
     assert loop =~ "   - Commit: `abc1234` (master)"
 
-    assert skill.("slipdock-work") =~ "**Comments are Markdown, and are skimmed.**"
+    assert_states(skill.("slipdock-work"), "**Comments are Markdown, and are skimmed.**")
     assert skill.("slipdock") =~ "slipdock comment <id> --body - <<'EOF'"
   end
 
@@ -271,15 +279,17 @@ defmodule SlipdockWeb.API.SkillsTest do
     # Between checking the work and the commit: the brief as it is now.
     [check, rest] = String.split(loop, "2. **Commit**", parts: 2)
     assert check =~ "**Then re-read the card, before committing.**"
-    assert check =~ "compare the\n   description with what you read in step 3"
+    assert_states(check, "compare the\n   description with what you read in step 3")
     # After `Build started`, and again after a build wait, before closing.
     [started, _] = String.split(rest, "4. **Wait for the build", parts: 2)
-    assert started =~ "**Then read the comments once more.**"
+    assert_states(started, "**Then read the comments once more.**")
     assert started =~ "once more just before step 5"
-    assert loop =~ "- **Re-read the card before the push, and its comments after it.**"
+    assert_states(loop, "- **Re-read the card before the push, and its comments after it.**")
 
-    assert skill.("slipdock-work") =~
-             "- **Re-read the card before you push, and its comments after.**"
+    assert_states(
+      skill.("slipdock-work"),
+      "- **Re-read the card before you push, and its comments after.**"
+    )
   end
 
   @tag :anonymous
@@ -293,16 +303,18 @@ defmodule SlipdockWeb.API.SkillsTest do
     [wrap, _] = String.split(loop, "7. **The job**, if the card came from one", parts: 2)
     assert wrap =~ "Last, **the handoff**"
 
-    assert wrap =~
-             "slipdock handoff <id> --next \"Reinstall the CLI once the deploy is out\" --body - <<'EOF'"
+    assert_states(
+      wrap,
+      "slipdock handoff <id> --next \"Reinstall the CLI once the deploy is out\" --body - <<'EOF'"
+    )
 
     assert wrap =~ "the handoff stays blank"
     assert wrap =~ "handoff <id> --clear` (over MCP, `leave_handoff` with `clear: true`)"
     refute loop =~ "A finished card needs none."
-    assert loop =~ "never close\n  one with a stale handoff on it"
+    assert_states(loop, "never close\n  one with a stale handoff on it")
 
     work = skill.("slipdock-work")
-    assert work =~ "On a **finished** card the handoff is for the person"
+    assert_states(work, "On a **finished** card the handoff is for the person")
     assert work =~ "`slipdock handoff <id> --clear` one left from earlier"
   end
 end

@@ -193,6 +193,7 @@ defmodule Slipdock.RunnersDriftTest do
       assert alert.title ==
                "Runner box has drifted from this server: skills drifted (slipdock-loop), CLI old"
 
+      # not a doc: the alert's body, as the server sends it
       assert alert.body =~ "Run the install one-liner on its machine again"
       # The scripts that installed the skills themselves were retired (#2582).
       refute alert.body =~ "keeps itself current"
@@ -348,7 +349,11 @@ defmodule Slipdock.RunnersDriftTest do
       assert agents =~ "*cli unsigned on server*"
       refute agents =~ "(and show *cli old*)"
       assert Slipdock.DocsText.read!("docs/manual/runners.md") =~ "*CLI unsigned on server*"
-      assert SlipdockWeb.APIGuide.markdown() =~ "`cli` current, old, unsigned, none or unknown"
+
+      Slipdock.DocsFacts.assert_states(
+        SlipdockWeb.APIGuide.markdown(),
+        "`cli` current, old, unsigned, none or unknown"
+      )
     end
   end
 end

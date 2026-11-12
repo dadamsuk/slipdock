@@ -66,6 +66,7 @@ defmodule SlipdockWeb.API.SkillsSignatureTest do
     assert Enum.any?(files, fn {name, _} -> name == ~c"slipdock-loop/SKILL.md" end)
 
     sig = get(build_conn(), ~p"/api/skills.tar.gz.sig")
+    # not a doc: the API's 404 body
     assert response(sig, 404) =~ "not signed with the release key"
     assert Skills.signed_tarball() == :unsigned
   end

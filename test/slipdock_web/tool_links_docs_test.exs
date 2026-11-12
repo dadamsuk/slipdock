@@ -6,6 +6,8 @@ defmodule SlipdockWeb.ToolLinksDocsTest do
   """
   use SlipdockWeb.ConnCase, async: true
 
+  import Slipdock.DocsFacts, only: [assert_states: 2]
+
   import Phoenix.LiveViewTest
 
   @root Path.expand("../..", __DIR__)
@@ -13,16 +15,21 @@ defmodule SlipdockWeb.ToolLinksDocsTest do
 
   test "list_tools offers skill and link: true" do
     description = SlipdockWeb.MCP.Tools.ListTools.description()
-    assert description =~ "With tool and skill: that skill's SKILL.md"
+    assert_states(description, "With tool and skill: that skill's SKILL.md")
     assert description =~ "link: true instead returns a single-use download_url"
   end
 
   test "the package reference, the manual and README describe it" do
-    assert read("docs/tool-packages.md") =~ "**Any of these without a token**"
+    assert_states(read("docs/tool-packages.md"), "**Any of these without a token**")
     manual = read("docs/manual.md")
     assert manual =~ "and with `link: true` (#1158) a single-use `download_url`"
-    assert manual =~ "With `skill`, that skill's `SKILL.md`, or with `file` a path in its folder."
-    assert read("README.md") =~ "`link: true` gives a single-use download URL for a file"
+
+    assert_states(
+      manual,
+      "With `skill`, that skill's `SKILL.md`, or with `file` a path in its folder."
+    )
+
+    assert_states(read("README.md"), "`link: true` gives a single-use download URL for a file")
   end
 
   test "the slipdock skill names both options" do
@@ -32,7 +39,7 @@ defmodule SlipdockWeb.ToolLinksDocsTest do
 
   test "/help/agents mentions it", %{conn: conn} do
     {:ok, _view, html} = live(conn, ~p"/help/agents/skills")
-    assert html =~ "for a shell with no API token"
+    assert_states(html, "for a shell with no API token")
     assert html =~ "links the whole package instead"
   end
 
@@ -44,8 +51,10 @@ defmodule SlipdockWeb.ToolLinksDocsTest do
 
   describe "the whole package" do
     test "list_tools offers package: true" do
-      assert SlipdockWeb.MCP.Tools.ListTools.description() =~
-               "package: true links the whole package"
+      assert_states(
+        SlipdockWeb.MCP.Tools.ListTools.description(),
+        "package: true links the whole package"
+      )
 
       assert SlipdockWeb.MCP.Tools.ListTools.input_schema().properties.package.type == "boolean"
     end

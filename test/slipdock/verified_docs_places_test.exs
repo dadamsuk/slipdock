@@ -10,6 +10,8 @@ defmodule Slipdock.VerifiedDocsPlacesTest do
   """
   use Slipdock.DataCase, async: true
 
+  import Slipdock.DocsFacts, only: [assert_states: 2]
+
   import Slipdock.Fixtures
 
   alias Slipdock.{Actor, Boards, Handbook, Repo, Runners, Verified, Wiki}
@@ -84,11 +86,15 @@ defmodule Slipdock.VerifiedDocsPlacesTest do
       card = submit(ctx, card(ctx, ["cli/lib/**"]))
       prompt = Verified.verify_prompt(card, ctx.board)
 
-      assert prompt =~ "The docs places (SPEC-10). This card's paths fall in SPEC-10's scope"
-      assert prompt =~ "enumerating them, not by judging them"
+      assert_states(
+        prompt,
+        "The docs places (SPEC-10). This card's paths fall in SPEC-10's scope"
+      )
+
+      assert_states(prompt, "enumerating them, not by judging them")
       # The names, from the diff.
       assert prompt =~ "git diff $(git merge-base origin/<default branch> abc1234) abc1234"
-      assert prompt =~ "commands, flags and switches, MCP tool names"
+      assert_states(prompt, "commands, flags and switches, MCP tool names")
       assert prompt =~ "settings, page and section names"
       # The seven places, numbered, each with its files.
       assert prompt =~ "The places, seven:"
@@ -100,11 +106,15 @@ defmodule Slipdock.VerifiedDocsPlacesTest do
       # The four results.
       assert prompt =~ "- `updated`: the change edits it"
 
-      assert prompt =~
-               "- `deferred to #N`: the builder left it to card #N, and #N's bar names this place"
+      assert_states(
+        prompt,
+        "- `deferred to #N`: the builder left it to card #N, and #N's bar names this place"
+      )
 
-      assert prompt =~
-               "A deferral to a card whose bar doesn't name the place doesn't count: it is `missing`"
+      assert_states(
+        prompt,
+        "A deferral to a card whose bar doesn't name the place doesn't count: it is `missing`"
+      )
 
       assert prompt =~ "- `n/a`, with why"
       assert prompt =~ "- `missing`: none of these."
@@ -136,11 +146,13 @@ defmodule Slipdock.VerifiedDocsPlacesTest do
         )
 
       audit = Verified.audit_prompt(accepted, ctx.board)
-      assert audit =~ "The docs places (SPEC-10). This card's paths fall in SPEC-10's scope"
+      assert_states(audit, "The docs places (SPEC-10). This card's paths fall in SPEC-10's scope")
       for files <- @places, do: assert(audit =~ "`#{files}`")
 
-      assert audit =~
-               "- `deferred to #N`: the builder left it to card #N, and #N's bar names this place"
+      assert_states(
+        audit,
+        "- `deferred to #N`: the builder left it to card #N, and #N's bar names this place"
+      )
 
       assert audit =~ "One `missing` is a disagreement"
       refute audit =~ "One `missing` is a rejection"
@@ -152,7 +164,7 @@ defmodule Slipdock.VerifiedDocsPlacesTest do
 
       assert Verified.docs_places_scope(card, Handbook.find(ctx.board)) == :out
       prompt = Verified.verify_prompt(card, ctx.board)
-      assert prompt =~ "The rules. In the clean tree"
+      assert_states(prompt, "The rules. In the clean tree")
       refute prompt =~ "docs places"
       refute prompt =~ "checking the docs places"
     end
@@ -177,7 +189,7 @@ defmodule Slipdock.VerifiedDocsPlacesTest do
 
       assert Verified.docs_places_scope(card, Handbook.find(ctx.board)) == :unknown
       prompt = Verified.verify_prompt(card, ctx.board)
-      assert prompt =~ "If the rules above list SPEC-10 (the card declared no paths"
+      assert_states(prompt, "If the rules above list SPEC-10 (the card declared no paths")
       refute prompt =~ "This card's paths fall in SPEC-10's scope"
       assert prompt =~ "Step: `checking the docs places`"
     end
@@ -193,9 +205,13 @@ defmodule Slipdock.VerifiedDocsPlacesTest do
       builder = Verified.docs_places_builder()
       assert builder =~ "The docs places (SPEC-10)"
       for files <- @places, do: assert(builder =~ "`#{files}`")
-      assert builder =~ "updated, deferred to #N, n/a with why, or missing"
-      assert builder =~ "list each left-out place on that card's bar, by name"
-      assert builder =~ "A deferral to a card whose bar doesn't list the place doesn't count"
+      assert_states(builder, "updated, deferred to #N, n/a with why, or missing")
+      assert_states(builder, "list each left-out place on that card's bar, by name")
+
+      assert_states(
+        builder,
+        "A deferral to a card whose bar doesn't list the place doesn't count"
+      )
     end
 
     test "a card outside the scope, or with no paths, isn't", ctx do

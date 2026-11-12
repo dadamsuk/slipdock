@@ -7,6 +7,8 @@ defmodule SlipdockWeb.CardFaceDocsTest do
   """
   use ExUnit.Case, async: true
 
+  import Slipdock.DocsFacts, only: [assert_states: 2]
+
   @manual Path.expand("../../docs/manual.md", __DIR__)
 
   setup_all do
@@ -39,21 +41,21 @@ defmodule SlipdockWeb.CardFaceDocsTest do
   end
 
   test "the phone toolbar row includes search", %{manual: manual} do
-    assert manual =~ "keeps the view switcher, search, the date navigator"
+    assert_states(manual, "keeps the view switcher, search, the date navigator")
     refute manual =~ "keeps the view switcher, the date navigator, Filter"
   end
 
   test "a list is favourited from its menu, and only a favourite wears the heart", %{
     manual: manual
   } do
-    assert manual =~ "**Favourite this\nlist** in a list's `⋯` menu"
-    assert manual =~ "Only a favourite list shows a heart on its\n  header"
+    assert_states(manual, "**Favourite this\nlist** in a list's `⋯` menu")
+    assert_states(manual, "Only a favourite list shows a heart on its\n  header")
     refute manual =~ "Press the heart on a **saved view** (in the Views menu), a **list header**"
   end
 
   test "priority is signal bars and a start is said in words", %{manual: manual} do
-    assert manual =~ "Priority is drawn as signal bars everywhere it appears"
-    assert manual =~ "*Starts in 11 days* or *Started 11 days late*"
+    assert_states(manual, "Priority is drawn as signal bars everywhere it appears")
+    assert_states(manual, "*Starts in 11 days* or *Started 11 days late*")
     refute manual =~ "priority chevron"
   end
 end

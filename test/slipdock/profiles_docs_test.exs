@@ -7,6 +7,8 @@ defmodule Slipdock.ProfilesDocsTest do
   """
   use ExUnit.Case, async: true
 
+  import Slipdock.DocsFacts, only: [assert_states: 3]
+
   alias Slipdock.Profiles
 
   @root Path.expand("../..", __DIR__)
@@ -69,7 +71,7 @@ defmodule Slipdock.ProfilesDocsTest do
           "400 changed lines",
           "keeps it"
         ],
-        do: assert(text =~ part, inspect(part))
+        do: assert_states(text, part, inspect(part))
   end
 
   # #2349: a spike's tier is none, so nothing that lists the defaults may

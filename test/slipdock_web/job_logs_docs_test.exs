@@ -8,12 +8,14 @@ defmodule SlipdockWeb.JobLogsDocsTest do
   """
   use SlipdockWeb.ConnCase, async: true
 
+  import Slipdock.DocsFacts, only: [assert_states: 2]
+
   @root Path.expand("../..", __DIR__)
   defp read(path), do: Slipdock.DocsText.read!(Path.join(@root, path))
 
   test "the README tells the whole story in one place" do
     readme = read("README.md")
-    assert readme =~ "**Watch a job as it runs, keep its log only if it matters.**"
+    assert_states(readme, "**Watch a job as it runs, keep its log only if it matters.**")
     assert readme =~ "`slipdock job <id>\n  --follow`"
     assert readme =~ "MCP `job_log`"
     assert readme =~ "**Keep this log** (`slipdock job <id> --keep`)"
@@ -24,8 +26,8 @@ defmodule SlipdockWeb.JobLogsDocsTest do
     manual = read("docs/manual.md")
     assert manual =~ "**Watching a job.**"
     assert manual =~ "**Logs evaporate unless kept.**"
-    assert manual =~ "**Keep job logs for** (24 hours by default)"
-    assert manual =~ "**Keep failure logs for** (168 hours, 7 days)"
+    assert_states(manual, "**Keep job logs for** (24 hours by default)")
+    assert_states(manual, "**Keep failure logs for** (168 hours, 7 days)")
     # The opt-in pass-log hook example went with the shell runners (#2582):
     # Keep this log is the one way to keep a pass.
     refute manual =~ "pass log is **opt-in**"

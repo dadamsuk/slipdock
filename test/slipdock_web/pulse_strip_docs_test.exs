@@ -8,6 +8,8 @@ defmodule SlipdockWeb.PulseStripDocsTest do
   """
   use ExUnit.Case, async: true
 
+  import Slipdock.DocsFacts, only: [assert_states: 2]
+
   @root Path.expand("../..", __DIR__)
   defp read(path), do: Slipdock.DocsText.read!(Path.join(@root, path))
 
@@ -20,9 +22,11 @@ defmodule SlipdockWeb.PulseStripDocsTest do
   test "the README's pulse line says the strip opens Right now with Agentic Building on" do
     item = pulse_item()
 
-    assert item =~
-             "which opens *Right now* when clicked on a board with Agentic Building on, " <>
-               "and *Visualise* otherwise."
+    assert_states(
+      item,
+      "which opens *Right now* when clicked on a board with Agentic Building on, " <>
+        "and *Visualise* otherwise."
+    )
 
     refute item =~ "which opens *Visualise* when clicked."
   end
@@ -31,8 +35,8 @@ defmodule SlipdockWeb.PulseStripDocsTest do
     {:docs_v1, _, _, _, %{"en" => doc}, _, _} = Code.fetch_docs(SlipdockWeb.NowLive.Index)
     doc = String.replace(doc, ~r/\s+/, " ")
 
-    assert doc =~ "the pulse strip (the first line over the lists) links here"
-    assert doc =~ "The delivery line (the rocket) opens the Visualise view, not this page."
+    assert_states(doc, "the pulse strip (the first line over the lists) links here")
+    assert_states(doc, "The delivery line (the rocket) opens the Visualise view, not this page.")
     refute doc =~ "the delivery line (the rocket) links here"
   end
 end

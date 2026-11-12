@@ -7,6 +7,8 @@ defmodule SlipdockWeb.VerifyProgressTest do
   """
   use SlipdockWeb.ConnCase, async: true
 
+  import Slipdock.DocsFacts, only: [assert_states: 2]
+
   import Ecto.Query
   import Phoenix.LiveViewTest
   import Slipdock.Fixtures
@@ -58,7 +60,7 @@ defmodule SlipdockWeb.VerifyProgressTest do
       assert prompt =~ "$SLIPDOCK_JOB_ID"
       assert prompt =~ "MCP `job_progress` with `step`"
       assert prompt =~ "never a note or `--message`"
-      assert prompt =~ "the card stays quiet until you decide"
+      assert_states(prompt, "the card stays quiet until you decide")
       assert prompt =~ "`checked out abc1234`"
       assert prompt =~ "`tests running: <which>`"
       assert prompt =~ "`tests passed: <n>, failed: <n>`"
@@ -88,18 +90,20 @@ defmodule SlipdockWeb.VerifyProgressTest do
     test "reads the change and checks the PR's CI, without running the suite", ctx do
       prompt = Verified.verify_prompt(ctx.card, ctx.board)
 
-      assert prompt =~ "Check out abc1234 in a clean tree"
-      assert prompt =~ "Don't run the suite: the pull request's CI runs it at this commit."
+      assert_states(prompt, "Check out abc1234 in a clean tree")
+      assert_states(prompt, "Don't run the suite: the pull request's CI runs it at this commit.")
 
       assert prompt =~
                "`gh pr view #{@pr} --json headRefOid,statusCheckRollup`: the head must be abc1234"
 
-      assert prompt =~ "reject it to be submitted again at its head"
+      assert_states(prompt, "reject it to be submitted again at its head")
       assert prompt =~ "While any is still running, wait (`gh pr checks #{@pr} --watch`)"
-      assert prompt =~ "A failed check is a rejection: name it."
+      assert_states(prompt, "A failed check is a rejection: name it.")
 
-      assert prompt =~
-               "If the pull request has no checks at all, run the suite in the clean tree instead."
+      assert_states(
+        prompt,
+        "If the pull request has no checks at all, run the suite in the clean tree instead."
+      )
 
       assert prompt =~ "`CI: <n> checks passed at abc1234`"
       assert prompt =~ "`judging against the bar`"
@@ -109,6 +113,7 @@ defmodule SlipdockWeb.VerifyProgressTest do
       # The checkout, then the ask and the bar, the decision last.
       assert prompt =~ ~r/^1\. Read the card.*\n2\. Check out abc1234/m
 
+      # not a doc: the order of the prompt's numbered steps
       assert prompt =~
                ~r/\n3\. The ask\..*\n4\. The bar\..*`judging against the bar`\n5\. Decide once/
 
@@ -152,11 +157,13 @@ defmodule SlipdockWeb.VerifyProgressTest do
     test "without a handbook: the ask and the bar, and nothing about rules", ctx do
       prompt = Verified.verify_prompt(ctx.card, ctx.board)
 
-      assert prompt =~
-               "What the card asks (its description):\nAdd a header row to the export, and a footer."
+      assert_states(
+        prompt,
+        "What the card asks (its description):\nAdd a header row to the export, and a footer."
+      )
 
-      assert prompt =~ "3. The ask. Does the bar cover everything the description"
-      assert prompt =~ "A bar that leaves part of the ask out is a rejection"
+      assert_states(prompt, "3. The ask. Does the bar cover everything the description")
+      assert_states(prompt, "A bar that leaves part of the ask out is a rejection")
       assert prompt =~ "`judging the ask`"
       assert prompt =~ "4. The bar. Each item"
       assert prompt =~ "5. Decide once"
@@ -165,7 +172,11 @@ defmodule SlipdockWeb.VerifyProgressTest do
       refute prompt =~ "rule id"
 
       # A rejection cites the check it fails.
-      assert prompt =~ "A rejection cites what it fails: the bar item (`bar 2: …`) or the ask"
+      assert_states(
+        prompt,
+        "A rejection cites what it fails: the bar item (`bar 2: …`) or the ask"
+      )
+
       assert prompt =~ ~s(reject --evidence-commit abc1234 --reason "<the check it fails>: )
     end
 
@@ -173,6 +184,7 @@ defmodule SlipdockWeb.VerifyProgressTest do
       {:ok, _} = Slipdock.Handbook.install(ctx.user, ctx.board)
       prompt = Verified.verify_prompt(ctx.card, ctx.board)
 
+      # not a doc: the order of the prompt's numbered steps
       assert prompt =~ ~r/\n3\. The ask\..*\n4\. The bar\..*\n5\. The rules\./s
       assert prompt =~ ~r/\n6\. The Handbook line\..*\n7\. Decide once/s
 
@@ -181,16 +193,18 @@ defmodule SlipdockWeb.VerifyProgressTest do
                  "slipdock handbook #{ctx.board.code} --paths-from -`"
 
       assert prompt =~ "Judge every `must` rule it lists"
-      assert prompt =~ "A broken `must` is a rejection citing its id"
-      assert prompt =~ "List any `should` rule missed in the accept reason"
+      assert_states(prompt, "A broken `must` is a rejection citing its id")
+      assert_states(prompt, "List any `should` rule missed in the accept reason")
       assert prompt =~ "`judging the rules`"
-      assert prompt =~ "a line saying `no change` on a diff that needed one"
-      assert prompt =~ "a line naming pages the work didn't edit"
+      assert_states(prompt, "a line saying `no change` on a diff that needed one")
+      assert_states(prompt, "a line naming pages the work didn't edit")
       assert prompt =~ "`judging the Handbook line`"
 
-      assert prompt =~
-               "A rejection cites what it fails: a bar item (`bar 2: …`), the ask (`the ask: …`), " <>
-                 "a rule id (`ARCH-3: …`) or the Handbook line (`Handbook line: …`)."
+      assert_states(
+        prompt,
+        "A rejection cites what it fails: a bar item (`bar 2: …`), the ask (`the ask: …`), " <>
+          "a rule id (`ARCH-3: …`) or the Handbook line (`Handbook line: …`)."
+      )
     end
 
     test "on a sub-board the rules come from the root board's handbook", ctx do
@@ -202,7 +216,7 @@ defmodule SlipdockWeb.VerifyProgressTest do
 
       prompt = Verified.verify_prompt(child, Boards.get_board!(sub.id))
       assert prompt =~ "slipdock handbook #{ctx.board.code} --paths-from -"
-      assert prompt =~ "(no description: the title is the ask)"
+      assert_states(prompt, "(no description: the title is the ask)")
       assert prompt =~ "The Handbook line."
     end
 
@@ -225,7 +239,7 @@ defmodule SlipdockWeb.VerifyProgressTest do
 
       prompt = Verified.verify_prompt(card, ctx.board)
 
-      assert prompt =~ "… (cut short: read the rest on the card)"
+      assert_states(prompt, "… (cut short: read the rest on the card)")
       refute prompt =~ String.duplicate("a", 4001)
     end
   end
@@ -251,10 +265,12 @@ defmodule SlipdockWeb.VerifyProgressTest do
       assert skill =~ "Put the `Handbook:`\n  line in `--evidence` too"
       assert skill =~ ~s(reject --reason "<the check>: <what falls short, specifically>")
 
-      assert guide =~
-               "judge, in order, the ask (does the bar cover what the card asks for?), the bar"
+      assert_states(
+        guide,
+        "judge, in order, the ask (does the bar cover what the card asks for?), the bar"
+      )
 
-      assert guide =~ "the closing `Handbook:` line against the docs gate"
+      assert_states(guide, "the closing `Handbook:` line against the docs gate")
       assert guide =~ "citing the check it fails (`bar 2: …`"
     end
   end

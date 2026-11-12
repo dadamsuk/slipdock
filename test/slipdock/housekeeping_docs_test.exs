@@ -6,6 +6,8 @@ defmodule Slipdock.HousekeepingDocsTest do
   """
   use ExUnit.Case, async: true
 
+  import Slipdock.DocsFacts, only: [assert_states: 3]
+
   @root Path.expand("../..", __DIR__)
 
   defp read(path), do: File.read!(Path.join(@root, path))
@@ -20,7 +22,7 @@ defmodule Slipdock.HousekeepingDocsTest do
           {"priv/skills/slipdock-loop/SKILL.md",
            "A **Housekeeping** list (category `housekeeping`"}
         ] do
-      assert read(path) =~ words, "#{path} doesn't say #{inspect(words)}"
+      assert_states(read(path), words, "#{path} doesn't say #{inspect(words)}")
     end
   end
 
@@ -34,7 +36,7 @@ defmodule Slipdock.HousekeepingDocsTest do
           {"priv/skills/slipdock-loop/SKILL.md",
            "**A Housekeeping card that grows goes back to a person.**"}
         ] do
-      assert read(path) =~ words, "#{path} doesn't say #{inspect(words)}"
+      assert_states(read(path), words, "#{path} doesn't say #{inspect(words)}")
     end
   end
 
@@ -49,7 +51,7 @@ defmodule Slipdock.HousekeepingDocsTest do
           {"cli/help.txt", "[--digest-at HH:MM]"},
           {"priv/skills/slipdock/SKILL.md", "--digest-at HH:MM"}
         ] do
-      assert read(path) =~ words, "#{path} doesn't say #{inspect(words)}"
+      assert_states(read(path), words, "#{path} doesn't say #{inspect(words)}")
     end
   end
 end

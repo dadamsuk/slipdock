@@ -6,6 +6,8 @@ defmodule SlipdockWeb.WorkDismissDocsTest do
   """
   use SlipdockWeb.ConnCase, async: true
 
+  import Slipdock.DocsFacts, only: [assert_states: 2]
+
   import Phoenix.LiveViewTest
 
   @root Path.expand("../..", __DIR__)
@@ -22,7 +24,7 @@ defmodule SlipdockWeb.WorkDismissDocsTest do
     assert manual =~ ~s|`waiting_list: "dismiss"`|
     assert manual =~ ~s|`waiting_list: "mute"`|
     assert manual =~ "Muting is not archiving"
-    assert manual =~ "a new one brings the card back"
+    assert_states(manual, "a new one brings the card back")
     assert manual =~ "`3 waiting · 2 dismissed · 1 board muted`"
     assert manual =~ "slipdock work --dismissed"
   end
@@ -33,7 +35,7 @@ defmodule SlipdockWeb.WorkDismissDocsTest do
     assert agents =~ "`slipdock work --dismiss <card>`"
     assert agents =~ ~s|`update_card` with `waiting_list: "dismiss"`|
     assert agents =~ ~s|`update_board` with `waiting_list: "mute"`|
-    assert agents =~ "Never dismiss or mute for a person on your own judgement"
+    assert_states(agents, "Never dismiss or mute for a person on your own judgement")
   end
 
   test "the API guide gives the endpoints, the CLI and MCP" do
@@ -52,7 +54,7 @@ defmodule SlipdockWeb.WorkDismissDocsTest do
     user = Slipdock.Fixtures.user_fixture()
     {:ok, view, _} = live(log_in_user(conn, user), ~p"/help/boards")
     part = view |> element("#boards-waiting") |> render()
-    assert part =~ "Mute on my Waiting on you"
+    assert_states(part, "Mute on my Waiting on you")
     assert part =~ "Muting is not archiving"
     assert part =~ "slipdock work --dismiss"
   end
@@ -66,7 +68,7 @@ defmodule SlipdockWeb.WorkDismissDocsTest do
   test "the README names dismiss, mute and the counts" do
     readme = flat("README.md")
     assert readme =~ "`slipdock work --dismiss <card>`"
-    assert readme =~ "**Mute on my Waiting on you**"
+    assert_states(readme, "**Mute on my Waiting on you**")
     assert readme =~ "`3 waiting · 2 dismissed · 1 board muted`"
   end
 
@@ -84,7 +86,7 @@ defmodule SlipdockWeb.WorkDismissDocsTest do
     user = Slipdock.Fixtures.user_fixture()
     {:ok, view, _} = live(log_in_user(conn, user), ~p"/help/agents")
     table = view |> element("#help-compare-table") |> render()
-    assert table =~ "Dismiss an item, or mute a board, on your Waiting on you"
+    assert_states(table, "Dismiss an item, or mute a board, on your Waiting on you")
     assert table =~ "POST /api/work/dismissed, POST /api/work/muted"
     assert table =~ "slipdock work --dismiss, --mute"
   end

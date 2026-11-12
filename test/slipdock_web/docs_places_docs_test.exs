@@ -8,6 +8,8 @@ defmodule SlipdockWeb.DocsPlacesDocsTest do
   """
   use SlipdockWeb.ConnCase, async: true
 
+  import Slipdock.DocsFacts, only: [assert_states: 2]
+
   import Phoenix.LiveViewTest
 
   @root Path.expand("../..", __DIR__)
@@ -19,16 +21,23 @@ defmodule SlipdockWeb.DocsPlacesDocsTest do
   test "the manual's Verified work page says how SPEC-10 is judged" do
     manual = @root |> Path.join("docs/manual/verified-work.md") |> File.read!() |> flat()
 
-    assert manual =~ "**SPEC-10 is checked by enumeration, not judged.**"
-    assert manual =~ "take the names the change introduces or alters from the diff"
-    assert manual =~ "grep them across the seven places"
+    assert_states(manual, "**SPEC-10 is checked by enumeration, not judged.**")
+    assert_states(manual, "take the names the change introduces or alters from the diff")
+    assert_states(manual, "grep them across the seven places")
 
-    assert manual =~
-             "*updated*, *deferred to #N* (only when card #N's bar names that place), *n/a* with why, or *missing*"
+    assert_states(
+      manual,
+      "*updated*, *deferred to #N* (only when card #N's bar names that place), *n/a* with why, or *missing*"
+    )
 
     assert manual =~ "One missing is `--check rule:SPEC-10=broken:<file>:<name>`"
-    assert manual =~ "a deferral to a card whose bar doesn't name the place counts as missing"
-    assert manual =~ "list each place its lane can't reach on the deferral card's bar"
+
+    assert_states(
+      manual,
+      "a deferral to a card whose bar doesn't name the place counts as missing"
+    )
+
+    assert_states(manual, "list each place its lane can't reach on the deferral card's bar")
   end
 
   test "docs/agents.md's Verified work says it, beside the every-instance rule" do
@@ -36,17 +45,24 @@ defmodule SlipdockWeb.DocsPlacesDocsTest do
     [_, after_instances] = String.split(agents, "**A rejection names every instance found**")
     [passage, _] = String.split(after_instances, "A card resubmitted after a rejection", parts: 2)
 
-    assert passage =~ "**SPEC-10 is checked by enumeration, not judged**"
-    assert passage =~ "lists the names the change introduces or alters from the diff"
-    assert passage =~ "greps them across the seven places"
+    assert_states(passage, "**SPEC-10 is checked by enumeration, not judged**")
+    assert_states(passage, "lists the names the change introduces or alters from the diff")
+    assert_states(passage, "greps them across the seven places")
 
-    assert passage =~
-             "*updated*, *deferred to #N* (only when card #N's bar names that place), *n/a* with why, or *missing*"
+    assert_states(
+      passage,
+      "*updated*, *deferred to #N* (only when card #N's bar names that place), *n/a* with why, or *missing*"
+    )
 
     assert passage =~ "One missing is `--check rule:SPEC-10=broken:<file>:<name>`, a rejection"
-    assert passage =~ "a deferral to a card whose bar doesn't name the place counts as missing"
-    assert passage =~ "a place its lane can't reach goes on the deferral card's bar by name"
-    assert passage =~ "one missing there is a disagreement"
+
+    assert_states(
+      passage,
+      "a deferral to a card whose bar doesn't name the place counts as missing"
+    )
+
+    assert_states(passage, "a place its lane can't reach goes on the deferral card's bar by name")
+    assert_states(passage, "one missing there is a disagreement")
   end
 
   test "the API guide's Verified work section says it, inside the size caps (SPEC-4)", %{
@@ -66,17 +82,21 @@ defmodule SlipdockWeb.DocsPlacesDocsTest do
     {:ok, verified} = SlipdockWeb.APIGuide.section("verified", user: user)
     [_, verified] = String.split(flat(verified), "**A second agent verifies.**", parts: 2)
 
-    assert verified =~ "`SPEC-10` is checked by enumeration, not judged"
-    assert verified =~ "List the names the change introduces or alters from the diff"
-    assert verified =~ "grep them across the seven places"
+    assert_states(verified, "`SPEC-10` is checked by enumeration, not judged")
+    assert_states(verified, "List the names the change introduces or alters from the diff")
+    assert_states(verified, "grep them across the seven places")
 
-    assert verified =~
-             "updated, deferred to #N (only when card #N's bar names that place), n/a with why, or missing"
+    assert_states(
+      verified,
+      "updated, deferred to #N (only when card #N's bar names that place), n/a with why, or missing"
+    )
 
     assert verified =~ "One missing is `rule:SPEC-10=broken:<file>:<name>`"
 
-    assert verified =~
-             "a place its lane can't reach goes on the deferral card's bar by name, or the deferral doesn't count"
+    assert_states(
+      verified,
+      "a place its lane can't reach goes on the deferral card's bar by name, or the deferral doesn't count"
+    )
 
     # SPEC-4: the passage is in the Verified work section alone; the short
     # guide never carries it, and keeps its cap.
@@ -95,27 +115,33 @@ defmodule SlipdockWeb.DocsPlacesDocsTest do
     verify_job = flat(verify_job)
 
     assert verify_job =~ "**`SPEC-10` is enumerated, not judged**"
-    assert verify_job =~ "list the names the change introduces or alters from the diff"
-    assert verify_job =~ "grep them across the seven places"
+    assert_states(verify_job, "list the names the change introduces or alters from the diff")
+    assert_states(verify_job, "grep them across the seven places")
 
-    assert verify_job =~
-             "`updated`, `deferred to #N` (only when card #N's bar names that place: `slipdock card N`), `n/a` with why, or `missing`"
+    assert_states(
+      verify_job,
+      "`updated`, `deferred to #N` (only when card #N's bar names that place: `slipdock card N`), `n/a` with why, or `missing`"
+    )
 
     assert verify_job =~ "One missing is `--check rule:SPEC-10=broken:<file>:<name>`"
 
-    assert flat(audit) =~
-             "The docs places (`SPEC-10`) are enumerated as in a verify job: one missing, a deferral to a card whose bar doesn't name the place included, is a disagreement."
+    assert_states(
+      flat(audit),
+      "The docs places (`SPEC-10`) are enumerated as in a verify job: one missing, a deferral to a card whose bar doesn't name the place included, is a disagreement."
+    )
 
     [_, builder] = String.split(skill, "**Before\nsubmitting, check the diff against them**")
     [builder | _] = String.split(builder, "\n## ", parts: 2)
     builder = flat(builder)
 
     assert builder =~ "**The docs places (`SPEC-10`)**"
-    assert builder =~ "grep each across the seven places"
-    assert builder =~ "*updated*, *deferred to #N*, *n/a* with why, or *missing*"
+    assert_states(builder, "grep each across the seven places")
+    assert_states(builder, "*updated*, *deferred to #N*, *n/a* with why, or *missing*")
 
-    assert builder =~
-             "A place the lane can't reach goes on the deferral card's bar by name, with the names it must cover"
+    assert_states(
+      builder,
+      "A place the lane can't reach goes on the deferral card's bar by name, with the names it must cover"
+    )
 
     assert builder =~ "or the deferral doesn't count"
   end
@@ -125,14 +151,16 @@ defmodule SlipdockWeb.DocsPlacesDocsTest do
     doc = LazyHTML.from_document(html)
     text = doc |> LazyHTML.query("#help-handbook-docs-places") |> LazyHTML.text() |> flat()
 
-    assert text =~ "is checked by enumeration, not judged"
-    assert text =~ "greps them across the seven places"
+    assert_states(text, "is checked by enumeration, not judged")
+    assert_states(text, "greps them across the seven places")
 
-    assert text =~
-             "updated, deferred to a card whose bar names that place, not applicable with why, or missing"
+    assert_states(
+      text,
+      "updated, deferred to a card whose bar names that place, not applicable with why, or missing"
+    )
 
-    assert text =~ "One missing is the rule broken"
-    assert text =~ "a deferral whose bar doesn't list the place doesn't count"
+    assert_states(text, "One missing is the rule broken")
+    assert_states(text, "a deferral whose bar doesn't list the place doesn't count")
   end
 
   test "the Flow help page's verifier says it", %{conn: conn} do
@@ -141,7 +169,9 @@ defmodule SlipdockWeb.DocsPlacesDocsTest do
 
     assert text =~ "(SPEC-10) is checked by enumeration"
 
-    assert text =~
-             "updated, deferred to a card whose bar names that place, not applicable with why, or missing, and one missing is the rule broken"
+    assert_states(
+      text,
+      "updated, deferred to a card whose bar names that place, not applicable with why, or missing, and one missing is the rule broken"
+    )
   end
 end

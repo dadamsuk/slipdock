@@ -7,6 +7,8 @@ defmodule SlipdockWeb.EveryInstanceDocsTest do
   """
   use ExUnit.Case, async: true
 
+  import Slipdock.DocsFacts, only: [assert_states: 2]
+
   alias SlipdockWeb.MCP.Tools.VerifyCard
 
   @root Path.expand("../..", __DIR__)
@@ -24,18 +26,18 @@ defmodule SlipdockWeb.EveryInstanceDocsTest do
   test "the verdict in parts gives one broken line per instance, all in one rejection" do
     para = manual_bullet("The verdict in parts.")
 
-    assert para =~ "A rejection names every instance found"
+    assert_states(para, "A rejection names every instance found")
     assert para =~ "one `rule:<id>=broken:<file>:<line>` line per instance"
     assert para =~ "all in one rejection"
-    assert para =~ "its instances are listed under the rule"
-    assert para =~ "never the first now and the next in another round"
+    assert_states(para, "its instances are listed under the rule")
+    assert_states(para, "never the first now and the next in another round")
   end
 
   test "the resubmission paragraph says the same: every instance, under the one rule" do
     para = manual_bullet("A resubmission is judged on what changed.")
 
     assert para =~ "under the one rule"
-    assert para =~ "a `rule:<id>=broken:<file>:<line>` line for every instance it finds"
+    assert_states(para, "a `rule:<id>=broken:<file>:<line>` line for every instance it finds")
     assert para =~ "all in this rejection"
   end
 
@@ -44,16 +46,16 @@ defmodule SlipdockWeb.EveryInstanceDocsTest do
     [_, entry] = String.split(help, "--check PART=RESULT[:note]", parts: 2)
     [entry, _] = String.split(entry, "--checks-file F", parts: 2)
 
-    assert entry =~ "A rule broken in several places"
+    assert_states(entry, "A rule broken in several places")
     assert entry =~ "rule:UX-4=broken:lib/x.ex:42 per instance"
-    assert entry =~ "every one found, all in this reject (listed under the rule)"
+    assert_states(entry, "every one found, all in this reject (listed under the rule)")
   end
 
   test "verify_card's checks description says it in a line" do
     desc = squash(VerifyCard.input_schema().properties.checks.description)
 
-    assert desc =~ "a rule broken in several places"
+    assert_states(desc, "a rule broken in several places")
     assert desc =~ "one rule:UX-4=broken:<file>:<line>[:why] per instance"
-    assert desc =~ "every one found, all in this rejection (listed under the rule)"
+    assert_states(desc, "every one found, all in this rejection (listed under the rule)")
   end
 end

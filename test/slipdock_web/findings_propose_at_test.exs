@@ -7,6 +7,8 @@ defmodule SlipdockWeb.FindingsProposeAtTest do
   """
   use SlipdockWeb.ConnCase, async: true
 
+  import Slipdock.DocsFacts, only: [assert_states: 2]
+
   import Phoenix.LiveViewTest
   import Slipdock.Fixtures
 
@@ -116,10 +118,10 @@ defmodule SlipdockWeb.FindingsProposeAtTest do
              "`findings_propose_at` (3 by default, 0 off)"
 
     guide = squash.(SlipdockWeb.APIGuide.markdown(user: ctx.user))
-    assert guide =~ "A finding counted to the board's `findings_propose_at`"
+    assert_states(guide, "A finding counted to the board's `findings_propose_at`")
     assert guide =~ "`proposal_id` and `proposed_rule`"
 
     {:ok, _view, html} = live(ctx.conn, ~p"/help/agents/flow")
-    assert squash.(html) =~ "drafted as a rule on the Tidy-up page"
+    assert_states(squash.(html), "drafted as a rule on the Tidy-up page")
   end
 end

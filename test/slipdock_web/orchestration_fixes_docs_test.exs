@@ -11,6 +11,8 @@ defmodule SlipdockWeb.OrchestrationFixesDocsTest do
   """
   use ExUnit.Case, async: true
 
+  import Slipdock.DocsFacts, only: [assert_states: 3]
+
   @root Path.expand("../..", __DIR__)
 
   defp flat(text), do: String.replace(text, ~r/\s+/, " ")
@@ -51,7 +53,7 @@ defmodule SlipdockWeb.OrchestrationFixesDocsTest do
             ~s(`slipdock add <board> "<title>" --bar "…" --paths "a/**,b.md"`),
             "(`create_card` `bar` and `paths` over MCP)"
           ],
-          do: assert(loop =~ part, "#{path}: #{part}")
+          do: assert_states(loop, part, "#{path}: #{part}")
     end
   end
 

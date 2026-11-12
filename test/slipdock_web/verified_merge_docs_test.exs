@@ -6,22 +6,28 @@ defmodule SlipdockWeb.VerifiedMergeDocsTest do
   """
   use ExUnit.Case, async: true
 
+  import Slipdock.DocsFacts, only: [assert_states: 2]
+
   @root Path.expand("../..", __DIR__)
   defp read(path), do: Slipdock.DocsText.read!(Path.join(@root, path))
 
   test "the manual says where a merge goes and what a runner that can't merge does" do
     manual = read("docs/manual.md")
-    assert manual =~ "It goes to a runner that can merge and is\nidle now"
-    assert manual =~ "it\ngoes to the runner that accepted the card"
+    assert_states(manual, "It goes to a runner that can merge and is\nidle now")
+    assert_states(manual, "it\ngoes to the runner that accepted the card")
     assert manual =~ "**Merge handed on**"
     assert manual =~ "**Merge waiting**"
   end
 
   test "the agents page and the API guide say the same" do
-    assert read("docs/agents.md") =~
-             "The merge goes to a\nrunner that is idle now, else to the one that accepted the card"
+    assert_states(
+      read("docs/agents.md"),
+      "The merge goes to a\nrunner that is idle now, else to the one that accepted the card"
+    )
 
-    assert read("lib/slipdock_web/api_guide.ex") =~
-             "queues a `merge` job for a runner (one idle now first, else the one\n    that accepted it)"
+    assert_states(
+      read("lib/slipdock_web/api_guide.ex"),
+      "queues a `merge` job for a runner (one idle now first, else the one\n    that accepted it)"
+    )
   end
 end

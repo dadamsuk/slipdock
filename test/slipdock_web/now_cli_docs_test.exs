@@ -9,6 +9,8 @@ defmodule SlipdockWeb.NowCliDocsTest do
   """
   use ExUnit.Case, async: true
 
+  import Slipdock.DocsFacts, only: [assert_states: 2]
+
   @root Path.expand("../..", __DIR__)
 
   defp read(path), do: Slipdock.DocsText.read!(Path.join(@root, path))
@@ -17,10 +19,12 @@ defmodule SlipdockWeb.NowCliDocsTest do
   test "the CLI's help lists `now <board>` and what it shows" do
     help = flat(read("cli/help.txt"))
 
-    assert help =~
-             "now <board> right now on the board's tree: each runner at work and its jobs' steps"
+    assert_states(
+      help,
+      "now <board> right now on the board's tree: each runner at work and its jobs' steps"
+    )
 
-    assert help =~ "the cards in progress with where they sit and what holds them"
+    assert_states(help, "the cards in progress with where they sit and what holds them")
     # The idle runners come last, as on the page (#2113).
     assert help =~ "and the idle runners last"
   end
@@ -29,17 +33,19 @@ defmodule SlipdockWeb.NowCliDocsTest do
     skill = read("priv/skills/slipdock/SKILL.md")
     assert skill =~ ~r/^slipdock now <board> \[--json\]\s+# right now:/m
 
-    assert flat(skill) =~
-             ~s{"What are the runners doing right now?" → `slipdock now <board>` (`--json` for the JSON)}
+    assert_states(
+      flat(skill),
+      ~s{"What are the runners doing right now?" → `slipdock now <board>` (`--json` for the JSON)}
+    )
   end
 
   test "the manual's Right now section gives the CLI with the API and MCP" do
     [_, section] = String.split(read("docs/manual.md"), "\n## Right now\n", parts: 2)
     [section | _] = String.split(section, "\n## ", parts: 2)
 
-    assert section =~ "The same snapshot from the CLI, the API and MCP"
+    assert_states(section, "The same snapshot from the CLI, the API and MCP")
     assert section =~ "slipdock now <board>  "
-    assert section =~ "slipdock now <board> --json    the API's JSON, as it is"
+    assert_states(section, "slipdock now <board> --json    the API's JSON, as it is")
   end
 
   test "docs/agents.md's Right now names the CLI" do
