@@ -21,6 +21,24 @@ defmodule SlipdockWeb.MoveBoardLiveTest do
       |> element("#move-menu-#{card.id} button[phx-click=open_move_board]")
       |> render_click()
 
+  # The guard on the list menu (#2907): with one list there is nowhere on
+  # the board to move a card to, so the card draws no menu at all.
+  test "a card on a board of one list has no move menu", %{conn: conn} do
+    board = board_fixture(%{"name" => "Single"})
+    [only | rest] = board.columns
+    Enum.each(rest, &({:ok, _} = Boards.Columns.delete_column(&1)))
+    card = card_fixture(only, %{"title" => "Lonely card"})
+
+    {:ok, view, _} = live(conn, ~p"/boards/#{board}")
+    assert has_element?(view, "#cards-#{only.id}", "Lonely card")
+    refute has_element?(view, "#move-menu-#{card.id}")
+
+    # A second list brings the menu back.
+    {:ok, _} = Boards.Columns.create_column(board, %{"name" => "Later"})
+    {:ok, view, _} = live(conn, ~p"/boards/#{board}")
+    assert has_element?(view, "#move-menu-#{card.id}")
+  end
+
   test "the card's own menu leads to the picker, and the picker moves it", %{
     conn: conn,
     from: from,

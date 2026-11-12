@@ -246,6 +246,23 @@ defmodule Slipdock.OverseerHousekeepingTest do
       assert length(updates(settings)) == 2
     end
 
+    # The digest is the server's own routine status (#2907): kept, but quiet,
+    # so it writes no activity line for the card's followers.
+    test "the digest's status update is quiet: no activity line", ctx do
+      settings = on(ctx)
+      worked(ctx, "Chore")
+      root = Repo.get!(Slipdock.Boards.Board, ctx.board.id)
+
+      assert {:ok, _} = Housekeeping.maybe_digest(root, settings, ~U[2027-03-02 07:05:00Z])
+      assert [_] = updates(settings)
+
+      assert Repo.all(
+               from(a in Slipdock.Boards.Activity,
+                 where: a.card_id == ^settings.card_id and a.kind == "status"
+               )
+             ) == []
+    end
+
     test "is at risk when something needs the owner, and follows digest_at", ctx do
       settings = on(ctx, %{"digest_at" => "06:30"})
       worked(ctx, "Rejected", %{verify_state: "rejected", verify_at: ~U[2027-03-02 02:00:00Z]})
