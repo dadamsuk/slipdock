@@ -9,6 +9,7 @@ defmodule Slipdock.Boards.ActivityLog do
   alias Slipdock.Accounts.User
   alias Slipdock.Boards
   alias Slipdock.Boards.Activity
+  alias Slipdock.Boards.Board
   alias Slipdock.Boards.Comment
   alias Slipdock.Boards.StatusUpdate
   alias Slipdock.Repo

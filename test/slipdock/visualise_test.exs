@@ -33,7 +33,7 @@ defmodule Slipdock.VisualiseTest do
     a = card_fixture(backlog)
     _b = card_fixture(backlog)
     c = card_fixture(doing)
-    {:ok, _} = Boards.archive_card(c)
+    {:ok, _} = Boards.Cards.archive_card(c)
     stand_in(a, doing)
     _elsewhere = card_fixture(hd(board_fixture().columns))
 
@@ -46,8 +46,8 @@ defmodule Slipdock.VisualiseTest do
     doing: doing
   } do
     since = ago(60)
-    for _ <- 1..2, do: {:ok, _} = Boards.archive_card(card_fixture(done))
-    {:ok, _} = Boards.archive_card(card_fixture(doing))
+    for _ <- 1..2, do: {:ok, _} = Boards.Cards.archive_card(card_fixture(done))
+    {:ok, _} = Boards.Cards.archive_card(card_fixture(doing))
 
     assert Visualise.archived_counts(board, since) == %{done.id => 2, doing.id => 1}
     assert Visualise.archived_counts(board, DateTime.add(DateTime.utc_now(), 60)) == %{}
@@ -60,15 +60,15 @@ defmodule Slipdock.VisualiseTest do
   } do
     tag = tag_fixture(board, "bug")
     here = card_fixture(done)
-    {:ok, _} = Boards.toggle_card_tag(here, tag)
+    {:ok, _} = Boards.Tags.toggle_card_tag(here, tag)
 
     recent = card_fixture(done)
-    {:ok, recent} = Boards.update_card(recent, %{"completed" => true})
-    {:ok, _} = Boards.archive_card(recent)
+    {:ok, recent} = Boards.Cards.update_card(recent, %{"completed" => true})
+    {:ok, _} = Boards.Cards.archive_card(recent)
 
     old = card_fixture(done)
-    {:ok, old} = Boards.update_card(old, %{"completed" => true})
-    {:ok, _} = Boards.archive_card(old)
+    {:ok, old} = Boards.Cards.update_card(old, %{"completed" => true})
+    {:ok, _} = Boards.Cards.archive_card(old)
 
     Repo.update_all(from(c in Boards.Card, where: c.id == ^old.id),
       set: [completed_at: ago(86_400)]
@@ -92,9 +92,9 @@ defmodule Slipdock.VisualiseTest do
     waiting = card_fixture(doing)
     answered = card_fixture(todo)
     done = card_fixture(doing)
-    {:ok, _} = Boards.update_card(done, %{"completed" => true})
+    {:ok, _} = Boards.Cards.update_card(done, %{"completed" => true})
     archived = card_fixture(doing)
-    {:ok, _} = Boards.archive_card(archived)
+    {:ok, _} = Boards.Cards.archive_card(archived)
     stand_in(waiting, doing)
     _elsewhere = card_fixture(backlog)
 
