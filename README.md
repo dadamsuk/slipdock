@@ -1064,7 +1064,8 @@ with the tail of the log — and a Cancel button.
   the same for the hosted service and a self-hosted one. The daemon notices
   a dead connection itself and replaces it (it pings a quiet one, and drops
   it after a failed request or a jump in the clock), so a laptop that sleeps
-  or changes networks is back in its pools within seconds of waking.
+  or changes networks is back in its pools within seconds of waking, and
+  carries on with the job it held if no other runner has taken it.
 - **Slipdock never decides what runs.** A job carries data — its kind, the
   card and the prompt. What each kind of job runs is in a config file on the
   runner's machine, and a kind it doesn't know is refused there.

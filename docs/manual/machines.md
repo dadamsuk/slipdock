@@ -793,8 +793,12 @@ What the board sees meanwhile: a runner shows offline once it hasn't been
 heard from for three of its leases (4½ minutes), and online again at its
 first claim after the machine wakes. A job it held while it slept keeps
 its lease only 90 seconds without a heartbeat; after that the server puts
-it back in the queue for any runner of the pool, and the runner that woke
-stops its copy when its next heartbeat is refused. The log says
+it back in the queue for any runner of the pool. If none has taken it by
+the time the machine wakes, the runner's next heartbeat takes the job back
+and its agent carries on where it was, at no cost to the job's three
+tries (the card's activity says `took job #N back`). If another runner
+has taken it, the runner that woke stops its copy when its next heartbeat
+is refused, and the card is worked afresh there. The log says
 `could not reach the queue` while the connection is down and `the clock
 jumped` on waking; nothing needs restarting.
 
