@@ -967,7 +967,8 @@ defmodule Slipdock.Handbook do
     with false <- Enum.member?(report.added["cards"], @triage_title),
          %{completed: false, description: description} = card <- newest_card(root, @triage_title),
          true <- description != @triage_description,
-         {:ok, _} <- Boards.update_card(card, %{"description" => @triage_description}, by: user) do
+         {:ok, _} <-
+           Boards.Cards.update_card(card, %{"description" => @triage_description}, by: user) do
       {note_card(report, "#{@triage_title} (updated: procedure)"), true}
     else
       _ -> {report, false}
