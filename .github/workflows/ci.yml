@@ -20,6 +20,14 @@ on:
 # job keeps its files under RUNNER_TEMP rather than /tmp and publishes no
 # fixed port.
 
+# A newer push to a pull request cancels its older run, queued or running
+# (#2829): on the self-hosted runners every superseded run held a runner
+# the next PR was waiting for. Called from release.yml, the group is the
+# run's own, so a push to main is never cancelled.
+concurrency:
+  group: ci-${{ github.event.pull_request.number && format('pr-{0}', github.event.pull_request.number) || github.run_id }}
+  cancel-in-progress: true
+
 # Everything runs in the test environment, so the warnings check compiles the
 # same build `mix test` then reuses instead of a separate dev one.
 env:
