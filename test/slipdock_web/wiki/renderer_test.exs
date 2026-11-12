@@ -489,6 +489,41 @@ defmodule SlipdockWeb.Wiki.RendererTest do
       assert keys |> Enum.uniq() |> length() == 50
     end
 
+    test "each to_html draws a fresh key, and the key one render used is stripped by the next" do
+      me = self()
+      report = &send(me, {:id_key, &1})
+
+      first = Renderer.to_html("## One\n", on_id_key: report)
+      assert_received {:id_key, key}
+      assert key =~ ~r/\Ak[0-9a-f]{24}-\z/
+      assert first =~ ~s|<h2 id="one">|
+
+      # The key really is the one this render put on its ids: given back as
+      # an embedded page's key, the ids keep it.
+      embedded = Renderer.to_html("## One\n", id_key: key, on_id_key: report)
+      assert_received {:id_key, ^key}
+      assert embedded =~ ~s|<h2 id="#{key}one">|
+
+      forged = Renderer.to_html(~s|## Real\n\n<h2 id="#{key}x">Forged</h2>\n|, on_id_key: report)
+      assert_received {:id_key, next}
+      assert next =~ ~r/\Ak[0-9a-f]{24}-\z/
+      refute next == key
+      assert forged =~ "<h2>Forged</h2>"
+      refute forged =~ ~s|id="x"|
+      refute forged =~ key
+
+      for _ <- 1..20, do: Renderer.to_html("## One\n", on_id_key: report)
+
+      keys =
+        for _ <- 1..20 do
+          assert_received {:id_key, k}
+          k
+        end
+
+      assert keys |> Enum.uniq() |> length() == 20
+      refute key in keys
+    end
+
     test "a key a render did not use, hand-written as an id, is stripped" do
       key = Renderer.id_key()
       html = Renderer.to_html(~s|## Real\n\n<h2 id="#{key}x">Forged</h2>\n|)

@@ -85,6 +85,9 @@ defmodule SlipdockWeb.Wiki.Renderer do
     * `:shared` — true for a page read through a share (#817): pages link to
       the share's own view, and a link to anything the reader can't open
       reads "a page you can't see" rather than naming it or its board
+    * `:on_id_key` — a function given the key this render put in front of
+      its own ids (`id_key/0`), for a test to see that each render draws a
+      fresh one (#2799)
 
   A body that cannot be parsed comes back as escaped plain text rather than
   an error page: a document is worth more half-rendered than not at all.
@@ -97,6 +100,7 @@ defmodule SlipdockWeb.Wiki.Renderer do
       |> Map.put(:transcript_tags, Slipdock.Wiki.TranscriptTags.parse(body))
       |> Map.put(:transcript?, Regex.match?(~r/^[ \t]*(`{3,}|~{3,})[ \t]*vtt[ \t]*$/m, body))
 
+    report_id_key(opts, context.id_key)
     extension = [header_id_prefix: context.id_key] ++ @extension
 
     # Extensions belong on the *parse*, not just the render: a pipe table is
@@ -128,6 +132,13 @@ defmodule SlipdockWeb.Wiki.Renderer do
   end
 
   def to_html(_, _), do: ""
+
+  defp report_id_key(opts, key) do
+    case Keyword.get(opts, :on_id_key) do
+      nil -> :ok
+      report -> report.(key)
+    end
+  end
 
   # Which ids in the sanitised HTML are ours. Every id generated in a render
   # is written with that render's key in front (comrak's heading ids through
@@ -167,7 +178,8 @@ defmodule SlipdockWeb.Wiki.Renderer do
   # The key in front of every id a render generates. Its randomness is the
   # whole defence: a constant key, public in this repository, would let an
   # author write `<h2 id="<key>x">` and get `id="x"` through. Public only so
-  # a test can check that each call gives a fresh one.
+  # a test can check that each call gives a fresh one; `:on_id_key` shows
+  # which key a render used.
   @doc false
   def id_key, do: "k" <> Base.encode16(:crypto.strong_rand_bytes(12), case: :lower) <> "-"
 
