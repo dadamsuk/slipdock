@@ -52,4 +52,5 @@ first. Leaving them deliberately is good practice.
 
 Raw HTML is rendered and then sanitised: `<script>`, event handlers and
 `javascript:` URLs never survive, whoever wrote them. Plain `<span>`,
-`<a href>` and the usual formatting tags do.
+`<a href>` and the usual formatting tags do, without any `id` you gave them:
+link to a heading (`[[#Heading]]`) or a block (`^a1b2`) instead.
