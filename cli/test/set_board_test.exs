@@ -218,6 +218,14 @@ defmodule SlipdockCLI.SetBoardTest do
   end
 
   # A usage error halts, so the parse is checked on its own.
+  test "off, none and an empty value all clear the cap; hours are a number; unset sends nothing" do
+    assert Boards.parse_release_age_cap("off") == ""
+    assert Boards.parse_release_age_cap("none") == ""
+    assert Boards.parse_release_age_cap("") == ""
+    assert Boards.parse_release_age_cap("36") == 36
+    assert Boards.parse_release_age_cap(nil) == nil
+  end
+
   test "--release-age-cap that isn't hours is a usage error" do
     assert Boards.parse_release_age_cap("1d") ==
              {:error, ~s(--release-age-cap takes a number of hours or off, not "1d")}

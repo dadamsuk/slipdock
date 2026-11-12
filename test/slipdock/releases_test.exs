@@ -146,6 +146,23 @@ defmodule Slipdock.ReleasesTest do
       assert Releases.state(merge!(card, merge_sha: nil)) == nil
     end
 
+    test "nothing for an accepted card with a commit that isn't completed", %{
+      board: board,
+      todo: todo
+    } do
+      batched!(board)
+      card = todo |> card_fixture(%{"title" => "Reopened"}) |> merge!(completed: false)
+      assert Releases.state(card) == nil
+    end
+
+    test "an awaiting state with no merge time says no since", %{board: board, todo: todo} do
+      batched!(board)
+      card = todo |> card_fixture(%{"title" => "Old"}) |> merge!(completed_at: nil)
+
+      assert %{state: "awaiting", merged_at: nil} = state = Releases.state(card)
+      assert Releases.text(state) == "Merged abc1234, awaiting release"
+    end
+
     test "awaiting once merged, released once a succeeded deploy names it", %{
       board: board,
       todo: todo

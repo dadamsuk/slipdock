@@ -36,4 +36,40 @@ defmodule Slipdock.ReleaseModePortableTest do
     again = Boards.get_board!(hd(report.boards).id)
     assert {again.release_mode, again.release_age_cap_hours} == {"on_merge", nil}
   end
+
+  test "a sub-board's document can't set them: it imports and keeps the defaults", %{
+    user: user,
+    board: board
+  } do
+    [_backlog, todo | _] = board.columns
+    {:ok, template} = Boards.find_template(nil, "Simple")
+    {:ok, _sub} = sub_board(card_fixture(todo, %{"title" => "Epic"}), template)
+
+    document = Slipdock.Portable.export(user, boards: [Boards.get_board!(board.id)])
+    [tree] = document.boards
+    assert Enum.any?(tree.boards, & &1[:inside_card])
+
+    # A document edited by hand, or from an older export: every sub-board
+    # claims to be batched with a cap.
+    odd =
+      update_in(document.boards, fn [t] ->
+        boards =
+          Enum.map(t.boards, fn b ->
+            if b[:inside_card],
+              do: Map.merge(b, %{release_mode: "batched", release_age_cap_hours: 12}),
+              else: b
+          end)
+
+        [%{t | boards: boards}]
+      end)
+
+    assert {:ok, report} = Slipdock.Portable.import(user, Jason.encode!(odd))
+    root = Boards.get_board!(hd(report.boards).id)
+    assert {root.release_mode, root.release_age_cap_hours} == {"on_merge", nil}
+
+    [sub] =
+      Slipdock.Repo.all(Ecto.Query.from(b in Slipdock.Boards.Board, where: b.root_id == ^root.id))
+
+    assert {sub.release_mode, sub.release_age_cap_hours} == {"on_merge", nil}
+  end
 end

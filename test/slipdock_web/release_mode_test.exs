@@ -128,6 +128,36 @@ defmodule SlipdockWeb.ReleaseModeTest do
     end
   end
 
+  describe "a board's summary" do
+    test "a sub-board's reads the root's mode and cap, not its own columns", %{
+      board: board,
+      todo: todo
+    } do
+      {:ok, _} =
+        Boards.update_board(board, %{"release_mode" => "batched", "release_age_cap_hours" => 6})
+
+      sub = sub!(todo)
+      assert {sub.release_mode, sub.release_age_cap_hours} == {"on_merge", nil}
+
+      summary = SlipdockWeb.API.JSON.board_summary(sub)
+      assert {summary.release_mode, summary.release_age_cap_hours} == {"batched", 6}
+    end
+
+    test "GET /api/boards gives each board's", %{agent: agent, board: board} do
+      {:ok, _} =
+        Boards.update_board(board, %{"release_mode" => "batched", "release_age_cap_hours" => 6})
+
+      listed =
+        agent
+        |> get(~p"/api/boards")
+        |> json_response(200)
+        |> Map.fetch!("boards")
+        |> Enum.find(&(&1["id"] == board.id))
+
+      assert {listed["release_mode"], listed["release_age_cap_hours"]} == {"batched", 6}
+    end
+  end
+
   describe "MCP" do
     test "update_board sets them and list_boards shows a batched tree", %{
       agent: agent,
@@ -168,6 +198,48 @@ defmodule SlipdockWeb.ReleaseModeTest do
 
       assert %{release_mode: "batched", release_age_cap_hours: 12} = Boards.get_board!(board.id)
       assert render(view) =~ "at most 12h"
+    end
+
+    test "the strip is off on an on_merge board, even with a cap left set", %{
+      conn: conn,
+      board: board
+    } do
+      {:ok, _} = Boards.update_board(board, %{"release_age_cap_hours" => 12})
+
+      {:ok, view, _} = live(conn, ~p"/boards/#{board}/agentic")
+      assert has_element?(view, ~s(#agentic-rule-release[data-on=false]))
+      refute element(view, "#agentic-rule-release") |> render() =~ "at most"
+
+      {:ok, _} = Boards.update_board(board, %{"release_mode" => "batched"})
+      {:ok, view, _} = live(conn, ~p"/boards/#{board}/agentic")
+      assert has_element?(view, ~s(#agentic-rule-release[data-on=true]), "at most 12h")
+    end
+
+    test "a sub-board's strip reads the root's", %{conn: conn, board: board, todo: todo} do
+      {:ok, _} =
+        Boards.update_board(board, %{"release_mode" => "batched", "release_age_cap_hours" => 8})
+
+      sub = sub!(todo)
+      {:ok, view, _} = live(conn, ~p"/boards/#{sub}/agentic")
+      assert has_element?(view, ~s(#agentic-rule-release[data-on=true]), "at most 8h")
+    end
+
+    test "a sub-board's read-only text: batched with no cap, and on merge", %{
+      conn: conn,
+      board: board,
+      todo: todo
+    } do
+      sub = sub!(todo)
+
+      {:ok, view, _} = live(conn, ~p"/boards/#{sub}/agentic")
+      assert element(view, "#board-releases-read") |> render() =~ "On merge: each merge deploys."
+      refute element(view, "#board-releases-read") |> render() =~ "Batched"
+
+      {:ok, _} = Boards.update_board(board, %{"release_mode" => "batched"})
+      {:ok, view, _} = live(conn, ~p"/boards/#{sub}/agentic")
+
+      assert element(view, "#board-releases-read") |> render() =~
+               "Batched: merges wait for a release, with no age cap."
     end
 
     test "a sub-board shows the root's, read-only, linking to it", %{
