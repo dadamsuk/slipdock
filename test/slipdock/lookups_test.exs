@@ -218,19 +218,21 @@ defmodule Slipdock.LookupsTest do
       board: board,
       backlog: backlog
     } do
-      start = DateTime.add(DateTime.utc_now(:second), -60)
       card = card_fixture(backlog)
-
-      Repo.delete_all(from(a in Activity, where: a.board_id == ^board.id))
+      # Ahead of the card's own activity, so only the rows below are since it.
+      now = DateTime.add(DateTime.utc_now(:second), 600)
+      start = DateTime.add(now, -60)
 
       for {n, ago} <- [{1, 30}, {2, 20}, {3, 120}] do
-        Repo.insert!(%Activity{
+        %Activity{
           board_id: board.id,
           card_id: card.id,
           kind: "test",
           message: "test #{n}",
-          inserted_at: DateTime.add(DateTime.utc_now(:second), -ago)
-        })
+          inserted_at: DateTime.add(now, -ago)
+        }
+        |> Activity.stamp()
+        |> Repo.insert!()
       end
 
       assert [%Activity{message: "test 2", board: %Board{}}, %Activity{message: "test 1"}] =
@@ -254,8 +256,11 @@ defmodule Slipdock.LookupsTest do
       assert %Comment{body: "Hello"} = Boards.Shared.get_owned_row(Comment, comment.id)
       assert Boards.Shared.get_owned_row(Comment, -1) == nil
 
-      # Only the rows that hang off a card or a page.
-      assert_raise FunctionClauseError, fn -> Boards.Shared.get_owned_row(Tag, item.id) end
+      # Only the rows that hang off a card or a page. Through apply/3, so the
+      # type checker doesn't warn about the call it is meant to refuse.
+      assert_raise FunctionClauseError, fn ->
+        apply(Boards.Shared, :get_owned_row, [Tag, item.id])
+      end
     end
 
     test "get_card_url/1 and get_attachment/2", %{backlog: backlog} do
