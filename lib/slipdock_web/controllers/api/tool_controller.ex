@@ -186,7 +186,7 @@ defmodule SlipdockWeb.API.ToolController do
       case Tools.request_listing(user, version) do
         {:ok, version} ->
           json(conn, %{
-            tool: ToolJSON.show(Tools.Tool |> Slipdock.Repo.get!(version.tool_id), version, user)
+            tool: ToolJSON.show(Tools.get_tool!(version.tool_id), version, user)
           })
 
         {:error, message} ->

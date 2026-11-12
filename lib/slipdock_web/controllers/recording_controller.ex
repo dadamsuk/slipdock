@@ -7,14 +7,14 @@ defmodule SlipdockWeb.RecordingController do
   """
   use SlipdockWeb, :controller
 
-  alias Slipdock.{Access, Repo, Wiki}
+  alias Slipdock.{Access, Wiki}
   alias Slipdock.Wiki.Page
   alias SlipdockWeb.RecordingStream
 
   def show(conn, %{"id" => id}) do
     with {n, ""} <- Integer.parse(id),
          %Page{archived_at: nil} = page <- Wiki.get_page(n),
-         page = Repo.preload(page, :board),
+         page = Wiki.with_board(page),
          true <- Access.can_read?(Access.board_permission(conn.assigns.current_user, page.board)) do
       RecordingStream.serve(conn, page)
     else

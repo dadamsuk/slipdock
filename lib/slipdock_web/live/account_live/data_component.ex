@@ -5,8 +5,6 @@ defmodule SlipdockWeb.AccountLive.DataComponent do
   """
   use SlipdockWeb, :live_component
 
-  import Ecto.Query, only: [from: 2]
-
   alias Slipdock.Importers
 
   @impl true
@@ -39,15 +37,7 @@ defmodule SlipdockWeb.AccountLive.DataComponent do
 
   # The boards that can travel: the ones this person **owns**. A board shared
   # with you is somebody else's to hand on.
-  defp own_boards(user) do
-    Slipdock.Repo.all(
-      from(b in Slipdock.Boards.Board,
-        where: b.owner_id == ^user.id and is_nil(b.parent_card_id),
-        order_by: [asc: b.name],
-        select: %{id: b.id, name: b.name, code: b.code, archived: not is_nil(b.archived_at)}
-      )
-    )
-  end
+  defp own_boards(user), do: Slipdock.Boards.owned_root_boards(user)
 
   defp import_error(reason),
     do: Importers.error_message(reason) || "That file could not be imported."

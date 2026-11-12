@@ -7,7 +7,7 @@ defmodule SlipdockWeb.ToolLive.Review do
   """
   use SlipdockWeb, :live_view
 
-  alias Slipdock.{Repo, Tools}
+  alias Slipdock.Tools
   alias SlipdockWeb.AdminNav
 
   @impl true
@@ -20,7 +20,7 @@ defmodule SlipdockWeb.ToolLive.Review do
 
   @impl true
   def handle_event("approve", %{"id" => id}, socket) do
-    version = Repo.get!(Tools.Version, id)
+    version = Tools.get_version!(id)
 
     case Tools.approve_listing(socket.assigns.current_user, version) do
       {:ok, v} ->
@@ -32,7 +32,7 @@ defmodule SlipdockWeb.ToolLive.Review do
   end
 
   def handle_event("decline", %{"version_id" => id} = params, socket) do
-    version = Repo.get!(Tools.Version, id)
+    version = Tools.get_version!(id)
 
     case Tools.decline_listing(socket.assigns.current_user, version, params["reason"]) do
       {:ok, _} -> {:noreply, socket |> put_flash(:info, "Declined.") |> load()}
@@ -41,7 +41,7 @@ defmodule SlipdockWeb.ToolLive.Review do
   end
 
   def handle_event("unlist", %{"id" => id}, socket) do
-    tool = Repo.get!(Tools.Tool, id)
+    tool = Tools.get_tool!(id)
     {:ok, _} = Tools.unlist(socket.assigns.current_user, tool)
     {:noreply, socket |> put_flash(:info, "#{tool.name} is no longer listed.") |> load()}
   end

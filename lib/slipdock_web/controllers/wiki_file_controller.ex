@@ -22,7 +22,7 @@ defmodule SlipdockWeb.WikiFileController do
   """
   use SlipdockWeb, :controller
 
-  alias Slipdock.{Access, Repo}
+  alias Slipdock.Access
   alias Slipdock.Wiki.{Embeds, Files, Meld, Viewer, WikiFile}
   alias SlipdockWeb.ByteRange
 
@@ -32,7 +32,7 @@ defmodule SlipdockWeb.WikiFileController do
   def show(conn, %{"id" => id} = params) do
     with {n, ""} <- Integer.parse(id),
          %WikiFile{archived_at: nil} = file <- Files.get(n),
-         file = Repo.preload(file, :board),
+         file = Files.with_board(file),
          true <- readable?(conn.assigns.current_user, file, params),
          true <- File.regular?(Files.disk_path(file)) do
       cond do

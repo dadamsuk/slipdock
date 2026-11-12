@@ -149,4 +149,19 @@ defmodule Slipdock.Boards.ActivityLog do
       })
     )
   end
+
+  ## Lookups (#2791): plain reads the web layer makes through this context
+
+  @doc "The activity on the trees of `roots` since `since`, newest first, at most `limit`."
+  def activity_since(roots, %DateTime{} = since, limit) do
+    from(a in Activity,
+      join: b in Board,
+      on: b.id == a.board_id,
+      where: coalesce(b.root_id, b.id) in ^roots and a.inserted_at >= ^since,
+      order_by: [desc: a.inserted_at, desc: a.id],
+      limit: ^limit,
+      preload: [board: b]
+    )
+    |> Repo.all()
+  end
 end

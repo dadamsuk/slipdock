@@ -1034,6 +1034,7 @@ defmodule Slipdock.Accounts do
   ## Groups — see `Slipdock.Accounts.Groups`
 
   defdelegate get_group!(id), to: Groups
+  defdelegate get_group(id), to: Groups
   defdelegate list_groups(user), to: Groups
   defdelegate group_ids_for(user), to: Groups
   defdelegate create_group(owner, attrs), to: Groups

@@ -1,7 +1,7 @@
 defmodule SlipdockWeb.API.CardController do
   use SlipdockWeb, :controller
 
-  alias Slipdock.{Boards, Repo}
+  alias Slipdock.Boards
   alias Slipdock.Boards.Comment
   alias Slipdock.Swimlanes.Config
   alias SlipdockWeb.API.Authorize
@@ -328,7 +328,7 @@ defmodule SlipdockWeb.API.CardController do
 
   defp copy_column(%{id: board_id}, %{board_id: board_id, column_id: column_id}, ref)
        when ref in [nil, ""],
-       do: {:ok, Repo.get!(Slipdock.Boards.Column, column_id)}
+       do: {:ok, Boards.Columns.get_column!(column_id)}
 
   defp copy_column(board, _card, ref),
     do: resolve_column(board, if(ref == "", do: nil, else: ref))
@@ -437,7 +437,7 @@ defmodule SlipdockWeb.API.CardController do
   """
   def move_checklist_item(conn, %{"item_id" => item_id} = params) do
     with :ok <- authorize_item(conn, Slipdock.Boards.ChecklistItem, item_id),
-         item = Slipdock.Repo.get!(Slipdock.Boards.ChecklistItem, String.to_integer(item_id)),
+         item = Boards.Checklists.get_checklist_item!(String.to_integer(item_id)),
          {:ok, items} <-
            move_result(Boards.Checklists.move_checklist_item(item, params["before"])) do
       json(conn, %{items: Enum.map(items, &V.checklist_item/1)})
@@ -641,8 +641,7 @@ defmodule SlipdockWeb.API.CardController do
   # A link is only this card's to remove.
   defp card_url_of(card, url_id) do
     with {int, ""} <- Integer.parse(to_string(url_id)),
-         %Slipdock.Boards.CardUrl{card_id: card_id} = url <-
-           Slipdock.Repo.get(Slipdock.Boards.CardUrl, int),
+         %Slipdock.Boards.CardUrl{card_id: card_id} = url <- Boards.CardUrls.get_card_url(int),
          true <- card_id == card.id do
       url
     else
@@ -654,7 +653,7 @@ defmodule SlipdockWeb.API.CardController do
   def attachments(conn, %{"id" => id}) do
     with {:ok, card} <- fetch_card(id),
          :ok <- Authorize.card(conn, card, :read) do
-      card = Slipdock.Repo.preload(card, :attachments, force: true)
+      card = Boards.Cards.with_attachments(card)
       json(conn, %{attachments: Enum.map(card.attachments, &Uploads.json/1)})
     end
   end
@@ -704,7 +703,9 @@ defmodule SlipdockWeb.API.CardController do
       case Slipdock.OCR.retry(attachment) do
         {:ok, _} ->
           attachment =
-            attachment.id |> Boards.Attachments.get_attachment!() |> Repo.preload(:document_text)
+            attachment.id
+            |> Boards.Attachments.get_attachment!()
+            |> Boards.Attachments.with_document_text()
 
           conn |> put_status(:accepted) |> json(%{attachment: Uploads.json(attachment)})
 
@@ -762,7 +763,7 @@ defmodule SlipdockWeb.API.CardController do
   defp attachment_of(card, attachment_id) do
     with {int, ""} <- Integer.parse(to_string(attachment_id)),
          %Slipdock.Boards.Attachment{card_id: card_id} = attachment <-
-           Slipdock.Repo.get(Slipdock.Boards.Attachment, int),
+           Boards.Attachments.get_attachment(int),
          true <- card_id == card.id do
       attachment
     else
@@ -779,7 +780,8 @@ defmodule SlipdockWeb.API.CardController do
   defp authorize_comment_delete(conn, comment_id) do
     with {:error, :forbidden, _} = refused <- authorize_item(conn, Comment, comment_id) do
       own? =
-        Repo.get(Comment, String.to_integer(comment_id)).user_id == conn.assigns.current_user.id
+        Boards.Shared.get_owned_row(Comment, String.to_integer(comment_id)).user_id ==
+          conn.assigns.current_user.id
 
       if own? and authorize_item(conn, Comment, comment_id, :comment) == :ok,
         do: :ok,
@@ -802,7 +804,7 @@ defmodule SlipdockWeb.API.CardController do
   # against whichever it is.
   defp authorize_item(conn, schema, id, need \\ :write) do
     with {int, ""} <- Integer.parse(to_string(id)),
-         %{} = row <- Slipdock.Repo.get(schema, int) do
+         %{} = row <- Boards.Shared.get_owned_row(schema, int) do
       case Slipdock.Boards.Owned.owner_ref(row) do
         {:card, card_id} ->
           with {:ok, card} <- fetch_card(card_id), do: Authorize.card(conn, card, need)

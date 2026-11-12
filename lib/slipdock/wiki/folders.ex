@@ -558,4 +558,7 @@ defmodule Slipdock.Wiki.Folders do
 
   defp stringify(attrs) when is_map(attrs),
     do: Map.new(attrs, fn {k, v} -> {to_string(k), v} end)
+
+  @doc "`folder` with its board loaded."
+  def with_board(%Folder{} = folder), do: Repo.preload(folder, :board)
 end

@@ -2164,4 +2164,80 @@ defmodule Slipdock.Wiki do
     from(a in Attachment, where: a.page_id == ^id, order_by: [asc: a.inserted_at, asc: a.id])
     |> Repo.all()
   end
+
+  ## Lookups (#2791)
+
+  @doc "`page` (or pages) with its board loaded, and nothing else."
+  def with_board(page_or_pages), do: Repo.preload(page_or_pages, :board)
+
+  @doc """
+  `page` with what drawing it on a board needs (`board_preloads/0`), and
+  `extra` associations beside them. `opts` go to the preload (`force: true`
+  to read them again).
+  """
+  def with_board_preloads(%Page{} = page, extra \\ [], opts \\ []),
+    do: Repo.preload(page, extra ++ @board_preloads, opts)
+
+  @doc "`page` with its votes loaded."
+  def with_votes(%Page{} = page), do: Repo.preload(page, :votes)
+
+  @doc "The code of each page among `ids`, by id."
+  def page_codes([]), do: %{}
+
+  def page_codes(ids),
+    do: Map.new(Repo.all(from(p in Page, where: p.id in ^ids, select: {p.id, p.code})))
+
+  @doc "The cards each page among `ids` is pinned to, by page id, lowest card first."
+  def pinned_card_ids([]), do: %{}
+
+  def pinned_card_ids(ids) do
+    from(l in Link,
+      where: l.page_id in ^ids and l.pinned and l.kind == "card",
+      where: not is_nil(l.target_card_id),
+      order_by: [asc: l.target_card_id],
+      select: {l.page_id, l.target_card_id}
+    )
+    |> Repo.all()
+    |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
+  end
+
+  @doc """
+  The live pages (not archived, not templates) pinned to any of
+  `board_ids`, each as `{page, board}`, by board then page.
+  """
+  def pinned_pages_on([]), do: []
+
+  def pinned_pages_on(board_ids) do
+    from(l in Link,
+      join: p in Page,
+      on: p.id == l.page_id,
+      join: b in Board,
+      on: b.id == l.target_board_id,
+      where: l.pinned and l.target_board_id in ^board_ids and is_nil(p.archived_at),
+      where: not p.template,
+      order_by: [asc: b.id, asc: p.id],
+      select: {p, b}
+    )
+    |> Repo.all()
+  end
+
+  @doc "The pages among `ids` with only `id`, `title`, `slug`, `board_id` and `code` loaded, by id."
+  def page_stubs(ids) do
+    from(p in Page,
+      where: p.id in ^Enum.uniq(ids),
+      select: struct(p, [:id, :title, :slug, :board_id, :code])
+    )
+    |> Repo.all()
+    |> Map.new(&{&1.id, &1})
+  end
+
+  @doc "Each of the pages among `ids` as `id`, `title`, `code` and `board_id`, by id."
+  def page_briefs(ids) do
+    from(p in Page,
+      where: p.id in ^ids,
+      select: {p.id, %{id: p.id, title: p.title, code: p.code, board_id: p.board_id}}
+    )
+    |> Repo.all()
+    |> Map.new()
+  end
 end

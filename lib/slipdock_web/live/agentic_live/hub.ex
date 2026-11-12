@@ -12,26 +12,16 @@ defmodule SlipdockWeb.AgenticLive.Hub do
   """
   use SlipdockWeb, :verified_routes
 
-  import Ecto.Query
-
-  alias Slipdock.{Findings, Health, Ledger, Now, Repo, Runners}
+  alias Slipdock.{Findings, Health, Ledger, Now, Runners}
   alias Slipdock.Findings.Awaiting
   alias Slipdock.Boards.Board
-  alias Slipdock.Runners.Job
 
   @doc "The counts for `board`'s tree."
   def counts(%Board{} = board) do
     runners = Runners.list_runners(board)
     root = Board.root_id(board)
 
-    jobs =
-      from(j in Job,
-        where: j.root_board_id == ^root and j.status in ~w(queued claimed running),
-        group_by: j.status,
-        select: {j.status, count(j.id)}
-      )
-      |> Repo.all()
-      |> Map.new()
+    jobs = Runners.active_job_counts(root)
 
     active = Health.list_active(board)
     now = Now.counts(board)

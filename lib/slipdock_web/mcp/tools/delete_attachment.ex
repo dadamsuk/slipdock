@@ -8,7 +8,7 @@ defmodule SlipdockWeb.MCP.Tools.DeleteAttachment do
   """
   @behaviour SlipdockWeb.MCP.Tool
 
-  alias Slipdock.{Boards, Repo}
+  alias Slipdock.Boards
   alias Slipdock.Boards.{Attachment, Card}
   alias Slipdock.Wiki.Page
   alias SlipdockWeb.API.Authorize
@@ -72,9 +72,9 @@ defmodule SlipdockWeb.MCP.Tools.DeleteAttachment do
   end
 
   defp fetch(id) do
-    case Repo.get(Attachment, id) do
+    case Boards.Attachments.get_attachment(id, [:card, :page]) do
       nil -> not_found()
-      attachment -> {:ok, Repo.preload(attachment, [:card, :page])}
+      attachment -> {:ok, attachment}
     end
   end
 

@@ -297,4 +297,10 @@ defmodule Slipdock.Wiki.Files do
 
   defp user_id(%User{id: id}), do: id
   defp user_id(_), do: nil
+
+  @doc "As `get/1`, raising when there is no such file."
+  def get!(id), do: Repo.get!(WikiFile, id)
+
+  @doc "`file` with its board and folder loaded."
+  def with_board(%WikiFile{} = file), do: Repo.preload(file, [:board, :folder])
 end

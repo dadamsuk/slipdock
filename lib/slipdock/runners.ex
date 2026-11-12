@@ -2294,4 +2294,18 @@ defmodule Slipdock.Runners do
   end
 
   defp now, do: DateTime.utc_now() |> DateTime.truncate(:second)
+
+  @doc "How many of the tree `root_id`'s jobs are queued, claimed and running, by status."
+  def active_job_counts(root_id) do
+    from(j in Job,
+      where: j.root_board_id == ^root_id and j.status in ~w(queued claimed running),
+      group_by: j.status,
+      select: {j.status, count(j.id)}
+    )
+    |> Repo.all()
+    |> Map.new()
+  end
+
+  @doc "`pause` with the person who paused it loaded."
+  def with_paused_by(%Pause{} = pause), do: Repo.preload(pause, :paused_by)
 end

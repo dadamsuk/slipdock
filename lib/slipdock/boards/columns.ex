@@ -282,4 +282,14 @@ defmodule Slipdock.Boards.Columns do
         |> Repo.update_all(set: [board_position: i, column_id: column_id])
     end)
   end
+
+  ## Lookups (#2791): plain reads the web layer makes through this context
+
+  @doc "The list `id`, or nil."
+  def get_column(id), do: Repo.get(Column, id)
+
+  @doc "`board`'s lists in their order, with nothing loaded."
+  def list_board_columns(%Board{id: board_id}) do
+    Repo.all(from(c in Column, where: c.board_id == ^board_id, order_by: :position))
+  end
 end

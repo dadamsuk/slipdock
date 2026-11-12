@@ -2,7 +2,7 @@ defmodule SlipdockWeb.MCP.Tools.ReadPage do
   @moduledoc "One wiki page, its Markdown and its hash for a later edit."
   @behaviour SlipdockWeb.MCP.Tool
 
-  alias Slipdock.{Access, Repo, Wiki}
+  alias Slipdock.{Access, Boards, Wiki}
   alias Slipdock.Boards.Board
   alias SlipdockWeb.API.Authorize
   alias SlipdockWeb.API.JSON, as: V
@@ -52,10 +52,7 @@ defmodule SlipdockWeb.MCP.Tools.ReadPage do
          {:ok, page} <- find(ref, board_ref, auth),
          :ok <- check(page, auth, :read) do
       page =
-        Repo.preload(
-          page,
-          [:created_by, :updated_by, :assignee, :tags] ++ Wiki.board_preloads()
-        )
+        Wiki.with_board_preloads(page, [:created_by, :updated_by, :assignee, :tags])
 
       body = page.body || ""
 
@@ -115,8 +112,8 @@ defmodule SlipdockWeb.MCP.Tools.ReadPage do
   # the reader can see, archived ones too, which list_boards leaves out unless
   # asked (#482). An archived board's sub-boards are archived with it.
   defp board(id) do
-    board = Repo.get!(Board, id)
-    root = if board.root_id, do: Repo.get!(Board, board.root_id), else: board
+    board = Boards.get_board_record!(id)
+    root = Boards.root_board(board)
     %{id: board.id, code: board.code, name: board.name, archived: Board.archived?(root)}
   end
 

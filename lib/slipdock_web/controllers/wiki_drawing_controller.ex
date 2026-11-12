@@ -8,8 +8,7 @@ defmodule SlipdockWeb.WikiDrawingController do
   """
   use SlipdockWeb, :controller
 
-  alias Slipdock.Repo
-  alias Slipdock.Wiki.{Drawings, Embeds, Page, WikiFile}
+  alias Slipdock.Wiki.{Drawings, Embeds, WikiFile}
 
   @policy "default-src 'none'; img-src data:; style-src 'unsafe-inline'; sandbox"
 
@@ -42,7 +41,7 @@ defmodule SlipdockWeb.WikiDrawingController do
       (match?(%WikiFile{}, drawing) and Embeds.reaches?(user, Embeds.page_param(params), drawing))
   end
 
-  defp fetch("page", id), do: Repo.get(Page, id)
-  defp fetch("file", id), do: Repo.get(WikiFile, id)
+  defp fetch("page", id), do: Slipdock.Wiki.get_page(id)
+  defp fetch("file", id), do: Slipdock.Wiki.Files.get(id)
   defp fetch(_kind, _id), do: nil
 end
