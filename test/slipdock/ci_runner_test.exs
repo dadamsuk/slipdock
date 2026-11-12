@@ -40,10 +40,13 @@ defmodule Slipdock.CiRunnerTest do
   test "a newer push to a pull request cancels its older run, never a push to main's" do
     ci = workflow("ci.yml")
 
+    # Grouped by PR number; anything else (a run release.yml calls, the
+    # schedule, a dispatch) in a group of its own run, and only a pull
+    # request's run cancels (#2832, OPS-2).
     assert ci["concurrency"] == %{
              "group" =>
                "ci-${{ github.event.pull_request.number && format('pr-{0}', github.event.pull_request.number) || github.run_id }}",
-             "cancel-in-progress" => true
+             "cancel-in-progress" => "${{ github.event_name == 'pull_request' }}"
            }
   end
 
@@ -60,15 +63,16 @@ defmodule Slipdock.CiRunnerTest do
     assert String.starts_with?(workflow("ci.yml")["concurrency"]["group"], "ci-")
   end
 
-  test "the daemon's OS list is CI_RUNNER alone when set, the three OSes when not" do
+  test "the daemon's OS list is CI_RUNNER's Linux when set, GitHub's when not" do
     os = jobs("ci.yml")["daemon"]["strategy"]["matrix"]["os"]
+    assert os == "${{ fromJSON(needs.changes.outputs.daemon_os) }}"
 
-    assert os ==
-             ~s<${{ fromJSON(vars.CI_RUNNER && format('["{0}"]', vars.CI_RUNNER) || '["ubuntu-latest", "macos-latest", "windows-latest"]') }}>
-
-    # The fallback is valid JSON naming the three OSes the daemon ships for.
-    [_, fallback] = Regex.run(~r/\|\| '(\[[^']+\])'/, os)
-    assert Jason.decode!(fallback) == ["ubuntu-latest", "macos-latest", "windows-latest"]
+    # changes.sh builds the list from CI_RUNNER, which the changes job hands
+    # it (ci_workflow_test.exs runs it with and without).
+    decide = step(jobs("ci.yml")["changes"], "id", "changes")
+    assert decide["env"]["CI_RUNNER"] == "${{ vars.CI_RUNNER }}"
+    script = File.read!(Path.join(@root, ".github/scripts/changes.sh"))
+    assert script =~ "linux=${CI_RUNNER:-ubuntu-latest}"
   end
 
   test "the Windows leg alone skips the executor tests, so a self-hosted Linux runs them" do

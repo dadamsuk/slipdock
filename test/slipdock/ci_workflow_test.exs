@@ -1,9 +1,11 @@
 defmodule Slipdock.CiWorkflowTest do
   @moduledoc """
   The static checks in .github/workflows/ci.yml. Each one started at zero
-  findings, so it only protects anything while it still runs on every pull
-  request: these are the lines whose loss would go unnoticed until a finding
-  slipped through.
+  findings, so it only protects anything while it still runs: on every push
+  to main and every release, and before every push in `mix pre_push` (a pull
+  request runs none since #2832). These are the lines whose loss would go
+  unnoticed until a finding slipped through. And what each run needs to run
+  (#2832): the pull request's paths, and the events that run the rest.
   """
   use ExUnit.Case, async: true
 
@@ -38,8 +40,14 @@ defmodule Slipdock.CiWorkflowTest do
     refute Enum.any?(lines(@ci), &(&1 =~ "continue-on-error"))
   end
 
-  test "the static checks job is not skipped on any event" do
-    refute Enum.any?(job("static"), &String.starts_with?(&1, "if:"))
+  test "the static checks run on every event but a pull request and the nightly schedule" do
+    assert [
+             "if: github.event_name != 'pull_request' && github.event_name != 'schedule'"
+           ] == Enum.filter(job("static"), &String.starts_with?(&1, "if:"))
+
+    # Nothing to wait for: they start with the run, and release.yml calls
+    # ci.yml for every push to main and every v* tag, the suite skipped or not.
+    refute Enum.any?(job("static"), &String.starts_with?(&1, "needs:"))
   end
 
   describe "dependency audit" do
@@ -100,10 +108,16 @@ defmodule Slipdock.CiWorkflowTest do
 
   describe "gitleaks" do
     test "scans the commits each pull request adds, failing on a hit" do
-      secrets = job("secrets")
+      # In the changes job, which has the whole history for the diff (#2832).
+      secrets = job("changes")
 
       assert has?(secrets, "if: github.event_name == 'pull_request'")
-      assert has?(secrets, "fetch-depth: 0")
+
+      assert has?(
+               secrets,
+               "fetch-depth: ${{ github.event_name == 'pull_request' && '0' || '1' }}"
+             )
+
       assert has?(secrets, "BASE: ${{ github.event.pull_request.base.sha }}")
       assert has?(secrets, "HEAD: ${{ github.event.pull_request.head.sha }}")
 
@@ -115,7 +129,7 @@ defmodule Slipdock.CiWorkflowTest do
 
     test "the binary is checked against its published checksum" do
       assert Enum.any?(
-               job("secrets"),
+               job("changes"),
                &(&1 =~ ~r/^echo "[0-9a-f]{64}  \$RUNNER_TEMP\/gitleaks.tgz" \| sha256sum -c -$/)
              )
     end
@@ -139,7 +153,15 @@ defmodule Slipdock.CiWorkflowTest do
 
       assert runs?(
                static,
-               ~s(mix credo diff --from-git-merge-base origin/main --config-file "$PWD/.credo.exs")
+               ~s(mix credo diff --from-git-merge-base "$CREDO_BASE" --config-file "$PWD/.credo.exs")
+             )
+
+      # On a push to main, the commit main was at before it: the merge base
+      # with origin/main would be the commit itself, and lint nothing.
+      # Anywhere else (a tag, a dispatch), origin/main, as mix pre_push has it.
+      assert has?(
+               static,
+               "CREDO_BASE: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.event.before || 'origin/main' }}"
              )
 
       # The merge base needs the history.
@@ -179,21 +201,23 @@ defmodule Slipdock.CiWorkflowTest do
   end
 
   # The epic's bar (#1766): every static check in one place, so losing any
-  # one of them fails here as well as in its own describe block above.
-  test "all five static checks run on a pull request, for the app and the CLI where they apply" do
+  # one of them fails here as well as in its own describe block above. Since
+  # #2832 the four in the static job run on main and the release, and in
+  # mix pre_push before a push; the secret scan on every pull request.
+  test "all five static checks still run, for the app and the CLI where they apply" do
     static = job("static")
 
     for command <- [
           "mix hex.audit",
           "mix deps.audit",
           "mix sobelow --config",
-          ~s(mix credo diff --from-git-merge-base origin/main --config-file "$PWD/.credo.exs")
+          ~s(mix credo diff --from-git-merge-base "$CREDO_BASE" --config-file "$PWD/.credo.exs")
         ] do
       assert runs?(static, command), "static checks no longer run `#{command}`"
     end
 
     assert Enum.any?(
-             job("secrets"),
+             job("changes"),
              &String.starts_with?(&1, "run: $RUNNER_TEMP/gitleaks git ")
            )
 
@@ -217,10 +241,15 @@ defmodule Slipdock.CiWorkflowTest do
       end
     end
 
+    # CI's credo base is "$CREDO_BASE", origin/main but on a push to main
+    # (the credo test above); mix pre_push's is origin/main.
     defp mix_runs(job) do
       for "run: mix " <> _ = line <- job,
           line != "run: mix deps.get",
-          do: String.replace_prefix(line, "run: ", "")
+          do:
+            line
+            |> String.replace_prefix("run: ", "")
+            |> String.replace(~s("$CREDO_BASE"), "origin/main")
     end
 
     test "runs every mix command the static checks job runs" do
@@ -274,15 +303,14 @@ defmodule Slipdock.CiWorkflowTest do
   end
 
   describe "the runner daemon (#2573)" do
-    test "is built, vetted and tested on Linux, macOS and Windows" do
+    test "is built, vetted and tested, on the OSes the changes job gives" do
       daemon = job("daemon")
 
-      # All three on GitHub's runners; on the self-hosted ones (#2829), the
-      # one OS they have (Slipdock.CiRunnerTest).
-      assert has?(
-               daemon,
-               ~s<os: ${{ fromJSON(vars.CI_RUNNER && format('["{0}"]', vars.CI_RUNNER) || '["ubuntu-latest", "macos-latest", "windows-latest"]') }}>
-             )
+      # Linux on a pull request, Linux, macOS and Windows on a tag, the
+      # schedule and a dispatch (#2832; the list: "what a change runs").
+      assert has?(daemon, "os: ${{ fromJSON(needs.changes.outputs.daemon_os) }}")
+      assert has?(daemon, "needs: changes")
+      assert has?(daemon, "if: needs.changes.outputs.daemon == 'true'")
 
       assert has?(daemon, "runs-on: ${{ matrix.os }}")
       assert has?(daemon, "working-directory: daemon")
@@ -311,6 +339,266 @@ defmodule Slipdock.CiWorkflowTest do
       for "run: go " <> rest <- job("daemon"), rest != "build ./..." do
         step = {"go", String.split(rest), cd: "daemon", exec: true}
         assert step in steps, "CI's daemon job runs `go #{rest}`, which `mix pre_push` doesn't"
+      end
+    end
+  end
+
+  # What a run needs to run (#2832): .github/scripts/changes.sh reads a pull
+  # request's diff, and each job is gated on what it says.
+  describe "what a change runs" do
+    @changes Path.join(@root, ".github/scripts/changes.sh")
+
+    defp ci_yaml do
+      {:ok, yaml} = YamlElixir.read_from_string(@ci)
+      yaml
+    end
+
+    defp git!(dir, args) do
+      {out, 0} =
+        System.cmd("git", ["-c", "user.name=CI", "-c", "user.email=ci@example.com" | args],
+          cd: dir,
+          stderr_to_stdout: true
+        )
+
+      String.trim(out)
+    end
+
+    # A repository whose branch changes `files` from a base commit, and the
+    # two shas. The base has a file the branch leaves alone.
+    defp repo_changing(dir, files) do
+      git!(dir, ["init", "-q", "-b", "main"])
+      File.write!(Path.join(dir, "mix.exs"), "base")
+      git!(dir, ["add", "."])
+      git!(dir, ["commit", "-q", "-m", "base"])
+      base = git!(dir, ["rev-parse", "HEAD"])
+
+      for file <- files do
+        File.mkdir_p!(Path.dirname(Path.join(dir, file)))
+        File.write!(Path.join(dir, file), "changed")
+      end
+
+      git!(dir, ["add", "."])
+      git!(dir, ["commit", "-q", "--allow-empty", "-m", "change"])
+      {base, git!(dir, ["rev-parse", "HEAD"])}
+    end
+
+    defp changes(dir, env) do
+      out = Path.join(dir, "changes-out")
+      File.rm_rf!(out)
+
+      # Unset unless given: the runner's own CI_RUNNER mustn't leak in.
+      env =
+        %{
+          "EVENT_NAME" => "pull_request",
+          "REF" => "refs/pull/7/merge",
+          "GITHUB_OUTPUT" => out,
+          "GITHUB_STEP_SUMMARY" => Path.join(dir, "changes-summary"),
+          "CI_RUNNER" => nil,
+          "SUITE" => nil
+        }
+        |> Map.merge(Map.new(env))
+        |> Enum.to_list()
+
+      {stdout, code} = System.cmd(@changes, [], env: env, cd: dir, stderr_to_stdout: true)
+      assert code == 0, "changes.sh failed: #{stdout}"
+
+      for line <- out |> File.read!() |> String.split("\n", trim: true), into: %{} do
+        [k, v] = String.split(line, "=", parts: 2)
+        {k, if(k == "daemon_os", do: JSON.decode!(v), else: v)}
+      end
+    end
+
+    # What a pull request changing `files` runs.
+    defp pr(dir, files, env \\ []) do
+      dir = Path.join(dir, Integer.to_string(:erlang.phash2({files, env})))
+      File.mkdir_p!(dir)
+      {base, head} = repo_changing(dir, files)
+      changes(dir, [{"BASE", base}, {"HEAD", head} | env])
+    end
+
+    defp runs(suite, repo_checks, cli, daemon, os \\ ["ubuntu-latest"]),
+      do: %{
+        "suite" => to_string(suite),
+        "repo_checks" => to_string(repo_checks),
+        "cli" => to_string(cli),
+        "daemon" => to_string(daemon),
+        "daemon_os" => os
+      }
+
+    @all_os ["ubuntu-latest", "macos-latest", "windows-latest"]
+
+    @tag :tmp_dir
+    test "a docs-only pull request runs the repo checks, no suite and no daemon", %{tmp_dir: dir} do
+      for files <- [
+            ["docs/manual/boards.md"],
+            ["priv/skills/slipdock/SKILL.md", "priv/skills/slipdock/reference.txt"],
+            ["README.md", "CLAUDE.md", "AGENTS.md"],
+            ["docs/agents.md", "lib/slipdock/notes.md"]
+          ] do
+        assert pr(dir, files) == runs(false, true, false, false), inspect(files)
+      end
+    end
+
+    @tag :tmp_dir
+    test "a daemon-only pull request runs the daemon on Linux alone, and the repo checks", %{
+      tmp_dir: dir
+    } do
+      assert pr(dir, ["daemon/internal/cli/run.go"]) == runs(false, true, false, true)
+
+      # On the self-hosted runners, their Linux.
+      assert pr(dir, ["daemon/go.mod"], [{"CI_RUNNER", "slipdock-local"}]) ==
+               runs(false, true, false, true, ["slipdock-local"])
+
+      assert pr(dir, ["daemon/install.sh", "docs/manual/machines.md"]) ==
+               runs(false, true, false, true)
+    end
+
+    @tag :tmp_dir
+    test "a cli-only pull request runs the cli job and the repo checks", %{tmp_dir: dir} do
+      assert pr(dir, ["cli/lib/slipdock_cli.ex"]) == runs(false, true, true, false)
+    end
+
+    @tag :tmp_dir
+    test "any change to the app runs the suite, beside the cli and daemon if they changed", %{
+      tmp_dir: dir
+    } do
+      for file <- ["lib/slipdock.ex", "test/slipdock/x_test.exs", "mix.lock", "assets/app.js"] do
+        assert pr(dir, [file]) == runs(true, false, false, false), file
+      end
+
+      assert pr(dir, ["lib/slipdock.ex", "daemon/go.mod", "cli/mix.exs", "docs/a.md"]) ==
+               runs(true, false, true, true)
+    end
+
+    @tag :tmp_dir
+    test "a workflow or its script changed runs everything, the daemon on Linux", %{tmp_dir: dir} do
+      for file <- [".github/workflows/ci.yml", ".github/scripts/changes.sh"] do
+        assert pr(dir, [file, "docs/a.md"]) == runs(true, false, true, true), file
+      end
+    end
+
+    @tag :tmp_dir
+    test "a diff it can't read, or an empty one, runs everything", %{tmp_dir: dir} do
+      assert pr(dir, []) == runs(true, false, true, true)
+
+      unknown = String.duplicate("f", 40)
+      assert pr(dir, ["docs/a.md"], [{"BASE", unknown}]) == runs(true, false, true, true)
+    end
+
+    @tag :tmp_dir
+    test "a push to main tests everything on Linux, or only the static checks after the gate's skip",
+         %{tmp_dir: dir} do
+      main = [{"EVENT_NAME", "push"}, {"REF", "refs/heads/main"}]
+      assert changes(dir, main) == runs(true, false, true, true)
+      assert changes(dir, [{"SUITE", "true"} | main]) == runs(true, false, true, true)
+      assert changes(dir, [{"SUITE", "false"} | main]) == runs(false, false, false, false)
+    end
+
+    @tag :tmp_dir
+    test "macOS and Windows run on a v* tag, the nightly schedule and a dispatch", %{tmp_dir: dir} do
+      tag = [{"EVENT_NAME", "push"}, {"REF", "refs/tags/v1.2.3"}]
+      assert changes(dir, tag) == runs(true, false, true, true, @all_os)
+
+      # The nightly run is the daemon alone.
+      nightly = [{"EVENT_NAME", "schedule"}, {"REF", "refs/heads/main"}]
+      assert changes(dir, nightly) == runs(false, false, false, true, @all_os)
+
+      dispatch = [{"EVENT_NAME", "workflow_dispatch"}, {"REF", "refs/heads/main"}]
+      assert changes(dir, dispatch) == runs(true, false, true, true, @all_os)
+
+      # The self-hosted Linux beside GitHub's macOS and Windows.
+      assert changes(dir, [{"CI_RUNNER", "slipdock-local"} | tag])["daemon_os"] ==
+               ["slipdock-local", "macos-latest", "windows-latest"]
+    end
+
+    test "ci.yml runs nightly and on a dispatch, and on pull requests with no paths filter" do
+      on = ci_yaml()["on"]
+      assert [%{"cron" => _}] = on["schedule"]
+      assert Map.has_key?(on, "workflow_dispatch")
+      # The paths are read in the changes job: a workflow-level filter would
+      # leave a skipped run's checks unreported.
+      assert on["pull_request"] == nil
+    end
+
+    test "the changes job hands changes.sh the event, the PR's shas and the runner" do
+      changes_job = ci_yaml()["jobs"]["changes"]
+      decide = Enum.find(changes_job["steps"], &(&1["id"] == "changes"))
+      assert decide["run"] == ".github/scripts/changes.sh"
+
+      assert decide["env"] == %{
+               "EVENT_NAME" => "${{ github.event_name }}",
+               "REF" => "${{ github.ref }}",
+               "BASE" => "${{ github.event.pull_request.base.sha }}",
+               "HEAD" => "${{ github.event.pull_request.head.sha }}",
+               "SUITE" => "${{ inputs.suite }}",
+               "CI_RUNNER" => "${{ vars.CI_RUNNER }}"
+             }
+
+      for out <- ~w(suite repo_checks cli daemon daemon_os) do
+        assert changes_job["outputs"][out] == "${{ steps.changes.outputs.#{out} }}"
+      end
+
+      assert File.stat!(@changes).mode |> Bitwise.band(0o111) != 0
+    end
+
+    test "each job is gated on what the changes job said" do
+      jobs = ci_yaml()["jobs"]
+
+      for {name, output} <- [
+            {"test", "suite"},
+            {"repo-checks", "repo_checks"},
+            {"cli", "cli"},
+            {"daemon", "daemon"}
+          ] do
+        assert jobs[name]["needs"] == "changes", name
+        assert jobs[name]["if"] == "needs.changes.outputs.#{output} == 'true'", name
+      end
+
+      # Coverage follows the suite: it needs it, and is skipped with it.
+      assert jobs["coverage"]["needs"] == "test"
+    end
+
+    test "the repo checks job runs the list mix pre_push runs, after a clean compile" do
+      repo_checks = ci_yaml()["jobs"]["repo-checks"]
+      runs = Enum.map(repo_checks["steps"], & &1["run"])
+
+      "mix test $(" <> rest = Enum.find(runs, &String.starts_with?(&1 || "", "mix test $("))
+      grep = String.trim_trailing(rest, ")")
+
+      {listed, 0} = System.cmd("sh", ["-c", grep], cd: @root)
+      assert String.split(listed, "\n", trim: true) == Mix.Project.get!().repo_checks()
+
+      assert Enum.find_index(runs, &(&1 == "mix compile --warnings-as-errors")) <
+               Enum.find_index(runs, &String.starts_with?(&1 || "", "mix test $("))
+
+      assert repo_checks["services"]["postgres"]["ports"] == [5432]
+    end
+
+    test "one job reports for them all: green when the rest passed or were skipped" do
+      jobs = ci_yaml()["jobs"]
+      passed = jobs["passed"]
+      assert passed["name"] == "all checks"
+      assert passed["if"] == "always()"
+
+      assert Enum.sort(passed["needs"]) ==
+               jobs |> Map.keys() |> List.delete("passed") |> Enum.sort()
+
+      [check] = passed["steps"]
+      assert check["env"]["RESULTS"] == "${{ toJSON(needs.*.result) }}"
+
+      for {results, code} <- [
+            {~s(["success", "skipped", "success"]), 0},
+            {~s(["skipped", "skipped"]), 0},
+            {~s(["success", "failure", "skipped"]), 1},
+            {~s(["success", "cancelled"]), 1}
+          ] do
+        {_, got} =
+          System.cmd("bash", ["-c", check["run"]],
+            env: [{"RESULTS", results}],
+            stderr_to_stdout: true
+          )
+
+        assert got == code, "#{results} exits #{got}"
       end
     end
   end
@@ -698,21 +986,36 @@ defmodule Slipdock.CiWorkflowTest do
              )
     end
 
-    test "release.yml runs the gate first, and the suite unless the gate said false" do
+    test "release.yml runs the gate first, then ci.yml always, the suite unless the gate said false" do
       assert has?(release_job("suite"), "run: .github/scripts/suite-gate.sh")
       test_job = release_job("test")
       assert has?(test_job, "needs: suite")
-      assert has?(test_job, "if: ${{ !cancelled() && needs.suite.outputs.run != 'false' }}")
+      # Always called, so the static checks run on every push to main and
+      # every release (#2832); the gate's answer says whether the suite does.
+      assert has?(test_job, "if: ${{ !cancelled() }}")
       assert has?(test_job, "uses: ./.github/workflows/ci.yml")
+      assert has?(test_job, "suite: ${{ needs.suite.outputs.run != 'false' }}")
+
+      # ci.yml takes it, true unless said otherwise, and the changes job
+      # hands it to changes.sh.
+      {:ok, ci} = YamlElixir.read_from_string(@ci)
+
+      assert ci["on"]["workflow_call"]["inputs"]["suite"] == %{
+               "type" => "boolean",
+               "default" => true
+             }
+
+      decide = Enum.find(ci["jobs"]["changes"]["steps"], &(&1["id"] == "changes"))
+      assert decide["env"]["SUITE"] == "${{ inputs.suite }}"
     end
 
-    test "merge goes ahead on a passed suite, or one the gate skipped, and nothing else" do
+    test "merge goes ahead only once ci.yml passed, with the suite or the gate's skip" do
       merge = release_job("merge")
       assert has?(merge, "needs: [suite, test, build]")
 
       assert has?(
                merge,
-               "if: ${{ !cancelled() && needs.build.result == 'success' && (needs.test.result == 'success' || (needs.test.result == 'skipped' && needs.suite.outputs.run == 'false')) }}"
+               "if: ${{ !cancelled() && needs.build.result == 'success' && needs.test.result == 'success' }}"
              )
     end
 
@@ -797,10 +1100,17 @@ defmodule Slipdock.CiWorkflowTest do
           over
         )
 
-    defp jobs(id \\ 500, conclusions \\ ["success", "success"]),
+    # A PR run's jobs, by name and conclusion: the suite's partitions and
+    # another job, all passed, unless said otherwise.
+    defp jobs(id \\ 500, named \\ [{"test (1/4)", "success"}, {"cli", "success"}]),
       do:
         {"repos/#{@repo}/actions/runs/#{id}/jobs?per_page=100",
-         %{"jobs" => Enum.with_index(conclusions, &%{"name" => "job #{&2}", "conclusion" => &1})}}
+         %{
+           "jobs" =>
+             Enum.map(named, fn {name, conclusion} ->
+               %{"name" => name, "conclusion" => conclusion}
+             end)
+         }}
 
     defp tree(sha, tree), do: {"repos/#{@repo}/git/commits/#{sha}", %{"tree" => %{"sha" => tree}}}
 
@@ -851,8 +1161,53 @@ defmodule Slipdock.CiWorkflowTest do
 
     @tag :tmp_dir
     test "runs it when a job didn't pass, though the run did", %{tmp_dir: dir} do
-      ran!(gate(dir, answers([jobs(500, ["success", "skipped"])])), "not every job")
+      ran!(
+        gate(dir, answers([jobs(500, [{"test (1/4)", "success"}, {"cli", "failure"}])])),
+        "not every job of PR #92's CI run 500 passed: cli"
+      )
+
+      ran!(
+        gate(dir, answers([jobs(500, [{"test (1/4)", "success"}, {"cli", "cancelled"}])])),
+        "not every job"
+      )
+
       ran!(gate(dir, answers([jobs(500, [])])), "has no jobs")
+    end
+
+    # A pull request skips the jobs its change can't break (#2832).
+    @tag :tmp_dir
+    test "skips it when the PR skipped other jobs but ran and passed the suite", %{tmp_dir: dir} do
+      out =
+        gate(
+          dir,
+          answers([
+            jobs(500, [
+              {"test (1/4)", "success"},
+              {"test (2/4)", "success"},
+              {"cli", "skipped"},
+              {"daemon (${{ matrix.os }})", "skipped"}
+            ])
+          ])
+        )
+
+      assert out["run"] == "false"
+    end
+
+    @tag :tmp_dir
+    test "runs it when the PR skipped the suite, as a docs-only change does", %{tmp_dir: dir} do
+      why = "didn't run the suite"
+
+      # Skipped at the job: a skipped matrix job reports its unexpanded name.
+      skipped = [{"test (${{ matrix.partition }}/4)", "skipped"}, {"repo checks", "success"}]
+      ran!(gate(dir, answers([jobs(500, skipped)])), why)
+
+      # No partition at all, or one partition skipped beside a passed one.
+      ran!(gate(dir, answers([jobs(500, [{"repo checks", "success"}])])), why)
+
+      ran!(
+        gate(dir, answers([jobs(500, [{"test (1/4)", "success"}, {"test (2/4)", "skipped"}])])),
+        why
+      )
     end
 
     @tag :tmp_dir
@@ -911,16 +1266,18 @@ defmodule Slipdock.CiWorkflowTest do
     end
   end
 
-  # After a skipped suite, release.yml's warm-cache job saves the build under
-  # main's key in partition 1's place (#1913). It must save what the suite
-  # would have, under the key a PR looks for, and never hold up a deploy.
+  # After a skipped suite, release.yml's gate job saves the build under
+  # main's key in partition 1's place (#1913; its own warm-cache job until
+  # #2832 folded it into the gate). It must save what the suite would have,
+  # under the key a PR looks for, and never hold up a deploy.
   describe "warming main's build cache when the suite is skipped" do
     defp workflow(file) do
       {:ok, yaml} = YamlElixir.read_from_file(Path.join(@root, ".github/workflows/#{file}"))
       yaml
     end
 
-    defp warm, do: workflow("release.yml")["jobs"]["warm-cache"]
+    # The gate's job, which warms the cache after the gate.
+    defp warm, do: workflow("release.yml")["jobs"]["suite"]
     defp suite_job, do: workflow("ci.yml")["jobs"]["test"]
 
     defp step(job, key, value), do: Enum.find(job["steps"], &(&1[key] == value))
@@ -928,15 +1285,30 @@ defmodule Slipdock.CiWorkflowTest do
     defp step_at(job, key, value),
       do: Enum.find_index(job["steps"], &(&1[key] == value))
 
-    test "runs only when the gate said the suite is skipped, after the gate" do
-      assert warm()["needs"] == "suite"
-      assert warm()["if"] == "${{ needs.suite.outputs.run == 'false' }}"
+    defp warming,
+      do: Enum.drop(warm()["steps"], step_at(warm(), "id", "gate") + 1)
+
+    test "folded into the gate's job: no warm-cache job of its own" do
+      refute Map.has_key?(workflow("release.yml")["jobs"], "warm-cache")
+      assert step_at(warm(), "id", "gate") > step_at(warm(), "uses", "actions/checkout@v4")
     end
 
-    test "is off the merge and deploy path: no job needs it" do
-      for {name, job} <- workflow("release.yml")["jobs"], name != "warm-cache" do
-        refute "warm-cache" in List.wrap(job["needs"]), "#{name} needs warm-cache"
+    test "runs only when the gate said the suite is skipped, after the gate" do
+      assert length(warming()) >= 6
+
+      for s <- warming() do
+        assert String.starts_with?(s["if"], "steps.gate.outputs.run == 'false'"),
+               "#{s["name"] || s["run"] || s["uses"]} runs whatever the gate said"
       end
+    end
+
+    test "is off the merge and deploy path: no step of it can fail the gate's job" do
+      for s <- warming() do
+        assert s["continue-on-error"] == true,
+               "#{s["name"] || s["run"] || s["uses"]} can fail the gate"
+      end
+
+      refute Map.has_key?(step(warm(), "id", "gate"), "continue-on-error")
     end
 
     test "compiles in the test environment, with the suite's toolchain" do
@@ -957,7 +1329,7 @@ defmodule Slipdock.CiWorkflowTest do
                step(suite_job(), "uses", "actions/cache/save@v4")["with"]
     end
 
-    test "backdates and compiles as the suite does, before saving" do
+    test "backdates and compiles as the suite does, and saves only a clean compile" do
       name = "Backdate mix.exs and config to the cached build"
       assert step(warm(), "name", name)["run"] == step(suite_job(), "name", name)["run"]
 
@@ -972,6 +1344,10 @@ defmodule Slipdock.CiWorkflowTest do
 
       assert step_at(warm(), "name", compile) <
                step_at(warm(), "uses", "actions/cache/save@v4")
+
+      # A compile that failed (allowed to, above) saves nothing.
+      assert step(warm(), "uses", "actions/cache/save@v4")["if"] =~
+               "steps.compile.outcome == 'success'"
     end
 
     test "does nothing past the restore on an exact hit, so it never saves a key twice" do
@@ -987,10 +1363,15 @@ defmodule Slipdock.CiWorkflowTest do
       end
     end
 
-    test "needs no database or secrets: it only compiles" do
+    test "needs no database or secrets, and writes nothing: it only compiles" do
       refute Map.has_key?(warm(), "services")
       refute Map.has_key?(warm(), "environment")
-      assert warm()["permissions"] == %{"contents" => "read"}
+
+      assert warm()["permissions"] == %{
+               "contents" => "read",
+               "actions" => "read",
+               "pull-requests" => "read"
+             }
     end
   end
 
