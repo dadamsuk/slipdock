@@ -32,6 +32,25 @@ defmodule SlipdockWeb.WikiFoldersLiveTest do
     assert key == "folder:#{folder.id}"
   end
 
+  test "the index says a folder has more only when its pages don't all fit", %{
+    conn: conn,
+    board: board
+  } do
+    {:ok, full} = Wiki.create_folder(board, %{"name" => "Full"})
+    {:ok, small} = Wiki.create_folder(board, %{"name" => "Small"})
+
+    for n <- 1..9 do
+      {:ok, _} = Wiki.file_page(page_fixture(board, %{"title" => "Full note #{n}"}), full)
+    end
+
+    {:ok, _} = Wiki.file_page(page_fixture(board, %{"title" => "Small note"}), small)
+
+    {:ok, view, _html} = live(conn, ~p"/boards/#{board}/wiki")
+
+    assert has_element?(view, "a[href$='wiki?folder=#{full.id}']", "and more…")
+    refute has_element?(view, "a[href$='wiki?folder=#{small.id}']", "and more…")
+  end
+
   test "the New folder dialog opens with folders already on the board", %{
     conn: conn,
     board: board
@@ -120,6 +139,26 @@ defmodule SlipdockWeb.WikiFoldersLiveTest do
     assert html =~ "Nothing in it was deleted"
     refute has_element?(view, "#folder-delete-modal")
     assert Wiki.get_folder(folder.id) == nil
+  end
+
+  # The folder being read has gone, so the wiki's top is where to be; a page
+  # being read stays (#2788 keeps both, from WikiLive.TreeOps).
+  test "deleting the folder being read goes back to the wiki's top", %{
+    conn: conn,
+    board: board
+  } do
+    {:ok, folder} = Wiki.create_folder(board, %{"name" => "Specs"})
+    page = page_fixture(board, %{"title" => "Retry policy"})
+
+    {:ok, view, _html} = live(conn, ~p"/boards/#{board}/wiki?folder=#{folder.id}")
+    view |> element("button[phx-click='ask_delete_folder']") |> render_click()
+    assert_patch(view, ~p"/boards/#{board}/wiki")
+
+    {:ok, other} = Wiki.create_folder(board, %{"name" => "Drafts"})
+    {:ok, view, _html} = live(conn, ~p"/boards/#{board}/wiki/#{page.slug}")
+    render_click(view, "ask_delete_folder", %{"id" => other.id})
+    assert Wiki.get_folder(other.id) == nil
+    refute_patched(view)
   end
 
   test "deleting a folder and everything in it takes the pages with it", %{

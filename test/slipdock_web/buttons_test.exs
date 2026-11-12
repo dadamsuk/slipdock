@@ -44,7 +44,7 @@ defmodule SlipdockWeb.ButtonsTest do
   @solid_error %{
     "lib/slipdock_web/live/users_live/index.ex" => 1,
     # The wiki tree's archive and delete prompts.
-    "lib/slipdock_web/live/wiki_live/index.ex" => 5
+    "lib/slipdock_web/live/wiki_live/tree_prompt.ex" => 5
   }
 
   defp sources do

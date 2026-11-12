@@ -86,6 +86,50 @@ defmodule SlipdockWeb.WikiTreeOrganiseLiveTest do
     assert_redirect(view, ~p"/boards/#{jobs}/wiki/#{moved.slug}")
   end
 
+  test "a move to another board lists no place in a list or parent the page never had", %{
+    conn: conn,
+    kb: kb,
+    jobs: jobs,
+    one: one
+  } do
+    {:ok, view, _} = live(conn, ~p"/boards/#{kb}/wiki")
+    dialog(view, "move", ["page:#{one.id}"])
+
+    html =
+      view
+      |> element("#tree-targets button[phx-value-target='board:#{jobs.id}']")
+      |> render_click()
+
+    assert html =~ "Move “One” to Journal Desk?"
+    refute html =~ "A place in the list"
+    refute html =~ "Its parent page"
+  end
+
+  test "a page that reached the other board while the question was open isn't moved again", %{
+    conn: conn,
+    user: user,
+    kb: kb,
+    jobs: jobs,
+    acme: acme,
+    one: one
+  } do
+    {:ok, view, _} = live(conn, ~p"/boards/#{kb}/wiki")
+    dialog(view, "move", ["page:#{one.id}"])
+
+    view
+    |> element("#tree-targets button[phx-value-target='board:#{jobs.id}']")
+    |> render_click()
+
+    # Somebody else moved it there first, into a folder.
+    {:ok, _} = Wiki.Move.to_board(one, jobs, acme, user, via: "web")
+
+    html = view |> element("#cross-move-confirm") |> render_click()
+    refute html =~ "Moved 1 page"
+    refute has_element?(view, "#cross-move-confirm")
+    assert %{board_id: board_id, folder_id: folder_id} = Repo.get!(Page, one.id)
+    assert {board_id, folder_id} == {jobs.id, acme.id}
+  end
+
   test "a drag in the vault's tree to another board asks first", %{
     conn: conn,
     kb: kb,

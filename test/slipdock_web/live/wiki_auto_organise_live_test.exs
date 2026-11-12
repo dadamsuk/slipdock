@@ -93,6 +93,24 @@ defmodule SlipdockWeb.WikiAutoOrganiseLiveTest do
     assert has_element?(view, "#organise-confirm[disabled]", "Organise 0 items")
   end
 
+  test "an item that changed after the preview is left where it was, and said", %{
+    conn: conn,
+    board: board,
+    inbox: inbox,
+    pages: [standup, retro]
+  } do
+    view = open_dialog(conn, board, inbox)
+    assert has_element?(view, "#organise-confirm", "Organise 2 items")
+
+    {:ok, _} = Wiki.archive_page(retro)
+    html = view |> element("#organise-confirm") |> render_click()
+
+    assert html =~ "Organised 1 item"
+    assert html =~ "Left where they were: “Retro” (it has changed since the plan was made)."
+    assert folder_of(standup) != inbox.id
+    assert folder_of(retro) == inbox.id
+  end
+
   test "a bad parent is said, and a mode with nothing to do says so", %{
     conn: conn,
     board: board,
