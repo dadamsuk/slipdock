@@ -45,7 +45,7 @@ defmodule Slipdock.MergedElsewhereDocsTest do
   end
 
   defp texts do
-    Enum.map(files(), &{relative(&1), File.read!(Path.join(@root, relative(&1)))}) ++
+    Enum.map(files(), &{relative(&1), Slipdock.DocsText.read!(Path.join(@root, relative(&1)))}) ++
       detector_docs()
   end
 

@@ -14,7 +14,7 @@ defmodule SlipdockWeb.AuditReworkDocsTest do
   @root Path.expand("../..", __DIR__)
 
   defp flat(text), do: String.replace(text, ~r/\s+/u, " ")
-  defp read(path), do: @root |> Path.join(path) |> File.read!() |> flat()
+  defp read(path), do: @root |> Path.join(path) |> Slipdock.DocsText.read!() |> flat()
 
   test "the manual, agents.md and the API guide say a disagreement files the rework" do
     manual = read("docs/manual/verified-work.md")

@@ -233,7 +233,7 @@ defmodule SlipdockWeb.RunnerDocsTest do
 
     guide = read("lib/slipdock_web/api_guide.ex")
     assert_states(guide, "`merge` jobs (merging an accepted card's pull request)")
-    assert guide =~ "built into\n    the runner daemon"
+    assert guide =~ "built into\nthe runner daemon"
     assert guide =~ "`X-Runner-Kinds`"
   end
 

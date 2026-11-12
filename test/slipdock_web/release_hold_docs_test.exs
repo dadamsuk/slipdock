@@ -15,7 +15,7 @@ defmodule SlipdockWeb.ReleaseHoldDocsTest do
       assert html =~ "A red release (its suite,"
       assert html =~ "<em>Lift hold</em>"
 
-      read = &File.read!(Path.expand("../../" <> &1, __DIR__))
+      read = &Slipdock.DocsText.read!(Path.expand("../../" <> &1, __DIR__))
 
       for path <- [
             "docs/manual/every-feature-in-brief.md",

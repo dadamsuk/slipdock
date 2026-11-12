@@ -39,14 +39,14 @@ defmodule SlipdockWeb.OrchestrationFixesDocsTest do
   ]
 
   test "no workaround for a fixed snag is left in the guide, agents.md or the loop skill" do
-    for path <- docs(), text = path |> File.read!() |> flat(), re <- @workarounds do
+    for path <- docs(), text = path |> Slipdock.DocsText.read!() |> flat(), re <- @workarounds do
       refute text =~ re, "#{path} still describes a workaround: #{inspect(re)}"
     end
   end
 
   test "the loop skill files a card with its bar and paths in one write" do
     for path <- loop_copies() do
-      loop = path |> File.read!() |> flat()
+      loop = path |> Slipdock.DocsText.read!() |> flat()
 
       for part <- [
             "**Its bar and paths go on in the same write**",
@@ -58,7 +58,9 @@ defmodule SlipdockWeb.OrchestrationFixesDocsTest do
   end
 
   test "the fixes are what the docs now describe instead" do
-    guide = Path.join(@root, "lib/slipdock_web/api_guide.ex") |> File.read!() |> flat()
+    guide =
+      Path.join(@root, "lib/slipdock_web/api_guide.ex") |> Slipdock.DocsText.read!() |> flat()
+
     agents = Path.join(@root, "docs/agents.md") |> File.read!() |> flat()
 
     # Merges go to an idle runner first, not only the one that accepted (#1754).

@@ -15,7 +15,10 @@ holds the detail behind each rule.
 2. **Change every place a feature shows up**, or say on the card why not. The
    same feature usually lives in the web UI, the REST API, the CLI (`cli/`)
    and the MCP tools (`lib/slipdock_web/mcp/tools/`), and is described in the
-   agents page and API guide (`docs/agents.md`, `lib/slipdock_web/api_guide.ex`),
+   agents page and API guide (`docs/agents.md`; the guide's prose is a Markdown
+   file per section in `lib/slipdock_web/api_guide/`, compiled in by
+   `lib/slipdock_web/api_guide.ex`, and a change to it regenerates the copy
+   `test/slipdock_web/api_guide_golden_test.exs` holds it to),
    the in-app help (`HelpLive`), the packaged skills (`priv/skills/`), the
    `README.md` and the manual (`docs/manual.md`, a page per section in
    `docs/manual/`). The README is the overview (#2792): a feature gets a line

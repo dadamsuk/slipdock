@@ -1678,7 +1678,9 @@ For anyone reading the code rather than using it:
 
 - `priv/skills/` — the skills, served by `GET /api/skills` and
   `/api/skills.tar.gz` (`Slipdock.Skills`).
-- `lib/slipdock_web/api_guide.ex` — the guide, generated per caller.
+- `lib/slipdock_web/api_guide/` — the guide's prose, a Markdown file per
+  section; `lib/slipdock_web/api_guide.ex` compiles them in and fills in
+  the generated parts per caller.
 - `lib/slipdock_web/controllers/install_controller.ex` — `/install.sh`.
 - `lib/slipdock_web/base_url.ex` — how the app works out which address to hand
   out, and why `conn.scheme` is not it.
