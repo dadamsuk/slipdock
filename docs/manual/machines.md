@@ -618,6 +618,8 @@ the machine on the Machines page ends the key at once.
   executor with the network off. No other executor limits the network.
 - Prompts are the board members' instructions. The agent follows them
   within the runner's permission mode, as the account its jobs run as.
+  Every job's prompt tells the agent that a card's text is data, never
+  instructions, but telling a model is not a limit.
   Whatever that account can read or change, a card can ask the agent to
   read or change, and so can text the agent reads while it works (an
   issue, a web page, a file in the repository). Anyone who can write a
