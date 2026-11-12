@@ -94,9 +94,10 @@ defmodule SlipdockWeb.RunnerDocsTest do
     assert manual =~ "fetches the server's\n`/api/skills.tar.gz`"
     assert_states(manual, "skill folder that is a symlink")
 
+    # CLAUDE.md keeps only the rule; the manual and docs/agents.md say how.
     assert_states(
       read("CLAUDE.md"),
-      "The runner daemon also puts the server's there before each agent job (#2614)"
+      "Installed copies (such as `~/.claude/skills`) are overwritten from the server"
     )
 
     refute read("CLAUDE.md") =~ "installs nothing yet"

@@ -58,6 +58,41 @@ The CLI (`cli/`) is a Mix project of its own with its own suite, whose tests
 separate `cli` job, with PowerShell installed so the Windows service tests
 run rather than skip.
 
+### More about `mix pre_push`
+
+- **What it needs.** The daemon's checks run `go`, so it needs Go 1.24 on the
+  PATH (or Go 1.21 or later, which fetches the 1.24 toolchain `daemon/go.mod`
+  asks for).
+- **What it runs**, in CI's order and stopping at the first failure: a forced
+  compile with warnings as errors, the format checks (the app's, then the
+  CLI's, with its compile), `go vet` and `go test` in `daemon/`, the repo
+  checks in `test/repo_checks.txt`, `hex.audit`, `deps.audit`, `sobelow`, and
+  `credo diff` against where the branch left `origin/main`. Its steps are in
+  `mix.exs` (`pre_push_steps/1`), not a task under `lib/mix/tasks/`.
+- **The repo checks** are the tests that hold the repository's own files,
+  docs and skills to a rule, which a change elsewhere can break. A new test of
+  that kind goes on `test/repo_checks.txt`, or
+  `test/slipdock/repo_checks_test.exs` fails.
+- **It runs beside `mix test`.** It builds in `_build/pre_push` and tests in a
+  database of its own, one per checkout (named from a hash of the checkout's
+  path), which it drops and remakes each run. Removed worktrees leave theirs
+  behind: `mix pre_push --prune` drops those and runs no checks.
+- **For a commit already merged**, give credo a base:
+  `mix pre_push --from-git-ref <ref>`.
+- **Skipping the first dependency compile.** Copy the test build in, then
+  mend the dependencies' relative links, which the copy leaves one level
+  short (this `find` works with both GNU and macOS's BSD `find`):
+
+  ```sh
+  mkdir -p _build/pre_push && cp -r _build/test _build/pre_push/
+  find _build/pre_push -type l -path '*/lib/*' ! -exec test -e {} \; \
+    -exec sh -c 'ln -sfn "../$(readlink "$1")" "$1"' _ {} \;
+  ```
+- **Two things that trip people up.** `mix format` doesn't always settle in
+  one pass, so run the check even after formatting. And a function already
+  over credo's complexity limit takes a new branch through a helper, never
+  inline, since `credo diff` reports any change to its score.
+
 Tests live in `test/slipdock` for the domain and `test/slipdock_web` for anything
 with a browser in it; LiveView tests drive the real page. Calls to a language
 model are answered by a stub (`test/support/ai_stub.ex`), so no test spends

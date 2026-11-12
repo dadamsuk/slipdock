@@ -235,9 +235,9 @@ defmodule Slipdock.MachinesDocsTest do
 
   # The Go a machine needs to build the daemon is go.mod's, wherever it is
   # written down (#2807 raised it to 1.24 for the transport's pings).
-  test "the manual and CLAUDE.md name the Go that daemon/go.mod asks for" do
+  test "the manual and CONTRIBUTING.md name the Go that daemon/go.mod asks for" do
     [_, version] = Regex.run(~r/^go (\d+\.\d+)/m, read("daemon/go.mod"))
     assert read("docs/manual/machines.md") =~ "with Go #{version} or newer"
-    assert read("CLAUDE.md") =~ "it needs Go #{version} on the PATH"
+    assert read("CONTRIBUTING.md") =~ ~r/needs Go #{Regex.escape(version)} on the\s+PATH/
   end
 end
