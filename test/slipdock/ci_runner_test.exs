@@ -54,12 +54,13 @@ defmodule Slipdock.CiRunnerTest do
     release = workflow("release.yml")
 
     assert release["concurrency"] == %{
-             "group" => "release-${{ github.ref }}",
+             "group" =>
+               "${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.RELEASE_MODE == 'batched' && format('release-skipped-{0}', github.run_id) || format('release-{0}', github.ref) }}",
              "cancel-in-progress" => false
            }
 
     # Not a group a cancelling CI run could share: ci.yml's all start ci-.
-    refute String.starts_with?(release["concurrency"]["group"], "ci-")
+    refute release["concurrency"]["group"] =~ "ci-"
     assert String.starts_with?(workflow("ci.yml")["concurrency"]["group"], "ci-")
   end
 

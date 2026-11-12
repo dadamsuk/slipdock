@@ -94,6 +94,12 @@ gh run list --workflow release.yml --branch main --status success --limit 100 \
   slipdock deploy backfill --from-runs - --env production
 ```
 
+With [batched releases](verified-work.md), a push to the default branch
+deploys nothing and its run still ends `success`, so count only the
+dispatched releases: add `event` to `--json` and pipe through
+`jq '[.[] | select(.event != "push")]'` first (Slipdock's own `release.yml`
+does that while its `RELEASE_MODE` variable is `batched`).
+
 **Incidents** are ordinary cards tagged `incident` (the tag is a board setting).
 `slipdock incident-of <card> <deploy>` says which deploy caused one. A deploy
 is a **failed change** when it failed, was rolled back, has an incident linked

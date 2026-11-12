@@ -1053,7 +1053,11 @@ defmodule Slipdock.CiWorkflowTest do
       assert has?(test_job, "needs: suite")
       # Always called, so the static checks run on every push to main and
       # every release (#2832); the gate's answer says whether the suite does.
-      assert has?(test_job, "if: ${{ !cancelled() }}")
+      assert has?(
+               test_job,
+               "if: ${{ !cancelled() && !(github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.RELEASE_MODE == 'batched') }}"
+             )
+
       assert has?(test_job, "uses: ./.github/workflows/ci.yml")
       assert has?(test_job, "suite: ${{ needs.suite.outputs.run != 'false' }}")
 
@@ -1483,7 +1487,7 @@ defmodule Slipdock.CiWorkflowTest do
       assert build["needs"] == "cli-sign"
 
       assert build["if"] ==
-               "${{ !cancelled() && (needs.cli-sign.result == 'success' || (github.ref_type != 'tag' && needs.cli-sign.result == 'skipped')) }}"
+               "${{ !cancelled() && !(github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.RELEASE_MODE == 'batched') && (needs.cli-sign.result == 'success' || (github.ref_type != 'tag' && needs.cli-sign.result == 'skipped')) }}"
 
       [download] = Enum.filter(build["steps"], &(&1["uses"] == "actions/download-artifact@v4"))
       assert download["if"] == "${{ needs.cli-sign.result == 'success' }}"
