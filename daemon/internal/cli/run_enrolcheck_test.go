@@ -65,12 +65,18 @@ func (s *checkServer) seen() ([]string, map[string]bool) {
 
 // enrolledAt is an enrolled machine whose server is s.
 func enrolledAt(t *testing.T, s *checkServer) *world {
+	return enrolledAtURL(t, s.ts.URL)
+}
+
+// enrolledAtURL is an enrolled machine whose server is at url.
+func enrolledAtURL(t *testing.T, url string) *world {
+	t.Helper()
 	w, _ := enrolled(t)
 	st, key, err := machine.Load(w.dir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	st.Server = s.ts.URL
+	st.Server = url
 	if err := machine.Save(w.dir, st, key); err != nil {
 		t.Fatal(err)
 	}
@@ -159,5 +165,84 @@ func TestAWakeEndsTheEnrolmentChecksPause(t *testing.T) {
 	checks, _ := s.seen()
 	if checks[1] == checks[0] {
 		t.Fatalf("the check after the wake went on the connection from before it (%s)", checks[0])
+	}
+}
+
+func TestTheEnrolmentCheckIsGivenUpAtTheEnvsTimeout(t *testing.T) {
+	// The check's client takes its timeout from env's (#2822), so a test
+	// (or anything else that sets one) doesn't wait the daemon's 30 s for
+	// a server that never answers.
+	quit := make(chan struct{})
+	var mu sync.Mutex
+	checks := 0
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/machine" {
+			http.NotFound(w, r)
+			return
+		}
+		mu.Lock()
+		checks++
+		mu.Unlock()
+		select {
+		case <-r.Context().Done():
+		case <-quit:
+		}
+	}))
+	t.Cleanup(ts.Close)
+	t.Cleanup(func() { close(quit) })
+	w := enrolledAtURL(t, ts.URL)
+	w.env.HTTP = &http.Client{Timeout: 200 * time.Millisecond}
+	w.stopAfterSleep = 1
+	start := time.Now()
+	if code := w.main("run"); code != 0 {
+		t.Fatalf("exit %d: %s", code, w.errOut)
+	}
+	took := time.Since(start)
+	mu.Lock()
+	n := checks
+	mu.Unlock()
+	if n != 1 {
+		t.Fatalf("the machine checked %d times, want 1", n)
+	}
+	if !strings.Contains(w.errOut.String(), "can't reach the server") {
+		t.Fatalf("the check that was never answered wasn't logged as failed:\n%s", w.errOut)
+	}
+	if took > 10*time.Second {
+		t.Fatalf("the check was held for %s: env's 200 ms timeout wasn't the client's", took.Round(time.Millisecond))
+	}
+}
+
+func TestRunReachesAServerTheEnvsClientTrusts(t *testing.T) {
+	// The link trusts what env's client trusts (#2822): a test's TLS
+	// server, whose certificate the system's roots don't know.
+	ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/machine" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Write([]byte(`{"machine":{"id":7,"name":"box","boards":[3],"state":"enrolled"}}`))
+	}))
+	t.Cleanup(ts.Close)
+	w := enrolledAtURL(t, ts.URL)
+	w.env.HTTP = ts.Client()
+	w.stopAfterSleep = 1
+	if code := w.main("run"); code != 0 {
+		t.Fatalf("exit %d: %s", code, w.errOut)
+	}
+	log := w.errOut.String()
+	if !strings.Contains(log, "enrolled as box") || strings.Contains(log, "can't reach the server") {
+		t.Fatalf("the check didn't reach the TLS server:\n%s", log)
+	}
+}
+
+func TestTheDaemonsLinkPings(t *testing.T) {
+	// newLink sets no ping times, and must not turn them off: the link's
+	// defaults are the daemon's (#2822).
+	w := newWorld(t)
+	for name, env := range map[string]Env{"a test's env": w.env, "no HTTP client": {}} {
+		after, timeout := newLink(env).Pings()
+		if after != 15*time.Second || timeout != 10*time.Second {
+			t.Errorf("%s: the daemon's link pings after %s and waits %s for the answer, want 15s and 10s", name, after, timeout)
+		}
 	}
 }
