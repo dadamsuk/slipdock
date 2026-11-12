@@ -1108,6 +1108,13 @@ defmodule Slipdock.CiWorkflowTest do
       assert config[:summary][:threshold] > 0
     end
 
+    test "CONTRIBUTING.md gives the threshold mix.exs sets" do
+      threshold = Mix.Project.config()[:test_coverage][:summary][:threshold]
+
+      assert File.read!(Path.join(@root, "CONTRIBUTING.md")) =~
+               "fails under the threshold in `mix.exs` (#{threshold}%)"
+    end
+
     test "each partition runs the suite with coverage, exported under its own name" do
       test_step = step(suite_job(), "name", "Test")
 
@@ -1143,8 +1150,20 @@ defmodule Slipdock.CiWorkflowTest do
                "merge-multiple" => true
              }
 
+      refute Map.has_key?(download, "if")
+      refute Map.has_key?(download, "continue-on-error")
+
+      # The command and nothing after it (`|| true`), on a step that always
+      # runs and whose failure fails the job. An integer first: a step that
+      # isn't there is `nil`, and `nil > 3` is true.
       merge_at = step_at(job, "run", "mix slipdock.coverage")
+      assert is_integer(merge_at), "no step runs exactly `mix slipdock.coverage`"
       assert merge_at > Enum.find_index(job["steps"], &(&1 == download))
+
+      merge = Enum.at(job["steps"], merge_at)
+      refute Map.has_key?(merge, "if")
+      refute Map.has_key?(merge, "continue-on-error")
+      refute Map.has_key?(merge, "shell")
     end
 
     test "the coverage job restores the build the test job cached, under the same keys" do

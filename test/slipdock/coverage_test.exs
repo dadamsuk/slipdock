@@ -175,4 +175,160 @@ defmodule Slipdock.CoverageTest do
     assert at =~ "passed"
     refute at =~ "threshold not met"
   end
+
+  # A Mix project of its own, with the sample in `lib/` and a `mix.exs`
+  # that sets `threshold`: where `mix slipdock.coverage` reads its
+  # threshold from, and where it looks for `cover/` when nobody says.
+  defp scratch_project(dir, threshold) do
+    File.write!(Path.join(dir, "mix.exs"), """
+    defmodule CoverageScratch.MixProject do
+      use Mix.Project
+
+      def project do
+        [
+          app: :coverage_scratch,
+          version: "0.1.0",
+          # The task comes from this app's ebin on the code path, which
+          # isn't one of the scratch project's dependencies.
+          prune_code_paths: false,
+          test_coverage: [summary: [threshold: #{threshold}]]
+        ]
+      end
+    end
+    """)
+  end
+
+  # `mix` in the scratch project, with this app's beams on the code path.
+  # The build goes in the project's own `_build`, whatever this suite's is.
+  defp mix(dir, args) do
+    app_ebin = Application.app_dir(:slipdock, "ebin")
+
+    System.cmd("elixir", ["-pa", app_ebin, "-S", "mix" | args],
+      cd: dir,
+      stderr_to_stdout: true,
+      env: [
+        {"MIX_ENV", "test"},
+        {"MIX_BUILD_ROOT", nil},
+        {"MIX_BUILD_PATH", nil},
+        {"MIX_EXS", nil},
+        {"MIX_TEST_PARTITION", nil}
+      ]
+    )
+  end
+
+  describe "mix slipdock.coverage, the task CI runs" do
+    # The export a partition leaves in `cover/`, made in the project's own
+    # build so the merge imports it into the same module.
+    defp export_in_project(dir) do
+      {output, 0} =
+        mix(dir, [
+          "run",
+          "--no-start",
+          "-e",
+          """
+          done = Slipdock.Coverage.start(Mix.Project.compile_path(), export: "partition-1")
+          CoverageSample.a()
+          done.()
+          """
+        ])
+
+      assert output =~ "Coverage exported to cover/partition-1.coverdata"
+      assert File.regular?(Path.join(dir, "cover/partition-1.coverdata"))
+    end
+
+    test "exits 1 below the threshold in mix.exs, reading cover/ unasked", %{tmp_dir: dir} do
+      scratch_project(dir, 16)
+      export_in_project(dir)
+
+      {output, status} = mix(dir, ["slipdock.coverage"])
+
+      assert output =~ "Importing cover/partition-1.coverdata"
+      assert total(output) == 15.38
+      assert output =~ "Coverage test failed, threshold not met: 16%"
+      assert status == 1
+    end
+
+    test "exits 0 at a threshold in mix.exs the exports meet", %{tmp_dir: dir} do
+      scratch_project(dir, 15)
+      export_in_project(dir)
+
+      {output, status} = mix(dir, ["slipdock.coverage"])
+
+      assert output =~ "Importing cover/partition-1.coverdata"
+      assert total(output) == 15.38
+      refute output =~ "threshold not met"
+      assert File.regular?(Path.join(dir, "cover/CoverageSample.html"))
+      assert status == 0
+    end
+
+    test "fails when cover/ holds no export", %{tmp_dir: dir} do
+      scratch_project(dir, 0)
+
+      {output, status} = mix(dir, ["slipdock.coverage"])
+
+      assert output =~ "No coverage exports (*.coverdata) in cover/ to merge"
+      assert status == 1
+    end
+  end
+
+  test "the merge fails on an export it can't import", ctx do
+    {_, 0} = export(ctx, "partition-1", :a)
+    # Nothing :cover can open as an export: a directory under the name.
+    broken = Path.join(ctx.out, "partition-2.coverdata")
+    File.mkdir_p!(broken)
+
+    {output, status} = merge(ctx, 0)
+
+    assert status != 0
+    assert output =~ "Could not import #{broken}"
+    refute output =~ "result:"
+    refute output =~ "| Total"
+  end
+
+  test "an export that can't be written fails the suite", ctx do
+    # No `missing/` under the output directory, so the file can't be opened.
+    {output, 0} =
+      run(ctx.tmp_dir, """
+      done = Slipdock.Coverage.start(#{inspect(ctx.ebin)},
+        export: "missing/partition-1", output: #{inspect(ctx.out)})
+      CoverageSample.a()
+      try do
+        done.()
+        IO.puts("passed")
+      catch
+        :throw, :test_failed -> IO.puts("thrown :test_failed")
+      end
+      """)
+
+    file = Path.join(ctx.out, "missing/partition-1.coverdata")
+    assert output =~ "Could not export coverage to #{file}"
+    assert output =~ "thrown :test_failed"
+    refute output =~ "passed"
+    refute output =~ "Coverage exported"
+    refute File.exists?(file)
+  end
+
+  test "the merge leaves its own two modules out of what it cover-compiles", ctx do
+    # As in the app's build, where they sit beside everything else: :cover
+    # reloads what it compiled when it stops, and the purge kills whoever
+    # is running the old code, which here is the merge itself.
+    app_ebin = Application.app_dir(:slipdock, "ebin")
+
+    for mod <- [Slipdock.Coverage, Mix.Tasks.Slipdock.Coverage] do
+      File.cp!(Path.join(app_ebin, "#{mod}.beam"), Path.join(ctx.ebin, "#{mod}.beam"))
+    end
+
+    {_, 0} = export(ctx, "partition-1", :a)
+
+    {output, 0} =
+      run(ctx.tmp_dir, """
+      result = Mix.Tasks.Slipdock.Coverage.check(#{inspect(ctx.ebin)},
+        output: #{inspect(ctx.out)}, summary: [threshold: 15])
+      IO.puts("returned \#{inspect(result)}")
+      """)
+
+    assert output =~ "returned :ok"
+    assert total(output) == 15.38
+    refute output =~ "Not measured"
+  end
 end
