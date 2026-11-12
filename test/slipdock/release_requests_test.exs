@@ -548,6 +548,26 @@ defmodule Slipdock.ReleaseRequestsTest do
                Repo.get!(Request, request.id)
     end
 
+    test "a job that hasn't ended changes nothing: queued, claimed or running", ctx do
+      {:ok, :started, request} = Releases.request(ctx.board, "manual", "Dana")
+      {:ok, :queued, queued} = Releases.request(ctx.board, "manual", "Eli")
+      said = activity(ctx.board)
+
+      assert Releases.job_finished(Repo.get!(Job, request.job_id)) == :ok
+
+      %Job{id: id} = Runners.claim(ctx.runner)
+
+      for status <- ["claimed", "running"] do
+        Repo.update_all(from(j in Job, where: j.id == ^id), set: [status: status])
+        assert Releases.job_finished(Repo.get!(Job, id)) == :ok
+      end
+
+      # Still the one release: it runs on, and its follow-up waits.
+      assert Repo.get!(Request, request.id).status == "running"
+      assert Repo.get!(Request, queued.id).status == "queued"
+      assert activity(ctx.board) == said
+    end
+
     test "a job that ends after its request did changes nothing", ctx do
       {:ok, :started, request} = Releases.request(ctx.board, "manual", "Dana")
       {:ok, _} = Releases.finish(request, "timed_out", "late")

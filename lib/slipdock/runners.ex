@@ -1922,15 +1922,19 @@ defmodule Slipdock.Runners do
         end
 
       job.attempts >= max_attempts() ->
-        settle(job, %{
+        failed = %{
           status: "failed",
           finished_at: now,
           lease_expires_at: nil,
           error: "no runner finished it: the lease ran out #{job.attempts} times"
-        })
+        }
 
-        flag_card(job)
-        lapsed(job)
+        # A heartbeat that won the race leaves the job running: nothing
+        # has ended, so nothing is flagged, fed or told (#2835).
+        if settle(job, failed) do
+          flag_card(job)
+          lapsed(job)
+        end
 
       true ->
         # The runner that held it may take it back while it is still
@@ -1949,8 +1953,6 @@ defmodule Slipdock.Runners do
     end
   end
 
-  # Only if nothing has happened to the job since it was read: a heartbeat
-  # that lands during the sweep wins.
   # A job its lease ended: the rule feeds the next, and a release's request
   # hears (#2835).
   defp lapsed(job) do
@@ -1958,6 +1960,8 @@ defmodule Slipdock.Runners do
     release_ended(job)
   end
 
+  # Only if nothing has happened to the job since it was read: a heartbeat
+  # that lands during the sweep wins.
   defp settle(job, changes) do
     changes = Map.put(changes, :updated_at, now())
 

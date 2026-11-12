@@ -404,9 +404,15 @@ defmodule Slipdock.Releases do
   A `release` job has ended (`Slipdock.Runners`). Failed, cancelled or
   expired: its request ends `failed`. Done: the request keeps the run's URL
   (the first link in the job's output) and waits for the deploy, or ends
-  `released` there and then on a tree that records no deploys.
+  `released` there and then on a tree that records no deploys. A job that
+  hasn't ended (still queued, claimed or running) changes nothing: its
+  request runs on.
   """
-  def job_finished(%Job{id: job_id} = job) do
+  def job_finished(%Job{} = job) do
+    if Enum.member?(Job.open_statuses(), job.status), do: :ok, else: job_ended(job)
+  end
+
+  defp job_ended(%Job{id: job_id} = job) do
     case Repo.one(from(r in Request, where: r.job_id == ^job_id and r.status == "running")) do
       nil ->
         :ok
