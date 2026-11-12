@@ -620,6 +620,16 @@ refused otherwise, since the daemon never runs what the server sends (see
 job, and it goes only to a runner that says it takes `release`. The
 server holds no credentials for your repository.
 
+**Your release workflow.** On a batched board the release workflow is
+what the release command starts, so it has to run on `workflow_dispatch`,
+and a push to the default branch should deploy nothing. Slipdock's own
+`release.yml` is the worked example (#2837): with the repository variable
+`RELEASE_MODE` set to `batched`, a push to `main` runs none of its jobs and
+takes no place in its one-at-a-time queue; a dispatch of `main` runs the
+suite once on the tip, builds the image and deploys it, and a failed one
+is recorded as a push's would be. Unset the variable to go back to a
+release with each merge.
+
 **How it ends.** The request is `released` when a succeeded deploy of the
 tree is recorded, `failed` when the job or the deploy fails, and
 `timed_out` when nothing is heard for 3 hours; then the follow-up starts.
