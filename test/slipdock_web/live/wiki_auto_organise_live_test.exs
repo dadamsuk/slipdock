@@ -12,6 +12,11 @@ defmodule SlipdockWeb.WikiAutoOrganiseLiveTest do
   alias Slipdock.{Repo, Wiki}
   alias Slipdock.Wiki.{Folders, Page}
 
+  # How long `render_async` waits for the AI call's task. Its default is
+  # ExUnit's assert_receive_timeout, 1 s, which ran out once in a loaded full
+  # run (#2870). Only a failure waits this long.
+  @async_timeout 5_000
+
   setup %{user: user} do
     board = board_fixture(%{"name" => "Notes"}, owner: user)
     {:ok, inbox} = Wiki.create_folder(board, %{"name" => "Inbox"})
@@ -122,7 +127,7 @@ defmodule SlipdockWeb.WikiAutoOrganiseLiveTest do
     refute_received {:ai_request, _}
 
     view |> element("#organise-ask") |> render_click()
-    render_async(view)
+    render_async(view, @async_timeout)
 
     assert_received {:ai_request, %{"model" => "anthropic/claude-haiku-5.5"}}
     # "Retros" would be a new top-level folder, so it is not offered.
@@ -141,7 +146,7 @@ defmodule SlipdockWeb.WikiAutoOrganiseLiveTest do
     view = open_dialog(conn, board, inbox)
     view |> form("#organise-form", %{"mode" => "ai"}) |> render_change()
     view |> element("#organise-ask") |> render_click()
-    render_async(view)
+    render_async(view, @async_timeout)
     assert has_element?(view, "#organise-error", "JSON")
   end
 
