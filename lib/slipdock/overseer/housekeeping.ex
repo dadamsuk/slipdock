@@ -55,7 +55,9 @@ defmodule Slipdock.Overseer.Housekeeping do
       %{body: body, needs_owner: needs} = digest(root, since, now)
       health = if needs == [], do: "on_track", else: "at_risk"
 
-      Boards.add_status_update(card, nil, %{"health" => health, "body" => body}, quiet: true)
+      Boards.StatusUpdates.add_status_update(card, nil, %{"health" => health, "body" => body},
+        quiet: true
+      )
 
       Repo.update_all(from(s in Settings, where: s.id == ^settings.id),
         set: [
