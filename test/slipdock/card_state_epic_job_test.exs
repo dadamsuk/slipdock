@@ -11,7 +11,7 @@ defmodule Slipdock.CardStateEpicJobTest do
   import Ecto.Query
   import Slipdock.Fixtures
 
-  alias Slipdock.{Boards, CardState, Repo, Runners, Work}
+  alias Slipdock.{Actor, Boards, CardState, Repo, Runners, Work}
   alias Slipdock.Boards.CardMove
   alias Slipdock.Runners.Job
   alias Slipdock.Work.Tree
@@ -49,6 +49,34 @@ defmodule Slipdock.CardStateEpicJobTest do
     job = Runners.claim(ctx.runner)
     {:ok, :ok} = Runners.heartbeat(ctx.runner, job.id, nil, step: step)
     Repo.get!(Job, job.id)
+  end
+
+  # A job on `card` put straight into `status` with `step`, for the cases a
+  # runner's claim can't reach (a second job in progress in one tree).
+  defp job_row(card, status, step, kind \\ "claude") do
+    {:ok, job} = Runners.queue(card, %{pool: "dev", kind: "claude", prompt: "go"})
+    set_job(job, status: status, step: step, kind: kind, runner_name: "dedev")
+  end
+
+  defp set_job(job, fields) do
+    {1, _} = Repo.update_all(from(j in Job, where: j.id == ^job.id), set: fields)
+    Repo.get!(Job, job.id)
+  end
+
+  # The card `levels` sub-boards below `card`, and the board it is on.
+  defp below(card, levels) do
+    {:ok, t} = Boards.Templates.find_template(nil, "Simple")
+
+    Enum.reduce(1..levels, {card, nil}, fn n, {above, _board} ->
+      {:ok, sub} = sub_board(above, t)
+      sub = Boards.get_board!(sub.id)
+      {card_fixture(hd(sub.columns), %{"title" => "Level #{n}"}), sub}
+    end)
+  end
+
+  defp needs_owner?(ctx, card) do
+    reasons = ctx.owner |> Work.waiting_on_me() |> Enum.map(&{&1.card.id, &1.reason})
+    {card.id, "needs_owner"} in reasons
   end
 
   defp state_of(board, card) do
@@ -107,6 +135,8 @@ defmodule Slipdock.CardStateEpicJobTest do
 
       assert state_of(ctx.sub, done).loop == nil
       assert CardState.epic_jobs([done.id]) == %{}
+      assert CardState.loop_of(done, []) == nil
+      assert CardState.loops([done.id]) == %{}
     end
 
     test "the subcard's own open job wins over its epic's", ctx do
@@ -122,10 +152,135 @@ defmodule Slipdock.CardStateEpicJobTest do
       assert own.status == "queued"
     end
 
-    test "once the epic's job ends the subcard has no loop", ctx do
+    test "once the epic's job ends the subcard is nobody's again, however it ended", ctx do
+      entered_long_ago(ctx.named)
       job = epic_job(ctx, "##{ctx.named.id} CI running")
-      Repo.update_all(from(j in Job, where: j.id == ^job.id), set: [status: "done"])
+      refute needs_owner?(ctx, ctx.named)
 
+      for status <- ~w(done failed timeout cancelled parked queued) do
+        set_job(job, status: status)
+
+        assert CardState.epic_jobs([ctx.named.id]) == %{}, status
+        assert CardState.loops([ctx.named.id]) == %{}, status
+        assert CardState.loop_of(ctx.named, []) == nil, status
+
+        # The epic's failed job is the epic's to show, not the subcard's.
+        state = state_of(ctx.sub, ctx.named)
+        assert {state.loop, state.kind, state.line} == {nil, nil, nil}, status
+        assert needs_owner?(ctx, ctx.named), status
+      end
+    end
+
+    test "a named subcard with an open wait reads as waiting, with no 'in #epic'", ctx do
+      job = epic_job(ctx, "##{ctx.named.id} CI running")
+
+      {:ok, _wait} =
+        Boards.Waits.open_wait(ctx.named, Actor.web(ctx.owner), %{"needs" => "Which pool?"})
+
+      state = state_of(ctx.sub, ctx.named)
+      assert state.kind == "waiting"
+      assert state.line =~ ~r/^Waiting on /
+      refute state.line =~ " · in #"
+      refute state.line =~ "Running"
+      # The job is still on it: the chip stays while the person is asked.
+      assert state.loop.job_id == job.id
+    end
+
+    test "an archived subcard the step names is nobody's key and has no loop", ctx do
+      epic_job(ctx, "##{ctx.named.id} CI running")
+      assert Map.has_key?(CardState.epic_jobs([ctx.named.id]), ctx.named.id)
+
+      {:ok, archived} = Boards.Cards.archive_card(ctx.named)
+      refute is_nil(archived.archived_at)
+
+      assert CardState.epic_jobs([archived.id]) == %{}
+      assert CardState.loops([archived.id, ctx.sibling.id]) == %{}
+      assert CardState.loop_of(archived, []) == nil
+    end
+
+    test "a step naming the job's own card gives that card no epic job", ctx do
+      job = epic_job(ctx, "##{ctx.epic.id} planning, then ##{ctx.named.id}")
+
+      assert CardState.epic_jobs([ctx.epic.id]) == %{}
+      assert Map.keys(CardState.epic_jobs([ctx.epic.id, ctx.named.id])) == [ctx.named.id]
+      # Its loop is its own job's, read as any card's is.
+      assert CardState.loops([ctx.epic.id])[ctx.epic.id].job_id == job.id
+    end
+
+    test "an overseer job's step naming a subcard is not building it", ctx do
+      step = "looking at ##{ctx.named.id}"
+
+      for status <- ~w(claimed running) do
+        job = job_row(ctx.epic, status, step, Slipdock.Overseer.kind())
+        assert job.kind == Slipdock.Overseer.kind()
+
+        assert CardState.epic_jobs([ctx.named.id]) == %{}, status
+        assert state_of(ctx.sub, ctx.named).loop == nil, status
+        assert CardState.loops([ctx.named.id]) == %{}, status
+
+        # The same row as a build job does work it: only the kind kept it out.
+        build = set_job(job, kind: "claude")
+        assert CardState.epic_jobs([ctx.named.id])[ctx.named.id].id == build.id, status
+        set_job(job, status: "done")
+      end
+    end
+
+    test "with two jobs above naming it: the running one, then the newest", ctx do
+      {leaf, deeper} = below(ctx.named, 1)
+      step = "##{leaf.id} CI running"
+      # The epic's is the older job, the subcard's (the leaf's own epic) the newer.
+      older = job_row(ctx.epic, "running", step)
+      newer = job_row(ctx.named, "claimed", step)
+      assert older.id < newer.id
+
+      # Running wins over claimed, though the claimed one is newer.
+      assert CardState.epic_jobs([leaf.id])[leaf.id].id == older.id
+      assert CardState.loops([leaf.id])[leaf.id].job_id == older.id
+      assert state_of(deeper, leaf).line =~ ~r/^Running · dedev · (.* · )?in ##{ctx.epic.id}$/
+
+      # ...and the other way round, the running one being the newer.
+      set_job(older, status: "claimed")
+      set_job(newer, status: "running")
+      assert CardState.epic_jobs([leaf.id])[leaf.id].id == newer.id
+
+      # Both running: the newest, whichever row was written last.
+      set_job(newer, status: "running", step: step)
+      set_job(older, status: "running", step: step)
+      assert CardState.epic_jobs([leaf.id])[leaf.id].id == newer.id
+      assert state_of(deeper, leaf).line =~ ~r/ · in ##{ctx.named.id}$/
+
+      # Both claimed: the newest too.
+      set_job(newer, status: "claimed")
+      set_job(older, status: "claimed")
+      assert CardState.epic_jobs([leaf.id])[leaf.id].id == newer.id
+    end
+
+    test "a job ten levels up works the card; one eleven levels up is past the limit", ctx do
+      # The named subcard is one level below the epic.
+      {tenth, tenth_board} = below(ctx.named, 9)
+      {eleventh, eleventh_board} = below(tenth, 1)
+      job = epic_job(ctx, "##{tenth.id} and ##{eleventh.id} CI running")
+
+      # The climb stops ten cards up: the tenth level reaches the epic, the
+      # eleventh doesn't, and shows as it would with no job above it.
+      assert Map.keys(CardState.epic_jobs([tenth.id, eleventh.id])) == [tenth.id]
+      assert state_of(tenth_board, tenth).loop.job_id == job.id
+
+      state = state_of(eleventh_board, eleventh)
+      assert {state.loop, state.kind, state.line} == {nil, nil, nil}
+      assert CardState.loops([eleventh.id]) == %{}
+    end
+
+    test "a board that is its own card's parent stops the climb, and shows no loop", ctx do
+      # A loop in the tree (never made by the app): the sub-board hangs off
+      # one of its own cards.
+      Repo.update_all(from(b in Boards.Board, where: b.id == ^ctx.sub.id),
+        set: [parent_card_id: ctx.sibling.id]
+      )
+
+      epic_job(ctx, "##{ctx.named.id} CI running")
+
+      assert CardState.epic_jobs([ctx.named.id]) == %{}
       assert state_of(ctx.sub, ctx.named).loop == nil
     end
 

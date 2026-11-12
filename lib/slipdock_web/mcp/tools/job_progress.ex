@@ -19,7 +19,8 @@ defmodule SlipdockWeb.MCP.Tools.JobProgress do
   @impl true
   def description,
     do:
-      "Renews a claimed job's lease. step: what you're doing now, shown on the job only. " <>
+      "Renews a claimed job's lease. step: what you're doing now, shown on the job; on an epic, " <>
+        "name the subcard you're on (\"#12 CI running\") and it shows the job as its loop. " <>
         "note: also a card comment. Answers ok, or cancel: stop, finish_job cancelled."
 
   @impl true

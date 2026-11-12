@@ -243,13 +243,11 @@ defmodule Slipdock.CardState do
 
     named =
       from(j in Job,
-        where: j.status in ~w(claimed running) and not is_nil(j.card_id),
-        where: not is_nil(j.step) and j.kind not in ^not_builds
+        where: j.status in ~w(claimed running) and j.kind not in ^not_builds
       )
       |> Repo.all()
       |> Enum.flat_map(fn job ->
         for id <- step_card_ids(job.step),
-            id != job.card_id,
             MapSet.member?(wanted, id),
             do: {id, job}
       end)
@@ -303,7 +301,7 @@ defmodule Slipdock.CardState do
       from(c in Card,
         join: b in Board,
         on: b.id == c.board_id,
-        where: c.id in ^reached and not is_nil(b.parent_card_id),
+        where: c.id in ^reached,
         select: {c.id, b.parent_card_id}
       )
       |> Repo.all()
@@ -378,11 +376,10 @@ defmodule Slipdock.CardState do
 
   @doc """
   The loop holding one card read with its jobs: `loop_of/1` of them, else
-  the loop of an epic's job working it (#2899, `epic_jobs/1`).
+  the loop of an epic's job working it (#2899, `epic_jobs/1`, which gives
+  none for a completed or archived card).
   """
-  def loop_of(%Card{id: id, completed: completed}, jobs) do
-    loop_of(jobs) || if(not completed, do: job_loop(epic_jobs([id])[id]))
-  end
+  def loop_of(%Card{id: id}, jobs), do: loop_of(jobs) || job_loop(epic_jobs([id])[id])
 
   @doc """
   The loops holding some cards, by card id: only the cards a claimed or
