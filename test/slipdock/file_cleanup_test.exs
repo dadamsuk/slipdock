@@ -182,7 +182,10 @@ defmodule Slipdock.FileCleanupTest do
 
     assert {:error, reason} = Boards.Attachments.put_file(src, "captures/never.wav", 60)
     assert reason in [:enoent, :enotdir]
-    assert System.monotonic_time(:millisecond) - started >= 60
+    took = System.monotonic_time(:millisecond) - started
+    assert took >= 60
+    # and stops then: not a deadline taken too far, or pushed on by each try.
+    assert took < 1_000
     refute File.exists?(target)
   end
 
@@ -192,15 +195,60 @@ defmodule Slipdock.FileCleanupTest do
 
     assert {:error, reason} = Boards.Attachments.put_file(src, "captures/never.wav")
     assert reason in [:enoent, :enotdir]
-    assert System.monotonic_time(:millisecond) - started >= 2_000
+    took = System.monotonic_time(:millisecond) - started
+    assert took >= 2_000
+    assert took < 5_000
+  end
+
+  # The deadline of each try `store` made to put its file, in order, taken by
+  # tracing this process's calls to the attempt itself. The tracer is a
+  # process of its own: on OTP 29 a process tracing itself is sent nothing.
+  defp tries(store) do
+    mfa = {Boards.Attachments, :put_file_until, 3}
+    tracer = spawn_link(fn -> collect_tries([]) end)
+    :erlang.trace_pattern(mfa, true, [:local])
+    :erlang.trace(self(), true, [:call, {:tracer, tracer}])
+
+    try do
+      result = store.()
+      ref = :erlang.trace_delivered(self())
+      assert_receive {:trace_delivered, _, ^ref}
+      send(tracer, {:tries, self()})
+      assert_receive {:tries, deadlines}
+      {result, deadlines}
+    after
+      :erlang.trace(self(), false, [:call])
+    end
+  end
+
+  defp collect_tries(acc) do
+    receive do
+      {:trace, _, :call, {Boards.Attachments, :put_file_until, [_, _, deadline]}} ->
+        collect_tries([deadline | acc])
+
+      {:tries, from} ->
+        send(from, {:tries, Enum.reverse(acc)})
+    end
   end
 
   test "a store given no time tries once", %{src: src} do
     uploads_dir_not_there_yet()
-    assert {:error, _} = Boards.Attachments.put_file(src, "captures/never.wav", 0)
+    store = fn -> Boards.Attachments.put_file(src, "captures/never.wav", 0) end
+    assert {{:error, _}, [_once]} = tries(store)
 
     File.rm!(Boards.Attachments.uploads_dir())
     assert Boards.Attachments.put_file(src, "captures/once.wav", 0) == :ok
+  end
+
+  test "every try a store makes keeps the deadline it started with", %{src: src} do
+    uploads_dir_not_there_yet()
+    started = System.monotonic_time(:millisecond)
+    store = fn -> Boards.Attachments.put_file(src, "captures/never.wav", 30) end
+    assert {{:error, _}, [deadline | _] = deadlines} = tries(store)
+
+    assert length(deadlines) > 1
+    assert Enum.uniq(deadlines) == [deadline]
+    assert deadline in (started + 30)..(System.monotonic_time(:millisecond) + 30)//1
   end
 
   test "storing a file that isn't there is still an error, not retried into success" do
