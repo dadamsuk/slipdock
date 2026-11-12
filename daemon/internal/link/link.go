@@ -166,6 +166,13 @@ func (l *Link) Wake() {
 	l.mu.Unlock()
 }
 
+// Pings is what the link's transport was told: a connection quiet for
+// after is pinged, and closed with no answer within timeout. after is 0
+// when the pings are off.
+func (l *Link) Pings() (after, timeout time.Duration) {
+	return l.t.HTTP2.SendPingTimeout, l.t.HTTP2.PingTimeout
+}
+
 // Dials is how many connections the link has opened.
 func (l *Link) Dials() int {
 	l.mu.Lock()
