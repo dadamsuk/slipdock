@@ -298,7 +298,7 @@ defmodule Slipdock.OverseerHousekeepingTest do
     end
 
     test "nothing while the overseer is off", ctx do
-      settings = on(ctx)
+      on(ctx)
       {:ok, settings} = Overseer.put_settings(ctx.board, %{"enabled" => false})
       root = Repo.get!(Slipdock.Boards.Board, ctx.board.id)
       assert Housekeeping.maybe_digest(root, settings, ~U[2027-03-02 08:00:00Z]) == :not_due
