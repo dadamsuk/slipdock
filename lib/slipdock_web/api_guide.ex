@@ -2703,7 +2703,9 @@ defmodule SlipdockWeb.APIGuide do
     slipdock skill's `SKILL.md` SHA-256; `X-Runner-CLI`, the CLI's), and
     each runner's `drift` compares them with what this server serves:
     `skills` current, drifted (`drifted_skills` names them) or unknown,
-    `cli` current, old, none or unknown. A drifted runner raises one
+    `cli` current, old, unsigned, none or unknown (`unsigned`: the server's
+    CLI differs but it serves no signature, as after a deploy from `main`,
+    so the machine can't take it; not drift). A drifted runner raises one
     alert, cleared once it is current. A daemon clears it itself: before
     each agent job it puts the server's skills in place, only when their
     archive's signature (`/api/skills.tar.gz.sig`, made by the release job

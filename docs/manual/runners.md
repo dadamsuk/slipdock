@@ -316,8 +316,9 @@ count as LF) and of the CLI (`cli` there, else the daemon's own copy, else
 the `slipdock` on the PATH).
 The server compares them with the skills it packages and the escript
 `/cli/SHA256SUMS` publishes. The Runners panel marks a runner *skills
-drifted* or *old CLI*, its details say *Skills* current, drifted (with the
-names) or unknown and *CLI* current, old, none or unknown, `slipdock runners`
+drifted* or *old CLI* (or *CLI unsigned on server*, below), its details say
+*Skills* current, drifted (with the names) or unknown and *CLI* current,
+old, unsigned on server, none or unknown, `slipdock runners`
 shows a SKILLS · CLI column and `slipdock runner` a *skills* and a *cli* line,
 and the API's runner has `drift` (`skills`, `drifted_skills`, `cli`). A
 runner that drifts raises one alert on its board, which clears itself once
@@ -351,7 +352,10 @@ A failed fetch or a wrong sum keeps the CLI there was, and the job runs.
 So does a signature that doesn't verify, and one the server doesn't serve
 (a server built from source, or a deploy the release job didn't sign: it
 signs each `v*` tag's), unless the local file sets `cli_checksum_only:
-true`, which takes the server's checksum alone. `no_cli_update: true` turns
+true`, which takes the server's checksum alone. Until the next tag is
+deployed such a runner shows *CLI unsigned on server* rather than *old CLI*
+(#2825), and raises no drift alert: the machine has nothing to fix.
+`no_cli_update: true` turns
 it off, and the daemon's copy is then neither
 used nor reported. Under the `user` executor the skills are the job
 account's, and the account unpacks them itself (`sudo -n -u`, fed the

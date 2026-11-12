@@ -478,7 +478,12 @@ defmodule SlipdockCLI.RunnersTest do
               "id",
               5
             ),
-            Map.put(drifting(nil), "id", 6)
+            Map.put(drifting(nil), "id", 6),
+            Map.put(
+              drifting(%{"skills" => "current", "drifted_skills" => [], "cli" => "unsigned"}),
+              "id",
+              7
+            )
           ])
         end)
 
@@ -486,6 +491,7 @@ defmodule SlipdockCLI.RunnersTest do
       assert out =~ "skills current · cli current"
       assert out =~ "skills drifted (slipdock-loop) · cli old"
       assert out =~ "skills unknown · cli unknown"
+      assert out =~ "skills current · cli unsigned on server"
     end
 
     test "one runner says each on its own line; a session shows none" do
@@ -500,6 +506,15 @@ defmodule SlipdockCLI.RunnersTest do
       assert out =~ "cli:       none"
 
       assert SlipdockCLI.Render.drift_cell(%{"session" => true}) =~ "-"
+
+      out =
+        capture_io(fn ->
+          SlipdockCLI.Render.runner(
+            drifting(%{"skills" => "current", "drifted_skills" => [], "cli" => "unsigned"})
+          )
+        end)
+
+      assert out =~ "cli:       unsigned on server"
     end
   end
 end

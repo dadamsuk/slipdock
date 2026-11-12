@@ -26,6 +26,9 @@ defmodule Slipdock.RunnersDriftTest do
     File.mkdir_p!(dir)
     escript = Path.join(dir, "slipdock.escript")
     File.write!(escript, "#!/usr/bin/env escript\nthe CLI\n")
+    # A release's: the escript signed beside it. The unsigned server's is
+    # its own describe below (#2825).
+    File.write!(escript <> ".sig", "-----BEGIN SSH SIGNATURE-----\n")
     saved = Application.get_env(:slipdock, :cli_escript)
     Application.put_env(:slipdock, :cli_escript, escript)
 
@@ -124,12 +127,25 @@ defmodule Slipdock.RunnersDriftTest do
       assert Drift.cli_state(%Runner{cli_sha: String.duplicate("c", 64)}, @old) == :old
     end
 
+    test "cli: unsigned when it differs from one served with no signature (#2825)" do
+      other = String.duplicate("c", 64)
+      assert Drift.cli_state(%Runner{cli_sha: other}, @old, false) == :unsigned
+      assert Drift.cli_state(%Runner{cli_sha: other}, @old, true) == :old
+      # The same CLI is current either way; nothing to compare is unknown.
+      assert Drift.cli_state(%Runner{cli_sha: @old}, @old, false) == :current
+      assert Drift.cli_state(%Runner{cli_sha: "none"}, @old, false) == :none
+      assert Drift.cli_state(%Runner{cli_sha: other}, nil, false) == :unknown
+      refute Drift.drifted?(%{skills: :current, cli: :unsigned})
+      assert Drift.drifted?(%{skills: :current, cli: :old})
+    end
+
     test "describe" do
       assert Drift.describe({:drifted, ["slipdock-loop", "slipdock"]}) ==
                "drifted (slipdock-loop, slipdock)"
 
       assert Drift.describe(:current) == "current"
       assert Drift.describe(:old) == "old"
+      assert Drift.describe(:unsigned) == "unsigned on server"
     end
   end
 
@@ -212,6 +228,61 @@ defmodule Slipdock.RunnersDriftTest do
     end
   end
 
+  describe "a server that serves its CLI unsigned (#2825)" do
+    setup ctx do
+      File.rm!(ctx.escript <> ".sig")
+      :ok
+    end
+
+    test "says so: signed? follows the file beside the escript", ctx do
+      refute Drift.served_cli_signed?()
+      File.write!(ctx.escript <> ".sig", "sig")
+      assert Drift.served_cli_signed?()
+    end
+
+    test "a runner whose CLI differs is unsigned, not old, and raises no alert", ctx do
+      assert claim(ctx, [{"x-runner-cli", @old}]).status == 204
+      runner = Repo.get!(Runner, ctx.runner.id)
+
+      assert SlipdockWeb.API.JSON.runner(runner).drift ==
+               %{skills: "unknown", drifted_skills: [], cli: "unsigned"}
+
+      assert alerts(ctx.board) == []
+      assert runner.drift_alert_id == nil
+    end
+
+    test "a deploy from main clears an old-CLI alert; the next signed release raises it", ctx do
+      # A signed release is served, and the runner's CLI is old: the alert.
+      File.write!(ctx.escript <> ".sig", "sig")
+      assert claim(ctx, [{"x-runner-cli", @old}]).status == 204
+      assert [%{title: "Runner box has drifted from this server: CLI old"}] = alerts(ctx.board)
+
+      # A deploy from main: a new escript, no signature. Not the machine's.
+      File.rm!(ctx.escript <> ".sig")
+      File.write!(ctx.escript, "#!/usr/bin/env escript\nmain's CLI\n")
+      assert claim(ctx, [{"x-runner-cli", @old}]).status == 204
+      assert alerts(ctx.board) == []
+
+      # Skills that drift still raise one, and its title leaves the CLI out.
+      assert claim(ctx, [{"x-runner-skills", "slipdock-loop=#{@old}"}]).status == 204
+
+      assert [%{title: "Runner box has drifted from this server: skills drifted (slipdock-loop)"}] =
+               alerts(ctx.board)
+    end
+
+    test "the runners list badges it as the server's, not an old CLI", ctx do
+      Drift.report(ctx.runner, nil, @old)
+      conn = log_in_user(build_conn(), ctx.user)
+      {:ok, view, _} = live(conn, ~p"/boards/#{ctx.board}/automations")
+
+      assert has_element?(view, "#runner-#{ctx.runner.id}-cli", "CLI unsigned on server")
+      refute has_element?(view, "#runner-#{ctx.runner.id}-cli", "old CLI")
+
+      view |> element("#show-runner-#{ctx.runner.id}") |> render_click()
+      assert has_element?(view, "#runner-#{ctx.runner.id}-cli-state", "unsigned on server")
+    end
+  end
+
   describe "the runners list" do
     test "shows skills drifted and old CLI, and the details say which", ctx do
       Drift.report(ctx.runner, "slipdock-loop=#{@old}", @old)
@@ -270,6 +341,14 @@ defmodule Slipdock.RunnersDriftTest do
       assert SlipdockWeb.APIGuide.markdown() =~ "`X-Runner-Skills`"
       assert Slipdock.DocsText.read!("docs/manual.md") =~ "**Skill and CLI drift.**"
       assert Slipdock.DocsText.read!("docs/agents.md") =~ "Runners also report **drift**"
+    end
+
+    test "each says a deploy from main shows the CLI unsigned on server, not old (#2825)" do
+      agents = Slipdock.DocsText.read!("docs/agents.md")
+      assert agents =~ "*cli unsigned on server*"
+      refute agents =~ "(and show *cli old*)"
+      assert Slipdock.DocsText.read!("docs/manual/runners.md") =~ "*CLI unsigned on server*"
+      assert SlipdockWeb.APIGuide.markdown() =~ "`cli` current, old, unsigned, none or unknown"
     end
   end
 end
