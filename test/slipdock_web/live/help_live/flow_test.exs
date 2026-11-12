@@ -25,6 +25,24 @@ defmodule SlipdockWeb.HelpLive.FlowTest do
     "7. Afterwards"
   ]
 
+  # The page, mounted. A join the server refuses as stale or unauthorized
+  # comes back from LiveViewTest as a redirect to the page's own URL, and once
+  # under load (seed 711914 in `mix pre_push`'s repo checks, #2828) the first
+  # join here was, though nothing on the page or its hooks redirects. Such a
+  # refusal is tried once more; a page that really sends itself to itself is
+  # refused again, and the caller's `{:ok, …}` match fails as before.
+  defp live_flow(conn) do
+    path = ~p"/help/agents/flow"
+
+    case live(conn, path) do
+      {:error, {:redirect, %{to: to}}} = refused ->
+        if URI.parse(to).path == path, do: live(conn, path), else: refused
+
+      mounted ->
+        mounted
+    end
+  end
+
   defp doc(html), do: LazyHTML.from_document(html)
 
   defp texts(doc, selector),
@@ -83,7 +101,7 @@ defmodule SlipdockWeb.HelpLive.FlowTest do
   describe "the page" do
     @tag :anonymous
     test "has the seven stages in order, each saying who acts", %{conn: conn} do
-      {:ok, _view, html} = live(conn, ~p"/help/agents/flow")
+      {:ok, _view, html} = live_flow(conn)
       d = doc(html)
 
       assert_stages(html)
@@ -98,7 +116,7 @@ defmodule SlipdockWeb.HelpLive.FlowTest do
     @tag :anonymous
     test "the diagram has a node per stage, in order, ringing the ones a person acts at",
          %{conn: conn} do
-      {:ok, _view, html} = live(conn, ~p"/help/agents/flow")
+      {:ok, _view, html} = live_flow(conn)
       d = doc(html)
 
       ids =
@@ -126,7 +144,7 @@ defmodule SlipdockWeb.HelpLive.FlowTest do
     test "says a resubmission is judged on what changed, the rest carried (#1944)", %{
       conn: conn
     } do
-      {:ok, _view, html} = live(conn, ~p"/help/agents/flow")
+      {:ok, _view, html} = live_flow(conn)
 
       text =
         doc(html) |> texts("#flow-verifying") |> Enum.join(" ") |> String.replace(~r/\s+/, " ")
@@ -138,7 +156,7 @@ defmodule SlipdockWeb.HelpLive.FlowTest do
     @tag :anonymous
     test "says the server moves a list_top job's card on claim, the prompt naming the list (#2633)",
          %{conn: conn} do
-      {:ok, _view, html} = live(conn, ~p"/help/agents/flow")
+      {:ok, _view, html} = live_flow(conn)
       text = doc(html) |> texts("#flow-claimed") |> Enum.join(" ")
 
       assert text =~ "the server makes the move the moment a runner claims it"
@@ -148,7 +166,7 @@ defmodule SlipdockWeb.HelpLive.FlowTest do
 
     @tag :anonymous
     test "marks every point where a person must act", %{conn: conn} do
-      {:ok, _view, html} = live(conn, ~p"/help/agents/flow")
+      {:ok, _view, html} = live_flow(conn)
       d = doc(html)
 
       notes = fn id -> texts(d, ~s{#flow-#{id} [data-person="true"]}) |> Enum.join(" ") end
@@ -179,7 +197,7 @@ defmodule SlipdockWeb.HelpLive.FlowTest do
   describe "what it names exists" do
     @tag :anonymous
     test "every slipdock command on the page is in the CLI's help", %{conn: conn} do
-      {:ok, _view, html} = live(conn, ~p"/help/agents/flow")
+      {:ok, _view, html} = live_flow(conn)
 
       commands =
         doc(html)
