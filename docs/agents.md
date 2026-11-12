@@ -823,6 +823,15 @@ CLI with no signature that verifies: the release job signs each `v*` tag's,
 and a server built from source or a deploy it didn't sign serves none, so
 its machines keep their own CLI (and show *cli old*) unless `local.json`
 sets `cli_checksum_only: true`.
+The skills go the same way (#2784): the daemon installs the server's
+`/api/skills.tar.gz` only when its signature (`/api/skills.tar.gz.sig`,
+which the release job makes for each `v*` tag, in the namespace
+`slipdock-skills`) verifies against the release key built into it. A
+signature that doesn't verify is refused whatever `local.json` says; a
+server that serves none leaves the installed skills in place unless
+`local.json` sets `skills_unsigned: true`. Either way the job runs, and
+its log says why. The archive's file modes aren't kept: every skill file
+is written `0644`.
 `no_cli_update: true` (and `no_skills_update` for the skills) in
 `local.json` turns it off. Under the `user` executor the job account unpacks
 the skills itself (the same checked archive), but the daemon doesn't write
@@ -830,6 +839,20 @@ its CLI. For skills with `no_skills_update` set, and for a CLI the daemon
 doesn't write (the `user` or `container` executor, or Windows, with no `cli`
 named), run the install one-liner there again, as the account the jobs run
 as (see *One source for each skill* under §3 above).
+
+**What the daemon trusts the server with.** The server is trusted for
+what it queues (the jobs, their prompts and the runners' settings, inside
+the machine's ceiling) but not for the code and instructions the agent
+runs on: the daemon's updates, the `slipdock` CLI and the slipdock skills
+are each installed only when they verify against the project's release
+key built into the daemon, a key the server doesn't hold. So a
+compromised server, or a change to `priv/skills` that never went through
+a signed release, can't rewrite every runner agent's skills or CLI. What
+that leaves on the server's word: the prompts themselves, whatever
+`local.json` lets in unsigned (`skills_unsigned`, `cli_checksum_only`),
+and, on the hosted service, the operator who runs the server is also the
+one who signs the releases. The machine's trust contract (the manual's
+Machines page, *What the server can and cannot do*) is the full list.
 
 **A job runs with nobody watching**, so two things are set up for it. A
 Claude runner may use the Slipdock MCP tools without asking (`--allowedTools`

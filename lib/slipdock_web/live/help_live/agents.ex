@@ -1361,7 +1361,10 @@ defmodule SlipdockWeb.HelpLive.Agents do
         tag's, and a server built from source, or a deploy it didn't sign, serves none, so the
         machine keeps its own CLI unless <code>local.json</code>
         sets <code>cli_checksum_only</code>. A failed fetch or a wrong sum keeps the CLI it had, and
-        the job runs. The runner reports the current CLI at its next claim, and its probe goes
+        the job runs. The skills are installed the same way, only when their archive's
+        signature verifies against that key, and a server that serves none leaves the
+        installed skills in place unless <code>local.json</code>
+        sets <code>skills_unsigned</code>. The runner reports the current CLI at its next claim, and its probe goes
         green. <code>no_cli_update</code>
         (and <code>no_skills_update</code>) in <code>local.json</code>
         turns it off.

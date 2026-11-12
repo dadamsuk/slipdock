@@ -1020,7 +1020,7 @@ defmodule Slipdock.CiWorkflowTest do
       assert runs =~
                "ssh-keygen -Y sign -q -f \"$key_file\" -n slipdock-cli dist/slipdock.escript"
 
-      assert runs =~ ~s(namespaces="slipdock-cli")
+      assert runs =~ ~s(namespaces="slipdock-cli,)
       assert runs =~ "-n slipdock-cli \\\n  -s dist/slipdock.escript.sig < dist/slipdock.escript"
       assert runs =~ "daemon/internal/release/release_key.pub"
 
@@ -1045,6 +1045,46 @@ defmodule Slipdock.CiWorkflowTest do
 
       assert dockerfile =~
                "mv priv/cli/signed/slipdock.escript priv/cli/signed/slipdock.escript.sig priv/cli/"
+    end
+
+    # The skills archive goes the same way (#2784): packed beside the CLI,
+    # signed in its own namespace, checked, and served as those bytes.
+    test "the skills archive is packed, signed in its own namespace, checked and served" do
+      build = release_jobs()["cli-build"]
+
+      assert step_runs(build) =~
+               "-cf - slipdock* | gzip -n > ../../cli-dist/slipdock-skills.tar.gz"
+
+      [upload] = Enum.filter(build["steps"], &(&1["uses"] == "actions/upload-artifact@v4"))
+      assert upload["with"]["path"] =~ "cli-dist/slipdock-skills.tar.gz"
+
+      sign = release_jobs()["cli-sign"]
+      runs = step_runs(sign)
+
+      assert runs =~
+               "ssh-keygen -Y sign -q -f \"$key_file\" -n slipdock-skills dist/slipdock-skills.tar.gz"
+
+      assert runs =~ ~s(namespaces="slipdock-cli,slipdock-skills")
+
+      assert runs =~
+               "-n slipdock-skills \\\n  -s dist/slipdock-skills.tar.gz.sig < dist/slipdock-skills.tar.gz"
+
+      [signed] = Enum.filter(sign["steps"], &(&1["uses"] == "actions/upload-artifact@v4"))
+      assert signed["with"]["path"] =~ "dist/slipdock-skills.tar.gz.sig"
+
+      assert File.read!(Path.join(@root, "daemon/internal/release/sshsig.go")) =~
+               ~s(const SkillsNamespace = "slipdock-skills")
+
+      dockerfile = File.read!(Path.join(@root, "Dockerfile"))
+      assert dockerfile =~ "if [ -f priv/cli/signed/slipdock-skills.tar.gz.sig ]; then"
+
+      assert dockerfile =~
+               "mv priv/cli/signed/slipdock-skills.tar.gz priv/cli/signed/slipdock-skills.tar.gz.sig priv/skills_signed/"
+
+      # Moved out before the CLI's step removes priv/cli/signed.
+      {skills_at, _} = :binary.match(dockerfile, "priv/skills_signed/")
+      {rm_at, _} = :binary.match(dockerfile, "rm -rf /app/priv/cli/signed")
+      assert skills_at < rm_at
     end
   end
 end

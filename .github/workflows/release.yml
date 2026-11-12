@@ -153,6 +153,11 @@ jobs:
   # release job didn't sign (a push to main) serves its CLI unsigned, and
   # the machines keep theirs unless their local.json sets cli_checksum_only.
   #
+  # The skills archive (/api/skills.tar.gz, #2784) goes the same way: packed
+  # here from priv/skills, signed in its own namespace (slipdock-skills),
+  # served as those bytes; the daemon installs it only signed, unless
+  # local.json sets skills_unsigned.
+  #
   # Built with no secrets at all; signed in the next job, which is the only
   # one that can read the key.
   cli-build:
@@ -178,10 +183,20 @@ jobs:
           mkdir -p ../cli-dist
           mv slipdock ../cli-dist/slipdock.escript
 
+      # The same layout as Slipdock.Skills.tarball/0 (a folder for each
+      # slipdock* skill), packed so that the same tree gives the same bytes.
+      - name: Pack the skills
+        run: |
+          cd priv/skills
+          tar --sort=name --owner=0 --group=0 --numeric-owner --mtime=@0 --mode=u=rwX,go=rX \
+            -cf - slipdock* | gzip -n > ../../cli-dist/slipdock-skills.tar.gz
+
       - uses: actions/upload-artifact@v4
         with:
           name: cli-unsigned
-          path: cli-dist/slipdock.escript
+          path: |
+            cli-dist/slipdock.escript
+            cli-dist/slipdock-skills.tar.gz
           if-no-files-found: error
           retention-days: 1
 
@@ -213,15 +228,18 @@ jobs:
           trap 'rm -f "$key_file"' EXIT
           printf '%s\n' "$DAEMON_SIGNING_KEY" > "$key_file"
           ssh-keygen -Y sign -q -f "$key_file" -n slipdock-cli dist/slipdock.escript
+          ssh-keygen -Y sign -q -f "$key_file" -n slipdock-skills dist/slipdock-skills.tar.gz
         env:
           DAEMON_SIGNING_KEY: ${{ secrets.DAEMON_SIGNING_KEY }}
 
       - name: Check the signature against the committed key
         run: |
           key=$(awk '!/^#/ && NF { print $1 " " $2; exit }' daemon/internal/release/release_key.pub)
-          printf 'slipdock-release namespaces="slipdock-cli" %s\n' "$key" > "$RUNNER_TEMP/allowed_signers"
+          printf 'slipdock-release namespaces="slipdock-cli,slipdock-skills" %s\n' "$key" > "$RUNNER_TEMP/allowed_signers"
           ssh-keygen -Y verify -f "$RUNNER_TEMP/allowed_signers" -I slipdock-release -n slipdock-cli \
             -s dist/slipdock.escript.sig < dist/slipdock.escript
+          ssh-keygen -Y verify -f "$RUNNER_TEMP/allowed_signers" -I slipdock-release -n slipdock-skills \
+            -s dist/slipdock-skills.tar.gz.sig < dist/slipdock-skills.tar.gz
 
       - uses: actions/upload-artifact@v4
         with:
@@ -229,6 +247,8 @@ jobs:
           path: |
             dist/slipdock.escript
             dist/slipdock.escript.sig
+            dist/slipdock-skills.tar.gz
+            dist/slipdock-skills.tar.gz.sig
           if-no-files-found: error
           retention-days: 1
 

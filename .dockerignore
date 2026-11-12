@@ -32,3 +32,6 @@ cli/_build
 cli/kanban
 cli/slipdock
 priv/cli/slipdock.escript
+# Only the release job's signed skills archive is served (#2784): never a
+# copy left in a checkout.
+priv/skills_signed
