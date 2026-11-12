@@ -534,7 +534,7 @@ defmodule SlipdockWeb.HelpLive.Flow do
       and stops. The job is parked and the card goes back on top of its list. Answer it on the
       card, in My work's <em>Waiting on you</em>
       (<code>slipdock work</code>), or with <code>slipdock answer 12 "…"</code>, and the card is
-      sent again with your answer at the top of its prompt.
+      sent again with your answer at the top of its prompt, to whichever runner of the pool is free.
       A wait is for what is yours to decide: readings that differ in cost or in what you see,
       product, UX, security and release calls, and your steps (merging, a handbook rule, a
       deploy). A bar item a later decision made moot isn't one: the agent reads it the obvious

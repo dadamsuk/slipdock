@@ -1459,7 +1459,7 @@ defmodule SlipdockWeb.HelpLive.Agents do
           from what's on the card, or to open a <strong>wait</strong>
           saying what it needs and stop. The job is <strong>parked</strong>, the card goes back on top of its list
           so the next one runs, and answering the wait (on the card, in My work's <strong>Waiting on you</strong>, or <code>slipdock answer</code>) sends the card to the rule again
-          with the answer at the top of the prompt.
+          with the answer at the top of the prompt, for any free runner of the pool: it isn't held for the runner that asked.
         </li>
         <li>
           A job that ends with its card still open leaves its summary as the card's <strong>handoff</strong>, the note the next person or agent reads first, unless the agent

@@ -126,6 +126,28 @@ defmodule Slipdock.Health.DeadlockTest do
     assert detect(ctx.board) == []
   end
 
+  test "an answer held behind a job a runner has on its own card is no deadlock (#2896)",
+       ctx do
+    s = shape_1750(ctx)
+    assert [_] = detect(ctx.board)
+
+    # The job running on A is another rule's: the answer waits for that one
+    # (`Requeue.rule_job/2`), which is running, not for B's queued job.
+    other =
+      rule_fixture(ctx.board, %{
+        "trigger" => %{"type" => "flag_added", "flag" => "starred"},
+        "actions" => [%{"type" => "runner", "pool" => "other"}]
+      })
+
+    Repo.update_all(from(j in Job, where: j.card_id == ^s.a.id and j.status == "running"),
+      set: [rule_id: other.id]
+    )
+
+    assert detect(ctx.board) == []
+    assert {:ok, %{"opened" => 0}} = run(ctx.board)
+    assert %Job{status: "queued", recovery: nil} = Repo.get!(Job, s.held.id)
+  end
+
   test "the incident names each edge in words", ctx do
     s = shape_1750(ctx)
     [f] = detect(ctx.board)
