@@ -632,9 +632,11 @@ job, not one per rule. The rule picks the
 don't try to put a command in a rule, and a job failing with exit 127 means that machine has
 no function for the kind. With the trigger `list_top` (`{"type": "list_top", "column": "To
 Do", "unassigned": true}`, preset `feed_runner`) the rule works a list in order instead: one
-open job at a time, always for the top ready card that no job is already open on (so two
-such rules, one per pool, work one list side by side) and that its lane wouldn't hold: with
-lanes holding, a queued job of its own that a lane holds is withdrawn and the next card that
+open job at a time (an answered question's job may be open beside the card the feed sent,
+and the feed sends the next card once both have closed), always for the top ready card that
+no job is already open on (so two such rules, one per pool, work one list side by side) and
+that its lane wouldn't hold: with lanes holding, a queued job of its own that a lane holds is
+withdrawn and the next card that
 could start sent instead. A rule whose pool has gone offline (runners seen before, none for
 three leases) sends nothing and withdraws its queued job that no runner has taken, so an
 online pool's rule sends that card; a pool never seen yet is fed as usual. `"wait_while_doing": true` on the runner

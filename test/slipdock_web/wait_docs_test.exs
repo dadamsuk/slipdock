@@ -289,6 +289,17 @@ defmodule SlipdockWeb.WaitDocsTest do
                "a held answer waiting for the job a runner has on its card"
     end
 
+    test "the README and the slipdock skill say a feed's answer may be open beside its card" do
+      both =
+        ~r/an answered question's job may be open\s+beside\s+the card (it|the feed) sent,\s+and (it|the feed) sends the next card once both have closed/
+
+      assert read("README.md") =~ both
+      assert read("priv/skills/slipdock/SKILL.md") =~ both
+
+      refute read("README.md") =~
+               ~r/keeps one job open at a time, always for the top\s+ready card of the list, so/
+    end
+
     test "the runners page and the flow page say so", %{conn: conn} do
       assert help(conn, "/help/agents/runners") =~
                "for any free runner of the pool: it isn't held for the runner that asked"

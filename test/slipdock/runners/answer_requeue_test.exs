@@ -461,6 +461,63 @@ defmodule Slipdock.Runners.AnswerRequeueTest do
       assert wait.requeue_job_id == fresh.id
     end
 
+    test "an event rule's queued job for another card never gives way: the answer queues " <>
+           "beside it (#2896)",
+         ctx do
+      b = card_fixture(ctx.todo, %{"title" => "b"})
+
+      rule =
+        rule_fixture(ctx.board, %{
+          "trigger" => %{"type" => "flag_added", "flag" => "starred"},
+          "actions" => [%{"type" => "runner", "pool" => "loop"}]
+        })
+
+      {:ok, _} = Boards.Cards.update_card(ctx.a, %{"flags" => ["starred"]})
+      job = take(ctx)
+      ask(ctx, job)
+      {:ok, %Job{status: "parked"}} = Runners.finish(ctx.runner, job.id, %{exit: "0"})
+      {:ok, _} = Boards.Cards.update_card(b, %{"flags" => ["starred"]})
+      assert [%Job{status: "queued"} = b_job] = open_jobs(rule)
+      assert b_job.card_id == b.id
+
+      wait = answer(ctx, ctx.a)
+
+      assert wait.requeue_state == "queued"
+      assert [still, fresh] = open_jobs(rule)
+      assert {still.id, still.status, still.recovery} == {b_job.id, "queued", nil}
+      assert {fresh.card_id, fresh.status} == {ctx.a.id, "queued"}
+      assert wait.requeue_job_id == fresh.id
+      refute Enum.any?(comments(b), &(&1 =~ "gave way"))
+    end
+
+    test "another rule's job a runner has on the answered card holds the answer, and the " <>
+           "feed's queued job for another card stays queued (#2896)",
+         ctx do
+      rule = rule_fixture(ctx.board, spec())
+      {_next, held} = queued_behind(ctx, "next")
+
+      other =
+        rule_fixture(ctx.board, %{
+          "trigger" => %{"type" => "flag_added", "flag" => "starred"},
+          "actions" => [%{"type" => "runner", "pool" => "loop"}]
+        })
+
+      # Starred beside its waiting flag, which stays: the wait is still open.
+      a = Boards.Cards.get_card!(ctx.a.id)
+      {:ok, _} = Boards.Cards.update_card(a, %{"flags" => ["starred" | a.flags]})
+
+      assert [%Job{card_id: card_id} = busy] = open_jobs(other)
+      assert card_id == ctx.a.id
+      Repo.update_all(from(j in Job, where: j.id == ^busy.id), set: [status: "running"])
+
+      wait = answer(ctx, ctx.a)
+
+      assert wait.requeue_state == "pending"
+      assert wait.requeue_note == "after job ##{busy.id} (running on this card)"
+      assert [still] = open_jobs(rule)
+      assert {still.id, still.status, still.recovery} == {held.id, "queued", nil}
+    end
+
     test "an answer held behind its card's job that went back to the queue goes on the " <>
            "next feed",
          ctx do
@@ -659,6 +716,19 @@ defmodule Slipdock.Runners.AnswerRequeueTest do
                  "choice" => 1
                })
 
+      assert open_jobs(rule) == []
+    end
+
+    test "the card is gone by the time the answer is acted on: skipped, and nothing " <>
+           "is sent or said",
+         ctx do
+      rule = rule_fixture(ctx.board, spec())
+      job = take(ctx)
+      wait = ask(ctx, job)
+      {:ok, %Job{status: "parked"}} = Runners.finish(ctx.runner, job.id, %{exit: "0"})
+      {:ok, _} = Boards.Cards.delete_card(Boards.Cards.get_card!(ctx.a.id))
+
+      assert Requeue.after_answer(wait) == :skipped
       assert open_jobs(rule) == []
     end
 
