@@ -15,8 +15,10 @@ import (
 type fakeRepo struct {
 	notRepo, fetchFails, noHead, authFails bool
 	ghBranch                               string
-	runSays                                string
-	runFails                               bool
+	// ghBranchFails and listFails make gh fail while still printing.
+	ghBranchFails, listFails bool
+	runSays                  string
+	runFails                 bool
 	// listed answers `gh run list` in turn; the last answer repeats.
 	listed    []string
 	lists     int
@@ -53,8 +55,8 @@ func (g *fakeRepo) exec(_ context.Context, dir, name string, args ...string) (st
 		}
 		return "origin/main\n", nil
 	case strings.HasPrefix(line, "gh repo view"):
-		if g.ghBranch == "" {
-			return "", errors.New("exit 1")
+		if g.ghBranch == "" || g.ghBranchFails {
+			return g.ghBranch, errors.New("exit 1")
 		}
 		return g.ghBranch + "\n", nil
 	case line == "gh auth status":
@@ -70,6 +72,9 @@ func (g *fakeRepo) exec(_ context.Context, dir, name string, args ...string) (st
 		}
 		if i >= len(g.listed) {
 			i = len(g.listed) - 1
+		}
+		if g.listFails {
+			return g.listed[i], errors.New("exit 1")
 		}
 		return g.listed[i] + "\n", nil
 	case strings.HasPrefix(line, "gh workflow run"):
@@ -161,6 +166,18 @@ func TestReleaseFindsTheRunAGhThatPrintsNoneStarted(t *testing.T) {
 	}
 }
 
+func TestARunListThatFailsNamesNoRun(t *testing.T) {
+	g := &fakeRepo{runSays: "Created workflow_dispatch event", listFails: true,
+		listed: []string{"", "https://github.com/example/app/actions/runs/8"}}
+	url, log, err := fire(g, "gh workflow run release.yml --ref main")
+	if err != nil || url != "" {
+		t.Fatalf("release = %q, %v", url, err)
+	}
+	if !contains(log, "release: the command ran; it named no run") {
+		t.Fatalf("log: %v", log)
+	}
+}
+
 func TestReleaseThatNamesNoRunStillSucceeds(t *testing.T) {
 	old := "https://github.com/example/app/actions/runs/7"
 	g := &fakeRepo{runSays: "Created workflow_dispatch event", listed: []string{old}}
@@ -226,6 +243,8 @@ func TestReleaseRefusesWhatItWontRun(t *testing.T) {
 		{"not a repository", defaultRelease, nil, fakeRepo{notRepo: true}, 2, "/repo/sub is not a git repository"},
 		{"fetch fails", defaultRelease, nil, fakeRepo{fetchFails: true}, 2, "could not fetch origin: fatal: unable to access the remote"},
 		{"no default branch", defaultRelease, nil, fakeRepo{noHead: true}, 2, "could not tell the repository's default branch"},
+		{"a gh that fails while naming a branch", defaultRelease, nil, fakeRepo{noHead: true, ghBranch: "main", ghBranchFails: true}, 2, "could not tell the repository's default branch"},
+		{"exactly 500 characters is short enough", "make " + strings.Repeat("x", 495), nil, fakeRepo{}, 2, "nothing run for: make x"},
 		{"an odd default branch", defaultRelease, nil, fakeRepo{noHead: true, ghBranch: "main; rm -rf /"}, 2, "could not tell the repository's default branch"},
 		{"an unlisted command", "make release", []string{"make other"}, fakeRepo{}, 2, "nothing run for: make release"},
 		{"a shell tail on gh", "gh workflow run release.yml --ref main ; rm -rf /", nil, fakeRepo{}, 2, "nothing run for:"},

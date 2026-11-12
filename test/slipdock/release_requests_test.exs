@@ -400,6 +400,17 @@ defmodule Slipdock.ReleaseRequestsTest do
       assert Runners.missing_kinds(old) == []
     end
 
+    test "a Claude session's runner is asked for neither", %{board: board, owner: owner} do
+      {:ok, board} =
+        Boards.update_board(board, %{"verify_work" => true, "ship_via" => "pull_request"})
+
+      {_token, api_token} = Slipdock.Accounts.create_api_token(owner, "desktop")
+      {:ok, session} = Runners.session_runner(board, "dev", api_token, owner)
+
+      assert Runners.missing_kinds(session) == []
+      assert Runners.missing_kinds(Runners.report_kinds(session, "claude,merge")) == []
+    end
+
     test "merge and release are both named when the tree ships by pull request",
          %{board: board} do
       {:ok, board} =
