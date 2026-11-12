@@ -30,6 +30,9 @@ defmodule Slipdock.Accounts do
   alias Slipdock.RateLimit
   alias Slipdock.Settings
 
+  # Seconds between writes of a token's last use (see `touch_api_token/2`).
+  @api_token_touch_interval 60
+
   ## Users
 
   def get_user!(id), do: Repo.get!(User, id)
@@ -973,19 +976,46 @@ defmodule Slipdock.Accounts do
   def get_api_token(token, opts \\ []) when is_binary(token) do
     with {:ok, query} <- UserToken.verify_api_token_query(token),
          {%User{disabled_at: nil} = user, %UserToken{} = user_token} <- Repo.one(query) do
-      # Where it was used from, as well as when: a token list that cannot
-      # answer "is this still the machine I gave it to" is not much of an
-      # audit trail.
-      touch = [last_used_at: DateTime.utc_now(:second)]
-      touch = if ip = opts[:ip], do: [{:last_used_ip, ip} | touch], else: touch
-
-      from(t in UserToken, where: t.id == ^user_token.id) |> Repo.update_all(set: touch)
-
+      touch_api_token(user_token, opts[:ip])
       {user, user_token}
     else
       _ -> nil
     end
   end
+
+  @doc """
+  How long a token's `last_used_at` and `last_used_ip` are left alone after
+  they were written: at most one write per token per interval, not one per
+  request (#2798). A minute is finer than anything that reads them (the token
+  list says "used 3 minutes ago", the overview counts days).
+  """
+  def api_token_touch_interval, do: @api_token_touch_interval
+
+  # Where it was used from, as well as when: a token list that cannot answer
+  # "is this still the machine I gave it to" is not much of an audit trail.
+  # But a write on every read is load for nothing, so the row is written only
+  # once its stamp is an interval old. The same condition is in the update's
+  # `where`, so requests racing past the check still make one write between
+  # them. An IP that changes inside the interval shows at the next write.
+  defp touch_api_token(%UserToken{} = user_token, ip) do
+    now = DateTime.utc_now(:second)
+    cutoff = DateTime.add(now, -@api_token_touch_interval, :second)
+
+    if stale_touch?(user_token.last_used_at, cutoff) do
+      touch = if ip, do: [last_used_at: now, last_used_ip: ip], else: [last_used_at: now]
+
+      from(t in UserToken,
+        where: t.id == ^user_token.id,
+        where: is_nil(t.last_used_at) or t.last_used_at <= ^cutoff
+      )
+      |> Repo.update_all(set: touch)
+    end
+
+    :ok
+  end
+
+  defp stale_touch?(nil, _cutoff), do: true
+  defp stale_touch?(%DateTime{} = at, cutoff), do: DateTime.compare(at, cutoff) != :gt
 
   def list_api_tokens(%User{} = user) do
     Repo.all(
