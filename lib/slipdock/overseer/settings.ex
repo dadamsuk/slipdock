@@ -75,21 +75,41 @@ defmodule Slipdock.Overseer.Settings do
     |> validate_digest_at()
   end
 
-  # "HH:MM", a time of day (#2781).
+  # "HH:MM", a time of day (#2781), stored zero-padded so what is shown
+  # back is what `digest_time/1` reads.
   defp validate_digest_at(changeset) do
     changeset
     |> update_change(:digest_at, &String.trim/1)
     |> validate_required([:digest_at])
     |> validate_change(:digest_at, fn :digest_at, at ->
-      with [_, h, m] <- Regex.run(~r/^(\d{1,2}):(\d{2})$/, at),
-           {h, ""} when h in 0..23 <- Integer.parse(h),
-           {m, ""} when m in 0..59 <- Integer.parse(m) do
-        []
-      else
-        _ -> [digest_at: "must be a time of day, HH:MM"]
+      case digest_time(at) do
+        {:ok, _} -> []
+        :error -> [digest_at: "must be a time of day, HH:MM"]
+      end
+    end)
+    |> update_change(:digest_at, fn at ->
+      case digest_time(at) do
+        {:ok, time} -> Calendar.strftime(time, "%H:%M")
+        :error -> at
       end
     end)
   end
+
+  @doc """
+  The time of day a `digest_at` names: `{:ok, time}` for `H:MM` or
+  `HH:MM` within a day, else `:error`.
+  """
+  def digest_time(at) when is_binary(at) do
+    with [_, h, m] <- Regex.run(~r/^(\d{1,2}):(\d{2})$/, at),
+         {h, ""} when h in 0..23 <- Integer.parse(h),
+         {m, ""} when m in 0..59 <- Integer.parse(m) do
+      Time.new(h, m, 0)
+    else
+      _ -> :error
+    end
+  end
+
+  def digest_time(_at), do: :error
 
   defp validate_bounds(changeset) do
     min = get_field(changeset, :min_minutes)
