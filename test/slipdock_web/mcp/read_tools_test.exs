@@ -6,6 +6,7 @@ defmodule SlipdockWeb.MCP.ReadToolsTest do
   """
   use SlipdockWeb.ConnCase, async: true
 
+  import Ecto.Query, only: [from: 2]
   import Slipdock.Fixtures
 
   alias Slipdock.{Accounts, Boards}
@@ -311,7 +312,22 @@ defmodule SlipdockWeb.MCP.ReadToolsTest do
     defp full(conn, args),
       do: conn |> call("list_cards", Map.merge(%{board: "delivery7", full: true}, args)) |> ok!()
 
+    # The card's latest ledger row, moved to `at`: when it came into its list.
+    defp entered(card, at) do
+      {1, _} =
+        Slipdock.Repo.update_all(
+          from(m in Slipdock.Boards.CardMove, where: m.card_id == ^card.id),
+          set: [inserted_at: at]
+        )
+
+      :ok
+    end
+
     test "each card is what get_card returns: comments, checklist, docs, url", ctx do
+      # Each door reads the clock for a card's age, in whole seconds: one
+      # instant for both, or a second ticking between them fails this (#2841).
+      Slipdock.TestConfig.put(:card_state_now, DateTime.add(DateTime.utc_now(), 90))
+
       %{"cards" => cards} = full(ctx.conn, %{})
       top = Enum.find(cards, &(&1["id"] == ctx.top.id))
 
@@ -332,6 +348,32 @@ defmodule SlipdockWeb.MCP.ReadToolsTest do
       assert [%{"title" => "Blocker"}] = blocked["blocked_by"]
       assert blocked["docs"] == []
       assert blocked["comments"] == []
+    end
+
+    test "both doors give a card the same age, whatever the time of day (#2841)", ctx do
+      entered(ctx.top, ~U[2026-11-11 23:59:58.600000Z])
+
+      # Before midnight UTC, just after it, a second ticked over, and a day on.
+      for {now, age} <- [
+            {~U[2026-11-11 23:59:59.500000Z], 0},
+            {~U[2026-11-12 00:00:00.200000Z], 1},
+            {~U[2026-11-12 00:00:00.700000Z], 2},
+            {~U[2026-11-12 12:00:00.000000Z], 43_201},
+            {~U[2026-11-13 00:00:00.700000Z], 86_402}
+          ] do
+        Slipdock.TestConfig.put(:card_state_now, now)
+
+        %{"cards" => cards} = full(ctx.conn, %{})
+        listed = Enum.find(cards, &(&1["id"] == ctx.top.id))
+        got = ctx.conn |> call("get_card", %{card: ctx.top.id}) |> ok!()
+
+        assert {now, listed["age"]} == {now, age}
+        assert {now, got["age"]} == {now, age}
+        assert listed == got
+
+        %{"cards" => lines} = ctx.conn |> call("list_cards", %{board: "delivery7"}) |> ok!()
+        assert {now, Enum.find(lines, &(&1["id"] == ctx.top.id))["age"]} == {now, age}
+      end
     end
 
     test "full false, or left out, is the one-line listing", ctx do

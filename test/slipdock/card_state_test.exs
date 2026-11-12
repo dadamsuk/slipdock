@@ -455,4 +455,33 @@ defmodule Slipdock.CardStateTest do
       0 -> n
     end
   end
+
+  describe "the clock (#2841)" do
+    test "now/0 is the time now unless a test has fixed it" do
+      before = DateTime.utc_now()
+      assert DateTime.compare(CardState.now(), before) != :lt
+      assert DateTime.diff(CardState.now(), before) < 5
+
+      Slipdock.TestConfig.put(:card_state_now, ~U[2026-11-12 00:00:00.200000Z])
+      assert CardState.now() == ~U[2026-11-12 00:00:00.200000Z]
+    end
+
+    test "put/3 counts from the fixed clock, and from :now when it is given", ctx do
+      card = card_fixture(ctx.todo, %{"title" => "Aged"})
+
+      Repo.update_all(from(m in CardMove, where: m.card_id == ^card.id),
+        set: [inserted_at: ~U[2026-11-11 23:59:58.600000Z]]
+      )
+
+      Slipdock.TestConfig.put(:card_state_now, ~U[2026-11-12 00:00:00.700000Z])
+      assert [%{state: %CardState{age: 2, known: true}}] = CardState.put([card], ctx.board)
+
+      assert [%{state: %CardState{age: 60}}] =
+               CardState.put([card], ctx.board, now: ~U[2026-11-12 00:00:58.600000Z])
+
+      # A clock behind the card's arrival is no time at all, never a negative one.
+      Slipdock.TestConfig.put(:card_state_now, ~U[2026-11-11 23:00:00Z])
+      assert [%{state: %CardState{age: 0}}] = CardState.put([card], ctx.board)
+    end
+  end
 end
