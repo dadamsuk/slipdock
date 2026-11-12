@@ -50,7 +50,8 @@ defmodule SlipdockWeb.MCP.Tools.ReleaseNow do
     with {:ok, ref} <- Args.required(args, "board"),
          {:ok, check} <- Args.boolean(args, "check", false),
          need = if(check, do: :read, else: :owner),
-         {:ok, board} <- Args.refusal(Authorize.fetch_board(auth, ref, need)) do
+         {:ok, board} <- Args.refusal(Authorize.fetch_board(auth, ref, need)),
+         {:ok, _root} <- Args.refusal(SlipdockWeb.API.ReleaseController.root(auth, board)) do
       if check, do: {:ok, status(board)}, else: release(board, auth)
     end
   end

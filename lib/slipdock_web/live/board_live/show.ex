@@ -183,7 +183,7 @@ defmodule SlipdockWeb.BoardLive.Show do
       # The tree's open runner pauses, for the banner (#1116).
       pauses: board_pauses(board),
       # Where a batched tree's releases stand, for the banner (#2835).
-      release: board_release(board),
+      release: board_release(board, socket.assigns.current_user),
       # The mute keeping this tree off my Waiting on you, if any (#2069).
       waiting_muted: waiting_muted(socket.assigns.current_user, board),
       # Who `@` offers in a description or a comment: the board's members.
@@ -681,7 +681,9 @@ defmodule SlipdockWeb.BoardLive.Show do
   # The reader changed a card view, here or in another tab (#2031).
   # A release was asked for, started or ended on this tree (#2835).
   def handle_info({:release_changed, _root_id}, socket),
-    do: {:noreply, assign(socket, release: board_release(socket.assigns.board))}
+    do:
+      {:noreply,
+       assign(socket, release: board_release(socket.assigns.board, socket.assigns.current_user))}
 
   def handle_info({:card_views_changed, _user_id}, socket) do
     {:noreply, socket |> assign_card_views() |> refresh_swimlanes()}
@@ -854,7 +856,7 @@ defmodule SlipdockWeb.BoardLive.Show do
         {:error, reason} -> put_flash(socket, :error, Slipdock.Releases.refusal(reason))
       end
 
-    {:noreply, assign(socket, release: board_release(board))}
+    {:noreply, assign(socket, release: board_release(board, user))}
   end
 
   # The banner's Resume (#1116): exactly the pause it names, the whole

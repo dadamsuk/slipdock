@@ -312,6 +312,68 @@ defmodule SlipdockWeb.ReleaseNowTest do
     end
   end
 
+  describe "someone who reads a sub-board alone" do
+    # A tree's releases name and count its root's cards: reading a
+    # sub-board is not reading those.
+    setup ctx do
+      root_card = merged!(ctx.todo, "The root's secret")
+      {:ok, template} = Boards.Templates.find_template(nil, "Simple")
+      {:ok, sub} = sub_board(card_fixture(ctx.todo, %{"title" => "Epic"}), template)
+      sub = Boards.get_board!(sub.id)
+
+      reader = user_fixture("subreader#{System.unique_integer([:positive])}@example.com")
+      share_fixture(sub, [reader], "read")
+
+      %{sub: sub, reader: reader, theirs: with_token(reader, "theirs"), root_card: root_card}
+    end
+
+    test "REST: the sub-board's release status is refused, naming the root", ctx do
+      assert ctx.theirs |> get(~p"/api/boards/#{ctx.sub.id}") |> json_response(200)
+
+      body = ctx.theirs |> get(~p"/api/boards/#{ctx.sub.id}/release") |> json_response(403)
+      assert Jason.encode!(body) =~ "releases are its tree's root board's, which you can't read"
+      refute Jason.encode!(body) =~ "The root's secret"
+
+      # The owner reads the tree's status through the sub-board.
+      body = ctx.agent |> get(~p"/api/boards/#{ctx.sub.id}/release") |> json_response(200)
+      assert [%{"id" => id}] = body["release"]["awaiting"]
+      assert id == ctx.root_card.id
+    end
+
+    test "MCP: check is refused the same way, and the owner's reads the tree", ctx do
+      {true, text} = mcp(ctx.theirs, "release_now", %{board: "#{ctx.sub.id}", check: true})
+      assert text =~ "releases are its tree's root board's, which you can't read"
+      refute text =~ "The root's secret"
+
+      {false, text} = mcp(ctx.agent, "release_now", %{board: "#{ctx.sub.id}", check: true})
+      assert [%{"title" => "The root's secret"}] = Jason.decode!(text)["release"]["awaiting"]
+    end
+
+    test "the board page shows them no banner; the owner sees it on the sub-board", ctx do
+      {:ok, view, _} = live(log_in_user(build_conn(), ctx.reader), ~p"/boards/#{ctx.sub}")
+      refute has_element?(view, "#release-banner")
+
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.sub}")
+      assert has_element?(view, "#release-banner-line", "1 merged, awaiting release")
+    end
+
+    test "the Agentic Building page shows them no release status; the owner sees it", ctx do
+      {:ok, view, _} =
+        live(log_in_user(build_conn(), ctx.reader), ~p"/boards/#{ctx.sub}/agentic")
+
+      refute has_element?(view, "#board-release-status")
+
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.sub}/agentic")
+      assert has_element?(view, "#board-release-line", "1 merged, awaiting release")
+    end
+
+    test "a release asked for elsewhere doesn't bring the banner to them", ctx do
+      {:ok, view, _} = live(log_in_user(build_conn(), ctx.reader), ~p"/boards/#{ctx.sub}")
+      {:ok, :started, _} = Releases.release_now(ctx.board, "Eli")
+      refute has_element?(view, "#release-banner")
+    end
+  end
+
   describe "the help" do
     test "the app's guide, the agents' doors table and the flow page name Release now", %{
       conn: conn

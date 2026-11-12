@@ -540,13 +540,16 @@ defmodule Slipdock.Releases do
   end
 
   defp time_out(%Request{} = request) do
-    # A job that has already finished refuses the cancel and stays as it ended.
+    ended? =
+      match?({:ok, _}, finish(request, "timed_out", "nothing heard for #{@timeout_hours} hours"))
+
+    # The request has ended, so its job's end changes nothing on it. A job
+    # that has already finished refuses the cancel and stays as it ended.
     with %Job{} = job <- request.job_id && Repo.get(Job, request.job_id) do
       Runners.cancel_job(job)
     end
 
-    # Cancelling its queued job may have ended the request as failed.
-    match?({:ok, _}, finish(request, "timed_out", "nothing heard for #{@timeout_hours} hours"))
+    ended?
   end
 
   defp capped_roots do

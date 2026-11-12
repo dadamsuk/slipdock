@@ -476,7 +476,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
   attr :zone, :string, default: "Etc/UTC", doc: "the reader's timezone"
   attr :pulse, :map, default: nil, doc: "`Slipdock.Pulse.for_board/2`, when the strip is on"
   attr :pauses, :list, default: [], doc: "`State.board_pauses/1`: the tree's runner pauses"
-  attr :release, :any, default: nil, doc: "`State.board_release/1`: a batched tree's releases"
+  attr :release, :any, default: nil, doc: "`State.board_release/2`: a batched tree's releases"
   attr :waiting_muted, :any, default: nil, doc: "the board whose mute covers this one (#2069)"
   attr :waiting_filter, :boolean, default: false, doc: "`?waiting=me` (#2095)"
   attr :dora, :map, default: nil, doc: "`Slipdock.Dora.for_board/2`, when delivery metrics are on"

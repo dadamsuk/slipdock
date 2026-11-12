@@ -152,6 +152,14 @@ defmodule Slipdock.ReleaseRequestsTest do
       assert said =~ "Release not started: the queue is full"
     end
 
+    test "queueing the release job wakes the pool's waiting runners", %{board: board} do
+      runner!(board, "box", ~w(merge release))
+      Phoenix.PubSub.subscribe(Slipdock.PubSub, "runner_queue:#{board.id}:dev")
+
+      assert {:ok, :started, _} = Releases.request(board, "manual", "Dana")
+      assert_receive :job_queued
+    end
+
     test "starts a release: the cards awaiting, a card-less release job, the activity",
          %{board: board, todo: todo} do
       runner!(board, "box", ~w(merge release))
@@ -461,6 +469,85 @@ defmodule Slipdock.ReleaseRequestsTest do
       assert Repo.get!(Request, request.id).run_url == link
     end
 
+    test "its queued job cancelled fails the release, and the follow-up starts", ctx do
+      {:ok, :started, request} = Releases.request(ctx.board, "manual", "Dana")
+      {:ok, :queued, queued} = Releases.request(ctx.board, "manual", "Eli")
+
+      {:ok, _} = Runners.cancel_job(Repo.get!(Job, request.job_id))
+
+      assert %Request{status: "failed", note: note} = Repo.get!(Request, request.id)
+      assert note == "job ##{request.job_id} cancelled: the release command didn't run"
+      assert Repo.get!(Request, queued.id).status == "running"
+    end
+
+    test "its lease running out for the last time fails the release", ctx do
+      {:ok, :started, request} = Releases.request(ctx.board, "manual", "Dana")
+      %Job{id: id} = Runners.claim(ctx.runner)
+
+      Repo.update_all(from(j in Job, where: j.id == ^id),
+        set: [attempts: Runners.max_attempts(), lease_expires_at: hours_ago(1)]
+      )
+
+      assert Runners.sweep() == 1
+      assert Repo.get!(Job, id).status == "failed"
+
+      assert %Request{status: "failed", note: note} = Repo.get!(Request, request.id)
+      assert note == "job ##{id} failed: the release command didn't run"
+    end
+
+    test "asked to stop, then its lease out: the job is cancelled and the release fails", ctx do
+      {:ok, :started, request} = Releases.request(ctx.board, "manual", "Dana")
+      %Job{id: id} = Runners.claim(ctx.runner)
+
+      {:ok, _} = Runners.cancel_job(Repo.get!(Job, id))
+      # Asked to stop, not yet stopped: the release is still running.
+      assert Repo.get!(Request, request.id).status == "running"
+
+      Repo.update_all(from(j in Job, where: j.id == ^id), set: [lease_expires_at: hours_ago(1)])
+      assert Runners.sweep() == 1
+      assert Repo.get!(Job, id).status == "cancelled"
+      assert Repo.get!(Request, request.id).status == "failed"
+    end
+
+    test "a lease that runs out with tries left requeues the job; the release runs on", ctx do
+      {:ok, :started, request} = Releases.request(ctx.board, "manual", "Dana")
+      %Job{id: id} = Runners.claim(ctx.runner)
+
+      Repo.update_all(from(j in Job, where: j.id == ^id), set: [lease_expires_at: hours_ago(1)])
+      assert Runners.sweep() == 1
+      assert Repo.get!(Job, id).status == "queued"
+      assert Repo.get!(Request, request.id).status == "running"
+    end
+
+    test "a started deploy that then fails through record_failure fails the release", ctx do
+      {:ok, :started, request} = Releases.request(ctx.board, "manual", "Dana")
+      fire!(ctx.runner, request, %{exit: "0", status: "done"})
+
+      {:ok, _started} =
+        Deployments.start(ctx.board, %{
+          environment: "production",
+          sha: "feed0042",
+          status: "started",
+          started_at: DateTime.utc_now()
+        })
+
+      assert Repo.get!(Request, request.id).status == "running"
+
+      {:ok, failed} =
+        Deployments.record_failure(ctx.board, %{
+          environment: "production",
+          sha: "feed0042",
+          stage: "deploy"
+        })
+
+      # The deploy job's own attempt, finished as failed: one row.
+      assert Repo.aggregate(Deployments.Deployment, :count) == 1
+      assert failed.status == "failed"
+
+      assert %Request{status: "failed", note: "the release failed at deploy"} =
+               Repo.get!(Request, request.id)
+    end
+
     test "a job that ends after its request did changes nothing", ctx do
       {:ok, :started, request} = Releases.request(ctx.board, "manual", "Dana")
       {:ok, _} = Releases.finish(request, "timed_out", "late")
@@ -650,6 +737,23 @@ defmodule Slipdock.ReleaseRequestsTest do
       assert Enum.map(Releases.awaiting(board), & &1.id) == [card.id]
     end
 
+    test "a card finished at the very start of the last release is not awaiting", %{
+      board: board,
+      todo: todo
+    } do
+      at = hours_ago(2)
+      merged!(todo, "On the dot", completed_at: at)
+      later = merged!(todo, "A second later", completed_at: DateTime.add(at, 1))
+
+      Repo.insert!(%Request{
+        board_id: board.id,
+        status: "released",
+        started_at: %{at | microsecond: {0, 6}}
+      })
+
+      assert Enum.map(Releases.awaiting(board), & &1.id) == [later.id]
+    end
+
     test "a failed request is no last release; a released one is", %{board: board, todo: todo} do
       card = merged!(todo, "Waiting", completed_at: hours_ago(3))
 
@@ -781,6 +885,32 @@ defmodule Slipdock.ReleaseRequestsTest do
       # A release is open: the cap asks for no second one.
       assert Releases.tick() == 0
       assert Repo.aggregate(Request, :count) == 1
+    end
+
+    test "the last request to end is the later one: status/1 gives it and the cap reads it",
+         ctx do
+      long_ago = DateTime.add(DateTime.utc_now(), -10 * 3600)
+
+      Repo.insert!(%Request{board_id: ctx.board.id, status: "failed", started_at: long_ago})
+
+      released =
+        Repo.insert!(%Request{board_id: ctx.board.id, status: "released", started_at: long_ago})
+
+      assert Releases.status(ctx.board).last.id == released.id
+
+      # The last one released, so the cap is not held off by the failure before it.
+      merged!(ctx.todo, "Old", completed_at: hours_ago(5))
+      assert Releases.tick() == 1
+    end
+
+    test "a release times out at exactly the timeout", ctx do
+      {:ok, :started, request} = Releases.request(ctx.board, "manual", "Dana")
+      started = Repo.get!(Request, request.id).started_at
+      on_the_dot = DateTime.add(started, Releases.timeout_hours() * 3600)
+
+      assert Releases.tick(DateTime.add(on_the_dot, -1)) == 0
+      assert Releases.tick(on_the_dot) == 1
+      assert Repo.get!(Request, request.id).status == "timed_out"
     end
 
     test "the age cap asks at exactly the cap", ctx do

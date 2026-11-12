@@ -36,7 +36,7 @@ defmodule SlipdockWeb.AgenticLive.Index do
            root: root(board),
            can_manage: perm == :owner,
            routes_error: nil,
-           release: release_status(board),
+           release: release_status(board, user),
            page_title: "Agentic Building · #{board.name}",
            page_jumps: []
          )
@@ -81,7 +81,9 @@ defmodule SlipdockWeb.AgenticLive.Index do
 
   # A release was asked for, started or ended on this tree (#2835).
   def handle_info({:release_changed, _root_id}, socket),
-    do: {:noreply, assign(socket, release: release_status(socket.assigns.board))}
+    do:
+      {:noreply,
+       assign(socket, release: release_status(socket.assigns.board, socket.assigns.current_user))}
 
   def handle_info(_message, socket), do: {:noreply, socket}
 
@@ -139,7 +141,7 @@ defmodule SlipdockWeb.AgenticLive.Index do
         {:error, reason} -> put_flash(socket, :error, Slipdock.Releases.refusal(reason))
       end
 
-    {:noreply, assign(socket, release: release_status(board))}
+    {:noreply, assign(socket, release: release_status(board, user))}
   end
 
   def handle_event(_event, _params, socket), do: {:noreply, socket}
@@ -149,10 +151,10 @@ defmodule SlipdockWeb.AgenticLive.Index do
     if connected?(socket), do: Slipdock.Releases.subscribe(board)
   end
 
-  # Where the tree's releases stand (#2835); nil unless it is batched.
-  defp release_status(%Board{} = board) do
-    if Slipdock.Releases.batched?(board), do: Slipdock.Releases.status(board)
-  end
+  # Where the tree's releases stand (#2835); nil unless it is batched and
+  # `user` reads its root board.
+  defp release_status(%Board{} = board, user),
+    do: SlipdockWeb.BoardLive.State.board_release(board, user)
 
   defp save_routes(board, %{} = routes) do
     case WaitRoutes.set(board, routes) do

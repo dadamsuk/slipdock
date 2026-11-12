@@ -1772,6 +1772,7 @@ defmodule Slipdock.Runners do
         |> Repo.update()
         |> tap_changed()
         |> tap_refill()
+        |> tap_release_ended()
 
       status when status in ~w(claimed running) ->
         job
@@ -1816,6 +1817,18 @@ defmodule Slipdock.Runners do
   end
 
   defp tap_refill(other), do: other
+
+  defp tap_release_ended({:ok, job} = result) do
+    release_ended(job)
+    result
+  end
+
+  defp tap_release_ended(other), do: other
+
+  # A job ended with no runner finishing it (cancelled while queued, or its
+  # lease ran out): if it is a release's (#2835), its request hears, as
+  # `after_end/3` tells it of a finish. Any other job has no request.
+  defp release_ended(%Job{id: id}), do: Slipdock.Releases.job_finished(Repo.get!(Job, id))
 
   # A job from a rule that keeps a pool fed from a list (`list_top`) has
   # ended, so the rule may send the next card — after putting back the card
@@ -1886,7 +1899,7 @@ defmodule Slipdock.Runners do
     cond do
       job.cancel_requested_at ->
         if settle(job, %{status: "cancelled", finished_at: now, lease_expires_at: nil}),
-          do: refill(job)
+          do: lapsed(job)
 
       open_linked_wait(job) ->
         if settle(job, %{status: "parked", finished_at: now, lease_expires_at: nil}) do
@@ -1917,7 +1930,7 @@ defmodule Slipdock.Runners do
         })
 
         flag_card(job)
-        refill(job)
+        lapsed(job)
 
       true ->
         # The runner that held it may take it back while it is still
@@ -1938,6 +1951,13 @@ defmodule Slipdock.Runners do
 
   # Only if nothing has happened to the job since it was read: a heartbeat
   # that lands during the sweep wins.
+  # A job its lease ended: the rule feeds the next, and a release's request
+  # hears (#2835).
+  defp lapsed(job) do
+    refill(job)
+    release_ended(job)
+  end
+
   defp settle(job, changes) do
     changes = Map.put(changes, :updated_at, now())
 

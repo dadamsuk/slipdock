@@ -14,8 +14,25 @@ defmodule SlipdockWeb.API.ReleaseController do
 
   @doc "Where the tree's releases stand: `{\"release\": {...}}`."
   def show(conn, %{"board" => ref}) do
-    with {:ok, board} <- Authorize.fetch_board(conn, ref, :read) do
+    with {:ok, board} <- Authorize.fetch_board(conn, ref, :read),
+         {:ok, _root} <- root(conn, board) do
       json(conn, %{release: V.release_status(Releases.status(board))})
+    end
+  end
+
+  @doc false
+  # A tree's releases are its root's, and name the root's cards: reading
+  # them through a sub-board needs read on the root too (as the overseer's
+  # doors do, `Authorize.tree_root/3`). The refusal says so. Whoever owns a
+  # sub-board owns its root, so releasing asks nothing more.
+  def root(auth, board) do
+    case Authorize.tree_root(auth, board, :read) do
+      {:ok, root} ->
+        {:ok, root}
+
+      {:error, :forbidden, _} ->
+        {:error, :forbidden,
+         "this board's releases are its tree's root board's, which you can't read"}
     end
   end
 
