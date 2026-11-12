@@ -5,7 +5,7 @@ defmodule SlipdockWeb.MCP.Tools.UpdateCard do
   """
   @behaviour SlipdockWeb.MCP.Tool
 
-  alias Slipdock.{Boards, Repo}
+  alias Slipdock.Boards
   alias SlipdockWeb.API.{Authorize, CardWrites}
   alias SlipdockWeb.API.JSON, as: V
   alias SlipdockWeb.MCP.{Args, Tools, WaitingList}
@@ -362,7 +362,7 @@ defmodule SlipdockWeb.MCP.Tools.UpdateCard do
 
   # Waking a card that is already awake is what was asked for.
   defp write_snooze(auth, card, :wake) do
-    case Slipdock.Snooze.wake(Repo.reload!(card), by: auth.assigns.current_user) do
+    case Slipdock.Snooze.wake(Boards.Cards.reload_card!(card), by: auth.assigns.current_user) do
       {:ok, _} -> :ok
       {:error, :not_snoozed} -> :ok
     end
@@ -370,7 +370,7 @@ defmodule SlipdockWeb.MCP.Tools.UpdateCard do
 
   # A note alone changes the note on the snooze the card already has.
   defp write_snooze(auth, card, {:note, note}) do
-    card = Repo.reload!(card)
+    card = Boards.Cards.reload_card!(card)
 
     if Slipdock.Boards.Card.snoozed?(card),
       do: snooze(auth, card, card.snoozed_until, note, card),
@@ -378,7 +378,7 @@ defmodule SlipdockWeb.MCP.Tools.UpdateCard do
   end
 
   defp write_snooze(auth, card, {:until, until, note}) do
-    card = Repo.reload!(card)
+    card = Boards.Cards.reload_card!(card)
     snooze(auth, card, until, note, card)
   end
 
@@ -438,7 +438,7 @@ defmodule SlipdockWeb.MCP.Tools.UpdateCard do
   # Everything is checked before anything is written; what can still fail
   # (a dependency that would make a loop, say) rolls the rest back with it.
   defp write(auth, card, params, blockers, unblockers, to_check, to_uncheck, {recurrence, snooze}) do
-    Repo.transaction(fn ->
+    Boards.Cards.transact(fn ->
       with {:ok, card} <-
              update_fields(auth, card, Map.drop(params, @id_lists ++ ["add_checklist"])),
            :ok <- write_recurrence(auth, card, recurrence),
@@ -457,9 +457,7 @@ defmodule SlipdockWeb.MCP.Tools.UpdateCard do
                ticked: length(ticked),
                unticked: length(unticked)
              ) do
-        Boards.Cards.get_card!(card.id)
-      else
-        error -> Repo.rollback(error)
+        {:ok, Boards.Cards.get_card!(card.id)}
       end
     end)
     |> case do

@@ -13,10 +13,9 @@ defmodule SlipdockWeb.AIChatComponent do
   """
   use SlipdockWeb, :live_component
 
-  alias Slipdock.Access
+  alias Slipdock.{Access, Boards}
   alias Slipdock.AI.{Actions, Assistant, Context}
   alias Slipdock.Boards.Card
-  alias Slipdock.Repo
   alias SlipdockWeb.Markdown
 
   @impl true
@@ -199,7 +198,7 @@ defmodule SlipdockWeb.AIChatComponent do
   end
 
   defp readable_card(user, id) do
-    with %Card{archived_at: nil, stand_in_for_id: nil} = card <- Repo.get(Card, id),
+    with %Card{archived_at: nil, stand_in_for_id: nil} = card <- Boards.Cards.get_card_record(id),
          true <- Access.can_read?(Access.card_permission(user, card)) do
       card
     else

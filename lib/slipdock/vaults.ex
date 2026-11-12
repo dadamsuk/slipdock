@@ -481,4 +481,7 @@ defmodule Slipdock.Vaults do
 
   defp preloaded({:ok, vault}), do: {:ok, Repo.preload(vault, @preloads, force: true)}
   defp preloaded(error), do: error
+
+  @doc "`vault` with its owner loaded."
+  def with_user(%Vault{} = vault), do: Repo.preload(vault, :user)
 end

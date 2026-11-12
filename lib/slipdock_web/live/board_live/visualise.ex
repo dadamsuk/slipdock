@@ -19,13 +19,12 @@ defmodule SlipdockWeb.BoardLive.Visualise do
   """
   use SlipdockWeb, :live_view
 
-  import Ecto.Query
   import SlipdockWeb.BoardLive.VisualiseComponents
   import SlipdockWeb.BoardLive.VisualiseCharts, only: [trends: 1]
   import SlipdockWeb.SlipdockComponents, only: [view_tabs: 1]
 
-  alias Slipdock.{Access, Boards, CardState, Dora, Flow, Palette, Pulse, Repo}
-  alias Slipdock.Boards.{Board, Card, CardMove, Column, Wait}
+  alias Slipdock.{Access, Boards, CardState, Dora, Flow, Palette, Pulse}
+  alias Slipdock.Boards.Board
 
   @refresh_ms 2_000
 
@@ -36,10 +35,10 @@ defmodule SlipdockWeb.BoardLive.Visualise do
   def mount(%{"id" => id}, _session, socket) do
     user = socket.assigns.current_user
 
-    with %Board{} = board <- Repo.get(Board, SlipdockWeb.Params.id(id) || 0),
+    with %Board{} = board <- Boards.get_board_record(SlipdockWeb.Params.id(id) || 0),
          perm = Access.board_permission(user, board),
          true <- Access.can_read?(perm) and perm != :view do
-      board = Repo.preload(board, [:saved_views])
+      board = Boards.with_saved_views(board)
 
       if connected?(socket) do
         Boards.PubSub.subscribe(board.id)
@@ -96,8 +95,8 @@ defmodule SlipdockWeb.BoardLive.Visualise do
 
   defp load(socket) do
     %{board: board} = socket.assigns
-    columns = Repo.all(from c in Column, where: c.board_id == ^board.id, order_by: :position)
-    board = %{Repo.reload!(board) | saved_views: board.saved_views}
+    columns = Boards.Columns.list_board_columns(board)
+    board = %{Boards.reload_board!(board) | saved_views: board.saved_views}
 
     dora =
       case Dora.for_board(board) do
@@ -134,29 +133,14 @@ defmodule SlipdockWeb.BoardLive.Visualise do
   end
 
   # Cards in each list now: not archived, never a stand-in.
-  defp counts(board) do
-    Repo.all(
-      from c in Card,
-        where: c.board_id == ^board.id and is_nil(c.archived_at) and is_nil(c.stand_in_for_id),
-        group_by: c.column_id,
-        select: {c.column_id, count(c.id)}
-    )
-    |> Map.new()
-  end
+  defp counts(board), do: Slipdock.Visualise.card_counts(board)
 
   # Pulse's lists, with how many cards each holds now, its WIP limit, and
   # for a done list how many were archived from it in 7 days.
   defp lists(board, columns, pulse, counts) do
     since = DateTime.add(DateTime.utc_now(), -7 * 86_400, :second)
 
-    archived =
-      Repo.all(
-        from m in CardMove,
-          where: m.board_id == ^board.id and m.kind == "archived" and m.inserted_at >= ^since,
-          group_by: m.from_column_id,
-          select: {m.from_column_id, count(m.id)}
-      )
-      |> Map.new()
+    archived = Slipdock.Visualise.archived_counts(board, since)
 
     limits = Map.new(columns, &{&1.id, &1.wip_limit})
     # A doing list by its category, else by its name (#2676).
@@ -180,14 +164,7 @@ defmodule SlipdockWeb.BoardLive.Visualise do
     done = for c <- columns, c.category == "done", do: c.id
     since = DateTime.add(DateTime.utc_now(:second), -days * 86_400, :second)
 
-    cards =
-      Repo.all(
-        from c in Card,
-          where:
-            c.column_id in ^done and is_nil(c.stand_in_for_id) and
-              (is_nil(c.archived_at) or c.completed_at >= ^since),
-          preload: :tags
-      )
+    cards = Slipdock.Visualise.done_cards(done, since)
 
     counts = cards |> Enum.flat_map(& &1.tags) |> Enum.frequencies_by(& &1.id)
 
@@ -210,13 +187,8 @@ defmodule SlipdockWeb.BoardLive.Visualise do
     ids = for c <- columns, Flow.doing_list?(c) or (ready && c.id == ready.id), do: c.id
     names = Map.new(columns, &{&1.id, &1.name})
 
-    Repo.all(
-      from c in Card,
-        where:
-          c.column_id in ^ids and is_nil(c.archived_at) and is_nil(c.stand_in_for_id) and
-            not c.completed,
-        preload: [:tags, wait: ^from(w in Wait, where: is_nil(w.closed_at))]
-    )
+    ids
+    |> Slipdock.Visualise.open_cards()
     |> CardState.put(board, columns: columns, usual: usual)
     |> Enum.map(fn card ->
       %{
@@ -233,15 +205,8 @@ defmodule SlipdockWeb.BoardLive.Visualise do
 
   # How long the board's most recently answered wait took to answer.
   defp last_answer(board) do
-    Repo.one(
-      from w in Wait,
-        join: c in Card,
-        on: c.id == w.card_id,
-        where: c.board_id == ^board.id and w.close_reason == "answered",
-        order_by: [desc: w.closed_at, desc: w.id],
-        limit: 1,
-        select: {w.inserted_at, w.closed_at}
-    )
+    board
+    |> Slipdock.Visualise.last_answered_wait()
     |> case do
       {opened, closed} -> DateTime.diff(closed, opened)
       nil -> nil

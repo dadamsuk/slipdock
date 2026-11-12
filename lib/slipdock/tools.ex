@@ -772,4 +772,10 @@ defmodule Slipdock.Tools do
     |> Repo.one()
     |> Kernel.||(0)
   end
+
+  @doc "The tool `id`, raising when there is none."
+  def get_tool!(id), do: Repo.get!(Tool, id)
+
+  @doc "The tool version `id` (of any tool), raising when there is none."
+  def get_version!(id), do: Repo.get!(ToolVersion, id)
 end

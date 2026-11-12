@@ -13,9 +13,7 @@ defmodule SlipdockWeb.GardenLive.Index do
   use SlipdockWeb, :live_view
   alias SlipdockWeb.Dates
 
-  import Ecto.Query
-
-  alias Slipdock.{Access, Boards, Gardener, Repo}
+  alias Slipdock.{Access, Boards, Gardener}
   alias Slipdock.Boards.Card
   alias Slipdock.Gardener.{Steps, Suggestion}
   alias Slipdock.Palette
@@ -70,7 +68,7 @@ defmodule SlipdockWeb.GardenLive.Index do
   # lines removed and added, or why it can't be shown.
   defp section_diffs(steps) do
     for %{"op" => "edit_section", "page" => id, "section" => path, "body" => body} <- steps do
-      section_diff(Repo.get(Page, id), id, path, body, step_base(steps, id, path))
+      section_diff(Slipdock.Wiki.get_page(id), id, path, body, step_base(steps, id, path))
     end
   end
 
@@ -124,23 +122,9 @@ defmodule SlipdockWeb.GardenLive.Index do
     end)
   end
 
-  defp cards(ids) do
-    from(c in Card,
-      where: c.id in ^Enum.uniq(ids),
-      preload: [:column]
-    )
-    |> Repo.all()
-    |> Map.new(&{&1.id, &1})
-  end
+  defp cards(ids), do: Boards.Cards.cards_by_id(ids)
 
-  defp pages(ids) do
-    from(p in Page,
-      where: p.id in ^Enum.uniq(ids),
-      select: struct(p, [:id, :title, :slug, :board_id, :code])
-    )
-    |> Repo.all()
-    |> Map.new(&{&1.id, &1})
-  end
+  defp pages(ids), do: Slipdock.Wiki.page_stubs(ids)
 
   @impl true
   def handle_info({:garden_changed, _board_id}, socket), do: {:noreply, load(socket)}
@@ -292,7 +276,7 @@ defmodule SlipdockWeb.GardenLive.Index do
   end
 
   defp column_name(id) do
-    case Repo.get(Boards.Column, id) do
+    case Boards.Columns.get_column(id) do
       nil -> "another list"
       col -> "“#{col.name}”"
     end

@@ -2,10 +2,8 @@ defmodule SlipdockWeb.MCP.Tools.ListPages do
   @moduledoc "A board's wiki pages, as `GET /api/boards/:board/pages` lists them, flat or as a tree."
   @behaviour SlipdockWeb.MCP.Tool
 
-  import Ecto.Query
-
-  alias Slipdock.{Access, Repo, Wiki}
-  alias Slipdock.Wiki.{Link, Page}
+  alias Slipdock.{Access, Wiki}
+  alias Slipdock.Wiki.Page
   alias SlipdockWeb.API.Authorize
   alias SlipdockWeb.MCP.Args
 
@@ -176,21 +174,7 @@ defmodule SlipdockWeb.MCP.Tools.ListPages do
     end
   end
 
-  defp codes([]), do: %{}
+  defp codes(ids), do: Wiki.page_codes(ids)
 
-  defp codes(ids),
-    do: Map.new(Repo.all(from(p in Page, where: p.id in ^ids, select: {p.id, p.code})))
-
-  defp pinned_cards([]), do: %{}
-
-  defp pinned_cards(ids) do
-    from(l in Link,
-      where: l.page_id in ^ids and l.pinned and l.kind == "card",
-      where: not is_nil(l.target_card_id),
-      order_by: [asc: l.target_card_id],
-      select: {l.page_id, l.target_card_id}
-    )
-    |> Repo.all()
-    |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
-  end
+  defp pinned_cards(ids), do: Wiki.pinned_card_ids(ids)
 end

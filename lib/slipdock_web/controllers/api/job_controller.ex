@@ -334,7 +334,7 @@ defmodule SlipdockWeb.API.JobController do
 
       case Runners.resume(board, params["pool"], user, Slipdock.Actor.from_conn(conn)) do
         {:ok, pause} ->
-          json(conn, %{pause: V.pause(Slipdock.Repo.preload(pause, :paused_by))})
+          json(conn, %{pause: V.pause(Runners.with_paused_by(pause))})
 
         {:error, "only a person" <> _ = message} ->
           {:error, :forbidden, message}

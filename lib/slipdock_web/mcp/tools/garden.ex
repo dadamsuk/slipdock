@@ -11,9 +11,8 @@ defmodule SlipdockWeb.MCP.Tools.Garden do
   """
   @behaviour SlipdockWeb.MCP.Tool
 
-  alias Slipdock.Boards.Board
+  alias Slipdock.Boards
   alias Slipdock.Gardener
-  alias Slipdock.Repo
   alias SlipdockWeb.API.Authorize
   alias SlipdockWeb.API.GardenJSON, as: G
   alias SlipdockWeb.MCP.Args
@@ -81,7 +80,7 @@ defmodule SlipdockWeb.MCP.Tools.Garden do
          board_id: board.id,
          suggestions: G.suggestions(suggestions),
          last_run: G.run(Gardener.last_run(board)),
-         checks: G.checks(Repo.get!(Board, board.id)),
+         checks: G.checks(Boards.get_board_record!(board.id)),
          note:
            if(suggestions == [],
              do: "Nothing to tidy.",
@@ -106,7 +105,7 @@ defmodule SlipdockWeb.MCP.Tools.Garden do
   defp listed(_auth, board, false, check), do: {:ok, Gardener.list_open(board, check: check)}
 
   defp listed(auth, board, true, _check) do
-    root = if board.root_id, do: Repo.get!(Board, board.root_id), else: board
+    root = Boards.root_board(board)
 
     with {:ok, _} <- Args.refusal(Authorize.board(auth, root, :read) |> ok_board(root)),
          do: {:ok, Slipdock.Findings.Awaiting.proposals(root)}

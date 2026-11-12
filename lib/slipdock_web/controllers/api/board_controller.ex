@@ -13,7 +13,7 @@ defmodule SlipdockWeb.API.BoardController do
     with {:ok, board} <- Authorize.fetch_board(conn, ref, need) do
       # The owner is named in every board response, so load it once here
       # rather than in each action that answers with a board.
-      {:ok, Slipdock.Repo.preload(board, :owner)}
+      {:ok, Slipdock.Boards.with_owner(board)}
     end
   end
 

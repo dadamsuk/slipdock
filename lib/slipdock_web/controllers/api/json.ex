@@ -1444,7 +1444,7 @@ defmodule SlipdockWeb.API.JSON do
   is refused for them. Each is left off when there is nothing to say.
   """
   def put_lanes(map, %Card{} = card) do
-    board = Slipdock.Repo.get(Slipdock.Boards.Board, card.board_id)
+    board = Slipdock.Boards.get_board_record(card.board_id)
     shared = Slipdock.Lanes.shared_paths(board)
 
     map

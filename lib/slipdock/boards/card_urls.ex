@@ -42,4 +42,9 @@ defmodule Slipdock.Boards.CardUrls do
   defp stringify(attrs) do
     Map.new(attrs, fn {k, v} -> {to_string(k), v} end)
   end
+
+  ## Lookups (#2791): plain reads the web layer makes through this context
+
+  @doc "The link `id` on a card or page, or nil, with nothing loaded."
+  def get_card_url(id), do: Repo.get(CardUrl, id)
 end

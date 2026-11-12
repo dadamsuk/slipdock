@@ -731,7 +731,7 @@ defmodule SlipdockWeb.WikiLive.Index do
     vault
     |> Slipdock.Vaults.board_ids()
     |> Enum.flat_map(fn id ->
-      case Slipdock.Repo.get(Slipdock.Boards.Board, id) do
+      case Slipdock.Boards.get_board_record(id) do
         nil ->
           []
 
@@ -1011,7 +1011,7 @@ defmodule SlipdockWeb.WikiLive.Index do
     recording = Slipdock.Recordings.for_page(page)
 
     assign(socket,
-      page: Slipdock.Repo.preload(page, Wiki.board_preloads(), force: true),
+      page: Wiki.with_board_preloads(page, [], force: true),
       can_comment: Access.can_comment?(Access.page_permission(socket.assigns.current_user, page)),
       # How many people and groups it has been shared with (#813).
       page_shares: length(Access.list_grants(page)),
@@ -1030,7 +1030,7 @@ defmodule SlipdockWeb.WikiLive.Index do
         %{settings_url: ~p"/wiki/.settings" <> "#recordings-folder-#{vault.id}", owner: nil}
 
       %{} = vault ->
-        vault = Slipdock.Repo.preload(vault, :user)
+        vault = Slipdock.Vaults.with_user(vault)
         %{settings_url: nil, owner: Slipdock.Accounts.User.display_name(vault.user)}
 
       nil ->

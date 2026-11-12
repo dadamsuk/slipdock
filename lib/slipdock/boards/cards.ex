@@ -1491,4 +1491,112 @@ defmodule Slipdock.Boards.Cards do
       end)
     end
   end
+
+  ## Lookups (#2791): plain reads the web layer makes through this context
+
+  @doc "The card `id` as stored, or nil: none of `get_card/1`'s preloads or rollup."
+  def get_card_record(id), do: Repo.get(Card, id)
+
+  @doc "`card` read again from the database, with no associations loaded."
+  def reload_card!(%Card{} = card), do: Repo.reload!(card)
+
+  @doc "`card` (or cards) with the board loaded."
+  def with_board(card_or_cards), do: Repo.preload(card_or_cards, :board)
+
+  @doc "`card` with its attachments loaded afresh."
+  def with_attachments(%Card{} = card), do: Repo.preload(card, :attachments, force: true)
+
+  @doc """
+  The cards on `board_id` among `ids` that aren't archived, by id. Ids from
+  elsewhere are left out.
+  """
+  def list_board_cards(board_id, ids) do
+    from(c in Card,
+      where: c.id in ^ids and c.board_id == ^board_id and is_nil(c.archived_at),
+      order_by: [asc: c.id]
+    )
+    |> Repo.all()
+  end
+
+  @doc "The cards among `ids`, with their lists, by id."
+  def cards_by_id(ids) do
+    from(c in Card, where: c.id in ^Enum.uniq(ids), preload: [:column])
+    |> Repo.all()
+    |> Map.new(&{&1.id, &1})
+  end
+
+  @doc "Each of the cards among `ids` as `id`, `title` and `board_id`, by id."
+  def card_briefs(ids) do
+    from(c in Card,
+      where: c.id in ^ids,
+      select: {c.id, %{id: c.id, title: c.title, board_id: c.board_id}}
+    )
+    |> Repo.all()
+    |> Map.new()
+  end
+
+  @doc """
+  Open cards (not archived, not completed) for a picker, newest first, at
+  most `limit`, each with its board. `where` is `{:board, id}` (the board
+  and, for a top-level one, its sub-boards) or `{:roots, ids}` (those trees).
+  `typed` is digits to match the start of a card number, or text to find in
+  titles; empty matches every card.
+  """
+  def pick_open_cards(where, typed, limit) do
+    base =
+      from(c in Card,
+        join: b in Board,
+        on: b.id == c.board_id,
+        where: is_nil(c.archived_at) and not c.completed,
+        order_by: [desc: c.updated_at, desc: c.id],
+        limit: ^limit,
+        preload: [board: b]
+      )
+
+    base =
+      case where do
+        {:board, id} -> where(base, [c, b], b.id == ^id or b.root_id == ^id)
+        {:roots, ids} -> where(base, [c, b], coalesce(b.root_id, b.id) in ^ids)
+      end
+
+    query =
+      case Integer.parse(typed) do
+        {_, ""} -> where(base, [c], like(fragment("CAST(? AS text)", c.id), ^(typed <> "%")))
+        _ when typed == "" -> base
+        _ -> where(base, [c], ilike(c.title, ^("%" <> escape_like(typed) <> "%")))
+      end
+
+    Repo.all(query)
+  end
+
+  defp escape_like(text), do: String.replace(text, ~r/([\\%_])/, "\\\\\\1")
+
+  @doc """
+  Every card that isn't archived in the trees of `roots`, sub-boards
+  included, with its board, list and assignees.
+  """
+  def tree_cards(roots) do
+    from(c in Card,
+      join: b in Board,
+      on: b.id == c.board_id,
+      where: is_nil(c.archived_at),
+      where: coalesce(b.root_id, b.id) in ^roots,
+      order_by: [asc: c.board_id, asc: c.position]
+    )
+    |> Repo.all()
+    |> Repo.preload([:board, :column, :assignees])
+  end
+
+  @doc """
+  Runs `fun` in a transaction. `{:ok, value}` commits and is returned;
+  anything else rolls the transaction back and comes back as `{:error, it}`.
+  """
+  def transact(fun) when is_function(fun, 0) do
+    Repo.transaction(fn ->
+      case fun.() do
+        {:ok, value} -> value
+        other -> Repo.rollback(other)
+      end
+    end)
+  end
 end

@@ -53,7 +53,7 @@ defmodule SlipdockWeb.WorkLive.Index do
 
   defp readable_board(user, id) do
     with {n, ""} <- Integer.parse(id),
-         %Slipdock.Boards.Board{} = board <- Slipdock.Repo.get(Slipdock.Boards.Board, n),
+         %Slipdock.Boards.Board{} = board <- Slipdock.Boards.get_board_record(n),
          true <- Access.can_read?(Access.board_permission(user, board)) do
       board
     else

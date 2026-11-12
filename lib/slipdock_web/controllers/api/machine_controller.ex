@@ -353,7 +353,7 @@ defmodule SlipdockWeb.API.MachineController do
   defp runner_visible(_conn, :owner, _runner), do: :ok
 
   defp runner_visible(conn, :member, runner) do
-    board = Slipdock.Repo.get!(Slipdock.Boards.Board, runner.board_id)
+    board = Slipdock.Boards.get_board_record!(runner.board_id)
 
     if Slipdock.Access.can_read?(
          Slipdock.Access.board_permission(conn.assigns.current_user, board)
@@ -439,7 +439,7 @@ defmodule SlipdockWeb.API.MachineController do
   defp serving_board(conn, machine, ref) do
     with {:ok, [board_id]} <- Machines.servable_board_ids(conn.assigns.current_user, [ref || ""]),
          true <- Enum.member?(machine.board_ids, board_id) do
-      {:ok, Slipdock.Repo.get!(Slipdock.Boards.Board, board_id)}
+      {:ok, Slipdock.Boards.get_board_record!(board_id)}
     else
       false ->
         unprocessable(conn, "the machine doesn't serve that board: choose one of its boards")
