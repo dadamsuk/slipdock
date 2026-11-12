@@ -1385,6 +1385,10 @@ defmodule SlipdockCLI.Render do
     if m = c["missed_by"], do: cause <> " · missed by #{m}", else: cause
   end
 
+  # Merged, awaiting release, or released, on a batched board (#2834).
+  defp release_field(%{"text" => text}), do: field("Release", text)
+  defp release_field(_release), do: :ok
+
   def card(c) do
     IO.puts(
       bold("##{c["id"]} #{c["title"]}") <> if(c["completed"], do: "  ✓ completed", else: "")
@@ -1410,6 +1414,7 @@ defmodule SlipdockCLI.Render do
     deploy_failed_fields(c)
 
     if i = c["incident_of"], do: field("Incident of", "deploy ##{i}")
+    release_field(c["release"])
     lead_time_fields(c["lead_time"])
 
     field("Priority", c["priority"])

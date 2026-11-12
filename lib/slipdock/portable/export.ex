@@ -257,6 +257,9 @@ defmodule Slipdock.Portable.Export do
       verify_work: board.verify_work,
       verify_pool: board.verify_pool,
       ship_via: board.ship_via,
+      # How merged work is released (#2834): a root board's.
+      release_mode: board.release_mode,
+      release_age_cap_hours: board.release_age_cap_hours,
       kind: board.kind,
       archived: board.archived_at != nil,
       # A sub-board hangs off a card; a root board hangs off nothing.

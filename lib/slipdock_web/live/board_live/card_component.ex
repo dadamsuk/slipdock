@@ -262,6 +262,8 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
       card_shipped: Slipdock.Deployments.shipped(card),
       # Where its latest deploy attempt failed (#2820), until one succeeds.
       card_deploy_failed: Slipdock.Deployments.deploy_failed(card),
+      # Merged, awaiting release, or released (#2834); nil unless batched.
+      card_release: Slipdock.Releases.state(card),
       # How many questions the card has asked, shown on its open wait (#1114).
       wait_count: if(Card.open_wait(card), do: Boards.wait_count(card), else: 0),
       # The questions asked before, with their answers (#1220).
@@ -1369,6 +1371,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
         handoff_history={@handoff_history}
         shipped={assigns[:card_shipped] || []}
         deploy_failed={assigns[:card_deploy_failed] || []}
+        release={assigns[:card_release]}
         incident={assigns[:card_incident]}
         incident_error={assigns[:incident_error]}
         panel_notice={@panel_notice}
@@ -1519,6 +1522,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
   attr :editing_description, :boolean, required: true
   attr :handoff_history, :list, default: [], doc: "every handoff written, newest first"
   attr :shipped, :list, default: [], doc: "`Slipdock.Deployments.shipped/1`: where it has shipped"
+  attr :release, :map, default: nil, doc: "`Slipdock.Releases.state/1`: its batched release"
 
   attr :deploy_failed, :list,
     default: [],
@@ -1720,6 +1724,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
                 users={@users}
                 shipped={@shipped}
                 deploy_failed={@deploy_failed}
+                release={@release}
                 target={@target}
               />
             </fieldset>
@@ -2131,6 +2136,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
   attr :users, :list, default: [], doc: "the board's people, to name who stated a status"
   attr :shipped, :list, default: [], doc: "`Slipdock.Deployments.shipped/1`"
   attr :deploy_failed, :list, default: [], doc: "`Slipdock.Deployments.deploy_failed/1`"
+  attr :release, :map, default: nil, doc: "`Slipdock.Releases.state/1`"
   attr :board, :any, default: nil
   attr :target, :any, required: true
 
@@ -2197,6 +2203,23 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
             </span>
             <span class="font-medium" id="handoff-next">{@current.next_step}</span>
           </span>
+        </p>
+        <%!-- Batched releases (#2834): merged and waiting for a release,
+              or the release that shipped it, with the time. --%>
+        <p
+          :if={@release}
+          id="card-release"
+          data-state={@release.state}
+          class={[
+            "flex items-start gap-1.5 text-xs",
+            if(@release.state == "released", do: "text-success", else: "text-warning")
+          ]}
+        >
+          <.icon
+            name={if @release.state == "released", do: "hero-rocket-launch", else: "hero-clock"}
+            class="mt-px size-3.5 shrink-0"
+          />
+          <span class="min-w-0 break-words">{Slipdock.Releases.text(@release, @zone)}</span>
         </p>
         <%!-- Where the card has shipped (#1134): one line per
               environment, latest first, with the time (#2022). --%>
