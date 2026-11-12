@@ -6,6 +6,7 @@ defmodule SlipdockWeb.MCP.Tools.UpdateCard do
   @behaviour SlipdockWeb.MCP.Tool
 
   alias Slipdock.Boards
+  alias Slipdock.Boards.CardEdits
   alias SlipdockWeb.API.{Authorize, CardWrites}
   alias SlipdockWeb.API.JSON, as: V
   alias SlipdockWeb.MCP.{Args, Tools, WaitingList}
@@ -358,132 +359,23 @@ defmodule SlipdockWeb.MCP.Tools.UpdateCard do
     end
   end
 
-  defp write_snooze(_auth, _card, :untouched), do: :ok
-
-  # Waking a card that is already awake is what was asked for.
-  defp write_snooze(auth, card, :wake) do
-    case Slipdock.Snooze.wake(Boards.Cards.reload_card!(card), by: auth.assigns.current_user) do
-      {:ok, _} -> :ok
-      {:error, :not_snoozed} -> :ok
-    end
-  end
-
-  # A note alone changes the note on the snooze the card already has.
-  defp write_snooze(auth, card, {:note, note}) do
-    card = Boards.Cards.reload_card!(card)
-
-    if Slipdock.Boards.Card.snoozed?(card),
-      do: snooze(auth, card, card.snoozed_until, note, card),
-      else: {:error, "card ##{card.id} isn't snoozed: pass snoozed_until with the note"}
-  end
-
-  defp write_snooze(auth, card, {:until, until, note}) do
-    card = Boards.Cards.reload_card!(card)
-    snooze(auth, card, until, note, card)
-  end
-
-  defp snooze(auth, card, until, note, current) do
-    opts = [
-      note: note,
-      notify: current.snooze_notify,
-      wake_on_activity: current.snooze_wake_on_activity
-    ]
-
-    case Slipdock.Snooze.snooze(card, auth.assigns.current_user, until, opts) do
-      {:ok, _} -> :ok
-      {:error, reason} -> {:error, "snooze: " <> Slipdock.Snooze.error_message(reason)}
-    end
-  end
-
-  defp write_recurrence(_auth, _card, :untouched), do: :ok
-
-  defp write_recurrence(_auth, card, :stop) do
-    Slipdock.Recurrence.stop(card)
-    :ok
-  end
-
-  defp write_recurrence(auth, card, attrs) do
-    {skip?, attrs} = Map.pop(attrs, "skip")
-
-    with :ok <- set_recurrence(auth, card, attrs),
-         :ok <- if(skip? == true, do: skip_recurrence(card), else: :ok) do
-      :ok
-    end
-  end
-
-  # Only `skip` given changes nothing else about the series.
-  defp set_recurrence(_auth, _card, attrs) when map_size(attrs) == 0, do: :ok
-
-  defp set_recurrence(auth, card, attrs) do
-    case Slipdock.Recurrence.set(card, attrs, auth.assigns.current_user) do
-      {:ok, _} -> :ok
-      {:error, message} when is_binary(message) -> {:error, "recurrence " <> message}
-      {:error, %Ecto.Changeset{} = cs} -> {:error, cs}
-    end
-  end
-
-  defp skip_recurrence(card) do
-    case Slipdock.Recurrence.skip(card) do
-      {:ok, _} ->
-        :ok
-
-      {:error, :not_found} ->
-        {:error, "card ##{card.id} doesn't repeat, so there is nothing to skip"}
-
-      {:error, message} ->
-        {:error, message}
-    end
-  end
-
-  # Everything is checked before anything is written; what can still fail
-  # (a dependency that would make a loop, say) rolls the rest back with it.
+  # The checks are all done above; the write is the context's (#2790), all
+  # of it or none.
   defp write(auth, card, params, blockers, unblockers, to_check, to_uncheck, {recurrence, snooze}) do
-    Boards.Cards.transact(fn ->
-      with {:ok, card} <-
-             update_fields(auth, card, Map.drop(params, @id_lists ++ ["add_checklist"])),
-           :ok <- write_recurrence(auth, card, recurrence),
-           :ok <- write_snooze(auth, card, snooze),
-           :ok <- each(blockers, &add_blocker(card, &1)),
-           :ok <- each(unblockers, &Boards.Dependencies.remove_dependency(card, &1)),
-           added = params["add_checklist"] || [],
-           ticked = Enum.reject(to_check, & &1.done),
-           unticked = Enum.filter(to_uncheck, & &1.done),
-           :ok <- each(added, &Boards.Checklists.add_checklist_item(card, &1, log: false)),
-           :ok <- each(ticked, &Boards.Checklists.toggle_checklist_item(&1, log: false)),
-           :ok <- each(unticked, &Boards.Checklists.toggle_checklist_item(&1, log: false)),
-           :ok <-
-             Boards.Checklists.log_checklist(card,
-               added: length(added),
-               ticked: length(ticked),
-               unticked: length(unticked)
-             ) do
-        {:ok, Boards.Cards.get_card!(card.id)}
-      end
-    end)
-    |> case do
-      {:ok, card} -> {:ok, card}
-      {:error, error} -> Args.refusal(error)
-    end
-  end
+    fields = Map.drop(params, @id_lists ++ ["add_checklist"])
 
-  defp update_fields(_auth, card, params) when map_size(params) == 0, do: {:ok, card}
-  defp update_fields(auth, card, params), do: CardWrites.update(auth, card, params)
+    edit = %{
+      fields: if(map_size(fields) > 0, do: &CardWrites.update(auth, &1, fields)),
+      recurrence: recurrence,
+      snooze: snooze,
+      add_blockers: blockers,
+      remove_blockers: unblockers,
+      add_checklist: params["add_checklist"] || [],
+      check: to_check,
+      uncheck: to_uncheck
+    }
 
-  # Already blocked by it is what was asked for, not a mistake.
-  defp add_blocker(card, blocker) do
-    if Enum.any?(card.blocked_by, &(&1.id == blocker.id)),
-      do: {:ok, card},
-      else: Boards.Dependencies.add_dependency(card, blocker)
-  end
-
-  defp each(things, fun) do
-    Enum.reduce_while(things, :ok, fn thing, :ok ->
-      case fun.(thing) do
-        {:error, message} when is_binary(message) -> {:halt, {:error, message}}
-        {:error, _} = error -> {:halt, error}
-        _ -> {:cont, :ok}
-      end
-    end)
+    Args.refusal(CardEdits.edit(card, edit, by: auth.assigns.current_user))
   end
 
   # A blocker may sit on another board; reading it is enough, as over the API.
