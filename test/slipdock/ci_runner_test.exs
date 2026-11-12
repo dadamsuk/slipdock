@@ -110,6 +110,18 @@ defmodule Slipdock.CiRunnerTest do
            ] == "${{ runner.temp }}/digests"
   end
 
+  test "the image build takes BuildKit's settings from BUILDKITD_CONFIG, and names no server" do
+    buildx = step(jobs("release.yml")["build"], "uses", "docker/setup-buildx-action@v3")
+    assert buildx["with"]["buildkitd-config-inline"] == "${{ vars.BUILDKITD_CONFIG }}"
+
+    # The nameservers are the machine's, kept in the repository's settings,
+    # never in this public file.
+    refute Enum.any?(
+             code_lines("release.yml"),
+             &(&1 =~ ~r/nameservers|\b\d{1,3}(\.\d{1,3}){3}\b/)
+           )
+  end
+
   test "the image is built for amd64 alone, and the README says so" do
     include = jobs("release.yml")["build"]["strategy"]["matrix"]["include"]
     assert include == [%{"platform" => "linux/amd64"}]
