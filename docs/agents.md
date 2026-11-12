@@ -363,7 +363,11 @@ A board with **delivery metrics** on records its project's deploys from CI
 token in `SLIPDOCK_DEPLOY_TOKEN`) and reports the DORA numbers and idea to
 production: `get_board` with `dora: true`, `GET /api/boards/:id/dora` or
 `slipdock dora <board>`. A card a deploy named carries `shipped` (*Shipped to
-production · 1a2b3c4 · 6 Nov 14:32*, the time in your time zone). An outage is an incident card tagged `incident`;
+production · 1a2b3c4 · 6 Nov 14:32*, the time in your time zone), and one whose
+latest deploy attempt failed carries `deploy_failed` (*Deploy failed at build ·
+production · <run url> · 6 Nov 20:41*) until a deploy naming it succeeds: CI's
+failure job records it with `slipdock deploy failed --stage S --run-url U` (`POST
+/api/deployments/failed`). An outage is an incident card tagged `incident`;
 `slipdock incident-of <card> <deploy>` (or `POST /api/cards/:id/incident-of`)
 names the deploy that caused it. To wire a repository up, `get_guide` with
 `section: "deployments"` is the whole brief. See

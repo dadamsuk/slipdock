@@ -177,6 +177,7 @@ defmodule SlipdockWeb.Router do
 
     get "/last", DeploymentController, :last
     post "/", DeploymentController, :create
+    post "/failed", DeploymentController, :failed
     patch "/:id", DeploymentController, :finish
   end
 

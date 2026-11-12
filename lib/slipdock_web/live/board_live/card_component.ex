@@ -260,6 +260,8 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
       handoff_history: Boards.handoff_history(card),
       # Where it has shipped (#1134); empty unless delivery metrics are on.
       card_shipped: Slipdock.Deployments.shipped(card),
+      # Where its latest deploy attempt failed (#2820), until one succeeds.
+      card_deploy_failed: Slipdock.Deployments.deploy_failed(card),
       # How many questions the card has asked, shown on its open wait (#1114).
       wait_count: if(Card.open_wait(card), do: Boards.wait_count(card), else: 0),
       # The questions asked before, with their answers (#1220).
@@ -1366,6 +1368,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
         editing_description={@editing_description}
         handoff_history={@handoff_history}
         shipped={assigns[:card_shipped] || []}
+        deploy_failed={assigns[:card_deploy_failed] || []}
         incident={assigns[:card_incident]}
         incident_error={assigns[:incident_error]}
         panel_notice={@panel_notice}
@@ -1516,6 +1519,10 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
   attr :editing_description, :boolean, required: true
   attr :handoff_history, :list, default: [], doc: "every handoff written, newest first"
   attr :shipped, :list, default: [], doc: "`Slipdock.Deployments.shipped/1`: where it has shipped"
+
+  attr :deploy_failed, :list,
+    default: [],
+    doc: "`Slipdock.Deployments.deploy_failed/1`: where its latest deploy attempt failed"
 
   attr :incident, :map,
     default: nil,
@@ -1691,7 +1698,10 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
                 then the meta line's link opens the form. Its own fieldset,
                 since a commenter may write it. --%>
             <fieldset
-              :if={(glance?(@card, @shipped) and on?(@panel, "open.glance")) || @editing_handoff}
+              :if={
+                (glance?(@card, @shipped ++ @deploy_failed) and on?(@panel, "open.glance")) ||
+                  @editing_handoff
+              }
               disabled={!@can_comment}
               class="min-w-0"
             >
@@ -1709,6 +1719,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
                 current_user={@current_user}
                 users={@users}
                 shipped={@shipped}
+                deploy_failed={@deploy_failed}
                 target={@target}
               />
             </fieldset>
@@ -2098,8 +2109,10 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
 
   # Whether the glance block has anything to show: a handoff, a step
   # status, a shipped line, or a finished card's outcome.
-  defp glance?(card, shipped) do
-    current_handoff(card) != nil or latest_step(card) != nil or shipped != [] or card.completed
+  # `deliveries`: its shipped and deploy-failed lines.
+  defp glance?(card, deliveries) do
+    current_handoff(card) != nil or latest_step(card) != nil or deliveries != [] or
+      card.completed
   end
 
   defp latest_step(%Card{status_updates: [latest | _]}), do: latest
@@ -2117,6 +2130,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
   attr :current_user, :any, default: nil
   attr :users, :list, default: [], doc: "the board's people, to name who stated a status"
   attr :shipped, :list, default: [], doc: "`Slipdock.Deployments.shipped/1`"
+  attr :deploy_failed, :list, default: [], doc: "`Slipdock.Deployments.deploy_failed/1`"
   attr :board, :any, default: nil
   attr :target, :any, required: true
 
@@ -2199,6 +2213,25 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
               class="mt-px size-3.5 shrink-0"
             />
             <span class="min-w-0 break-words">{Slipdock.Deployments.shipped_text(s, @zone)}</span>
+          </li>
+        </ul>
+        <%!-- Where its latest deploy attempt failed (#2820), with the
+              run; a later succeeded deploy takes the line away. --%>
+        <ul :if={@deploy_failed != []} id="card-deploy-failed" class="space-y-0.5 text-xs">
+          <li :for={f <- @deploy_failed} class="flex items-start gap-1.5 text-error">
+            <.icon name="hero-exclamation-triangle" class="mt-px size-3.5 shrink-0" />
+            <span class="min-w-0 break-words">
+              Deploy failed{if f.stage, do: " at #{f.stage}"} · {f.environment} ·
+              <a
+                :if={f.run_url}
+                href={f.run_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                class="link"
+              >run</a>
+              <span :if={f.run_url} aria-hidden="true">·</span>
+              {Slipdock.Deployments.time_text(f.at, @zone)}
+            </span>
           </li>
         </ul>
         <%!-- Markdown, as a comment is (#1214): agents write it as bullets,

@@ -30,6 +30,9 @@ defmodule SlipdockCLI.Deploy do
 
   @max_commits 1000
 
+  # Where a release can fail (#2820), as the server takes them.
+  @stages ~w(build test merge deploy health)
+
   # -- Commands ---------------------------------------------------------------
 
   # Issuing the board's deploy token is the owner's, with their API token.
@@ -105,6 +108,29 @@ defmodule SlipdockCLI.Deploy do
       {:ok, %{"deployment" => d} = plan} ->
         if o[:json], do: SlipdockCLI.Render.json(d), else: IO.puts(d["id"])
         describe(plan, :stderr)
+
+      {:ok, plan} ->
+        describe(plan, :stdio)
+        IO.puts("dry run: recorded nothing")
+
+      {:error, message} ->
+        fail(message)
+    end
+  end
+
+  # A release that failed (#2820), from CI's failure job: the stage and the
+  # run, with the commits since the last deploy, as `start` sends them.
+  def run("deploy", ["failed"], o) do
+    case record_failure(o) do
+      {:ok, %{"deployment" => d} = plan} ->
+        describe(plan, :stderr)
+
+        if o[:json],
+          do: SlipdockCLI.Render.json(d),
+          else:
+            IO.puts(
+              "deploy ##{d["id"]} failed at #{d["stage"]}: #{short(d["sha"])} to #{d["environment"]}"
+            )
 
       {:ok, plan} ->
         describe(plan, :stdio)
@@ -326,31 +352,56 @@ defmodule SlipdockCLI.Deploy do
   `--dry-run`, stops there and records nothing. `{:ok, plan}` (with
   `"deployment"` once recorded) or `{:error, message}`.
   """
-  def record_start(o) do
+  def record_start(o), do: record(o, "/deployments", %{})
+
+  @doc """
+  `deploy failed` (#2820): as `record_start/1`, but records a failed
+  release at `--stage`, with its run. `{:ok, plan}` or `{:error, message}`;
+  a stage it doesn't know is refused before anything is asked of the server.
+  """
+  def record_failure(o) do
+    stage = o[:stage]
+
+    cond do
+      Enum.member?([nil, ""], stage) ->
+        {:error, "pass --stage: #{Enum.join(@stages, ", ")}"}
+
+      not Enum.member?(@stages, stage) ->
+        {:error, "unknown --stage #{inspect(stage)}: one of #{Enum.join(@stages, ", ")}"}
+
+      true ->
+        record(o, "/deployments/failed", %{"stage" => stage})
+    end
+  end
+
+  defp record(o, path, extra) do
     with {:ok, token} <- deploy_token(),
          {:ok, head} <- head_sha(o),
          {:ok, last} <- server_last(token, env(o)),
          {:ok, plan} <- plan(o, head, last) do
-      if o[:dry_run] do
-        {:ok, plan}
-      else
-        body =
-          compact(%{
-            "environment" => env(o),
-            "sha" => head,
-            "tag" => tag(o),
-            "previous_sha" => plan["previous_sha"],
-            "commits" => plan["commits"],
-            "rollback" => plan["rollback"],
-            "note" => note(o),
-            "source" => "cli"
-          })
+      if o[:dry_run], do: {:ok, plan}, else: post_plan(token, path, o, plan, head, extra)
+    end
+  end
 
-        case HTTP.with_token(token, fn -> HTTP.post("/deployments", body) end) do
-          {:ok, %{"deployment" => d}} -> {:ok, Map.put(plan, "deployment", d)}
-          error -> {:error, error_text(error)}
-        end
-      end
+  # Sends the plan to `path`, with `extra` (the stage of a failure).
+  defp post_plan(token, path, o, plan, head, extra) do
+    body =
+      compact(%{
+        "environment" => env(o),
+        "sha" => head,
+        "tag" => tag(o),
+        "previous_sha" => plan["previous_sha"],
+        "commits" => plan["commits"],
+        "rollback" => plan["rollback"],
+        "note" => note(o),
+        "run_url" => run_url(o),
+        "source" => "cli"
+      })
+      |> Map.merge(extra)
+
+    case HTTP.with_token(token, fn -> HTTP.post(path, body) end) do
+      {:ok, %{"deployment" => d}} -> {:ok, Map.put(plan, "deployment", d)}
+      error -> {:error, error_text(error)}
     end
   end
 
@@ -983,6 +1034,15 @@ defmodule SlipdockCLI.Deploy do
     case o[:note] || System.get_env("SLIPDOCK_DEPLOY_NOTE") do
       nil -> nil
       text -> if String.trim(text) == "", do: nil, else: String.trim(text)
+    end
+  end
+
+  # The CI run (#2820): --run-url, else $SLIPDOCK_DEPLOY_RUN_URL, which an
+  # older CLI ignores rather than refusing.
+  defp run_url(o) do
+    case o[:run_url] || System.get_env("SLIPDOCK_DEPLOY_RUN_URL") do
+      nil -> nil
+      url -> if String.trim(url) == "", do: nil, else: String.trim(url)
     end
   end
 

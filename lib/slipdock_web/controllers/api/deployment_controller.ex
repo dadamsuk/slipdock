@@ -7,6 +7,8 @@ defmodule SlipdockWeb.API.DeploymentController do
       GET   /api/deployments/last?environment=E   the sha to diff from
       POST  /api/deployments                      record a deploy starting (or finished)
       PATCH /api/deployments/:id                  finish it: status succeeded|failed
+      POST  /api/deployments/failed               a release that failed, with its stage
+                                                  (build|test|merge|deploy|health) and run_url
 
   Refused (403, saying how to turn them on) while the board's delivery
   metrics are off, so nothing accumulates unseen. Rate-limited per board.
@@ -44,7 +46,7 @@ defmodule SlipdockWeb.API.DeploymentController do
     attrs =
       params
       |> Map.take(
-        ~w(environment sha tag previous_sha commits rollback status started_at finished_at source note)
+        ~w(environment sha tag previous_sha commits rollback status started_at finished_at source note run_url)
       )
       |> Map.update("source", "api", &(&1 || "api"))
 
@@ -58,6 +60,20 @@ defmodule SlipdockWeb.API.DeploymentController do
 
       error ->
         error
+    end
+  end
+
+  # A release that failed (#2820), from CI's own failure job: where, and
+  # its run. The deploy job's own record of the attempt, if it made one, is
+  # the row that says so; otherwise one is recorded, already failed.
+  def failed(conn, params) do
+    attrs =
+      params
+      |> Map.take(~w(environment sha tag previous_sha commits stage run_url source note))
+      |> Map.update("source", "api", &(&1 || "api"))
+
+    with {:ok, deployment} <- Deployments.record_failure(conn.assigns.board, attrs) do
+      conn |> put_status(:created) |> json(%{deployment: V.deployment(deployment)})
     end
   end
 

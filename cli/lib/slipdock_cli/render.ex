@@ -1350,6 +1350,14 @@ defmodule SlipdockCLI.Render do
   def lead_time_text(_), do: nil
 
   # Its lead time, and what its jobs spent beside it (#1954).
+  # Where its latest deploy attempt failed, until one succeeds (#2820).
+  defp deploy_failed_fields(c) do
+    Enum.each(
+      c["deploy_failed"] || [],
+      &field("Deploy", String.replace_prefix(&1["text"], "Deploy ", ""))
+    )
+  end
+
   defp lead_time_fields(lt) do
     if text = lead_time_text(lt), do: field("Lead time", text)
     if r = rollup_text(lt), do: field("Subcards", r)
@@ -1398,6 +1406,8 @@ defmodule SlipdockCLI.Render do
       c["shipped"] || [],
       &field("Shipped", String.replace_prefix(&1["text"], "Shipped ", ""))
     )
+
+    deploy_failed_fields(c)
 
     if i = c["incident_of"], do: field("Incident of", "deploy ##{i}")
     lead_time_fields(c["lead_time"])

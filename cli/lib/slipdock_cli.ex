@@ -76,6 +76,9 @@ defmodule SlipdockCLI do
     revoke: :boolean,
     from_tags: :boolean,
     from_runs: :string,
+    # `slipdock deploy failed` (#2820).
+    stage: :string,
+    run_url: :string,
     ci: :string,
     prompt: :boolean,
     incident_tag: :string,
