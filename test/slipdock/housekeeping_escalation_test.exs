@@ -56,6 +56,16 @@ defmodule Slipdock.HousekeepingEscalationTest do
     |> Repo.all()
   end
 
+  # A Housekeeping card on a sub-board of an epic on the root board: its
+  # own board's id differs from its root's, so `triage_name/1` has to choose.
+  defp sub_board_chore(ctx) do
+    epic = card_fixture(ctx.backlog, %{"title" => "Epic"})
+    {:ok, template} = Boards.find_template(nil, "Simple")
+    {:ok, sub} = sub_board(epic, template)
+    {:ok, housekeeping} = Boards.create_column(sub, %{"name" => "Housekeeping"})
+    card_fixture(housekeeping, %{"title" => "Sub chore"})
+  end
+
   describe "the job prompt" do
     test "a card the Housekeeping feed sent is told to stop and escalate when it grows", ctx do
       chore = card_fixture(ctx.housekeeping, %{"title" => "Chore"})
@@ -91,6 +101,33 @@ defmodule Slipdock.HousekeepingEscalationTest do
       # With no Triage list at all, it says Triage.
       {:ok, _} = Boards.update_column(ctx.triage, %{"category" => ""})
       assert Runners.housekeeping_note(chore.id) =~ "`slipdock move #{chore.id} Triage`"
+    end
+
+    test "on a sub-board with no Triage list, the move names its root board's", ctx do
+      {:ok, _} = Boards.update_column(ctx.triage, %{"name" => "Root triage"})
+      chore = sub_board_chore(ctx)
+
+      assert Runners.housekeeping_note(chore.id) =~
+               ~s[move it to the Root triage list (`slipdock move #{chore.id} "Root triage"`)]
+    end
+
+    test "on a sub-board with its own Triage list, the move names that one, not its root's",
+         ctx do
+      {:ok, _} = Boards.update_column(ctx.triage, %{"name" => "Root triage"})
+      chore = sub_board_chore(ctx)
+
+      {:ok, _} =
+        Boards.create_column(Boards.get_board!(chore.board_id), %{
+          "name" => "Epic triage",
+          "category" => "triage"
+        })
+
+      note = Runners.housekeeping_note(chore.id)
+
+      assert note =~
+               ~s[move it to the Epic triage list (`slipdock move #{chore.id} "Epic triage"`)]
+
+      refute note =~ "Root triage"
     end
 
     test "a To Do card isn't", ctx do
