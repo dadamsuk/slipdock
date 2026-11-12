@@ -242,6 +242,21 @@ defmodule SlipdockWeb.RunnerDocsTest do
     assert read("docs/manual/verified-work.md") =~
              "asking it of a sub-board needs read on the root board"
 
+    # The daemon's built-in kind and its limits (#2836).
+    assert agents =~ "built-in `release` kind"
+    assert agents =~ "`no_release: true`"
+    assert agents =~ "`release_commands`"
+    assert guide =~ "`no_release: true`"
+    assert guide =~ "`release_commands`"
+
+    machines = read("docs/manual/machines.md")
+    assert machines =~ "`no_release: true` turns off the built-in release"
+    assert machines =~ "`release_commands` lists, word for word"
+
+    contract = read("daemon/internal/contract/contract.md")
+    assert contract =~ "- Start a release."
+    assert contract =~ "A board's release command is no exception"
+
     help = read("cli/help.txt")
     assert help =~ "release <board>"
     assert help =~ "releases <board>"

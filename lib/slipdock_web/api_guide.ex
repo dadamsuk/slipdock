@@ -2294,7 +2294,16 @@ defmodule SlipdockWeb.APIGuide do
     to clear), one line, by default `gh workflow run release.yml --ref
     {default_branch}`, the runner putting the repository's default branch
     in. Lanes and WIP limits never hold it, and it goes only to runners
-    whose claims list `release` in `X-Runner-Kinds`. The request ends
+    whose claims list `release` in `X-Runner-Kinds`. `release` jobs are
+    built into the runner daemon, as `merge` jobs are (`no_release: true`
+    in the machine's `local.json` turns the kind off): it runs `gh
+    workflow run <workflow> --ref <branch>` itself and logs `release: run
+    <url>`, the run it started. Any other command runs only when the
+    machine's `local.json` lists it under `release_commands`; the daemon
+    refuses the rest, so a custom command is set on the board and allowed
+    on the machine. The runners list's `missing_kinds` names `release` on
+    a batched tree for a runner that merges but hasn't said it releases.
+    The request ends
     `released` when a deploy of the tree is recorded as succeeded (or when
     the job is done, on a tree with delivery metrics off, where the cards
     it covered then read `released` with no `environment`), `failed` when

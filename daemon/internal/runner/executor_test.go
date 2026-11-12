@@ -254,6 +254,17 @@ func TestTheMergesGitGoesThroughTheExecutor(t *testing.T) {
 	}
 }
 
+func TestTheReleasesGitGoesThroughTheExecutor(t *testing.T) {
+	r := newRig(t, Config{})
+	me, _ := executor.New(executor.Me, executor.Settings{GOOS: runtime.GOOS})
+	rec := &recorder{Executor: me, home: t.TempDir()}
+	r.w.Executor = rec
+	r.runJob(fakeJob{id: 311, kind: ReleaseKind, prompt: "gh workflow run release.yml --ref {default_branch}"})
+	if !rec.saw("exec git rev-parse --show-toplevel") {
+		t.Fatalf("the release's git didn't go through the executor: %v", rec.calls)
+	}
+}
+
 func TestCodeAConfinedJobPlantsInItsRepositoryStaysConfined(t *testing.T) {
 	if runtime.GOOS != "linux" && runtime.GOOS != "darwin" {
 		t.Skip("confined is Linux and macOS only")

@@ -61,7 +61,7 @@ func TestClaudeJobRunsWithTheRunnersSettings(t *testing.T) {
 	}
 
 	h := r.srv.header(11)
-	if got := h.Get("X-Runner-Kinds"); got != "claude,verify,merge,probe" {
+	if got := h.Get("X-Runner-Kinds"); got != "claude,verify,merge,release,probe" {
 		t.Errorf("X-Runner-Kinds = %q", got)
 	}
 	if got := h.Get("X-Runner-Version"); got != "daemon test" {
@@ -116,7 +116,7 @@ func TestCodexAndACustomCommand(t *testing.T) {
 	if !strings.Contains(saw, "env=SLIPDOCK_PROMPT=Secret prompt\n") {
 		t.Fatalf("the prompt reaches a custom command as $SLIPDOCK_PROMPT:\n%s", saw)
 	}
-	if got := r.srv.header(11).Get("X-Runner-Kinds"); got != "lint,verify,merge,probe" {
+	if got := r.srv.header(11).Get("X-Runner-Kinds"); got != "lint,verify,merge,release,probe" {
 		t.Fatalf("kinds = %q", got)
 	}
 }
