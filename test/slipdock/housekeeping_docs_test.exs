@@ -23,4 +23,18 @@ defmodule Slipdock.HousekeepingDocsTest do
       assert read(path) =~ words, "#{path} doesn't say #{inspect(words)}"
     end
   end
+
+  test "each place says a Housekeeping card that grows goes back to Triage (#2780)" do
+    for {path, words} <- [
+          {"docs/manual/recurring-cards.md", "move it to Triage, leave a *product*"},
+          {"docs/agents.md", "goes back to a person: stop before building, move it to"},
+          {"lib/slipdock_web/api_guide.ex",
+           "**A Housekeeping card that grows goes back to a person.**"},
+          {"lib/slipdock_web/live/help_live/flow.ex", "the agent moves it to Triage"},
+          {"priv/skills/slipdock-loop/SKILL.md",
+           "**A Housekeeping card that grows goes back to a person.**"}
+        ] do
+      assert read(path) =~ words, "#{path} doesn't say #{inspect(words)}"
+    end
+  end
 end

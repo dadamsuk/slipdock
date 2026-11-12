@@ -478,6 +478,9 @@ defmodule SlipdockWeb.HelpLive.Flow do
       <strong>Housekeeping</strong>
       list (category <code>housekeeping</code>). It gets the same rules beside the ready list's, <em>Work Housekeeping with a runner</em>, but each one backfills: it sends a card only while
       To Do and Scheduled have nothing that pool could start. Your own work always goes first.
+      A Housekeeping card that turns out to need a design choice, or grows into feature work,
+      comes back to you: the agent moves it to Triage with a <em>product</em>
+      wait saying what grew, and builds nothing.
     </p>
     <p>
       The card moves into progress, and the <strong>bar locks</strong>: from then on only a
