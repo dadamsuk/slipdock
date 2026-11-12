@@ -264,6 +264,18 @@ whole card before touching it.
   the board, overseer on or off: the pipeline failed before its deploy, so
   look at the build rather than waiting. Never record or
   finish deploys by hand — that is CI's, with its own token.
+- **A batched board: done on merge, released later.** On a board that
+  releases in batches (`slipdock card` shows a *Release* line; the board's
+  `release_mode` is `batched`) a merge deploys nothing. The card is done
+  when it merges and what depends on it unblocks then: close it as usual,
+  and don't wait for its release. It shows *Merged …, awaiting release*,
+  then *Released* with the time. Releasing is the board's: a `critical`
+  card merging, the age cap, or **Release now**, which is how a person
+  ships (`slipdock release <board>`, the owner's). Never run it to finish a
+  card, only when the person asks. *Not shipped* counts from the card's
+  release there, not its merge, so a card awaiting release is not late; one
+  that says *not shipped … after its release started* had a release that
+  brought no deploy: look at `slipdock releases <board>`.
 - **Tidy-up suggestions are the person's to decide.** `slipdock garden <board>`
   (over MCP, `garden`) lists what the board's gardener found: epics done but
   open, cards stuck in progress, duplicates, orphaned pages. Show them when

@@ -375,7 +375,11 @@ failure job records it with `slipdock deploy failed --stage S --run-url U` (`POS
 board's `not_shipped_minutes` (20) carries `not_shipped` (*Merged 1a634c6 · not
 shipped after 45m*; *Not shipped* in `slipdock card`) and raises one warning
 alert on the root board, overseer on or off, until a deploy names it, whether
-or not CI reported anything. An outage is an incident card tagged `incident`;
+or not CI reported anything. On a board with batched releases the minutes
+count from the card's release, not its merge: a card only awaiting release
+carries none, and one whose release started and brought no deploy carries it
+with `release_requested_at` (*Merged 1a634c6 · not shipped 45m after its
+release started*). An outage is an incident card tagged `incident`;
 `slipdock incident-of <card> <deploy>` (or `POST /api/cards/:id/incident-of`)
 names the deploy that caused it. To wire a repository up, `get_guide` with
 `section: "deployments"` is the whole brief. See
@@ -982,7 +986,8 @@ on a person with nothing running, cards slower than the board's P85 for
 their profile and jobs whose step hasn't changed in 30 minutes, idle runners
 beside a full ready list or jobs queued behind one lane, and epics whose
 open subcards are all blocked. One more, `not_shipped` (a merged card no
-succeeded deploy names after the board's `not_shipped_minutes`), runs on any
+succeeded deploy names after the board's `not_shipped_minutes`, counted from
+its release on a board with batched releases), runs on any
 board with delivery metrics on, whether or not the overseer is. Each fires once, as an alert and an email
 with why and what to do, heads the owner's `slipdock work` and `whoami`
 (reason `overseer`), and clears itself when it ends. A runner job of kind
@@ -1241,8 +1246,11 @@ how long the oldest waiting merge may wait (`slipdock set-board <board>
 batched board a merged card is still completed and still unblocks its
 dependents; its `release` (`get_card`, the card's JSON, the *Release*
 line in `slipdock card`) is `awaiting` until a succeeded deploy names it,
-then `released` with the environment and the time. Don't wait for a
-release before calling a card done.
+then `released` with the environment and the time. A card there is done
+when it merges: don't wait for a release before calling it done, and
+don't fire one to finish it:
+releasing is the board's, and **Release now** is how a person ships. The
+whole of it is in [the manual](manual/batched-releases.md).
 
 **Batched releases.** A board tree whose root sets `release_mode: batched`
 merges as above but doesn't deploy on a merge: a release is asked for, by

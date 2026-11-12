@@ -2271,7 +2271,9 @@ defmodule SlipdockWeb.APIGuide do
     unblocks its dependents; its `release` (card JSON and `get_card`, the
     *Release* line in `slipdock card`) is `awaiting` (*Merged 1a2b3c4,
     awaiting release · since 12 Nov 10:04*) until a succeeded deploy names
-    it, then `released` with the environment and the time.
+    it, then `released` with the environment and the time. A card is done
+    when it merges: an agent neither waits for its release nor fires one,
+    and *Release now* is how a person ships.
 
     A release is asked for, one at a time per tree. Three things ask: a
     card of priority `critical` merging; **Release now** (`POST
@@ -2326,7 +2328,14 @@ defmodule SlipdockWeb.APIGuide do
     email. A succeeded deploy naming the card clears both. It runs whether
     or not the overseer is on. Only cards merged after the board turned
     delivery metrics on count; an epic, a card with no commit, a stand-in
-    and an archived card never do.
+    and an archived card never do. On a tree with batched releases the
+    minutes count from the card's release, not its merge (#2839): from the
+    start of the latest release request that covered it, whatever became
+    of that release. A card only awaiting release carries no `not_shipped`
+    and raises nothing, however long it waits; one whose release started
+    and brought no deploy carries it with `release_requested_at`, `seconds`
+    counted from then, and the `text` *Merged 1a634c6 · not shipped 45m
+    after its release started*.
 
     **A red release holds releases** (#2838). A failed deploy recorded on a
     batched tree (a release's suite, build or deploy failing: `slipdock
@@ -2415,7 +2424,8 @@ defmodule SlipdockWeb.APIGuide do
     `idle_minutes`, or two or more jobs queued behind one card's lane) and
     `no_way_forward` (an epic in progress with every open subcard blocked).
     A sixth, `not_shipped` (a merged card no succeeded deploy names after
-    the board's `not_shipped_minutes`), runs on every tree with delivery
+    the board's `not_shipped_minutes`, counted from its release on a tree
+    with batched releases), runs on every tree with delivery
     metrics on, whether or not the overseer is.
     Each condition fires once, as a warning alert on the root board and an
     email to the owner with why and what to do, heads the owner's waiting

@@ -131,6 +131,83 @@ defmodule SlipdockWeb.NotShippedLineTest do
     assert has_element?(view, "#card-shipped", "Shipped to production")
   end
 
+  describe "on a board that releases in batches (#2839)" do
+    setup %{board: board} do
+      {:ok, _} = Boards.update_board(board, %{"release_mode" => "batched"})
+      %{board: Repo.get!(Board, board.id)}
+    end
+
+    # A release request covering `card`, started `minutes` ago.
+    defp release!(board, card, minutes, status \\ "running") do
+      Repo.insert!(%Slipdock.Releases.Request{
+        board_id: board.id,
+        status: status,
+        card_ids: [card.id],
+        started_at: DateTime.add(DateTime.utc_now(), -minutes * 60)
+      })
+    end
+
+    test "the JSON, get_card and the panel carry nothing while the card only awaits release", %{
+      conn: conn,
+      json: json,
+      board: board,
+      card: card
+    } do
+      merge!(card, 600)
+
+      body = json |> get(~p"/api/cards/#{card.id}") |> json_response(200)
+      refute Map.has_key?(body["card"], "not_shipped")
+      assert body["card"]["release"]["state"] == "awaiting"
+      refute Map.has_key?(mcp_card(conn, card), "not_shipped")
+
+      {:ok, view, _} = live(conn, ~p"/boards/#{board}/cards/#{card.id}")
+      refute has_element?(view, "#card-not-shipped")
+    end
+
+    test "they carry it counted from the release, with release_requested_at", %{
+      conn: conn,
+      json: json,
+      board: board,
+      card: card
+    } do
+      merge!(card, 600)
+      request = release!(board, card, 45, "failed")
+      body = json |> get(~p"/api/cards/#{card.id}") |> json_response(200)
+
+      assert %{
+               "text" => "Merged 1a634c6 · not shipped 45m after its release started",
+               "sha" => @sha,
+               "minutes" => 20,
+               "seconds" => seconds,
+               "release_requested_at" => asked
+             } = body["card"]["not_shipped"]
+
+      assert seconds in 2700..2760
+      assert {:ok, at, 0} = DateTime.from_iso8601(asked)
+      assert DateTime.compare(at, request.started_at) == :eq
+
+      got = mcp_card(conn, card)["not_shipped"]
+      assert got["text"] == "Merged 1a634c6 · not shipped 45m after its release started"
+      assert got["release_requested_at"]
+
+      {:ok, view, _} = live(conn, ~p"/boards/#{board}/cards/#{card.id}")
+
+      assert has_element?(
+               view,
+               "#card-not-shipped.text-warning",
+               "Merged 1a634c6 · not shipped 45m after its release started"
+             )
+
+      # Released again ten minutes ago: the clock starts over, at every door.
+      release!(board, card, 10)
+      body = json |> get(~p"/api/cards/#{card.id}") |> json_response(200)
+      refute Map.has_key?(body["card"], "not_shipped")
+      refute Map.has_key?(mcp_card(conn, card), "not_shipped")
+      {:ok, view, _} = live(conn, ~p"/boards/#{board}/cards/#{card.id}")
+      refute has_element?(view, "#card-not-shipped")
+    end
+  end
+
   test "a board with delivery metrics off shows nothing", %{json: json, board: board, card: card} do
     merge!(card, 45)
     {:ok, _} = Boards.update_board(board, %{"delivery_metrics" => false})

@@ -575,7 +575,8 @@ slipdock claim-job <board> --pool P           # take the next job as this sessio
 slipdock pause <board> [--pool P] --reason "…"   # owner: hold runner work (tree or pool); a person resumes
 slipdock release <board>                      # owner, on a board with batched releases: Release now. A runner's release job runs the
                                               # board's release command for every merged card awaiting release; one at a time
-                                              # (during a release it queues one follow-up). Only when the person asks: a card is done on merge
+                                              # (during a release it queues one follow-up). Only when the person asks: a card is done on merge,
+                                              # and Release now is how a person ships. Not shipped counts from the release there, not the merge
 slipdock release <board> --lift-hold          # owner: lift a red release's hold (releases nothing). Held, Release now is refused;
                                               # the critical fix card it filed releases when it merges: fix that, don't lift
 slipdock releases <board>                     # where its releases stand: running, queued, the last ended, the cards awaiting

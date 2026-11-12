@@ -841,7 +841,9 @@ WRITE
                                       --not-shipped-minutes how long a merged card may
                                       go with no succeeded deploy naming it before the
                                       board raises an alert and `card` says Not shipped
-                                      (20; 0 never), overseer on or off;
+                                      (20; 0 never), overseer on or off; on a board with
+                                      batched releases they count from the card's
+                                      release, not its merge;
                                       --card-ref-pattern the regex finding card ids in
                                       commit messages, id in its first group (#(\d+))
                                       --default-view picks what opening the board shows

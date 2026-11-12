@@ -94,7 +94,7 @@ gh run list --workflow release.yml --branch main --status success --limit 100 \
   slipdock deploy backfill --from-runs - --env production
 ```
 
-With [batched releases](verified-work.md), a push to the default branch
+With [batched releases](batched-releases.md), a push to the default branch
 deploys nothing and its run still ends `success`, so count only the
 dispatched releases: add `event` to `--json` and pipe through
 `jq '[.[] | select(.event != "push")]'` first (Slipdock's own `release.yml`
@@ -139,6 +139,13 @@ succeeded deploy that names the card clears the line and, within a minute, the
 alert. The minutes are the board's *Not shipped after (minutes)* beside the
 other delivery settings (`not_shipped_minutes`, `slipdock set-board B
 --not-shipped-minutes N`; 0 never, at most 10080, a week).
+
+On a board with [batched releases](batched-releases.md) a merge is not a
+deploy, so the minutes count from the card's release, not its merge: from the
+start of the latest release that covered it. A card only awaiting release shows no
+line and raises no alert; one whose release started and brought no deploy
+shows *Merged 1a634c6 · not shipped 45m after its release started*, with
+`release_requested_at` in its `not_shipped`.
 
 It is one of [the overseer](the-overseer.md)'s watch checks, `not_shipped`,
 and the only one that **runs whether or not the overseer is on**: it costs no

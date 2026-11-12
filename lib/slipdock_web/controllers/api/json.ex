@@ -86,7 +86,9 @@ defmodule SlipdockWeb.API.JSON do
   in `zone`, the reader's (#2022). And `not_shipped` (#2819,
   `Slipdock.Deployments.NotShipped`), on a merged card no succeeded deploy
   names once the board's `not_shipped_minutes` have gone by: `sha`,
-  `merged_at`, `seconds` since, `minutes` (the setting) and `text`.
+  `merged_at`, `seconds` since, `minutes` (the setting) and `text`. On a
+  board that releases in batches the minutes and `seconds` count from the
+  card's release, given as `release_requested_at` (#2839).
   """
   def put_delivery(map, card, zone \\ "Etc/UTC") do
     map

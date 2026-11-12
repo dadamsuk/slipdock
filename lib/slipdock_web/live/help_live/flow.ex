@@ -192,6 +192,8 @@ defmodule SlipdockWeb.HelpLive.Flow do
           One check needs no switch: on a board with delivery metrics on, a card merged more
           than 20 minutes ago (the board's <em>Not shipped after</em>, <code>slipdock set-board B --not-shipped-minutes N</code>)
           that no succeeded deploy names raises an alert whether or not the overseer is on.
+          On a board with batched releases the minutes count from the card's release, not its
+          merge.
         </p>
         <p>
           Each fires once: an alert, an email, and the top of My work's <em>Waiting on you</em>,
@@ -512,7 +514,9 @@ defmodule SlipdockWeb.HelpLive.Flow do
       runs only on a machine whose <code>local.json</code>
       lists it under <code>release_commands</code>. A red release holds the next one and files a
       critical fix card: fix that card, and its merge releases; only the owner lifts a hold by
-      hand.
+      hand. <em>Not shipped</em>
+      counts from the release there, never from the merge, so a card awaiting release is not
+      late.
     </.person_note>
     <.person_note>
       <strong>A pause is yours to lift.</strong>
@@ -759,7 +763,10 @@ defmodule SlipdockWeb.HelpLive.Flow do
       instead and raises a warning alert, overseer on or off, until a deploy names it:
       <code>not_shipped</code>
       in the card's JSON and <code>get_card</code>, <em>Not shipped</em>
-      in <code>slipdock card</code>.
+      in <code>slipdock card</code>. On a board with batched releases a merge deploys nothing:
+      the card is done, shows <em>merged, awaiting release</em>, and the 20 minutes count from
+      its release (<code>release_requested_at</code>
+      in <code>not_shipped</code>), not from its merge.
     </p>
     <p>
       The <strong>handbook improves from use</strong>. The nightly <em>Reconcile the handbook</em>

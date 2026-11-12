@@ -1392,7 +1392,10 @@ defmodule SlipdockWeb.HelpLive.Agents do
         when the machine's <code>local.json</code>
         lists it, word for word, under <code>release_commands</code>; the daemon refuses the
         rest, since it never runs what the server sends. <code>no_release: true</code>
-        there turns the kind off.
+        there turns the kind off. A card on such a board is done when it merges: an agent
+        neither waits for its release nor fires one, <em>Release now</em>
+        is how a person ships, and a card's <em>Not shipped</em>
+        line counts from its release, not its merge.
       </p>
       <p id="help-machine-setup">
         <strong>Set up this machine with Claude</strong>, on the machine's page and at the end of

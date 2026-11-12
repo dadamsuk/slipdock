@@ -19,7 +19,7 @@ defmodule SlipdockWeb.ReleaseHoldDocsTest do
 
       for path <- [
             "README.md",
-            "docs/manual/verified-work.md",
+            "docs/manual/batched-releases.md",
             "docs/agents.md",
             "lib/slipdock_web/api_guide.ex",
             "cli/help.txt",
@@ -31,7 +31,7 @@ defmodule SlipdockWeb.ReleaseHoldDocsTest do
       end
 
       for path <- [
-            "docs/manual/verified-work.md",
+            "docs/manual/batched-releases.md",
             "docs/agents.md",
             "lib/slipdock_web/api_guide.ex"
           ] do
