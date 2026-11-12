@@ -94,6 +94,41 @@ defmodule Slipdock.Skills do
     end
   end
 
+  @signed_name "slipdock-skills.tar.gz"
+
+  @doc """
+  Where the release job leaves the skills archive it signed (#2784):
+  `priv/skills_signed/`, holding `#{@signed_name}` and its `.sig`.
+  Configurable (`:skills_signed_dir`) so the tests can stand files in.
+  """
+  def signed_dir do
+    Application.get_env(:slipdock, :skills_signed_dir) ||
+      Path.join(:code.priv_dir(:slipdock), "skills_signed")
+  end
+
+  @doc """
+  The archive the release job signed and its signature, `{:ok, bytes, sig}`,
+  or `:unsigned` when this build has none (one from source, or an image of a
+  commit the release job didn't sign).
+
+  On a `v*` tag the release job packs `priv/skills`, signs the archive with
+  the project's release key in the namespace `slipdock-skills`, and the
+  image is built with both (see the Dockerfile): those bytes are then what
+  `/api/skills.tar.gz` serves, so the signature is of what is served. The
+  runner daemon installs the server's skills only when that signature
+  verifies, unless its `local.json` sets `skills_unsigned`.
+  """
+  def signed_tarball do
+    path = Path.join(signed_dir(), @signed_name)
+
+    with {:ok, bytes} <- File.read(path),
+         {:ok, sig} <- File.read(path <> ".sig") do
+      {:ok, bytes, sig}
+    else
+      _ -> :unsigned
+    end
+  end
+
   defp load(name) do
     with {:ok, root} <- skill_dir(name),
          {:ok, body} <- File.read(Path.join(root, "SKILL.md")) do

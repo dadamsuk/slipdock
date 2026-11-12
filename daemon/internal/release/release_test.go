@@ -261,3 +261,49 @@ func TestTheCLIsSignatureAgreesWithSSHKeygen(t *testing.T) {
 		t.Fatalf("ssh-keygen's CLI signature refused: %v", err)
 	}
 }
+
+// The skills archive's signature (#2784) is the same key in a namespace of
+// its own again: neither a CLI's nor a release's signature passes for it,
+// and ssh-keygen's (what the release job makes) does.
+func TestTheSkillsNamespaceIsItsOwnAndAgreesWithSSHKeygen(t *testing.T) {
+	pub, priv := newKey(t)
+	archive := []byte("a skills archive")
+	if err := VerifyIn(SkillsNamespace, pub, archive, SignIn(SkillsNamespace, priv, archive)); err != nil {
+		t.Fatalf("the skills' own signature refused: %v", err)
+	}
+	for name, sig := range map[string][]byte{"a CLI's": SignIn(CLINamespace, priv, archive), "a release's": Sign(priv, archive)} {
+		if err := VerifyIn(SkillsNamespace, pub, archive, sig); err == nil || !strings.Contains(err.Error(), `not "slipdock-skills"`) {
+			t.Errorf("%s signature passed as the skills': %v", name, err)
+		}
+	}
+	if err := VerifyIn(CLINamespace, pub, archive, SignIn(SkillsNamespace, priv, archive)); err == nil {
+		t.Error("a skills signature passed as the CLI's")
+	}
+	if SkillsNamespace == Namespace || SkillsNamespace == CLINamespace {
+		t.Fatal("the skills share another namespace")
+	}
+
+	keygen, err := exec.LookPath("ssh-keygen")
+	if err != nil {
+		t.Skip("no ssh-keygen on this machine")
+	}
+	dir := t.TempDir()
+	keyPath := filepath.Join(dir, "key")
+	if out, err := exec.Command(keygen, "-q", "-t", "ed25519", "-N", "", "-C", "test", "-f", keyPath).CombinedOutput(); err != nil {
+		t.Fatalf("keygen: %v %s", err, out)
+	}
+	pubText, _ := os.ReadFile(keyPath + ".pub")
+	kpub, err := ParsePublicKey(string(pubText))
+	if err != nil {
+		t.Fatal(err)
+	}
+	file := filepath.Join(dir, "slipdock-skills.tar.gz")
+	os.WriteFile(file, archive, 0o644)
+	if out, err := exec.Command(keygen, "-Y", "sign", "-f", keyPath, "-n", SkillsNamespace, file).CombinedOutput(); err != nil {
+		t.Fatalf("sign: %v %s", err, out)
+	}
+	sig, _ := os.ReadFile(file + ".sig")
+	if err := VerifyIn(SkillsNamespace, kpub, archive, sig); err != nil {
+		t.Fatalf("ssh-keygen's skills signature refused: %v", err)
+	}
+}

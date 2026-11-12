@@ -121,14 +121,16 @@ defmodule SlipdockWeb.MCP.Tools.UpdateBoard do
           description:
             "The overseer (#2068): enabled, the runner pool its passes go to, min_minutes " <>
               "(10) while cards are active and max_minutes (120) when nothing is in flight, " <>
-              "idle_minutes before idle runners are said, email.",
+              "idle_minutes before idle runners are said, email, digest_at (HH:MM, 07:00): " <>
+              "the morning digest of Housekeeping's work.",
           properties: %{
             enabled: %{type: "boolean"},
             pool: %{type: "string"},
             min_minutes: %{type: "integer"},
             max_minutes: %{type: "integer"},
             idle_minutes: %{type: "integer"},
-            email: %{type: "boolean"}
+            email: %{type: "boolean"},
+            digest_at: %{type: "string"}
           },
           additionalProperties: false
         },

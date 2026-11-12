@@ -31,6 +31,11 @@ const Namespace = "slipdock-runner"
 // of one can't pass for the other.
 const CLINamespace = "slipdock-cli"
 
+// SkillsNamespace is the skills archive's (#2784): the archive a server
+// serves at /api/skills.tar.gz, signed by the release job with the same
+// key in a namespace of its own.
+const SkillsNamespace = "slipdock-skills"
+
 const (
 	magic      = "SSHSIG"
 	sigVersion = 1

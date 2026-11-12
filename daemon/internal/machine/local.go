@@ -66,6 +66,12 @@ type Local struct {
 	// default only a CLI signed with the project's release key is
 	// installed (#2669, W-2542).
 	CLIChecksumOnly bool `json:"cli_checksum_only,omitempty"`
+	// SkillsUnsigned lets the skills update install an archive the server
+	// serves with no signature (a server built from source, or from a
+	// commit the release job didn't sign): by default only an archive
+	// signed with the project's release key is installed (#2784). A
+	// signature that is there and doesn't verify is refused either way.
+	SkillsUnsigned bool `json:"skills_unsigned,omitempty"`
 	// User is the dedicated account jobs run as under the user executor
 	// (W-2543): init writes it when it sets the account up.
 	User *Account `json:"user,omitempty"`

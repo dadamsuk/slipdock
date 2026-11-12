@@ -76,6 +76,9 @@ defmodule SlipdockCLI do
     revoke: :boolean,
     from_tags: :boolean,
     from_runs: :string,
+    # `slipdock deploy failed` (#2820).
+    stage: :string,
+    run_url: :string,
     ci: :string,
     prompt: :boolean,
     incident_tag: :string,
@@ -144,6 +147,8 @@ defmodule SlipdockCLI do
     min_minutes: :integer,
     max_minutes: :integer,
     idle_minutes: :integer,
+    # `slipdock overseer B --digest-at 07:00` (#2781).
+    digest_at: :string,
     email: :boolean,
     # Also `verify <id> … --check bar:2=fail:why`, repeated (#1778).
     check: :keep,

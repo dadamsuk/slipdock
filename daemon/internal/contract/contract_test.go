@@ -80,6 +80,9 @@ func TestTheTextSaysWhatTheServerCanAndCannotDo(t *testing.T) {
 		"only when its signature verifies against the same release key",
 		"The slipdock skills, and a CLI taken on the server's word",
 		"With `cli_checksum_only` set in `local.json`",
+		"Give the agent slipdock skills the project didn't sign",
+		"only when the archive's signature verifies against the same release key",
+		"With `skills_unsigned` set in `local.json`",
 		"#### What each executor stops",
 	} {
 		if !strings.Contains(text, want) {

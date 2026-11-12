@@ -67,7 +67,10 @@ defmodule Slipdock.Dora do
     # Everything a window's numbers can hang on: the window before (for the
     # trend), and a hotfix window's worth before that.
     lookback = DateTime.add(prev_since, -(board.hotfix_window_hours || 24) * 3600, :second)
-    deploys = Deployments.list(board, environment: environment, since: lookback)
+
+    deploys =
+      Deployments.list(board, environment: environment, since: lookback, deploys_only: true)
+
     incidents = Incidents.cards(board)
     failures = Incidents.failures(board, deploys, incidents)
     restores = Incidents.restores(board, deploys, incidents)

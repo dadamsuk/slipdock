@@ -18,7 +18,7 @@ defmodule SlipdockCLI.DeployTest do
 
     saved =
       Map.new(
-        ~w(HOME SLIPDOCK_URL SLIPDOCK_TOKEN SLIPDOCK_DEPLOY_TOKEN SLIPDOCK_DEPLOY_NOTE),
+        ~w(HOME SLIPDOCK_URL SLIPDOCK_TOKEN SLIPDOCK_DEPLOY_TOKEN SLIPDOCK_DEPLOY_NOTE SLIPDOCK_DEPLOY_RUN_URL),
         &{&1, System.get_env(&1)}
       )
 
@@ -26,6 +26,7 @@ defmodule SlipdockCLI.DeployTest do
     System.put_env("SLIPDOCK_DEPLOY_TOKEN", "sdd_test")
     System.delete_env("SLIPDOCK_TOKEN")
     System.delete_env("SLIPDOCK_DEPLOY_NOTE")
+    System.delete_env("SLIPDOCK_DEPLOY_RUN_URL")
 
     on_exit(fn ->
       Enum.each(saved, fn
@@ -113,6 +114,117 @@ defmodule SlipdockCLI.DeployTest do
     assert Enum.map(body["commits"], & &1["sha"]) == [b, a]
     assert Enum.at(body["commits"], 1)["message"] =~ "body mentions #22"
     assert Enum.at(body["commits"], 1)["committed_at"] =~ ~r/^\d{4}-\d\d-\d\dT/
+  end
+
+  describe "deploy failed (#2820)" do
+    @run "https://github.com/example/app/actions/runs/42"
+
+    test "records the stage and run with the commits since the last deploy", %{repo: repo} do
+      prev = commit!(repo, "base")
+      a = commit!(repo, "feat: a (#21)")
+      serve([last(prev), created()])
+
+      assert {:ok, plan} = Deploy.record_failure(dir: repo, stage: "build", run_url: @run)
+      assert plan["deployment"]["id"] == 7
+      assert_received {:request, "POST", "/api/deployments/failed", body}
+      body = JSON.decode!(body)
+      assert body["stage"] == "build"
+      assert body["run_url"] == @run
+      assert body["sha"] == a
+      assert body["previous_sha"] == prev
+      assert [%{"sha" => ^a, "message" => "feat: a (#21)"}] = body["commits"]
+    end
+
+    test "takes the run from $SLIPDOCK_DEPLOY_RUN_URL, and --run-url wins", %{repo: repo} do
+      commit!(repo, "one")
+      System.put_env("SLIPDOCK_DEPLOY_RUN_URL", @run)
+      serve([last(nil), created()])
+      assert {:ok, _} = Deploy.record_failure(dir: repo, stage: "health")
+      assert_received {:request, "POST", "/api/deployments/failed", body}
+      assert JSON.decode!(body)["run_url"] == @run
+
+      serve([last(nil), created()])
+      assert {:ok, _} = Deploy.record_failure(dir: repo, stage: "health", run_url: @run <> "1")
+      assert_received {:request, "POST", "/api/deployments/failed", body}
+      assert JSON.decode!(body)["run_url"] == @run <> "1"
+    end
+
+    test "deploy start sends the run too, when there is one", %{repo: repo} do
+      commit!(repo, "one")
+      System.put_env("SLIPDOCK_DEPLOY_RUN_URL", @run)
+      serve([last(nil), created()])
+      assert {:ok, _} = Deploy.record_start(dir: repo)
+      assert_received {:request, "POST", "/api/deployments", body}
+      assert JSON.decode!(body)["run_url"] == @run
+    end
+
+    test "a missing or unknown stage is refused before asking the server", %{repo: repo} do
+      commit!(repo, "one")
+      assert {:error, "pass --stage: " <> _} = Deploy.record_failure(dir: repo)
+      assert {:error, message} = Deploy.record_failure(dir: repo, stage: "lint")
+      assert message =~ ~s(unknown --stage "lint")
+      assert message =~ "build, test, merge, deploy, health"
+      refute_received {:request, _, _, _}
+    end
+
+    test "the server's refusal comes back as the error (metrics off, a bad url)", %{repo: repo} do
+      commit!(repo, "one")
+
+      serve([
+        last(nil),
+        {403,
+         JSON.encode!(%{
+           "error" => "delivery_metrics_off",
+           "message" => "delivery metrics are off for board app"
+         })}
+      ])
+
+      assert {:error, message} = Deploy.record_failure(dir: repo, stage: "build")
+      assert message =~ "delivery metrics are off for board app (HTTP 403)"
+    end
+
+    test "a dry run records nothing", %{repo: repo} do
+      commit!(repo, "one (#5)")
+      serve([last(nil)])
+      assert {:ok, plan} = Deploy.record_failure(dir: repo, stage: "merge", dry_run: true)
+      refute Map.has_key?(plan, "deployment")
+      refute_received {:request, "POST", _, _}
+    end
+
+    test "the command prints the stage, and parses its switches", %{repo: repo} do
+      commit!(repo, "one")
+
+      serve([
+        last(nil),
+        {201,
+         JSON.encode!(%{
+           "deployment" => %{
+             "id" => 9,
+             "sha" => "abc1234def",
+             "environment" => "production",
+             "stage" => "test"
+           }
+         })}
+      ])
+
+      out =
+        capture_io(fn ->
+          capture_io(:stderr, fn ->
+            Deploy.run("deploy", ["failed"], dir: repo, stage: "test", run_url: @run)
+          end)
+        end)
+
+      assert out =~ "deploy #9 failed at test: abc1234 to production"
+
+      {opts, args, []} =
+        OptionParser.parse(~w(deploy failed --stage build --run-url #{@run}),
+          strict: SlipdockCLI.switches()
+        )
+
+      assert args == ["deploy", "failed"]
+      assert opts[:stage] == "build"
+      assert opts[:run_url] == @run
+    end
   end
 
   describe "a note on the deploy (#1857)" do

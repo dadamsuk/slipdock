@@ -57,6 +57,17 @@ a wait opened or a job ending since the last pass brings the next one
 forward, though no sooner than 5 minutes after the last. The watch runs
 every minute regardless.
 
+**The morning digest of Housekeeping's work.** Once a day, at *Housekeeping
+digest at* (07:00 unless you change it, in your own time zone), the overseer
+writes one more status update on its card: what the Housekeeping list's
+feeds worked since the last one. The cards are grouped by theme, one line a
+group (a card's tag, else the handbook area its paths fall in, else
+*other*). It names one by one only the cards that need you: rejected by
+verification, escalated to Triage, given up on, or whose paths overlap a card
+in progress under an epic. A day when nothing ran says so in a line. It
+appears wherever the overseer's digests do, with no new notification. It
+costs no tokens: the server writes it from what it already holds.
+
 **Turning it on.** Automations → **Overseer** on the board (its owner):
 *Watch this board*, the runner pool, the bounds and *Email me*, with the
 last digest and the open conditions below. Or:
@@ -65,12 +76,13 @@ last digest and the open conditions below. Or:
 slipdock overseer ops                         # on or off, next pass, last digest, open conditions
 slipdock overseer ops --on --pool default     # turn it on
 slipdock overseer ops --min-minutes 10 --max-minutes 240 --idle-minutes 20 --no-email
+slipdock overseer ops --digest-at 06:30          # when the Housekeeping digest is written
 slipdock overseer ops --off
 ```
 
 ```
 GET   /api/boards/:board/overseer          settings, conditions, cleared_last_day, last_digest, next_run_at
-PATCH /api/boards/:board/overseer {enabled?, pool?, min_minutes?, max_minutes?, idle_minutes?, email?}
+PATCH /api/boards/:board/overseer {enabled?, pool?, min_minutes?, max_minutes?, idle_minutes?, email?, digest_at?}
 ```
 
 Over MCP, `get_board` with `overseer: true` reads it and `update_board` with

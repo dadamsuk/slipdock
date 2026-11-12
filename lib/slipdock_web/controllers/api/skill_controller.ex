@@ -27,10 +27,12 @@ defmodule SlipdockWeb.API.SkillController do
 
   @doc """
   Every skill as one `.tar.gz`, for a client that has `curl` and `tar` and
-  nothing else (see `/install.sh`).
+  nothing else (see `/install.sh`), and what the runner daemon installs
+  before each agent job. A build the release job signed serves the bytes it
+  signed (`Skills.signed_tarball/0`); any other packs `priv/skills` here.
   """
   def archive(conn, _params) do
-    case Skills.tarball() do
+    case archive_bytes() do
       {:ok, bytes} ->
         conn
         |> put_resp_content_type("application/gzip")
@@ -42,6 +44,36 @@ defmodule SlipdockWeb.API.SkillController do
 
       _ ->
         {:error, :not_found, "the skills archive"}
+    end
+  end
+
+  @unsigned "this server's skills are not signed with the release key\n"
+
+  @doc """
+  The archive's signature with the project's release key (#2784): an
+  OpenSSH signature in the namespace `slipdock-skills`, which the runner
+  daemon checks before it installs the archive. 404 when this build has
+  none, which the daemon reads as unsigned.
+  """
+  def signature(conn, _params) do
+    case Skills.signed_tarball() do
+      {:ok, _bytes, sig} ->
+        conn
+        |> put_resp_content_type("text/plain")
+        |> put_resp_header("cache-control", "no-cache")
+        |> send_resp(200, sig)
+
+      :unsigned ->
+        conn
+        |> put_resp_content_type("text/plain")
+        |> send_resp(404, @unsigned)
+    end
+  end
+
+  defp archive_bytes do
+    case Skills.signed_tarball() do
+      {:ok, bytes, _sig} -> {:ok, bytes}
+      :unsigned -> Skills.tarball()
     end
   end
 

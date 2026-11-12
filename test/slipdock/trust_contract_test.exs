@@ -42,7 +42,12 @@ defmodule Slipdock.TrustContractTest do
             "Give the agent a `slipdock` CLI the project didn't sign.",
             "only when its signature verifies against the same release key",
             "- The slipdock skills, and a CLI taken on the server's word.",
-            "With `cli_checksum_only` set in `local.json`"
+            "With `cli_checksum_only` set in `local.json`",
+            # The skills (#2784): signed with the same key, or taken on the
+            # server's word only where local.json says so.
+            "Give the agent slipdock skills the project didn't sign.",
+            "only when the archive's signature verifies against the same release key",
+            "With `skills_unsigned` set in `local.json`"
           ] do
         assert text =~ promise, "the contract no longer says #{promise}"
       end
