@@ -276,8 +276,10 @@ slipdock claim-job <board> --pool <pool>     # or the MCP tool claim_job
 
 A resumed card (step 2) whose *Picked up* comment names a job is still that
 job's: report and finish on it as above. If its lease ran out while the pass
-was gone, `job-progress` and `finish-job` answer that it was not claimed
-with this token — note that on the card and carry on without the job.
+was gone, the first `job-progress` or `finish-job` takes the job back,
+unless another runner has claimed it since: then they answer that it was
+not claimed with this token — note that on the card and carry on without
+the job.
 
 ## 3. Pick the top card
 

@@ -2402,7 +2402,11 @@ defmodule SlipdockWeb.APIGuide do
     A job goes `queued → claimed → running → done | failed | cancelled |
     timeout`. A claim holds a lease (90 seconds) that each heartbeat renews;
     a lease that runs out puts the job back in the queue, and after three
-    tries the job fails and its card is flagged.
+    tries the job fails and its card is flagged. Until another runner claims
+    it, the runner that held it takes it back with its next heartbeat,
+    `progress` or finish (a machine that slept, a session that went quiet):
+    the answer is `ok` as if the lease had never lapsed, and it costs no try.
+    Once another runner has it, those answer `404`.
 
     **Taking jobs from a Claude session** (`/loop`, a scheduled task) uses the
     token you already have — over MCP the `claim_job`, `job_progress` and
@@ -2422,7 +2426,8 @@ defmodule SlipdockWeb.APIGuide do
 
     A session holds its job on a 20-minute lease (a runner on a machine, 90
     seconds): report between steps, and never let 20 minutes pass without a
-    `progress`, or the lease runs out and somebody else gets the card. `note` also goes on the card as a
+    `progress`, or the lease runs out and somebody else may get the card (a
+    late `progress` takes the job back only if nobody has). `note` also goes on the card as a
     comment; `step` (what you're doing now, ≤ 300 characters) is kept on the
     job only, as its `step` and `step_at`, and shows on the Runners panel and
     in `slipdock job`/`jobs`. Every step is also kept on the job with its time
