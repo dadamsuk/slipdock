@@ -3,6 +3,7 @@ package runner
 import (
 	"context"
 	"errors"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -102,6 +103,13 @@ func (g *fakeRepo) sleep(d time.Duration) { g.sleptFor += d }
 
 const defaultRelease = "gh workflow run release.yml --ref {default_branch}"
 
+// Where the fake repository is and where a listed command's worktree goes,
+// as the daemon's own filepath calls spell them on this OS.
+var (
+	releaseRepo = filepath.Clean("/repo")
+	releaseLane = filepath.Join(releaseRepo+"-lanes", "release-9")
+)
+
 func releaseJob(command string) *Job {
 	return &Job{ID: 9, Kind: ReleaseKind, Prompt: command}
 }
@@ -121,7 +129,7 @@ func TestReleaseRunsTheWorkflowOnTheDefaultBranch(t *testing.T) {
 	if !contains(g.ran, "gh workflow run release.yml --ref main") {
 		t.Fatalf("ran:\n%s", strings.Join(g.ran, "\n"))
 	}
-	if g.ranIn["gh workflow run release.yml --ref main"] != "/repo" {
+	if g.ranIn["gh workflow run release.yml --ref main"] != releaseRepo {
 		t.Fatalf("gh ran in %q, want the repository", g.ranIn["gh workflow run release.yml --ref main"])
 	}
 	// Fetched before the branch is read, and no worktree for gh.
@@ -200,16 +208,16 @@ func TestReleaseRunsACommandTheMachineListsInAWorktreeOfTheDefaultBranch(t *test
 		t.Fatalf("release = %q, %v", url, err)
 	}
 	want := []string{
-		"git worktree add --detach /repo-lanes/release-9 origin/main",
+		"git worktree add --detach " + releaseLane + " origin/main",
 		"make release BRANCH=main",
-		"git worktree remove --force /repo-lanes/release-9",
+		"git worktree remove --force " + releaseLane,
 	}
 	for _, line := range want {
 		if !contains(g.ran, line) {
 			t.Fatalf("didn't run %q:\n%s", line, strings.Join(g.ran, "\n"))
 		}
 	}
-	if g.ranIn["make release BRANCH=main"] != "/repo-lanes/release-9" {
+	if g.ranIn["make release BRANCH=main"] != releaseLane {
 		t.Fatalf("the command ran in %q", g.ranIn["make release BRANCH=main"])
 	}
 }
@@ -221,7 +229,7 @@ func TestAFailedListedCommandStillRemovesItsWorktree(t *testing.T) {
 	if !errors.As(err, &re) || re.code != 3 || re.msg != "release: the release command failed: make: *** [release] Error 1" {
 		t.Fatalf("err = %v", err)
 	}
-	if !contains(g.ran, "git worktree remove --force /repo-lanes/release-9") {
+	if !contains(g.ran, "git worktree remove --force "+releaseLane) {
 		t.Fatalf("ran:\n%s", strings.Join(g.ran, "\n"))
 	}
 }
@@ -261,7 +269,7 @@ func TestReleaseRefusesWhatItWontRun(t *testing.T) {
 		{"gh refuses", defaultRelease, nil, fakeRepo{runFails: true, runSays: "could not find any workflows\n named release.yml"}, 3,
 			"gh workflow run refused: could not find any workflows named release.yml"},
 		{"gh refuses silently", defaultRelease, nil, fakeRepo{runFails: true}, 3, "gh workflow run refused: it gave no reason"},
-		{"no worktree", "make release", []string{"make release"}, fakeRepo{addFails: true}, 2, "could not make the release worktree /repo-lanes/release-9: fatal: already exists"},
+		{"no worktree", "make release", []string{"make release"}, fakeRepo{addFails: true}, 2, "could not make the release worktree " + releaseLane + ": fatal: already exists"},
 	}
 	for _, c := range cases {
 		g := c.repo
