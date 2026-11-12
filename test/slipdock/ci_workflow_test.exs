@@ -1059,8 +1059,11 @@ defmodule Slipdock.CiWorkflowTest do
     test "the skills archive is packed, signed in its own namespace, checked and served" do
       build = release_jobs()["cli-build"]
 
+      # Every file 0644 and every folder 0755 whatever the checkout's modes,
+      # as the daemon writes them, so the same tree gives the same bytes.
       assert step_runs(build) =~
-               "-cf - slipdock* | gzip -n > ../../cli-dist/slipdock-skills.tar.gz"
+               "tar --sort=name --owner=0 --group=0 --numeric-owner --mtime=@0 --mode=u=rwX,go=rX \\\n" <>
+                 "  -cf - slipdock* | gzip -n > ../../cli-dist/slipdock-skills.tar.gz"
 
       [upload] = Enum.filter(build["steps"], &(&1["uses"] == "actions/upload-artifact@v4"))
       assert upload["with"]["path"] =~ "cli-dist/slipdock-skills.tar.gz"
@@ -1087,6 +1090,11 @@ defmodule Slipdock.CiWorkflowTest do
 
       assert dockerfile =~
                "mv priv/cli/signed/slipdock-skills.tar.gz priv/cli/signed/slipdock-skills.tar.gz.sig priv/skills_signed/"
+
+      # A copy left in a checkout's priv/skills_signed never reaches the
+      # image: only the release job's signed bytes are served.
+      dockerignore = File.read!(Path.join(@root, ".dockerignore"))
+      assert "priv/skills_signed" in String.split(dockerignore, "\n")
 
       # Moved out before the CLI's step removes priv/cli/signed.
       {skills_at, _} = :binary.match(dockerfile, "priv/skills_signed/")
