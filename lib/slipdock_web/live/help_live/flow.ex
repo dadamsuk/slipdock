@@ -594,7 +594,8 @@ defmodule SlipdockWeb.HelpLive.Flow do
       after its kind, or <code>→ #2087</code>
       at its end for a card filed for it. A fix is a card, not a finding: a concrete change
       someone could be handed (a missing test, a stale doc, a tooling bug) goes on the board
-      as a card at once, and the block names it with the arrow; a finding is only for what is
+      as a card at once, in the Housekeeping list when the board has one (a design question
+      goes to Triage, for a person), and the block names it with the arrow; a finding is only for what is
       uncertain, cuts across cards, or shows the handbook wrong.
     </p>
     <.person_note>

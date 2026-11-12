@@ -461,9 +461,10 @@ See [the manual](manual/tidying-up.md).
 
 Never take work from a **Triage** list (category `triage`; the guide marks
 it `triage: for a person`). The code sweep (`slipdock tools install-board
-sweep --board B`, or `install_tool` with `tool: "sweep"`) files what it finds
-there for a person to triage, one area and one lens a night; nothing feeds a
-runner from it. See [the manual](manual/tools.md).
+sweep --board B`, or `install_tool` with `tool: "sweep"`) files its design
+questions there for a person to triage, one area and one lens a night, and
+its fixes and investigations in the Housekeeping list when the board has one
+(everything in Triage when it doesn't); nothing feeds a runner from Triage. See [the manual](manual/tools.md).
 
 Never take work from a **Scheduled** list either (category `scheduled`; the
 guide marks it `scheduled: worked by feed rules`). It is where recurring agent
@@ -991,9 +992,13 @@ settled in the handbook, `- tooling: … → #2087` when a card was filed for it
 A fix is a card, not a finding: a concrete change you could hand to someone
 (a missing test such as "no test pins `slipdock done`'s exit codes", a stale
 moduledoc or doc entry, a tooling bug such as "`page section --append -`
-writes a literal `-`") goes on the board as a card now (`slipdock add <board>
-"…" --desc "…" --column Backlog`; `--desc -` reads the description from
-stdin, for a heredoc) and into the block as `→ #<card>`. A
+writes a literal `-`") goes on the board as a card now, in the Housekeeping
+list when the board has one, where runners take it after the ready list
+(`slipdock add <board> "…" --desc "…" --column Housekeeping`), else the
+backlog (`--column Backlog`); `--desc -` reads the description from stdin,
+for a heredoc. A design question (the answer would change how the product or
+a process behaves) goes to Triage for a person (`--column Triage`). Name the
+card in the block as `→ #<card>`. A
 finding is only for what is uncertain, cuts across cards, or shows the
 handbook wrong ("`mix format` can need two passes", "the shared `_pre_push`
 database can hold another branch's migration", "W-1950 §Tests says async is

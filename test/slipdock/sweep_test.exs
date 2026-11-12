@@ -62,9 +62,13 @@ defmodule Slipdock.SweepTest do
       [card] = sweep_cards(board) |> Repo.preload(:column)
       refute card.column.category == "triage"
       assert card.description =~ "One area and one lens per run"
-      assert card.description =~ "--column Triage"
+      # Fixes and investigations to Housekeeping, design questions to Triage,
+      # everything to Triage with no Housekeeping list (#2779).
+      assert card.description =~ "--column Housekeeping --origin sweep"
+      assert card.description =~ "--column Triage --origin sweep"
+      assert card.description =~ "On a board with no Housekeeping list, everything goes to Triage"
       # The description says where, why and the fix: a heredoc on stdin (#2686).
-      assert card.description =~ "--column Triage --desc - <<'EOF'"
+      assert card.description =~ "--column Housekeeping --origin sweep --desc - <<'EOF'"
       assert card.description =~ "`--desc -` reads it from stdin"
       assert card.description =~ "--tag security"
       assert card.description =~ "clean tree"
@@ -101,6 +105,27 @@ defmodule Slipdock.SweepTest do
       assert third.report.added["lists"] == ["Triage"]
       assert third.report.added["pages"] == []
       assert triage(board).category == "triage"
+    end
+
+    test "installing 1.1.0 over an older sweep gives its card the current procedure (#2779)",
+         %{user: user, board: board} do
+      {:ok, _} = Sweep.install(user, board)
+      [card] = sweep_cards(board)
+      old = "File each issue as a card in the `Triage` list, never in the ready list."
+      {:ok, _} = Boards.update_card(card, %{"description" => old, "priority" => "high"})
+
+      assert {:ok, again} = Sweep.install(user, board)
+      assert again.upgraded
+      assert again.report.added["cards"] == ["Sweep the code (updated: procedure)"]
+      [after_card] = sweep_cards(board)
+      assert after_card.id == card.id
+      assert after_card.description =~ "--column Housekeeping --origin sweep"
+      assert after_card.priority == "high"
+
+      # Once current, installing again leaves it be.
+      assert {:ok, third} = Sweep.install(user, board)
+      refute third.upgraded
+      assert third.report.added["cards"] == []
     end
 
     test "a Triage list made by hand gets the category; one with its own keeps it",

@@ -58,7 +58,10 @@ before 1.2.0 reconciled weekly: installing over it gives the reconcile
 card (the series' current one) the nightly procedure and moves its series
 to every day, and changes nothing else on it. Installing 1.3.0 over an
 older handbook adds the Triage findings card and appends `## Triage` to the
-Index.
+Index. Installing 1.9.0 gives an open Triage findings card the current
+procedure: a leftover finding that becomes a card goes to Housekeeping when
+it is a fix (the backlog on a board without one) and to Triage when it is a
+design question.
 
 **Before you push** (1.4.0): every check CI enforces on a pull request
 should run locally through one command, and builders are told which. The
@@ -166,9 +169,12 @@ adds:
 - a **Triage** list, in the `triage` category;
 - a **Sweep the code** card, every day. Its procedure: take the stalest
   cell, check out the default branch's head in a clean worktree, read that
-  area through that lens without changing code, file each issue as a card in
-  Triage (where, why it matters, the fix), record each as a finding in the
-  closing comment, then update the cell and the Log. One area and one lens a
+  area through that lens without changing code, file each issue as a card
+  (where, why it matters, the fix): a fix or investigation in the
+  Housekeeping list, which runners work after the ready list, and a design
+  question (the answer would change how the product or a process behaves) in
+  Triage; on a board with no Housekeeping list, everything in Triage. Record
+  each as a finding in the closing comment, then update the cell and the Log. One area and one lens a
   run; a security issue gets the `security` tag and stays vague in commit
   messages, pull requests and the log. It is installed with a bar of its own
   that names no cell ("Swept the stalest cell of W-…'s Rotation table…"),
@@ -177,7 +183,10 @@ adds:
   day.
 
 Installing again adds only what is missing (the list, the page or the card,
-if deleted) and never touches the page once it is there.
+if deleted) and never touches the page once it is there. Installing 1.1.0
+over an older sweep gives its open *Sweep the code* card the current
+procedure (fixes to Housekeeping, design questions to Triage), and changes
+nothing else on it.
 
 **A Triage list is never fed.** A list whose category is `triage` holds work
 for a person to look at, not for the loop: the agent guide never reads it as
