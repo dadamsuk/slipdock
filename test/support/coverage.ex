@@ -140,7 +140,7 @@ defmodule Slipdock.Coverage do
       known == nil ->
         probe_and_compile(beams)
 
-      compile_held(rest) ->
+      compiled_apart?(rest) ->
         Mix.shell().info(
           "Compiled in one call, leaving out the #{length(listed)} the exports list"
         )
@@ -153,52 +153,20 @@ defmodule Slipdock.Coverage do
     end
   end
 
-  # Compiles the beams in one call from a process that stays to hold the
-  # server it started: true when they all compiled, and false, the server
-  # stopped, when one failed or killed it.
-  defp compile_held(beams) do
-    parent = self()
-
-    {pid, ref} =
-      spawn_monitor(fn ->
-        send(parent, {self(), compile(beams)})
-
-        # Held until the node stops: nothing sends this.
-        receive do
-          :release -> :ok
-        end
-      end)
-
-    receive do
-      {^pid, true} ->
-        Process.demonitor(ref, [:flush])
-        true
-
-      {^pid, false} ->
-        Process.demonitor(ref, [:flush])
-        Process.exit(pid, :kill)
-        _ = :cover.stop()
-        false
-
-      {:DOWN, ^ref, :process, ^pid, _} ->
-        _ = :cover.stop()
-        false
-    end
-  end
-
   defp probe_and_compile(beams) do
     # A beam :cover cannot compile kills its server and whoever started it,
     # taking every module compiled so far along (#2848: one bad beam fails
     # the whole parallel call). So try them a chunk at a time from a process
     # of its own, halve the chunks that die until the culprits are alone,
-    # then compile all the ones that survived in one call.
+    # then compile all the ones that survived in one call. Nothing to stop
+    # in between: a beam that kills the server takes all it held, so it
+    # only ever holds good ones, and compiling one again replaces it.
     {good, bad} =
       beams
       |> Enum.chunk_every(@chunk)
       |> Enum.map(&probe/1)
       |> Enum.reduce({[], []}, fn {g, b}, {gs, bs} -> {gs ++ g, bs ++ b} end)
 
-    _ = :cover.stop()
     _ = compile(good)
 
     Enum.map(bad, &module/1)
@@ -207,7 +175,7 @@ defmodule Slipdock.Coverage do
   # {the beams :cover compiles, the ones it can't}.
   defp probe(beams) do
     cond do
-      compiles?(beams) ->
+      compiled_apart?(beams) ->
         {beams, []}
 
       match?([_], beams) ->
@@ -221,13 +189,15 @@ defmodule Slipdock.Coverage do
     end
   end
 
-  defp compiles?(beams) do
+  # Compiles the beams in one call, from a process of its own so that a
+  # beam that kills :cover doesn't take the merge with it: true when they
+  # all compiled. They stay compiled after the process goes: the server
+  # isn't linked to whoever started it.
+  defp compiled_apart?(beams) do
     {pid, ref} = spawn_monitor(fn -> exit({:compiled, compile(beams)}) end)
 
     receive do
-      {:DOWN, ^ref, :process, ^pid, reason} ->
-        _ = :cover.stop()
-        reason == {:compiled, true}
+      {:DOWN, ^ref, :process, ^pid, reason} -> reason == {:compiled, true}
     end
   end
 
@@ -334,10 +304,10 @@ defmodule Mix.Tasks.Slipdock.Coverage do
     # --no-compile takes the build as it is: CI's coverage job passes it when
     # the cache held the build of this very tree, which Mix would otherwise
     # recompile whole on a runner whose checkout is in another directory
-    # (#2848: the manifest keeps the project's absolute path).
-    if Keyword.get(opts, :compile, true),
-      do: Mix.Task.run("compile"),
-      else: Mix.Task.run("loadpaths", ["--no-deps-check"])
+    # (#2848: the manifest keeps the project's absolute path). Nothing to
+    # load then: :cover reads the beams by their path, and Mix put the
+    # app's ebin on the code path to find this task.
+    if Keyword.get(opts, :compile, true), do: Mix.Task.run("compile")
 
     project = Mix.Project.config()
     check(Mix.Project.compile_path(project), project[:test_coverage] || [])

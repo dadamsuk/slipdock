@@ -347,6 +347,19 @@ defmodule Slipdock.CoverageTest do
     refute File.exists?(file)
   end
 
+  test "lists that name every beam leave nothing to compile, and nothing to probe", ctx do
+    {_, 0} = export(ctx, "partition-1", :a)
+    File.write!(Path.join(ctx.out, "partition-1.skipped"), "Elixir.CoverageSample\n")
+
+    {output, 0} = merge(ctx, 90)
+
+    assert output =~ "Compiled in one call, leaving out the 1 the exports list"
+    refute output =~ "trying each chunk"
+    assert output =~ "Not measured (:cover could not compile them): CoverageSample"
+    refute output =~ ~r/\| CoverageSample$/m
+    assert output =~ "result: :ok"
+  end
+
   test "the merge leaves its own two modules out of what it cover-compiles", ctx do
     # As in the app's build, where they sit beside everything else: :cover
     # reloads what it compiled when it stops, and the purge kills whoever
@@ -373,15 +386,18 @@ defmodule Slipdock.CoverageTest do
 
   # Beams :cover can't compile, as some of the app's are on OTP 27 (#2848):
   # one whose debug info is code that doesn't compile, which kills the
-  # server mid-call as the real ones do, and one with no debug info at all,
-  # which :cover refuses without dying.
+  # server and the caller mid-call as the real ones do, and one with no
+  # debug info at all, which :cover refuses without dying. The `file`
+  # attribute is what gets a broken one that far: without it :cover
+  # refuses it too (`:no_file_attribute`), and nothing dies.
   defp write_bad_beams(ebin) do
     for {mod, debug} <- [
           {CoverageBadA, :broken},
           {CoverageBadB, :none},
-          {CoverageBadC, :broken}
+          {CoverageWorse, :broken}
         ] do
       forms = [
+        {:attribute, 1, :file, {~c"coverage_bad.erl", 1}},
         {:attribute, 1, :module, mod},
         {:attribute, 1, :export, [f: 0]},
         {:function, 1, :f, 0, [{:clause, 1, [], [], [{:atom, 1, :ok}]}]}
@@ -391,8 +407,8 @@ defmodule Slipdock.CoverageTest do
         case debug do
           # `f` returns a variable nobody bound.
           :broken ->
-            unbound = put_elem(Enum.at(forms, 2), 4, [{:clause, 1, [], [], [{:var, 1, :X}]}])
-            [{:debug_info, {:erl_abstract_code, {List.replace_at(forms, 2, unbound), []}}}]
+            unbound = put_elem(Enum.at(forms, 3), 4, [{:clause, 1, [], [], [{:var, 1, :X}]}])
+            [{:debug_info, {:erl_abstract_code, {List.replace_at(forms, 3, unbound), []}}}]
 
           :none ->
             []
@@ -404,7 +420,9 @@ defmodule Slipdock.CoverageTest do
   end
 
   # Modules from outside lib/, so the report leaves them out: enough of
-  # them that the bad beams land in different chunks.
+  # them that the bad beams land in different chunks. CoverageWorse sorts
+  # after them all, so the server it kills holds every chunk tried before
+  # it, which the compile after the probe has to put back.
   defp write_fillers(%{tmp_dir: dir, ebin: ebin}, count) do
     source =
       for n <- 1..count, into: "", do: "defmodule CoverageFiller#{n}, do: def(f, do: #{n})\n"
@@ -428,12 +446,12 @@ defmodule Slipdock.CoverageTest do
 
     # Its list goes beside the export, for the merge to go by.
     assert File.read!(Path.join(ctx.out, "partition-1.skipped")) ==
-             "Elixir.CoverageBadA\nElixir.CoverageBadB\nElixir.CoverageBadC\n"
+             "Elixir.CoverageBadA\nElixir.CoverageBadB\nElixir.CoverageWorse\n"
 
     {output, 0} = merge(ctx, 15)
 
     assert output =~
-             "Not measured (:cover could not compile them): CoverageBadA, CoverageBadB, CoverageBadC"
+             "Not measured (:cover could not compile them): CoverageBadA, CoverageBadB, CoverageWorse"
 
     # With the list, the merge never tried them.
     assert output =~ "Compiled in one call, leaving out the 3 the exports list"
@@ -441,20 +459,23 @@ defmodule Slipdock.CoverageTest do
     assert total(output) == 15.38
     assert output =~ "result: :ok"
 
-    # A list that misses one: the one call fails, and the merge finds them
-    # all as the partition did.
-    File.write!(Path.join(ctx.out, "partition-1.skipped"), "Elixir.CoverageBadB\n")
+    # A list that misses some: the one call fails, and the merge finds them
+    # all as the partition did. Missing B, :cover refuses it and the call
+    # returns; missing A and Worse, the call dies with the server.
+    for listed <- ["Elixir.CoverageBadA\nElixir.CoverageWorse\n", "Elixir.CoverageBadB\n"] do
+      File.write!(Path.join(ctx.out, "partition-1.skipped"), listed)
 
-    {stale, 0} = merge(ctx, 15)
+      {stale, 0} = merge(ctx, 15)
 
-    assert stale =~ "The exports' lists missed a module: trying each chunk"
-    refute stale =~ "Compiled in one call"
+      assert stale =~ "The exports' lists missed a module: trying each chunk"
+      refute stale =~ "Compiled in one call"
 
-    assert stale =~
-             "Not measured (:cover could not compile them): CoverageBadA, CoverageBadB, CoverageBadC"
+      assert stale =~
+               "Not measured (:cover could not compile them): CoverageBadA, CoverageBadB, CoverageWorse"
 
-    assert total(stale) == 15.38
-    assert stale =~ "result: :ok"
+      assert total(stale) == 15.38
+      assert stale =~ "result: :ok"
+    end
 
     # No lists at all, as from an export made before them: it finds them.
     File.rm!(Path.join(ctx.out, "partition-1.skipped"))
@@ -465,7 +486,7 @@ defmodule Slipdock.CoverageTest do
     refute unlisted =~ "missed a module"
 
     assert unlisted =~
-             "Not measured (:cover could not compile them): CoverageBadA, CoverageBadB, CoverageBadC"
+             "Not measured (:cover could not compile them): CoverageBadA, CoverageBadB, CoverageWorse"
 
     assert total(unlisted) == 15.38
 
@@ -482,5 +503,6 @@ defmodule Slipdock.CoverageTest do
     assert "CoverageSample" in compiled
     assert "CoverageFiller70" in compiled
     refute Enum.any?(compiled, &String.starts_with?(&1, "CoverageBad"))
+    refute "CoverageWorse" in compiled
   end
 end
