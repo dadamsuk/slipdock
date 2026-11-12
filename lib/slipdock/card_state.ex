@@ -83,13 +83,14 @@ defmodule Slipdock.CardState do
       page has them); otherwise they are;
     * `:columns` — the board's lists, when the cards don't carry theirs;
     * `:runner_tree` — `runner_tree?/1` for the board's tree, when known;
-    * `:now` — the clock, for tests.
+    * `:now` — the clock, when the caller has read it already; otherwise
+      `now/0`.
   """
   def put(cards, board, opts \\ [])
   def put([], _board, _opts), do: []
 
   def put(cards, %Board{} = board, opts) do
-    now = Keyword.get_lazy(opts, :now, &DateTime.utc_now/0)
+    now = Keyword.get_lazy(opts, :now, &now/0)
     ids = Enum.map(cards, & &1.id)
     jobs = jobs(ids)
 
@@ -109,6 +110,17 @@ defmodule Slipdock.CardState do
 
     Enum.map(cards, &%{&1 | state: derive(&1, ctx)})
   end
+
+  @doc """
+  The clock a card's age and state line are counted against: the time now,
+  unless a test has fixed it (`Slipdock.TestConfig.put(:card_state_now, at)`).
+
+  An age is whole seconds, so two reads of a card a moment apart can differ
+  by one when a second ticks over between them. A test that compares two
+  doors' answers (#2841) fixes the clock so both count from one instant.
+  """
+  @spec now() :: DateTime.t()
+  def now, do: Slipdock.Config.get(:card_state_now) || DateTime.utc_now()
 
   # Each card's open job if it has one (one being worked before one queued),
   # else its newest.
