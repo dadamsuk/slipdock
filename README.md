@@ -696,9 +696,11 @@ SLIPDOCK_PUBLISH=127.0.0.1:4000   # only the proxy needs to reach it (the defaul
 
 The visitor's own address, which the sign-in limits and the API token audit
 use, is taken from `X-Forwarded-For` — but only when the request arrives from
-a trusted proxy: by default loopback and the private ranges, which covers a
-proxy on the same host or in the same Docker network. If yours connects from
-a public address (Cloudflare proxying straight to the origin, say), list its
+a trusted proxy: by default loopback only, which covers a proxy on the same
+host. Under compose, `compose.yaml` sets `SLIPDOCK_TRUSTED_PROXIES=local`:
+loopback and the container's own network, which covers Caddy and a host proxy
+reaching the published port. A proxy elsewhere on your LAN has to be listed.
+If yours connects from a public address (Cloudflare proxying straight to the origin, say), list its
 ranges in `SLIPDOCK_TRUSTED_PROXIES`, comma-separated; otherwise everybody
 appears to come from the proxy and shares one sign-in limit. `none` trusts
 nobody.
@@ -740,6 +742,12 @@ docker compose up -d
 Migrations run themselves on boot. Read [UPGRADING.md](UPGRADING.md) first — it
 says what changed and what, if anything, you have to do.
 
+These commands bring a new image but leave your `compose.yaml` as it was when
+you downloaded it, so a setting a newer `compose.yaml` adds doesn't reach you
+until you fetch that file again or set it in `.env`. UPGRADING.md names each
+one: `SLIPDOCK_TRUSTED_PROXIES=local`, for instance, without which Caddy's
+`X-Forwarded-For` is no longer believed.
+
 `latest` follows the main branch. To pin a version instead, set `SLIPDOCK_TAG`
 in your `.env` to any published tag.
 
@@ -762,7 +770,7 @@ Compose reads `compose.override.yaml` by itself. Caddy takes over the port in
 Upgrading is the same two commands as before: only the app is recreated, and
 Caddy keeps retrying each request for up to 30 seconds until the new container
 answers. Runners waiting for a job are answered before the old container
-stops, and ask again a second later. It trusts the private ranges in front of it, so `X-Forwarded-For`
+stops, and ask again a second later. Caddy trusts the private ranges in front of it, so `X-Forwarded-For`
 and `X-Forwarded-Proto` from a tunnel or host proxy pass through unchanged.
 It needs Docker Compose 2.24 or later.
 

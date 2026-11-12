@@ -53,6 +53,9 @@ defmodule Slipdock.CaddyFrontTest do
   end
 
   test "the address chain Caddy passes on behind a tunnel resolves to the visitor" do
+    # compose.yaml's "local": loopback and the compose network, in the rehearsal 172.18/16.
+    Slipdock.TestConfig.put(:trusted_proxies, ["127.0.0.0/8", "172.18.0.0/16"])
+
     # What the app saw in the rehearsal: the tunnel's X-Forwarded-For with
     # Caddy's peer (the docker gateway) appended, arriving from Caddy itself.
     resolved = ClientIP.resolve({172, 18, 0, 3}, ["198.51.100.7, 172.18.0.1"])

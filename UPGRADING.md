@@ -20,6 +20,23 @@
   `DATABASE_SSL=true` (its name now included). A relay with a self-signed
   certificate needs `SLIPDOCK_SMTP_TLS_VERIFY=false`;
   `DATABASE_SSL_VERIFY=false` still turns off the database check.
+- **Only loopback is a trusted proxy by default** (#2796), not every private
+  range: a server exposed directly on a LAN let anybody on it write their own
+  `X-Forwarded-For`, dodging the per-IP sign-in limits and forging the "asked
+  from" address an approver reads. `compose.yaml` sets
+  `SLIPDOCK_TRUSTED_PROXIES=local` (loopback and the container's own network),
+  which covers Caddy and a proxy on the host — but an existing install keeps
+  its own copy of `compose.yaml`, and `docker compose pull && docker compose
+  up -d` doesn't replace it. **A compose install has something to do:** put
+  `SLIPDOCK_TRUSTED_PROXIES=local` in `.env` (the old file's `env_file: .env`
+  passes it through), or fetch the new `compose.yaml`. Until it does, the new
+  image trusts loopback only: Caddy and a host proxy reaching the published
+  port are no longer believed, so every visitor appears to come from the proxy
+  and they all share one sign-in limit. A proxy on
+  another machine of a private network (or a release run outside compose
+  behind one) now has to be listed: `SLIPDOCK_TRUSTED_PROXIES=172.20.0.5/32`, or
+  `local,172.20.0.5/32` under compose. Until it is, every visitor appears to come
+  from the proxy and shares its sign-in limit.
 - **Agentic Login files** go to a private `slipdock-agentic-login` directory
   under the system temp dir, mode 0600, rather than straight into `/tmp`.
 - **Opening a sign-in link no longer signs in by itself.** It shows a

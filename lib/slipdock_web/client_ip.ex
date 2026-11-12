@@ -14,12 +14,21 @@ defmodule SlipdockWeb.ClientIP do
   can use up the sign-in limit for the whole server.
 
   Trusted proxies are `config :slipdock, :trusted_proxies`, a list of CIDRs
-  (`SLIPDOCK_TRUSTED_PROXIES` in the environment). The default is loopback and
-  the private ranges, which covers a proxy on the same host or in the same
-  Docker network; a server exposed directly to an untrusted LAN should narrow it.
+  (`SLIPDOCK_TRUSTED_PROXIES` in the environment). The default is loopback
+  only, which covers a proxy on the same host. It used to be every private
+  range as well, which let anybody on the same LAN as a directly exposed
+  server pick their own address (#2796).
+
+  An entry `"local"` stands for loopback and the networks this machine's own
+  interfaces are on. That is what `compose.yaml` sets: inside a container
+  those are the compose network, so Caddy or a proxy on the host (which
+  reaches a published port from the network's gateway) is believed, while a
+  visitor arriving through the published port keeps their own address. On a
+  host with its own LAN interface it would trust the whole LAN, so it is for
+  containers.
   """
 
-  @default_trusted ~w(127.0.0.0/8 ::1/128 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16 fc00::/7)
+  @default_trusted ~w(127.0.0.0/8 ::1/128)
 
   @doc "The client address of a plug request, as a string."
   @spec from_conn(Plug.Conn.t()) :: String.t()
@@ -125,7 +134,62 @@ defmodule SlipdockWeb.ClientIP do
     Enum.any?(trusted_proxies(), &Slipdock.Egress.in_cidr?(address, &1))
   end
 
-  defp trusted_proxies, do: Slipdock.Config.get(:trusted_proxies, @default_trusted)
+  defp trusted_proxies do
+    :trusted_proxies
+    |> Slipdock.Config.get(@default_trusted)
+    |> Enum.flat_map(fn
+      "local" -> @default_trusted ++ local_networks()
+      cidr -> [cidr]
+    end)
+  end
+
+  # Read once: a container's interfaces are set before the app starts.
+  defp local_networks do
+    case :persistent_term.get({__MODULE__, :local_networks}, nil) do
+      nil ->
+        {:ok, ifaddrs} = :inet.getifaddrs()
+        networks = networks(ifaddrs)
+        :persistent_term.put({__MODULE__, :local_networks}, networks)
+        networks
+
+      networks ->
+        networks
+    end
+  end
+
+  @doc """
+  The networks of the interfaces in `:inet.getifaddrs/0`'s answer, as CIDRs:
+  each address with the prefix its netmask gives.
+  """
+  @spec networks([{charlist() | String.t(), keyword()}]) :: [String.t()]
+  def networks(ifaddrs) do
+    Enum.flat_map(ifaddrs, fn {_name, opts} -> pairs(opts, nil) end)
+  end
+
+  # An interface lists each address followed by its netmask.
+  defp pairs([], _address), do: []
+
+  defp pairs([{:addr, address} | rest], _), do: pairs(rest, address)
+
+  defp pairs([{:netmask, mask} | rest], address)
+       when is_tuple(address) and tuple_size(mask) == tuple_size(address),
+       do: [cidr(address, mask) | pairs(rest, nil)]
+
+  defp pairs([_ | rest], address), do: pairs(rest, address)
+
+  defp cidr(address, mask) do
+    size = if tuple_size(mask) == 4, do: 8, else: 16
+
+    bits =
+      mask
+      |> Tuple.to_list()
+      |> Enum.map(&(<<&1::size(size)>> |> ones()))
+      |> Enum.sum()
+
+    "#{:inet.ntoa(address)}/#{bits}"
+  end
+
+  defp ones(bits), do: for(<<bit::1 <- bits>>, reduce: 0, do: (n -> n + bit))
 
   defp format(address), do: address |> :inet.ntoa() |> to_string()
 end
