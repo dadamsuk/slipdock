@@ -340,4 +340,12 @@ defmodule Slipdock.OverseerHousekeepingTest do
       assert s.digest_at == "07:00"
     end
   end
+
+  describe "pool" do
+    test "is stored trimmed and in lower case", ctx do
+      assert {:ok, s} = Overseer.put_settings(ctx.board, %{"pool" => " Watch "})
+      assert s.pool == "watch"
+      assert Repo.get!(Settings, s.id).pool == "watch"
+    end
+  end
 end
