@@ -20,10 +20,12 @@ defmodule Slipdock.ToolCliFlagsTest do
     |> MapSet.new()
   end
 
-  # The flags inside each `slipdock …` code span of a card's description.
+  # The flags inside each `slipdock …` code span of a card's description,
+  # and in each bare one that starts with a flag (`--column Triage …`,
+  # what a procedure tells an agent to add to its own `slipdock add`).
   defp flags(text) do
-    for [span] <- Regex.scan(~r/`slipdock [^`]*`/, text),
-        [_, flag] <- Regex.scan(~r/\s--([a-z][a-z-]*)/, span),
+    for [span] <- Regex.scan(~r/`(?:slipdock |--)[^`]*`/, text),
+        [_, flag] <- Regex.scan(~r/(?:^`|\s)--([a-z][a-z-]*)/, span),
         uniq: true,
         do: flag
   end
@@ -42,6 +44,14 @@ defmodule Slipdock.ToolCliFlagsTest do
       assert MapSet.member?(known, flag),
              "“#{title}” names --#{flag}, which the CLI doesn't parse"
     end
+  end
+
+  test "a bare flag span counts, and a typo in one is caught" do
+    assert flags("file it (`--column Triage --origin sweep`), tag it `--tag security`") ==
+             ~w(column origin tag)
+
+    assert flags("run `slipdock add B \"x\" --column Housekeeping`") == ~w(column)
+    refute MapSet.member?(switches(), "orign")
   end
 
   test "the sweep and the triage card name the flags they file with" do
