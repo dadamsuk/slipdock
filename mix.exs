@@ -248,6 +248,11 @@ defmodule Slipdock.MixProject do
   compile gets it too: the partition is part of the test config, and a step
   with another would recompile what reads it.
 
+  The steps run in `MIX_ENV=test` whatever the `mix pre_push` itself runs in.
+  `preferred_envs` makes that `test` only while `MIX_ENV` is unset: set but
+  empty, Mix reads it as `dev` (and any other value as itself), and a step
+  in `dev` would drop the dev database, which has no partition (#2903).
+
   `TEST_DATABASE_URL` overrides the partition in `config/test.exs`, so when
   it is set the steps get it with the partition on its database's name
   (`pre_push_database_url/2`) rather than the shared database it names.
@@ -268,7 +273,7 @@ defmodule Slipdock.MixProject do
     partition = pre_push_partition()
 
     [
-      {"MIX_ENV", to_string(Mix.env())},
+      {"MIX_ENV", "test"},
       {"MIX_BUILD_ROOT", pre_push_build_root()},
       {"MIX_TEST_PARTITION", partition}
     ] ++ pre_push_database_env(test_database_url, partition)
