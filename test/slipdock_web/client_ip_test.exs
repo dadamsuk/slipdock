@@ -178,6 +178,20 @@ defmodule SlipdockWeb.ClientIPTest do
              ]
     end
 
+    test "networks takes a netmask only for the address before it, and only of its family" do
+      ifaddrs = [
+        # An IPv6 address followed by an IPv4 netmask: no CIDR for it.
+        {~c"odd0", [addr: {0xFD00, 0, 0, 0, 0, 0, 0, 1}, netmask: {255, 255, 255, 0}]},
+        # A second netmask has no address left to pair with.
+        {~c"eth1", [addr: {10, 1, 0, 2}, netmask: {255, 255, 0, 0}, netmask: {255, 0, 0, 0}]},
+        # Something between an address and its netmask doesn't part them.
+        {~c"eth2",
+         [addr: {192, 0, 2, 10}, broadaddr: {192, 0, 2, 255}, netmask: {255, 255, 255, 0}]}
+      ]
+
+      assert ClientIP.networks(ifaddrs) == ["10.1.0.2/16", "192.0.2.10/24"]
+    end
+
     test "compose.yaml names its own network, and lets .env say otherwise" do
       compose = File.read!(Path.expand("../../compose.yaml", __DIR__))
       assert compose =~ "- SLIPDOCK_TRUSTED_PROXIES=${SLIPDOCK_TRUSTED_PROXIES:-local}"

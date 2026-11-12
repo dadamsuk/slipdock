@@ -78,9 +78,11 @@ services:
       # network (Caddy, or a host proxy through the published port, which
       # arrives from the network's gateway), so compose names that network:
       # "local" is loopback and the networks of the container's own
-      # interfaces. A visitor through the published port keeps their own
-      # address, and so is not believed. Interpolated from .env too, so a
-      # value there still wins.
+      # interfaces. On Linux Docker a visitor through the published port
+      # keeps their own address, and so is not believed; under Docker Desktop
+      # or rootless Docker that traffic arrives from the gateway, which "local"
+      # trusts, so there publish on loopback only or name your proxy instead.
+      # Interpolated from .env too, so a value there still wins.
       - SLIPDOCK_TRUSTED_PROXIES=${SLIPDOCK_TRUSTED_PROXIES:-local}
     volumes:
       # Uploaded files, each person's OpenRouter key and the generated secret.

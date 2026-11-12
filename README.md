@@ -742,6 +742,12 @@ docker compose up -d
 Migrations run themselves on boot. Read [UPGRADING.md](UPGRADING.md) first — it
 says what changed and what, if anything, you have to do.
 
+These commands bring a new image but leave your `compose.yaml` as it was when
+you downloaded it, so a setting a newer `compose.yaml` adds doesn't reach you
+until you fetch that file again or set it in `.env`. UPGRADING.md names each
+one: `SLIPDOCK_TRUSTED_PROXIES=local`, for instance, without which Caddy's
+`X-Forwarded-For` is no longer believed.
+
 `latest` follows the main branch. To pin a version instead, set `SLIPDOCK_TAG`
 in your `.env` to any published tag.
 
