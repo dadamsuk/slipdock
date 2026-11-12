@@ -316,8 +316,9 @@ count as LF) and of the CLI (`cli` there, else the daemon's own copy, else
 the `slipdock` on the PATH).
 The server compares them with the skills it packages and the escript
 `/cli/SHA256SUMS` publishes. The Runners panel marks a runner *skills
-drifted* or *old CLI* (or *CLI unsigned on server*, below), its details say
-*Skills* current, drifted (with the names) or unknown and *CLI* current,
+drifted* or *old CLI* (or *skills unsigned on server* and *CLI unsigned on
+server*, below), its details say
+*Skills* current, drifted or unsigned on server (with the names) or unknown and *CLI* current,
 old, unsigned on server, none or unknown, `slipdock runners`
 shows a SKILLS · CLI column and `slipdock runner` a *skills* and a *cli* line,
 and the API's runner has `drift` (`skills`, `drifted_skills`, `cli`). A
@@ -337,7 +338,11 @@ daemon (#2784): the release job signs each `v*` tag's archive, and a
 server built from source, or a deploy the release job didn't sign, serves
 none, so its machines keep their installed skills unless the local file
 sets `skills_unsigned: true`. A signature that doesn't verify is refused
-either way. Every skill file is written `0644`, whatever mode the archive
+either way. So after a deploy from `main` that changed the packaged
+skills, until the next tag is deployed, a runner whose skills differ shows
+*skills unsigned on server* (naming them) rather than *skills drifted*
+(#2916), raises no drift alert, and its probe passes: the machine has
+nothing to fix, and it reads current once the signed release is served. Every skill file is written `0644`, whatever mode the archive
 gives it. `no_skills_update: true` in the machine's local file turns it
 off. It keeps the `slipdock` CLI current the same way (#2631):
 when `/cli/SHA256SUMS` differs from the CLI the claim reports, it fetches

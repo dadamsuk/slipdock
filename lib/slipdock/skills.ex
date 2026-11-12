@@ -106,6 +106,9 @@ defmodule Slipdock.Skills do
       Path.join(:code.priv_dir(:slipdock), "skills_signed")
   end
 
+  @doc "The signed archive's path in `signed_dir/0`; its signature is beside it, `.sig`."
+  def signed_path, do: Path.join(signed_dir(), @signed_name)
+
   @doc """
   The archive the release job signed and its signature, `{:ok, bytes, sig}`,
   or `:unsigned` when this build has none (one from source, or an image of a
@@ -119,7 +122,7 @@ defmodule Slipdock.Skills do
   verifies, unless its `local.json` sets `skills_unsigned`.
   """
   def signed_tarball do
-    path = Path.join(signed_dir(), @signed_name)
+    path = signed_path()
 
     with {:ok, bytes} <- File.read(path),
          {:ok, sig} <- File.read(path <> ".sig") do

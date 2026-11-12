@@ -1800,13 +1800,17 @@ defmodule SlipdockWeb.API.JSON do
     %{skills: skills, cli: cli} = Slipdock.Runners.Drift.states(runner)
 
     %{
-      skills: if(match?({:drifted, _}, skills), do: "drifted", else: to_string(skills)),
+      skills: skills_word(skills),
       drifted_skills: drifted_names(skills),
       cli: to_string(cli)
     }
   end
 
-  defp drifted_names({:drifted, names}), do: names
+  # `unsigned` (#2916): they differ from an archive served with no signature.
+  defp skills_word({state, _names}), do: to_string(state)
+  defp skills_word(state), do: to_string(state)
+
+  defp drifted_names({_state, names}), do: names
   defp drifted_names(_state), do: []
 
   @doc """

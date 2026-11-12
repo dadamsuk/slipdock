@@ -283,9 +283,18 @@ func TestProbeDriftReadsTheServersVerdict(t *testing.T) {
 		said != "skills current, cli unsigned on server" {
 		t.Fatalf("unsigned = %q, %v", said, err)
 	}
-	// Only the CLI has that state: skills that say it still fail.
-	if _, err := probeDrift("skills: unsigned on server\ncli: current\n"); err == nil {
-		t.Fatal("skills unsigned passed")
+	// Nor are skills the server serves unsigned, named as it names them (#2916).
+	if said, err := probeDrift("skills: unsigned on server (slipdock-loop)\ncli: current\n"); err != nil ||
+		said != "skills unsigned on server (slipdock-loop), cli current" {
+		t.Fatalf("skills unsigned = %q, %v", said, err)
+	}
+	// Both at once pass; drifted skills beside an unsigned CLI still fail.
+	if _, err := probeDrift("skills: unsigned on server (slipdock)\ncli: unsigned on server\n"); err != nil {
+		t.Fatalf("both unsigned: %v", err)
+	}
+	if _, err := probeDrift("skills: drifted (slipdock)\ncli: unsigned on server\n"); err == nil ||
+		!strings.Contains(err.Error(), "skills drifted (slipdock)") {
+		t.Fatalf("drifted beside unsigned: %v", err)
 	}
 }
 
