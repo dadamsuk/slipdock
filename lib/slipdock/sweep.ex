@@ -40,7 +40,7 @@ defmodule Slipdock.Sweep do
   alias Slipdock.Wiki.{FrontMatter, Page}
 
   @name "sweep"
-  @version "1.1.0"
+  @version "1.2.0"
   @page_title "Sweeps"
   @triage_list "Triage"
   @card_title "Sweep the code"
@@ -81,7 +81,7 @@ defmodule Slipdock.Sweep do
   1. Pick: open the `Sweeps` page and take the stalest cell of its Rotation table, a `—` first, else the oldest date; ties go to the area higher in the table. With no areas yet, add a row per area first: the handbook's pages and their `covers:` (`slipdock handbook <board>`), else the top-level contexts (`lib/<app>/*`, one row each), and say so in the closing comment.
   2. Check out the default branch's head in a clean tree, so nothing uncommitted counts: `git fetch origin && git worktree add /tmp/sweep-<this card> origin/<default>`. Note the short sha.
   3. Read the area's paths through the lens (the page's Lenses section says what each looks for). Read; don't change code on this card.
-  4. File each issue as its own card, never in the ready list. A **fix or investigation** (something already decided is broken, missing, untested or unexplained) goes to the `Housekeeping` list, which runners work after the ready list: `slipdock add <board> "<what is wrong, where>" --column Housekeeping --origin sweep --desc - <<'EOF'` with the description on the lines after it and `EOF` to end it (`--desc -` reads it from stdin, so a heredoc keeps its lines), saying where (file and function), why it matters and the fix. A **design question** (the answer would change how the product or a process behaves) goes to `Triage` for a person instead (`--column Triage --origin sweep`). On a board with no Housekeeping list, everything goes to Triage. Security issues get `--tag security`. One issue a card; nothing found is a normal result.
+  4. File each issue as its own card, never in the ready list. A **fix or investigation** (something already decided is broken, missing, untested or unexplained) goes to the `Housekeeping` list, which runners work after the ready list: `slipdock add <board> "<what is wrong, where>" --column Housekeeping --origin sweep --desc - <<'EOF'` with the description on the lines after it and `EOF` to end it (`--desc -` reads it from stdin, so a heredoc keeps its lines), saying where (file and function), why it matters and the fix. A **design question** (the answer would change how the product or a process behaves) goes to `Triage` for a person instead (`--column Triage --origin sweep`). On a board with no Housekeeping list, everything goes to Triage. Security issues get `--tag security`. One issue a card; nothing found is a normal result. The same mechanical fix in many files (a rule's old sites, a rename) is one issue, never a card per file, module or area: one card for the whole sweep, or a few split by lane when one would hold too much at once, each built as one commit with its tests (the Playbook's Sweeps section, where the board has one, says more).
   5. Name each card you filed in the closing comment's `Findings:` block with the arrow, `- gotcha: <what is wrong> → #<card>` (or `- rule: …`), so it is kept promoted rather than left open: a fix is a card, not a finding, and the card is where it gets done. Only what is uncertain or cuts across cards, and isn't a card, is a plain finding.
   6. Update the page by section, with `--message "#<this card> sweep <area> × <lens>"`: the cell gets `<sha> <date>`, and the Log gets a line `- <date>: <area> × <lens> at <sha>, filed <card ids or nothing>`.
   7. Remove the worktree, and close the card with what was swept (area, lens, sha) and the cards filed. The next one comes by itself tomorrow.
@@ -294,7 +294,8 @@ defmodule Slipdock.Sweep do
   end
 
   # 1.1.0 (#2779) files fixes to Housekeeping and design questions to
-  # Triage. Installing over an older sweep moves its open card to the
+  # Triage; 1.2.0 (#2795) files a mechanical fix across many files as one
+  # issue, carved as the Playbook's Sweeps section says. Installing over an older sweep moves its open card to the
   # current procedure; a card already current is left alone. Reported as
   # "Sweep the code (updated: procedure)".
   defp refresh_card(root, user, report) do

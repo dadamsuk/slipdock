@@ -128,6 +128,30 @@ defmodule Slipdock.SweepTest do
       assert third.report.added["cards"] == []
     end
 
+    test "installing 1.2.0 over a 1.1.0 card gives it the one-issue sweep line (#2795)",
+         %{user: user, board: board} do
+      {:ok, _} = Sweep.install(user, board)
+      [card] = sweep_cards(board)
+      line = "The same mechanical fix in many files"
+      assert card.description =~ line
+
+      # A 1.1.0 card: the current procedure without the line.
+      [sentence] =
+        Regex.run(~r/ The same mechanical fix in many files[^\n]*says more\)\./, card.description)
+
+      old = String.replace(card.description, sentence, "")
+      refute old =~ line
+      {:ok, _} = Boards.Cards.update_card(card, %{"description" => old})
+
+      assert {:ok, again} = Sweep.install(user, board)
+      assert again.upgraded
+      assert again.version.version == "1.2.0"
+      [after_card] = sweep_cards(board)
+      assert after_card.description =~ "never a card per file, module or area"
+      assert after_card.description =~ "one commit with its tests"
+      assert after_card.description =~ "Playbook's Sweeps section"
+    end
+
     test "a Triage list made by hand gets the category; one with its own keeps it",
          %{user: user, board: board} do
       {:ok, hand} = Boards.Columns.create_column(board, %{"name" => "triage"})
