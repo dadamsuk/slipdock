@@ -591,7 +591,7 @@ defmodule SlipdockWeb.AgenticLive.Index do
                       maxlength="500"
                       label="Release command"
                       placeholder={Slipdock.Releases.default_command()}
-                      class="input field w-full font-mono text-xs"
+                      class="input field w-full"
                     />
                     <p class="text-xs text-base-content/60">
                       Batched, a merged card still completes and unblocks its dependents, and shows
