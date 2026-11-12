@@ -9,6 +9,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/pem"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -34,6 +35,7 @@ type installWorld struct {
 	url    string
 	bin    string
 	name   string
+	hits   int // requests the release host has had, under mu
 }
 
 func newInstallWorld(t *testing.T) *installWorld {
@@ -53,6 +55,7 @@ func newInstallWorld(t *testing.T) *installWorld {
 	w := &installWorld{files: map[string][]byte{}, priv: priv, bin: filepath.Join(t.TempDir(), "bin")}
 	ts := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		w.mu.Lock()
+		w.hits++
 		data, ok := w.files[strings.TrimPrefix(r.URL.Path, "/rel/")]
 		w.mu.Unlock()
 		if !ok {
@@ -103,10 +106,17 @@ func (w *installWorld) served(name string) []byte {
 	return w.files[name]
 }
 
+// run runs script with --allow-http, as the test release host is plain
+// http; runWith gives the arguments and the source.
 func (w *installWorld) run(t *testing.T, script string) (string, error) {
 	t.Helper()
-	cmd := exec.Command("sh", script)
-	cmd.Env = append(os.Environ(), "SLIPDOCK_RUNNER_SOURCE="+w.url, "SLIPDOCK_RUNNER_BIN="+w.bin, "HOME="+t.TempDir())
+	return w.runWith(t, script, w.url, "--allow-http")
+}
+
+func (w *installWorld) runWith(t *testing.T, script, source string, args ...string) (string, error) {
+	t.Helper()
+	cmd := exec.Command("sh", append([]string{script}, args...)...)
+	cmd.Env = append(os.Environ(), "SLIPDOCK_RUNNER_SOURCE="+source, "SLIPDOCK_RUNNER_BIN="+w.bin, "HOME="+t.TempDir())
 	out, err := cmd.CombinedOutput()
 	return string(out), err
 }
@@ -170,5 +180,116 @@ func TestInstallShWithNoKeyRefuses(t *testing.T) {
 	}
 	if _, err := w.installed(); err == nil {
 		t.Fatal("something was installed")
+	}
+}
+
+func TestInstallShRefusesPlainHTTPUnlessAllowed(t *testing.T) {
+	for name, c := range map[string]struct {
+		source func(w *installWorld) string
+		args   []string
+		want   string
+	}{
+		"plain http, no flag":   {func(w *installWorld) string { return w.url }, nil, "is plain http: use https, or pass --allow-http"},
+		"HTTP in capitals":      {func(w *installWorld) string { return "HTTP" + strings.TrimPrefix(w.url, "http") }, nil, "is not an https:// address"},
+		"another scheme":        {func(w *installWorld) string { return "ftp://releases.example.com" }, []string{"--allow-http"}, "is not an https:// address"},
+		"an option it lacks":    {func(w *installWorld) string { return w.url }, []string{"--allow-htp"}, "unknown option --allow-htp"},
+		"a source with no form": {func(w *installWorld) string { return "releases.example.com" }, nil, "is not an https:// address"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			w := newInstallWorld(t)
+			out, err := w.runWith(t, w.script, c.source(w), c.args...)
+			if err == nil || !strings.Contains(out, c.want) {
+				t.Fatalf("%v\n%s", err, out)
+			}
+			w.mu.Lock()
+			hits := w.hits
+			w.mu.Unlock()
+			if hits != 0 {
+				t.Fatalf("refused, but fetched %d times first", hits)
+			}
+			if _, err := w.installed(); err == nil {
+				t.Fatal("something was installed")
+			}
+		})
+	}
+
+	w := newInstallWorld(t)
+	out, err := w.runWith(t, w.script, w.url, "--allow-http")
+	if err != nil || !strings.Contains(out, "warning: downloading over plain http") {
+		t.Fatalf("--allow-http installs, and warns: %v\n%s", err, out)
+	}
+	if got, err := w.installed(); err != nil || string(got) != string(w.served(w.name)) {
+		t.Fatalf("installed %q, %v", got, err)
+	}
+}
+
+// tlsHost serves the release over https, through handler, and returns its
+// URL and the environment curl needs to trust it. It skips when this
+// curl can't take a CA from CURL_CA_BUNDLE (macOS's, built on
+// SecureTransport, reads only the keychain).
+func (w *installWorld) tlsHost(t *testing.T, handler http.HandlerFunc) (string, []string) {
+	t.Helper()
+	ts := httptest.NewTLSServer(handler)
+	t.Cleanup(ts.Close)
+	ca := filepath.Join(t.TempDir(), "ca.pem")
+	os.WriteFile(ca, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: ts.Certificate().Raw}), 0o644)
+	env := []string{"CURL_CA_BUNDLE=" + ca}
+	probe := exec.Command("curl", "-fsS", "-o", os.DevNull, ts.URL+"/probe")
+	probe.Env = append(os.Environ(), env...)
+	if out, err := probe.CombinedOutput(); err != nil && strings.Contains(string(out), "certificate") {
+		t.Skip("this curl doesn't take a CA from CURL_CA_BUNDLE: " + string(out))
+	}
+	return ts.URL + "/rel", env
+}
+
+func (w *installWorld) runEnv(t *testing.T, source string, env []string, args ...string) (string, error) {
+	t.Helper()
+	cmd := exec.Command("sh", append([]string{w.script}, args...)...)
+	cmd.Env = append(append(os.Environ(), env...), "SLIPDOCK_RUNNER_SOURCE="+source, "SLIPDOCK_RUNNER_BIN="+w.bin, "HOME="+t.TempDir())
+	out, err := cmd.CombinedOutput()
+	return string(out), err
+}
+
+// An https source installs with no flag and no warning; one whose host
+// redirects to plain http is refused, the http host never reached, even
+// with --allow-http (which is for an http source, not a downgrade).
+func TestInstallShKeepsHTTPSRedirectsOnHTTPS(t *testing.T) {
+	w := newInstallWorld(t)
+	src, env := w.tlsHost(t, func(rw http.ResponseWriter, r *http.Request) {
+		data := w.served(strings.TrimPrefix(r.URL.Path, "/rel/"))
+		if data == nil {
+			rw.WriteHeader(404)
+			return
+		}
+		rw.Write(data)
+	})
+	out, err := w.runEnv(t, src, env)
+	if err != nil || strings.Contains(out, "warning") {
+		t.Fatalf("an https source installs, quietly: %v\n%s", err, out)
+	}
+	if got, err := w.installed(); err != nil || string(got) != string(w.served(w.name)) {
+		t.Fatalf("installed %q, %v", got, err)
+	}
+
+	for _, args := range [][]string{nil, {"--allow-http"}} {
+		t.Run(strings.Join(append([]string{"redirect"}, args...), " "), func(t *testing.T) {
+			w := newInstallWorld(t)
+			src, env := w.tlsHost(t, func(rw http.ResponseWriter, r *http.Request) {
+				http.Redirect(rw, r, w.url+strings.TrimPrefix(r.URL.Path, "/rel"), http.StatusFound)
+			})
+			out, err := w.runEnv(t, src, env, args...)
+			if err == nil || !strings.Contains(out, "can't download release.json from "+src) {
+				t.Fatalf("%v\n%s", err, out)
+			}
+			w.mu.Lock()
+			hits := w.hits
+			w.mu.Unlock()
+			if hits != 0 {
+				t.Fatalf("followed the redirect to plain http: %d requests there", hits)
+			}
+			if _, err := w.installed(); err == nil {
+				t.Fatal("something was installed")
+			}
+		})
 	}
 }

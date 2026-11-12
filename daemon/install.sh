@@ -16,7 +16,11 @@
 # into it, whichever host serves the update. (The manual's Machines page.)
 #
 #   SLIPDOCK_RUNNER_BIN     where to put it (default ~/.local/bin)
-#   SLIPDOCK_RUNNER_SOURCE  where releases come from (default: GitHub)
+#   SLIPDOCK_RUNNER_SOURCE  where releases come from (default: GitHub);
+#                           https only, unless --allow-http is given
+#
+#   --allow-http  allow a plain http:// SLIPDOCK_RUNNER_SOURCE, such as a
+#                 release host on this machine (curl -fsSL <url> | sh -s -- --allow-http)
 set -eu
 
 # Written in by the release job from daemon/internal/release/release_key.pub.
@@ -26,6 +30,28 @@ BIN=${SLIPDOCK_RUNNER_BIN:-$HOME/.local/bin}
 
 say() { printf 'slipdock-runner install: %s\n' "$*" >&2; }
 die() { say "$*"; exit 1; }
+
+allow_http=
+for arg in "$@"; do
+  case $arg in
+    --allow-http) allow_http=1 ;;
+    *) die "unknown option $arg (the one there is: --allow-http)" ;;
+  esac
+done
+
+# Plain http would let anyone on the way swap what is downloaded. The
+# signature check still refuses a swapped release, but https is the rule
+# and http needs saying so (#2797).
+case $SOURCE in
+  https://*) protos='=https' ;;
+  http://*)
+    [ -n "$allow_http" ] ||
+      die "$SOURCE is plain http: use https, or pass --allow-http (curl -fsSL <url> | sh -s -- --allow-http)"
+    say "warning: downloading over plain http from $SOURCE (--allow-http)"
+    protos='=https,http'
+    ;;
+  *) die "$SOURCE is not an https:// address" ;;
+esac
 
 case $RELEASE_KEY in
   ssh-ed25519\ *) ;;
@@ -46,8 +72,10 @@ esac
 command -v ssh-keygen >/dev/null 2>&1 ||
   die "needs ssh-keygen (OpenSSH 8.1 or later) to check the release's signature"
 
+# --proto holds redirects too, so an https source's host can't send curl
+# on to plain http (install_test.go).
 if command -v curl >/dev/null 2>&1; then
-  fetch() { curl -fsSL --proto '=https,http' -o "$2" "$SOURCE/$1"; }
+  fetch() { curl -fsSL --proto "$protos" -o "$2" "$SOURCE/$1"; }
 elif command -v wget >/dev/null 2>&1; then
   fetch() { wget -q -O "$2" "$SOURCE/$1"; }
 else

@@ -45,7 +45,7 @@ func TestInitOffersADedicatedAccountAndRunsAsIt(t *testing.T) {
 	ts := f.start(t)
 	w, scripts := sudoWorld(t, "\ny\n")
 	w.env.HomeOpen = func(string) bool { return true }
-	if code := w.main("init", "--server", ts.URL, "--key", "sdk_good"); code != 0 {
+	if code := w.main("init", "--server", ts.URL, "--allow-http", "--key", "sdk_good"); code != 0 {
 		t.Fatalf("exit %d: %s", code, w.errOut)
 	}
 	out := w.out.String()
@@ -88,7 +88,7 @@ func TestInitAsMe(t *testing.T) {
 	ts := f.start(t)
 	for _, how := range [][]string{{"--as-me"}, {}} {
 		w, scripts := sudoWorld(t, "2\n")
-		args := append([]string{"init", "--server", ts.URL, "--key", "sdk_good"}, how...)
+		args := append([]string{"init", "--server", ts.URL, "--allow-http", "--key", "sdk_good"}, how...)
 		if code := w.main(args...); code != 0 {
 			t.Fatalf("%v: exit %d: %s", how, code, w.errOut)
 		}
@@ -113,7 +113,7 @@ func TestInitWithANamedAccountAndNoSetUp(t *testing.T) {
 	f := &fake{}
 	ts := f.start(t)
 	w, scripts := sudoWorld(t, "")
-	if code := w.main("init", "--server", ts.URL, "--key", "sdk_good", "--user", "jobs", "--no-setup"); code != 0 {
+	if code := w.main("init", "--server", ts.URL, "--allow-http", "--key", "sdk_good", "--user", "jobs", "--no-setup"); code != 0 {
 		t.Fatalf("exit %d: %s", code, w.errOut)
 	}
 	if len(*scripts) != 1 || !strings.Contains((*scripts)[0], "'builder ALL=(jobs) NOPASSWD: ALL'") || strings.Contains((*scripts)[0], "o-rwx") {
@@ -131,7 +131,7 @@ func TestInitWithANamedAccountAndNoSetUp(t *testing.T) {
 	c, _ := machine.LoadCeiling(w.dir)
 	c.MaxTimeoutMinutes = 15
 	_ = machine.SaveCeiling(w.dir, c)
-	if code := w.main("init", "--server", ts.URL, "--key", "sdk_good", "--replace", "--as-me"); code != 0 {
+	if code := w.main("init", "--server", ts.URL, "--allow-http", "--key", "sdk_good", "--replace", "--as-me"); code != 0 {
 		t.Fatalf("exit %d: %s", code, w.errOut)
 	}
 	c, _ = machine.LoadCeiling(w.dir)
@@ -148,7 +148,7 @@ func TestInitOnWindowsOffersTheCurrentAccountOnly(t *testing.T) {
 	ts := f.start(t)
 	w, scripts := sudoWorld(t, "")
 	w.env.GOOS = "windows"
-	if code := w.main("init", "--server", ts.URL, "--key", "sdk_good"); code != 0 {
+	if code := w.main("init", "--server", ts.URL, "--allow-http", "--key", "sdk_good"); code != 0 {
 		t.Fatalf("exit %d: %s", code, w.errOut)
 	}
 	if !strings.Contains(w.out.String(), "On Windows jobs run as you (builder), the current account: a dedicated account isn't offered there yet.") ||
@@ -158,7 +158,7 @@ func TestInitOnWindowsOffersTheCurrentAccountOnly(t *testing.T) {
 	if c, _ := machine.LoadCeiling(w.dir); strings.Join(c.Executors, ",") != "me" || len(*scripts) != 0 {
 		t.Fatalf("%+v %v", c, *scripts)
 	}
-	if code := w.main("init", "--server", ts.URL, "--key", "sdk_good", "--replace", "--user", "slipdock"); code != 1 ||
+	if code := w.main("init", "--server", ts.URL, "--allow-http", "--key", "sdk_good", "--replace", "--user", "slipdock"); code != 1 ||
 		!strings.Contains(w.errOut.String(), "current account only") {
 		t.Fatalf("--user on Windows: %d %s", code, w.errOut)
 	}
@@ -188,7 +188,7 @@ func TestInitRefusals(t *testing.T) {
 				c.setup(w)
 			}
 			before := f.enrols
-			args := append([]string{"init", "--server", ts.URL, "--key", "sdk_good"}, c.args...)
+			args := append([]string{"init", "--server", ts.URL, "--allow-http", "--key", "sdk_good"}, c.args...)
 			if code := w.main(args...); code != c.code || !strings.Contains(w.errOut.String(), c.want) {
 				t.Fatalf("exit %d, want %d with %q: %s", code, c.code, c.want, w.errOut)
 			}

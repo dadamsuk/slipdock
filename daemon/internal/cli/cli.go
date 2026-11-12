@@ -149,7 +149,7 @@ func openBrowser(goos, url string, start func(string, ...string) error) error {
 const usage = `slipdock-runner: the Slipdock runner daemon, one per machine.
 
 Usage:
-  slipdock-runner init [--server URL] [--key KEY] [--replace] [--user NAME | --as-me] [--no-setup]
+  slipdock-runner init [--server URL] [--allow-http] [--key KEY] [--replace] [--user NAME | --as-me] [--no-setup]
                                           enrol this machine, and choose who jobs run as
   slipdock-runner setup [--print]         set this machine up with Claude, from the server's prompt
   slipdock-runner show                    the trust contract, with this machine's limits

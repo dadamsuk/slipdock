@@ -20,6 +20,7 @@ func cmdInit(args []string, env Env) error {
 	key := fs.String("key", "", "a one-time enrolment key from the Machines page, instead of a code to approve")
 	replace := fs.Bool("replace", false, "enrol again, though this machine is enrolled already")
 	noBrowser := fs.Bool("no-browser", false, "don't open the approval page, only print it")
+	allowHTTP := fs.Bool("allow-http", false, "allow a plain http:// server (a development server: the machine key travels unencrypted)")
 	var roots, agents list
 	fs.Var(&roots, "root", "a directory runners may work in (repeat for more; default: your source folder)")
 	fs.Var(&agents, "agent", "an agent runners may run (repeat for more; default: claude)")
@@ -66,7 +67,7 @@ func cmdInit(args []string, env Env) error {
 		jobsHome = who.home
 	}
 
-	srv, err := serverURL(*server, env)
+	srv, err := serverURL(*server, *allowHTTP, env)
 	if err != nil {
 		return err
 	}
@@ -154,8 +155,9 @@ func orUnknown(s string) string {
 }
 
 // serverURL is --server, or what the person types (DefaultServer if
-// nothing). Plain http is only for a server on this machine.
-func serverURL(flagValue string, env Env) (string, error) {
+// nothing). Plain http carries the machine key unencrypted, so it is
+// refused unless --allow-http says so, even to this machine (#2797).
+func serverURL(flagValue string, allowHTTP bool, env Env) (string, error) {
 	s := strings.TrimSpace(flagValue)
 	if s == "" {
 		fmt.Fprintf(env.Stdout, "Slipdock server [%s]: ", DefaultServer)
@@ -168,14 +170,14 @@ func serverURL(flagValue string, env Env) (string, error) {
 	if err != nil || u.Host == "" || (u.Scheme != "https" && u.Scheme != "http") {
 		return "", fmt.Errorf("%q is not a server address: give one like %s", s, DefaultServer)
 	}
-	if u.Scheme == "http" && !isLoopback(u.Hostname()) {
-		return "", fmt.Errorf("%s is plain http: the machine key would cross the network readable. Use https", s)
+	if u.Scheme == "http" {
+		if !allowHTTP {
+			return "", fmt.Errorf("%s is plain http: the machine key would travel unencrypted. "+
+				"Use https, or pass --allow-http for a development server", s)
+		}
+		fmt.Fprintf(env.Stderr, "warning: %s is plain http (--allow-http): the machine key travels unencrypted\n", s)
 	}
 	return strings.TrimRight(u.Scheme+"://"+u.Host+u.Path, "/"), nil
-}
-
-func isLoopback(host string) bool {
-	return host == "localhost" || host == "127.0.0.1" || host == "::1"
 }
 
 func deviceFlow(ctx context.Context, c *enrol.Client, about enrol.About, noBrowser bool, env Env) (enrol.Result, error) {

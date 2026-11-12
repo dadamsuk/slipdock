@@ -46,8 +46,9 @@ read -r CARD KEY <<<"$(mix run -e '
 ' | grep '^IDS' | cut -d' ' -f2-)"
 
 # Enrolled as the daemon is on a real machine: one-time key, the ceiling
-# from the flags, jobs run as this account.
-"$DAEMON" init --home "$HOME_DIR" --server "$BASE" --key "$KEY" --as-me --no-setup \
+# from the flags, jobs run as this account. The local server is plain http,
+# so --allow-http (#2797).
+"$DAEMON" init --home "$HOME_DIR" --server "$BASE" --allow-http --key "$KEY" --as-me --no-setup \
   --root "$SCRATCH" --agent claude --max-mode acceptEdits --max-timeout 15 >"$SCRATCH/init.log" 2>&1 || {
   echo "FAIL: slipdock-runner init"; cat "$SCRATCH/init.log"; exit 1
 }
