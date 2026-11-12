@@ -259,6 +259,25 @@ defmodule SlipdockWeb.RunnerDocsTest do
     assert help =~ "<code>no_release: true</code>"
     assert help =~ "it never runs what the server sends"
 
+    # Every place that says what a board's release command does says a
+    # custom one runs only where the machine lists it (#2836).
+    for path <- [
+          "README.md",
+          "docs/manual/verified-work.md",
+          "lib/slipdock_web/live/help_live/guides.ex",
+          "lib/slipdock_web/live/help_live/flow.ex",
+          "lib/slipdock_web/live/agentic_live/index.ex",
+          "lib/slipdock_web/mcp/tools/update_board.ex",
+          "cli/help.txt",
+          "priv/skills/slipdock/SKILL.md"
+        ] do
+      assert read(path) =~ "release_commands", "#{path} doesn't name release_commands"
+    end
+
+    for path <- ["README.md", "priv/skills/slipdock/SKILL.md"] do
+      assert read(path) =~ "no_release: true", "#{path} doesn't name no_release"
+    end
+
     contract = read("daemon/internal/contract/contract.md")
     assert contract =~ "- Start a release."
     assert contract =~ "A board's release command is no exception"

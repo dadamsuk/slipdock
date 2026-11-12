@@ -15,7 +15,9 @@ import (
 // branch is main, and records what ran and where.
 type fakeRepo struct {
 	notRepo, fetchFails, noHead, authFails bool
-	ghBranch                               string
+	// emptyHead has origin/HEAD answer nothing, without an error.
+	emptyHead bool
+	ghBranch  string
 	// ghBranchFails and listFails make gh fail while still printing.
 	ghBranchFails, listFails bool
 	runSays                  string
@@ -53,6 +55,9 @@ func (g *fakeRepo) exec(_ context.Context, dir, name string, args ...string) (st
 	case line == "git symbolic-ref --short refs/remotes/origin/HEAD":
 		if g.noHead {
 			return "", errors.New("exit 1")
+		}
+		if g.emptyHead {
+			return "\n", nil
 		}
 		return "origin/main\n", nil
 	case strings.HasPrefix(line, "gh repo view"):
@@ -151,6 +156,17 @@ func TestReleaseRunsTheWorkflowOnTheDefaultBranch(t *testing.T) {
 
 func TestReleaseAsksGhForTheDefaultBranchWhenOriginHeadIsUnset(t *testing.T) {
 	g := &fakeRepo{noHead: true, ghBranch: "trunk", runSays: "https://github.com/example/app/actions/runs/1"}
+	if _, _, err := fire(g, defaultRelease); err != nil {
+		t.Fatal(err)
+	}
+	if !contains(g.ran, "gh workflow run release.yml --ref trunk") {
+		t.Fatalf("ran:\n%s", strings.Join(g.ran, "\n"))
+	}
+}
+
+// origin/HEAD answering nothing, with no error, is no branch: gh names it.
+func TestReleaseAsksGhForTheDefaultBranchWhenOriginHeadIsEmpty(t *testing.T) {
+	g := &fakeRepo{emptyHead: true, ghBranch: "trunk", runSays: "https://github.com/example/app/actions/runs/1"}
 	if _, _, err := fire(g, defaultRelease); err != nil {
 		t.Fatal(err)
 	}
@@ -299,6 +315,14 @@ func TestKindsSayReleaseUnlessTheMachineTurnsItOff(t *testing.T) {
 	}
 	if got := strings.Join(r.Kinds(machine.Local{NoMerge: true}), ","); got != "claude,verify,release,probe" {
 		t.Fatalf("no_merge kinds = %s", got)
+	}
+}
+
+// A runner whose agent is called release says release once.
+func TestKindsSayReleaseOnceForARunnerWhoseAgentIsRelease(t *testing.T) {
+	r := Runner{Config: Config{Agent: ReleaseKind}}
+	if got := strings.Join(r.Kinds(machine.Local{}), ","); got != "release,verify,merge,probe" {
+		t.Fatalf("kinds = %s", got)
 	}
 }
 

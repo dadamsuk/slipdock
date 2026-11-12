@@ -477,6 +477,19 @@ defmodule Slipdock.ReleaseRequestsTest do
       assert note == "job ##{request.job_id} failed: gh is not signed in (run gh auth login)"
     end
 
+    test "a failed job whose output has no release: line says the command didn't run", ctx do
+      {:ok, :started, request} = Releases.request(ctx.board, "manual", "Dana")
+
+      fire!(ctx.runner, request, %{
+        exit: "1",
+        status: "failed",
+        output: "make: *** [release] Error 1\nreleases are fun\n"
+      })
+
+      assert %{status: "failed", note: note} = Repo.get!(Request, request.id)
+      assert note == "job ##{request.job_id} failed: the release command didn't run"
+    end
+
     test "on a tree that records no deploys, a done job is the release", ctx do
       {:ok, board} = Boards.update_board(ctx.board, %{"delivery_metrics" => false})
       {:ok, :started, request} = Releases.request(board, "manual", "Dana")

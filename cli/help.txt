@@ -884,7 +884,9 @@ WRITE
                                       --release-command CMD: the one line a runner's
                                       release job runs (default: gh workflow run
                                       release.yml --ref {default_branch}, the runner
-                                      putting the repository's default branch in)
+                                      putting the repository's default branch in;
+                                      any other command runs only on a machine whose
+                                      local.json lists it under release_commands)
                                       --lanes: an agent can't start a card whose --paths
                                       overlap a card in progress (a person can)
                                       --lane-mode off|hold|advise: what an overlap does:

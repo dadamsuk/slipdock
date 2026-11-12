@@ -78,7 +78,8 @@ defmodule SlipdockWeb.MCP.Tools.UpdateBoard do
           type: ["string", "null"],
           description:
             "Batched: the one-line command a runner's release job runs; null for the " <>
-              "default (gh workflow run release.yml). Root board only."
+              "default (gh workflow run release.yml). Any other command runs only on a " <>
+              "machine whose local.json lists it under release_commands. Root board only."
         },
         lanes: %{
           type: "boolean",

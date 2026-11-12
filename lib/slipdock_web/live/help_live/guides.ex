@@ -429,7 +429,9 @@ defmodule SlipdockWeb.HelpLive.Guides do
           with the time. A release runs when a card of priority <em>critical</em>
           merges, when the oldest merge reaches the age cap, or when the board's owner presses <em>Release now</em>, on the board's release banner or on that page. Releases run one at a
           time: a runner runs the board's release command, and anything asked for meanwhile
-          becomes one follow-up.
+          becomes one follow-up. A runner runs the default <code>gh workflow run</code>
+          command itself; any other runs only if that machine's <code>local.json</code>
+          lists it, word for word, under <code>release_commands</code>.
         </li>
         <li>
           <strong>Who gets asked</strong>: Agentic Building → <em>Who gets asked</em>
