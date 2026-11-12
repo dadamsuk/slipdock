@@ -6,8 +6,10 @@ defmodule Slipdock.Coverage do
   Elixir 1.20 / OTP 27 `:cover` cannot recompile some of them — code like
   `x in [:a, :b]` outside a guard comes back from its instrumentation as an
   "unsafe variable" error, and the whole run dies with a `MatchError` before
-  a single test starts. This compiles them one at a time instead, names the
-  ones it had to leave out, and reports the rest.
+  a single test starts. This tries them a chunk at a time instead, each
+  chunk in a server of its own, narrows a chunk that dies down to the
+  beams that killed it, names the ones it had to leave out, and reports
+  the rest.
 
   Prints a table of modules under `lib/`, worst covered first, and writes
   an HTML page per module to `cover/`. `--cover` takes the same
@@ -87,6 +89,10 @@ defmodule Slipdock.Coverage do
     end
   end
 
+  # Beams per first try: one `:cover.compile_beam/1` call each, which
+  # compiles them in parallel.
+  @chunk 32
+
   # Cover-compiles every beam it can and returns the modules it couldn't.
   defp cover_compile(compile_path) do
     # Never this module or the merge task: stopping :cover reloads what it
@@ -97,18 +103,46 @@ defmodule Slipdock.Coverage do
       |> Path.wildcard()
       |> Enum.reject(&Enum.member?([__MODULE__, Mix.Tasks.Slipdock.Coverage], module(&1)))
 
+    # Nothing to compile would report 100% of nothing: a build that isn't
+    # there, as after `mix slipdock.coverage --no-compile` on a cache miss.
+    if beams == [], do: Mix.raise("No beams in #{compile_path} to cover-compile")
+
     # A beam :cover cannot compile kills its server and whoever started it,
-    # taking every module compiled so far along. So try each one from a
-    # process of its own first, then compile only the ones that survived.
-    {good, bad} = Enum.split_with(beams, &compiles?/1)
+    # taking every module compiled so far along (#2848: one bad beam fails
+    # the whole parallel call). So try them a chunk at a time from a process
+    # of its own, halve the chunks that die until the culprits are alone,
+    # then compile all the ones that survived in one call.
+    {good, bad} =
+      beams
+      |> Enum.chunk_every(@chunk)
+      |> Enum.map(&probe/1)
+      |> Enum.reduce({[], []}, fn {g, b}, {gs, bs} -> {gs ++ g, bs ++ b} end)
+
     _ = :cover.stop()
-    Enum.each(good, &compile/1)
+    _ = compile(good)
 
     Enum.map(bad, &module/1)
   end
 
-  defp compiles?(beam) do
-    {pid, ref} = spawn_monitor(fn -> exit({:compiled, compile(beam)}) end)
+  # {the beams :cover compiles, the ones it can't}.
+  defp probe(beams) do
+    cond do
+      compiles?(beams) ->
+        {beams, []}
+
+      match?([_], beams) ->
+        {[], beams}
+
+      true ->
+        {first, second} = Enum.split(beams, div(length(beams), 2))
+        {good1, bad1} = probe(first)
+        {good2, bad2} = probe(second)
+        {good1 ++ good2, bad1 ++ bad2}
+    end
+  end
+
+  defp compiles?(beams) do
+    {pid, ref} = spawn_monitor(fn -> exit({:compiled, compile(beams)}) end)
 
     receive do
       {:DOWN, ^ref, :process, ^pid, reason} ->
@@ -117,9 +151,15 @@ defmodule Slipdock.Coverage do
     end
   end
 
-  defp compile(beam) do
+  defp compile([]), do: true
+
+  defp compile(beams) do
     _ = :cover.local_only()
-    match?({:ok, _}, :cover.compile_beam(String.to_charlist(beam)))
+
+    beams
+    |> Enum.map(&String.to_charlist/1)
+    |> :cover.compile_beam()
+    |> Enum.all?(&match?({:ok, _}, &1))
   end
 
   defp module(beam), do: beam |> Path.basename(".beam") |> String.to_atom()
@@ -197,15 +237,28 @@ defmodule Mix.Tasks.Slipdock.Coverage do
   NAME` wrote, one per CI partition, prints the report and exits non-zero
   when the total is below `mix.exs`'s `test_coverage` threshold.
 
-      MIX_ENV=test mix slipdock.coverage
+      MIX_ENV=test mix slipdock.coverage [--no-compile]
+
+  `--no-compile` merges into the build already in `_build`, as it is:
+  CI's coverage job passes it when its cache restored the build of the
+  same tree, rather than have Mix recompile it.
 
   Test env only: it lives in `test/support` beside `Slipdock.Coverage`.
   """
   use Mix.Task
 
   @impl true
-  def run(_args) do
-    Mix.Task.run("compile")
+  def run(args) do
+    {opts, _} = OptionParser.parse!(args, strict: [compile: :boolean])
+
+    # --no-compile takes the build as it is: CI's coverage job passes it when
+    # the cache held the build of this very tree, which Mix would otherwise
+    # recompile whole on a runner whose checkout is in another directory
+    # (#2848: the manifest keeps the project's absolute path).
+    if Keyword.get(opts, :compile, true),
+      do: Mix.Task.run("compile"),
+      else: Mix.Task.run("loadpaths", ["--no-deps-check"])
+
     project = Mix.Project.config()
     check(Mix.Project.compile_path(project), project[:test_coverage] || [])
   end

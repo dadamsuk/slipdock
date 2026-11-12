@@ -261,6 +261,42 @@ defmodule Slipdock.CoverageTest do
       assert status == 0
     end
 
+    test "--no-compile merges into the build as it is, compiling nothing", %{tmp_dir: dir} do
+      scratch_project(dir, 15)
+      export_in_project(dir)
+      # A change Mix would compile, and the merge would then count: a
+      # third function makes the module's lines more and its share less.
+      File.write!(
+        Path.join(dir, "lib/coverage_sample.ex"),
+        String.replace(@source, "  def b do", "  def c, do: :c\n\n  def b do")
+      )
+
+      {output, status} = mix(dir, ["slipdock.coverage", "--no-compile"])
+
+      refute output =~ "Compiling"
+      assert output =~ "Importing cover/partition-1.coverdata"
+      assert total(output) == 15.38
+      assert status == 0
+
+      # Without it, the change is compiled and counted, below the threshold.
+      {compiled, 1} = mix(dir, ["slipdock.coverage"])
+      assert compiled =~ "Compiling 1 file"
+      assert total(compiled) == 12.5
+    end
+
+    test "--no-compile with no build there refuses, not passing on nothing", %{tmp_dir: dir} do
+      scratch_project(dir, 0)
+      File.mkdir_p!(Path.join(dir, "cover"))
+      File.write!(Path.join(dir, "cover/partition-1.coverdata"), "")
+
+      {output, status} = mix(dir, ["slipdock.coverage", "--no-compile"])
+
+      refute output =~ "Compiling"
+      assert output =~ ~r"No beams in \S*_build/test/lib/coverage_scratch/ebin to cover-compile"
+      refute output =~ "| Total"
+      assert status == 1
+    end
+
     test "fails when cover/ holds no export", %{tmp_dir: dir} do
       scratch_project(dir, 0)
 
@@ -330,5 +366,83 @@ defmodule Slipdock.CoverageTest do
     assert output =~ "returned :ok"
     assert total(output) == 15.38
     refute output =~ "Not measured"
+  end
+
+  # Beams :cover can't compile, as some of the app's are on OTP 27 (#2848):
+  # one whose debug info is code that doesn't compile, which kills the
+  # server mid-call as the real ones do, and one with no debug info at all,
+  # which :cover refuses without dying.
+  defp write_bad_beams(ebin) do
+    for {mod, debug} <- [
+          {CoverageBadA, :broken},
+          {CoverageBadB, :none},
+          {CoverageBadC, :broken}
+        ] do
+      forms = [
+        {:attribute, 1, :module, mod},
+        {:attribute, 1, :export, [f: 0]},
+        {:function, 1, :f, 0, [{:clause, 1, [], [], [{:atom, 1, :ok}]}]}
+      ]
+
+      opts =
+        case debug do
+          # `f` returns a variable nobody bound.
+          :broken ->
+            unbound = put_elem(Enum.at(forms, 2), 4, [{:clause, 1, [], [], [{:var, 1, :X}]}])
+            [{:debug_info, {:erl_abstract_code, {List.replace_at(forms, 2, unbound), []}}}]
+
+          :none ->
+            []
+        end
+
+      {:ok, ^mod, beam} = :compile.forms(forms, [:binary | opts])
+      File.write!(Path.join(ebin, "#{mod}.beam"), beam)
+    end
+  end
+
+  # Modules from outside lib/, so the report leaves them out: enough of
+  # them that the bad beams land in different chunks.
+  defp write_fillers(%{tmp_dir: dir, ebin: ebin}, count) do
+    source =
+      for n <- 1..count, into: "", do: "defmodule CoverageFiller#{n}, do: def(f, do: #{n})\n"
+
+    File.mkdir_p!(Path.join(dir, "other"))
+    File.write!(Path.join(dir, "other/fillers.ex"), source)
+
+    {_, 0} =
+      System.cmd("elixirc", ["--ignore-module-conflict", "-o", ebin, "other/fillers.ex"],
+        cd: dir,
+        stderr_to_stdout: true
+      )
+  end
+
+  test "beams :cover can't compile are named and left out, the rest measured", ctx do
+    write_fillers(ctx, 70)
+    write_bad_beams(ctx.ebin)
+
+    {exported, 0} = export(ctx, "partition-1", :a)
+    assert exported =~ "Coverage exported"
+
+    {output, 0} = merge(ctx, 15)
+
+    assert output =~
+             "Not measured (:cover could not compile them): CoverageBadA, CoverageBadB, CoverageBadC"
+
+    assert total(output) == 15.38
+    assert output =~ "result: :ok"
+
+    # Every filler was cover-compiled, in whichever chunk it fell.
+    {modules, 0} =
+      run(ctx.tmp_dir, """
+      Slipdock.Coverage.start(#{inspect(ctx.ebin)}, export: "x", output: #{inspect(ctx.out)})
+      IO.puts("cover: \#{:cover.modules() |> Enum.map(&inspect/1) |> Enum.sort() |> Enum.join(",")}")
+      """)
+
+    [_, listed] = Regex.run(~r/^cover: (.*)$/m, modules)
+    compiled = String.split(listed, ",")
+    assert length(compiled) == 71
+    assert "CoverageSample" in compiled
+    assert "CoverageFiller70" in compiled
+    refute Enum.any?(compiled, &String.starts_with?(&1, "CoverageBad"))
   end
 end

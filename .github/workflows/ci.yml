@@ -303,8 +303,13 @@ jobs:
           path: cover
           merge-multiple: true
 
+      # An exact hit is the build of this tree, test (1/4)'s. Compiling it
+      # again would recompile all of it on a runner other than the one that
+      # built it: Mix's manifest keeps the checkout's absolute path, and each
+      # self-hosted runner has its own (#2848). So take it as it is; on any
+      # other hit the build is older than the tree, and Mix compiles.
       - name: Coverage across the partitions, against the threshold
-        run: mix slipdock.coverage
+        run: mix slipdock.coverage ${{ steps.mix-cache.outputs.cache-hit == 'true' && '--no-compile' || '' }}
 
   # The repo checks (test/repo_checks.txt, #1867) in the suite's place, when
   # a pull request changes only docs, skills, the CLI or the daemon (#2832):
