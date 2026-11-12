@@ -189,7 +189,7 @@ jobs:
   # the test job cached and reads the exports.
   coverage:
     name: coverage
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     needs: test
 
     steps:
