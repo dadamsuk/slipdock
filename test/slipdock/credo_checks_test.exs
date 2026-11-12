@@ -1,4 +1,6 @@
 Code.require_file("../../credo/checks/in_outside_guard.ex", __DIR__)
+Code.require_file("../../credo/checks/abc_size.ex", __DIR__)
+Code.require_file("../../credo/checks/duplicated_code.ex", __DIR__)
 
 defmodule Slipdock.CredoChecksTest do
   @moduledoc """
@@ -7,6 +9,8 @@ defmodule Slipdock.CredoChecksTest do
   """
   use Credo.Test.Case
 
+  alias Slipdock.Credo.ABCSize
+  alias Slipdock.Credo.DuplicatedCode
   alias Slipdock.Credo.InOutsideGuard
 
   setup_all do
@@ -156,6 +160,165 @@ defmodule Slipdock.CredoChecksTest do
       |> assert_issues(fn issues ->
         assert Enum.map(issues, & &1.line_no) |> Enum.sort() == [2, 3]
       end)
+    end
+  end
+
+  # A function of n assignments and nothing else has an ABC size of exactly n.
+  defp assignments(name, n) do
+    lines = Enum.map_join(1..n, "\n", &"    a#{&1} = #{&1}")
+    "  def #{name} do\n#{lines}\n    a1\n  end\n"
+  end
+
+  defp module(body), do: "defmodule M do\n#{body}end\n"
+
+  describe "ABCSize (#2789)" do
+    test "flags a function over the limit, and not one at it" do
+      module(assignments("over", 51) <> assignments("at", 50))
+      |> to_source_file()
+      |> run_check(ABCSize, max_size: 50)
+      |> assert_issue(fn issue ->
+        assert issue.trigger == "over"
+        assert issue.message == "Function is too complex (ABC size is over 50)."
+        assert issue.check == ABCSize
+      end)
+    end
+
+    test "its message doesn't move with the score, so credo diff keeps an old issue old" do
+      messages =
+        for n <- [51, 80, 60] do
+          module(assignments("f", n))
+          |> to_source_file()
+          |> run_check(ABCSize, max_size: 50)
+          |> Enum.map(&{&1.message, &1.trigger})
+        end
+
+      assert [[one], [one], [one]] = messages
+    end
+
+    test "takes its limit and the calls it doesn't count from the config" do
+      source = module(assignments("f", 31))
+
+      source |> to_source_file() |> run_check(ABCSize, max_size: 30) |> assert_issue()
+      source |> to_source_file() |> run_check(ABCSize) |> refute_issues()
+
+      # 31 assignments of a call: 31 of each, sqrt(2) * 31, about 44.
+      calls = Enum.map_join(1..31, "\n", &"    a#{&1} = bar(#{&1})")
+      calls = module("  def g do\n#{calls}\n    a1\n  end\n")
+
+      calls |> to_source_file() |> run_check(ABCSize, max_size: 40) |> assert_issue()
+
+      calls
+      |> to_source_file()
+      |> run_check(ABCSize, max_size: 40, excluded_functions: ["bar"])
+      |> refute_issues()
+    end
+  end
+
+  # A block well over a mass of 40.
+  defp block(name) do
+    """
+      def #{name}(conn, params) do
+        case Map.fetch(params, "board") do
+          {:ok, board} ->
+            items = Enum.map(board.cards, fn c -> {c.id, c.title, c.position} end)
+            json(conn, %{board: board.id, items: items, count: length(items)})
+
+          :error ->
+            conn |> put_status(422) |> json(%{error: "board is required"})
+        end
+      end
+    """
+  end
+
+  defp file(name, body, padding \\ 0) do
+    to_source_file(
+      "defmodule #{name} do\n" <> String.duplicate("\n", padding) <> body <> "end\n",
+      "lib/#{name}.ex"
+    )
+  end
+
+  describe "DuplicatedCode (#2789)" do
+    test "flags each copy, naming the others by path and without lines" do
+      [file("a", block("x")), file("b", block("y")), file("c", "  def z, do: :ok\n")]
+      |> run_check(DuplicatedCode, mass_threshold: 40)
+      |> assert_issues(fn issues ->
+        assert issues |> Enum.map(&{&1.filename, &1.message}) |> Enum.sort() ==
+                 [
+                   {"lib/a.ex", "Duplicate code found in lib/b.ex (mass: 52)."},
+                   {"lib/b.ex", "Duplicate code found in lib/a.ex (mass: 52)."}
+                 ]
+      end)
+    end
+
+    test "names three or more copies in order, whichever order the files come in" do
+      files = [file("c", block("x")), file("a", block("y")), file("b", block("z"))]
+
+      for order <- [files, Enum.reverse(files)] do
+        order
+        |> run_check(DuplicatedCode, mass_threshold: 40)
+        |> assert_issues(fn issues ->
+          issue = Enum.find(issues, &(&1.filename == "lib/c.ex"))
+          assert issue.message == "Duplicate code found in lib/a.ex, lib/b.ex (mass: 52)."
+        end)
+      end
+    end
+
+    test "its message doesn't move when a copy's line does, so credo diff keeps an old issue old" do
+      before = [file("a", block("x")), file("b", block("y"))]
+      later = [file("a", block("x")), file("b", block("y"), 7)]
+
+      [one, two] =
+        for files <- [before, later] do
+          files
+          |> run_check(DuplicatedCode, mass_threshold: 40)
+          |> Enum.find(&(&1.filename == "lib/a.ex"))
+          |> Map.take([:message, :line_no, :trigger, :column, :category])
+        end
+
+      assert one == two
+    end
+
+    test "leaves alone a block under the mass, and a block with one copy" do
+      [file("a", block("x")), file("b", block("y"))]
+      |> run_check(DuplicatedCode, mass_threshold: 200)
+      |> refute_issues()
+
+      [file("a", block("x")), file("b", "  def y, do: :ok\n")]
+      |> run_check(DuplicatedCode, mass_threshold: 40)
+      |> refute_issues()
+    end
+
+    test "names a copy on credo diff's other side by its path in the project" do
+      root = "/tmp/credo-diff-20261112004249264975"
+
+      assert DuplicatedCode.relative(Path.join(root, "lib/slipdock/a.ex"), root) ==
+               "lib/slipdock/a.ex"
+
+      assert DuplicatedCode.relative("lib/slipdock/a.ex", File.cwd!()) == "lib/slipdock/a.ex"
+    end
+  end
+
+  describe ".credo.exs (#2789)" do
+    setup do
+      {config, _} = Code.eval_file(Path.expand("../../.credo.exs", __DIR__))
+      [default] = config.configs
+      %{enabled: default.checks.enabled, disabled: default.checks.disabled}
+    end
+
+    test "gates both with the baseline's thresholds (W-1950 §Credo's size checks)", ctx do
+      assert {_, dup} = List.keyfind(ctx.enabled, DuplicatedCode, 0)
+      assert dup[:mass_threshold] == 40
+
+      assert {_, abc} = List.keyfind(ctx.enabled, ABCSize, 0)
+      assert abc[:max_size] == 50
+      assert abc[:files] == %{excluded: ["priv/repo/migrations/"]}
+    end
+
+    test "keeps credo's own two off, whose messages credo diff can't match", ctx do
+      for check <- [Credo.Check.Design.DuplicatedCode, Credo.Check.Refactor.ABCSize] do
+        assert List.keymember?(ctx.disabled, check, 0)
+        refute List.keymember?(ctx.enabled, check, 0)
+      end
     end
   end
 end
