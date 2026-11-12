@@ -335,4 +335,18 @@ defmodule Slipdock.Boards.Attachments do
   defp safe_ext(ext) do
     if Regex.match?(~r/^\.[a-z0-9]{1,8}$/, ext), do: ext, else: ""
   end
+
+  ## Lookups (#2791): plain reads the web layer makes through this context
+
+  @doc "The attachment `id`, or nil, with `preloads` loaded."
+  def get_attachment(id, preloads \\ []) do
+    case Repo.get(Attachment, id) do
+      nil -> nil
+      attachment -> Repo.preload(attachment, preloads)
+    end
+  end
+
+  @doc "`attachment` with the text read from its document loaded."
+  def with_document_text(%Attachment{} = attachment),
+    do: Repo.preload(attachment, :document_text)
 end

@@ -82,4 +82,7 @@ defmodule Slipdock.Accounts.Groups do
         from(m in "group_members", where: m.group_id == ^group.id and m.user_id == ^user.id)
       )
   end
+
+  @doc "The group `id` as stored, members and owner not loaded, or nil."
+  def get_group(id), do: Repo.get(Group, id)
 end

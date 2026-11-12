@@ -39,7 +39,7 @@ defmodule SlipdockWeb.API.Authorize do
   def tree_root(_conn, %Slipdock.Boards.Board{root_id: nil} = board, _need), do: {:ok, board}
 
   def tree_root(conn, %Slipdock.Boards.Board{root_id: id}, need) do
-    root = Slipdock.Repo.get!(Slipdock.Boards.Board, id)
+    root = Slipdock.Boards.get_board_record!(id)
 
     case board(conn, root, need) do
       :ok ->

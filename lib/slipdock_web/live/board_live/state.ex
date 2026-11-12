@@ -360,10 +360,7 @@ defmodule SlipdockWeb.BoardLive.State do
         []
 
       pauses ->
-        root =
-          if board.root_id,
-            do: Slipdock.Repo.get(Slipdock.Boards.Board, board.root_id),
-            else: board
+        root = Slipdock.Boards.root_board(board)
 
         Enum.map(pauses, &%{pause: &1, root: root})
     end

@@ -36,7 +36,7 @@ defmodule SlipdockWeb.BoardLive.Items do
     case Wiki.find_page(page_id) do
       {:ok, %Slipdock.Wiki.Page{board_id: board_id, archived_at: nil} = page}
       when board_id == board.id ->
-        {:ok, Slipdock.Wiki.Page.for_board(Slipdock.Repo.preload(page, Wiki.board_preloads()))}
+        {:ok, Slipdock.Wiki.Page.for_board(Wiki.with_board_preloads(page))}
 
       _ ->
         :error

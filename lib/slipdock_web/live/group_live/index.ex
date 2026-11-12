@@ -64,7 +64,7 @@ defmodule SlipdockWeb.GroupLive.Index do
 
   defp owned_group(socket, id) do
     with id when is_integer(id) <- SlipdockWeb.Params.id(id),
-         %{} = group <- Slipdock.Repo.get(Slipdock.Accounts.Group, id),
+         %{} = group <- Accounts.get_group(id),
          true <- group.owner_id == socket.assigns.current_user.id do
       {:ok, Accounts.get_group!(group.id)}
     else

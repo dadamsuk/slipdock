@@ -26,7 +26,7 @@ defmodule SlipdockWeb.FileViewer do
   """
   use SlipdockWeb, :html
 
-  alias Slipdock.{Access, Repo}
+  alias Slipdock.Access
   alias Slipdock.Wiki.{Files, Viewer, WikiFile}
 
   @doc """
@@ -37,7 +37,7 @@ defmodule SlipdockWeb.FileViewer do
   def load(user, id) do
     with n when is_integer(n) <- SlipdockWeb.Params.id(id),
          %WikiFile{archived_at: nil} = file <- Files.get(n),
-         file = Repo.preload(file, [:board, :folder]),
+         file = Files.with_board(file),
          true <- Access.can_read?(Access.file_permission(user, file)) do
       kind = Viewer.kind(file)
       {:ok, Map.merge(%{file: file, kind: kind}, content(file, kind))}

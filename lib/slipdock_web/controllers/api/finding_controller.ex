@@ -14,8 +14,8 @@ defmodule SlipdockWeb.API.FindingController do
   """
   use SlipdockWeb, :controller
 
-  alias Slipdock.Boards.Board
-  alias Slipdock.{Findings, Repo}
+  alias Slipdock.Boards
+  alias Slipdock.Findings
   alias SlipdockWeb.API.Authorize
   alias Slipdock.Findings.Awaiting
   alias SlipdockWeb.API.FindingJSON, as: F
@@ -38,7 +38,7 @@ defmodule SlipdockWeb.API.FindingController do
 
   def update(conn, %{"id" => id} = params) do
     with {:ok, finding} <- fetch(conn, id),
-         :ok <- Authorize.board(conn, Repo.get!(Board, finding.board_id), :write),
+         :ok <- Authorize.board(conn, Boards.get_board_record!(finding.board_id), :write),
          {:ok, _} <- refused(Findings.triage(finding, params["action"], params)) do
       json(conn, %{finding: F.finding(Findings.get(finding.id))})
     end
@@ -48,7 +48,7 @@ defmodule SlipdockWeb.API.FindingController do
   defp fetch(conn, id) do
     with {n, ""} <- Integer.parse(to_string(id)),
          %{} = finding <- Findings.get(n),
-         :ok <- Authorize.board(conn, Repo.get!(Board, finding.board_id), :read) do
+         :ok <- Authorize.board(conn, Boards.get_board_record!(finding.board_id), :read) do
       {:ok, finding}
     else
       {:error, :forbidden, _} -> {:error, :not_found, "finding"}
@@ -56,8 +56,7 @@ defmodule SlipdockWeb.API.FindingController do
     end
   end
 
-  defp root(%Board{root_id: nil} = board), do: board
-  defp root(%Board{root_id: id}), do: Repo.get!(Board, id)
+  defp root(board), do: Boards.root_board(board)
 
   defp refused({:ok, _} = ok), do: ok
   defp refused({:error, %Ecto.Changeset{} = cs}), do: {:error, cs}

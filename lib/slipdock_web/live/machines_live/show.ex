@@ -51,7 +51,7 @@ defmodule SlipdockWeb.MachinesLive.Show do
   end
 
   defp load(socket, machine) do
-    machine = Slipdock.Repo.reload!(machine) |> Slipdock.Repo.preload(:user)
+    machine = Slipdock.Machines.reload_with_user(machine)
     reachable = Access.list_boards(socket.assigns.current_user, archived: :all)
 
     # A board member sees only the runners of boards they're on, and their

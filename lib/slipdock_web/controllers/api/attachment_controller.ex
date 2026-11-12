@@ -14,7 +14,7 @@ defmodule SlipdockWeb.API.AttachmentController do
   """
   use SlipdockWeb, :controller
 
-  alias Slipdock.{Access, Boards, Repo, Wiki}
+  alias Slipdock.{Access, Boards, Wiki}
   alias Slipdock.Boards.{Attachment, Card}
   alias Slipdock.Wiki.Page
   alias SlipdockWeb.API.{Authorize, Uploads}
@@ -62,8 +62,8 @@ defmodule SlipdockWeb.API.AttachmentController do
 
   defp fetch(conn, id) do
     with {:ok, id} <- attachment_id(id),
-         %Attachment{} = attachment <- Repo.get(Attachment, id),
-         attachment = Repo.preload(attachment, [:card, :page, :document_text]),
+         %Attachment{} = attachment <-
+           Boards.Attachments.get_attachment(id, [:card, :page, :document_text]),
          true <- readable?(conn.assigns.current_user, attachment),
          :ok <- narrow(conn, attachment) do
       {:ok, attachment}

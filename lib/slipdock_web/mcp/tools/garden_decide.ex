@@ -8,9 +8,8 @@ defmodule SlipdockWeb.MCP.Tools.GardenDecide do
   """
   @behaviour SlipdockWeb.MCP.Tool
 
-  alias Slipdock.Boards.Board
+  alias Slipdock.Boards
   alias Slipdock.Gardener
-  alias Slipdock.Repo
   alias SlipdockWeb.API.Authorize
   alias SlipdockWeb.API.GardenJSON, as: G
   alias SlipdockWeb.MCP.Args
@@ -55,7 +54,7 @@ defmodule SlipdockWeb.MCP.Tools.GardenDecide do
          {:ok, decision} <- decision(args["decision"]),
          :ok <- approved(args),
          {:ok, s} <- fetch(id),
-         board = Repo.get!(Board, s.board_id),
+         board = Boards.get_board_record!(s.board_id),
          :ok <- readable(auth, board, id),
          :ok <- Args.refusal(Authorize.board(auth, board, :write)),
          {:ok, s} <- refusal(decide(s, context, decision, args)) do

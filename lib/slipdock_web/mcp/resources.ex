@@ -18,11 +18,9 @@ defmodule SlipdockWeb.MCP.Resources do
   The renderers are in `SlipdockWeb.MCP.Resources.Render`.
   """
 
-  import Ecto.Query
-
-  alias Slipdock.{Access, Boards, Favourites, Repo, Wiki}
+  alias Slipdock.{Access, Boards, Favourites, Wiki}
   alias Slipdock.Boards.{Board, Card, SavedView}
-  alias Slipdock.Wiki.{Link, Page}
+  alias Slipdock.Wiki.Page
   alias SlipdockWeb.API.Authorize
   alias SlipdockWeb.MCP.Args
   alias SlipdockWeb.MCP.Resources.Render
@@ -138,21 +136,7 @@ defmodule SlipdockWeb.MCP.Resources do
     |> Enum.uniq_by(& &1.uri)
   end
 
-  defp pinned_pages([]), do: []
-
-  defp pinned_pages(board_ids) do
-    from(l in Link,
-      join: p in Page,
-      on: p.id == l.page_id,
-      join: b in Board,
-      on: b.id == l.target_board_id,
-      where: l.pinned and l.target_board_id in ^board_ids and is_nil(p.archived_at),
-      where: not p.template,
-      order_by: [asc: b.id, asc: p.id],
-      select: {p, b}
-    )
-    |> Repo.all()
-  end
+  defp pinned_pages(board_ids), do: Wiki.pinned_pages_on(board_ids)
 
   defp readable?(auth, :board, %Board{} = board), do: Authorize.board(auth, board, :read) == :ok
   defp readable?(auth, :card, %Card{} = card), do: Authorize.card(auth, card, :read) == :ok
@@ -182,7 +166,7 @@ defmodule SlipdockWeb.MCP.Resources do
   def uri(:page, %Page{code: code}), do: @scheme <> "page/" <> code
 
   def uri(:view, %SavedView{} = view) do
-    board = Repo.get!(Board, view.board_id)
+    board = Boards.get_board_record!(view.board_id)
     @scheme <> "view/" <> (board.code || "#{board.id}") <> "/#{view.id}"
   end
 
@@ -258,7 +242,7 @@ defmodule SlipdockWeb.MCP.Resources do
 
     with %Card{} = card <- Boards.Cards.get_card(id),
          :ok <- Authorize.card(auth, card, :read) do
-      {:ok, {:card, Authorize.visible(auth, Repo.preload(card, :board))}}
+      {:ok, {:card, Authorize.visible(auth, Boards.Cards.with_board(card))}}
     end
   end
 

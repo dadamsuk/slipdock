@@ -19,7 +19,7 @@ defmodule SlipdockWeb.MCP.Tools.DownloadFile do
   """
   @behaviour SlipdockWeb.MCP.Tool
 
-  alias Slipdock.{Boards, Repo, TransferLinks}
+  alias Slipdock.{Boards, TransferLinks}
   alias Slipdock.Boards.Attachment
   alias SlipdockWeb.API.{Authorize, Uploads}
   alias SlipdockWeb.MCP.Args
@@ -158,9 +158,9 @@ defmodule SlipdockWeb.MCP.Tools.DownloadFile do
   end
 
   defp fetch(id) do
-    case Repo.get(Attachment, id) do
+    case Boards.Attachments.get_attachment(id, [:card, :page]) do
       nil -> not_found()
-      attachment -> {:ok, Repo.preload(attachment, [:card, :page])}
+      attachment -> {:ok, attachment}
     end
   end
 

@@ -430,7 +430,7 @@ defmodule SlipdockWeb.API.PageController do
   defp fetch_card(ref) do
     case Integer.parse(to_string(ref)) do
       {id, ""} ->
-        case Slipdock.Repo.get(Slipdock.Boards.Card, id) do
+        case Slipdock.Boards.Cards.get_card_record(id) do
           nil -> {:error, :not_found, "card #{ref}"}
           card -> {:ok, card}
         end
@@ -1523,7 +1523,7 @@ defmodule SlipdockWeb.API.PageController do
   defp page_attachment_of(page, attachment_id) do
     with {int, ""} <- Integer.parse(to_string(attachment_id)),
          %Slipdock.Boards.Attachment{page_id: page_id} = attachment <-
-           Slipdock.Repo.get(Slipdock.Boards.Attachment, int),
+           Slipdock.Boards.Attachments.get_attachment(int),
          true <- page_id == page.id do
       attachment
     else
@@ -1554,7 +1554,7 @@ defmodule SlipdockWeb.API.PageController do
   defp page_url_of(page, url_id) do
     with {int, ""} <- Integer.parse(to_string(url_id)),
          %Slipdock.Boards.CardUrl{page_id: page_id} = url <-
-           Slipdock.Repo.get(Slipdock.Boards.CardUrl, int),
+           Slipdock.Boards.CardUrls.get_card_url(int),
          true <- page_id == page.id do
       url
     else
@@ -1578,8 +1578,7 @@ defmodule SlipdockWeb.API.PageController do
            ) do
       json(conn, %{
         page: V.page(with_users(page)),
-        my_votes:
-          Slipdock.Votes.mine(Slipdock.Repo.preload(page, :votes), conn.assigns.current_user)
+        my_votes: Slipdock.Votes.mine(Wiki.with_votes(page), conn.assigns.current_user)
       })
     else
       {:error, message} when is_binary(message) -> {:error, :unprocessable_entity, message}
@@ -1747,9 +1746,11 @@ defmodule SlipdockWeb.API.PageController do
 
   defp with_users(%Page{} = page),
     do:
-      Slipdock.Repo.preload(
-        page,
-        [:created_by, :updated_by, :assignee, :tags, [field_values: :field]] ++
-          Wiki.board_preloads()
-      )
+      Wiki.with_board_preloads(page, [
+        :created_by,
+        :updated_by,
+        :assignee,
+        :tags,
+        [field_values: :field]
+      ])
 end

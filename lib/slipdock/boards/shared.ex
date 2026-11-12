@@ -98,4 +98,13 @@ defmodule Slipdock.Boards.Shared do
   end
 
   def tap_ok(other, _fun), do: other
+
+  ## Lookups (#2791): plain reads the web layer makes through this context
+
+  @doc """
+  The checklist item or comment `id` (`schema` says which), or nil: for
+  routes that find the card or page it hangs off from the row itself.
+  """
+  def get_owned_row(schema, id) when schema in [Boards.ChecklistItem, Boards.Comment],
+    do: Repo.get(schema, id)
 end

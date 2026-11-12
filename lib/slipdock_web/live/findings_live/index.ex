@@ -22,7 +22,6 @@ defmodule SlipdockWeb.FindingsLive.Index do
   alias Slipdock.{Access, Boards, Findings}
   alias Slipdock.Boards.Board
   alias Slipdock.Findings.{Awaiting, Finding}
-  alias Slipdock.Repo
   alias SlipdockWeb.Params
 
   import SlipdockWeb.SlipdockComponents, only: [modal: 1, timestamp: 1]
@@ -177,8 +176,7 @@ defmodule SlipdockWeb.FindingsLive.Index do
   defp runner_name(%Finding{runner: %Slipdock.Runners.Runner{name: name}}), do: name
   defp runner_name(_finding), do: nil
 
-  defp root(%Board{root_id: nil} = board), do: board
-  defp root(%Board{root_id: id}), do: Repo.get!(Board, id)
+  defp root(board), do: Slipdock.Boards.root_board(board)
 
   defp status_options,
     do:

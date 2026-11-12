@@ -26,7 +26,7 @@ defmodule SlipdockWeb.InboundAddressesComponent do
   import SlipdockWeb.SlipdockComponents, only: [modal: 1]
 
   alias Slipdock.Inbound.Tokens
-  alias Slipdock.{Access, Repo}
+  alias Slipdock.Access
   alias Slipdock.Wiki.{Folder, Folders}
 
   @impl true
@@ -40,7 +40,7 @@ defmodule SlipdockWeb.InboundAddressesComponent do
     # Only for somebody who can write to the folder's board: the dialog names
     # the folder and its board, so nobody else is told even that much.
     with %Folder{} = folder <- Folders.get(id),
-         folder = Repo.preload(folder, :board),
+         folder = Folders.with_board(folder),
          true <- user |> Access.board_permission(folder.board) |> Access.can_write?() do
       {:ok,
        socket

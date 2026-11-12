@@ -161,4 +161,9 @@ defmodule Slipdock.Boards.Checklists do
 
   defp items(1), do: "a checklist item"
   defp items(n), do: "#{n} checklist items"
+
+  ## Lookups (#2791): plain reads the web layer makes through this context
+
+  @doc "The checklist item `id`, raising when there is none."
+  def get_checklist_item!(id), do: Repo.get!(ChecklistItem, id)
 end

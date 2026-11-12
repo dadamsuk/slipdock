@@ -7,6 +7,9 @@ defmodule Slipdock.BoundariesTest do
     * A context (`lib/slipdock.ex`, `lib/slipdock/**`) doesn't refer to a
       `SlipdockWeb` module. The ones that already did are listed below with
       their reasons; a new one fails.
+    * The web layer (`lib/slipdock_web*`) doesn't call `Slipdock.Repo`: it
+      reads and writes through the contexts (#2791). The one file that
+      may is listed below with its reason; a new one fails.
     * Compile-connected cycles, which make one edit recompile hundreds of
       files, stay at or under the ceiling recorded here. The ceiling only
       goes down: when a change brings the count under it, lower it to match
@@ -49,6 +52,15 @@ defmodule Slipdock.BoundariesTest do
     "lib/slipdock/ai/researcher.ex" => {~w(lib/slipdock_web/wiki/renderer.ex), "to_markdown/1"}
   }
 
+  # Web file => why it may call `Slipdock.Repo` itself. Every lookup goes
+  # through a context; this list is for what isn't a lookup.
+  @repo_allowed %{
+    "lib/slipdock_web/health.ex" =>
+      "the health check asks the database itself to answer (`SELECT 1`), not for anything in it"
+  }
+
+  @repo "lib/slipdock/repo.ex"
+
   # Today's compile-connected cycles: how many, and how many files in them
   # are joined by a compile-time edge. Only ever lowered.
   @cycle_ceiling %{cycles: 1, compile: 12}
@@ -74,6 +86,16 @@ defmodule Slipdock.BoundariesTest do
       {deps, _reason} -> Enum.member?(deps, dep)
       nil -> false
     end
+  end
+
+  @doc false
+  # The web files in `graph` that refer to `Slipdock.Repo`, beyond `allowed`.
+  def repo_references(graph, allowed) do
+    for {file, deps} <- graph,
+        web?(file),
+        Map.has_key?(deps, @repo),
+        not Map.has_key?(allowed, file),
+        do: {file, deps[@repo]}
   end
 
   @doc false
@@ -135,6 +157,36 @@ defmodule Slipdock.BoundariesTest do
     end
   end
 
+  describe "repo_references/2" do
+    test "a web file calling Slipdock.Repo is caught, at any label; contexts are not" do
+      graph = %{
+        "lib/slipdock_web/live/x_live.ex" => %{
+          "lib/slipdock/repo.ex" => "runtime",
+          "lib/slipdock/boards.ex" => "runtime"
+        },
+        "lib/slipdock_web.ex" => %{"lib/slipdock/repo.ex" => "compile"},
+        "lib/slipdock_web/live/y_live.ex" => %{"lib/slipdock/boards.ex" => "runtime"},
+        "lib/slipdock/boards.ex" => %{"lib/slipdock/repo.ex" => "runtime"}
+      }
+
+      assert repo_references(graph, %{}) |> Enum.sort() == [
+               {"lib/slipdock_web.ex", "compile"},
+               {"lib/slipdock_web/live/x_live.ex", "runtime"}
+             ]
+    end
+
+    test "only the listed web file is allowed, not every one" do
+      graph = %{
+        "lib/slipdock_web/health.ex" => %{"lib/slipdock/repo.ex" => "runtime"},
+        "lib/slipdock_web/router.ex" => %{"lib/slipdock/repo.ex" => "runtime"}
+      }
+
+      assert repo_references(graph, @repo_allowed) == [
+               {"lib/slipdock_web/router.ex", "runtime"}
+             ]
+    end
+  end
+
   describe "cycle_stats/1 and the ceiling" do
     @two_cycles """
     2 cycles found. Showing them in decreasing size:
@@ -174,6 +226,20 @@ defmodule Slipdock.BoundariesTest do
       for {file, {deps, _reason}} <- @allowed, dep <- deps do
         assert Map.has_key?(Map.get(graph, file, %{}), dep),
                "#{file} no longer refers to #{dep}: take it off @allowed"
+      end
+    end
+
+    test "the web layer calls Slipdock.Repo only where listed" do
+      graph = Jason.decode!(xref(["--format", "json", "--output", "-"]))
+
+      assert repo_references(graph, @repo_allowed) == [],
+             "a web file now calls Slipdock.Repo. Put the lookup in its context and call that " <>
+               "(W-1945 §Boundaries), or list the file in @repo_allowed with its reason."
+
+      # Every listed exception still calls it, so the list can't go stale.
+      for {file, _reason} <- @repo_allowed do
+        assert Map.has_key?(Map.get(graph, file, %{}), @repo),
+               "#{file} no longer calls Slipdock.Repo: take it off @repo_allowed"
       end
     end
 

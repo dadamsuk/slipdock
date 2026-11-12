@@ -855,4 +855,42 @@ defmodule Slipdock.Boards do
       %Board{root_id: root_id} -> root_id
     end
   end
+
+  ## Lookups (#2791)
+  #
+  # Plain reads the web layer used to make with `Repo` itself: each loads
+  # just the row (and what its name says), without `get_board/1`'s lists,
+  # cards and rollups.
+
+  @doc "The board `id` as stored, or nil: none of `get_board/1`'s lists, cards or rollups."
+  def get_board_record(id), do: Repo.get(Board, id)
+
+  @doc "As `get_board_record/1`, raising when there is no such board."
+  def get_board_record!(id), do: Repo.get!(Board, id)
+
+  @doc "The top-level board of `board`'s tree: `board` itself when it is one."
+  def root_board(%Board{root_id: nil} = board), do: board
+  def root_board(%Board{root_id: id}), do: Repo.get!(Board, id)
+
+  @doc "`board` read again from the database, with no associations loaded."
+  def reload_board!(%Board{} = board), do: Repo.reload!(board)
+
+  @doc "`board` with its owner loaded."
+  def with_owner(%Board{} = board), do: Repo.preload(board, :owner)
+
+  @doc "`board` with its saved views loaded."
+  def with_saved_views(%Board{} = board), do: Repo.preload(board, :saved_views)
+
+  @doc """
+  The top-level boards `user` owns, by name, as `id`, `name`, `code` and
+  `archived`: the boards that can travel with an account export.
+  """
+  def owned_root_boards(%Slipdock.Accounts.User{id: user_id}) do
+    from(b in Board,
+      where: b.owner_id == ^user_id and is_nil(b.parent_card_id),
+      order_by: [asc: b.name],
+      select: %{id: b.id, name: b.name, code: b.code, archived: not is_nil(b.archived_at)}
+    )
+    |> Repo.all()
+  end
 end
