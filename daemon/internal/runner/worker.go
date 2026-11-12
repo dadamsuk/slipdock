@@ -396,6 +396,10 @@ func (w *Worker) runJob(ctx context.Context, job *Job) {
 		w.runMerge(ctx, j)
 		return
 	}
+	if job.Kind == ReleaseKind {
+		w.runRelease(ctx, j)
+		return
+	}
 	if job.Kind == ProbeKind {
 		w.runProbe(ctx, j)
 		return
@@ -805,6 +809,40 @@ func (w *Worker) runMerge(ctx context.Context, j *jobRun) {
 		w.end(ctx, j, ended, rc, merged, nil)
 		return
 	}
+	w.end(ctx, j, ended, rc, "", nil)
+}
+
+// runRelease runs the built-in release (#2836) in the runner's repository,
+// watched like a merge: no agent and no transcript. The run it started is
+// in the job's log, which the server reads.
+func (w *Worker) runRelease(ctx context.Context, j *jobRun) {
+	rctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	done := make(chan int, 1)
+	sleep := func(d time.Duration) { _ = w.Sleep(rctx, d) }
+	go func() {
+		_, err := fireRelease(rctx, w.Exec, j.dir, j.job, w.Local.ReleaseCommands, sleep, j.note)
+		var re *releaseExit
+		switch {
+		case errors.As(err, &re):
+			j.note(re.msg)
+			done <- re.code
+		case err != nil:
+			j.note("release: " + err.Error())
+			done <- 1
+		default:
+			done <- 0
+		}
+	}()
+	stop := func() {
+		cancel()
+		select {
+		case rc := <-done:
+			done <- rc
+		case <-time.After(w.Grace):
+		}
+	}
+	ended, rc := w.watch(ctx, j, done, stop, nil)
 	w.end(ctx, j, ended, rc, "", nil)
 }
 

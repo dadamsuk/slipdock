@@ -502,7 +502,10 @@ defmodule SlipdockWeb.HelpLive.Flow do
       A card there is done when it merges; agents don't wait for its release. A release runs when
       a critical card merges, at the board's age cap, or when the owner presses <em>Release now</em>
       (<code>slipdock release B</code>): a runner's <code>release</code>
-      job runs the board's release command, one release at a time.
+      job runs the board's release command, one release at a time. A command other than the
+      default <code>gh workflow run</code>
+      runs only on a machine whose <code>local.json</code>
+      lists it under <code>release_commands</code>.
     </.person_note>
     <.person_note>
       <strong>A pause is yours to lift.</strong>

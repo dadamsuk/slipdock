@@ -1236,7 +1236,14 @@ one queues a single follow-up, and further triggers join it. Each request
 queues a runner job of kind `release`, with no card, for the pool that
 merges; its prompt is the board's `release_command` (default `gh workflow
 run release.yml --ref {default_branch}`), and it goes only to runners
-whose claims list `release` in `X-Runner-Kinds`. `slipdock releases
+whose claims list `release` in `X-Runner-Kinds`. The runner daemon has a
+built-in `release` kind (`no_release: true` in the machine's own file
+turns it off): it fetches origin and runs `gh workflow run <workflow>
+--ref <branch>` itself, putting the repository's default branch in place
+of `{default_branch}`, and reports the run it started. It never runs what
+the server sends: any other release command runs only when the machine's
+`local.json` lists it, word for word, under `release_commands`, and is
+refused otherwise (exit 2, nothing run). `slipdock releases
 <board>` (`GET /api/boards/:board/release`, `release_now` with `check:
 true`) says what is running, queued and awaiting release, for the whole
 tree: asked of a sub-board, it needs read on the root board too.

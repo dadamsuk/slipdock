@@ -601,7 +601,9 @@ defmodule SlipdockWeb.AgenticLive.Index do
                       until a release ships it. Leave the hours
                       blank for no age cap. A release runs when a critical card merges, on <em>Release now</em>, or at the age cap: a runner runs the release
                       command (blank for the default; <code>{"{default_branch}"}</code>
-                      is the repository's default branch).
+                      is the repository's default branch). A command other than the default
+                      runs only on a machine whose <code>local.json</code>
+                      lists it under <code>release_commands</code>.
                     </p>
                   <% end %>
                   <div

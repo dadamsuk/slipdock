@@ -577,7 +577,8 @@ slipdock release <board>                      # owner, on a board with batched r
                                               # (during a release it queues one follow-up). Only when the person asks: a card is done on merge
 slipdock releases <board>                     # where its releases stand: running, queued, the last ended, the cards awaiting
 slipdock set-board <board> --release-command "make release"   # the one line a release job runs (default: gh workflow run release.yml
-                                              # --ref {default_branch}); `default` clears it
+                                              # --ref {default_branch}); `default` clears it. Any other command runs only on a
+                                              # machine whose local.json lists it under release_commands (no_release: true: no releases)
 slipdock resume <board> [--pool P]            # let exactly that pause off (refused under an agent)
 slipdock job-progress <id> [--message NOTE]   # renew the lease (20 min for a session); note → card
 slipdock job-progress [<id>] --step "…"       # what the job is doing now: on the job only, not the card

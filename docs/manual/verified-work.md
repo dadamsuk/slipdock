@@ -612,7 +612,11 @@ board's **release command**: one line, set on the root board (the Agentic
 Building page, `slipdock set-board <board> --release-command "…"`,
 `release_command` over the API and MCP), by default `gh workflow run
 release.yml --ref {default_branch}`, where the runner puts the
-repository's default branch in. Lanes and WIP limits never hold a release
+repository's default branch in. The runner daemon runs that `gh workflow
+run` form itself; any other command runs only if the machine's own
+`local.json` lists it, word for word, under `release_commands`, and is
+refused otherwise, since the daemon never runs what the server sends (see
+[Machines](machines.md)). Lanes and WIP limits never hold a release
 job, and it goes only to a runner that says it takes `release`. The
 server holds no credentials for your repository.
 

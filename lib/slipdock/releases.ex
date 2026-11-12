@@ -429,18 +429,33 @@ defmodule Slipdock.Releases do
             finish(request, "released", "the release command ran; this board records no deploys")
 
       %Request{} = request ->
-        finish(request, "failed", "job ##{job.id} #{job.status}: the release command didn't run")
+        finish(request, "failed", "job ##{job.id} #{job.status}: #{why_failed(job.output)}")
     end
   end
 
+  # The run a release started: the one the runner daemon names (`release:
+  # run <url>`, #2836), else the first link in the job's output.
   defp run_url(output) when is_binary(output) do
-    case Regex.run(~r{https?://[^\s"'<>]+}, output) do
+    named = Regex.run(~r{^release: run (https?://[^\s"'<>]+)}m, output, capture: :all_but_first)
+
+    case named || Regex.run(~r{https?://[^\s"'<>]+}, output) do
       [url] when byte_size(url) <= 500 -> url
       _ -> nil
     end
   end
 
   defp run_url(_output), do: nil
+
+  # Why a release job failed: the daemon's own last word on it (`release:
+  # …`, #2836), else that the command didn't run.
+  defp why_failed(output) when is_binary(output) do
+    case Regex.scan(~r{^release: (.+)$}m, output, capture: :all_but_first) do
+      [] -> "the release command didn't run"
+      said -> said |> List.last() |> hd() |> String.trim()
+    end
+  end
+
+  defp why_failed(_output), do: "the release command didn't run"
 
   defp records_deploys?(root_id) do
     Repo.exists?(

@@ -1304,7 +1304,9 @@ defmodule Slipdock.Runners do
 
   @doc """
   The job kinds `runner`'s board tree needs that it hasn't said it takes
-  (#1658): `merge` when a board on the tree ships by pull request.
+  (#1658): `merge` when a board on the tree ships by pull request, and
+  `release` (#2836) when the tree releases in batches and the runner
+  merges, since the pool that merges fires the releases.
   """
   def missing_kinds(%Runner{} = runner) do
     needs_merge? =
@@ -1316,9 +1318,20 @@ defmodule Slipdock.Runners do
         )
       )
 
-    if needs_merge? and not takes_merge?(runner) and not Runner.session?(runner),
-      do: ["merge"],
-      else: []
+    if Runner.session?(runner),
+      do: [],
+      else: missing_merge(needs_merge?, runner) ++ missing_release(runner)
+  end
+
+  defp missing_merge(true, runner), do: if(takes_merge?(runner), do: [], else: ["merge"])
+  defp missing_merge(false, _runner), do: []
+
+  # A daemon older than the release kind (#2836) on a batched tree.
+  defp missing_release(runner) do
+    if takes_merge?(runner) and not takes_release?(runner) and
+         Slipdock.Releases.batched?(runner.board_id),
+       do: [Slipdock.Releases.kind()],
+       else: []
   end
 
   @doc "Whether `runner` takes merge jobs: it said so on its last claim."

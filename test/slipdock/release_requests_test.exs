@@ -384,6 +384,43 @@ defmodule Slipdock.ReleaseRequestsTest do
     end
   end
 
+  describe "missing_kinds/1 (#2836)" do
+    test "names release for a runner that merges but doesn't release, on a batched tree only",
+         %{board: board} do
+      old = runner!(board, "old", ~w(claude merge))
+      new = runner!(board, "new", ~w(claude merge release))
+      builder = runner!(board, "builder", ~w(claude))
+
+      assert Runners.missing_kinds(old) == ["release"]
+      assert Runners.missing_kinds(new) == []
+      # A runner that doesn't merge isn't asked to release either.
+      assert Runners.missing_kinds(builder) == []
+
+      {:ok, _} = Boards.update_board(board, %{"release_mode" => "on_merge"})
+      assert Runners.missing_kinds(old) == []
+    end
+
+    test "a Claude session's runner is asked for neither", %{board: board, owner: owner} do
+      {:ok, board} =
+        Boards.update_board(board, %{"verify_work" => true, "ship_via" => "pull_request"})
+
+      {_token, api_token} = Slipdock.Accounts.create_api_token(owner, "desktop")
+      {:ok, session} = Runners.session_runner(board, "dev", api_token, owner)
+
+      assert Runners.missing_kinds(session) == []
+      assert Runners.missing_kinds(Runners.report_kinds(session, "claude,merge")) == []
+    end
+
+    test "merge and release are both named when the tree ships by pull request",
+         %{board: board} do
+      {:ok, board} =
+        Boards.update_board(board, %{"verify_work" => true, "ship_via" => "pull_request"})
+
+      assert Runners.missing_kinds(runner!(board, "builder", ~w(claude))) == ["merge"]
+      assert Runners.missing_kinds(runner!(board, "old", ~w(claude merge))) == ["release"]
+    end
+  end
+
   describe "how a release ends" do
     setup %{board: board} do
       %{runner: runner!(board, "box", ~w(merge release))}
@@ -409,6 +446,48 @@ defmodule Slipdock.ReleaseRequestsTest do
       assert request.status == "running"
       assert request.run_url == "https://github.com/example/app/actions/runs/42"
       assert List.last(activity(ctx.board)) =~ "Release fired by job ##{request.job_id}: https://"
+    end
+
+    test "the run the daemon names wins over any other link in the log (#2836)", ctx do
+      {:ok, :started, request} = Releases.request(ctx.board, "manual", "Dana")
+
+      fire!(ctx.runner, request, %{
+        exit: "0",
+        status: "done",
+        output:
+          "From https://github.com/example/app\n * branch main\n" <>
+            "release: run https://github.com/example/app/actions/runs/42\n"
+      })
+
+      assert Repo.get!(Request, request.id).run_url ==
+               "https://github.com/example/app/actions/runs/42"
+    end
+
+    test "a failed job's request says what the daemon said (#2836)", ctx do
+      {:ok, :started, request} = Releases.request(ctx.board, "manual", "Dana")
+
+      fire!(ctx.runner, request, %{
+        exit: "2",
+        status: "failed",
+        output:
+          "release: could not fetch origin\nrelease: gh is not signed in (run gh auth login)\n"
+      })
+
+      assert %{status: "failed", note: note} = Repo.get!(Request, request.id)
+      assert note == "job ##{request.job_id} failed: gh is not signed in (run gh auth login)"
+    end
+
+    test "a failed job whose output has no release: line says the command didn't run", ctx do
+      {:ok, :started, request} = Releases.request(ctx.board, "manual", "Dana")
+
+      fire!(ctx.runner, request, %{
+        exit: "1",
+        status: "failed",
+        output: "make: *** [release] Error 1\nreleases are fun\n"
+      })
+
+      assert %{status: "failed", note: note} = Repo.get!(Request, request.id)
+      assert note == "job ##{request.job_id} failed: the release command didn't run"
     end
 
     test "on a tree that records no deploys, a done job is the release", ctx do

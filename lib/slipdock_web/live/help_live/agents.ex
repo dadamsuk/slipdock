@@ -1381,6 +1381,17 @@ defmodule SlipdockWeb.HelpLive.Agents do
         (and <code>no_skills_update</code>) in <code>local.json</code>
         turns it off.
       </p>
+      <p id="help-machine-release">
+        On a board with batched releases the daemon also fires the release, as it merges: a
+        <code>release</code>
+        job has no agent and no card. It runs
+        <code>gh workflow run &lt;workflow&gt; --ref &lt;branch&gt;</code>
+        itself and logs the run it started. Any other release command a board sets runs only
+        when the machine's <code>local.json</code>
+        lists it, word for word, under <code>release_commands</code>; the daemon refuses the
+        rest, since it never runs what the server sends. <code>no_release: true</code>
+        there turns the kind off.
+      </p>
       <p id="help-machine-setup">
         <strong>Set up this machine with Claude</strong>, on the machine's page and at the end of
         <code>slipdock-runner init</code>

@@ -53,6 +53,13 @@ type Local struct {
 	CLI       string `json:"cli,omitempty"`
 	// NoMerge turns off the built-in merge kind.
 	NoMerge bool `json:"no_merge,omitempty"`
+	// NoRelease turns off the built-in release kind (#2836): this
+	// machine's runners take no release jobs.
+	NoRelease bool `json:"no_release,omitempty"`
+	// ReleaseCommands are the release commands this machine runs besides
+	// the built-in `gh workflow run <workflow> --ref <branch>`: a board's
+	// release command runs only when it is one of these, word for word.
+	ReleaseCommands []string `json:"release_commands,omitempty"`
 	// NoSkillsUpdate keeps the skills in SkillsDir as they are: by
 	// default each slipdock skill there is replaced with the server's
 	// before every agent job (#2614).
