@@ -599,6 +599,142 @@ func TestAWorktreeStartsFromTheOriginsDefaultBranch(t *testing.T) {
 	}
 }
 
+// Which of the origin's branches a new card branch starts from: the one
+// origin/HEAD names, else origin/main, else origin/master, else HEAD
+// (#2758). Each case is a checkout of its own, sitting on another card's
+// branch, with fetch told never to set origin/HEAD (git 2.48 and later
+// would otherwise make it again).
+func TestAWorktreesBaseFollowsTheOriginsBranches(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("no git")
+	}
+	git := func(dir string, args ...string) string {
+		t.Helper()
+		cmd := exec.Command("git", append([]string{"-c", "user.name=t", "-c", "user.email=t@example.com", "-c", "init.defaultBranch=main"}, args...)...)
+		cmd.Dir = dir
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+		return strings.TrimSpace(string(out))
+	}
+	// An origin with a commit on each of branches, its HEAD on the first.
+	origin := func(branches ...string) (string, map[string]string) {
+		t.Helper()
+		bare := filepath.Join(t.TempDir(), "origin.git")
+		git(filepath.Dir(bare), "init", "-q", "--bare", "--initial-branch="+branches[0], bare)
+		src := filepath.Join(t.TempDir(), "src")
+		git(filepath.Dir(src), "init", "-q", src)
+		tips := map[string]string{}
+		for _, b := range branches {
+			git(src, "commit", "-q", "--allow-empty", "-m", "on "+b)
+			git(src, "push", "-q", bare, "HEAD:"+b)
+			tips[b] = git(src, "rev-parse", "HEAD")
+		}
+		return bare, tips
+	}
+	// The runner's checkout of it, on card-9: an orphan, so that a card
+	// branch started from the origin isn't merged into it, and is kept
+	// after the job for its start to be read.
+	checkout := func(r *rig, bare string) {
+		t.Helper()
+		git(r.dir, "clone", "-q", bare, ".")
+		git(r.dir, "config", "remote.origin.followRemoteHEAD", "never")
+		git(r.dir, "switch", "-q", "--orphan", "card-9")
+		git(r.dir, "commit", "-q", "--allow-empty", "-m", "card 9's work")
+	}
+	// The job's card branch starts from from, at the commit at ("" when
+	// it starts from card-9 itself, so is merged and removed after).
+	starts := func(r *rig, id, card int64, from, at string) string {
+		t.Helper()
+		f := r.runJob(fakeJob{id: id, kind: "claude", card: card, prompt: "x"})
+		branch := fmt.Sprintf("card-%d", card)
+		if f.exit != 0 || !strings.Contains(f.body, "on branch "+branch+", from "+from+"\n") {
+			t.Fatalf("want %s from %s; finish = %+v", branch, from, f)
+		}
+		if at == "" {
+			return f.body
+		}
+		if got := git(r.dir, "rev-parse", branch); got != at {
+			t.Fatalf("%s starts at %s, want %s (%s)", branch, got, at, from)
+		}
+		return f.body
+	}
+
+	t.Run("origin/HEAD names a branch that is neither main nor master", func(t *testing.T) {
+		bare, tips := origin("trunk", "main")
+		r := newRig(t, Config{Worktree: "on"})
+		checkout(r, bare)
+		starts(r, 160, 70, "origin/trunk", tips["trunk"])
+	})
+
+	t.Run("no origin/HEAD: origin/main", func(t *testing.T) {
+		bare, tips := origin("main", "master")
+		r := newRig(t, Config{Worktree: "on"})
+		checkout(r, bare)
+		git(r.dir, "remote", "set-head", "origin", "-d")
+		starts(r, 161, 71, "origin/main", tips["main"])
+	})
+
+	t.Run("no origin/HEAD and no main: origin/master", func(t *testing.T) {
+		bare, tips := origin("master", "trunk")
+		r := newRig(t, Config{Worktree: "on"})
+		checkout(r, bare)
+		git(r.dir, "remote", "set-head", "origin", "-d")
+		starts(r, 162, 72, "origin/master", tips["master"])
+	})
+
+	t.Run("no origin/HEAD, main or master: HEAD", func(t *testing.T) {
+		bare, _ := origin("dev")
+		r := newRig(t, Config{Worktree: "on"})
+		checkout(r, bare)
+		git(r.dir, "remote", "set-head", "origin", "-d")
+		if body := starts(r, 163, 73, "HEAD", ""); !strings.Contains(body, "origin has no default branch here, so the worktree starts from HEAD") {
+			t.Fatalf("log: %s", body)
+		}
+	})
+
+	// origin/HEAD a plain ref, not a symbolic one (as some tools leave
+	// it): rev-parse --abbrev-ref names no branch of the origin's. It
+	// says origin; with a tag or branch named origin to make that
+	// ambiguous, origin/HEAD.
+	for _, c := range []struct {
+		name, tag, says string
+		id, card        int64
+	}{
+		{"origin/HEAD not symbolic: origin/main", "", "origin", 164, 74},
+		{"origin/HEAD not symbolic, and a tag origin: origin/main", "origin", "origin/HEAD", 166, 76},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			bare, tips := origin("main", "trunk")
+			r := newRig(t, Config{Worktree: "on"})
+			checkout(r, bare)
+			git(r.dir, "remote", "set-head", "origin", "-d")
+			git(r.dir, "update-ref", "--no-deref", "refs/remotes/origin/HEAD", tips["trunk"])
+			if c.tag != "" {
+				git(r.dir, "tag", c.tag, tips["trunk"])
+			}
+			if got := git(r.dir, "rev-parse", "--abbrev-ref", "origin/HEAD"); got != c.says {
+				t.Fatalf("rev-parse --abbrev-ref origin/HEAD = %q, want %q", got, c.says)
+			}
+			starts(r, c.id, c.card, "origin/main", tips["main"])
+		})
+	}
+
+	// origin/HEAD pointed at a local branch: rev-parse --abbrev-ref names
+	// it (card-9), which isn't the origin's.
+	t.Run("origin/HEAD naming a local branch: origin/main", func(t *testing.T) {
+		bare, tips := origin("main")
+		r := newRig(t, Config{Worktree: "on"})
+		checkout(r, bare)
+		git(r.dir, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/heads/card-9")
+		if got := git(r.dir, "rev-parse", "--abbrev-ref", "origin/HEAD"); got != "card-9" {
+			t.Fatalf("rev-parse --abbrev-ref origin/HEAD = %q", got)
+		}
+		starts(r, 165, 75, "origin/main", tips["main"])
+	})
+}
+
 func TestClaimsBackOffAndHonourRetryAfter(t *testing.T) {
 	r := newRig(t, Config{})
 	r.w.Client.Server = "http://127.0.0.1:1" // nothing answers
