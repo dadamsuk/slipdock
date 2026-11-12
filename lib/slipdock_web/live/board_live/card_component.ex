@@ -87,6 +87,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
        card_pages: [],
        card_grants: [],
        card_jobs: [],
+       card_loop: nil,
        card_authors: nil,
        card_findings: 0,
        card_timeline: nil,
@@ -298,8 +299,12 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
 
   # The jobs rules have sent this card to runners, newest first.
   defp assign_jobs(%{assigns: %{card: %Card{} = card}} = socket) do
+    jobs = Runners.list_card_jobs(card.id, 5)
+
     assign(socket,
-      card_jobs: Runners.list_card_jobs(card.id, 5),
+      card_jobs: jobs,
+      # The runner loop on it, its own job's or an epic's working it (#2899).
+      card_loop: Slipdock.CardState.loop_of(card, jobs),
       # Who created it and who changed it last (#2028), refreshed with the
       # card, since every change re-renders it.
       card_authors: Slipdock.CardAuthors.for_card(card),
@@ -1373,6 +1378,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
         grants={@card_grants}
         pages={@card_pages}
         jobs={@card_jobs}
+        loop={@card_loop}
         authors={@card_authors}
         findings={@card_findings}
         timeline={@card_timeline}
@@ -1526,6 +1532,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
   attr :grants, :list, required: true
   attr :pages, :list, default: [], doc: "the wiki pages that talk about this card"
   attr :jobs, :list, default: [], doc: "the card's latest runner jobs"
+  attr :loop, :map, default: nil, doc: "`Slipdock.CardState.loop_of/2`: the runner loop on it"
   attr :authors, :map, default: nil, doc: "`Slipdock.CardAuthors.for_card/1` (#2028)"
   attr :findings, :integer, default: 0, doc: "how many open findings the card has"
   attr :timeline, :any, default: nil, doc: "the card's timeline (#1131)"
@@ -1776,7 +1783,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
               <.phone_properties
                 board={@board}
                 card={@card}
-                loop={Slipdock.CardState.loop_of(@jobs)}
+                loop={@loop}
                 authors={@authors}
                 form={@form}
                 target={@target}
@@ -1962,7 +1969,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
 
         <.card_sidebar
           narrow?={@narrow?}
-          loop={Slipdock.CardState.loop_of(@jobs)}
+          loop={@loop}
           authors={@authors}
           repeat={@repeat}
           board={@board}

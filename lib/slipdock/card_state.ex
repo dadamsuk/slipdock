@@ -21,7 +21,10 @@ defmodule Slipdock.CardState do
       is not one: assignees stay people, and every assignee filter, the Work
       page and the rules' `unassigned` trigger ignore it. It goes when the job
       ends, however it ends (done, parked, failed, cancelled, timed out or
-      requeued), since it is read off the job and nothing is stored;
+      requeued), since it is read off the job and nothing is stored. A
+      subcard with no open job of its own that its epic's job is working
+      (#2899: the job's current step names it, `epic_jobs/1`) shows that
+      job as its loop, and its line reads as the job's with " · in #<epic>";
     * `driver` — "agent" while a runner's job holds the card, else the kind
       of whoever last put it in a list ("agent" or "human"), else nil. Only
       worked out on a tree with a runner rule, or for a card that has had a
@@ -93,6 +96,7 @@ defmodule Slipdock.CardState do
     ctx = %{
       now: now,
       jobs: jobs,
+      epic_jobs: ids |> Enum.reject(&open?(jobs[&1])) |> epic_jobs(),
       held: held(jobs),
       entries: entries(ids),
       epics: open_epics(ids),
@@ -174,7 +178,7 @@ defmodule Slipdock.CardState do
 
   defp derive(%Card{} = card, ctx) do
     wait = Card.open_wait(card)
-    job = ctx.jobs[card.id]
+    {job, via} = card_job(card, ctx)
     held = job && ctx.held[job.id]
     entry = ctx.entries[card.id]
 
@@ -188,7 +192,7 @@ defmodule Slipdock.CardState do
     age = since && max(DateTime.diff(ctx.now, since), 0)
     usual = if known, do: ctx.usual[card.column_id]
     over = over_usual(card, ctx, wait, usual, age)
-    {kind, line} = line(card, wait, job, held, ctx.now)
+    {kind, line} = line(card, wait, job, held, via, ctx.now)
 
     %__MODULE__{
       line: line,
@@ -204,6 +208,118 @@ defmodule Slipdock.CardState do
       stuck: not is_nil(over),
       verifier: ctx.verifier
     }
+  end
+
+  # The job to read the card's state off, and the epic it is on when it is
+  # the job of an epic above the card working it (#2899): the card's own
+  # open job first, then such an epic's, then the card's newest. Never an
+  # epic's on a completed card.
+  defp card_job(card, ctx) do
+    own = ctx.jobs[card.id]
+
+    epic = ctx.epic_jobs[card.id]
+
+    if epic && not card.completed && not open?(own), do: {epic, epic}, else: {own, nil}
+  end
+
+  defp open?(%Job{status: status}), do: Enum.member?(Job.open_statuses(), status)
+  defp open?(_job), do: false
+
+  @doc """
+  The jobs of epics that are working some of `card_ids` (#2899), by card
+  id: a build job claimed or running on a card above the card (its epic,
+  or one further up), whose current step names it (`#2835 CI running`).
+  An epic's job works its subcards inside itself, so without this a
+  subcard it is building has no job and reads as nobody on it. Only open
+  (not completed, not archived) cards are keys; with two such jobs, the
+  running one, then the newest. One query for the jobs, and one more per
+  level climbed only when a step names one of `card_ids`.
+  """
+  def epic_jobs([]), do: %{}
+
+  def epic_jobs(card_ids) do
+    wanted = MapSet.new(card_ids)
+    not_builds = [Slipdock.Overseer.kind() | Slipdock.Verified.finishing_kinds()]
+
+    named =
+      from(j in Job,
+        where: j.status in ~w(claimed running) and not is_nil(j.card_id),
+        where: not is_nil(j.step) and j.kind not in ^not_builds
+      )
+      |> Repo.all()
+      |> Enum.flat_map(fn job ->
+        for id <- step_card_ids(job.step),
+            id != job.card_id,
+            MapSet.member?(wanted, id),
+            do: {id, job}
+      end)
+
+    case named do
+      [] ->
+        %{}
+
+      _ ->
+        above = named |> Enum.map(&elem(&1, 0)) |> Enum.uniq() |> ancestors()
+
+        named
+        |> Enum.filter(fn {id, job} -> Enum.member?(Map.get(above, id, []), job.card_id) end)
+        |> Enum.sort_by(fn {_id, job} -> {job.status == "running", job.id} end)
+        |> Map.new()
+    end
+  end
+
+  @doc "The card ids a job's step names, in order: `#2835 CI running` → `[2835]`."
+  def step_card_ids(step) when is_binary(step) do
+    ~r/(?<![\w&#])#([0-9]+)\b/u
+    |> Regex.scan(step, capture: :all_but_first)
+    |> Enum.map(fn [id] -> String.to_integer(id) end)
+    |> Enum.uniq()
+  end
+
+  def step_card_ids(_step), do: []
+
+  # Each open card among `ids`, with the cards above it (its epic, the
+  # epic's epic, …), nearest first.
+  defp ancestors(ids) do
+    open =
+      from(c in Card,
+        where: c.id in ^ids and not c.completed and is_nil(c.archived_at),
+        select: c.id
+      )
+      |> Repo.all()
+
+    climb(Map.new(open, &{&1, &1}), Map.new(open, &{&1, []}), 0)
+  end
+
+  # `frontier` maps each card to the card reached so far above it.
+  @max_depth 10
+  defp climb(frontier, acc, depth) when map_size(frontier) == 0 or depth >= @max_depth,
+    do: Map.new(acc, fn {id, above} -> {id, Enum.reverse(above)} end)
+
+  defp climb(frontier, acc, depth) do
+    reached = frontier |> Map.values() |> Enum.uniq()
+
+    parents =
+      from(c in Card,
+        join: b in Board,
+        on: b.id == c.board_id,
+        where: c.id in ^reached and not is_nil(b.parent_card_id),
+        select: {c.id, b.parent_card_id}
+      )
+      |> Repo.all()
+      |> Map.new()
+
+    next =
+      Enum.flat_map(frontier, fn {id, at} ->
+        case parents[at] do
+          nil -> []
+          parent -> [{id, parent}]
+        end
+      end)
+      |> Map.new()
+
+    acc = Enum.reduce(next, acc, fn {id, parent}, acc -> Map.update!(acc, id, &[parent | &1]) end)
+    climb(next, acc, depth + 1)
   end
 
   @doc "Whether `board` sends a submitted card to a verifier agent (a verify pool, with verified work on)."
@@ -261,17 +377,33 @@ defmodule Slipdock.CardState do
   end
 
   @doc """
-  The loops holding some cards, by card id, in one query: only the cards a
-  claimed or running job holds are keys. For cards read light, without a
-  state (the outline's, from `Slipdock.Boards.Rollup`).
+  The loop holding one card read with its jobs: `loop_of/1` of them, else
+  the loop of an epic's job working it (#2899, `epic_jobs/1`).
+  """
+  def loop_of(%Card{id: id, completed: completed}, jobs) do
+    loop_of(jobs) || if(not completed, do: job_loop(epic_jobs([id])[id]))
+  end
+
+  @doc """
+  The loops holding some cards, by card id: only the cards a claimed or
+  running job holds are keys, their own or an epic's working them (#2899,
+  `epic_jobs/1`). For cards read light, without a state (the outline's,
+  from `Slipdock.Boards.Rollup`).
   """
   def loops([]), do: %{}
 
   def loops(card_ids) do
-    from(j in Job, where: j.card_id in ^card_ids and j.status in ~w(claimed running))
-    |> Repo.all()
-    |> Enum.group_by(& &1.card_id)
-    |> Map.new(fn {card_id, jobs} -> {card_id, loop_of(jobs)} end)
+    own =
+      from(j in Job, where: j.card_id in ^card_ids and j.status in ~w(claimed running))
+      |> Repo.all()
+      |> Enum.group_by(& &1.card_id)
+      |> Map.new(fn {card_id, jobs} -> {card_id, loop_of(jobs)} end)
+
+    card_ids
+    |> Enum.reject(&Map.has_key?(own, &1))
+    |> epic_jobs()
+    |> Map.new(fn {card_id, job} -> {card_id, job_loop(job)} end)
+    |> Map.merge(own)
   end
 
   @doc "The loop as its chip reads: \"Mac Studio · verify\"."
@@ -283,12 +415,14 @@ defmodule Slipdock.CardState do
   defp driver(_job, _entry), do: nil
 
   # `{kind, line}`, or `{nil, nil}` when there is nothing to say.
-  defp line(card, wait, job, held, now) do
+  defp line(card, wait, job, held, via, now) do
     case base(card, wait, job, held, now) do
       nil ->
         {nil, nil}
 
       {kind, line} ->
+        line = if via && kind != "waiting", do: line <> " · in ##{via.card_id}", else: line
+
         case Card.open_handoff(card) do
           nil -> {kind, line}
           handoff -> {kind, line <> " · Next: " <> handoff.next_step}

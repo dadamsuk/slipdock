@@ -319,8 +319,11 @@ Every card also carries its `state` line, `driver`, `age` in its list and
 `stuck` (past the list's usual stay; never an epic with open subcards, whose
 stay is theirs), and while a runner job holds it
 (claimed or running) its `loop`: `{runner, kind, job_id}`, the kind `build`,
-`verify` or `merge`. The card shows the loop beside its assignees, and it
-goes when the job ends; it is never an assignee, so `--assignee me`,
+`verify` or `merge`. A subcard with no open job of its own that an epic's
+build job above it is working (the job's current step names it, `#2835 CI
+running`) carries that job's `loop`, and its `state` reads `Running · … ·
+in #<epic>`: so name the subcard in each step. The card shows the loop
+beside its assignees, and it goes when the job ends; it is never an assignee, so `--assignee me`,
 `--no-assignee` and `assignee=none` still mean people, and a runner's agent
 (signed in with its owner's token) doesn't assign the card at all.
 A single card (`slipdock card`, `GET /api/cards/:id`, `get_card`) also

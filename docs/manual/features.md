@@ -115,7 +115,10 @@
   the outline row, the table's assignee cell and the card's Assignees — linked
   to the job in the card's Runner jobs. It shows with the assignee field and
   goes when the job ends; the loop is never an assignee, so assignee filters
-  and My work still mean people
+  and My work still mean people. An epic's job builds its subcards inside
+  itself: the subcard its current step names ("#2835 CI running") shows
+  that job's chip, and its state line reads `Running · … · in #<epic>`, so it is
+  never "nobody on it" on the epic's line while the job is on it
 - **Multiboard** (`/multiboard`, from the home page's toolbar): pick lists
   from any of your boards under **Lists** and see the top N cards of each
   (5 unless you say, up to 50), in the list's own order, archived and

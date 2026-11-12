@@ -533,7 +533,9 @@ The card is the running log, not the final report:
 - in a runner's job (`$SLIPDOCK_JOB_ID` is set), each milestone as the job's
   step: `slipdock job-progress --step "…"` (no id: it takes the job from
   `$SLIPDOCK_JOB_ID`) for the plan made, each subcard as it starts, is
-  submitted and merges, CI running, and the wrap-up. The runner holds that
+  submitted and merges, CI running, and the wrap-up. On an epic, start
+  each step with the subcard's id (`#2835 CI running`): the subcard the
+  current step names shows the job as its loop and reads as running. The runner holds that
   job, so don't claim or finish it. Steps show on the job and the Runners
   panel, where comments on subcards don't, and a job that shows nothing for
   45 minutes is flagged `stuck` by the board's health monitor.
