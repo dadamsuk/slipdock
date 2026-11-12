@@ -44,7 +44,7 @@ defmodule SlipdockWeb.CardColumnDropLiveTest do
       "before" => nil
     })
 
-    order = Boards.active_items(ctx.to.id)
+    order = Boards.Columns.active_items(ctx.to.id)
     assert order == [{:card, first.id}, {:card, second.id}, {:card, moved.id}]
     assert Repo.get!(Card, moved.id).column_id == ctx.to.id
   end

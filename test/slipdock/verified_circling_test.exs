@@ -42,7 +42,7 @@ defmodule Slipdock.VerifiedCirclingTest do
 
   defp submit(card, ctx) do
     {:ok, card} =
-      Boards.update_card(
+      Boards.Cards.update_card(
         Repo.get!(Card, card.id),
         %{"completed" => true, "evidence" => "ran it"},
         actor: ctx.builder
@@ -178,8 +178,8 @@ defmodule Slipdock.VerifiedCirclingTest do
   describe "Waiting on you" do
     test "a circling card comes first, however new, and counts", ctx do
       old = card_fixture(ctx.doing, %{"title" => "Old review"})
-      {:ok, _} = Boards.update_card(old, %{"assignee_ids" => [ctx.owner.id]})
-      {:ok, _} = Boards.update_card(Repo.get!(Card, old.id), %{"flags" => ["review"]})
+      {:ok, _} = Boards.Cards.update_card(old, %{"assignee_ids" => [ctx.owner.id]})
+      {:ok, _} = Boards.Cards.update_card(Repo.get!(Card, old.id), %{"flags" => ["review"]})
 
       card = card_fixture(ctx.doing, %{"title" => "Circling"})
       card = round(card, ctx, "bar 1: one")
@@ -201,7 +201,7 @@ defmodule Slipdock.VerifiedCirclingTest do
       card = round(card, ctx, "bar 2: two")
       assert hd(Work.waiting_on_me(ctx.owner)).reason == "circling"
 
-      {:ok, _} = Boards.update_card(card, %{"flags" => []}, actor: Actor.web(ctx.owner))
+      {:ok, _} = Boards.Cards.update_card(card, %{"flags" => []}, actor: Actor.web(ctx.owner))
       assert Work.waiting_on_me(ctx.owner) |> Enum.all?(&(&1.reason != "circling"))
     end
   end

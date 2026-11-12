@@ -11,7 +11,7 @@ defmodule SlipdockWeb.AskModeLiveTest do
 
     board = board_fixture(%{"name" => "Delivery"}, owner: user)
     card = card_fixture(hd(board.columns), %{"title" => "Invoice rounding is wrong on refunds"})
-    {:ok, _} = Boards.add_comment(card, "finance want this before the audit")
+    {:ok, _} = Boards.Comments.add_comment(card, "finance want this before the audit")
     {:ok, _} = Search.index_cards(Search.load_cards(Search.all_card_ids()))
 
     %{board: board, card: card}

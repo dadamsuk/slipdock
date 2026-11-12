@@ -62,21 +62,21 @@ defmodule Slipdock.SweepE2ETest do
 
     # The sweep files a security issue in Triage: nothing sends it to the loop.
     {:ok, issue} =
-      Boards.create_card(triage, %{
+      Boards.Cards.create_card(triage, %{
         "title" => "Board events skip the write check",
         "description" => "Where, why it matters, the fix."
       })
 
     # The Tool made the `security` tag the procedure files them with.
     {:ok, security} = Boards.find_tag(board, "security")
-    {:ok, _} = Boards.set_card_tags(issue, [security])
+    {:ok, _} = Boards.Cards.set_card_tags(issue, [security])
     feed_all(board)
     refute Repo.exists?(from(j in Job, where: j.card_id == ^issue.id))
     roles = SlipdockWeb.APIGuide.list_roles(Boards.get_board!(board.id).columns)
     refute roles.ready.id == triage.id
 
     # A person moves it into To Do: the feed sends it, and its prompt is neutral.
-    :ok = Boards.move_card(issue.id, column(board, "To Do").id)
+    :ok = Boards.Cards.move_card(issue.id, column(board, "To Do").id)
     feed_all(board)
     assert %Job{} = job = Repo.one(from(j in Job, where: j.card_id == ^issue.id))
     prompt = Runners.claimed_prompt(job)

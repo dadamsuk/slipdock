@@ -53,7 +53,7 @@ defmodule SlipdockWeb.FlagAttentionLiveTest do
     test "blocked by an open card is outline only, naming the blocker", ctx do
       blocker = card_fixture(ctx.todo, %{"title" => "First"})
       card = card_fixture(ctx.todo, %{"title" => "Second", "flags" => ["blocked"]})
-      {:ok, _} = Boards.add_dependency(card, blocker)
+      {:ok, _} = Boards.Dependencies.add_dependency(card, blocker)
 
       {:ok, _view, html} = live(ctx.conn, ~p"/boards/#{ctx.board}")
       node = flag(html, card, "blocked")
@@ -100,7 +100,7 @@ defmodule SlipdockWeb.FlagAttentionLiveTest do
     test "a person's chip has the hand; one that clears itself says so", ctx do
       blocker = card_fixture(ctx.todo, %{"title" => "First"})
       card = card_fixture(ctx.todo, %{"title" => "Second", "flags" => ["blocked", "waiting"]})
-      {:ok, _} = Boards.add_dependency(card, blocker)
+      {:ok, _} = Boards.Dependencies.add_dependency(card, blocker)
 
       {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/cards/#{card.id}")
 
@@ -120,7 +120,7 @@ defmodule SlipdockWeb.FlagAttentionLiveTest do
     test "the card carries flag_attention per flag", ctx do
       pool!(ctx.board)
       card = card_fixture(ctx.doing, %{"title" => "Submitted"}) |> pending!()
-      Boards.update_card(card, %{"flags" => ["review", "starred"]})
+      Boards.Cards.update_card(card, %{"flags" => ["review", "starred"]})
 
       body =
         ctx.conn
@@ -136,7 +136,7 @@ defmodule SlipdockWeb.FlagAttentionLiveTest do
                "starred" => %{"attention" => "none"}
              } = body["flag_attention"] || body["card"]["flag_attention"]
 
-      line = Tools.card_line(Boards.with_state(Boards.get_card!(card.id)))
+      line = Tools.card_line(Boards.with_state(Boards.Cards.get_card!(card.id)))
       assert line.flag_attention["review"]["attention"] == "auto"
     end
 
@@ -144,7 +144,7 @@ defmodule SlipdockWeb.FlagAttentionLiveTest do
       card = card_fixture(ctx.todo, %{"title" => "Plain"})
 
       refute Map.has_key?(
-               Tools.card_line(Boards.with_state(Boards.get_card!(card.id))),
+               Tools.card_line(Boards.with_state(Boards.Cards.get_card!(card.id))),
                :flag_attention
              )
     end

@@ -50,14 +50,14 @@ defmodule Slipdock.Vaults.NamesTest do
 
   defp epic(ctx, title \\ "Launch") do
     card = card_fixture(hd(ctx.board.columns), %{"title" => title})
-    {:ok, template} = Boards.find_template(nil, "Simple")
+    {:ok, template} = Boards.Templates.find_template(nil, "Simple")
     {:ok, sub} = sub_board(card, template)
     {card, Boards.get_board!(sub.id)}
   end
 
   describe "the listing's fields" do
     test "a card folder: title, short name, disk path, card id", ctx do
-      {:ok, card} = Boards.update_card(ctx.card, %{"title" => @long})
+      {:ok, card} = Boards.Cards.update_card(ctx.card, %{"title" => @long})
       details = listing(ctx).folder_details["Keystone/Cards/#{card.short_name}"]
 
       assert %{title: @long, card_id: id, archived: false, id: folder} = details
@@ -106,7 +106,7 @@ defmodule Slipdock.Vaults.NamesTest do
     test "boards carry the home page's hand-made order as position", ctx do
       older = board_fixture(%{"name" => "Archive desk", "code" => "nms2"}, owner: ctx.user)
       newer = board_fixture(%{"name" => "Zebra", "code" => "nms3"}, owner: ctx.user)
-      :ok = Boards.reorder_boards(ctx.user, [newer.id])
+      :ok = Boards.Arrangement.reorder_boards(ctx.user, [newer.id])
 
       positions = Map.new(listing(ctx).boards, &{&1.id, &1.position})
 
@@ -118,7 +118,7 @@ defmodule Slipdock.Vaults.NamesTest do
 
     test "a title too long for a path is whole in the listing and bounded on disk", ctx do
       title = String.duplicate("very long words ", 12) |> String.trim()
-      {:ok, _} = Boards.update_card(ctx.card, %{"title" => title, "short_name" => "Short"})
+      {:ok, _} = Boards.Cards.update_card(ctx.card, %{"title" => title, "short_name" => "Short"})
 
       assert %{title: ^title, short_name: "Short"} =
                listing(ctx).folder_details["Keystone/Cards/Short"]
@@ -133,7 +133,7 @@ defmodule Slipdock.Vaults.NamesTest do
   describe "folders" do
     test "takes in boards and the directories only a sub-board needs", ctx do
       {card, _sub} = epic(ctx)
-      {:ok, _} = Boards.update_card(card, %{"short_name" => "Go"})
+      {:ok, _} = Boards.Cards.update_card(card, %{"short_name" => "Go"})
       listed = listing(ctx)
 
       assert "Keystone" in listed.folders
@@ -167,7 +167,7 @@ defmodule Slipdock.Vaults.NamesTest do
     test "an archived card marks its folder and what is in it, and moves nothing", ctx do
       file = file_in_card_folder(ctx)
       before = listing(ctx)
-      {:ok, card} = Boards.archive_card(ctx.card)
+      {:ok, card} = Boards.Cards.archive_card(ctx.card)
       listed = listing(ctx)
 
       assert listed.folder_details["Keystone/Cards/Fix the thing"].archived
@@ -177,12 +177,12 @@ defmodule Slipdock.Vaults.NamesTest do
       assert entry(listed, ctx.page.id).hash == entry(before, ctx.page.id).hash
       refute listed.folder_details["Keystone/Cards"].archived
 
-      {:ok, _} = Boards.unarchive_card(card)
+      {:ok, _} = Boards.Cards.unarchive_card(card)
       refute entry(listing(ctx), ctx.page.id).archived
     end
 
     test "an archived board is out of the listing, and back when restored", ctx do
-      {:ok, board} = Boards.archive_board(ctx.board)
+      {:ok, board} = Boards.Arrangement.archive_board(ctx.board)
       listed = listing(ctx)
 
       refute entry(listed, ctx.page.id)
@@ -190,7 +190,7 @@ defmodule Slipdock.Vaults.NamesTest do
       assert listed.boards == []
       refute "Keystone" in listed.folders
 
-      {:ok, _} = Boards.unarchive_board(board)
+      {:ok, _} = Boards.Arrangement.unarchive_board(board)
       listed = listing(ctx)
 
       assert %{archived: false} = entry(listed, ctx.page.id)
@@ -199,14 +199,14 @@ defmodule Slipdock.Vaults.NamesTest do
 
     test "of an archived board the feed says only that it was, and was restored", ctx do
       start = cursor(ctx)
-      {:ok, board} = Boards.archive_board(ctx.board)
+      {:ok, board} = Boards.Arrangement.archive_board(ctx.board)
       {:ok, _} = Wiki.update_page(ctx.page, %{"body" => "Edited while archived"})
 
       id = board.id
       assert [%{subject: "board", id: ^id, action: "archived", archived: true}] = feed(ctx, start)
 
       start = cursor(ctx)
-      {:ok, _} = Boards.unarchive_board(board)
+      {:ok, _} = Boards.Arrangement.unarchive_board(board)
 
       assert [%{subject: "board", id: ^id, action: "restored", archived: false}] =
                feed(ctx, start)
@@ -215,7 +215,7 @@ defmodule Slipdock.Vaults.NamesTest do
     test "an archived epic marks the sub-board and the virtual directory", ctx do
       {card, sub} = epic(ctx)
       {:ok, page} = Wiki.create_page(sub, %{"title" => "Inside"})
-      {:ok, _} = Boards.archive_card(card)
+      {:ok, _} = Boards.Cards.archive_card(card)
       listed = listing(ctx)
 
       assert entry(listed, page.id).archived
@@ -224,7 +224,7 @@ defmodule Slipdock.Vaults.NamesTest do
 
     test "the feed says so, on a row of its own that moves nothing", ctx do
       start = cursor(ctx)
-      {:ok, _} = Boards.archive_card(ctx.card)
+      {:ok, _} = Boards.Cards.archive_card(ctx.card)
 
       assert [%{subject: "folder", action: "archived", archived: true, card_id: id}] =
                feed(ctx, start)
@@ -234,19 +234,19 @@ defmodule Slipdock.Vaults.NamesTest do
 
     test "archiving and restoring a board is a board row", ctx do
       start = cursor(ctx)
-      {:ok, board} = Boards.archive_board(ctx.board)
+      {:ok, board} = Boards.Arrangement.archive_board(ctx.board)
 
       assert [%{subject: "board", action: "archived", archived: true, path: "Keystone"}] =
                feed(ctx, start)
 
       again = cursor(ctx)
-      {:ok, _} = Boards.unarchive_board(board)
+      {:ok, _} = Boards.Arrangement.unarchive_board(board)
 
       assert [%{subject: "board", action: "restored", archived: false}] = feed(ctx, again)
     end
 
     test "a page in an archived card's folder is flagged, and keeps its path, in the feed", ctx do
-      {:ok, _} = Boards.archive_card(ctx.card)
+      {:ok, _} = Boards.Cards.archive_card(ctx.card)
       start = cursor(ctx)
       {:ok, _} = Wiki.update_page(Repo.get!(Wiki.Page, ctx.page.id), %{"body" => "more"})
 
@@ -269,7 +269,7 @@ defmodule Slipdock.Vaults.NamesTest do
       before = listing(ctx)
       start = cursor(ctx)
 
-      {:ok, _} = Boards.update_card(ctx.card, %{"title" => "Fix the other thing"})
+      {:ok, _} = Boards.Cards.update_card(ctx.card, %{"title" => "Fix the other thing"})
       changes = feed(ctx, start)
 
       assert %{
@@ -304,7 +304,7 @@ defmodule Slipdock.Vaults.NamesTest do
       {:ok, loose} = Wiki.create_page(ctx.board, %{"title" => "Loose"})
       start = cursor(ctx)
 
-      {:ok, _} = Boards.update_card(ctx.card, %{"title" => "Renamed"})
+      {:ok, _} = Boards.Cards.update_card(ctx.card, %{"title" => "Renamed"})
       ids = for %{subject: "page", id: id} <- feed(ctx, start), do: id
 
       assert ids == [ctx.page.id]
@@ -314,14 +314,14 @@ defmodule Slipdock.Vaults.NamesTest do
 
     test "a short name typed by a person moves it", ctx do
       start = cursor(ctx)
-      {:ok, _} = Boards.update_card(ctx.card, %{"short_name" => "Fixing"})
+      {:ok, _} = Boards.Cards.update_card(ctx.card, %{"short_name" => "Fixing"})
 
       assert %{from_path: "Keystone/Cards/Fix the thing", path: "Keystone/Cards/Fixing"} =
                change(feed(ctx, start), "folder", folder_of(ctx))
     end
 
     test "a short name a model made moves it too", ctx do
-      {:ok, card} = Boards.update_card(ctx.card, %{"title" => @long})
+      {:ok, card} = Boards.Cards.update_card(ctx.card, %{"title" => @long})
       start = cursor(ctx)
       was = "Keystone/Cards/#{card.short_name}"
 
@@ -337,9 +337,9 @@ defmodule Slipdock.Vaults.NamesTest do
     end
 
     test "a name that leaves the path alone is a change, not a move", ctx do
-      {:ok, card} = Boards.update_card(ctx.card, %{"short_name" => "Fixing"})
+      {:ok, card} = Boards.Cards.update_card(ctx.card, %{"short_name" => "Fixing"})
       start = cursor(ctx)
-      {:ok, _} = Boards.update_card(card, %{"title" => "A whole new title"})
+      {:ok, _} = Boards.Cards.update_card(card, %{"title" => "A whole new title"})
 
       changes = feed(ctx, start)
       assert [%{subject: "folder", action: "changed", title: "A whole new title"} = row] = changes
@@ -370,7 +370,7 @@ defmodule Slipdock.Vaults.NamesTest do
     test "other changes to a board or a card write nothing", ctx do
       start = cursor(ctx)
       {:ok, _} = Boards.update_board(ctx.board, %{"description" => "New words"})
-      {:ok, _} = Boards.update_card(ctx.card, %{"description" => "New words"})
+      {:ok, _} = Boards.Cards.update_card(ctx.card, %{"description" => "New words"})
 
       assert feed(ctx, start) == []
     end
@@ -378,7 +378,7 @@ defmodule Slipdock.Vaults.NamesTest do
     test "a card with no folder has nothing to move", ctx do
       card = card_fixture(hd(ctx.board.columns), %{"title" => "Foldered not"})
       start = cursor(ctx)
-      {:ok, _} = Boards.update_card(card, %{"title" => "Still not"})
+      {:ok, _} = Boards.Cards.update_card(card, %{"title" => "Still not"})
 
       assert feed(ctx, start) == []
     end
@@ -388,7 +388,7 @@ defmodule Slipdock.Vaults.NamesTest do
       {:ok, page} = Wiki.create_page(sub, %{"title" => "Inside"})
       start = cursor(ctx)
 
-      {:ok, _} = Boards.update_card(card, %{"title" => "Liftoff"})
+      {:ok, _} = Boards.Cards.update_card(card, %{"title" => "Liftoff"})
       changes = feed(ctx, start)
 
       assert %{from_path: "Keystone/Cards/Launch", path: "Keystone/Cards/Liftoff"} =
@@ -405,7 +405,7 @@ defmodule Slipdock.Vaults.NamesTest do
       {:ok, page} = Wiki.create_page_from_card(twin, user: ctx.user, title: "Twin's")
       start = cursor(ctx)
 
-      {:ok, _} = Boards.update_card(ctx.card, %{"title" => "Elsewhere"})
+      {:ok, _} = Boards.Cards.update_card(ctx.card, %{"title" => "Elsewhere"})
 
       assert %{
                from_path: "Keystone/Cards/Fix the thing (2)/Twin's.md",
@@ -415,8 +415,8 @@ defmodule Slipdock.Vaults.NamesTest do
 
     test "moved twice, it names where the client last saw it", ctx do
       start = cursor(ctx)
-      {:ok, card} = Boards.update_card(ctx.card, %{"title" => "Second"})
-      {:ok, _} = Boards.update_card(card, %{"title" => "Third"})
+      {:ok, card} = Boards.Cards.update_card(ctx.card, %{"title" => "Second"})
+      {:ok, _} = Boards.Cards.update_card(card, %{"title" => "Third"})
 
       assert %{
                action: "moved",
@@ -427,7 +427,7 @@ defmodule Slipdock.Vaults.NamesTest do
 
     test "a later save doesn't hide the move", ctx do
       start = cursor(ctx)
-      {:ok, _} = Boards.update_card(ctx.card, %{"title" => "Second"})
+      {:ok, _} = Boards.Cards.update_card(ctx.card, %{"title" => "Second"})
       {:ok, _} = Wiki.update_page(Repo.get!(Wiki.Page, ctx.page.id), %{"body" => "edited"})
 
       assert %{action: "moved", from_path: "Keystone/Cards/Fix the thing/Write up.md"} =
@@ -436,8 +436,8 @@ defmodule Slipdock.Vaults.NamesTest do
 
     test "moved and moved back is no move", ctx do
       start = cursor(ctx)
-      {:ok, card} = Boards.update_card(ctx.card, %{"title" => "Second"})
-      {:ok, _} = Boards.update_card(card, %{"title" => "Fix the thing"})
+      {:ok, card} = Boards.Cards.update_card(ctx.card, %{"title" => "Second"})
+      {:ok, _} = Boards.Cards.update_card(card, %{"title" => "Fix the thing"})
 
       row = change(feed(ctx, start), "page", ctx.page.id)
       assert row.action == "changed"
@@ -445,7 +445,7 @@ defmodule Slipdock.Vaults.NamesTest do
     end
 
     test "a follower past the move sees only what came after", ctx do
-      {:ok, _} = Boards.update_card(ctx.card, %{"title" => "Second"})
+      {:ok, _} = Boards.Cards.update_card(ctx.card, %{"title" => "Second"})
       start = cursor(ctx)
       {:ok, _} = Wiki.update_page(Repo.get!(Wiki.Page, ctx.page.id), %{"body" => "edited"})
 
@@ -460,7 +460,7 @@ defmodule Slipdock.Vaults.NamesTest do
       before = entry(listing(ctx), pinned.id)
       start = cursor(ctx)
 
-      {:ok, _} = Boards.update_card(ctx.card, %{"title" => "Renamed"})
+      {:ok, _} = Boards.Cards.update_card(ctx.card, %{"title" => "Renamed"})
 
       after_move = entry(listing(ctx), pinned.id)
       assert after_move.path == before.path
@@ -486,7 +486,7 @@ defmodule Slipdock.Vaults.NamesTest do
 
   describe "the feed's fields" do
     test "a card folder, a file and a page carry the listing's names", ctx do
-      {:ok, card} = Boards.update_card(ctx.card, %{"title" => @long})
+      {:ok, card} = Boards.Cards.update_card(ctx.card, %{"title" => @long})
       start = cursor(ctx)
       {:ok, _} = Wiki.update_folder(Wiki.get_folder(folder_of(ctx)), %{"icon" => "star"})
       file = file_in_card_folder(ctx)

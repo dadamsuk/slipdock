@@ -1,8 +1,8 @@
 defmodule Slipdock.AssigneeScopeTest do
   @moduledoc """
   Who can be put on a card, and who is told about it: only people the person
-  doing it can see, who can open the card themselves (`Boards.resolve_assignees/3`
-  and the backstop under `Boards.create_card/3` and `Boards.update_card/3`).
+  doing it can see, who can open the card themselves (`Boards.Cards.resolve_assignees/3`
+  and the backstop under `Boards.Cards.create_card/3` and `Boards.Cards.update_card/3`).
   """
   use Slipdock.DataCase, async: true
 
@@ -27,54 +27,56 @@ defmodule Slipdock.AssigneeScopeTest do
   describe "resolve_assignees/3" do
     test "takes ids, addresses and me, for people who can see the card", ctx do
       assert {:ok, [mate_id, owner_id]} =
-               Boards.resolve_assignees(ctx.card, ctx.owner, [
+               Boards.Cards.resolve_assignees(ctx.card, ctx.owner, [
                  ctx.mate.id,
                  "MATE@#{ctx.domain}",
                  "me"
                ])
 
       assert {mate_id, owner_id} == {ctx.mate.id, ctx.owner.id}
-      assert {:ok, [_]} = Boards.resolve_assignees(ctx.board, ctx.owner, [to_string(ctx.mate.id)])
+
+      assert {:ok, [_]} =
+               Boards.Cards.resolve_assignees(ctx.board, ctx.owner, [to_string(ctx.mate.id)])
     end
 
     test "a stranger, a nobody and an unknown id are all the same not found", ctx do
       nobody = "nobody@#{ctx.domain}"
 
       assert {:error, {:not_found, s}} =
-               Boards.resolve_assignees(ctx.card, ctx.owner, ["stranger@#{ctx.domain}"])
+               Boards.Cards.resolve_assignees(ctx.card, ctx.owner, ["stranger@#{ctx.domain}"])
 
       assert s == "stranger@#{ctx.domain}"
 
       assert {:error, {:not_found, ^nobody}} =
-               Boards.resolve_assignees(ctx.card, ctx.owner, [nobody])
+               Boards.Cards.resolve_assignees(ctx.card, ctx.owner, [nobody])
 
       assert {:error, {:not_found, _}} =
-               Boards.resolve_assignees(ctx.card, ctx.owner, [ctx.stranger.id])
+               Boards.Cards.resolve_assignees(ctx.card, ctx.owner, [ctx.stranger.id])
 
       assert {:error, {:not_found, _}} =
-               Boards.resolve_assignees(ctx.card, ctx.owner, [99_999_999])
+               Boards.Cards.resolve_assignees(ctx.card, ctx.owner, [99_999_999])
     end
 
     test "somebody visible who can't open this card is refused too", ctx do
       # The owner can see the stranger — they share another board — but the
       # stranger cannot open this one.
       elsewhere = board_fixture(%{}, owner: ctx.owner) |> share_fixture(ctx.stranger)
-      assert {:ok, _} = Boards.resolve_assignees(elsewhere, ctx.owner, [ctx.stranger.id])
+      assert {:ok, _} = Boards.Cards.resolve_assignees(elsewhere, ctx.owner, [ctx.stranger.id])
 
       assert {:error, {:not_found, _}} =
-               Boards.resolve_assignees(ctx.card, ctx.owner, [ctx.stranger.id])
+               Boards.Cards.resolve_assignees(ctx.card, ctx.owner, [ctx.stranger.id])
     end
   end
 
   describe "the backstop under every write" do
     test "somebody who can't open the card is dropped, not assigned", ctx do
       {:ok, card} =
-        Boards.update_card(ctx.card, %{"add_assignee_ids" => [ctx.mate.id, ctx.stranger.id]})
+        Boards.Cards.update_card(ctx.card, %{"add_assignee_ids" => [ctx.mate.id, ctx.stranger.id]})
 
       assert Enum.map(Card.assignees(card), & &1.id) == [ctx.mate.id]
 
       {:ok, card} =
-        Boards.create_card(hd(ctx.board.columns), %{
+        Boards.Cards.create_card(hd(ctx.board.columns), %{
           "title" => "New",
           "assignee_ids" => [ctx.stranger.id, ctx.owner.id]
         })
@@ -85,7 +87,7 @@ defmodule Slipdock.AssigneeScopeTest do
 
     test "an id that names nobody neither crashes nor half-saves", ctx do
       assert {:ok, card} =
-               Boards.update_card(ctx.card, %{
+               Boards.Cards.update_card(ctx.card, %{
                  "title" => "Renamed",
                  "add_assignee_ids" => [99_999_999]
                })
@@ -95,11 +97,11 @@ defmodule Slipdock.AssigneeScopeTest do
     end
 
     test "whoever is on the card already stays when the set is edited", ctx do
-      {:ok, card} = Boards.update_card(ctx.card, %{"assignee_ids" => [ctx.mate.id]})
+      {:ok, card} = Boards.Cards.update_card(ctx.card, %{"assignee_ids" => [ctx.mate.id]})
       [grant] = Access.list_grants(ctx.board)
       {:ok, _} = Access.revoke(grant)
 
-      {:ok, card} = Boards.update_card(card, %{"add_assignee_ids" => [ctx.owner.id]})
+      {:ok, card} = Boards.Cards.update_card(card, %{"add_assignee_ids" => [ctx.owner.id]})
       assert Enum.map(Card.assignees(card), & &1.id) == [ctx.mate.id, ctx.owner.id]
     end
   end
@@ -107,7 +109,7 @@ defmodule Slipdock.AssigneeScopeTest do
   describe "mentions" do
     setup ctx do
       # A grant on one sub-board reaches that sub-board and nothing above it.
-      {:ok, template} = Boards.find_template(nil, "Simple")
+      {:ok, template} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(ctx.card, template)
       {:ok, _} = Access.grant(Boards.get_board!(sub.id), ctx.stranger, "write", ctx.owner)
       %{sub: Boards.get_board!(sub.id)}
@@ -121,7 +123,7 @@ defmodule Slipdock.AssigneeScopeTest do
     end
 
     test "and is not emailed the card they can't open", ctx do
-      {:ok, _} = Boards.add_comment(ctx.card, "@stranger and @mate, look", by: ctx.owner)
+      {:ok, _} = Boards.Comments.add_comment(ctx.card, "@stranger and @mate, look", by: ctx.owner)
       assert_email_sent(to: [{"", "mate@#{ctx.domain}"}])
       refute_email_sent()
     end

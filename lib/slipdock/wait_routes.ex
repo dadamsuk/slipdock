@@ -174,7 +174,7 @@ defmodule Slipdock.WaitRoutes do
 
   # The card's board, then each board above it, the root last.
   defp board_chain(%Card{board_id: board_id}) do
-    ids = Boards.ancestor_board_ids(board_id)
+    ids = Boards.PubSub.ancestor_board_ids(board_id)
     boards = Repo.all(from(b in Board, where: b.id in ^ids)) |> Map.new(&{&1.id, &1})
     ids |> Enum.map(&boards[&1]) |> Enum.reject(&is_nil/1)
   end
@@ -223,7 +223,7 @@ defmodule Slipdock.WaitRoutes do
     )
     |> Repo.all()
     |> Enum.each(fn wait ->
-      Boards.move_wait(
+      Boards.Waits.move_wait(
         wait,
         owner_id,
         "#{User.display_name(user)} is no longer on the board, so the wait goes to the board's owner"

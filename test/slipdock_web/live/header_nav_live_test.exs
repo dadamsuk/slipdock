@@ -218,7 +218,7 @@ defmodule SlipdockWeb.HeaderNavLiveTest do
       actor = %{Actor.unknown() | kind: "agent", via: "mcp", user_id: asker.id}
 
       {:ok, _} =
-        Boards.open_wait(card, actor, %{"needs" => "Which region?", "on_user_id" => user.id})
+        Boards.Waits.open_wait(card, actor, %{"needs" => "Which region?", "on_user_id" => user.id})
 
       %{asker: asker, board: board}
     end
@@ -268,7 +268,7 @@ defmodule SlipdockWeb.HeaderNavLiveTest do
       actor = %{Actor.unknown() | kind: "agent", via: "mcp", user_id: ctx.asker.id}
 
       {:ok, _} =
-        Boards.open_wait(card, actor, %{"needs" => "And this?", "on_user_id" => ctx.user.id})
+        Boards.Waits.open_wait(card, actor, %{"needs" => "And this?", "on_user_id" => ctx.user.id})
 
       {:ok, view, _} = live(ctx.conn, ~p"/")
       assert has_element?(view, "#alerts-bar button[title='1 alert, 2 waiting on you (l)']")

@@ -134,7 +134,7 @@ defmodule Slipdock.SupportAccessTest do
     board: board
   } do
     card = card_fixture(hd(board.columns), %{"title" => "Epic"})
-    {:ok, sub} = sub_board(card, hd(Slipdock.Boards.list_templates(nil)))
+    {:ok, sub} = sub_board(card, hd(Slipdock.Boards.Templates.list_templates(nil)))
 
     {:ok, _} = Accounts.open_support_session(admin, customer, "a lost card")
 
@@ -151,9 +151,9 @@ defmodule Slipdock.SupportAccessTest do
 
       other = board_fixture(%{"name" => "Another of theirs"}, owner: customer)
       archived = board_fixture(%{"name" => "Put away"}, owner: customer)
-      {:ok, _} = Slipdock.Boards.archive_board(archived)
+      {:ok, _} = Slipdock.Boards.Arrangement.archive_board(archived)
       card = card_fixture(hd(board.columns), %{"title" => "Epic"})
-      {:ok, _} = sub_board(card, hd(Slipdock.Boards.list_templates(nil)))
+      {:ok, _} = sub_board(card, hd(Slipdock.Boards.Templates.list_templates(nil)))
       _not_theirs = board_fixture(%{"name" => "Somebody else's"}, owner: user_fixture())
 
       {:ok, session} = Accounts.open_support_session(admin, customer, "a lost card")

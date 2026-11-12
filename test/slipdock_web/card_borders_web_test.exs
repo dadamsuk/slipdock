@@ -146,7 +146,9 @@ defmodule SlipdockWeb.CardBordersWebTest do
 
   describe "card front" do
     test "draws a strip on each coloured edge and none on the others", ctx do
-      {:ok, _} = Boards.update_card(ctx.card, %{"border_top" => "red", "border_left" => "sky"})
+      {:ok, _} =
+        Boards.Cards.update_card(ctx.card, %{"border_top" => "red", "border_left" => "sky"})
+
       {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}")
 
       front = view |> element("#card-#{ctx.card.id} [data-role=card-borders]") |> render()

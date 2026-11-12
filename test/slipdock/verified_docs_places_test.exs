@@ -55,13 +55,13 @@ defmodule Slipdock.VerifiedDocsPlacesTest do
 
   defp card(ctx, paths) do
     card = card_fixture(ctx.doing, %{"title" => "A change"})
-    {:ok, card} = Boards.update_card(card, %{"paths" => paths}, by: ctx.owner)
+    {:ok, card} = Boards.Cards.update_card(card, %{"paths" => paths}, by: ctx.owner)
     card
   end
 
   defp submit(ctx, card) do
     {:ok, card} =
-      Boards.update_card(
+      Boards.Cards.update_card(
         Repo.get!(Card, card.id),
         %{"completed" => true, "evidence" => "built", "evidence_commit" => "abc1234"},
         actor: ctx.builder,

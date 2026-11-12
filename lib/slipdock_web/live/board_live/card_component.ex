@@ -233,7 +233,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
       |> assign(
         given: given,
         card: Access.hide_unreadable_dependencies(user, given),
-        card_form: to_form(Boards.change_card(given)),
+        card_form: to_form(Boards.Cards.change_card(given)),
         can_write: writable,
         can_comment: Access.can_comment?(level),
         can_share: perm == :owner or writable
@@ -257,7 +257,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
     assign(socket,
       card_pages: Wiki.pages_for_card(card, socket.assigns.current_user),
       card_grants: if(socket.assigns.can_share, do: Access.list_grants(card), else: []),
-      handoff_history: Boards.handoff_history(card),
+      handoff_history: Boards.Handoffs.handoff_history(card),
       # Where it has shipped (#1134); empty unless delivery metrics are on.
       card_shipped: Slipdock.Deployments.shipped(card),
       # Where its latest deploy attempt failed (#2820), until one succeeds.
@@ -265,9 +265,10 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
       # Merged, awaiting release, or released (#2834); nil unless batched.
       card_release: Slipdock.Releases.state(card),
       # How many questions the card has asked, shown on its open wait (#1114).
-      wait_count: if(Card.open_wait(card), do: Boards.wait_count(card), else: 0),
+      wait_count: if(Card.open_wait(card), do: Boards.Waits.wait_count(card), else: 0),
       # The questions asked before, with their answers (#1220).
-      wait_history: card |> Boards.list_waits() |> Enum.reject(&Slipdock.Boards.Wait.open?/1),
+      wait_history:
+        card |> Boards.Waits.list_waits() |> Enum.reject(&Slipdock.Boards.Wait.open?/1),
       # Both ends of an incident (#1946): its cause, and what this card caused.
       card_incident: incident_view(card, socket.assigns.current_user),
       # A refusal from the Incident line, shown in it rather than as a toast (UX-29).
@@ -323,13 +324,13 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
 
   # The open card, fresh, when the reader may change it.
   defp writable(%{assigns: %{can_write: true, card: %Card{id: id}}}),
-    do: {:ok, Boards.get_card!(id)}
+    do: {:ok, Boards.Cards.get_card!(id)}
 
   defp writable(_socket), do: :error
 
   defp save_incident(socket, attrs) do
     with {:ok, card} <- writable(socket),
-         {:ok, card} <- Boards.update_card(card, attrs, by: socket.assigns.current_user) do
+         {:ok, card} <- Boards.Cards.update_card(card, attrs, by: socket.assigns.current_user) do
       {:noreply,
        socket
        |> assign(card: fresh(socket, card.id))
@@ -371,7 +372,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
 
         result =
           consume_uploaded_entry(socket, entry, fn %{path: path} ->
-            {:ok, Boards.add_attachment(card, meta, path)}
+            {:ok, Boards.Attachments.add_attachment(card, meta, path)}
           end)
 
         {:noreply, uploaded(socket, name, result)}
@@ -473,7 +474,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
   # read are hidden (see `Access.hide_unreadable_dependencies/3`).
   defp fresh(socket, id) do
     %{current_user: user, board: board} = socket.assigns
-    Access.hide_unreadable_dependencies(user, with_state(Boards.get_card!(id), board))
+    Access.hide_unreadable_dependencies(user, with_state(Boards.Cards.get_card!(id), board))
   end
 
   # The item the shared sections (`BoardLive.ItemEvents`) act on is the card.
@@ -547,14 +548,14 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
     with {:ok, params} <- scope_assignees(params, card, socket.assigns.current_user) do
       with %{"column_id" => col} when col != "" <- params,
            new_col when is_integer(new_col) and new_col != card.column_id <- Params.id(col) do
-        Boards.move_card(card.id, new_col, nil,
+        Boards.Cards.move_card(card.id, new_col, nil,
           actor: Slipdock.Actor.web(socket.assigns.current_user)
         )
       end
 
-      card = Boards.get_card!(card.id)
+      card = Boards.Cards.get_card!(card.id)
 
-      case Boards.update_card(card, Map.delete(params, "column_id"),
+      case Boards.Cards.update_card(card, Map.delete(params, "column_id"),
              by: socket.assigns.current_user
            ) do
         {:ok, card} ->
@@ -576,7 +577,10 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
   defp event("card_timer", %{"action" => action}, socket) do
     with {:ok, card} <- writable(socket),
          {:ok, _} <-
-           if(action == "stop", do: Boards.stop_timer(card), else: Boards.start_timer(card)) do
+           if(action == "stop",
+             do: Boards.Cards.stop_timer(card),
+             else: Boards.Cards.start_timer(card)
+           ) do
       {:noreply, assign(socket, card: fresh(socket, card.id))}
     else
       _ -> {:noreply, notice(socket, :error, "You have read-only access to that card.")}
@@ -585,7 +589,9 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
 
   defp event("log_time", %{"amount" => amount}, socket) do
     with {:ok, card} <- writable(socket) do
-      case Boards.update_card(card, %{"log_time" => amount}, by: socket.assigns.current_user) do
+      case Boards.Cards.update_card(card, %{"log_time" => amount},
+             by: socket.assigns.current_user
+           ) do
         {:ok, card} ->
           {:noreply,
            socket
@@ -670,18 +676,18 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
   end
 
   defp event("remove_assignee", %{"id" => id}, socket) do
-    {:ok, _} = Boards.update_card(socket.assigns.card, %{"remove_assignee_ids" => [id]})
+    {:ok, _} = Boards.Cards.update_card(socket.assigns.card, %{"remove_assignee_ids" => [id]})
     {:noreply, socket}
   end
 
   defp event("toggle_flag", %{"flag" => flag}, socket) do
-    {:ok, _} = Boards.toggle_flag(socket.assigns.card, flag, by_me(socket))
+    {:ok, _} = Boards.Cards.toggle_flag(socket.assigns.card, flag, by_me(socket))
     {:noreply, socket}
   end
 
   defp event("toggle_tag", %{"id" => id}, socket) do
     if tag = board_tag(socket, id),
-      do: {:ok, _} = Boards.toggle_card_tag(socket.assigns.card, tag)
+      do: {:ok, _} = Boards.Tags.toggle_card_tag(socket.assigns.card, tag)
 
     {:noreply, socket}
   end
@@ -699,16 +705,16 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
         {:noreply, socket}
 
       tag = Enum.find(board.tags, &(String.downcase(&1.name) == String.downcase(name))) ->
-        if not on_card?.(tag), do: {:ok, _} = Boards.toggle_card_tag(card, tag)
+        if not on_card?.(tag), do: {:ok, _} = Boards.Tags.toggle_card_tag(card, tag)
         {:noreply, socket}
 
       true ->
         colours = Palette.names()
         colour = Enum.at(colours, rem(length(board.tags), length(colours)))
 
-        case Boards.create_tag(board, %{"name" => name, "color" => colour}) do
+        case Boards.Tags.create_tag(board, %{"name" => name, "color" => colour}) do
           {:ok, tag} ->
-            {:ok, _} = Boards.toggle_card_tag(card, tag)
+            {:ok, _} = Boards.Tags.toggle_card_tag(card, tag)
             {:noreply, socket}
 
           {:error, changeset} ->
@@ -719,7 +725,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
   end
 
   defp event("set_cover", %{"color" => color}, socket) do
-    {:ok, _} = Boards.update_card(socket.assigns.card, %{"color" => color})
+    {:ok, _} = Boards.Cards.update_card(socket.assigns.card, %{"color" => color})
     {:noreply, socket}
   end
 
@@ -731,7 +737,10 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
 
       fields ->
         {:ok, _} =
-          Boards.update_card(socket.assigns.card, Map.new(fields, &{Atom.to_string(&1), color}))
+          Boards.Cards.update_card(
+            socket.assigns.card,
+            Map.new(fields, &{Atom.to_string(&1), color})
+          )
     end
 
     {:noreply, socket}
@@ -741,7 +750,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
   defp event("duplicate_card", _, socket) do
     %{card: card, current_user: user} = socket.assigns
 
-    case Boards.copy_card(card, nil, at: :after, by: user) do
+    case Boards.Cards.copy_card(card, nil, at: :after, by: user) do
       {:ok, copy} ->
         {:noreply,
          socket
@@ -756,12 +765,12 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
   end
 
   defp event("archive_card", _, socket) do
-    {:ok, _} = Boards.archive_card(socket.assigns.card, by_me(socket))
+    {:ok, _} = Boards.Cards.archive_card(socket.assigns.card, by_me(socket))
     {:noreply, push_patch(socket, to: socket.assigns.close_path)}
   end
 
   defp event("delete_card", _, socket) do
-    {:ok, _} = Boards.delete_card(socket.assigns.card)
+    {:ok, _} = Boards.Cards.delete_card(socket.assigns.card)
     {:noreply, push_patch(socket, to: socket.assigns.close_path)}
   end
 
@@ -781,11 +790,14 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
       "answer" => get_in(params, ["wait", "answer"]) || params["answer"]
     }
 
-    socket.assigns.card |> Boards.answer_wait(me(socket), attrs) |> waited(socket)
+    socket.assigns.card |> Boards.Waits.answer_wait(me(socket), attrs) |> waited(socket)
   end
 
   defp event("skip_wait", _, socket),
-    do: socket.assigns.card |> Boards.answer_wait(me(socket), %{"skip" => true}) |> waited(socket)
+    do:
+      socket.assigns.card
+      |> Boards.Waits.answer_wait(me(socket), %{"skip" => true})
+      |> waited(socket)
 
   # Accepting or rejecting an agent's completion (#1633), as a person.
   defp event("verify_work", %{"decision" => decision} = params, socket) do
@@ -811,7 +823,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
   end
 
   defp event("withdraw_wait", _, socket),
-    do: socket.assigns.card |> Boards.withdraw_wait(me(socket)) |> waited(socket)
+    do: socket.assigns.card |> Boards.Waits.withdraw_wait(me(socket)) |> waited(socket)
 
   # What is typed into the answer boxes, kept so a suggestion can fill one
   # without losing the rest.
@@ -890,7 +902,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
       "on_user_id" => ask_on(socket, asking.on)
     }
 
-    case Boards.open_wait(socket.assigns.card, me(socket), attrs) do
+    case Boards.Waits.open_wait(socket.assigns.card, me(socket), attrs) do
       {:ok, _} ->
         {:noreply, socket |> assign(asking: nil) |> reload() |> assign_pages()}
 
@@ -957,7 +969,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
     %{card: card, current_user: user} = socket.assigns
     attrs = %{next_step: params["next_step"], body: params["body"], via: "ui"}
 
-    case Boards.leave_handoff(card, user, attrs) do
+    case Boards.Handoffs.leave_handoff(card, user, attrs) do
       {:ok, _} ->
         {:noreply,
          socket
@@ -1048,7 +1060,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
 
   defp event("clear_handoff", _, socket) do
     %{card: card, current_user: user} = socket.assigns
-    {:ok, _} = Boards.clear_handoff(card, user, %{via: "ui"})
+    {:ok, _} = Boards.Handoffs.clear_handoff(card, user, %{via: "ui"})
 
     {:noreply,
      socket |> assign(editing_handoff: false, handoff_form: nil) |> reload() |> assign_pages()}
@@ -1061,8 +1073,9 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
 
     with {id, ""} <- Integer.parse(to_string(id)),
          %{next_step: next, body: body} when next not in [nil, ""] <-
-           Enum.find(Boards.handoff_history(card), &(&1.id == id)),
-         {:ok, _} <- Boards.leave_handoff(card, user, %{next_step: next, body: body, via: "ui"}) do
+           Enum.find(Boards.Handoffs.handoff_history(card), &(&1.id == id)),
+         {:ok, _} <-
+           Boards.Handoffs.leave_handoff(card, user, %{next_step: next, body: body, via: "ui"}) do
       {:noreply,
        socket |> assign(editing_handoff: false, handoff_form: nil) |> reload() |> assign_pages()}
     else
@@ -1075,13 +1088,13 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
   defp event("delete_handoff", _, socket) do
     %{card: card, current_user: user, can_write: can_write?} = socket.assigns
 
-    case Boards.current_handoff(card) do
+    case Boards.Handoffs.current_handoff(card) do
       nil ->
         {:noreply, reload(socket)}
 
       handoff ->
-        if Boards.may_delete_handoff?(handoff, user, can_write?) do
-          {:ok, _} = Boards.delete_handoff(card)
+        if Boards.Handoffs.may_delete_handoff?(handoff, user, can_write?) do
+          {:ok, _} = Boards.Handoffs.delete_handoff(card)
 
           {:noreply,
            socket
@@ -1116,10 +1129,10 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
   end
 
   defp event("delete_attachment", %{"id" => id}, socket) do
-    attachment = Boards.get_attachment!(id)
+    attachment = Boards.Attachments.get_attachment!(id)
 
     if attachment.card_id == socket.assigns.card.id do
-      {:ok, _} = Boards.delete_attachment(attachment)
+      {:ok, _} = Boards.Attachments.delete_attachment(attachment)
     end
 
     {:noreply, socket}
@@ -1128,17 +1141,17 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
   # `hide` is the state asked for, not a toggle: a double click, or a panel
   # drawn before someone else's change, cannot flip it back the wrong way.
   defp event("hide_on_card", %{"id" => id, "hide" => hide}, socket) when hide in ~w(true false) do
-    attachment = Boards.get_attachment!(id)
+    attachment = Boards.Attachments.get_attachment!(id)
 
     if attachment.card_id == socket.assigns.card.id do
-      {:ok, _} = Boards.hide_attachment_on_card(attachment, hide == "true")
+      {:ok, _} = Boards.Attachments.hide_attachment_on_card(attachment, hide == "true")
     end
 
     {:noreply, socket}
   end
 
   defp event("transcribe", %{"id" => id}, socket) do
-    attachment = Boards.get_attachment!(id)
+    attachment = Boards.Attachments.get_attachment!(id)
 
     if attachment.card_id == socket.assigns.card.id do
       case Slipdock.Transcription.transcribe_attachment(attachment, socket.assigns.current_user) do
@@ -1155,7 +1168,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
   end
 
   defp event("read_text", %{"id" => id}, socket) do
-    attachment = Boards.get_attachment!(id)
+    attachment = Boards.Attachments.get_attachment!(id)
 
     if attachment.card_id == socket.assigns.card.id do
       with {:error, reason} <- Slipdock.OCR.retry(attachment),
@@ -1178,7 +1191,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
   # access, the blocker read.
   defp event("add_dependency", %{"id" => id}, socket) do
     %{card: card, dep_direction: direction, current_user: user} = socket.assigns
-    other = Boards.get_card!(id)
+    other = Boards.Cards.get_card!(id)
 
     {blocked, blocker} =
       case direction do
@@ -1195,7 +1208,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
           {:error, "You can't see that card."}
 
         true ->
-          Boards.add_dependency(blocked, blocker)
+          Boards.Dependencies.add_dependency(blocked, blocker)
       end
 
     case result do
@@ -1236,12 +1249,12 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
 
   defp event("add_link", %{"id" => id}, socket) do
     %{card: card, link_kind: kind, current_user: user} = socket.assigns
-    other = Boards.get_card!(id)
+    other = Boards.Cards.get_card!(id)
 
     with true <-
            Access.can_read?(Access.card_permission(user, other)) ||
              {:error, "You can't see that card."},
-         {:ok, _} <- Boards.add_link(card, other, kind) do
+         {:ok, _} <- Boards.Links.add_link(card, other, kind) do
       {:noreply,
        socket
        |> assign(link_query: "", link_results: [], card: fresh(socket, card.id))
@@ -1253,10 +1266,10 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
 
   defp event("remove_link", %{"id" => id}, socket) do
     card = socket.assigns.card
-    link = Boards.get_link!(id)
+    link = Boards.Links.get_link!(id)
 
     if link.from_id == card.id or link.to_id == card.id do
-      {:ok, _} = Boards.remove_link(link)
+      {:ok, _} = Boards.Links.remove_link(link)
       {:noreply, assign(socket, card: fresh(socket, card.id))}
     else
       {:noreply, socket}
@@ -1264,7 +1277,9 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
   end
 
   defp event("remove_dependency", %{"id" => id}, socket) do
-    {:ok, _} = Boards.remove_dependency(socket.assigns.card, Boards.get_card!(id))
+    {:ok, _} =
+      Boards.Dependencies.remove_dependency(socket.assigns.card, Boards.Cards.get_card!(id))
+
     {:noreply, socket}
   end
 
@@ -1274,7 +1289,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
 
   # Only a template the reader can see: the built-ins and their own.
   defp event("create_sub_board", %{"template" => id}, socket) do
-    with {:ok, template} <- Boards.find_template(socket.assigns.current_user, id),
+    with {:ok, template} <- Boards.Templates.find_template(socket.assigns.current_user, id),
          {:ok, _} <- Boards.create_sub_board(socket.assigns.card, template) do
       {:noreply, assign(socket, picking_template: false)}
     else
@@ -1295,24 +1310,24 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
     column =
       case socket.assigns.card do
         %Card{sub_board: %Board{id: sub_id}} ->
-          Boards.get_board_column(sub_id, column_id)
+          Boards.Columns.get_board_column(sub_id, column_id)
 
         _ ->
           nil
       end
 
     if column && String.trim(title) != "" do
-      {:ok, _} = Boards.create_card(column, %{"title" => String.trim(title)})
+      {:ok, _} = Boards.Cards.create_card(column, %{"title" => String.trim(title)})
     end
 
     {:noreply, update(socket, :form_key, &(&1 + 1))}
   end
 
   defp event("toggle_subcard", %{"id" => id}, socket) do
-    card = Boards.get_card!(id)
+    card = Boards.Cards.get_card!(id)
 
     if socket.assigns.card && card.board_id == socket.assigns.card.sub_board.id do
-      Boards.toggle_completed(card)
+      Boards.Cards.toggle_completed(card)
     end
 
     {:noreply, socket}
@@ -1400,7 +1415,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
   defp uploaded(socket, name, {:ok, attachment}) do
     push_event(socket, "image_uploaded", %{
       upload: Atom.to_string(name),
-      markdown: "![#{attachment.filename}](#{Boards.attachment_url(attachment)})"
+      markdown: "![#{attachment.filename}](#{Boards.Attachments.attachment_url(attachment)})"
     })
   end
 
@@ -1457,7 +1472,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
     results =
       socket
       |> searchable_root_ids()
-      |> Boards.search_cards_across(q, [card.id | linked])
+      |> Boards.Links.search_cards_across(q, [card.id | linked])
       |> Enum.sort_by(&(&1.board_id != card.board_id))
 
     assign(socket, dep_results: results)
@@ -1471,7 +1486,8 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
     linked = Enum.map(card.links_out, & &1.to_id) ++ Enum.map(card.links_in, & &1.from_id)
 
     assign(socket,
-      link_results: Boards.search_cards_across(searchable_root_ids(socket), q, [card.id | linked])
+      link_results:
+        Boards.Links.search_cards_across(searchable_root_ids(socket), q, [card.id | linked])
     )
   end
 
@@ -2166,7 +2182,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
         long_body: long_note?(body),
         can_delete:
           assigns.can_comment && current != nil &&
-            Boards.may_delete_handoff?(current, assigns.current_user, assigns.can_write)
+            Boards.Handoffs.may_delete_handoff?(current, assigns.current_user, assigns.can_write)
       )
 
     ~H"""

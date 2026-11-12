@@ -44,7 +44,7 @@ defmodule Slipdock.FindingsSignalsTest do
 
   defp submit(card, actor, attrs \\ %{}) do
     {:ok, card} =
-      Boards.update_card(Repo.get!(Card, card.id), Map.put(attrs, "completed", true),
+      Boards.Cards.update_card(Repo.get!(Card, card.id), Map.put(attrs, "completed", true),
         actor: actor
       )
 
@@ -165,7 +165,8 @@ defmodule Slipdock.FindingsSignalsTest do
         ctx.checker
       )
 
-      {:ok, _} = Boards.add_comment(ctx.card, "- Findings:\n  - gotcha: a lesson", by: ctx.owner)
+      {:ok, _} =
+        Boards.Comments.add_comment(ctx.card, "- Findings:\n  - gotcha: a lesson", by: ctx.owner)
 
       rejected_then_accepted(ctx)
 
@@ -187,7 +188,7 @@ defmodule Slipdock.FindingsSignalsTest do
       assert again.status == "open"
 
       # Saving the card while it stays accepted closes nothing.
-      {:ok, _} = Boards.update_card(Repo.get!(Card, ctx.card.id), %{"title" => "Renamed"})
+      {:ok, _} = Boards.Cards.update_card(Repo.get!(Card, ctx.card.id), %{"title" => "Renamed"})
       assert Repo.get!(Finding, again.id).status == "open"
 
       # The next acceptance does.
@@ -296,7 +297,7 @@ defmodule Slipdock.FindingsSignalsTest do
       for _ <- 1..2 do
         job = Runners.claim(runner)
         assert job.card_id == a.id
-        :ok = Boards.move_card_to_index(Repo.get!(Card, a.id), ctx.doing, :top)
+        :ok = Boards.Cards.move_card_to_index(Repo.get!(Card, a.id), ctx.doing, :top)
         {:ok, _} = Runners.finish(runner, job.id, %{status: "done"})
       end
 
@@ -313,14 +314,14 @@ defmodule Slipdock.FindingsSignalsTest do
     # refused, with its words, and nothing is recorded.
     test "an agent moving into a lane in use is refused, and is no finding", ctx do
       {:ok, _} = Boards.update_board(ctx.board, %{"lanes" => true})
-      {:ok, _} = Boards.update_card(ctx.card, %{"paths" => ["lib/a/**"]})
+      {:ok, _} = Boards.Cards.update_card(ctx.card, %{"paths" => ["lib/a/**"]})
       # Only a card a runner job is working on holds its lane (#1922).
       working_job_fixture(ctx.card)
       mine = card_fixture(ctx.todo, %{"title" => "Mine"})
-      {:ok, mine} = Boards.update_card(mine, %{"paths" => ["lib/a/b.ex"]})
+      {:ok, mine} = Boards.Cards.update_card(mine, %{"paths" => ["lib/a/b.ex"]})
 
       assert {:error, :unprocessable_entity, message} =
-               Boards.move_card(mine.id, ctx.doing.id, nil, actor: ctx.agent)
+               Boards.Cards.move_card(mine.id, ctx.doing.id, nil, actor: ctx.agent)
 
       assert message =~ "this board keeps agents in lanes"
       assert message =~ "##{ctx.card.id}"
@@ -333,13 +334,13 @@ defmodule Slipdock.FindingsSignalsTest do
     test "an agent widening its paths onto another card's is refused, and is no finding",
          ctx do
       {:ok, _} = Boards.update_board(ctx.board, %{"lanes" => true})
-      {:ok, _} = Boards.update_card(ctx.card, %{"paths" => ["lib/a/**"]})
+      {:ok, _} = Boards.Cards.update_card(ctx.card, %{"paths" => ["lib/a/**"]})
       # Only a card a runner job is working on holds its lane (#1922).
       working_job_fixture(ctx.card)
       mine = card_fixture(ctx.doing, %{"title" => "Mine"})
 
       assert {:error, _} =
-               Boards.update_card(mine, %{"paths" => ["lib/a/c.ex"]}, actor: ctx.agent)
+               Boards.Cards.update_card(mine, %{"paths" => ["lib/a/c.ex"]}, actor: ctx.agent)
 
       assert Repo.reload!(mine).paths == []
       assert findings(mine) == []
@@ -448,7 +449,7 @@ defmodule Slipdock.FindingsSignalsTest do
   describe "a board without a handbook" do
     test "keeps them on its root board, from a subcard too", ctx do
       refute Slipdock.Handbook.find(ctx.board)
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(ctx.card, t)
       child = card_fixture(hd(Boards.get_board!(sub.id).columns), %{"title" => "Child"})
 

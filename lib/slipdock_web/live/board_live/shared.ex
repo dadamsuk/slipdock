@@ -40,7 +40,7 @@ defmodule SlipdockWeb.BoardLive.Shared do
         {:ok, push_navigate(socket, to: ~p"/boards/#{board}/settings")}
 
       true ->
-        if connected?(socket), do: Boards.subscribe(board.id)
+        if connected?(socket), do: Boards.PubSub.subscribe(board.id)
         {:ok, socket |> assign(page_title: "Shared") |> load(board)}
     end
   end

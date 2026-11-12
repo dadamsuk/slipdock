@@ -52,7 +52,7 @@ defmodule Slipdock.RunnersTest do
     end
 
     test "a runner made on a sub-board belongs to the whole tree", %{board: board, card: card} do
-      {:ok, template} = Boards.find_template(nil, "Simple")
+      {:ok, template} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(card, template)
       {:ok, runner, _} = Runners.create_runner(sub, %{"name" => "r", "pool" => "dev"})
       assert runner.board_id == board.id
@@ -323,7 +323,7 @@ defmodule Slipdock.RunnersTest do
     end
 
     test "a subcard's job goes to the runners of the tree it is in", ctx do
-      {:ok, template} = Boards.find_template(nil, "Simple")
+      {:ok, template} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(ctx.card, template)
       sub = Boards.get_board!(sub.id)
       subcard = card_fixture(hd(sub.columns), %{"title" => "Subtask"})
@@ -508,7 +508,7 @@ defmodule Slipdock.RunnersTest do
       assert job.error =~ "lease ran out"
       assert Runners.claim(ctx.runner) == nil
 
-      card = Boards.get_card!(ctx.card.id) |> Repo.preload(:comments)
+      card = Boards.Cards.get_card!(ctx.card.id) |> Repo.preload(:comments)
       assert "flagged" in card.flags
       assert Enum.any?(card.comments, &(&1.body =~ "Runner job ##{job.id}"))
     end

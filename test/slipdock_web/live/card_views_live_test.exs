@@ -20,7 +20,7 @@ defmodule SlipdockWeb.CardViewsLiveTest do
     card =
       card_fixture(todo, %{"title" => "Tagged", "due_date" => "2030-01-20", "priority" => "high"})
 
-    {:ok, card} = Boards.set_card_tags(card, [tag])
+    {:ok, card} = Boards.Cards.set_card_tags(card, [tag])
     other = card_fixture(doing, %{"title" => "Elsewhere", "priority" => "high"})
     %{board: board, todo: todo, doing: doing, card: card, other: other}
   end
@@ -173,7 +173,7 @@ defmodule SlipdockWeb.CardViewsLiveTest do
 
     test "Show all never brings back what a simple board hides", ctx do
       {:ok, board} = Boards.update_board(ctx.board, %{"simple" => true})
-      {:ok, _} = Boards.update_card(ctx.card, %{"percent_complete" => 40})
+      {:ok, _} = Boards.Cards.update_card(ctx.card, %{"percent_complete" => 40})
       {:ok, _} = CardViews.put_show_all(ctx.user, board, true)
       {:ok, view, _} = live(ctx.conn, ~p"/boards/#{board}")
       assert has_element?(view, priority(ctx.card))
@@ -206,7 +206,9 @@ defmodule SlipdockWeb.CardViewsLiveTest do
     end
 
     test "the marks the tile always drew can be hidden now", ctx do
-      {:ok, _} = Boards.leave_handoff(ctx.card, ctx.user, %{next_step: "Go on", via: "ui"})
+      {:ok, _} =
+        Boards.Handoffs.leave_handoff(ctx.card, ctx.user, %{next_step: "Go on", via: "ui"})
+
       {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}")
       assert has_element?(view, "#card-#{ctx.card.id} [data-role=handoff-mark]")
 
@@ -253,7 +255,10 @@ defmodule SlipdockWeb.CardViewsLiveTest do
       past = Date.add(Date.utc_today(), -3)
 
       {:ok, card} =
-        Boards.update_card(ctx.card, %{"start_date" => Date.add(past, -2), "due_date" => past})
+        Boards.Cards.update_card(ctx.card, %{
+          "start_date" => Date.add(past, -2),
+          "due_date" => past
+        })
 
       {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/cards/#{card.id}")
       for p <- @props, do: assert(has_element?(view, "#card-modal [data-prop=#{p}]"), p)
@@ -299,7 +304,7 @@ defmodule SlipdockWeb.CardViewsLiveTest do
     end
 
     test "dates from subcards show by default and go with side.rollup", ctx do
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(ctx.card, t)
       sub = Boards.get_board!(sub.id)
 
@@ -321,7 +326,7 @@ defmodule SlipdockWeb.CardViewsLiveTest do
     end
 
     test "a precision other than day is hidden with the rest, one property at a time", ctx do
-      {:ok, card} = Boards.update_card(ctx.card, %{"date_precision" => "month"})
+      {:ok, card} = Boards.Cards.update_card(ctx.card, %{"date_precision" => "month"})
       {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/cards/#{card.id}")
       assert has_element?(view, "#card-modal [data-prop=precision]")
 

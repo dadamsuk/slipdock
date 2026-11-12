@@ -18,7 +18,7 @@ defmodule SlipdockWeb.AccountLimitsTest do
   end
 
   test "a quiet account is told nothing: 3 of 250,000 is noise", %{conn: conn, column: column} do
-    for n <- 1..3, do: {:ok, _} = Boards.create_card(column, %{"title" => "Card #{n}"})
+    for n <- 1..3, do: {:ok, _} = Boards.Cards.create_card(column, %{"title" => "Card #{n}"})
 
     {:ok, _view, html} = live(conn, ~p"/account")
 
@@ -28,7 +28,7 @@ defmodule SlipdockWeb.AccountLimitsTest do
 
   test "a free account with an allowance sees where it stands", %{conn: conn, column: column} do
     {:ok, _} = Settings.update(%{"free_card_limit" => 10})
-    for n <- 1..3, do: {:ok, _} = Boards.create_card(column, %{"title" => "Card #{n}"})
+    for n <- 1..3, do: {:ok, _} = Boards.Cards.create_card(column, %{"title" => "Card #{n}"})
 
     {:ok, _view, html} = live(conn, ~p"/account")
 
@@ -39,7 +39,7 @@ defmodule SlipdockWeb.AccountLimitsTest do
 
   test "near the wall it says what to do about it", %{conn: conn, column: column} do
     {:ok, _} = Settings.update(%{"free_card_limit" => 3})
-    for n <- 1..3, do: {:ok, _} = Boards.create_card(column, %{"title" => "Card #{n}"})
+    for n <- 1..3, do: {:ok, _} = Boards.Cards.create_card(column, %{"title" => "Card #{n}"})
 
     {:ok, _view, html} = live(conn, ~p"/account")
 

@@ -33,7 +33,7 @@ defmodule Slipdock.SnoozeWakeTest do
   end
 
   defp top_of(column) do
-    column.id |> Boards.active_items() |> List.first()
+    column.id |> Boards.Columns.active_items() |> List.first()
   end
 
   defp later, do: DateTime.add(DateTime.utc_now(), 7200)
@@ -52,7 +52,7 @@ defmodule Slipdock.SnoozeWakeTest do
       assert woke.snooze_note == nil
       assert top_of(ctx.todo) == {:card, card.id}
 
-      [line | _] = Boards.list_activities(ctx.board.id, 1, card.id)
+      [line | _] = Boards.ActivityLog.list_activities(ctx.board.id, 1, card.id)
       assert line.message =~ "woke up “Sleeper” (snoozed by Ann on "
       assert line.message =~ ": the vendor's quote)"
     end
@@ -62,7 +62,7 @@ defmodule Slipdock.SnoozeWakeTest do
       assert Snooze.tick(later()) == 1
       assert Snooze.tick(later()) == 0
 
-      lines = Boards.list_activities(ctx.board.id, 50, card.id)
+      lines = Boards.ActivityLog.list_activities(ctx.board.id, 50, card.id)
       assert Enum.count(lines, &(&1.message =~ "woke up")) == 1
     end
 
@@ -98,7 +98,7 @@ defmodule Slipdock.SnoozeWakeTest do
     test "an archived card is left alone", ctx do
       card = asleep(ctx)
       # Archive clears the snooze; force one back to check the tick skips it.
-      {:ok, archived} = Boards.archive_card(Repo.get!(Card, card.id))
+      {:ok, archived} = Boards.Cards.archive_card(Repo.get!(Card, card.id))
 
       Repo.update_all(from(c in Card, where: c.id == ^archived.id),
         set: [snoozed_until: DateTime.utc_now(:second)]
@@ -113,7 +113,7 @@ defmodule Slipdock.SnoozeWakeTest do
       card = asleep(ctx, notify: true)
       {:ok, woke} = Snooze.wake(Repo.get!(Card, card.id), by: ctx.other)
       refute Card.snoozed?(woke)
-      [line | _] = Boards.list_activities(ctx.board.id, 1, card.id)
+      [line | _] = Boards.ActivityLog.list_activities(ctx.board.id, 1, card.id)
       assert line.message =~ ", woken by Bo"
       # Someone else woke it, so the snoozer is told.
       assert [_] = Automations.list_alerts(ctx.owner)
@@ -135,27 +135,31 @@ defmodule Slipdock.SnoozeWakeTest do
   describe "waking on activity" do
     test "a comment by somebody else wakes it", ctx do
       card = asleep(ctx)
-      {:ok, _} = Boards.add_comment(Repo.get!(Card, card.id), "any news?", by: ctx.other)
+      {:ok, _} = Boards.Comments.add_comment(Repo.get!(Card, card.id), "any news?", by: ctx.other)
 
       woke = Repo.get!(Card, card.id)
       refute Card.snoozed?(woke)
       assert top_of(ctx.todo) == {:card, card.id}
 
       [line | _] =
-        Boards.list_activities(ctx.board.id, 5, card.id) |> Enum.filter(&(&1.message =~ "woke"))
+        Boards.ActivityLog.list_activities(ctx.board.id, 5, card.id)
+        |> Enum.filter(&(&1.message =~ "woke"))
 
       assert line.message =~ "by Bo's activity"
     end
 
     test "a comment by the snoozer doesn't", ctx do
       card = asleep(ctx)
-      {:ok, _} = Boards.add_comment(Repo.get!(Card, card.id), "note to self", by: ctx.owner)
+
+      {:ok, _} =
+        Boards.Comments.add_comment(Repo.get!(Card, card.id), "note to self", by: ctx.owner)
+
       assert Card.snoozed?(Repo.get!(Card, card.id))
     end
 
     test "nor anything, when the snooze said not to", ctx do
       card = asleep(ctx, wake_on_activity: false)
-      {:ok, _} = Boards.add_comment(Repo.get!(Card, card.id), "any news?", by: ctx.other)
+      {:ok, _} = Boards.Comments.add_comment(Repo.get!(Card, card.id), "any news?", by: ctx.other)
       assert Card.snoozed?(Repo.get!(Card, card.id))
     end
 
@@ -163,7 +167,7 @@ defmodule Slipdock.SnoozeWakeTest do
       card = asleep(ctx)
 
       {:ok, _} =
-        Boards.update_card(Repo.get!(Card, card.id), %{"assignee_id" => ctx.other.id},
+        Boards.Cards.update_card(Repo.get!(Card, card.id), %{"assignee_id" => ctx.other.id},
           by: ctx.other
         )
 
@@ -174,7 +178,7 @@ defmodule Slipdock.SnoozeWakeTest do
       card = asleep(ctx)
 
       {:ok, _} =
-        Boards.update_card(Repo.get!(Card, card.id), %{"title" => "Renamed"}, by: ctx.other)
+        Boards.Cards.update_card(Repo.get!(Card, card.id), %{"title" => "Renamed"}, by: ctx.other)
 
       assert Card.snoozed?(Repo.get!(Card, card.id))
     end

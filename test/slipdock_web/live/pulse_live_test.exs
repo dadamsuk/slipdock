@@ -99,7 +99,7 @@ defmodule SlipdockWeb.PulseLiveTest do
       user: user
     } do
       viewer = user_fixture("viewer#{System.unique_integer([:positive])}@example.com")
-      {:ok, saved} = Boards.create_saved_view(board, %{"name" => "Everything"})
+      {:ok, saved} = Boards.SavedViews.create_saved_view(board, %{"name" => "Everything"})
       {:ok, _} = Slipdock.Access.grant(saved, viewer, "read", user)
       assert Slipdock.Access.board_permission(viewer, board) == :view
       conn = log_in_user(build_conn(), viewer)

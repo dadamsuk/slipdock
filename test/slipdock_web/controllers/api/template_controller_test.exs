@@ -11,11 +11,13 @@ defmodule SlipdockWeb.API.TemplateControllerTest do
 
   setup %{user: user} do
     stranger = user_fixture("template-stranger@example.com")
-    {:ok, simple} = Boards.find_template(nil, "Simple")
-    {:ok, mine} = Boards.create_template(user, %{"name" => uniq("Mine"), "columns" => ["A"]})
+    {:ok, simple} = Boards.Templates.find_template(nil, "Simple")
+
+    {:ok, mine} =
+      Boards.Templates.create_template(user, %{"name" => uniq("Mine"), "columns" => ["A"]})
 
     {:ok, theirs} =
-      Boards.create_template(stranger, %{"name" => uniq("Theirs"), "columns" => ["B"]})
+      Boards.Templates.create_template(stranger, %{"name" => uniq("Theirs"), "columns" => ["B"]})
 
     %{
       stranger: stranger,
@@ -114,7 +116,7 @@ defmodule SlipdockWeb.API.TemplateControllerTest do
 
       assert body["template"]["name"] == "Renamed mine"
       assert ctx.conn |> delete(~p"/api/templates/#{ctx.mine.id}") |> json_response(200)
-      assert {:error, :not_found} = Boards.find_template(ctx.user, ctx.mine.id)
+      assert {:error, :not_found} = Boards.Templates.find_template(ctx.user, ctx.mine.id)
     end
 
     # The review's proof of concept: PATCH /api/templates/:id with someone

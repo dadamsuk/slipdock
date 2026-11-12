@@ -218,9 +218,10 @@ defmodule SlipdockWeb.MCP.Prompts.Context do
     auth = Args.auth(context)
 
     with {:ok, id} <- card_id(ref),
-         %Card{} = card <- Boards.get_card(id) || {:error, "no card you can see matches #{ref}"},
+         %Card{} = card <-
+           Boards.Cards.get_card(id) || {:error, "no card you can see matches #{ref}"},
          :ok <- Args.refusal(Authorize.card(auth, card, :read)) do
-      {:ok, Authorize.visible(auth, card.id |> Boards.get_card!() |> Repo.preload(:board))}
+      {:ok, Authorize.visible(auth, card.id |> Boards.Cards.get_card!() |> Repo.preload(:board))}
     end
   end
 
@@ -247,7 +248,7 @@ defmodule SlipdockWeb.MCP.Prompts.Context do
 
   @doc "A card's handoff, as it reads at the top of the card: nil when there is none."
   def handoff_text(%Card{} = card) do
-    case Boards.current_handoff(card) do
+    case Boards.Handoffs.current_handoff(card) do
       nil ->
         nil
 
@@ -265,7 +266,7 @@ defmodule SlipdockWeb.MCP.Prompts.Context do
   what it needs, from whom, since when, and the choices. nil when none.
   """
   def wait_text(%Card{} = card) do
-    case Boards.current_wait(card) do
+    case Boards.Waits.current_wait(card) do
       nil ->
         nil
 

@@ -101,14 +101,14 @@ defmodule Slipdock.FindingsPromoteTest do
       AIStub.fail_with(503, "down")
       block = "- Findings:\n  - gotcha: screens must not flash on load"
 
-      for _ <- 1..3, do: {:ok, _} = Boards.add_comment(ctx.ui, block, by: ctx.owner)
+      for _ <- 1..3, do: {:ok, _} = Boards.Comments.add_comment(ctx.ui, block, by: ctx.owner)
 
       assert [%Finding{count: 3, proposal_id: id}] =
                Repo.all(from f in Finding, where: f.card_id == ^ctx.ui.id)
 
       assert [%Suggestion{id: ^id}] = proposals(ctx.board)
 
-      {:ok, _} = Boards.add_comment(ctx.ui, block, by: ctx.owner)
+      {:ok, _} = Boards.Comments.add_comment(ctx.ui, block, by: ctx.owner)
       assert length(proposals(ctx.board)) == 1
     end
 
@@ -123,7 +123,7 @@ defmodule Slipdock.FindingsPromoteTest do
 
       for {item, i} <- Enum.with_index(said) do
         card = card_fixture(ctx.doing, %{"title" => "Card #{i}"})
-        {:ok, _} = Boards.add_comment(card, "- Findings:\n  - " <> item, by: ctx.owner)
+        {:ok, _} = Boards.Comments.add_comment(card, "- Findings:\n  - " <> item, by: ctx.owner)
       end
 
       assert [%Finding{count: 3, proposal_id: id}] =

@@ -29,7 +29,7 @@ defmodule SlipdockWeb.WikiVaultTreeTest do
   end
 
   defp sub_board!(board, title) do
-    {:ok, template} = Slipdock.Boards.find_template(nil, "Simple")
+    {:ok, template} = Slipdock.Boards.Templates.find_template(nil, "Simple")
     [column | _] = Slipdock.Boards.get_board!(board.id).columns
     {:ok, sub} = sub_board(card_fixture(column, %{"title" => title}), template)
     Slipdock.Boards.get_board!(sub.id)

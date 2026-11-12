@@ -18,10 +18,13 @@ defmodule SlipdockWeb.LanesBroadWebTest do
     {:ok, board} = Boards.update_board(board, %{"lane_mode" => "advise"})
     [_backlog, todo, doing, _done] = board.columns
     running = card_fixture(doing, %{"title" => "Running"})
-    {:ok, running} = Boards.update_card(running, %{"paths" => ["lib/**"]})
+    {:ok, running} = Boards.Cards.update_card(running, %{"paths" => ["lib/**"]})
     working_job_fixture(running)
     card = card_fixture(todo, %{"title" => "Next"})
-    {:ok, card} = Boards.update_card(card, %{"paths" => ["lib/slipdock/runners/a.ex", "docs/**"]})
+
+    {:ok, card} =
+      Boards.Cards.update_card(card, %{"paths" => ["lib/slipdock/runners/a.ex", "docs/**"]})
+
     {token, _} = Accounts.create_api_token(user, "bot")
 
     agent =
@@ -56,7 +59,7 @@ defmodule SlipdockWeb.LanesBroadWebTest do
     assert has_element?(view, "#card-paths-broad", "Advice only")
     refute has_element?(view, "#card-paths-broad", "lib/slipdock/runners/a.ex")
 
-    {:ok, _} = Boards.update_card(ctx.card, %{"paths" => ["lib/slipdock/runners/a.ex"]})
+    {:ok, _} = Boards.Cards.update_card(ctx.card, %{"paths" => ["lib/slipdock/runners/a.ex"]})
     {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/cards/#{ctx.card}")
     refute has_element?(view, "#card-paths-broad")
   end
@@ -74,7 +77,9 @@ defmodule SlipdockWeb.LanesBroadWebTest do
     {:ok, _} = Boards.update_board(ctx.board, %{"shared_paths" => ["docs/**"]})
 
     {:ok, _} =
-      Boards.update_card(ctx.running, %{"paths" => ["lib/slipdock/runners/a.ex", "docs/a.md"]})
+      Boards.Cards.update_card(ctx.running, %{
+        "paths" => ["lib/slipdock/runners/a.ex", "docs/a.md"]
+      })
 
     card = ctx.agent |> get(~p"/api/cards/#{ctx.card.id}") |> json_response(200)
     assert card["card"]["lane_overlap"]["card"] == ctx.running.id
@@ -113,20 +118,20 @@ defmodule SlipdockWeb.LanesBroadWebTest do
   end
 
   test "this card's own broad glob is its side; a narrow overlap names no side", ctx do
-    {:ok, _} = Boards.update_card(ctx.card, %{"paths" => ["lib/slipdock/**"]})
+    {:ok, _} = Boards.Cards.update_card(ctx.card, %{"paths" => ["lib/slipdock/**"]})
     got = get_card(ctx.agent, ctx.card.id)
     assert got["lane_overlap"]["broad"] == "both"
     assert got["lane_overlap"]["broad_paths"] == ["lib/slipdock/**", "lib/**"]
 
-    {:ok, _} = Boards.update_card(ctx.running, %{"paths" => ["lib/slipdock/runners/**"]})
-    {:ok, _} = Boards.update_card(ctx.card, %{"paths" => ["lib/slipdock/runners/a.ex"]})
+    {:ok, _} = Boards.Cards.update_card(ctx.running, %{"paths" => ["lib/slipdock/runners/**"]})
+    {:ok, _} = Boards.Cards.update_card(ctx.card, %{"paths" => ["lib/slipdock/runners/a.ex"]})
     got = get_card(ctx.agent, ctx.card.id)
     assert got["lane_overlap"]["card"] == ctx.running.id
     refute Map.has_key?(got["lane_overlap"], "broad")
     refute Map.has_key?(got, "paths_broad")
 
-    {:ok, _} = Boards.update_card(ctx.running, %{"paths" => ["lib/slipdock/runners/a.ex"]})
-    {:ok, _} = Boards.update_card(ctx.card, %{"paths" => ["lib/**"]})
+    {:ok, _} = Boards.Cards.update_card(ctx.running, %{"paths" => ["lib/slipdock/runners/a.ex"]})
+    {:ok, _} = Boards.Cards.update_card(ctx.card, %{"paths" => ["lib/**"]})
     assert get_card(ctx.agent, ctx.card.id)["lane_overlap"]["broad"] == "this"
   end
 end

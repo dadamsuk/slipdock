@@ -48,14 +48,14 @@ defmodule Slipdock.Runners.RecoveryTest do
   # The runner takes the job and, as an agent would, moves its card along.
   defp take(ctx) do
     job = Runners.claim(ctx.runner)
-    :ok = Boards.move_card_to_index(Repo.get!(Boards.Card, job.card_id), ctx.doing, :top)
+    :ok = Boards.Cards.move_card_to_index(Repo.get!(Boards.Card, job.card_id), ctx.doing, :top)
     job
   end
 
   # The claim moved the card to the doing list (#2633): the job leaves it
   # back on its list.
   defp left_on_list(ctx, job) do
-    :ok = Boards.move_card_to_index(Repo.get!(Boards.Card, job.card_id), ctx.todo, :top)
+    :ok = Boards.Cards.move_card_to_index(Repo.get!(Boards.Card, job.card_id), ctx.todo, :top)
     job
   end
 
@@ -64,7 +64,7 @@ defmodule Slipdock.Runners.RecoveryTest do
     Repo.reload!(job)
   end
 
-  defp card(card), do: Boards.get_card!(card.id)
+  defp card(card), do: Boards.Cards.get_card!(card.id)
 
   defp comments(card),
     do:
@@ -152,8 +152,8 @@ defmodule Slipdock.Runners.RecoveryTest do
       assert finish(ctx, job).recovery == "requeued"
 
       # Finished since, then reopened.
-      {:ok, _} = Boards.update_card(card(ctx.a), %{"completed" => true})
-      {:ok, _} = Boards.update_card(card(ctx.a), %{"completed" => false})
+      {:ok, _} = Boards.Cards.update_card(card(ctx.a), %{"completed" => true})
+      {:ok, _} = Boards.Cards.update_card(card(ctx.a), %{"completed" => false})
       assert Repo.reload!(job).recovery == "requeued_before_done"
 
       job = take(ctx)
@@ -165,7 +165,7 @@ defmodule Slipdock.Runners.RecoveryTest do
     test "unassigns it when the rule only sends cards nobody has taken", ctx do
       rule_fixture(ctx.board, spec(%{}, %{"unassigned" => true}))
       job = take(ctx)
-      {:ok, _} = Boards.update_card(card(ctx.a), %{"assignee_ids" => [ctx.owner.id]})
+      {:ok, _} = Boards.Cards.update_card(card(ctx.a), %{"assignee_ids" => [ctx.owner.id]})
 
       finish(ctx, job)
 
@@ -223,7 +223,7 @@ defmodule Slipdock.Runners.RecoveryTest do
     test "a card the job closed or left on its list", ctx do
       rule_fixture(ctx.board, spec())
       job = take(ctx)
-      {:ok, _} = Boards.update_card(card(ctx.a), %{"completed" => true})
+      {:ok, _} = Boards.Cards.update_card(card(ctx.a), %{"completed" => true})
       done = finish(ctx, job, "done")
       assert done.recovery == nil
       refute done.transcript_failed_at
@@ -236,7 +236,7 @@ defmodule Slipdock.Runners.RecoveryTest do
     test "a job cancelled before anybody took it", ctx do
       rule_fixture(ctx.board, spec())
       [job] = Repo.all(from(j in Job, where: j.card_id == ^ctx.a.id))
-      :ok = Boards.move_card_to_index(card(ctx.a), ctx.doing, :top)
+      :ok = Boards.Cards.move_card_to_index(card(ctx.a), ctx.doing, :top)
 
       {:ok, job} = Runners.cancel_job(job)
 
@@ -258,7 +258,7 @@ defmodule Slipdock.Runners.RecoveryTest do
       rule_fixture(ctx.board, spec(%{"requeue_stuck" => 3}))
       job = take(ctx)
       finish(ctx, job)
-      :ok = Boards.move_card_to_index(card(ctx.a), ctx.doing, :top)
+      :ok = Boards.Cards.move_card_to_index(card(ctx.a), ctx.doing, :top)
 
       assert Recovery.recover(job) == :ok
       assert length(comments(ctx.a)) == 1
@@ -375,7 +375,7 @@ defmodule Slipdock.Runners.RecoveryTest do
     # agent accepts it: it is merging, still in progress.
     defp accept(ctx, job) do
       {:ok, card} =
-        Boards.update_card(
+        Boards.Cards.update_card(
           Repo.get!(Boards.Card, job.card_id),
           %{
             "completed" => true,
@@ -446,7 +446,7 @@ defmodule Slipdock.Runners.RecoveryTest do
   describe "an epic whose subcard waits for its verifier or its merge" do
     setup ctx do
       {:ok, board} = Boards.update_board(ctx.board, %{"verify_work" => true})
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = Boards.create_sub_board(ctx.a, t)
       sub = Boards.get_board!(sub.id)
       first = card_fixture(hd(sub.columns), %{"title" => "first"})
@@ -486,7 +486,7 @@ defmodule Slipdock.Runners.RecoveryTest do
 
       # The epic's job submits its first subcard with its pull request.
       {:ok, first} =
-        Boards.update_card(
+        Boards.Cards.update_card(
           card(ctx.first),
           %{
             "completed" => true,
@@ -546,7 +546,7 @@ defmodule Slipdock.Runners.RecoveryTest do
     end
 
     test "a waiting card on another epic's sub-board doesn't hold it", ctx do
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, other} = Boards.create_sub_board(ctx.b, t)
       other = Boards.get_board!(other.id)
       elsewhere = card_fixture(hd(other.columns), %{"title" => "elsewhere"})

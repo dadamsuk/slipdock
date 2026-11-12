@@ -31,10 +31,10 @@ defmodule SlipdockWeb.API.VaultsTest do
   end
 
   test "an archived board isn't among its boards; restored, it is again", %{conn: conn, kb: kb} do
-    {:ok, kb} = Boards.archive_board(kb)
+    {:ok, kb} = Boards.Arrangement.archive_board(kb)
     refute Enum.find(show(conn)["boards"], &(&1["code"] == "kb5"))
 
-    {:ok, _} = Boards.unarchive_board(kb)
+    {:ok, _} = Boards.Arrangement.unarchive_board(kb)
 
     assert %{"path" => "/Keystone", "archived" => false} =
              Enum.find(show(conn)["boards"], &(&1["code"] == "kb5"))
@@ -71,7 +71,7 @@ defmodule SlipdockWeb.API.VaultsTest do
              %{"path" => "Keystone", "archived" => false}
            ] = Enum.sort_by(boards, & &1["path"])
 
-    {:ok, _} = Boards.archive_board(ctx.kb)
+    {:ok, _} = Boards.Arrangement.archive_board(ctx.kb)
 
     assert %{"boards" => [%{"path" => "Journal Desk"}], "folders" => folders} =
              ctx.conn |> get("/api/vaults/Notes/sync") |> json_response(200)

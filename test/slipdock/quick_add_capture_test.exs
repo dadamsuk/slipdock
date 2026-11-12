@@ -63,7 +63,7 @@ defmodule Slipdock.QuickAddCaptureTest do
       assert {:ok, capture} =
                capture(user, "call the printers; banners are 2m wide;; ask about vinyl")
 
-      card = Boards.get_card!(capture.card.id)
+      card = Boards.Cards.get_card!(capture.card.id)
       assert card.title == "Call the printers"
       assert card.description == "banners are 2m wide"
       assert [%{body: "ask about vinyl"}] = card.comments
@@ -83,7 +83,7 @@ defmodule Slipdock.QuickAddCaptureTest do
                  attrs: %{"description" => "from the body"}
                )
 
-      assert Boards.get_card!(capture.card.id).description ==
+      assert Boards.Cards.get_card!(capture.card.id).description ==
                "from the subject\n\nfrom the body"
 
       Slipdock.AIStub.reply_with(%{"title" => "Call the printers"})
@@ -91,7 +91,7 @@ defmodule Slipdock.QuickAddCaptureTest do
       assert {:ok, capture} =
                capture(user, "call the printers; from the subject", attrs: %{"description" => ""})
 
-      assert Boards.get_card!(capture.card.id).description == "from the subject"
+      assert Boards.Cards.get_card!(capture.card.id).description == "from the subject"
     end
 
     test "the model is asked for a concise title, the specific thing first", %{user: user} do
@@ -237,7 +237,7 @@ defmodule Slipdock.QuickAddCaptureTest do
       assert {:comment, "Comment"} in capture.chips
       refute {:description, "Description"} in capture.chips
 
-      card = Boards.get_card!(capture.card.id)
+      card = Boards.Cards.get_card!(capture.card.id)
       assert [%{body: "ask Sam about the #docs first"}] = card.comments
       assert card.description in [nil, ""]
       assert Repo.preload(capture.card, :tags).tags == []
@@ -247,7 +247,7 @@ defmodule Slipdock.QuickAddCaptureTest do
       {:ok, user} = Accounts.update_quick_add(user, %{"quick_add_ai" => false})
 
       assert {:ok, capture} = capture(user, "Write it; the #docs part")
-      card = Boards.get_card!(capture.card.id)
+      card = Boards.Cards.get_card!(capture.card.id)
       assert card.title == "Write it"
       assert card.description == "the #docs part"
       assert card.comments == []

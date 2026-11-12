@@ -111,7 +111,7 @@ defmodule Slipdock.HandbookRulesE2ETest do
     # A card whose lane is the migrations carries the same rules as REST.
     [col | _] = board.columns
     card = card_fixture(col, %{"title" => "Add a column"})
-    {:ok, _} = Boards.update_card(card, %{"paths" => ["priv/repo/migrations/**"]})
+    {:ok, _} = Boards.Cards.update_card(card, %{"paths" => ["priv/repo/migrations/**"]})
 
     on_card = get_card(conn, card.id)["handbook"]
     by_path = handbook(conn, board, paths: "priv/repo/migrations/**")["rules"]

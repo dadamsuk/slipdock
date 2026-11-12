@@ -72,7 +72,7 @@ defmodule SlipdockWeb.WikiAutosaveLiveTest do
 
       {:ok, page} = Wiki.find_page(board, "trip")
       assert [attachment] = Wiki.attachments(page)
-      assert page.body =~ Slipdock.Boards.attachment_url(attachment)
+      assert page.body =~ Slipdock.Boards.Attachments.attachment_url(attachment)
       refute page.body =~ "/autosave-files/"
       assert Autosaves.on_board(user, board) == []
       assert Repo.aggregate(AutosaveFile, :count) == 0

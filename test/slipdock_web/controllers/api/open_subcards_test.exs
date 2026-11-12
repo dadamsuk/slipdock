@@ -15,7 +15,7 @@ defmodule SlipdockWeb.API.OpenSubcardsTest do
     board = board_fixture(%{"name" => "Epics", "code" => unique_code()}, owner: user)
     [_backlog, _todo, doing, done] = board.columns
     epic = card_fixture(doing, %{"title" => "Epic"})
-    {:ok, t} = Boards.find_template(nil, "Simple")
+    {:ok, t} = Boards.Templates.find_template(nil, "Simple")
     {:ok, sub} = sub_board(epic, t)
     open = card_fixture(hd(Boards.get_board!(sub.id).columns), %{"title" => "Still to do"})
     {token, _} = Accounts.create_api_token(user, "bot")
@@ -52,7 +52,7 @@ defmodule SlipdockWeb.API.OpenSubcardsTest do
   end
 
   test "with the subcard done, PATCH completes it as before", ctx do
-    {:ok, _} = Boards.update_card(ctx.open, %{"completed" => true})
+    {:ok, _} = Boards.Cards.update_card(ctx.open, %{"completed" => true})
 
     resp =
       ctx.agent

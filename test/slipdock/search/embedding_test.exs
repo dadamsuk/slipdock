@@ -177,10 +177,13 @@ defmodule Slipdock.Search.EmbeddingTest do
   describe "what gets indexed" do
     test "a card, its comments and its status updates each become a row", ctx do
       card = card_fixture(ctx.column, %{"title" => "Rotate the Stripe keys"})
-      {:ok, comment} = Boards.add_comment(card, "Finance have to approve first")
+      {:ok, comment} = Boards.Comments.add_comment(card, "Finance have to approve first")
 
       {:ok, update} =
-        Boards.add_status_update(card, ctx.owner, %{"health" => "at_risk", "body" => "Slipping"})
+        Boards.StatusUpdates.add_status_update(card, ctx.owner, %{
+          "health" => "at_risk",
+          "body" => "Slipping"
+        })
 
       # The struct is accepted as well as the id.
       assert {:ok, %{embedded: 3, unchanged: 0, removed: 0}} = Search.index_card(card)
@@ -324,7 +327,7 @@ defmodule Slipdock.Search.EmbeddingTest do
     setup ctx do
       card = card_fixture(ctx.column, %{"title" => "Alpha", "description" => "first"})
       {:ok, _} = Search.index_card(card.id)
-      {:ok, card} = Boards.update_card(card, %{"description" => "second"})
+      {:ok, card} = Boards.Cards.update_card(card, %{"description" => "second"})
       %{card: card, before: rows_for(card.id)}
     end
 

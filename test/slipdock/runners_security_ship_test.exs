@@ -23,7 +23,7 @@ defmodule Slipdock.RunnersSecurityShipTest do
 
     hole = card_fixture(todo, %{"title" => "Board events skip the write check on /api/x"})
     plain = card_fixture(todo, %{"title" => "Rename the menu"})
-    {:ok, _} = Boards.set_card_tags(hole, [tag_fixture(board, "Security", "red")])
+    {:ok, _} = Boards.Cards.set_card_tags(hole, [tag_fixture(board, "Security", "red")])
 
     {token, _} = Accounts.create_api_token(user, "bot")
 
@@ -91,7 +91,7 @@ defmodule Slipdock.RunnersSecurityShipTest do
   end
 
   test "untagging a card makes its next prompt ordinary again", ctx do
-    {:ok, _} = Boards.set_card_tags(ctx.hole, [])
+    {:ok, _} = Boards.Cards.set_card_tags(ctx.hole, [])
     text = prompt(Repo.get!(Card, ctx.hole.id))
     assert text =~ "--fill"
     refute text =~ "neutrally"

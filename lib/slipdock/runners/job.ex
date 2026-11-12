@@ -7,7 +7,7 @@ defmodule Slipdock.Runners.Job do
       queued → claimed → running → done | failed | cancelled | timeout | parked
 
   A job whose agent asked a person something — a wait opened from the job
-  (`Slipdock.Boards.open_wait/3` with its `job_id`) and still open when it
+  (`Slipdock.Boards.Waits.open_wait/3` with its `job_id`) and still open when it
   ends — ends `parked`, whatever its exit code, and never comes back by
   itself: answering the wait queues a fresh one (`Slipdock.Runners.Requeue`).
 

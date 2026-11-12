@@ -59,13 +59,13 @@ defmodule Slipdock.Demo do
   # A template for the subcards of an epic, so `create_sub_board/2` has lists
   # to take and the sub-board arrives with a page to write on.
   defp breakdown_template do
-    case Boards.find_template(nil, "Task breakdown") do
+    case Boards.Templates.find_template(nil, "Task breakdown") do
       {:ok, template} ->
         template
 
       {:error, :not_found} ->
         {:ok, template} =
-          Boards.create_system_template(%{
+          Boards.Templates.create_system_template(%{
             "name" => "Task breakdown",
             "description" => "Lists for the subcards of one epic.",
             "columns" => [
@@ -103,14 +103,14 @@ defmodule Slipdock.Demo do
 
     board = Boards.get_board!(board.id)
     [backlog, todo, doing, done] = board.columns
-    Boards.update_column(doing, %{"wip_limit" => 3, "color" => "amber"})
-    Boards.update_column(done, %{"color" => "emerald"})
+    Boards.Columns.update_column(doing, %{"wip_limit" => 3, "color" => "amber"})
+    Boards.Columns.update_column(done, %{"color" => "emerald"})
 
     tags = tags(board)
 
     add = fn column, attrs, tag_names ->
-      {:ok, card} = Boards.create_card(column, attrs)
-      Enum.each(tag_names, &Boards.toggle_card_tag(card, tags[&1]))
+      {:ok, card} = Boards.Cards.create_card(column, attrs)
+      Enum.each(tag_names, &Boards.Tags.toggle_card_tag(card, tags[&1]))
       card
     end
 
@@ -132,11 +132,15 @@ defmodule Slipdock.Demo do
         ["marketing", "frontend"]
       )
 
-    Boards.add_checklist_item(pricing, "Draft headline options")
-    Boards.add_checklist_item(pricing, "Review with sales")
-    {:ok, item} = Boards.add_checklist_item(pricing, "Legal sign-off on claims")
-    Boards.toggle_checklist_item(item.id)
-    Boards.add_comment(pricing, "Sales wants the annual discount called out more prominently.")
+    Boards.Checklists.add_checklist_item(pricing, "Draft headline options")
+    Boards.Checklists.add_checklist_item(pricing, "Review with sales")
+    {:ok, item} = Boards.Checklists.add_checklist_item(pricing, "Legal sign-off on claims")
+    Boards.Checklists.toggle_checklist_item(item.id)
+
+    Boards.Comments.add_comment(
+      pricing,
+      "Sales wants the annual discount called out more prominently."
+    )
 
     billing =
       add.(
@@ -170,9 +174,9 @@ defmodule Slipdock.Demo do
         ["design", "frontend"]
       )
 
-    Boards.add_checklist_item(onboarding, "Wireframes")
-    Boards.add_checklist_item(onboarding, "Hi-fi mockups")
-    Boards.add_checklist_item(onboarding, "Usability test with 5 users")
+    Boards.Checklists.add_checklist_item(onboarding, "Wireframes")
+    Boards.Checklists.add_checklist_item(onboarding, "Hi-fi mockups")
+    Boards.Checklists.add_checklist_item(onboarding, "Usability test with 5 users")
 
     notes =
       add.(
@@ -188,7 +192,7 @@ defmodule Slipdock.Demo do
       )
 
     # Release notes can't be written until the queue migration lands.
-    Boards.add_dependency(notes, billing)
+    Boards.Dependencies.add_dependency(notes, billing)
 
     add.(
       todo,
@@ -255,7 +259,7 @@ defmodule Slipdock.Demo do
           {"docs", "teal"}
         ],
         into: %{} do
-      {:ok, tag} = Boards.create_tag(board, %{"name" => name, "color" => color})
+      {:ok, tag} = Boards.Tags.create_tag(board, %{"name" => name, "color" => color})
       {name, tag}
     end
   end
@@ -264,7 +268,7 @@ defmodule Slipdock.Demo do
   # subcard breadcrumb all have something to show.
   defp epic(column, template, sam, ash, ren, today, tags) do
     {:ok, card} =
-      Boards.create_card(column, %{
+      Boards.Cards.create_card(column, %{
         "title" => "Self-serve trial sign-up",
         "description" =>
           "Let people start a 14-day trial without talking to sales. Broken down into subcards.",
@@ -274,14 +278,14 @@ defmodule Slipdock.Demo do
         "assignee_id" => sam.id
       })
 
-    Enum.each(["frontend", "backend"], &Boards.toggle_card_tag(card, tags[&1]))
+    Enum.each(["frontend", "backend"], &Boards.Tags.toggle_card_tag(card, tags[&1]))
 
     {:ok, sub} = Boards.create_sub_board(card, template)
     sub = Boards.get_board!(sub.id)
     [sub_todo, sub_doing, sub_done] = sub.columns
 
     {:ok, _} =
-      Boards.create_card(sub_doing, %{
+      Boards.Cards.create_card(sub_doing, %{
         "title" => "Trial provisioning endpoint",
         "priority" => "high",
         "percent_complete" => 70,
@@ -289,20 +293,20 @@ defmodule Slipdock.Demo do
       })
 
     {:ok, _} =
-      Boards.create_card(sub_todo, %{
+      Boards.Cards.create_card(sub_todo, %{
         "title" => "Sign-up form and validation",
         "assignee_id" => ash.id
       })
 
     {:ok, _} =
-      Boards.create_card(sub_todo, %{
+      Boards.Cards.create_card(sub_todo, %{
         "title" => "Trial expiry emails",
         "due_date" => Date.add(today, 12),
         "assignee_id" => sam.id
       })
 
     {:ok, _} =
-      Boards.create_card(sub_done, %{
+      Boards.Cards.create_card(sub_done, %{
         "title" => "Decide trial length and limits",
         "completed" => true
       })
@@ -315,7 +319,7 @@ defmodule Slipdock.Demo do
   defp scoring(board, sam, ash, ren) do
     {:ok, _} = Fields.install_preset(board, "rice")
     fields = Map.new(Fields.list_fields(Board.root_id(board)), &{&1.key, &1})
-    cards = Map.new(Boards.list_cards(board), &{&1.title, &1})
+    cards = Map.new(Boards.Cards.list_cards(board), &{&1.title, &1})
 
     values = [
       {"Dark mode for the dashboard",
@@ -441,18 +445,18 @@ defmodule Slipdock.Demo do
 
     board = Boards.get_board!(board.id)
     [_backlog, todo, _doing, _done] = board.columns
-    {:ok, home} = Boards.create_tag(board, %{"name" => "home", "color" => "lime"})
+    {:ok, home} = Boards.Tags.create_tag(board, %{"name" => "home", "color" => "lime"})
 
     {:ok, card} =
-      Boards.create_card(todo, %{
+      Boards.Cards.create_card(todo, %{
         "title" => "Renew passport",
         "due_date" => Date.add(today, 20),
         "priority" => "medium",
         "assignee_id" => sam.id
       })
 
-    Boards.toggle_card_tag(card, home)
-    Boards.create_card(todo, %{"title" => "Plan weekend hike", "flags" => ["starred"]})
+    Boards.Tags.toggle_card_tag(card, home)
+    Boards.Cards.create_card(todo, %{"title" => "Plan weekend hike", "flags" => ["starred"]})
     board
   end
 end

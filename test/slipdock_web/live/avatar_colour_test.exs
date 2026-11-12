@@ -18,8 +18,8 @@ defmodule SlipdockWeb.AvatarColourTest do
   setup %{user: user} do
     board = board_fixture(%{"name" => "Colours", "code" => "colr1696"}, owner: user)
     card = card_fixture(hd(board.columns), %{"title" => "Paint the shed"})
-    {:ok, card} = Boards.update_card(card, %{"assignee_id" => user.id})
-    {:ok, _} = Boards.add_comment(card, "First coat done", by: user)
+    {:ok, card} = Boards.Cards.update_card(card, %{"assignee_id" => user.id})
+    {:ok, _} = Boards.Comments.add_comment(card, "First coat done", by: user)
     %{board: board, card: card, colour: Palette.person_colour(user.id)}
   end
 

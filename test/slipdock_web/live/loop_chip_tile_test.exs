@@ -63,7 +63,7 @@ defmodule SlipdockWeb.LoopChipTileTest do
     end
 
     test "sits beside a person assignee in the card's meta row", ctx do
-      {:ok, _} = Boards.update_card(ctx.card, %{"assignee_ids" => [ctx.user.id]})
+      {:ok, _} = Boards.Cards.update_card(ctx.card, %{"assignee_ids" => [ctx.user.id]})
       {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}")
 
       assert has_element?(
@@ -148,7 +148,7 @@ defmodule SlipdockWeb.LoopChipTileTest do
     end
 
     test "a subcard on a sub-board shows its loop too", ctx do
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = Boards.create_sub_board(ctx.other, t, code: unique_code())
       sub = Boards.get_board!(sub.id)
 

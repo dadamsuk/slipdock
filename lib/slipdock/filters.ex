@@ -102,12 +102,12 @@ defmodule Slipdock.Filters do
 
   @doc """
   Whether `q` names `item` by its id (`123`, `#123`) or its link
-  (`Slipdock.Boards.card_ref/1`). A card answers to its id as well as its
+  (`Slipdock.Boards.Links.card_ref/1`). A card answers to its id as well as its
   words, so the search box finds a card by the number it is known by (#2097).
   Only a card: a page is named by its code, and its id is nobody's to type.
   """
   def names_card?(%Slipdock.Boards.Card{id: id}, q) when is_integer(id),
-    do: Slipdock.Boards.card_ref(q) == id
+    do: Slipdock.Boards.Links.card_ref(q) == id
 
   def names_card?(_item, _q), do: false
 

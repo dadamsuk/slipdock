@@ -328,9 +328,9 @@ defmodule SlipdockWeb.SharedAutosaveLiveTest do
 
       assert_push_event(view, "image_uploaded", %{markdown: markdown, upload: "page_image"})
       assert [attachment] = Wiki.attachments(c.page)
-      assert markdown =~ Slipdock.Boards.attachment_url(attachment)
+      assert markdown =~ Slipdock.Boards.Attachments.attachment_url(attachment)
 
-      conn = get(c.conn, Slipdock.Boards.attachment_url(attachment))
+      conn = get(c.conn, Slipdock.Boards.Attachments.attachment_url(attachment))
       assert conn.status == 200
     end
 

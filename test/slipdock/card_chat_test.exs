@@ -23,7 +23,7 @@ defmodule Slipdock.CardChatTest do
     [_backlog, todo, doing, _done] = board.columns
 
     epic = card_fixture(todo, %{"title" => "Card chat epic"})
-    {:ok, t} = Boards.find_template(nil, "Simple")
+    {:ok, t} = Boards.Templates.find_template(nil, "Simple")
     {:ok, sub} = sub_board(epic, t)
     sub = Boards.get_board!(sub.id)
     child = card_fixture(hd(sub.columns), %{"title" => "Tools over the record"})
@@ -64,7 +64,7 @@ defmodule Slipdock.CardChatTest do
 
     test "a card the asker can't see is refused by every tool", ctx do
       stranger = user_fixture("stranger@example.com")
-      {:ok, _} = Boards.add_comment(ctx.epic, "a secret note")
+      {:ok, _} = Boards.Comments.add_comment(ctx.epic, "a secret note")
 
       for name <- CardRecord.names() -- @job_tools do
         text = CardRecord.call(stranger, ctx.epic, name, %{})
@@ -96,7 +96,7 @@ defmodule Slipdock.CardChatTest do
     test "card_comments pages through every comment, oldest first, with ids and authors",
          ctx do
       for i <- 1..27 do
-        {:ok, _} = Boards.add_comment(ctx.child, "note #{i}", by: ctx.owner)
+        {:ok, _} = Boards.Comments.add_comment(ctx.child, "note #{i}", by: ctx.owner)
       end
 
       first = call(ctx, "card_comments", %{"card_id" => ctx.child.id})
@@ -121,10 +121,12 @@ defmodule Slipdock.CardChatTest do
 
     test "card_handoffs lists every handoff, newest first", ctx do
       assert call(ctx, "card_handoffs") =~ "has never had a handoff"
-      {:ok, _} = Boards.leave_handoff(ctx.epic, ctx.owner, %{next_step: "First", via: "ui"})
 
       {:ok, _} =
-        Boards.leave_handoff(ctx.epic, ctx.owner, %{
+        Boards.Handoffs.leave_handoff(ctx.epic, ctx.owner, %{next_step: "First", via: "ui"})
+
+      {:ok, _} =
+        Boards.Handoffs.leave_handoff(ctx.epic, ctx.owner, %{
           next_step: "Second",
           body: "- CI red",
           via: "cli"
@@ -138,8 +140,8 @@ defmodule Slipdock.CardChatTest do
     end
 
     test "card_links gives links and dependencies", ctx do
-      {:ok, _} = Boards.add_dependency(ctx.child, ctx.other)
-      {:ok, _} = Boards.add_link(ctx.child, ctx.epic, "relates")
+      {:ok, _} = Boards.Dependencies.add_dependency(ctx.child, ctx.other)
+      {:ok, _} = Boards.Links.add_link(ctx.child, ctx.epic, "relates")
 
       text = call(ctx, "card_links", %{"card_id" => ctx.child.id})
       assert text =~ "Blocked by: ##{ctx.other.id} “Somebody else's card”"
@@ -219,12 +221,12 @@ defmodule Slipdock.CardChatTest do
     end
 
     test "card_timeline gives the lists, the waits with their answers and the activity", ctx do
-      :ok = Boards.move_card(ctx.epic.id, ctx.doing.id, nil, actor: Actor.web(ctx.owner))
+      :ok = Boards.Cards.move_card(ctx.epic.id, ctx.doing.id, nil, actor: Actor.web(ctx.owner))
 
       {:ok, wait} =
-        Boards.open_wait(ctx.epic, Actor.web(ctx.owner), %{"needs" => "Which pool?"})
+        Boards.Waits.open_wait(ctx.epic, Actor.web(ctx.owner), %{"needs" => "Which pool?"})
 
-      {:ok, _} = Boards.answer_wait(wait, Actor.web(ctx.owner), %{"answer" => "default"})
+      {:ok, _} = Boards.Waits.answer_wait(wait, Actor.web(ctx.owner), %{"answer" => "default"})
 
       text = call(ctx, "card_timeline")
       assert text =~ "Lists it sat in:"
@@ -256,14 +258,17 @@ defmodule Slipdock.CardChatTest do
       )
 
       {:ok, _} =
-        Boards.add_comment(ctx.child, "**Rejected** by verifier.\n\nbar 1: credo fails")
+        Boards.Comments.add_comment(ctx.child, "**Rejected** by verifier.\n\nbar 1: credo fails")
 
-      {:ok, _} = Boards.add_comment(ctx.child, "**Accepted** by verifier.\n\nall good")
+      {:ok, _} = Boards.Comments.add_comment(ctx.child, "**Accepted** by verifier.\n\nall good")
 
       {:ok, _} =
-        Boards.add_comment(ctx.child, "**Audit: agrees** with the acceptance, by auditor.")
+        Boards.Comments.add_comment(
+          ctx.child,
+          "**Audit: agrees** with the acceptance, by auditor."
+        )
 
-      {:ok, _} = Boards.add_comment(ctx.child, "an ordinary remark")
+      {:ok, _} = Boards.Comments.add_comment(ctx.child, "an ordinary remark")
 
       merge =
         working_job_fixture(ctx.child, %{
@@ -392,7 +397,7 @@ defmodule Slipdock.CardChatTest do
 
     test "a stranger's tool calls come back refused", ctx do
       stranger = user_fixture("stranger2@example.com")
-      {:ok, _} = Boards.add_comment(ctx.epic, "the secret plan")
+      {:ok, _} = Boards.Comments.add_comment(ctx.epic, "the secret plan")
 
       Slipdock.AIStub.reply_sequence([{:tool_calls, [{"card_comments", %{}}]}, "Nothing."])
 

@@ -4130,7 +4130,7 @@ defmodule SlipdockWeb.APIGuide do
     boards =
       user
       |> Access.list_boards(activity: true, token: token)
-      |> Boards.sort_boards(user.board_sort)
+      |> Boards.Arrangement.sort_boards(user.board_sort)
 
     archived = Access.list_boards(user, archived: true, token: token)
 

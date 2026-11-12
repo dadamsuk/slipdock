@@ -71,7 +71,7 @@ defmodule SlipdockWeb.RecurrenceAPITest do
 
     test "an earlier instance points at the series", ctx do
       {:ok, series} = Recurrence.set(ctx.card, %{"rule" => "mon"}, ctx.owner)
-      {:ok, _} = Boards.update_card(ctx.card, %{"completed" => true})
+      {:ok, _} = Boards.Cards.update_card(ctx.card, %{"completed" => true})
       assert Recurrence.tick(~U[2030-01-14 07:00:00Z]) == 1
 
       assert %{"current" => false, "recurrence" => %{"id" => id, "card_id" => now}} =
@@ -85,7 +85,7 @@ defmodule SlipdockWeb.RecurrenceAPITest do
 
     test "the card says which instance it was copied from (#2081)", ctx do
       {:ok, series} = Recurrence.set(ctx.card, %{"rule" => "mon"}, ctx.owner)
-      {:ok, _} = Boards.update_card(ctx.card, %{"completed" => true})
+      {:ok, _} = Boards.Cards.update_card(ctx.card, %{"completed" => true})
       assert Recurrence.tick(~U[2030-01-14 07:00:00Z]) == 1
       new = Repo.get!(Slipdock.Recurrence.Series, series.id).card_id
       first = ctx.card.id
@@ -250,7 +250,7 @@ defmodule SlipdockWeb.RecurrenceAPITest do
 
     test "get_card says which instance it was copied from (#2081)", ctx do
       {:ok, series} = Recurrence.set(ctx.card, %{"rule" => "mon"}, ctx.owner)
-      {:ok, _} = Boards.update_card(ctx.card, %{"completed" => true})
+      {:ok, _} = Boards.Cards.update_card(ctx.card, %{"completed" => true})
       assert Recurrence.tick(~U[2030-01-14 07:00:00Z]) == 1
       new = Repo.get!(Slipdock.Recurrence.Series, series.id).card_id
       first = ctx.card.id

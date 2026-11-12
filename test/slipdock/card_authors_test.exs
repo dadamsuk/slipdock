@@ -39,7 +39,7 @@ defmodule Slipdock.CardAuthorsTest do
   defp create(ctx, actor, name \\ nil) do
     {:ok, card} =
       as(actor, name, fn opts ->
-        Boards.create_card(ctx.todo, %{"title" => "Made"}, opts)
+        Boards.Cards.create_card(ctx.todo, %{"title" => "Made"}, opts)
       end)
 
     card
@@ -53,7 +53,7 @@ defmodule Slipdock.CardAuthorsTest do
   defp set_activity(card, at),
     do: Repo.update_all(from(a in Activity, where: a.card_id == ^card.id), set: [inserted_at: at])
 
-  defp authors(card), do: CardAuthors.for_card(Boards.get_card!(card.id))
+  defp authors(card), do: CardAuthors.for_card(Boards.Cards.get_card!(card.id))
 
   defp ago(seconds),
     do: DateTime.utc_now() |> DateTime.add(-seconds, :second) |> DateTime.truncate(:second)
@@ -64,7 +64,7 @@ defmodule Slipdock.CardAuthorsTest do
 
       assert %{created_by: %{kind: "person", name: "Robin Maker", user_id: id}} = authors(card)
       assert id == ctx.owner.id
-      assert authors(card).created_at == Boards.get_card!(card.id).inserted_at
+      assert authors(card).created_at == Boards.Cards.get_card!(card.id).inserted_at
     end
 
     test "an agent over MCP, by its token label", ctx do
@@ -116,7 +116,7 @@ defmodule Slipdock.CardAuthorsTest do
       )
 
       done = card_fixture(ctx.todo, %{"title" => "Launch"})
-      {:ok, _} = Boards.toggle_completed(done)
+      {:ok, _} = Boards.Cards.toggle_completed(done)
 
       follow = Repo.one!(from(c in Card, where: c.title == "Follow up"))
       assert %{created_by: %{kind: "automation", name: "Follow-ups"}} = authors(follow)
@@ -155,7 +155,9 @@ defmodule Slipdock.CardAuthorsTest do
 
     test "a comment: the comment's author, though the card's updated_at didn't move", ctx do
       as(Actor.web(ctx.other), "Sam Editor", fn _ ->
-        Boards.add_comment(Boards.get_card!(ctx.card.id), "Looks good", by: ctx.other)
+        Boards.Comments.add_comment(Boards.Cards.get_card!(ctx.card.id), "Looks good",
+          by: ctx.other
+        )
       end)
 
       %{updated_by: who, updated_at: at} = authors(ctx.card)
@@ -165,7 +167,11 @@ defmodule Slipdock.CardAuthorsTest do
 
     test "a field edit: its editor", ctx do
       as(Actor.mcp(%{user: ctx.owner, token: %{label: "codex"}}), fn opts ->
-        Boards.update_card(Boards.get_card!(ctx.card.id), %{"priority" => "high"}, opts)
+        Boards.Cards.update_card(
+          Boards.Cards.get_card!(ctx.card.id),
+          %{"priority" => "high"},
+          opts
+        )
       end)
 
       assert %{updated_by: %{kind: "agent", name: "codex"}} = authors(ctx.card)
@@ -173,7 +179,7 @@ defmodule Slipdock.CardAuthorsTest do
 
     test "a move: its mover", ctx do
       as(Actor.web(ctx.other), "Sam Editor", fn opts ->
-        Boards.move_card(ctx.card.id, ctx.doing.id, nil, opts)
+        Boards.Cards.move_card(ctx.card.id, ctx.doing.id, nil, opts)
       end)
 
       assert %{updated_by: %{kind: "person", name: "Sam Editor"}} = authors(ctx.card)
@@ -184,7 +190,9 @@ defmodule Slipdock.CardAuthorsTest do
 
       try do
         Actor.as_rule("Escalate", fn ->
-          Boards.update_card(Boards.get_card!(ctx.card.id), %{"priority" => "critical"})
+          Boards.Cards.update_card(Boards.Cards.get_card!(ctx.card.id), %{
+            "priority" => "critical"
+          })
         end)
       after
         Process.delete(:automation_depth)

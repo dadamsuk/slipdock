@@ -58,11 +58,14 @@ defmodule Slipdock.AccountExportDeletionTest do
       card = card_fixture(hd(their_board.columns))
 
       {:ok, _} =
-        Boards.add_status_update(card, user, %{"health" => "at_risk", "body" => "slipping a week"})
+        Boards.StatusUpdates.add_status_update(card, user, %{
+          "health" => "at_risk",
+          "body" => "slipping a week"
+        })
 
-      {:ok, _} = Boards.add_comment(card, "Finance signed it off", by: user)
-      {:ok, _} = Boards.add_comment(card, "Somebody else's remark", by: other)
-      {:ok, _} = Boards.add_comment(card, "An automation's note")
+      {:ok, _} = Boards.Comments.add_comment(card, "Finance signed it off", by: user)
+      {:ok, _} = Boards.Comments.add_comment(card, "Somebody else's remark", by: other)
+      {:ok, _} = Boards.Comments.add_comment(card, "An automation's note")
 
       {_name, binary} = AccountExport.zip(user)
       {:ok, entries} = :zip.unzip(binary, [:memory])
@@ -84,8 +87,11 @@ defmodule Slipdock.AccountExportDeletionTest do
       other = user_fixture("other@example.com")
       their_board = board_fixture(%{"name" => "Theirs"}, owner: other)
       card = card_fixture(hd(their_board.columns))
-      {:ok, _} = Boards.leave_handoff(card, user, %{next_step: "Ship the fix", via: "mcp"})
-      {:ok, _} = Boards.leave_handoff(card, other, %{next_step: "Not mine", via: "ui"})
+
+      {:ok, _} =
+        Boards.Handoffs.leave_handoff(card, user, %{next_step: "Ship the fix", via: "mcp"})
+
+      {:ok, _} = Boards.Handoffs.leave_handoff(card, other, %{next_step: "Not mine", via: "ui"})
 
       {_name, binary} = AccountExport.zip(user)
       {:ok, entries} = :zip.unzip(binary, [:memory])
@@ -153,9 +159,12 @@ defmodule Slipdock.AccountExportDeletionTest do
       card = card_fixture(hd(their_board.columns))
 
       {:ok, update} =
-        Boards.add_status_update(card, user, %{"health" => "at_risk", "body" => "still readable"})
+        Boards.StatusUpdates.add_status_update(card, user, %{
+          "health" => "at_risk",
+          "body" => "still readable"
+        })
 
-      {:ok, comment} = Boards.add_comment(card, "also still readable", by: user)
+      {:ok, comment} = Boards.Comments.add_comment(card, "also still readable", by: user)
 
       {:ok, _} = Accounts.delete_user(user)
 
@@ -175,7 +184,7 @@ defmodule Slipdock.AccountExportDeletionTest do
       {:ok, _} = Access.grant(board, colleague, "write", user)
 
       epic = card_fixture(hd(board.columns), %{"title" => "Epic"})
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(epic, t)
       sub = Boards.get_board!(sub.id)
       task = card_fixture(hd(sub.columns), %{"title" => "Task"})
@@ -195,7 +204,7 @@ defmodule Slipdock.AccountExportDeletionTest do
 
     test "the preview names root boards only", %{user: user, board: board} do
       epic = card_fixture(hd(board.columns), %{"title" => "Epic"})
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, _} = sub_board(epic, t)
 
       assert Accounts.deletion_preview(user).boards_deleted == ["Their work"]
@@ -224,11 +233,11 @@ defmodule Slipdock.AccountExportDeletionTest do
       on_exit(fn -> File.rm(src) end)
 
       meta = %{filename: "a.txt", content_type: "text/plain"}
-      {:ok, on_card} = Boards.add_attachment(card, meta, src)
+      {:ok, on_card} = Boards.Attachments.add_attachment(card, meta, src)
       page = page_fixture(board, %{"title" => "Notes"})
       {:ok, on_page} = Slipdock.Wiki.add_attachment(page, meta, src)
 
-      paths = Enum.map([on_card, on_page], &Boards.attachment_path/1)
+      paths = Enum.map([on_card, on_page], &Boards.Attachments.attachment_path/1)
       assert Enum.all?(paths, &File.exists?/1)
 
       {:ok, _} = Accounts.delete_user(user)
@@ -245,11 +254,15 @@ defmodule Slipdock.AccountExportDeletionTest do
       on_exit(fn -> File.rm(src) end)
 
       {:ok, a} =
-        Boards.add_attachment(card, %{filename: "k.txt", content_type: "text/plain"}, src)
+        Boards.Attachments.add_attachment(
+          card,
+          %{filename: "k.txt", content_type: "text/plain"},
+          src
+        )
 
       {:ok, _} = Accounts.delete_user(user)
 
-      assert File.exists?(Boards.attachment_path(a))
+      assert File.exists?(Boards.Attachments.attachment_path(a))
     end
 
     test "the last admin cannot be deleted", %{user: user} do

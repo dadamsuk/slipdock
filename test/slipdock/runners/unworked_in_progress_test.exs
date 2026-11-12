@@ -42,7 +42,7 @@ defmodule Slipdock.Runners.UnworkedInProgressTest do
 
   defp card(column, title, paths \\ []) do
     card = card_fixture(column, %{"title" => title})
-    {:ok, card} = Boards.update_card(card, %{"paths" => paths})
+    {:ok, card} = Boards.Cards.update_card(card, %{"paths" => paths})
     card
   end
 
@@ -118,7 +118,7 @@ defmodule Slipdock.Runners.UnworkedInProgressTest do
     test "the first card in the way that has a job is named, past one that has none", ctx do
       _idle = card(ctx.doing, "Idle")
       busy = card(ctx.doing, "Busy")
-      Boards.move_card_to_index(Repo.get!(Card, busy.id), ctx.doing, :bottom)
+      Boards.Cards.move_card_to_index(Repo.get!(Card, busy.id), ctx.doing, :bottom)
       working_job_fixture(busy)
       {:ok, job} = queue(card(ctx.todo, "Next"))
 
@@ -127,7 +127,7 @@ defmodule Slipdock.Runners.UnworkedInProgressTest do
     end
 
     test "a subcard in progress under an epic whose job is open counts as worked", ctx do
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       epic = card(ctx.todo, "Epic")
       {:ok, sub} = sub_board(epic, t)
       sub = Boards.get_board!(sub.id)
@@ -168,7 +168,7 @@ defmodule Slipdock.Runners.UnworkedInProgressTest do
       assert Lanes.conflict(next) == nil
       assert Lanes.held_cards(ctx.board.id) == %{}
       assert Runners.held_reason(job, claimant: true) == nil
-      assert :ok = Boards.move_card(next.id, ctx.doing.id, nil, actor: ctx.agent)
+      assert :ok = Boards.Cards.move_card(next.id, ctx.doing.id, nil, actor: ctx.agent)
 
       # Given a job, the idle card holds its lane again.
       working_job_fixture(idle, %{status: "queued", pool: "elsewhere"})
@@ -176,7 +176,7 @@ defmodule Slipdock.Runners.UnworkedInProgressTest do
       assert Lanes.conflict(third).id == idle.id
 
       assert {:error, :unprocessable_entity, message} =
-               Boards.move_card(third.id, ctx.doing.id, nil, actor: ctx.agent)
+               Boards.Cards.move_card(third.id, ctx.doing.id, nil, actor: ctx.agent)
 
       assert message =~ "##{idle.id}"
     end
@@ -245,7 +245,7 @@ defmodule Slipdock.Runners.UnworkedInProgressTest do
 
       # A stale tab drags it back into In Progress.
       :ok =
-        Boards.move_card_to_index(Repo.get!(Card, merged.id), ctx.doing, :top,
+        Boards.Cards.move_card_to_index(Repo.get!(Card, merged.id), ctx.doing, :top,
           actor: Actor.web(ctx.owner)
         )
 
@@ -280,7 +280,7 @@ defmodule Slipdock.Runners.UnworkedInProgressTest do
       idle = card(ctx.todo, "By hand")
 
       :ok =
-        Boards.move_card_to_index(Repo.get!(Card, idle.id), ctx.doing, :top,
+        Boards.Cards.move_card_to_index(Repo.get!(Card, idle.id), ctx.doing, :top,
           actor: Actor.web(ctx.owner)
         )
 
@@ -296,7 +296,9 @@ defmodule Slipdock.Runners.UnworkedInProgressTest do
          ctx do
       idle = card(ctx.todo, "Left behind")
       actor = Actor.runner(ctx.owner, nil, "loop")
-      :ok = Boards.move_card_to_index(Repo.get!(Card, idle.id), ctx.doing, :top, actor: actor)
+
+      :ok =
+        Boards.Cards.move_card_to_index(Repo.get!(Card, idle.id), ctx.doing, :top, actor: actor)
 
       {:ok, job} = queue(card(ctx.todo, "Next"))
       assert Runners.waiting_on(job) == nil

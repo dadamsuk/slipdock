@@ -62,7 +62,7 @@ defmodule SlipdockWeb.BoardDisplayPrefsTest do
 
     test "a saved view is left alone", ctx do
       {:ok, saved} =
-        Boards.create_saved_view(ctx.board, %{
+        Boards.SavedViews.create_saved_view(ctx.board, %{
           "name" => "Compact",
           "config" => Config.to_map(%{Config.defaults("board") | density: "compact"})
         })
@@ -75,7 +75,7 @@ defmodule SlipdockWeb.BoardDisplayPrefsTest do
       other = user_fixture()
 
       {:ok, saved} =
-        Boards.create_saved_view(ctx.board, %{
+        Boards.SavedViews.create_saved_view(ctx.board, %{
           "name" => "Shared",
           "config" => Config.to_map(Config.defaults("board"))
         })
@@ -124,7 +124,7 @@ defmodule SlipdockWeb.BoardDisplayPrefsTest do
     end
 
     test "is ignored on a saved view", ctx do
-      {:ok, saved} = Boards.create_saved_view(ctx.board, %{"name" => "Plain"})
+      {:ok, saved} = Boards.SavedViews.create_saved_view(ctx.board, %{"name" => "Plain"})
       {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}?view=#{saved.id}")
 
       render_hook(view, "display_restore", %{"query" => %{"density" => "compact"}})

@@ -51,7 +51,7 @@ defmodule SlipdockWeb.OutlineLiveTest do
 
     # Completing a card on a sub-board from the outline rolls up live.
     view |> element("#ol-#{ctx.c.id} button[title='Mark complete']") |> render_click()
-    assert Boards.get_card!(ctx.c.id).completed
+    assert Boards.Cards.get_card!(ctx.c.id).completed
 
     # A sub-board's outline starts at that level.
     {:ok, view, _} = live(conn, ~p"/boards/#{ctx.sub}/outline")
@@ -62,7 +62,7 @@ defmodule SlipdockWeb.OutlineLiveTest do
 
   test "the outline pages at 250 rows, keeps epics whole, splits only a big one" do
     board = board_fixture(%{"name" => "Big"})
-    {:ok, t} = Boards.find_template(nil, "Simple")
+    {:ok, t} = Boards.Templates.find_template(nil, "Simple")
     # Two top-level cards and 402 rows: 100 subcards under one, 300 under the other.
     small = card_fixture(hd(board.columns), %{"title" => "Small epic"})
     big = card_fixture(hd(board.columns), %{"title" => "Big epic"})
@@ -191,7 +191,7 @@ defmodule SlipdockWeb.OutlineLiveTest do
 
     # Dragging a subcard's bar (on another board of the tree) moves it.
     render_hook(view, "timeline_move", %{"id" => ctx.c.id, "edge" => "both", "delta" => 2})
-    c = Boards.get_card!(ctx.c.id)
+    c = Boards.Cards.get_card!(ctx.c.id)
     assert c.start_date == ~D[2030-01-07] and c.due_date == ~D[2030-01-22]
   end
 end

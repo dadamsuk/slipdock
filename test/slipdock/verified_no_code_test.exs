@@ -49,7 +49,7 @@ defmodule Slipdock.VerifiedNoCodeTest do
   defp fresh(card), do: Repo.get!(Card, card.id)
 
   defp submit(card, attrs, ctx) do
-    Boards.update_card(
+    Boards.Cards.update_card(
       fresh(card),
       %{"completed" => true, "evidence" => "swept lib/, filed two cards"}
       |> Map.merge(with_commit(attrs))
@@ -101,7 +101,7 @@ defmodule Slipdock.VerifiedNoCodeTest do
 
     test "the reason alone counts as evidence", ctx do
       assert {:ok, %{verify_state: "pending"}} =
-               Boards.update_card(
+               Boards.Cards.update_card(
                  fresh(ctx.card),
                  %{"completed" => true, "evidence_no_code" => @why},
                  actor: ctx.builder
@@ -122,7 +122,7 @@ defmodule Slipdock.VerifiedNoCodeTest do
 
     test "a person completing needs neither", ctx do
       assert {:ok, %{completed: true}} =
-               Boards.update_card(fresh(ctx.card), %{"completed" => true})
+               Boards.Cards.update_card(fresh(ctx.card), %{"completed" => true})
     end
   end
 

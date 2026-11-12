@@ -12,7 +12,7 @@ defmodule SlipdockWeb.API.Uploads do
   alias Slipdock.Boards.Attachment
 
   @doc """
-  The upload in `params` as `{meta, path}` for `Boards.add_attachment/3` or
+  The upload in `params` as `{meta, path}` for `Boards.Attachments.add_attachment/3` or
   `Wiki.add_attachment/3`, or the error the fallback controller answers with.
   """
   def take(%{"file" => %Plug.Upload{path: path, filename: name} = upload} = params) do
@@ -65,7 +65,10 @@ defmodule SlipdockWeb.API.Uploads do
   """
   def stored(%Attachment{} = attachment, replace?) do
     answer = %{attachment: json(attachment)}
-    if replace?, do: Map.put(answer, :replaced, Boards.delete_namesakes(attachment)), else: answer
+
+    if replace?,
+      do: Map.put(answer, :replaced, Boards.Attachments.delete_namesakes(attachment)),
+      else: answer
   end
 
   @doc """
@@ -114,7 +117,7 @@ defmodule SlipdockWeb.API.Uploads do
 
   @doc "An image shows inline; any other file is a link to download it."
   def markdown(%Attachment{} = a) do
-    link = "[#{a.filename}](#{Boards.attachment_url(a)})"
+    link = "[#{a.filename}](#{Boards.Attachments.attachment_url(a)})"
     if Attachment.image?(a), do: "!" <> link, else: link
   end
 

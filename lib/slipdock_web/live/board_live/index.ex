@@ -28,7 +28,7 @@ defmodule SlipdockWeb.BoardLive.Index do
 
   @impl true
   def mount(_params, _session, socket) do
-    if connected?(socket), do: Boards.subscribe_templates()
+    if connected?(socket), do: Boards.PubSub.subscribe_templates()
 
     user = socket.assigns.current_user
 
@@ -40,7 +40,7 @@ defmodule SlipdockWeb.BoardLive.Index do
      |> assign(custom_lists: @default_lists, save_template: false, template_name: "")
      |> assign(board_layout: user.board_layout || "grid", sort: user.board_sort || "manual")
      |> assign(show_archived: false)
-     |> assign(templates: Boards.list_templates(user))
+     |> assign(templates: Boards.Templates.list_templates(user))
      |> assign(:form, to_form(Boards.change_board(%Board{})))
      |> assign(reordering: false)
      |> load_boards()}
@@ -135,14 +135,14 @@ defmodule SlipdockWeb.BoardLive.Index do
       # Boards and saved multiboards in the one sequence, in the reader's
       # order. The wiki is the Wiki link's, not a tile (W-2201).
       tiles:
-        Boards.sort_boards(
+        Boards.Arrangement.sort_boards(
           boards ++ Enum.map(Map.values(multiboards), & &1.multiboard),
           sort
         ),
       archived:
         user
         |> Access.list_boards(archived: true, activity: true, wiki: false)
-        |> Boards.sort_boards(sort),
+        |> Boards.Arrangement.sort_boards(sort),
       shared_cards: Access.shared_cards(user),
       # An admin's support sessions, each with the boards it opens: nothing
       # else lists somebody else's boards, so this is the way in.
@@ -159,13 +159,15 @@ defmodule SlipdockWeb.BoardLive.Index do
 
   @impl true
   def handle_info({:boards_changed}, socket) do
-    Boards.drain_boards_changed()
+    Boards.PubSub.drain_boards_changed()
     socket = SlipdockWeb.BoardNotices.resubscribe(socket)
     {:noreply, load_boards(socket)}
   end
 
   def handle_info({:templates_changed}, socket),
-    do: {:noreply, assign(socket, templates: Boards.list_templates(socket.assigns.current_user))}
+    do:
+      {:noreply,
+       assign(socket, templates: Boards.Templates.list_templates(socket.assigns.current_user))}
 
   def handle_info(_, socket), do: {:noreply, socket}
 
@@ -270,7 +272,7 @@ defmodule SlipdockWeb.BoardLive.Index do
 
   def handle_event("archive", %{"id" => id}, socket) do
     with_owned_board(socket, id, fn board ->
-      case Boards.archive_board(board) do
+      case Boards.Arrangement.archive_board(board) do
         {:ok, board} ->
           socket
           |> load_boards()
@@ -284,7 +286,7 @@ defmodule SlipdockWeb.BoardLive.Index do
 
   def handle_event("unarchive", %{"id" => id}, socket) do
     with_owned_board(socket, id, fn board ->
-      case Boards.unarchive_board(board) do
+      case Boards.Arrangement.unarchive_board(board) do
         {:ok, board} ->
           socket |> load_boards() |> put_flash(:info, "“#{board.name}” is back on your boards.")
 
@@ -302,7 +304,13 @@ defmodule SlipdockWeb.BoardLive.Index do
         {:noreply, socket}
 
       tile ->
-        Boards.place_board(socket.assigns.current_user, tile, before, socket.assigns.tiles)
+        Boards.Arrangement.place_board(
+          socket.assigns.current_user,
+          tile,
+          before,
+          socket.assigns.tiles
+        )
+
         {:noreply, load_boards(socket)}
     end
   end
@@ -334,7 +342,13 @@ defmodule SlipdockWeb.BoardLive.Index do
         {:noreply, socket}
 
       tile ->
-        Boards.nudge_board(socket.assigns.current_user, tile, direction, socket.assigns.tiles)
+        Boards.Arrangement.nudge_board(
+          socket.assigns.current_user,
+          tile,
+          direction,
+          socket.assigns.tiles
+        )
+
         {:noreply, load_boards(socket)}
     end
   end

@@ -383,7 +383,7 @@ defmodule SlipdockWeb.NowTest do
   describe "a reader of just a sub-board" do
     setup ctx do
       epic = card_fixture(ctx.todo, %{"title" => "Epic"})
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(epic, t)
       sub = Boards.get_board!(sub.id)
       reader = user_fixture("now-sub-reader-#{System.unique_integer([:positive])}@example.com")

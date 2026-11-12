@@ -27,19 +27,24 @@ defmodule Slipdock.PortableExportTest do
     epic = card_fixture(todo, %{"title" => "Ship it"})
     other = card_fixture(doing, %{"title" => "Groundwork"})
 
-    {:ok, _} = Boards.set_card_tags(epic, [tag])
-    {:ok, _} = Boards.add_checklist_item(epic, "Write it down")
-    {:ok, _} = Boards.add_comment(epic, "Started on this")
+    {:ok, _} = Boards.Cards.set_card_tags(epic, [tag])
+    {:ok, _} = Boards.Checklists.add_checklist_item(epic, "Write it down")
+    {:ok, _} = Boards.Comments.add_comment(epic, "Started on this")
 
     {:ok, _} =
-      Boards.add_status_update(epic, owner, %{"health" => "on_track", "body" => "On track"})
+      Boards.StatusUpdates.add_status_update(epic, owner, %{
+        "health" => "on_track",
+        "body" => "On track"
+      })
 
-    {:ok, _} = Boards.add_card_url(epic, %{"url" => "https://example.com", "title" => "Spec"})
+    {:ok, _} =
+      Boards.CardUrls.add_card_url(epic, %{"url" => "https://example.com", "title" => "Spec"})
+
     {:ok, _} = Fields.set_value(epic, field, "8")
-    {:ok, _} = Boards.add_dependency(epic, other)
-    {:ok, _} = Boards.add_link(epic, other, "relates")
+    {:ok, _} = Boards.Dependencies.add_dependency(epic, other)
+    {:ok, _} = Boards.Links.add_link(epic, other, "relates")
 
-    template = Boards.list_templates(nil) |> Enum.find(&(&1.name == "Simple"))
+    template = Boards.Templates.list_templates(nil) |> Enum.find(&(&1.name == "Simple"))
     {:ok, sub} = Boards.create_sub_board(epic, template)
     [sub_todo | _] = Boards.get_board!(sub.id).columns
     subcard = card_fixture(sub_todo, %{"title" => "One sitting of it"})
@@ -144,11 +149,15 @@ defmodule Slipdock.PortableExportTest do
 
     test "the handoffs, oldest first, a clear kept as one" do
       %{owner: owner, epic: epic} = tree()
-      {:ok, _} = Boards.leave_handoff(epic, owner, %{next_step: "First", via: "ui"})
-      {:ok, _} = Boards.clear_handoff(epic, owner, %{via: "cli"})
+      {:ok, _} = Boards.Handoffs.leave_handoff(epic, owner, %{next_step: "First", via: "ui"})
+      {:ok, _} = Boards.Handoffs.clear_handoff(epic, owner, %{via: "cli"})
 
       {:ok, _} =
-        Boards.leave_handoff(epic, owner, %{next_step: "Then", body: "State: half", via: "mcp"})
+        Boards.Handoffs.leave_handoff(epic, owner, %{
+          next_step: "Then",
+          body: "State: half",
+          via: "mcp"
+        })
 
       assert [
                %{next_step: "First", via: "ui", author: "owner@example.com"},
@@ -195,7 +204,7 @@ defmodule Slipdock.PortableExportTest do
   describe "archived things are left out unless asked for" do
     test "cards" do
       %{owner: owner, other: other} = tree()
-      {:ok, _} = Boards.archive_card(other)
+      {:ok, _} = Boards.Cards.archive_card(other)
 
       refute only_tree(owner) |> card("Groundwork")
       assert only_tree(owner, archived_cards: true) |> card("Groundwork")
@@ -212,7 +221,7 @@ defmodule Slipdock.PortableExportTest do
     test "whole boards" do
       %{owner: owner} = tree()
       second = board_fixture(%{"name" => "Put away"}, owner: owner)
-      {:ok, _} = Boards.archive_board(second)
+      {:ok, _} = Boards.Arrangement.archive_board(second)
 
       names = fn opts -> Portable.export(owner, opts).boards |> Enum.map(& &1.root.name) end
 
@@ -263,9 +272,9 @@ defmodule Slipdock.PortableExportTest do
       %{owner: owner, board: board, epic: epic, subcard: subcard} = tree()
       outside = board_fixture(%{"name" => "Outside", "code" => "outs"}, owner: owner)
       far = card_fixture(hd(outside.columns), %{"title" => "Far away"})
-      {:ok, _} = Boards.add_dependency(epic, far)
+      {:ok, _} = Boards.Dependencies.add_dependency(epic, far)
       # Inside one tree — a subcard on the epic it belongs to's board — is kept.
-      {:ok, _} = Boards.add_dependency(subcard, epic)
+      {:ok, _} = Boards.Dependencies.add_dependency(subcard, epic)
 
       assert [warning] =
                owner

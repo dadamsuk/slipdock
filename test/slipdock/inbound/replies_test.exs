@@ -208,7 +208,9 @@ defmodule Slipdock.Inbound.RepliesTest do
       assert attachment.filename == "log.txt"
       [comment] = comments(ctx.card)
       assert comment.body =~ "Log attached."
-      assert comment.body =~ "[log.txt](#{Slipdock.Boards.attachment_url(attachment)})"
+
+      assert comment.body =~
+               "[log.txt](#{Slipdock.Boards.Attachments.attachment_url(attachment)})"
     end
 
     test "a reply that is only a file is still a comment", ctx do

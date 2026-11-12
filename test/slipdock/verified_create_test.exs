@@ -37,7 +37,7 @@ defmodule Slipdock.VerifiedCreateTest do
 
     test "an agent can't create a card in progress with no bar, and none is made", ctx do
       assert {:error, changeset} =
-               Boards.create_card(ctx.doing, %{"title" => "Sneaked in"}, actor: ctx.agent)
+               Boards.Cards.create_card(ctx.doing, %{"title" => "Sneaked in"}, actor: ctx.agent)
 
       assert {message, _} = changeset.errors[:bar]
       assert message =~ "bar"
@@ -47,7 +47,7 @@ defmodule Slipdock.VerifiedCreateTest do
 
     test "a blank bar is no bar", ctx do
       assert {:error, changeset} =
-               Boards.create_card(ctx.doing, %{"title" => "Blank", "bar" => "  "},
+               Boards.Cards.create_card(ctx.doing, %{"title" => "Blank", "bar" => "  "},
                  actor: ctx.agent
                )
 
@@ -57,7 +57,7 @@ defmodule Slipdock.VerifiedCreateTest do
 
     test "an agent's card made in progress with a bar has it locked", ctx do
       assert {:ok, card} =
-               Boards.create_card(ctx.doing, %{"title" => "Barred", "bar" => "Tests pass"},
+               Boards.Cards.create_card(ctx.doing, %{"title" => "Barred", "bar" => "Tests pass"},
                  actor: ctx.agent
                )
 
@@ -65,14 +65,16 @@ defmodule Slipdock.VerifiedCreateTest do
       assert Repo.get!(Card, card.id).bar_locked_at
 
       assert {:error, changeset} =
-               Boards.update_card(Repo.get!(Card, card.id), %{"bar" => "Less"}, actor: ctx.agent)
+               Boards.Cards.update_card(Repo.get!(Card, card.id), %{"bar" => "Less"},
+                 actor: ctx.agent
+               )
 
       assert changeset.errors[:bar]
     end
 
     test "a person's card made in progress with a bar locks too, as a move would", ctx do
       assert {:ok, card} =
-               Boards.create_card(ctx.doing, %{"title" => "Theirs", "bar" => "Done well"},
+               Boards.Cards.create_card(ctx.doing, %{"title" => "Theirs", "bar" => "Done well"},
                  actor: Actor.web(ctx.owner)
                )
 
@@ -85,19 +87,23 @@ defmodule Slipdock.VerifiedCreateTest do
             {Actor.assistant(ctx.owner), "Assistant"},
             {Actor.automation(), "Rule"}
           ] do
-        assert {:ok, card} = Boards.create_card(ctx.doing, %{"title" => title}, actor: actor)
+        assert {:ok, card} =
+                 Boards.Cards.create_card(ctx.doing, %{"title" => title}, actor: actor)
+
         assert card.bar_locked_at == nil
       end
 
-      assert {:ok, _} = Boards.create_card(ctx.doing, %{"title" => "No actor"})
+      assert {:ok, _} = Boards.Cards.create_card(ctx.doing, %{"title" => "No actor"})
     end
 
     test "an agent creates a card with no bar in a list that isn't in progress", ctx do
-      assert {:ok, card} = Boards.create_card(ctx.todo, %{"title" => "Later"}, actor: ctx.agent)
+      assert {:ok, card} =
+               Boards.Cards.create_card(ctx.todo, %{"title" => "Later"}, actor: ctx.agent)
+
       assert card.bar_locked_at == nil
 
       assert {:ok, barred} =
-               Boards.create_card(ctx.todo, %{"title" => "Planned", "bar" => "It works"},
+               Boards.Cards.create_card(ctx.todo, %{"title" => "Planned", "bar" => "It works"},
                  actor: ctx.agent
                )
 
@@ -106,7 +112,7 @@ defmodule Slipdock.VerifiedCreateTest do
 
     test "an invalid card is refused for what's wrong with it, not for its bar", ctx do
       assert {:error, changeset} =
-               Boards.create_card(ctx.doing, %{"title" => ""}, actor: ctx.agent)
+               Boards.Cards.create_card(ctx.doing, %{"title" => ""}, actor: ctx.agent)
 
       assert changeset.errors[:title]
       refute changeset.errors[:bar]
@@ -115,11 +121,15 @@ defmodule Slipdock.VerifiedCreateTest do
 
   test "with bar_required off, an agent creates a card in progress with no bar, unlocked",
        ctx do
-    assert {:ok, card} = Boards.create_card(ctx.doing, %{"title" => "Free"}, actor: ctx.agent)
+    assert {:ok, card} =
+             Boards.Cards.create_card(ctx.doing, %{"title" => "Free"}, actor: ctx.agent)
+
     assert card.bar_locked_at == nil
 
     assert {:ok, barred} =
-             Boards.create_card(ctx.doing, %{"title" => "Barred", "bar" => "x"}, actor: ctx.agent)
+             Boards.Cards.create_card(ctx.doing, %{"title" => "Barred", "bar" => "x"},
+               actor: ctx.agent
+             )
 
     assert barred.bar_locked_at == nil
   end
@@ -128,7 +138,7 @@ defmodule Slipdock.VerifiedCreateTest do
     setup ctx do
       board = switch(ctx, %{"lanes" => true})
       held = card_fixture(ctx.doing, %{"title" => "Holding"})
-      {:ok, held} = Boards.update_card(held, %{"paths" => ["lib/foo/**"]})
+      {:ok, held} = Boards.Cards.update_card(held, %{"paths" => ["lib/foo/**"]})
       working_job_fixture(held)
       %{board: board, held: held}
     end
@@ -136,7 +146,7 @@ defmodule Slipdock.VerifiedCreateTest do
     test "an agent can't create a card in progress whose paths overlap, and none is made",
          ctx do
       assert {:error, changeset} =
-               Boards.create_card(
+               Boards.Cards.create_card(
                  ctx.doing,
                  %{"title" => "Overlaps", "paths" => "lib/foo/bar.ex"},
                  actor: ctx.agent
@@ -150,30 +160,37 @@ defmodule Slipdock.VerifiedCreateTest do
 
     test "an agent creates one in progress with paths apart, or none", ctx do
       assert {:ok, _} =
-               Boards.create_card(ctx.doing, %{"title" => "Apart", "paths" => "lib/bar/**"},
+               Boards.Cards.create_card(ctx.doing, %{"title" => "Apart", "paths" => "lib/bar/**"},
                  actor: ctx.agent
                )
 
-      assert {:ok, _} = Boards.create_card(ctx.doing, %{"title" => "Pathless"}, actor: ctx.agent)
+      assert {:ok, _} =
+               Boards.Cards.create_card(ctx.doing, %{"title" => "Pathless"}, actor: ctx.agent)
     end
 
     test "an overlapping card is made in another list, or by a person", ctx do
       assert {:ok, _} =
-               Boards.create_card(ctx.todo, %{"title" => "Queued", "paths" => "lib/foo/a.ex"},
+               Boards.Cards.create_card(
+                 ctx.todo,
+                 %{"title" => "Queued", "paths" => "lib/foo/a.ex"},
                  actor: ctx.agent
                )
 
       assert {:ok, _} =
-               Boards.create_card(ctx.doing, %{"title" => "Theirs", "paths" => "lib/foo/a.ex"},
+               Boards.Cards.create_card(
+                 ctx.doing,
+                 %{"title" => "Theirs", "paths" => "lib/foo/a.ex"},
                  actor: Actor.web(ctx.owner)
                )
     end
 
     test "an archived card holds no lane", ctx do
-      {:ok, _} = Boards.archive_card(ctx.held)
+      {:ok, _} = Boards.Cards.archive_card(ctx.held)
 
       assert {:ok, _} =
-               Boards.create_card(ctx.doing, %{"title" => "After", "paths" => "lib/foo/a.ex"},
+               Boards.Cards.create_card(
+                 ctx.doing,
+                 %{"title" => "After", "paths" => "lib/foo/a.ex"},
                  actor: ctx.agent
                )
     end
@@ -181,10 +198,12 @@ defmodule Slipdock.VerifiedCreateTest do
 
   test "with lanes off, an agent creates an overlapping card in progress", ctx do
     held = card_fixture(ctx.doing, %{"title" => "Holding"})
-    {:ok, _} = Boards.update_card(held, %{"paths" => ["lib/foo/**"]})
+    {:ok, _} = Boards.Cards.update_card(held, %{"paths" => ["lib/foo/**"]})
 
     assert {:ok, _} =
-             Boards.create_card(ctx.doing, %{"title" => "Overlaps", "paths" => "lib/foo/a.ex"},
+             Boards.Cards.create_card(
+               ctx.doing,
+               %{"title" => "Overlaps", "paths" => "lib/foo/a.ex"},
                actor: ctx.agent
              )
   end
@@ -192,10 +211,10 @@ defmodule Slipdock.VerifiedCreateTest do
   test "with both on, a card with no bar is refused on its bar first", ctx do
     switch(ctx, %{"bar_required" => true, "lanes" => true})
     held = card_fixture(ctx.doing, %{"title" => "Holding", "bar" => "x"})
-    {:ok, _} = Boards.update_card(held, %{"paths" => ["lib/**"]})
+    {:ok, _} = Boards.Cards.update_card(held, %{"paths" => ["lib/**"]})
 
     assert {:error, changeset} =
-             Boards.create_card(ctx.doing, %{"title" => "Both", "paths" => "lib/a.ex"},
+             Boards.Cards.create_card(ctx.doing, %{"title" => "Both", "paths" => "lib/a.ex"},
                actor: ctx.agent
              )
 

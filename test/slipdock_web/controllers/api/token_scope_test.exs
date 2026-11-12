@@ -19,7 +19,7 @@ defmodule SlipdockWeb.API.TokenScopeTest do
   setup %{conn: conn, user: user} do
     {:ok, board} = Boards.create_board(%{"name" => "Delivery"}, owner_id: user.id)
     board = Boards.get_board!(board.id)
-    {:ok, card} = Boards.create_card(hd(board.columns), %{"title" => "A card"})
+    {:ok, card} = Boards.Cards.create_card(hd(board.columns), %{"title" => "A card"})
     %{conn: conn, user: user, board: board, card: card}
   end
 
@@ -42,7 +42,7 @@ defmodule SlipdockWeb.API.TokenScopeTest do
       body = conn |> patch(~p"/api/cards/#{ctx.card.id}", %{title: "nope"}) |> json_response(403)
 
       assert body["error"] =~ "read-only"
-      assert Boards.get_card!(ctx.card.id).title == "A card"
+      assert Boards.Cards.get_card!(ctx.card.id).title == "A card"
     end
 
     test "cannot create a board — a write that reaches no board at all", ctx do
@@ -56,7 +56,7 @@ defmodule SlipdockWeb.API.TokenScopeTest do
     test "cannot delete", ctx do
       conn = with_token(ctx.conn, ctx.user, scope: "read")
       assert conn |> delete(~p"/api/cards/#{ctx.card.id}") |> json_response(403)
-      assert Boards.get_card!(ctx.card.id)
+      assert Boards.Cards.get_card!(ctx.card.id)
     end
   end
 
@@ -104,7 +104,7 @@ defmodule SlipdockWeb.API.TokenScopeTest do
 
     test "reaches a sub-board of a board it names", ctx do
       {:ok, template} =
-        Boards.create_template(ctx.user, %{
+        Boards.Templates.create_template(ctx.user, %{
           "name" => "Breakdown #{System.unique_integer([:positive])}",
           "columns" => [%{"name" => "To Do"}, %{"name" => "Done"}]
         })
@@ -145,7 +145,7 @@ defmodule SlipdockWeb.API.TokenScopeTest do
   test "a write token still works exactly as before", ctx do
     conn = with_token(ctx.conn, ctx.user, scope: "write")
     assert conn |> patch(~p"/api/cards/#{ctx.card.id}", %{title: "edited"}) |> json_response(200)
-    assert Boards.get_card!(ctx.card.id).title == "edited"
+    assert Boards.Cards.get_card!(ctx.card.id).title == "edited"
   end
 
   test "an expired token is refused before scope is even considered", ctx do

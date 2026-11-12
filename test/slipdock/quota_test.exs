@@ -45,7 +45,7 @@ defmodule Slipdock.QuotaTest do
       assert Quota.limit(alice) == nil
       assert Quota.check(alice) == :ok
 
-      for n <- 1..30, do: {:ok, _} = Boards.create_card(column, %{"title" => "Card #{n}"})
+      for n <- 1..30, do: {:ok, _} = Boards.Cards.create_card(column, %{"title" => "Card #{n}"})
       assert Quota.used(alice) == 30
       assert Quota.check(alice) == :ok
     end
@@ -55,14 +55,14 @@ defmodule Slipdock.QuotaTest do
     setup do: limit(5)
 
     test "cards on boards you own count against you", %{alice: alice, column: column} do
-      {:ok, _} = Boards.create_card(column, %{"title" => "One"})
+      {:ok, _} = Boards.Cards.create_card(column, %{"title" => "One"})
       assert Quota.used(alice) == 1
     end
 
     test "cards on somebody else's board do not", %{alice: alice} do
       bob = user_fixture("bob@example.com")
       their_board = board_fixture(%{"name" => "Bob's"}, owner: bob)
-      {:ok, _} = Boards.create_card(hd(their_board.columns), %{"title" => "Theirs"})
+      {:ok, _} = Boards.Cards.create_card(hd(their_board.columns), %{"title" => "Theirs"})
 
       assert Quota.used(alice) == 0
       assert Quota.used(bob) == 1
@@ -72,10 +72,12 @@ defmodule Slipdock.QuotaTest do
       alice: alice,
       column: column
     } do
-      {:ok, card} = Boards.create_card(column, %{"title" => "Epic"})
-      template = hd(Boards.list_templates(nil))
+      {:ok, card} = Boards.Cards.create_card(column, %{"title" => "Epic"})
+      template = hd(Boards.Templates.list_templates(nil))
       {:ok, sub} = sub_board(card, template)
-      {:ok, _} = Boards.create_card(hd(Boards.get_board!(sub.id).columns), %{"title" => "Task"})
+
+      {:ok, _} =
+        Boards.Cards.create_card(hd(Boards.get_board!(sub.id).columns), %{"title" => "Task"})
 
       assert Quota.used(alice) == 2
     end
@@ -84,10 +86,10 @@ defmodule Slipdock.QuotaTest do
       alice: alice,
       column: column
     } do
-      {:ok, card} = Boards.create_card(column, %{"title" => "One"})
+      {:ok, card} = Boards.Cards.create_card(column, %{"title" => "One"})
       assert Quota.used(alice) == 1
 
-      {:ok, _} = Boards.archive_card(card)
+      {:ok, _} = Boards.Cards.archive_card(card)
       assert Quota.used(alice) == 0
     end
   end
@@ -103,13 +105,13 @@ defmodule Slipdock.QuotaTest do
       guest = user_fixture("guest@example.com")
       {:ok, _} = Access.grant(board, guest, "write", alice)
 
-      {:ok, _} = Boards.create_card(column, %{"title" => "One"})
-      {:ok, _} = Boards.create_card(column, %{"title" => "Two"})
+      {:ok, _} = Boards.Cards.create_card(column, %{"title" => "One"})
+      {:ok, _} = Boards.Cards.create_card(column, %{"title" => "Two"})
 
       # The guest has no cards of their own, but this board is full — because
       # Alice is the one who would be billed for it.
       assert Quota.used(guest) == 0
-      assert {:error, changeset} = Boards.create_card(column, %{"title" => "Three"})
+      assert {:error, changeset} = Boards.Cards.create_card(column, %{"title" => "Three"})
       assert Quota.limit_reached?(changeset)
     end
 
@@ -118,18 +120,18 @@ defmodule Slipdock.QuotaTest do
       column: column
     } do
       guest = user_fixture("guest@example.com")
-      {:ok, _} = Boards.create_card(column, %{"title" => "One"})
-      {:ok, _} = Boards.create_card(column, %{"title" => "Two"})
+      {:ok, _} = Boards.Cards.create_card(column, %{"title" => "One"})
+      {:ok, _} = Boards.Cards.create_card(column, %{"title" => "Two"})
 
       theirs = board_fixture(%{"name" => "Guest's"}, owner: guest)
-      assert {:ok, _} = Boards.create_card(hd(theirs.columns), %{"title" => "Mine"})
+      assert {:ok, _} = Boards.Cards.create_card(hd(theirs.columns), %{"title" => "Mine"})
       assert Quota.used(alice) == 2
     end
 
     test "the message says what to do about it", %{column: column} do
-      {:ok, _} = Boards.create_card(column, %{"title" => "One"})
-      {:ok, _} = Boards.create_card(column, %{"title" => "Two"})
-      {:error, changeset} = Boards.create_card(column, %{"title" => "Three"})
+      {:ok, _} = Boards.Cards.create_card(column, %{"title" => "One"})
+      {:ok, _} = Boards.Cards.create_card(column, %{"title" => "Two"})
+      {:error, changeset} = Boards.Cards.create_card(column, %{"title" => "Three"})
 
       assert %{base: [message]} = errors_on(changeset)
       assert message =~ "archive"
@@ -137,12 +139,12 @@ defmodule Slipdock.QuotaTest do
     end
 
     test "archiving one lets the next one through", %{column: column} do
-      {:ok, _} = Boards.create_card(column, %{"title" => "One"})
-      {:ok, card} = Boards.create_card(column, %{"title" => "Two"})
-      assert {:error, _} = Boards.create_card(column, %{"title" => "Three"})
+      {:ok, _} = Boards.Cards.create_card(column, %{"title" => "One"})
+      {:ok, card} = Boards.Cards.create_card(column, %{"title" => "Two"})
+      assert {:error, _} = Boards.Cards.create_card(column, %{"title" => "Three"})
 
-      {:ok, _} = Boards.archive_card(card)
-      assert {:ok, _} = Boards.create_card(column, %{"title" => "Three"})
+      {:ok, _} = Boards.Cards.archive_card(card)
+      assert {:ok, _} = Boards.Cards.create_card(column, %{"title" => "Three"})
     end
   end
 
@@ -150,19 +152,19 @@ defmodule Slipdock.QuotaTest do
     setup do: limit(1)
 
     test "admins are never capped", %{alice: alice, column: column} do
-      {:ok, _} = Boards.create_card(column, %{"title" => "One"})
-      assert {:error, _} = Boards.create_card(column, %{"title" => "Two"})
+      {:ok, _} = Boards.Cards.create_card(column, %{"title" => "One"})
+      assert {:error, _} = Boards.Cards.create_card(column, %{"title" => "Two"})
 
       {:ok, _} = Accounts.promote(alice)
       # Somebody has to be able to fix a server that has filled up.
-      assert {:ok, _} = Boards.create_card(column, %{"title" => "Two"})
+      assert {:ok, _} = Boards.Cards.create_card(column, %{"title" => "Two"})
     end
 
     test "a per-person override beats the instance's limit", %{alice: alice, column: column} do
       {:ok, _} = Accounts.update_standing(alice, %{"card_limit_override" => 3})
 
-      for n <- 1..3, do: {:ok, _} = Boards.create_card(column, %{"title" => "Card #{n}"})
-      assert {:error, _} = Boards.create_card(column, %{"title" => "Four"})
+      for n <- 1..3, do: {:ok, _} = Boards.Cards.create_card(column, %{"title" => "Card #{n}"})
+      assert {:error, _} = Boards.Cards.create_card(column, %{"title" => "Four"})
     end
   end
 
@@ -170,14 +172,14 @@ defmodule Slipdock.QuotaTest do
     setup do: limit(10)
 
     test "says where somebody stands", %{alice: alice, column: column} do
-      for n <- 1..4, do: {:ok, _} = Boards.create_card(column, %{"title" => "Card #{n}"})
+      for n <- 1..4, do: {:ok, _} = Boards.Cards.create_card(column, %{"title" => "Card #{n}"})
 
       assert %{used: 4, limit: 10, remaining: 6, limited?: true} = Quota.status(alice)
       refute Quota.warning?(alice)
     end
 
     test "warns before the wall, not at it", %{alice: alice, column: column} do
-      for n <- 1..8, do: {:ok, _} = Boards.create_card(column, %{"title" => "Card #{n}"})
+      for n <- 1..8, do: {:ok, _} = Boards.Cards.create_card(column, %{"title" => "Card #{n}"})
       assert Quota.warning?(alice)
     end
 

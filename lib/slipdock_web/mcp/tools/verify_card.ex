@@ -92,7 +92,8 @@ defmodule SlipdockWeb.MCP.Tools.VerifyCard do
                "checks" => checks
              })
            ) do
-      {:ok, card |> Map.get(:id) |> Boards.get_card!() |> Tools.card_written(context.base_url)}
+      {:ok,
+       card |> Map.get(:id) |> Boards.Cards.get_card!() |> Tools.card_written(context.base_url)}
     end
   end
 end

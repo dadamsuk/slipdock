@@ -63,7 +63,7 @@ defmodule Slipdock.StepStatusTest do
 
   defp submit(card, ctx) do
     {:ok, card} =
-      Boards.update_card(
+      Boards.Cards.update_card(
         Repo.get!(Card, card.id),
         %{"completed" => true, "evidence_pr" => @pr, "evidence_commit" => "abc1234"},
         actor: ctx.builder
@@ -122,14 +122,14 @@ defmodule Slipdock.StepStatusTest do
       )
 
       {:ok, _} = Runners.finish(runner, job.id, %{exit: "0", output: "I accepted it. All green."})
-      assert Boards.current_handoff(Repo.get!(Card, ctx.card.id)) == nil
+      assert Boards.Handoffs.current_handoff(Repo.get!(Card, ctx.card.id)) == nil
 
       other = card_fixture(ctx.doing, %{"title" => "Open"})
       {:ok, job} = Runners.queue(other, %{pool: "dev", kind: "claude", prompt: "x"})
       assert %{id: id} = Runners.claim(runner)
       assert id == job.id
       {:ok, _} = Runners.finish(runner, job.id, %{exit: "0", output: "Write the tests"})
-      assert %{next_step: "Write the tests"} = Boards.current_handoff(other)
+      assert %{next_step: "Write the tests"} = Boards.Handoffs.current_handoff(other)
     end
 
     test "a job ending on an accepted card leaves no handoff either", ctx do
@@ -140,13 +140,13 @@ defmodule Slipdock.StepStatusTest do
       )
 
       {:ok, _} = Runners.finish(runner, job.id, %{exit: "0", output: "Accepting will merge it"})
-      assert Boards.current_handoff(Repo.get!(Card, ctx.card.id)) == nil
+      assert Boards.Handoffs.current_handoff(Repo.get!(Card, ctx.card.id)) == nil
     end
   end
 
   describe "waits" do
     test "an agent's wait: Waiting for human", ctx do
-      {:ok, _} = Boards.open_wait(ctx.card, ctx.builder, %{"needs" => "Which region?"})
+      {:ok, _} = Boards.Waits.open_wait(ctx.card, ctx.builder, %{"needs" => "Which region?"})
       assert bodies(ctx.card) == ["Waiting for human"]
     end
 
@@ -220,7 +220,7 @@ defmodule Slipdock.StepStatusTest do
       assert List.last(bodies(card)) == "Accepted; merging"
 
       {:ok, done} =
-        Boards.update_card(merging, %{"completed" => true},
+        Boards.Cards.update_card(merging, %{"completed" => true},
           actor: Actor.runner(nil, 1, "m"),
           verify_changes: [verify_state: "accepted", merge_sha: "def5678"]
         )
@@ -231,7 +231,7 @@ defmodule Slipdock.StepStatusTest do
 
     test "held for a person: Waiting for human (held before merge), once", ctx do
       verify!(ctx, %{"ship_via" => "pull_request", "profiles" => true})
-      {:ok, card} = Boards.update_card(ctx.card, %{"profile" => "schema"})
+      {:ok, card} = Boards.Cards.update_card(ctx.card, %{"profile" => "schema"})
       card = submit(card, ctx)
       {:ok, held} = Verified.decide(card, "accept", %{}, ctx.checker, ctx.owner)
       assert held.verify_state == "held"
@@ -246,8 +246,11 @@ defmodule Slipdock.StepStatusTest do
 
   describe "done, reopened, shipped" do
     test "completed on a board that doesn't verify: Done; reopened: Reopened", ctx do
-      {:ok, card} = Boards.update_card(ctx.card, %{"completed" => true}, actor: ctx.builder)
-      {:ok, _} = Boards.update_card(card, %{"completed" => false}, actor: Actor.web(ctx.owner))
+      {:ok, card} = Boards.Cards.update_card(ctx.card, %{"completed" => true}, actor: ctx.builder)
+
+      {:ok, _} =
+        Boards.Cards.update_card(card, %{"completed" => false}, actor: Actor.web(ctx.owner))
+
       assert bodies(card) == ["Done", "Reopened"]
     end
 
@@ -288,22 +291,25 @@ defmodule Slipdock.StepStatusTest do
   describe "a person's own card" do
     test "completing, reopening and asking on it post no step", ctx do
       person = Actor.web(ctx.owner)
-      {:ok, card} = Boards.update_card(ctx.card, %{"completed" => true}, actor: person)
-      {:ok, card} = Boards.update_card(card, %{"completed" => false}, actor: person)
-      {:ok, _} = Boards.open_wait(card, person, %{"needs" => "Which colour?"})
+      {:ok, card} = Boards.Cards.update_card(ctx.card, %{"completed" => true}, actor: person)
+      {:ok, card} = Boards.Cards.update_card(card, %{"completed" => false}, actor: person)
+      {:ok, _} = Boards.Waits.open_wait(card, person, %{"needs" => "Which colour?"})
       assert bodies(card) == []
     end
 
     test "a move into Done with no actor posts none either", ctx do
       [_backlog, _todo, _doing, done] = ctx.board.columns
-      :ok = Boards.move_card(ctx.card.id, done.id)
+      :ok = Boards.Cards.move_card(ctx.card.id, done.id)
       assert Repo.get!(Card, ctx.card.id).completed
       assert bodies(ctx.card) == []
     end
 
     test "once a runner job was sent for it, its completion is a step", ctx do
       {:ok, _} = Runners.queue(ctx.card, %{pool: "dev", kind: "claude", prompt: "x"})
-      {:ok, _} = Boards.update_card(ctx.card, %{"completed" => true}, actor: Actor.web(ctx.owner))
+
+      {:ok, _} =
+        Boards.Cards.update_card(ctx.card, %{"completed" => true}, actor: Actor.web(ctx.owner))
+
       assert bodies(ctx.card) == ["Done"]
     end
   end
@@ -324,7 +330,10 @@ defmodule Slipdock.StepStatusTest do
       assert status_activity(card) == []
 
       {:ok, update} =
-        Boards.add_status_update(card, ctx.owner, %{"health" => "at_risk", "body" => "Slipping"})
+        Boards.StatusUpdates.add_status_update(card, ctx.owner, %{
+          "health" => "at_risk",
+          "body" => "Slipping"
+        })
 
       assert update.user_id == ctx.owner.id
       assert [%Activity{message: message}] = status_activity(card)
@@ -336,7 +345,10 @@ defmodule Slipdock.StepStatusTest do
       StepStatus.post(card, "Verifying")
 
       {:ok, _} =
-        Boards.add_status_update(card, ctx.owner, %{"health" => "at_risk", "body" => "Hm"})
+        Boards.StatusUpdates.add_status_update(card, ctx.owner, %{
+          "health" => "at_risk",
+          "body" => "Hm"
+        })
 
       StepStatus.post(card, "Verifying")
       assert bodies(card) == ["Verifying", "Hm", "Verifying"]

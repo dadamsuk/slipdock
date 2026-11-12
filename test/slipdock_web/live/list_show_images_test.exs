@@ -32,7 +32,11 @@ defmodule SlipdockWeb.ListShowImagesTest do
     on_exit(fn -> File.rm(path) end)
 
     {:ok, a} =
-      Boards.add_attachment(card, %{filename: "shot.png", content_type: "image/png"}, path)
+      Boards.Attachments.add_attachment(
+        card,
+        %{filename: "shot.png", content_type: "image/png"},
+        path
+      )
 
     a
   end
@@ -80,7 +84,7 @@ defmodule SlipdockWeb.ListShowImagesTest do
   end
 
   test "compact cards on a list with images off lose their small square too", ctx do
-    {:ok, _} = Boards.update_column(ctx.todo, %{"show_images" => false})
+    {:ok, _} = Boards.Columns.update_column(ctx.todo, %{"show_images" => false})
 
     {:ok, view, _} =
       Slipdock.CardViewHelpers.live_showing(
@@ -96,8 +100,8 @@ defmodule SlipdockWeb.ListShowImagesTest do
   end
 
   test "images and the age chip off on one list are both off, independently", ctx do
-    {:ok, _} = Boards.update_column(ctx.todo, %{"show_images" => false})
-    {:ok, _} = Boards.update_column(ctx.doing, %{"show_age" => false})
+    {:ok, _} = Boards.Columns.update_column(ctx.todo, %{"show_images" => false})
+    {:ok, _} = Boards.Columns.update_column(ctx.doing, %{"show_age" => false})
     {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}")
 
     refute has_element?(view, thumb(ctx.a))

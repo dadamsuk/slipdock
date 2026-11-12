@@ -735,7 +735,9 @@ defmodule SlipdockWeb.API.PageControllerTest do
 
     test "a reader cannot remove a page's link", %{page: page, board: board, user: user} do
       {:ok, url} =
-        Slipdock.Boards.add_card_url(Wiki.get_page!(page["id"]), %{"url" => "https://x.y"})
+        Slipdock.Boards.CardUrls.add_card_url(Wiki.get_page!(page["id"]), %{
+          "url" => "https://x.y"
+        })
 
       reader = user_fixture("pages.urlreader@example.com")
       {:ok, _} = Slipdock.Access.grant(board, reader, "read", user)
@@ -859,6 +861,6 @@ defmodule SlipdockWeb.API.PageControllerLimitTest do
       conn |> post("/api/pages/#{live.id}/cards", %{text: "Do the thing"}) |> json_response(402)
 
     assert body["error"] == "card_limit_reached"
-    assert Boards.list_cards(board) == []
+    assert Boards.Cards.list_cards(board) == []
   end
 end

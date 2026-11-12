@@ -10,10 +10,10 @@ defmodule Slipdock.StepStatus do
     * a build job claimed (`Slipdock.Runners.claim/2`) — `Writing code`, or
       `Reworking after verify failed` on a card a verifier sent back;
     * a verify job claimed — `Verifying`;
-    * a wait opened (`Slipdock.Boards.open_wait/3`) — `Waiting for human`,
+    * a wait opened (`Slipdock.Boards.Waits.open_wait/3`) — `Waiting for human`,
       or `Waiting for human (rejection limit)` / `Waiting for human (held
       before merge)` for the server's own waits;
-    * submitted for verification (`Slipdock.Boards.update_card/3`, beside
+    * submitted for verification (`Slipdock.Boards.Cards.update_card/3`, beside
       `Slipdock.Verified.saved/3`) — `Verifying` when the board queues a
       verify job, `Waiting for human to accept` when it has no verify pool;
     * rejected — `Verify failed; queued for rework`;
@@ -32,7 +32,7 @@ defmodule Slipdock.StepStatus do
   track* it didn't state.
 
   The same body twice in a row is posted once. These are routine, so they
-  go in quietly (`Slipdock.Boards.add_status_update/4` with `quiet: true`):
+  go in quietly (`Slipdock.Boards.StatusUpdates.add_status_update/4` with `quiet: true`):
   no activity line, so nothing a watcher follows hears of them. A person's
   own status update still does.
   """
@@ -114,7 +114,7 @@ defmodule Slipdock.StepStatus do
   def wait_opened(_card, _wait), do: :ok
 
   @doc """
-  `before` was saved as `card` (`Slipdock.Boards.update_card/3`): a change
+  `before` was saved as `card` (`Slipdock.Boards.Cards.update_card/3`): a change
   of verification state, a completion or a reopening is a step.
   """
   def saved(%Card{} = before, %Card{} = card, actor \\ nil) do
@@ -206,7 +206,10 @@ defmodule Slipdock.StepStatus do
     if latest_body(card.id) == text do
       :ok
     else
-      case Boards.add_status_update(card, nil, %{"health" => "on_track", "body" => text},
+      case Boards.StatusUpdates.add_status_update(
+             card,
+             nil,
+             %{"health" => "on_track", "body" => text},
              quiet: true
            ) do
         {:ok, _} -> :ok

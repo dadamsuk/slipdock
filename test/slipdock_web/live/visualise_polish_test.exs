@@ -16,7 +16,7 @@ defmodule SlipdockWeb.VisualisePolishTest do
     [_backlog, todo, doing, done] = board.columns
     card_fixture(todo)
     c = card_fixture(doing)
-    :ok = Slipdock.Boards.move_card(c.id, done.id, nil)
+    :ok = Slipdock.Boards.Cards.move_card(c.id, done.id, nil)
     card_fixture(doing)
     %{board: board}
   end

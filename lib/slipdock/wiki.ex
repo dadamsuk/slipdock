@@ -982,7 +982,7 @@ defmodule Slipdock.Wiki do
     Repo.delete(page)
     |> case do
       {:ok, deleted} ->
-        Slipdock.Boards.remove_files(keys)
+        Slipdock.Boards.Attachments.remove_files(keys)
         Indexer.forget_page(page.id)
         Changes.record(board_id, "page", page.id, "deleted")
         log(board_id, nil, "page_deleted", "deleted “#{page.title}”")
@@ -1787,7 +1787,7 @@ defmodule Slipdock.Wiki do
       |> Enum.join("\n\n")
 
     with {:ok, card} <-
-           Boards.create_card(column, %{"title" => title, "description" => description}) do
+           Boards.Cards.create_card(column, %{"title" => title, "description" => description}) do
       note_card_in_page(page, card, selection, opts)
       {:ok, card}
     end
@@ -1837,7 +1837,7 @@ defmodule Slipdock.Wiki do
   @spec place(Page.t(), Column.t() | integer, term) :: {:ok, Page.t()} | {:error, term}
   def place(%Page{} = page, column, before \\ nil) do
     with {:ok, column} <- placeable_column(page, column) do
-      Boards.reorder({:page, page.id}, page.column_id, column.id, before)
+      Boards.Columns.reorder({:page, page.id}, page.column_id, column.id, before)
 
       placed = Repo.get!(Page, page.id)
 
@@ -1846,7 +1846,7 @@ defmodule Slipdock.Wiki do
       end
 
       broadcast(placed.board_id)
-      Boards.broadcast_tree(Boards.root_of_board(placed.board_id))
+      Boards.PubSub.broadcast_tree(Boards.root_of_board(placed.board_id))
       {:ok, placed}
     end
   end
@@ -1863,12 +1863,12 @@ defmodule Slipdock.Wiki do
     )
 
     # The list it left closes up behind it.
-    Boards.repack_column(column_id)
+    Boards.Columns.repack_column(column_id)
 
     unplaced = Repo.get!(Page, page.id)
     log(unplaced.board_id, unplaced, "page_unplaced", "took “#{unplaced.title}” off the board")
     broadcast(unplaced.board_id)
-    Boards.broadcast_tree(Boards.root_of_board(unplaced.board_id))
+    Boards.PubSub.broadcast_tree(Boards.root_of_board(unplaced.board_id))
     {:ok, unplaced}
   end
 
@@ -2142,7 +2142,12 @@ defmodule Slipdock.Wiki do
   image into a page body works the way pasting one into a description does.
   """
   def add_attachment(%Page{} = page, meta, source) do
-    Slipdock.Boards.store_attachment(%{page_id: page.id}, "pages/#{page.id}", meta, source)
+    Slipdock.Boards.Attachments.store_attachment(
+      %{page_id: page.id},
+      "pages/#{page.id}",
+      meta,
+      source
+    )
     |> case do
       {:ok, attachment} ->
         Changes.record(page.board_id, "attachment", attachment.id)

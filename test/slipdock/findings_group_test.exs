@@ -29,7 +29,7 @@ defmodule Slipdock.FindingsGroupTest do
 
   defp say(card, owner, items) do
     body = "- Findings:\n" <> Enum.map_join(List.wrap(items), "\n", &"  - #{&1}")
-    {:ok, comment} = Boards.add_comment(card, body, by: owner)
+    {:ok, comment} = Boards.Comments.add_comment(card, body, by: owner)
     comment
   end
 
@@ -159,7 +159,7 @@ defmodule Slipdock.FindingsGroupTest do
     comment = say(ctx.two, ctx.owner, "gotcha: #{@reworded}")
     assert %{count: 2} = Repo.get!(Finding, kept.id)
 
-    {:ok, _} = Boards.delete_comment(comment)
+    {:ok, _} = Boards.Comments.delete_comment(comment)
     assert [%{id: id, count: 1}] = all(ctx.board)
     assert id == kept.id
   end
@@ -170,7 +170,7 @@ defmodule Slipdock.FindingsGroupTest do
     {:ok, _} = Findings.from_comment(comment)
     assert [%{status: "promoted", cause: "settled"}] = all(ctx.board)
 
-    {:ok, _} = Boards.delete_comment(comment)
+    {:ok, _} = Boards.Comments.delete_comment(comment)
     assert all(ctx.board) == []
   end
 end

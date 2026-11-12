@@ -19,7 +19,7 @@ defmodule SlipdockWeb.PublicLive.Show do
 
   @impl true
   def mount(%{"token" => token}, _session, socket) do
-    case Boards.get_published_view(token) do
+    case Boards.SavedViews.get_published_view(token) do
       nil ->
         {:ok,
          socket
@@ -27,7 +27,7 @@ defmodule SlipdockWeb.PublicLive.Show do
          |> redirect(to: ~p"/login")}
 
       view ->
-        if connected?(socket), do: Boards.subscribe(view.board_id)
+        if connected?(socket), do: Boards.PubSub.subscribe(view.board_id)
 
         {:ok,
          assign(socket,
@@ -93,7 +93,7 @@ defmodule SlipdockWeb.PublicLive.Show do
 
   @impl true
   def handle_info({:board_changed, _id}, %{assigns: %{view: view}} = socket) do
-    case Boards.get_published_view(socket.assigns.token) do
+    case Boards.SavedViews.get_published_view(socket.assigns.token) do
       nil ->
         {:noreply,
          socket

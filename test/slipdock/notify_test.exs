@@ -70,7 +70,7 @@ defmodule Slipdock.NotifyTest do
   describe "a wait opened on you" do
     test "toasts the person it is on, beside the unchanged email", ctx do
       {:ok, _} =
-        Boards.open_wait(ctx.card, ctx.agent, %{
+        Boards.Waits.open_wait(ctx.card, ctx.agent, %{
           "needs" => "Which tier first?",
           "on_user_id" => ctx.priya.id
         })
@@ -93,7 +93,7 @@ defmodule Slipdock.NotifyTest do
 
     test "tells nobody about a wait they opened on themselves in person", ctx do
       {:ok, _} =
-        Boards.open_wait(ctx.card, Slipdock.Actor.web(ctx.owner), %{
+        Boards.Waits.open_wait(ctx.card, Slipdock.Actor.web(ctx.owner), %{
           "needs" => "Note",
           "on_user_id" => ctx.owner.id
         })
@@ -105,7 +105,10 @@ defmodule Slipdock.NotifyTest do
     test "tells them about one their agent asks under their token: the question is theirs (#2095)",
          ctx do
       {:ok, _} =
-        Boards.open_wait(ctx.card, ctx.agent, %{"needs" => "Note", "on_user_id" => ctx.owner.id})
+        Boards.Waits.open_wait(ctx.card, ctx.agent, %{
+          "needs" => "Note",
+          "on_user_id" => ctx.owner.id
+        })
 
       owner_id = ctx.owner.id
       assert [{^owner_id, %{kind: "wait", by_id: nil}}] = toasts()
@@ -117,7 +120,10 @@ defmodule Slipdock.NotifyTest do
         Slipdock.Accounts.update_waiting_notice(ctx.priya, %{waiting_emails: false})
 
       {:ok, _} =
-        Boards.open_wait(ctx.card, ctx.agent, %{"needs" => "Tier?", "on_user_id" => priya.id})
+        Boards.Waits.open_wait(ctx.card, ctx.agent, %{
+          "needs" => "Tier?",
+          "on_user_id" => priya.id
+        })
 
       priya_id = priya.id
       owner_id = ctx.owner.id
@@ -131,7 +137,7 @@ defmodule Slipdock.NotifyTest do
         Slipdock.Accounts.update_waiting_notice(ctx.owner, %{waiting_emails: false})
 
       {:ok, _} =
-        Boards.open_wait(ctx.card, ctx.agent, %{"needs" => "Note", "on_user_id" => owner.id})
+        Boards.Waits.open_wait(ctx.card, ctx.agent, %{"needs" => "Note", "on_user_id" => owner.id})
 
       owner_id = owner.id
       assert [{^owner_id, %{kind: "wait", by_id: nil}}] = toasts()
@@ -155,7 +161,7 @@ defmodule Slipdock.NotifyTest do
     end
 
     test "on anyone toasts nobody", ctx do
-      {:ok, _} = Boards.open_wait(ctx.card, ctx.agent, %{"needs" => "Anyone?"})
+      {:ok, _} = Boards.Waits.open_wait(ctx.card, ctx.agent, %{"needs" => "Anyone?"})
       assert toasts() == []
     end
   end
@@ -168,7 +174,10 @@ defmodule Slipdock.NotifyTest do
         })
 
       {:ok, _} =
-        Boards.open_wait(ctx.card, ctx.agent, %{"needs" => "Which tier?", "question" => "product"})
+        Boards.Waits.open_wait(ctx.card, ctx.agent, %{
+          "needs" => "Which tier?",
+          "question" => "product"
+        })
 
       got = toasts()
       assert got |> Enum.map(&elem(&1, 0)) |> Enum.sort() == Enum.sort([ctx.priya.id, ctx.ops.id])
@@ -200,7 +209,8 @@ defmodule Slipdock.NotifyTest do
 
   describe "an @mention" do
     test "in a comment toasts whoever it mentions, and only them", ctx do
-      {:ok, _} = Boards.add_comment(ctx.card, "@priya can you look? @stranger too", by: ctx.owner)
+      {:ok, _} =
+        Boards.Comments.add_comment(ctx.card, "@priya can you look? @stranger too", by: ctx.owner)
 
       assert_email_sent(fn email -> assert email.to == [{"", ctx.priya.email}] end)
       assert [{id, event}] = toasts()
@@ -212,19 +222,19 @@ defmodule Slipdock.NotifyTest do
     end
 
     test "never toasts the writer about their own mention", ctx do
-      {:ok, _} = Boards.add_comment(ctx.card, "note to self @priya", by: ctx.priya)
+      {:ok, _} = Boards.Comments.add_comment(ctx.card, "note to self @priya", by: ctx.priya)
       assert toasts() == []
     end
 
     test "in a description toasts only the newly mentioned", ctx do
       {:ok, card} =
-        Boards.update_card(ctx.card, %{"description" => "for @priya"}, by: ctx.owner)
+        Boards.Cards.update_card(ctx.card, %{"description" => "for @priya"}, by: ctx.owner)
 
       assert [{id, _}] = toasts()
       assert id == ctx.priya.id
 
       {:ok, _} =
-        Boards.update_card(card, %{"description" => "for @priya and @ops"}, by: ctx.owner)
+        Boards.Cards.update_card(card, %{"description" => "for @priya and @ops"}, by: ctx.owner)
 
       assert [{id, _}] = toasts()
       assert id == ctx.ops.id

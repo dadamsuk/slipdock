@@ -26,8 +26,10 @@ defmodule Slipdock.HousekeepingEscalationTest do
         "actions" => [%{"type" => "runner", "pool" => "loop", "kind" => "claude"}]
       })
 
-    {:ok, housekeeping} = Boards.create_column(board, %{"name" => "Housekeeping"})
-    {:ok, triage} = Boards.create_column(board, %{"name" => "Triage", "category" => "triage"})
+    {:ok, housekeeping} = Boards.Columns.create_column(board, %{"name" => "Housekeeping"})
+
+    {:ok, triage} =
+      Boards.Columns.create_column(board, %{"name" => "Triage", "category" => "triage"})
 
     [sibling] =
       board.id
@@ -89,7 +91,7 @@ defmodule Slipdock.HousekeepingEscalationTest do
     end
 
     test "the move names the board's own Triage list", ctx do
-      {:ok, _} = Boards.update_column(ctx.triage, %{"name" => "Needs a person"})
+      {:ok, _} = Boards.Columns.update_column(ctx.triage, %{"name" => "Needs a person"})
       chore = card_fixture(ctx.housekeeping, %{"title" => "Chore"})
       prompt = Runners.claimed_prompt(Runners.claim(ctx.runner))
 
@@ -99,7 +101,7 @@ defmodule Slipdock.HousekeepingEscalationTest do
       assert prompt =~ "A person moves it out of Needs a person"
 
       # With no Triage list at all, it says Triage.
-      {:ok, _} = Boards.update_column(ctx.triage, %{"category" => ""})
+      {:ok, _} = Boards.Columns.update_column(ctx.triage, %{"category" => ""})
       assert Runners.housekeeping_note(chore.id) =~ "`slipdock move #{chore.id} Triage`"
     end
 
@@ -146,10 +148,10 @@ defmodule Slipdock.HousekeepingEscalationTest do
       agent = Actor.runner(ctx.owner, job.id)
 
       # The builder escalates: into Triage, a product wait, no code.
-      :ok = Boards.move_card_to_index(Repo.get!(Card, grown.id), ctx.triage, :top)
+      :ok = Boards.Cards.move_card_to_index(Repo.get!(Card, grown.id), ctx.triage, :top)
 
       {:ok, _} =
-        Boards.open_wait(Repo.get!(Card, grown.id), agent, %{
+        Boards.Waits.open_wait(Repo.get!(Card, grown.id), agent, %{
           "needs" => "It needs a new setting: which default?",
           "kind" => "product"
         })
@@ -164,12 +166,12 @@ defmodule Slipdock.HousekeepingEscalationTest do
       assert Automations.feed(ctx.sibling) == {:idle, :empty}
 
       # Moved back while the question is open, it still waits.
-      :ok = Boards.move_card_to_index(Repo.get!(Card, grown.id), ctx.housekeeping, :top)
+      :ok = Boards.Cards.move_card_to_index(Repo.get!(Card, grown.id), ctx.housekeeping, :top)
       assert Automations.feed(ctx.sibling) == {:idle, :empty}
 
       # Answered, it goes.
       {:ok, _} =
-        Boards.answer_wait(Repo.get!(Card, grown.id), Actor.web(ctx.owner), %{
+        Boards.Waits.answer_wait(Repo.get!(Card, grown.id), Actor.web(ctx.owner), %{
           "answer" => "Off by default"
         })
 

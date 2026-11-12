@@ -424,7 +424,7 @@ defmodule Slipdock.Health.Detectors.Deadlock do
                "gave way to break a deadlock (health incident ##{incident.id})"
              ) do
         with %Card{} = card <- Repo.get(Card, job.card_id) do
-          Boards.add_comment(
+          Boards.Comments.add_comment(
             card,
             "**Health monitor:** job ##{job.id} gave way to break a deadlock (incident " <>
               "##{incident.id}). It had never been handed out. This card keeps its place in " <>

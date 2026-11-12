@@ -21,7 +21,7 @@ defmodule SlipdockWeb.ArchiveSearchLiveTest do
   end
 
   defp archived(col, title) do
-    {:ok, card} = Boards.archive_card(card_fixture(col, %{"title" => title}))
+    {:ok, card} = Boards.Cards.archive_card(card_fixture(col, %{"title" => title}))
     card
   end
 
@@ -107,8 +107,10 @@ defmodule SlipdockWeb.ArchiveSearchLiveTest do
   end
 
   test "a card that is gone, or archived on another board, still says so", ctx do
-    {:ok, gone} = Boards.archive_card(card_fixture(hd(ctx.board.columns), %{"title" => "x"}))
-    {:ok, _} = Boards.delete_card(gone)
+    {:ok, gone} =
+      Boards.Cards.archive_card(card_fixture(hd(ctx.board.columns), %{"title" => "x"}))
+
+    {:ok, _} = Boards.Cards.delete_card(gone)
     other = board_fixture(%{"name" => "Other"}, owner: ctx.user)
     elsewhere = archived(hd(other.columns), "Elsewhere")
 

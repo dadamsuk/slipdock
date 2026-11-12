@@ -27,7 +27,7 @@ defmodule SlipdockWeb.CardUrlsLiveTest do
 
       # A bare address is taken to be a web one.
       assert [%CardUrl{url: "https://example.com/spec", title: "The spec"} = url] =
-               Boards.get_card!(card.id).urls
+               Boards.Cards.get_card!(card.id).urls
 
       assert html =~ ~s{href="https://example.com/spec"}
 
@@ -35,7 +35,7 @@ defmodule SlipdockWeb.CardUrlsLiveTest do
              |> with_target("#board-card")
              |> render_click("remove_card_url", %{"id" => url.id}) =~ "The spec"
 
-      assert Boards.get_card!(card.id).urls == []
+      assert Boards.Cards.get_card!(card.id).urls == []
     end
 
     test "an address that is not one is refused", %{conn: conn, board: board, card: card} do
@@ -48,11 +48,13 @@ defmodule SlipdockWeb.CardUrlsLiveTest do
       # The refusal is the board's flash, handed over by the card panel.
       html = render(view)
       assert html =~ "must be a web, file or mail address"
-      assert Boards.get_card!(card.id).urls == []
+      assert Boards.Cards.get_card!(card.id).urls == []
     end
 
     test "a link with no label is shown as its address, tidied", %{card: card} do
-      {:ok, url} = Boards.add_card_url(card, %{"url" => "https://www.example.com/docs/spec/"})
+      {:ok, url} =
+        Boards.CardUrls.add_card_url(card, %{"url" => "https://www.example.com/docs/spec/"})
+
       assert CardUrl.label(url) == "example.com/docs/spec"
     end
 
@@ -62,8 +64,8 @@ defmodule SlipdockWeb.CardUrlsLiveTest do
     end
 
     test "files and addresses keep their scheme", %{card: card} do
-      {:ok, file} = Boards.add_card_url(card, %{"url" => "file:///srv/share/plan.xlsx"})
-      {:ok, mail} = Boards.add_card_url(card, %{"url" => "mailto:team@example.com"})
+      {:ok, file} = Boards.CardUrls.add_card_url(card, %{"url" => "file:///srv/share/plan.xlsx"})
+      {:ok, mail} = Boards.CardUrls.add_card_url(card, %{"url" => "mailto:team@example.com"})
 
       assert CardUrl.kind(file) == :file
       assert CardUrl.kind(mail) == :mail
@@ -89,12 +91,12 @@ defmodule SlipdockWeb.CardUrlsLiveTest do
 
       conn = delete(conn, ~p"/api/cards/#{card}/urls/#{id}")
       assert json_response(conn, 200) == %{"ok" => true}
-      assert Boards.get_card!(card.id).urls == []
+      assert Boards.Cards.get_card!(card.id).urls == []
     end
 
     test "a link belonging to another card is not this one's to remove", %{conn: conn, card: card} do
       other = card_fixture(hd(board_fixture(%{"name" => "Other"}).columns), %{"title" => "Else"})
-      {:ok, url} = Boards.add_card_url(other, %{"url" => "https://example.com"})
+      {:ok, url} = Boards.CardUrls.add_card_url(other, %{"url" => "https://example.com"})
 
       conn = delete(conn, ~p"/api/cards/#{card}/urls/#{url.id}")
       assert json_response(conn, 404)["error"] == "link not found"

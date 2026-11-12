@@ -90,7 +90,7 @@ defmodule Slipdock.ConfigTest do
   test "own_uploads_dir/0 points the uploads at an empty directory of this test's own" do
     dir = TestConfig.own_uploads_dir()
 
-    assert Slipdock.Boards.uploads_dir() == dir
+    assert Slipdock.Boards.Attachments.uploads_dir() == dir
     refute dir == Application.get_env(:slipdock, :uploads_dir)
     refute File.exists?(dir)
 

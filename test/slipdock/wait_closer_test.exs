@@ -35,11 +35,13 @@ defmodule Slipdock.WaitCloserTest do
     do: %{Actor.unknown() | kind: "agent", via: "mcp", user_id: user.id, agent: "claude"}
 
   defp open!(ctx) do
-    {:ok, wait} = Boards.open_wait(ctx.card, agent(ctx.owner), %{"needs" => "Which region?"})
+    {:ok, wait} =
+      Boards.Waits.open_wait(ctx.card, agent(ctx.owner), %{"needs" => "Which region?"})
+
     wait
   end
 
-  defp card(ctx), do: Boards.get_card!(ctx.card.id)
+  defp card(ctx), do: Boards.Cards.get_card!(ctx.card.id)
   defp bodies(ctx), do: ctx |> card() |> Map.get(:comments) |> Enum.map(& &1.body)
 
   defp withdrawn_by(name),
@@ -50,9 +52,11 @@ defmodule Slipdock.WaitCloserTest do
       open!(ctx)
       Actor.put(Actor.web(ctx.dana), "Dana")
 
-      {:ok, _} = Boards.toggle_flag(card(ctx), "waiting")
+      {:ok, _} = Boards.Cards.toggle_flag(card(ctx), "waiting")
 
-      assert %{close_reason: "withdrawn", closed_by_id: closed_by} = Boards.last_wait(ctx.card)
+      assert %{close_reason: "withdrawn", closed_by_id: closed_by} =
+               Boards.Waits.last_wait(ctx.card)
+
       assert closed_by == ctx.dana.id
       assert withdrawn_by("Dana") in bodies(ctx)
       refute "waiting" in card(ctx).flags
@@ -61,9 +65,9 @@ defmodule Slipdock.WaitCloserTest do
     test "the person `:by` when no actor names a user", ctx do
       open!(ctx)
 
-      {:ok, _} = Boards.toggle_flag(card(ctx), "waiting", by: ctx.dana)
+      {:ok, _} = Boards.Cards.toggle_flag(card(ctx), "waiting", by: ctx.dana)
 
-      assert Boards.last_wait(ctx.card).closed_by_id == ctx.dana.id
+      assert Boards.Waits.last_wait(ctx.card).closed_by_id == ctx.dana.id
       assert withdrawn_by("Dana") in bodies(ctx)
     end
 
@@ -71,18 +75,18 @@ defmodule Slipdock.WaitCloserTest do
       open!(ctx)
       Actor.put(Actor.web(ctx.dana), "Dana")
 
-      {:ok, _} = Boards.toggle_flag(card(ctx), "waiting", actor: Actor.web(ctx.owner))
+      {:ok, _} = Boards.Cards.toggle_flag(card(ctx), "waiting", actor: Actor.web(ctx.owner))
 
-      assert Boards.last_wait(ctx.card).closed_by_id == ctx.owner.id
+      assert Boards.Waits.last_wait(ctx.card).closed_by_id == ctx.owner.id
       refute withdrawn_by("Dana") in bodies(ctx)
     end
 
     test "nobody when no one is recorded: no closer, and the comment says someone", ctx do
       open!(ctx)
 
-      {:ok, _} = Boards.toggle_flag(card(ctx), "waiting")
+      {:ok, _} = Boards.Cards.toggle_flag(card(ctx), "waiting")
 
-      assert %{close_reason: "withdrawn", closed_by_id: nil} = Boards.last_wait(ctx.card)
+      assert %{close_reason: "withdrawn", closed_by_id: nil} = Boards.Waits.last_wait(ctx.card)
       assert withdrawn_by("Someone") in bodies(ctx)
     end
   end
@@ -92,10 +96,10 @@ defmodule Slipdock.WaitCloserTest do
       open!(ctx)
       Actor.put(Actor.web(ctx.dana), "Dana")
 
-      {:ok, _} = Boards.toggle_completed(card(ctx))
+      {:ok, _} = Boards.Cards.toggle_completed(card(ctx))
 
       assert %{close_reason: "card_completed", closed_by_id: closed_by} =
-               Boards.last_wait(ctx.card)
+               Boards.Waits.last_wait(ctx.card)
 
       assert closed_by == ctx.dana.id
       assert "Wait “Which region?” closed: the card was completed." in bodies(ctx)
@@ -104,26 +108,30 @@ defmodule Slipdock.WaitCloserTest do
     test "the person `:by` on an archive", ctx do
       open!(ctx)
 
-      {:ok, _} = Boards.archive_card(card(ctx), by: ctx.dana)
+      {:ok, _} = Boards.Cards.archive_card(card(ctx), by: ctx.dana)
 
-      assert %{close_reason: "archived", closed_by_id: closed_by} = Boards.last_wait(ctx.card)
+      assert %{close_reason: "archived", closed_by_id: closed_by} =
+               Boards.Waits.last_wait(ctx.card)
+
       assert closed_by == ctx.dana.id
     end
 
     test "an automation as no person", ctx do
       open!(ctx)
 
-      {:ok, _} = Boards.toggle_completed(card(ctx), actor: Actor.automation())
+      {:ok, _} = Boards.Cards.toggle_completed(card(ctx), actor: Actor.automation())
 
-      assert %{close_reason: "card_completed", closed_by_id: nil} = Boards.last_wait(ctx.card)
+      assert %{close_reason: "card_completed", closed_by_id: nil} =
+               Boards.Waits.last_wait(ctx.card)
     end
 
     test "nobody when no one is recorded", ctx do
       open!(ctx)
 
-      {:ok, _} = Boards.toggle_completed(card(ctx))
+      {:ok, _} = Boards.Cards.toggle_completed(card(ctx))
 
-      assert %{close_reason: "card_completed", closed_by_id: nil} = Boards.last_wait(ctx.card)
+      assert %{close_reason: "card_completed", closed_by_id: nil} =
+               Boards.Waits.last_wait(ctx.card)
     end
   end
 
@@ -140,7 +148,9 @@ defmodule Slipdock.WaitCloserTest do
     test "the person who takes the waiting flag off is the wait's closer", ctx do
       render_click(ctx.panel, "toggle_flag", %{"flag" => "waiting"})
 
-      assert %{close_reason: "withdrawn", closed_by_id: closed_by} = Boards.last_wait(ctx.card)
+      assert %{close_reason: "withdrawn", closed_by_id: closed_by} =
+               Boards.Waits.last_wait(ctx.card)
+
       assert closed_by == ctx.dana.id
       assert withdrawn_by("Dana") in bodies(ctx)
     end
@@ -148,7 +158,9 @@ defmodule Slipdock.WaitCloserTest do
     test "the person who archives the card is the wait's closer", ctx do
       render_click(ctx.panel, "archive_card", %{})
 
-      assert %{close_reason: "archived", closed_by_id: closed_by} = Boards.last_wait(ctx.card)
+      assert %{close_reason: "archived", closed_by_id: closed_by} =
+               Boards.Waits.last_wait(ctx.card)
+
       assert closed_by == ctx.dana.id
     end
   end

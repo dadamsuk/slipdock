@@ -50,7 +50,7 @@ defmodule SlipdockWeb.PagePanelAccessLiveTest do
     viewer = user_fixture("viewer@example.com")
 
     {:ok, saved} =
-      Boards.create_saved_view(ctx.board, %{
+      Boards.SavedViews.create_saved_view(ctx.board, %{
         "name" => "Everything",
         "config" => Config.to_map(Config.defaults("table"))
       })
@@ -125,7 +125,7 @@ defmodule SlipdockWeb.PagePanelAccessLiveTest do
     viewer = user_fixture("shared-viewer@example.com")
 
     {:ok, saved} =
-      Boards.create_saved_view(ctx.board, %{
+      Boards.SavedViews.create_saved_view(ctx.board, %{
         "name" => "Everything",
         "config" => Config.to_map(Config.defaults("table"))
       })

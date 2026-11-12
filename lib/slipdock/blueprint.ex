@@ -544,7 +544,7 @@ defmodule Slipdock.Blueprint do
       else
         attrs = Map.take(list, ~w(name category color wip_limit))
 
-        case Boards.create_column(board, attrs) do
+        case Boards.Columns.create_column(board, attrs) do
           {:ok, _} -> {:ok, note(report, :added, "lists", list["name"])}
           {:error, cs} -> {:error, "list “#{list["name"]}”: #{errors(cs)}"}
         end
@@ -580,7 +580,7 @@ defmodule Slipdock.Blueprint do
 
   defp apply_tags(board, tags, report) do
     existing =
-      board |> Board.root_id() |> Boards.list_tags() |> MapSet.new(&String.downcase(&1.name))
+      board |> Board.root_id() |> Boards.Tags.list_tags() |> MapSet.new(&String.downcase(&1.name))
 
     reduce_ok(tags, report, fn tag, report ->
       if MapSet.member?(existing, String.downcase(tag["name"])) do
@@ -588,7 +588,7 @@ defmodule Slipdock.Blueprint do
       else
         attrs = %{"name" => tag["name"], "color" => tag["color"]} |> reject_nil()
 
-        case Boards.create_tag(board, attrs) do
+        case Boards.Tags.create_tag(board, attrs) do
           {:ok, _} -> {:ok, note(report, :added, "tags", tag["name"])}
           {:error, cs} -> {:error, "tag “#{tag["name"]}”: #{errors(cs)}"}
         end
@@ -656,7 +656,7 @@ defmodule Slipdock.Blueprint do
       with false <- MapSet.member?(existing, String.downcase(card["title"])),
            {:ok, column} <- card_column(columns, card["list"]),
            {:ok, made} <-
-             Boards.create_card(
+             Boards.Cards.create_card(
                column,
                %{"title" => card["title"], "description" => card["description"]},
                by: opts[:user]

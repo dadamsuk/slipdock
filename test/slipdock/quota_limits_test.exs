@@ -30,7 +30,7 @@ defmodule Slipdock.QuotaLimitsTest do
     File.write!(path, :binary.copy("x", bytes))
 
     result =
-      Boards.add_attachment(
+      Boards.Attachments.add_attachment(
         card,
         %{filename: name, content_type: "text/plain", size: bytes},
         path
@@ -105,7 +105,7 @@ defmodule Slipdock.QuotaLimitsTest do
       File.write!(path, "12345")
 
       {:ok, _} =
-        Boards.store_attachment(
+        Boards.Attachments.store_attachment(
           %{page_id: page.id},
           "pages",
           %{filename: "a.txt", content_type: "text/plain", size: 5},
@@ -143,7 +143,7 @@ defmodule Slipdock.QuotaLimitsTest do
     test "refuses a page as well as a card", %{owner: owner, board: board, column: column} do
       settings(%{"item_limit" => 1})
 
-      {:ok, _} = Boards.create_card(column, %{"title" => "The only one"})
+      {:ok, _} = Boards.Cards.create_card(column, %{"title" => "The only one"})
 
       assert {:error, changeset} =
                Slipdock.Wiki.create_page(board, %{"title" => "No room"}, user: owner)
@@ -166,8 +166,8 @@ defmodule Slipdock.QuotaLimitsTest do
       board = board_fixture(%{"name" => "Admin's"}, owner: admin)
 
       assert Quota.limit(admin, :items) == 1
-      {:ok, _} = Boards.create_card(hd(board.columns), %{"title" => "One"})
-      assert {:error, _} = Boards.create_card(hd(board.columns), %{"title" => "Two"})
+      {:ok, _} = Boards.Cards.create_card(hd(board.columns), %{"title" => "One"})
+      assert {:error, _} = Boards.Cards.create_card(hd(board.columns), %{"title" => "Two"})
 
       # Nothing wrong with the second card; the ceiling refused it.
       refute Quota.allows?(admin)
@@ -182,11 +182,11 @@ defmodule Slipdock.QuotaLimitsTest do
 
       assert Quota.limit(owner, :items) == 2
       assert Quota.limit(owner, :boards) == 1_000
-      {:ok, _} = Boards.create_card(column, %{"title" => "One"})
+      {:ok, _} = Boards.Cards.create_card(column, %{"title" => "One"})
       # Past the free allowance of one, so that is not what refuses...
-      {:ok, _} = Boards.create_card(column, %{"title" => "Two"})
+      {:ok, _} = Boards.Cards.create_card(column, %{"title" => "Two"})
       # ...but the ceiling of two still does.
-      assert {:error, changeset} = Boards.create_card(column, %{"title" => "Three"})
+      assert {:error, changeset} = Boards.Cards.create_card(column, %{"title" => "Three"})
       assert Quota.limit_kind(changeset) == :items
     end
 
@@ -224,7 +224,7 @@ defmodule Slipdock.QuotaLimitsTest do
 
     test "an archived board gives its place back", %{owner: owner, board: board} do
       settings(%{"board_limit" => 1})
-      {:ok, _} = Boards.archive_board(board)
+      {:ok, _} = Boards.Arrangement.archive_board(board)
 
       assert Quota.used(owner, :boards) == 0
       assert {:ok, _} = Boards.create_board(%{"name" => "Next"}, owner_id: owner.id)
@@ -255,7 +255,7 @@ defmodule Slipdock.QuotaLimitsTest do
       {:ok, attachment} = upload(card, 500_000)
 
       assert Quota.used(owner, :storage) == 500_000
-      {:ok, _} = Boards.delete_attachment(attachment)
+      {:ok, _} = Boards.Attachments.delete_attachment(attachment)
       assert Quota.used(owner, :storage) == 0
     end
   end
@@ -279,7 +279,7 @@ defmodule Slipdock.QuotaLimitsTest do
       assert Quota.trial_expired?(owner)
       assert Quota.check(owner) == {:error, :trial_expired}
 
-      assert {:error, changeset} = Boards.create_card(column, %{"title" => "Too late"})
+      assert {:error, changeset} = Boards.Cards.create_card(column, %{"title" => "Too late"})
       assert Quota.limit_kind(changeset) == :trial
     end
 
@@ -314,7 +314,7 @@ defmodule Slipdock.QuotaLimitsTest do
       refute Quota.free?(owner)
       assert %{applies?: false} = Quota.trial(owner)
       assert Quota.limit(owner, :items) == 250_000
-      assert {:ok, _} = Boards.create_card(column, %{"title" => "Paid for"})
+      assert {:ok, _} = Boards.Cards.create_card(column, %{"title" => "Paid for"})
     end
 
     test "a paid-up date in the past is a free account again", %{owner: owner} do
@@ -352,8 +352,8 @@ defmodule Slipdock.QuotaLimitsTest do
       assert %{applies?: false} = Quota.trial(owner)
       refute Quota.trial_warning?(owner)
       assert Quota.limit(owner, :items) == 250_000
-      assert {:ok, _} = Boards.create_card(column, %{"title" => "One"})
-      assert {:ok, _} = Boards.create_card(column, %{"title" => "Two"})
+      assert {:ok, _} = Boards.Cards.create_card(column, %{"title" => "One"})
+      assert {:ok, _} = Boards.Cards.create_card(column, %{"title" => "Two"})
     end
 
     test "taking unlimited away puts somebody back on the free tier", %{owner: owner} do
@@ -462,7 +462,7 @@ defmodule Slipdock.QuotaLimitsTest do
 
   defp template_fixture do
     {:ok, template} =
-      Boards.create_system_template(%{
+      Boards.Templates.create_system_template(%{
         "name" => "Simple #{System.unique_integer([:positive])}",
         "columns" => [%{"name" => "To Do"}, %{"name" => "Done"}]
       })

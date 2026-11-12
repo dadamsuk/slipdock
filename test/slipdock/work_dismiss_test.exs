@@ -26,7 +26,7 @@ defmodule Slipdock.WorkDismissTest do
 
   defp open_wait(card, by, attrs \\ %{}) do
     {:ok, wait} =
-      Boards.open_wait(card, agent(by), Map.merge(%{"needs" => "Which region?"}, attrs))
+      Boards.Waits.open_wait(card, agent(by), Map.merge(%{"needs" => "Which region?"}, attrs))
 
     wait
   end
@@ -44,7 +44,7 @@ defmodule Slipdock.WorkDismissTest do
   defp ids(user), do: user |> Work.waiting_on_me() |> Enum.map(& &1.card.id)
 
   defp sub_board_card(card) do
-    {:ok, t} = Boards.find_template(nil, "Simple")
+    {:ok, t} = Boards.Templates.find_template(nil, "Simple")
     {:ok, sub} = sub_board(card, t)
     sub = Boards.get_board!(sub.id)
     {sub, card_fixture(hd(sub.columns), %{"title" => "Deep"})}
@@ -53,7 +53,7 @@ defmodule Slipdock.WorkDismissTest do
   describe "dismissing an item" do
     test "takes it off my list only, and it stays off for the same cause", ctx do
       card = card_fixture(ctx.todo, %{"title" => "Shared"})
-      Boards.update_card(card, %{"assignee_ids" => [ctx.dana.id]})
+      Boards.Cards.update_card(card, %{"assignee_ids" => [ctx.dana.id]})
       wait = open_wait(card, ctx.dana)
 
       assert ids(ctx.owner) == [card.id]
@@ -98,9 +98,11 @@ defmodule Slipdock.WorkDismissTest do
       assert ids(ctx.owner) == []
 
       {:ok, _} =
-        Boards.answer_wait(Boards.get_card!(card.id), Actor.web(ctx.owner), %{"answer" => "EU"})
+        Boards.Waits.answer_wait(Boards.Cards.get_card!(card.id), Actor.web(ctx.owner), %{
+          "answer" => "EU"
+        })
 
-      second = open_wait(Boards.get_card!(card.id), ctx.dana, %{"needs" => "Which zone?"})
+      second = open_wait(Boards.Cards.get_card!(card.id), ctx.dana, %{"needs" => "Which zone?"})
 
       assert [item] = Work.waiting_on_me(ctx.owner)
       assert item.wait.id == second.id
@@ -161,7 +163,7 @@ defmodule Slipdock.WorkDismissTest do
       assert Work.muted_by(ctx.dana, ctx.board) == nil
 
       # A wait on anyone on a card assigned to Dana is still hers.
-      Boards.update_card(top, %{"assignee_ids" => [ctx.dana.id]})
+      Boards.Cards.update_card(top, %{"assignee_ids" => [ctx.dana.id]})
       assert ids(ctx.dana) == [top.id]
 
       assert {:ok, _} = Work.unmute(ctx.owner, ctx.board)

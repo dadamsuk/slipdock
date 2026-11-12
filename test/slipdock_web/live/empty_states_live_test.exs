@@ -213,7 +213,7 @@ defmodule SlipdockWeb.EmptyStatesLiveTest do
       assert empty(view, "activity-empty", "compact", "Nothing has happened yet")
       refute has_element?(view, action("activity-empty"))
 
-      Boards.log_activity(board.id, nil, "card_created", "Added “Write it up”")
+      Boards.ActivityLog.log_activity(board.id, nil, "card_created", "Added “Write it up”")
       {:ok, view, _} = live(conn, ~p"/boards/#{board}/activity")
       refute has_element?(view, "#activity-empty")
       assert render(view) =~ "Write it up"

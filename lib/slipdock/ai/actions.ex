@@ -132,9 +132,9 @@ defmodule Slipdock.AI.Actions do
 
           [
             step(label, fn ->
-              with {:ok, card} <- Boards.create_card(column, attrs),
+              with {:ok, card} <- Boards.Cards.create_card(column, attrs),
                    {:ok, tags} <- ensure_tags(tags, card.board_id) do
-                if tags != [], do: Boards.set_card_tags(card, tags)
+                if tags != [], do: Boards.Cards.set_card_tags(card, tags)
                 :ok
               end
               |> normalize_result()
@@ -158,7 +158,7 @@ defmodule Slipdock.AI.Actions do
       [
         step("Comment on “#{card.title}”: #{excerpt(body)}", fn ->
           with {:ok, fresh} <- fresh(card, scope) do
-            normalize_result(Boards.add_comment(fresh, body, by: scope[:user]))
+            normalize_result(Boards.Comments.add_comment(fresh, body, by: scope[:user]))
           end
         end)
       ]
@@ -185,10 +185,13 @@ defmodule Slipdock.AI.Actions do
                   added =
                     Enum.count(
                       add,
-                      &match?({:ok, _}, Boards.add_checklist_item(fresh, &1, log: false))
+                      &match?(
+                        {:ok, _},
+                        Boards.Checklists.add_checklist_item(fresh, &1, log: false)
+                      )
                     )
 
-                  Boards.log_checklist(fresh, added: added)
+                  Boards.Checklists.log_checklist(fresh, added: added)
                   :ok
                 end
               end
@@ -216,7 +219,7 @@ defmodule Slipdock.AI.Actions do
                 "#{if done, do: "Check", else: "Uncheck"} “#{item.text}” on “#{card.title}”",
                 fn ->
                   with {:ok, _} <- fresh(card, scope) do
-                    Boards.toggle_checklist_item(item.id)
+                    Boards.Checklists.toggle_checklist_item(item.id)
                     :ok
                   end
                 end
@@ -236,7 +239,7 @@ defmodule Slipdock.AI.Actions do
             item ->
               step("Remove “#{item.text}” from the checklist of “#{card.title}”", fn ->
                 with {:ok, _} <- fresh(card, scope) do
-                  Boards.delete_checklist_item(item.id)
+                  Boards.Checklists.delete_checklist_item(item.id)
                   :ok
                 end
               end)
@@ -269,7 +272,7 @@ defmodule Slipdock.AI.Actions do
                {:ok, sub} <- ensure_sub_board(fresh),
                {:ok, target} <- find_column(column, sub) do
             Enum.reduce_while(titles, :ok, fn title, :ok ->
-              case Boards.create_card(target, %{"title" => title}) do
+              case Boards.Cards.create_card(target, %{"title" => title}) do
                 {:ok, _} -> {:cont, :ok}
                 error -> {:halt, normalize_result(error)}
               end
@@ -369,7 +372,7 @@ defmodule Slipdock.AI.Actions do
          :ok <- authorize(card, scope) do
       step("Archive “#{card.title}”", fn ->
         with {:ok, fresh} <- fresh(card, scope) do
-          normalize_result(Boards.archive_card(fresh))
+          normalize_result(Boards.Cards.archive_card(fresh))
         end
       end)
     else
@@ -632,7 +635,7 @@ defmodule Slipdock.AI.Actions do
         [
           step("Move “#{card.title}” to #{column.name}", fn ->
             with {:ok, fresh} <- fresh(card, scope) do
-              Boards.move_card(fresh.id, column.id, nil,
+              Boards.Cards.move_card(fresh.id, column.id, nil,
                 actor: Slipdock.Actor.assistant(scope[:user])
               )
             end
@@ -657,7 +660,7 @@ defmodule Slipdock.AI.Actions do
                 with {:ok, fresh} <- fresh(card, scope),
                      {:ok, [tag]} <- ensure_tags([{:new, name}], fresh.board_id) do
                   still_has = Enum.any?(fresh.tags, &(&1.id == tag.id))
-                  unless still_has, do: Boards.toggle_card_tag(fresh, tag)
+                  unless still_has, do: Boards.Tags.toggle_card_tag(fresh, tag)
                   :ok
                 end
                 |> normalize_result()
@@ -683,7 +686,7 @@ defmodule Slipdock.AI.Actions do
                 fn ->
                   with {:ok, fresh} <- fresh(card, scope) do
                     still_has = Enum.any?(fresh.tags, &(&1.id == tag.id))
-                    if still_has != adding?, do: Boards.toggle_card_tag(fresh, tag)
+                    if still_has != adding?, do: Boards.Tags.toggle_card_tag(fresh, tag)
                     :ok
                   end
                 end
@@ -774,11 +777,11 @@ defmodule Slipdock.AI.Actions do
   defp update_step({key, _}, card, _scope),
     do: [failed("Change #{key} of “#{card.title}”", "unknown field")]
 
-  # A step that sets fields through Boards.update_card on a fresh copy of the card.
+  # A step that sets fields through Boards.Cards.update_card on a fresh copy of the card.
   defp field_step(card, scope, label, attrs) do
     step(label, fn ->
       with {:ok, fresh} <- fresh(card, scope) do
-        normalize_result(Boards.update_card(fresh, attrs))
+        normalize_result(Boards.Cards.update_card(fresh, attrs))
       end
     end)
   end
@@ -843,7 +846,7 @@ defmodule Slipdock.AI.Actions do
   defp tag_one(card, ref, adding?, scope) do
     with {:ok, fresh} <- fresh(card, scope),
          {:ok, [tag]} <- ensure_tags([ref], fresh.board_id) do
-      if has_tag?(fresh, tag) != adding?, do: Boards.toggle_card_tag(fresh, tag)
+      if has_tag?(fresh, tag) != adding?, do: Boards.Tags.toggle_card_tag(fresh, tag)
       :ok
     end
     |> normalize_result()
@@ -866,12 +869,12 @@ defmodule Slipdock.AI.Actions do
   end
 
   defp default_template do
-    case Boards.find_template(nil, "Simple") do
+    case Boards.Templates.find_template(nil, "Simple") do
       {:ok, template} ->
         {:ok, template}
 
       _ ->
-        case Boards.list_templates(nil) do
+        case Boards.Templates.list_templates(nil) do
           [template | _] -> {:ok, template}
           [] -> {:error, "no template to build the sub-board from"}
         end
@@ -918,7 +921,7 @@ defmodule Slipdock.AI.Actions do
 
   # Reloads the card right before a change, checking it still may be edited.
   defp fresh(%Card{id: id}, scope) do
-    case Boards.get_card(id) do
+    case Boards.Cards.get_card(id) do
       nil -> {:error, "the card no longer exists"}
       %Card{archived_at: at} when not is_nil(at) -> {:error, "the card was archived"}
       card -> with(:ok <- authorize(card, scope), do: {:ok, card})
@@ -995,14 +998,14 @@ defmodule Slipdock.AI.Actions do
         {:cont, {:ok, acc ++ [tag]}}
 
       {:new, name}, {:ok, acc} ->
-        existing = Boards.list_tags(Boards.root_of_board(board_id))
+        existing = Boards.Tags.list_tags(Boards.root_of_board(board_id))
 
         case find_tag(name, %{tags: existing}) do
           {:ok, tag} ->
             {:cont, {:ok, acc ++ [tag]}}
 
           {:error, _} ->
-            case Boards.create_tag(Boards.get_board!(board_id), %{"name" => name}) do
+            case Boards.Tags.create_tag(Boards.get_board!(board_id), %{"name" => name}) do
               {:ok, tag} -> {:cont, {:ok, acc ++ [tag]}}
               {:error, _} = error -> {:halt, error}
             end
@@ -1015,7 +1018,7 @@ defmodule Slipdock.AI.Actions do
     do: tags
 
   defp scope_tags(_scope, %Card{board_id: board_id}),
-    do: Boards.list_tags(Boards.root_of_board(board_id))
+    do: Boards.Tags.list_tags(Boards.root_of_board(board_id))
 
   defp find_user(ref, scope) do
     r = ref |> to_s() |> String.downcase()

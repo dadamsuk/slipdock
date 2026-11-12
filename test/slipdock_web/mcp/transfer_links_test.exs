@@ -69,7 +69,7 @@ defmodule SlipdockWeb.MCP.TransferLinksTest do
   defp sha256(bytes), do: :crypto.hash(:sha256, bytes) |> Base.encode16(case: :lower)
 
   defp card_files(card),
-    do: Repo.preload(Boards.get_card!(card.id), :attachments, force: true).attachments
+    do: Repo.preload(Boards.Cards.get_card!(card.id), :attachments, force: true).attachments
 
   defp upload_link!(conn, args),
     do: conn |> call("upload_file", Map.put(args, :link, true)) |> ok!()
@@ -105,7 +105,7 @@ defmodule SlipdockWeb.MCP.TransferLinksTest do
 
       [stored] = card_files(ctx.card)
       assert stored.id == a["id"]
-      assert File.read!(Boards.attachment_path(stored)) == bytes
+      assert File.read!(Boards.Attachments.attachment_path(stored)) == bytes
 
       again = curl_post(answer["upload_url"], %{"file" => file("more")})
       assert json_response(again, 410)["error"] =~ "link_gone"
@@ -126,7 +126,7 @@ defmodule SlipdockWeb.MCP.TransferLinksTest do
 
       assert [_old_id] = answer["replaced"]
       [only] = Wiki.attachments(ctx.page)
-      assert File.read!(Boards.attachment_path(only)) == "v2"
+      assert File.read!(Boards.Attachments.attachment_path(only)) == "v2"
     end
 
     test "a refused upload stores nothing and leaves the link good for a fixed retry", ctx do
@@ -231,7 +231,7 @@ defmodule SlipdockWeb.MCP.TransferLinksTest do
     %{"attachment" => %{"id" => id}} =
       url |> curl_post(%{"file" => file("hello")}) |> json_response(201)
 
-    Boards.get_attachment!(id)
+    Boards.Attachments.get_attachment!(id)
   end
 
   describe "download_file link: true" do
@@ -275,7 +275,7 @@ defmodule SlipdockWeb.MCP.TransferLinksTest do
       on_exit(fn -> File.rm(path) end)
 
       {:ok, theirs} =
-        Boards.add_attachment(
+        Boards.Attachments.add_attachment(
           ctx.secret_card,
           %{filename: "p.txt", content_type: "text/plain"},
           path
@@ -302,9 +302,9 @@ defmodule SlipdockWeb.MCP.TransferLinksTest do
       %{"download_url" => url} =
         ctx.conn |> call("download_file", %{attachment: a.id, link: true}) |> ok!()
 
-      File.rm!(Boards.attachment_path(a))
+      File.rm!(Boards.Attachments.attachment_path(a))
       assert json_response(curl_get(url), 404)["error"] =~ "the file's bytes"
-      File.write!(Boards.attachment_path(a), "hello")
+      File.write!(Boards.Attachments.attachment_path(a), "hello")
       assert response(curl_get(url), 200) == "hello"
     end
   end

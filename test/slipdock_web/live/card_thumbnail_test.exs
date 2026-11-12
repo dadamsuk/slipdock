@@ -26,14 +26,18 @@ defmodule SlipdockWeb.CardThumbnailTest do
     path = Path.join(System.tmp_dir!(), "thumb-#{System.unique_integer([:positive])}")
     File.write!(path, @png)
     on_exit(fn -> File.rm(path) end)
-    {:ok, a} = Boards.add_attachment(card, %{filename: name, content_type: type}, path)
+
+    {:ok, a} =
+      Boards.Attachments.add_attachment(card, %{filename: name, content_type: type}, path)
+
     a
   end
 
   defp thumb(card), do: "#card-#{card.id} img[data-role=card-image]"
 
   defp thumb_of(card, a),
-    do: "#card-#{card.id} img[data-role=card-image][src='#{Boards.attachment_url(a)}']"
+    do:
+      "#card-#{card.id} img[data-role=card-image][src='#{Boards.Attachments.attachment_url(a)}']"
 
   test "the card's first image is the thumbnail on its front", %{
     conn: conn,
@@ -67,13 +71,13 @@ defmodule SlipdockWeb.CardThumbnailTest do
   } do
     first = attach(card, "first.png")
     second = attach(card, "second.png")
-    {:ok, _} = Boards.hide_attachment_on_card(first, true)
+    {:ok, _} = Boards.Attachments.hide_attachment_on_card(first, true)
 
     {:ok, view, _} = live(conn, ~p"/boards/#{board}")
     assert has_element?(view, thumb_of(card, second))
     refute has_element?(view, thumb_of(card, first))
 
-    {:ok, _} = Boards.hide_attachment_on_card(second, true)
+    {:ok, _} = Boards.Attachments.hide_attachment_on_card(second, true)
     {:ok, view, _} = live(conn, ~p"/boards/#{board}")
     refute has_element?(view, thumb(card))
   end
@@ -88,7 +92,7 @@ defmodule SlipdockWeb.CardThumbnailTest do
     on_exit(fn -> File.rm(path) end)
 
     {:ok, huge} =
-      Boards.add_attachment(
+      Boards.Attachments.add_attachment(
         card,
         %{
           filename: "poster.png",
@@ -172,13 +176,13 @@ defmodule SlipdockWeb.CardThumbnailTest do
 
       view |> element("#hide-on-card-#{image.id}") |> render_click()
 
-      assert Boards.get_attachment!(image.id).hide_on_card
+      assert Boards.Attachments.get_attachment!(image.id).hide_on_card
       assert has_element?(view, "#hide-on-card-#{image.id}[checked]")
       refute has_element?(view, thumb(card))
 
       # Unticked, it is the thumbnail again.
       view |> element("#hide-on-card-#{image.id}") |> render_click()
-      refute Boards.get_attachment!(image.id).hide_on_card
+      refute Boards.Attachments.get_attachment!(image.id).hide_on_card
       assert has_element?(view, thumb_of(card, image))
     end
 
@@ -198,7 +202,7 @@ defmodule SlipdockWeb.CardThumbnailTest do
         "hide" => "true"
       })
 
-      refute Boards.get_attachment!(image.id).hide_on_card
+      refute Boards.Attachments.get_attachment!(image.id).hide_on_card
     end
   end
 

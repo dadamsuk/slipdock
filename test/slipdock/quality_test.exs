@@ -205,7 +205,7 @@ defmodule Slipdock.QualityTest do
 
     test "sub-boards' cards count, however deep; a sub-board counts only its own",
          %{board: board, todo: todo} do
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       epic = card_fixture(todo, %{"title" => "Epic"})
       {:ok, sub} = sub_board(epic, t)
       sub = Boards.get_board!(sub.id)
@@ -321,7 +321,7 @@ defmodule Slipdock.QualityTest do
 
     test "a sub-board counts the incidents about its own cards",
          %{board: board, todo: todo} do
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(card_fixture(todo), t)
       sub = Boards.get_board!(sub.id)
       task = card_fixture(hd(sub.columns))
@@ -345,7 +345,7 @@ defmodule Slipdock.QualityTest do
       card = card_fixture(doing)
 
       {:ok, card} =
-        Boards.update_card(card, %{"completed" => true},
+        Boards.Cards.update_card(card, %{"completed" => true},
           actor: agent(ctx.user, "builder"),
           by: ctx.user
         )
@@ -425,7 +425,7 @@ defmodule Slipdock.QualityTest do
       card = card_fixture(doing)
 
       {:ok, card} =
-        Boards.update_card(card, %{"completed" => true},
+        Boards.Cards.update_card(card, %{"completed" => true},
           actor: agent(ctx.user, "builder"),
           by: ctx.user
         )

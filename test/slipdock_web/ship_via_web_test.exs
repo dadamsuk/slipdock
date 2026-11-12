@@ -172,7 +172,7 @@ defmodule SlipdockWeb.ShipViaWebTest do
   end
 
   test "the card panel links the pull request", ctx do
-    {:ok, _} = Boards.update_card(ctx.card, %{"evidence_pr" => @pr})
+    {:ok, _} = Boards.Cards.update_card(ctx.card, %{"evidence_pr" => @pr})
     {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/cards/#{ctx.card}")
     assert has_element?(view, ~s(#card-evidence-pr a[href="#{@pr}"]))
   end

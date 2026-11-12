@@ -18,10 +18,10 @@ defmodule SlipdockWeb.PulseAPITest do
     [_backlog, todo, doing, _done] = board.columns
 
     moved = card_fixture(todo, %{"title" => "Started"})
-    :ok = Boards.move_card(moved.id, doing.id, nil, actor: Actor.web(user))
+    :ok = Boards.Cards.move_card(moved.id, doing.id, nil, actor: Actor.web(user))
     card_fixture(doing, %{"title" => "Asked", "flags" => ["waiting"]})
     finished = card_fixture(todo, %{"title" => "Ticked"})
-    {:ok, _} = Boards.toggle_completed(finished)
+    {:ok, _} = Boards.Cards.toggle_completed(finished)
 
     conn = put_req_header(conn, "accept", "application/json")
     %{conn: conn, board: board, todo: todo, doing: doing}
@@ -120,7 +120,7 @@ defmodule SlipdockWeb.PulseAPITest do
       set: [inserted_at: DateTime.add(DateTime.utc_now(:second), -3 * 86_400)]
     )
 
-    {:ok, _} = Boards.toggle_completed(Repo.get!(Card, old.id))
+    {:ok, _} = Boards.Cards.toggle_completed(Repo.get!(Card, old.id))
     assert rest(conn, board)["pulse"]["time_to_done"]["lead_time"] == 2
   end
 end

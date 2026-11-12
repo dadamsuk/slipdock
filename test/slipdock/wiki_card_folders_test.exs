@@ -58,7 +58,8 @@ defmodule Slipdock.WikiCardFoldersTest do
       cursor = Changes.since(vault, nil, user).cursor
       was = vault_path(user, page)
 
-      {:ok, _} = Boards.update_card(Repo.get!(Card, card.id), %{"short_name" => "Parked jobs"})
+      {:ok, _} =
+        Boards.Cards.update_card(Repo.get!(Card, card.id), %{"short_name" => "Parked jobs"})
 
       assert vault_path(user, page) == "Folders/Cards/Parked jobs/Parked jobs.md"
 
@@ -71,7 +72,7 @@ defmodule Slipdock.WikiCardFoldersTest do
 
     test "goes back to its own title when the card is retitled", ctx do
       page = write_up(ctx.card, ctx.user)
-      {:ok, _} = Boards.update_card(Repo.get!(Card, ctx.card.id), %{"title" => "Renamed"})
+      {:ok, _} = Boards.Cards.update_card(Repo.get!(Card, ctx.card.id), %{"title" => "Renamed"})
 
       assert vault_path(ctx.user, page) == "Folders/Cards/Renamed/Fix the thing.md"
     end
@@ -192,7 +193,7 @@ defmodule Slipdock.WikiCardFoldersTest do
       card = long_card(board)
       page = write_up(card, user)
       other = board_fixture(%{"name" => "Other"}, owner: user)
-      {:ok, _} = Boards.move_card_to_board(Repo.get!(Card, card.id), hd(other.columns))
+      {:ok, _} = Boards.Moves.move_card_to_board(Repo.get!(Card, card.id), hd(other.columns))
       CardFolders.find(Repo.get!(Card, card.id))
 
       assert vault_path(user, page) =~ ~r{\AFolders/Cards/.*/Agent supervision 5-9}
@@ -242,13 +243,13 @@ defmodule Slipdock.WikiCardFoldersTest do
     test "follows the card's title", %{card: card, user: user} do
       page = write_up(card, user)
 
-      {:ok, _} = Boards.update_card(card, %{"title" => "Fixed name"})
+      {:ok, _} = Boards.Cards.update_card(card, %{"title" => "Fixed name"})
 
       assert Repo.get!(Folder, page.folder_id).name == "Fixed name"
     end
 
     test "a slash in the title is part of its name, not a path", %{card: card} do
-      {:ok, card} = Boards.update_card(card, %{"title" => "Step 5/9 of it"})
+      {:ok, card} = Boards.Cards.update_card(card, %{"title" => "Step 5/9 of it"})
       {:ok, folder} = CardFolders.ensure(card)
 
       assert folder.name == "Step 5/9 of it"
@@ -264,7 +265,7 @@ defmodule Slipdock.WikiCardFoldersTest do
 
     test "stays when the card is archived", %{card: card, user: user} do
       page = write_up(card, user)
-      {:ok, _} = Boards.archive_card(card)
+      {:ok, _} = Boards.Cards.archive_card(card)
 
       assert Repo.get!(Folder, page.folder_id).card_id == card.id
     end
@@ -273,8 +274,8 @@ defmodule Slipdock.WikiCardFoldersTest do
          %{card: card, user: user} do
       page = write_up(card, user)
       elsewhere = board_fixture(%{"name" => "Elsewhere"}, owner: user)
-      {:ok, _} = Boards.move_card_to_board(card, hd(elsewhere.columns))
-      moved = Boards.get_card!(card.id)
+      {:ok, _} = Boards.Moves.move_card_to_board(card, hd(elsewhere.columns))
+      moved = Boards.Cards.get_card!(card.id)
 
       again = write_up(moved, user)
       left = Repo.get!(Folder, page.folder_id)
@@ -309,14 +310,16 @@ defmodule Slipdock.WikiCardFoldersTest do
     test "changing the short name renames it", %{board: board, user: user, vault: vault} do
       card = card_fixture(hd(board.columns), %{"title" => @long})
       page = write_up(card, user, title: "Log")
-      {:ok, _} = Boards.update_card(Repo.get!(Boards.Card, card.id), %{"short_name" => "New"})
+
+      {:ok, _} =
+        Boards.Cards.update_card(Repo.get!(Boards.Card, card.id), %{"short_name" => "New"})
 
       assert Layout.build(vault).pages[page.id].path == "Folders/Cards/New/Log.md"
     end
 
     test "a card with nothing usable in its name is Card <id>",
          %{card: card, user: user, vault: vault} do
-      {:ok, card} = Boards.update_card(card, %{"title" => "###"})
+      {:ok, card} = Boards.Cards.update_card(card, %{"title" => "###"})
       page = write_up(card, user, title: "Log")
 
       assert Layout.build(vault).pages[page.id].path == "Folders/Cards/Card #{card.id}/Log.md"

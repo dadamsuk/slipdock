@@ -50,7 +50,7 @@ defmodule SlipdockWeb.CardPhoneLiveTest do
 
     test "the summary reads who, when it is due and how urgent", ctx do
       {:ok, _} =
-        Boards.update_card(ctx.card, %{
+        Boards.Cards.update_card(ctx.card, %{
           "priority" => "high",
           "due_date" => ~D[2030-03-18],
           "assignee_id" => ctx.owner.id
@@ -92,23 +92,23 @@ defmodule SlipdockWeb.CardPhoneLiveTest do
       {:ok, view, _} = open(phone(ctx.conn), ctx)
 
       change(view, %{priority: "critical"})
-      assert Boards.get_card!(ctx.card.id).priority == "critical"
+      assert Boards.Cards.get_card!(ctx.card.id).priority == "critical"
       assert has_element?(view, "#card-phone-summary [data-summary=priority]", "Critical")
 
       change(view, %{due_date: "2030-01-20"})
-      assert Boards.get_card!(ctx.card.id).due_date == ~D[2030-01-20]
+      assert Boards.Cards.get_card!(ctx.card.id).due_date == ~D[2030-01-20]
       assert has_element?(view, "#card-phone-summary [data-summary=due]", "Due 20 Jan 2030")
 
       change(view, %{add_assignee_id: ada.id})
-      assert [%{id: id}] = Boards.get_card!(ctx.card.id).assignees
+      assert [%{id: id}] = Boards.Cards.get_card!(ctx.card.id).assignees
       assert id == ada.id
       assert has_element?(view, "#card-phone-summary [data-summary=assignee]", "phone.ada")
 
       change(view, %{percent_complete: "60"})
-      assert Boards.get_card!(ctx.card.id).percent_complete == 60
+      assert Boards.Cards.get_card!(ctx.card.id).percent_complete == 60
 
       change(view, %{date_precision: "month"})
-      assert Boards.get_card!(ctx.card.id).date_precision == "month"
+      assert Boards.Cards.get_card!(ctx.card.id).date_precision == "month"
 
       html = change(view, %{start_date: "2030-02-01", due_date: "2030-01-01"})
       assert html =~ "Start must be on or before the due date."

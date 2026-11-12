@@ -101,7 +101,7 @@ defmodule SlipdockWeb.SimpleBoardTest do
     assert has_element?(view, ~s|#view-menu a[href="/boards/#{board.id}/table"]|)
 
     # Nothing was taken off the card.
-    assert Boards.get_card!(card.id).percent_complete == 40
+    assert Boards.Cards.get_card!(card.id).percent_complete == 40
   end
 
   test "the board's hidden facets never reach a saved view" do
@@ -124,7 +124,7 @@ defmodule SlipdockWeb.SimpleBoardTest do
   test "subcards made on a simple board are simple too", %{board: board, card: card} do
     simple!(board)
     template = Slipdock.Repo.one!(from t in Slipdock.Boards.Template, limit: 1)
-    {:ok, sub} = Boards.create_sub_board(Boards.get_card!(card.id), template)
+    {:ok, sub} = Boards.create_sub_board(Boards.Cards.get_card!(card.id), template)
     assert sub.simple
   end
 

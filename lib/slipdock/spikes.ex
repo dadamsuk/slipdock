@@ -22,7 +22,7 @@ defmodule Slipdock.Spikes do
       (`Slipdock.Wiki.Links.for_card/2`): the answer page pinned to the
       epic names its spike.
     * No second wait: the epic takes one open wait at a time
-      (`Slipdock.Boards.open_wait/3` refuses another), so an epic already
+      (`Slipdock.Boards.Waits.open_wait/3` refuses another), so an epic already
       waiting gets none. A spike with no epic above it opens nothing.
   """
 
@@ -71,7 +71,7 @@ defmodule Slipdock.Spikes do
       epic = Repo.get!(Card, epic_id)
       answered = Enum.reject(spikes, & &1.archived_at)
 
-      Slipdock.Boards.open_wait(epic, Slipdock.Verified.server_actor(), %{
+      Slipdock.Boards.Waits.open_wait(epic, Slipdock.Verified.server_actor(), %{
         needs: needs(answered),
         question: "product",
         purpose: @purpose

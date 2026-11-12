@@ -25,19 +25,24 @@ defmodule Slipdock.PortableImportTest do
     epic = card_fixture(todo, %{"title" => "Ship it", "priority" => "high"})
     other = card_fixture(doing, %{"title" => "Groundwork"})
 
-    {:ok, _} = Boards.set_card_tags(epic, [tag])
-    {:ok, _} = Boards.add_checklist_item(epic, "Write it down")
-    {:ok, _} = Boards.add_comment(epic, "Started on this")
+    {:ok, _} = Boards.Cards.set_card_tags(epic, [tag])
+    {:ok, _} = Boards.Checklists.add_checklist_item(epic, "Write it down")
+    {:ok, _} = Boards.Comments.add_comment(epic, "Started on this")
 
     {:ok, _} =
-      Boards.add_status_update(epic, owner, %{"health" => "on_track", "body" => "On track"})
+      Boards.StatusUpdates.add_status_update(epic, owner, %{
+        "health" => "on_track",
+        "body" => "On track"
+      })
 
-    {:ok, _} = Boards.add_card_url(epic, %{"url" => "https://example.com", "title" => "Spec"})
+    {:ok, _} =
+      Boards.CardUrls.add_card_url(epic, %{"url" => "https://example.com", "title" => "Spec"})
+
     {:ok, _} = Fields.set_value(epic, field, "8")
-    {:ok, _} = Boards.add_dependency(epic, other)
-    {:ok, _} = Boards.add_link(epic, other, "relates")
+    {:ok, _} = Boards.Dependencies.add_dependency(epic, other)
+    {:ok, _} = Boards.Links.add_link(epic, other, "relates")
 
-    template = Boards.list_templates(nil) |> Enum.find(&(&1.name == "Simple"))
+    template = Boards.Templates.list_templates(nil) |> Enum.find(&(&1.name == "Simple"))
     {:ok, sub} = Boards.create_sub_board(epic, template)
     [sub_todo | _] = Boards.get_board!(sub.id).columns
     _subcard = card_fixture(sub_todo, %{"title" => "One sitting of it"})
@@ -74,7 +79,7 @@ defmodule Slipdock.PortableImportTest do
   end
 
   defp card(board, title) do
-    board |> Boards.list_cards(%{}) |> Enum.find(&(&1.title == title))
+    board |> Boards.Cards.list_cards(%{}) |> Enum.find(&(&1.title == title))
   end
 
   defp owned(user) do
@@ -123,7 +128,7 @@ defmodule Slipdock.PortableImportTest do
       todo = Enum.find(Boards.get_board!(board.id).columns, &(&1.name == "To Do"))
 
       {:ok, _} =
-        Boards.update_column(todo, %{
+        Boards.Columns.update_column(todo, %{
           "sort_by" => "due_date",
           "sort_dir" => "desc",
           "group_by" => "flag"
@@ -183,7 +188,7 @@ defmodule Slipdock.PortableImportTest do
 
       epic = board |> card("Ship it") |> Slipdock.Repo.preload(:tags)
       assert Enum.map(epic.tags, & &1.name) == ["urgent"]
-      assert [%{name: "urgent", color: "rose"}] = Boards.list_tags(board.id)
+      assert [%{name: "urgent", color: "rose"}] = Boards.Tags.list_tags(board.id)
     end
 
     test "the checklist, the comment, the status update and the web link", %{
@@ -191,7 +196,7 @@ defmodule Slipdock.PortableImportTest do
       receiver: receiver
     } do
       {_report, board} = round_trip(owner, receiver)
-      epic = Boards.get_card!(card(board, "Ship it").id)
+      epic = Boards.Cards.get_card!(card(board, "Ship it").id)
 
       assert [%{text: "Write it down"}] = epic.checklist_items
       assert [%{body: "Started on this"}] = epic.comments
@@ -209,29 +214,33 @@ defmodule Slipdock.PortableImportTest do
       receiver: receiver
     } do
       [epic] = owner |> owned() |> Enum.map(&card(Boards.get_board!(&1.id), "Ship it"))
-      {:ok, _} = Boards.leave_handoff(epic, owner, %{next_step: "Old", via: "ui"})
-      {:ok, _} = Boards.clear_handoff(epic, owner, %{via: "ui"})
+      {:ok, _} = Boards.Handoffs.leave_handoff(epic, owner, %{next_step: "Old", via: "ui"})
+      {:ok, _} = Boards.Handoffs.clear_handoff(epic, owner, %{via: "ui"})
 
       {:ok, _} =
-        Boards.leave_handoff(epic, owner, %{next_step: "Run it", body: "Gotchas: x", via: "mcp"})
+        Boards.Handoffs.leave_handoff(epic, owner, %{
+          next_step: "Run it",
+          body: "Gotchas: x",
+          via: "mcp"
+        })
 
       {_report, board} = round_trip(owner, receiver)
       epic = card(board, "Ship it")
 
       assert %{next_step: "Run it", body: "*owner@example.com*\n\nGotchas: x", via: "mcp"} =
-               current = Boards.current_handoff(epic)
+               current = Boards.Handoffs.current_handoff(epic)
 
       assert current.user_id == receiver.id
 
       assert [%{next_step: "Run it"}, %{next_step: nil}, %{next_step: "Old"}] =
-               Boards.handoff_history(epic)
+               Boards.Handoffs.handoff_history(epic)
     end
 
     test "a handoff the document gets wrong is left out and said so", %{receiver: receiver} do
       owner = user_fixture("solo@example.com")
       board = board_fixture(%{"name" => "Solo", "code" => unique_code()}, owner: owner)
       card = card_fixture(hd(board.columns), %{"title" => "Lone"})
-      {:ok, _} = Boards.leave_handoff(card, owner, %{next_step: "Fine", via: "ui"})
+      {:ok, _} = Boards.Handoffs.leave_handoff(card, owner, %{next_step: "Fine", via: "ui"})
 
       document =
         owner
@@ -242,8 +251,8 @@ defmodule Slipdock.PortableImportTest do
         |> Jason.encode!()
 
       {:ok, report} = Portable.import(receiver, document)
-      [imported] = Boards.list_cards(Boards.get_board!(hd(report.boards).id), %{})
-      assert [%{next_step: "Fine"}] = Boards.handoff_history(imported)
+      [imported] = Boards.Cards.list_cards(Boards.get_board!(hd(report.boards).id), %{})
+      assert [%{next_step: "Fine"}] = Boards.Handoffs.handoff_history(imported)
       assert Enum.any?(report.skipped, &(&1 =~ "A handoff on “Lone” was left out"))
     end
 
@@ -264,7 +273,7 @@ defmodule Slipdock.PortableImportTest do
     } do
       {_report, board} = round_trip(owner, receiver)
 
-      epic = Boards.get_card!(card(board, "Ship it").id)
+      epic = Boards.Cards.get_card!(card(board, "Ship it").id)
       assert Enum.map(epic.blocked_by, & &1.title) == ["Groundwork"]
       assert [%{kind: "relates"}] = epic.links_out
     end
@@ -274,28 +283,33 @@ defmodule Slipdock.PortableImportTest do
       receiver: receiver
     } do
       [board] = owned(owner)
-      epic = Boards.get_card!(card(board, "Ship it").id)
-      [subcard] = Boards.list_cards(Boards.get_board!(epic.sub_board.id), %{})
-      {:ok, _} = Boards.add_dependency(subcard, Boards.get_card!(card(board, "Groundwork").id))
+      epic = Boards.Cards.get_card!(card(board, "Ship it").id)
+      [subcard] = Boards.Cards.list_cards(Boards.get_board!(epic.sub_board.id), %{})
+
+      {:ok, _} =
+        Boards.Dependencies.add_dependency(
+          subcard,
+          Boards.Cards.get_card!(card(board, "Groundwork").id)
+        )
 
       {report, board} = round_trip(owner, receiver)
 
-      epic = Boards.get_card!(card(board, "Ship it").id)
-      [subcard] = Boards.list_cards(Boards.get_board!(epic.sub_board.id), %{})
-      assert Enum.map(Boards.get_card!(subcard.id).blocked_by, & &1.title) == ["Groundwork"]
+      epic = Boards.Cards.get_card!(card(board, "Ship it").id)
+      [subcard] = Boards.Cards.list_cards(Boards.get_board!(epic.sub_board.id), %{})
+      assert Enum.map(Boards.Cards.get_card!(subcard.id).blocked_by, & &1.title) == ["Groundwork"]
       refute Enum.any?(report.skipped, &(&1 =~ "dependenc"))
     end
 
     test "the subcards, on a sub-board of their own", %{owner: owner, receiver: receiver} do
       {_report, board} = round_trip(owner, receiver)
 
-      epic = Boards.get_card!(card(board, "Ship it").id)
+      epic = Boards.Cards.get_card!(card(board, "Ship it").id)
       assert epic.sub_board
       sub = Boards.get_board!(epic.sub_board.id)
 
       assert sub.root_id == board.id
       assert sub.parent_card_id == epic.id
-      assert [%{title: "One sitting of it"}] = Boards.list_cards(sub, %{})
+      assert [%{title: "One sitting of it"}] = Boards.Cards.list_cards(sub, %{})
     end
 
     test "the wiki page, with its body", %{owner: owner, receiver: receiver} do
@@ -307,7 +321,7 @@ defmodule Slipdock.PortableImportTest do
     test "the importer's own cards come through as theirs", %{owner: owner} do
       board = Boards.get_board!(owned(owner) |> hd() |> Map.fetch!(:id))
       epic = card(board, "Ship it")
-      {:ok, _} = Boards.update_card(epic, %{"assignee_id" => owner.id})
+      {:ok, _} = Boards.Cards.update_card(epic, %{"assignee_id" => owner.id})
 
       {_report, imported} = round_trip(owner, owner)
       assert card(imported, "Ship it").assignee_id == owner.id
@@ -319,7 +333,7 @@ defmodule Slipdock.PortableImportTest do
     } do
       board = Boards.get_board!(owned(owner) |> hd() |> Map.fetch!(:id))
       epic = card(board, "Ship it")
-      {:ok, _} = Boards.update_card(epic, %{"assignee_id" => owner.id})
+      {:ok, _} = Boards.Cards.update_card(epic, %{"assignee_id" => owner.id})
 
       # The imported board is the receiver's alone, and nobody is put on a
       # card they cannot open.
@@ -671,7 +685,7 @@ defmodule Slipdock.PortableImportTest do
 
       {:ok, report} = Portable.import(user_fixture(), document)
       board = Boards.get_board!(hd(report.boards).id)
-      assert Enum.map(Boards.get_card!(card(board, "A").id).blocked_by, & &1.title) == ["B"]
+      assert Enum.map(Boards.Cards.get_card!(card(board, "A").id).blocked_by, & &1.title) == ["B"]
 
       assert Enum.any?(
                report.skipped,
@@ -706,7 +720,7 @@ defmodule Slipdock.PortableImportTest do
 
       stranger = user_fixture("stranger@example.com")
       share_fixture(board, stranger)
-      {:ok, _} = Boards.update_card(epic, %{"assignee_id" => stranger.id})
+      {:ok, _} = Boards.Cards.update_card(epic, %{"assignee_id" => stranger.id})
 
       exported = owner |> Portable.export() |> Jason.encode!()
       document = String.replace(exported, "stranger@example.com", "gone@example.com")

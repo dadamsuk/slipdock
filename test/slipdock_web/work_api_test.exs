@@ -36,7 +36,7 @@ defmodule SlipdockWeb.WorkAPITest do
 
   defp wait_on(ctx, card, user, seconds, attrs \\ %{}) do
     {:ok, wait} =
-      Boards.open_wait(
+      Boards.Waits.open_wait(
         card,
         ctx.asker,
         Map.merge(%{"needs" => "Which region?", "on_user_id" => user.id}, attrs)

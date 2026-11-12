@@ -9,7 +9,7 @@ defmodule SlipdockWeb.NarrativeLiveTest do
     board = board_fixture(%{"name" => "Story"})
     [backlog, _, _, done] = board.columns
     card = card_fixture(backlog, %{"title" => "Shipped thing"})
-    :ok = Boards.move_card(card.id, done.id)
+    :ok = Boards.Cards.move_card(card.id, done.id)
     quiet = card_fixture(backlog, %{"title" => "Quiet thing"})
     %{board: reload(board), card: card, quiet: quiet, done: done}
   end
@@ -56,8 +56,8 @@ defmodule SlipdockWeb.NarrativeLiveTest do
     board: board,
     card: card
   } do
-    {:ok, _} = Boards.update_card(card, %{"priority" => "high", "due_date" => "2031-03-01"})
-    {:ok, _} = Boards.add_comment(card, "Shipped it, hooray")
+    {:ok, _} = Boards.Cards.update_card(card, %{"priority" => "high", "due_date" => "2031-03-01"})
+    {:ok, _} = Boards.Comments.add_comment(card, "Shipped it, hooray")
     {:ok, view, html} = live(conn, ~p"/boards/#{board}/narrative")
     assert has_element?(view, "#display-tell input[name='tell[]'][value=comment_text][checked]")
     refute has_element?(view, "#display-tell input[name='tell[]'][value=summary][checked]")
@@ -104,14 +104,14 @@ defmodule SlipdockWeb.NarrativeLiveTest do
 
     view |> form("#swim-save-view-0", %{"name" => "Fortnightly"}) |> render_submit()
 
-    [saved] = Boards.list_saved_views(board.id)
+    [saved] = Boards.SavedViews.list_saved_views(board.id)
     assert saved.config["mode"] == "narrative"
     assert saved.config["span"] == "30"
     assert saved.config["q"] == "shipped"
     assert saved.config["tell"] == ["created", "summary"]
     refute Map.has_key?(saved.config, "from")
 
-    {:ok, saved} = Boards.publish_saved_view(saved)
+    {:ok, saved} = Boards.SavedViews.publish_saved_view(saved)
     {:ok, _lv, html} = live(Phoenix.ConnTest.build_conn(), ~p"/p/#{saved.public_token}")
     assert html =~ "What happened"
     assert html =~ "Shipped thing"
@@ -131,11 +131,11 @@ defmodule SlipdockWeb.NarrativeLiveTest do
     [reach, impact, confidence, effort, _rice] = reload(board).fields
 
     for {f, v} <- [{reach, "4000"}, {impact, "3"}, {confidence, "80"}, {effort, "3"}] do
-      {:ok, _} = Slipdock.Fields.set_value(Boards.get_card!(card.id), f, v)
+      {:ok, _} = Slipdock.Fields.set_value(Boards.Cards.get_card!(card.id), f, v)
     end
 
-    {:ok, _} = Boards.add_comment(Boards.get_card!(card.id), "Looks right")
-    {:ok, _} = Slipdock.Fields.set_value(Boards.get_card!(card.id), reach, "5000")
+    {:ok, _} = Boards.Comments.add_comment(Boards.Cards.get_card!(card.id), "Looks right")
+    {:ok, _} = Slipdock.Fields.set_value(Boards.Cards.get_card!(card.id), reach, "5000")
 
     {:ok, view, _html} = live(conn, ~p"/boards/#{board}/narrative")
     lines = view |> element("#story-#{card.id} ul") |> render()

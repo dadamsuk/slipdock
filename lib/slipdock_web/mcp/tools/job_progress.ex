@@ -45,7 +45,7 @@ defmodule SlipdockWeb.MCP.Tools.JobProgress do
          {:ok, note} <- Args.optional(args, "note"),
          {:ok, step} <- Args.optional(args, "step"),
          {:ok, answer} <- Args.refusal(Runners.heartbeat(runner, job.id, note, step: step)) do
-      if note, do: Boards.add_comment(card, note, by: context.user)
+      if note, do: Boards.Comments.add_comment(card, note, by: context.user)
       {:ok, %{job: job.id, status: to_string(answer)}}
     end
   end

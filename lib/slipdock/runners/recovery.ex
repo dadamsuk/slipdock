@@ -115,28 +115,31 @@ defmodule Slipdock.Runners.Recovery do
          {:ok, board} <- fetch_board(rule.board_id),
          {:ok, column} <- Boards.find_column(board, to_string(rule.spec["trigger"]["column"])),
          true <- mark(job, "parked") do
-      wait = Boards.current_wait(card)
+      wait = Boards.Waits.current_wait(card)
       unassign = rule.spec["trigger"]["unassigned"] == true and assigned?(card)
 
       if wait && not Enum.member?(card.flags, "waiting"),
-        do: Boards.update_card(card, %{"flags" => card.flags ++ ["waiting"]}, wait_hook: false)
+        do:
+          Boards.Cards.update_card(card, %{"flags" => card.flags ++ ["waiting"]},
+            wait_hook: false
+          )
 
-      if unassign, do: Boards.update_card(Repo.get!(Card, card.id), %{"assignee_ids" => []})
+      if unassign, do: Boards.Cards.update_card(Repo.get!(Card, card.id), %{"assignee_ids" => []})
 
-      Boards.move_card_to_index(Repo.get!(Card, card.id), column, :top,
+      Boards.Cards.move_card_to_index(Repo.get!(Card, card.id), column, :top,
         actor: Slipdock.Actor.automation()
       )
 
       question = if wait, do: ": “#{wait.needs}”", else: ""
 
-      Boards.add_comment(
+      Boards.Comments.add_comment(
         Repo.get!(Card, card.id),
         "Runner job ##{job.id} parked on a question#{question}. Moved back to the top of " <>
           "#{column.name}#{if unassign, do: ", unassigned,"} and left waiting, so the next " <>
           "card can go; answering the question sends this one to the runners again."
       )
 
-      Boards.log_activity(
+      Boards.ActivityLog.log_activity(
         card.board_id,
         card.id,
         "runner",
@@ -243,7 +246,7 @@ defmodule Slipdock.Runners.Recovery do
       # card its own job took.
       unassign = rule.spec["trigger"]["unassigned"] == true and assigned?(card)
 
-      Boards.add_comment(
+      Boards.Comments.add_comment(
         card,
         "Runner job ##{job.id} ended (#{why(job)}) with this card still in progress. " <>
           "Moved back to the top of #{column.name}#{if unassign, do: ", unassigned,"} for " <>
@@ -251,13 +254,13 @@ defmodule Slipdock.Runners.Recovery do
           "working tree."
       )
 
-      if unassign, do: Boards.update_card(Repo.get!(Card, card.id), %{"assignee_ids" => []})
+      if unassign, do: Boards.Cards.update_card(Repo.get!(Card, card.id), %{"assignee_ids" => []})
 
-      Boards.move_card_to_index(Repo.get!(Card, card.id), column, :top,
+      Boards.Cards.move_card_to_index(Repo.get!(Card, card.id), column, :top,
         actor: Slipdock.Actor.automation()
       )
 
-      Boards.log_activity(
+      Boards.ActivityLog.log_activity(
         card.board_id,
         card.id,
         "runner",
@@ -274,9 +277,9 @@ defmodule Slipdock.Runners.Recovery do
   defp give_up(job, card, limit) do
     if mark(job, "gave_up") do
       card = Repo.get!(Card, card.id)
-      Boards.update_card(card, %{"flags" => Enum.uniq(card.flags ++ ["blocked"])})
+      Boards.Cards.update_card(card, %{"flags" => Enum.uniq(card.flags ++ ["blocked"])})
 
-      Boards.add_comment(
+      Boards.Comments.add_comment(
         card,
         "Runner job ##{job.id} ended (#{why(job)}) with this card still in progress, after " <>
           "#{limit} #{if limit == 1, do: "retry", else: "retries"}. Flagged blocked and left " <>
@@ -284,7 +287,7 @@ defmodule Slipdock.Runners.Recovery do
           "somebody moves or closes it."
       )
 
-      Boards.log_activity(
+      Boards.ActivityLog.log_activity(
         card.board_id,
         card.id,
         "runner",

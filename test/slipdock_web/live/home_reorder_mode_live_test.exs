@@ -137,7 +137,7 @@ defmodule SlipdockWeb.HomeReorderModeLiveTest do
 
   test "archived boards stay out of it", %{conn: conn, user: user} do
     old = board_fixture(%{"name" => "Old", "code" => "olrmh"}, owner: user)
-    {:ok, _} = Slipdock.Boards.archive_board(old)
+    {:ok, _} = Slipdock.Boards.Arrangement.archive_board(old)
     {:ok, view, _} = live(conn, ~p"/")
 
     view |> element("#reorder-boards") |> render_click()

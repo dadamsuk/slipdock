@@ -169,7 +169,7 @@ defmodule SlipdockWeb.MobileLiveTest do
       |> element(~s(form#col-#{card.id}))
       |> render_change(%{"card_id" => card.id, "field" => "column_id", "value" => todo.id})
 
-      assert Slipdock.Boards.get_card!(card.id).column_id == todo.id
+      assert Slipdock.Boards.Cards.get_card!(card.id).column_id == todo.id
     end
   end
 
@@ -184,7 +184,7 @@ defmodule SlipdockWeb.MobileLiveTest do
       |> element(~s([phx-click="prio_vote"][phx-value-card_id="#{span.id}"][phx-value-count="1"]))
       |> render_click()
 
-      assert Slipdock.Boards.get_card!(span.id) |> Slipdock.Boards.Card.vote_total() == 1
+      assert Slipdock.Boards.Cards.get_card!(span.id) |> Slipdock.Boards.Card.vote_total() == 1
     end
   end
 
@@ -203,7 +203,7 @@ defmodule SlipdockWeb.MobileLiveTest do
       |> form("#card-title-form", %{"card" => %{"column_id" => todo.id}})
       |> render_change()
 
-      assert Slipdock.Boards.get_card!(card.id).column_id == todo.id
+      assert Slipdock.Boards.Cards.get_card!(card.id).column_id == todo.id
     end
 
     test "every card on the board carries a move menu", %{conn: conn, board: board} do
@@ -218,7 +218,7 @@ defmodule SlipdockWeb.MobileLiveTest do
       |> element(~s(#move-menu-#{card.id} button[phx-value-to="#{todo.id}"]))
       |> render_click()
 
-      assert Slipdock.Boards.get_card!(card.id).column_id == todo.id
+      assert Slipdock.Boards.Cards.get_card!(card.id).column_id == todo.id
     end
 
     test "a read-only board offers neither", %{conn: conn, user: user} do
@@ -251,7 +251,7 @@ defmodule SlipdockWeb.MobileLiveTest do
             "No shared broker interface — order, guardrail and reconcile logic copy-pasted"
         })
 
-      {:ok, _} = Slipdock.Boards.add_dependency(card, other)
+      {:ok, _} = Slipdock.Boards.Dependencies.add_dependency(card, other)
 
       {:ok, _view, html} = live(phone(conn), ~p"/boards/#{board}/cards/#{card.id}")
 

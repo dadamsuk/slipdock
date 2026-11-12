@@ -62,7 +62,7 @@ defmodule Slipdock.Boards.WaitAlert do
   Takes down the alerts a closed wait raised: each person's alert on its
   card (one addressed to them, not a rule's) is dismissed for them. A card
   has one open wait at most, so any such alert is this wait's, or one
-  moved on from (`Boards.move_wait/3`).
+  moved on from (`Boards.Waits.move_wait/3`).
   """
   @spec closed(struct()) :: :ok
   def closed(%Wait{card_id: card_id}) do

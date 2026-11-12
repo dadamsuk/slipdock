@@ -34,7 +34,7 @@ defmodule Slipdock.Boards.Copy do
 
     * `:by` — the person making it (who mentions in the description are from).
     * `:attrs` — fields to set on the copy instead of the original's
-      (string keys, as `Boards.create_card/3` takes them), e.g. dates.
+      (string keys, as `Boards.Cards.create_card/3` takes them), e.g. dates.
     * `:at` — `:top`, `:bottom` (the default) or `:after`, straight after
       the original (only in the original's own list).
   """
@@ -57,7 +57,7 @@ defmodule Slipdock.Boards.Copy do
         # effects back (a recurring series' tick), handed on to it.
         Enum.each(effects, &Slipdock.Deferred.defer/1)
         place(copy, card, column, opts[:at] || :bottom)
-        {:ok, Boards.get_card!(copy.id)}
+        {:ok, Boards.Cards.get_card!(copy.id)}
 
       {:error, _} = error ->
         error
@@ -80,11 +80,12 @@ defmodule Slipdock.Boards.Copy do
         "flags" => card.flags -- @dropped_flags,
         "time_unit" => card.time_unit,
         "time_estimate" => card.time_estimate && "#{card.time_estimate}m",
-        "assignee_ids" => Boards.assignee_ids(card)
+        "assignee_ids" => Boards.Cards.assignee_ids(card)
       }
       |> Map.merge(overrides)
 
-    with {:ok, copy} <- Boards.create_card(column, attrs, by: opts[:by], origin: opts[:origin]),
+    with {:ok, copy} <-
+           Boards.Cards.create_card(column, attrs, by: opts[:by], origin: opts[:origin]),
          {:ok, copy} <- copy_tags(copy, card, column),
          :ok <- copy_checklist(copy, card),
          :ok <- copy_sub_board(copy, card, opts) do
@@ -105,14 +106,14 @@ defmodule Slipdock.Boards.Copy do
         tag -> tag_in(target_root, tag)
       end)
 
-    Boards.set_card_tags(copy, tags)
+    Boards.Cards.set_card_tags(copy, tags)
   end
 
   defp tag_in(root_id, %Tag{name: name, color: color}) do
     case Repo.one(from(t in Tag, where: t.board_id == ^root_id and t.name == ^name)) do
       nil ->
         {:ok, tag} =
-          Boards.create_tag(Repo.get!(Board, root_id), %{"name" => name, "color" => color})
+          Boards.Tags.create_tag(Repo.get!(Board, root_id), %{"name" => name, "color" => color})
 
         tag
 
@@ -122,7 +123,11 @@ defmodule Slipdock.Boards.Copy do
   end
 
   defp copy_checklist(copy, card) do
-    Enum.each(card.checklist_items, &Boards.add_checklist_item(copy, &1.text, log: false))
+    Enum.each(
+      card.checklist_items,
+      &Boards.Checklists.add_checklist_item(copy, &1.text, log: false)
+    )
+
     :ok
   end
 
@@ -130,7 +135,7 @@ defmodule Slipdock.Boards.Copy do
 
   defp copy_sub_board(copy, %Card{sub_board: source}, opts) do
     parent = Repo.get!(Board, copy.board_id)
-    columns = Boards.template_attrs_from_board(source)["columns"]
+    columns = Boards.Templates.template_attrs_from_board(source)["columns"]
 
     with {:ok, board} <-
            Boards.create_board(
@@ -172,16 +177,16 @@ defmodule Slipdock.Boards.Copy do
 
   defp place(_copy, _card, _column, :bottom), do: :ok
 
-  defp place(copy, _card, column, :top), do: Boards.move_card_to_index(copy, column, :top)
+  defp place(copy, _card, column, :top), do: Boards.Cards.move_card_to_index(copy, column, :top)
 
   defp place(copy, %Card{column_id: column_id} = card, %Column{id: column_id} = column, :after) do
     index =
       column_id
-      |> Boards.active_items()
+      |> Boards.Columns.active_items()
       |> List.delete({:card, copy.id})
       |> Enum.find_index(&(&1 == {:card, card.id}))
 
-    if index, do: Boards.move_card_to_index(copy, column, index + 1), else: :ok
+    if index, do: Boards.Cards.move_card_to_index(copy, column, index + 1), else: :ok
   end
 
   defp place(_copy, _card, _column, :after), do: :ok

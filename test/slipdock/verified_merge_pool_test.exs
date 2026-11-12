@@ -53,7 +53,7 @@ defmodule Slipdock.VerifiedMergePoolTest do
 
   defp submit(card, ctx) do
     {:ok, card} =
-      Boards.update_card(
+      Boards.Cards.update_card(
         Repo.get!(Card, card.id),
         %{"completed" => true, "evidence_pr" => @pr, "evidence_commit" => "abc1234"},
         actor: ctx.builder

@@ -132,7 +132,13 @@ defmodule Slipdock.Overseer.Watch do
             cond
           end
 
-        Boards.log_activity(root.id, cond.card_id, "overseer", "overseer: #{cond.title}")
+        Boards.ActivityLog.log_activity(
+          root.id,
+          cond.card_id,
+          "overseer",
+          "overseer: #{cond.title}"
+        )
+
         [cond]
 
       _ ->
@@ -215,7 +221,7 @@ defmodule Slipdock.Overseer.Watch do
     Repo.update_all(from(x in Condition, where: x.id == ^cond.id), set: [cleared_at: now])
     if cond.alert_id, do: Automations.delete_alert(cond.alert_id)
 
-    Boards.log_activity(
+    Boards.ActivityLog.log_activity(
       cond.board_id,
       cond.card_id,
       "overseer",

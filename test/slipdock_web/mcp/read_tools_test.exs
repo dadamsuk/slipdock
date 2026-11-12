@@ -18,8 +18,8 @@ defmodule SlipdockWeb.MCP.ReadToolsTest do
     done = card_fixture(first, %{"title" => "Already done", "completed" => true})
     blocker = card_fixture(second, %{"title" => "Blocker"})
     blocked = card_fixture(first, %{"title" => "Waiting on the blocker"})
-    {:ok, _} = Boards.add_dependency(blocked, blocker)
-    {:ok, _} = Boards.add_comment(top, "the real constraint is here")
+    {:ok, _} = Boards.Dependencies.add_dependency(blocked, blocker)
+    {:ok, _} = Boards.Comments.add_comment(top, "the real constraint is here")
 
     other = user_fixture("stranger@example.com")
     theirs = board_fixture(%{"name" => "Private", "code" => "private3"}, owner: other)
@@ -196,7 +196,7 @@ defmodule SlipdockWeb.MCP.ReadToolsTest do
     end
 
     test "assignee me and no_assignee", ctx do
-      {:ok, _} = Boards.update_card(ctx.top, %{"assignee_id" => ctx.user.id})
+      {:ok, _} = Boards.Cards.update_card(ctx.top, %{"assignee_id" => ctx.user.id})
 
       %{"cards" => mine} =
         ctx.conn |> call("list_cards", %{board: "delivery7", assignee: "me"}) |> ok!()
@@ -211,7 +211,7 @@ defmodule SlipdockWeb.MCP.ReadToolsTest do
     end
 
     test "archived: left out by default, included, or alone", ctx do
-      {:ok, _} = Boards.archive_card(ctx.done)
+      {:ok, _} = Boards.Cards.archive_card(ctx.done)
       ids = fn args -> ctx.conn |> call("list_cards", args) |> ok!() |> Map.fetch!("cards") end
 
       default = ids.(%{board: "delivery7"})
@@ -302,8 +302,8 @@ defmodule SlipdockWeb.MCP.ReadToolsTest do
 
   describe "list_cards full" do
     setup ctx do
-      {:ok, _} = Boards.add_checklist_item(ctx.top, "write the tests")
-      {:ok, _} = Boards.add_checklist_item(ctx.top, "ship it")
+      {:ok, _} = Boards.Checklists.add_checklist_item(ctx.top, "write the tests")
+      {:ok, _} = Boards.Checklists.add_checklist_item(ctx.top, "ship it")
       page = page_fixture(ctx.board, %{"title" => "Spec", "body" => "About ##{ctx.top.id}."})
       %{page: page}
     end
@@ -345,7 +345,7 @@ defmodule SlipdockWeb.MCP.ReadToolsTest do
     end
 
     test "filters still apply, archived included", ctx do
-      {:ok, _} = Boards.archive_card(ctx.done)
+      {:ok, _} = Boards.Cards.archive_card(ctx.done)
 
       refute ctx.done.id in Enum.map(full(ctx.conn, %{})["cards"], & &1["id"])
 
@@ -426,7 +426,7 @@ defmodule SlipdockWeb.MCP.ReadToolsTest do
     end
 
     test "a dependency on a card the caller can't read stays hidden", ctx do
-      {:ok, _} = Boards.add_dependency(ctx.top, ctx.secret)
+      {:ok, _} = Boards.Dependencies.add_dependency(ctx.top, ctx.secret)
 
       top = Enum.find(full(ctx.conn, %{})["cards"], &(&1["id"] == ctx.top.id))
       assert [%{"title" => "A card you can't see"}] = top["blocked_by"]
@@ -589,7 +589,7 @@ defmodule SlipdockWeb.MCP.ReadToolsTest do
          ctx do
       old = board_fixture(%{"name" => "Getting Started", "code" => "getting-st"}, owner: ctx.user)
       welcome = page_fixture(old, %{"title" => "Welcome to your wiki", "body" => "hello"})
-      {:ok, _} = Boards.archive_board(old)
+      {:ok, _} = Boards.Arrangement.archive_board(old)
 
       page = ctx.conn |> call("read_page", %{page: welcome.code}) |> ok!()
       assert page["body"] == "hello"
@@ -609,10 +609,10 @@ defmodule SlipdockWeb.MCP.ReadToolsTest do
     end
 
     test "a page on a sub-board of an archived board says archived too", ctx do
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = Boards.create_sub_board(ctx.top, t)
       page = page_fixture(sub, %{"title" => "Notes", "body" => "x"})
-      {:ok, _} = Boards.archive_board(ctx.board)
+      {:ok, _} = Boards.Arrangement.archive_board(ctx.board)
 
       result = ctx.conn |> call("read_page", %{page: page.code}) |> ok!()
       assert result["board"]["id"] == sub.id
@@ -627,7 +627,7 @@ defmodule SlipdockWeb.MCP.ReadToolsTest do
     end
 
     test "a page on an archived board somebody else owns is still not there", ctx do
-      {:ok, _} = Boards.archive_board(ctx.theirs)
+      {:ok, _} = Boards.Arrangement.archive_board(ctx.theirs)
       assert ctx.conn |> call("read_page", %{page: ctx.their_page.code}) |> error!() =~ "no page"
     end
 
@@ -652,7 +652,7 @@ defmodule SlipdockWeb.MCP.ReadToolsTest do
 
       for i <- 1..8 do
         b = board_fixture(%{"name" => "Shelved #{i}", "code" => "shelvb#{i}"}, owner: ctx.user)
-        {:ok, _} = Boards.archive_board(b)
+        {:ok, _} = Boards.Arrangement.archive_board(b)
       end
 
       %{"guide" => guide} = ctx.conn |> call("get_guide", %{}) |> ok!()

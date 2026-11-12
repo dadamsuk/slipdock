@@ -24,8 +24,8 @@ defmodule SlipdockWeb.BoardWaitingLiveTest do
     {:ok, _} = Slipdock.Access.grant(board, dana, "write", owner)
 
     epic = card_fixture(todo, %{"title" => "Epic"})
-    {:ok, _} = Boards.update_card(epic, %{"percent_complete" => 57})
-    {:ok, t} = Boards.find_template(nil, "Simple")
+    {:ok, _} = Boards.Cards.update_card(epic, %{"percent_complete" => 57})
+    {:ok, t} = Boards.Templates.find_template(nil, "Simple")
     {:ok, sub} = sub_board(epic, t)
     sub = Boards.get_board!(sub.id)
 
@@ -37,7 +37,7 @@ defmodule SlipdockWeb.BoardWaitingLiveTest do
 
   defp wait_on(card, by, on) do
     {:ok, wait} =
-      Boards.open_wait(card, agent(by), %{"needs" => "Which region?", "on_user_id" => on.id})
+      Boards.Waits.open_wait(card, agent(by), %{"needs" => "Which region?", "on_user_id" => on.id})
 
     wait
   end
@@ -198,7 +198,7 @@ defmodule SlipdockWeb.BoardWaitingLiveTest do
     assert has_element?(view, "#board-waiting", "Waiting on you: 1")
 
     {:ok, _} =
-      Boards.answer_wait(Repo.get!(Card, card.id), Actor.web(ctx.owner), %{"answer" => "EU"})
+      Boards.Waits.answer_wait(Repo.get!(Card, card.id), Actor.web(ctx.owner), %{"answer" => "EU"})
 
     refute has_element?(view, chip(ctx))
     refute has_element?(view, "#board-waiting")

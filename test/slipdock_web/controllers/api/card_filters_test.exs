@@ -16,7 +16,7 @@ defmodule SlipdockWeb.API.CardFiltersTest do
 
     late = card_fixture(backlog, %{"title" => "Late", "due_date" => Date.add(today, -2)})
     card_fixture(backlog, %{"title" => "Undated"})
-    {:ok, _} = Boards.update_card(late, %{"assignee_id" => user_fixture().id})
+    {:ok, _} = Boards.Cards.update_card(late, %{"assignee_id" => user_fixture().id})
 
     %{conn: put_req_header(conn, "accept", "application/json"), board: board}
   end
@@ -83,7 +83,11 @@ defmodule SlipdockWeb.API.CardFiltersTest do
     document = card_fixture(hd(board.columns), %{"title" => "spec.txt"})
 
     {:ok, _} =
-      Boards.add_attachment(document, %{filename: "spec.txt", content_type: "text/plain"}, src)
+      Boards.Attachments.add_attachment(
+        document,
+        %{filename: "spec.txt", content_type: "text/plain"},
+        src
+      )
 
     assert titles(conn, "kind=document") == ["spec.txt"]
     assert titles(conn, "kind=card") |> Enum.sort() == ["Late", "Undated"]

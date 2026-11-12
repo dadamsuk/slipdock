@@ -58,8 +58,8 @@ defmodule SlipdockWeb.PortableAPITest do
     end
 
     test "archived cards come only when asked for", %{owner: owner, board: board} do
-      [card] = Boards.list_cards(board, %{})
-      {:ok, _} = Boards.archive_card(card)
+      [card] = Boards.Cards.list_cards(board, %{})
+      {:ok, _} = Boards.Cards.archive_card(card)
 
       cards = fn query ->
         token_conn(owner)

@@ -14,7 +14,9 @@ defmodule SlipdockWeb.SearchLiveTest do
 
     refunds = card_fixture(column, %{"title" => "Invoice rounding is wrong on refunds"})
     deploy = card_fixture(column, %{"title" => "Deploy pipeline needs a rollback step"})
-    {:ok, _} = Boards.add_comment(deploy, "the staging rollback was blocked on approvals")
+
+    {:ok, _} =
+      Boards.Comments.add_comment(deploy, "the staging rollback was blocked on approvals")
 
     {:ok, _} = Search.index_cards(Search.load_cards(Search.all_card_ids()))
 
@@ -266,7 +268,7 @@ defmodule SlipdockWeb.SearchLiveTest do
   end
 
   test "archived cards need asking for", ctx do
-    {:ok, _} = Boards.archive_card(ctx.refunds)
+    {:ok, _} = Boards.Cards.archive_card(ctx.refunds)
     {:ok, _} = Search.index_card(ctx.refunds.id)
 
     {:ok, view, _html} = live(ctx.conn, ~p"/search")

@@ -24,7 +24,7 @@ defmodule Slipdock.VaultsTest do
   defp entry(vault, board), do: Enum.find(Vaults.boards(vault), &(&1.board.id == board.id))
 
   defp simple do
-    {:ok, template} = Boards.find_template(nil, "Simple")
+    {:ok, template} = Boards.Templates.find_template(nil, "Simple")
     template
   end
 
@@ -108,12 +108,12 @@ defmodule Slipdock.VaultsTest do
       {:ok, page} = Wiki.create_page(ctx.kb, %{"title" => "Kept"}, user: ctx.user)
       refute entry(ctx.vault, ctx.kb).board.archived_at
 
-      {:ok, archived} = Boards.archive_board(ctx.kb)
+      {:ok, archived} = Boards.Arrangement.archive_board(ctx.kb)
       assert entry(ctx.vault, ctx.kb).path == "Keystone"
       assert entry(ctx.vault, ctx.kb).board.archived_at
       assert Vaults.addresses(ctx.vault).pages[page.id] == "Keystone/Kept"
 
-      {:ok, _} = Boards.unarchive_board(archived)
+      {:ok, _} = Boards.Arrangement.unarchive_board(archived)
       assert entry(ctx.vault, ctx.kb).path == "Keystone"
       refute entry(ctx.vault, ctx.kb).board.archived_at
     end

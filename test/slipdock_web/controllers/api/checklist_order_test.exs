@@ -15,7 +15,7 @@ defmodule SlipdockWeb.API.ChecklistOrderTest do
 
     items =
       for text <- ~w(one two three) do
-        {:ok, item} = Boards.add_checklist_item(card, text)
+        {:ok, item} = Boards.Checklists.add_checklist_item(card, text)
         item
       end
 
@@ -59,7 +59,7 @@ defmodule SlipdockWeb.API.ChecklistOrderTest do
 
   test "an item of another card is refused, and nothing moves", ctx do
     other = card_fixture(hd(ctx.board.columns), %{"title" => "Other"})
-    {:ok, theirs} = Boards.add_checklist_item(other, "theirs")
+    {:ok, theirs} = Boards.Checklists.add_checklist_item(other, "theirs")
     [one | _] = ctx.items
 
     assert %{"error" => error} =
@@ -94,8 +94,8 @@ defmodule SlipdockWeb.API.ChecklistOrderTest do
     owner = user_fixture("order-api-owner@example.com")
     shared = board_fixture(%{"name" => "Theirs"}, owner: owner)
     card = card_fixture(hd(shared.columns), %{"title" => "Theirs"})
-    {:ok, a} = Boards.add_checklist_item(card, "a")
-    {:ok, _} = Boards.add_checklist_item(card, "b")
+    {:ok, a} = Boards.Checklists.add_checklist_item(card, "a")
+    {:ok, _} = Boards.Checklists.add_checklist_item(card, "b")
     {:ok, _} = Access.grant(shared, ctx.user, "read", owner)
 
     assert ctx.conn |> post("/api/checklist/#{a.id}/move", %{}) |> json_response(403)

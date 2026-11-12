@@ -30,18 +30,18 @@ defmodule SlipdockWeb.AssignCardLiveTest do
     {:ok, view, _} = live(conn, ~p"/boards/#{board}/cards/#{card.id}")
 
     view |> form("#card-meta-form", card: %{add_assignee_id: ada.id}) |> render_change()
-    assert Boards.get_card!(card.id).assignee_id == ada.id
+    assert Boards.Cards.get_card!(card.id).assignee_id == ada.id
     assert has_element?(view, "#card-assignee-#{ada.id}")
 
     view |> form("#card-meta-form", card: %{add_assignee_id: bob.id}) |> render_change()
-    ids = Boards.get_card!(card.id) |> Card.assignees() |> Enum.map(& &1.id)
+    ids = Boards.Cards.get_card!(card.id) |> Card.assignees() |> Enum.map(& &1.id)
     assert ids == [ada.id, bob.id]
     assert has_element?(view, "#card-assignee-#{bob.id}")
     # Somebody already on the card isn't offered again.
     refute has_element?(view, "#card-assignees select option[value='#{ada.id}']")
 
     view |> element("#card-assignee-#{ada.id} button") |> render_click()
-    card = Boards.get_card!(card.id)
+    card = Boards.Cards.get_card!(card.id)
     assert card.assignee_id == bob.id
     assert Enum.map(Card.assignees(card), & &1.id) == [bob.id]
     refute has_element?(view, "#card-assignee-#{ada.id}")
@@ -60,9 +60,9 @@ defmodule SlipdockWeb.AssignCardLiveTest do
     html = render(view)
     assert html =~ "can&#39;t be put on this card"
     refute html =~ "stranger@example.com"
-    assert Boards.get_card!(card.id).assignees == []
+    assert Boards.Cards.get_card!(card.id).assignees == []
 
     render_hook(card_panel(view), "card_change", %{"card" => %{"assignee_id" => "99999999"}})
-    assert Boards.get_card!(card.id).assignees == []
+    assert Boards.Cards.get_card!(card.id).assignees == []
   end
 end

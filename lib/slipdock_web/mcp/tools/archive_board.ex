@@ -46,10 +46,10 @@ defmodule SlipdockWeb.MCP.Tools.ArchiveBoard do
     end
   end
 
-  defp change(board, true), do: Args.refusal(Boards.unarchive_board(board))
+  defp change(board, true), do: Args.refusal(Boards.Arrangement.unarchive_board(board))
 
   defp change(board, false) do
-    case Boards.archive_board(board) do
+    case Boards.Arrangement.archive_board(board) do
       {:error, :sub_board} ->
         {:error, "a subcard board cannot be archived on its own: archive its card instead"}
 

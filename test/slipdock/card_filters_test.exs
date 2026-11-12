@@ -1,6 +1,6 @@
 defmodule Slipdock.CardFiltersTest do
   @moduledoc """
-  The filters `Slipdock.Boards.list_cards/2` takes, which are the board views'
+  The filters `Slipdock.Boards.Cards.list_cards/2` takes, which are the board views'
   own (`Slipdock.Swimlanes`) and reach the API, the CLI and the assistant
   through the same function.
   """
@@ -32,12 +32,12 @@ defmodule Slipdock.CardFiltersTest do
       })
 
     waiting = card_fixture(backlog, %{"title" => "Waiting"})
-    {:ok, _} = Boards.add_dependency(waiting, late)
-    {:ok, _} = Boards.update_card(late, %{"assignee_id" => jess.id})
+    {:ok, _} = Boards.Dependencies.add_dependency(waiting, late)
+    {:ok, _} = Boards.Cards.update_card(late, %{"assignee_id" => jess.id})
 
     %{
       board: board,
-      titles: fn filters -> board |> Boards.list_cards(filters) |> Enum.map(& &1.title) end,
+      titles: fn filters -> board |> Boards.Cards.list_cards(filters) |> Enum.map(& &1.title) end,
       cards: %{
         late: late,
         soon: soon,

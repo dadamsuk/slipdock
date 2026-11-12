@@ -550,7 +550,7 @@ defmodule Slipdock.Lanes do
   defp own_tree(%Card{id: nil}, board), do: {ancestor_ids(board), []}
 
   defp own_tree(%Card{id: id}, board),
-    do: {[id | ancestor_ids(board)], Slipdock.Boards.subtree_board_ids(id)}
+    do: {[id | ancestor_ids(board)], Slipdock.Boards.Moves.subtree_board_ids(id)}
 
   # Not a spike (#2349): a spike is profile `spike`, or no profile and tagged `spike`, as
   # `Slipdock.Profiles.spike?/1` reads it.

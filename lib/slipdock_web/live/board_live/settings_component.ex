@@ -163,9 +163,9 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
   defp event("save_as_template", _, socket) do
     board = socket.assigns.board
 
-    case Boards.create_template(
+    case Boards.Templates.create_template(
            socket.assigns.current_user,
-           Boards.template_attrs_from_board(board)
+           Boards.Templates.template_attrs_from_board(board)
          ) do
       {:ok, template} ->
         {:noreply,
@@ -347,7 +347,10 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
   end
 
   defp event("add_milestone", params, socket) do
-    case Boards.create_milestone(socket.assigns.board, Map.take(params, ~w(name date color))) do
+    case Boards.Milestones.create_milestone(
+           socket.assigns.board,
+           Map.take(params, ~w(name date color))
+         ) do
       {:ok, _} ->
         {:noreply, update(socket, :form_key, &(&1 + 1))}
 
@@ -357,10 +360,10 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
   end
 
   defp event("delete_milestone", %{"id" => id}, socket) do
-    milestone = Boards.get_milestone!(id)
+    milestone = Boards.Milestones.get_milestone!(id)
 
     if milestone.board_id == Slipdock.Boards.Board.root_id(socket.assigns.board) do
-      {:ok, _} = Boards.delete_milestone(milestone)
+      {:ok, _} = Boards.Milestones.delete_milestone(milestone)
     end
 
     {:noreply, socket}
@@ -372,7 +375,7 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
   end
 
   defp event("archive_board", _, socket) do
-    case Boards.archive_board(socket.assigns.board) do
+    case Boards.Arrangement.archive_board(socket.assigns.board) do
       {:ok, board} ->
         {:noreply,
          socket
@@ -385,7 +388,7 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
   end
 
   defp event("unarchive_board", _, socket) do
-    case Boards.unarchive_board(socket.assigns.board) do
+    case Boards.Arrangement.unarchive_board(socket.assigns.board) do
       {:ok, board} ->
         send(self(), :reload_board)
         {:noreply, socket |> assign(board: board) |> flash(:info, "Board restored.")}

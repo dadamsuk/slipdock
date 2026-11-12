@@ -152,7 +152,7 @@ defmodule Slipdock.WikiCardsTest do
   describe "board templates" do
     test "a board made from one arrives with its pages", %{user: user} do
       {:ok, template} =
-        Boards.create_template(user, %{
+        Boards.Templates.create_template(user, %{
           "name" => "Project #{System.unique_integer([:positive])}",
           "columns" => ["To Do", "Done"],
           "pages" => [
@@ -183,7 +183,7 @@ defmodule Slipdock.WikiCardsTest do
       {:ok, page} = Wiki.create_page(board, %{"title" => "Retry policy"}, user: user)
       card = card_fixture(column, %{"title" => "Ship it"})
 
-      {:ok, _} = Boards.add_comment(card, "blocked on [[Retry policy]], see there")
+      {:ok, _} = Boards.Comments.add_comment(card, "blocked on [[Retry policy]], see there")
 
       assert [link] = Wiki.backlinks(page, user)
       assert link.source_card.id == card.id
@@ -199,7 +199,7 @@ defmodule Slipdock.WikiCardsTest do
       card = card_fixture(column, %{"title" => "Ship it"})
 
       {:ok, update} =
-        Boards.add_status_update(card, user, %{
+        Boards.StatusUpdates.add_status_update(card, user, %{
           "health" => "at_risk",
           "body" => "see [[Retry policy]]"
         })
@@ -207,7 +207,7 @@ defmodule Slipdock.WikiCardsTest do
       assert [%{source_card: %{id: id}}] = Wiki.backlinks(page, user)
       assert id == card.id
 
-      Boards.delete_status_update(update.id)
+      Boards.StatusUpdates.delete_status_update(update.id)
       assert Wiki.backlinks(page, user) == []
     end
 
@@ -218,7 +218,7 @@ defmodule Slipdock.WikiCardsTest do
     } do
       {:ok, page} = Wiki.create_page(board, %{"title" => "Retry policy"}, user: user)
       card = card_fixture(column, %{"title" => "Ship it"})
-      {:ok, _} = Boards.add_comment(card, "see [[Retry policy]]")
+      {:ok, _} = Boards.Comments.add_comment(card, "see [[Retry policy]]")
 
       outsider = user_fixture("cards.outsider@example.com")
       assert [_] = Wiki.backlinks(page, user)

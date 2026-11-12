@@ -130,7 +130,7 @@ defmodule SlipdockWeb.API.AssigneesTest do
            })
            |> json_response(404)
 
-    assert Slipdock.Boards.get_card!(card.id).assignees == []
+    assert Slipdock.Boards.Cards.get_card!(card.id).assignees == []
   end
 
   test "a page is assigned by the same rule", %{conn: conn, ada: ada} do

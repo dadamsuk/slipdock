@@ -20,7 +20,7 @@ defmodule SlipdockWeb.TableLiveTest do
       })
 
     b = card_fixture(todo, %{"title" => "Bravo", "priority" => "low"})
-    Boards.toggle_card_tag(a, bug)
+    Boards.Tags.toggle_card_tag(a, bug)
     %{board: reload(board), a: a, b: b, todo: todo}
   end
 
@@ -94,13 +94,13 @@ defmodule SlipdockWeb.TableLiveTest do
     |> render_change()
 
     view |> form("#prio-#{a.id}", %{"value" => "critical"}) |> render_change()
-    assert Boards.get_card!(a.id).priority == "critical"
+    assert Boards.Cards.get_card!(a.id).priority == "critical"
     view |> form("#due-#{a.id}", %{"value" => ""}) |> render_change()
-    assert is_nil(Boards.get_card!(a.id).due_date)
+    assert is_nil(Boards.Cards.get_card!(a.id).due_date)
     view |> form("#col-#{a.id}", %{"value" => to_string(todo.id)}) |> render_change()
-    assert Boards.get_card!(a.id).column_id == todo.id
+    assert Boards.Cards.get_card!(a.id).column_id == todo.id
     view |> element("#row-all-#{a.id} input[type=checkbox]") |> render_click()
-    assert Boards.get_card!(a.id).completed
+    assert Boards.Cards.get_card!(a.id).completed
 
     # Quick add at the bottom and opening a card keep the table URL.
     view |> form("form[id^=table-add]", %{"title" => "Charlie"}) |> render_submit()
@@ -126,7 +126,7 @@ defmodule SlipdockWeb.TableLiveTest do
   test "saved views remember the table mode", %{conn: conn, board: board} do
     {:ok, view, _} = live(conn, ~p"/boards/#{board}/table?rows=priority")
     view |> form("form[phx-submit=swim_save_view]", %{"name" => "By priority"}) |> render_submit()
-    [saved] = Boards.list_saved_views(board.id)
+    [saved] = Boards.SavedViews.list_saved_views(board.id)
     assert saved.config["mode"] == "table" and saved.config["rows"] == "priority"
     assert_patch(view, ~p"/boards/#{board}/table?view=#{saved.id}")
 

@@ -104,7 +104,7 @@ defmodule Slipdock.Overseer do
     root = Boards.get_board!(root.id)
     column = Enum.find(root.columns, &(&1.category == "done")) || List.last(root.columns)
 
-    Boards.create_card(
+    Boards.Cards.create_card(
       column,
       %{
         "title" => "Overseer",

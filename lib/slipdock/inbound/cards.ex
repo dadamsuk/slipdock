@@ -118,7 +118,7 @@ defmodule Slipdock.Inbound.Cards do
       extra = with_sender(attrs["description"], user, message)
       attrs = Map.put(attrs, "description", join_description(extra, description))
 
-      case Boards.create_card(column, attrs, by: user, actor: Actor.email(user)) do
+      case Boards.Cards.create_card(column, attrs, by: user, actor: Actor.email(user)) do
         {:ok, card} ->
           attach(card, user, message, extra)
           {:ok, %{card_id: card.id, user_id: user.id}}
@@ -317,12 +317,12 @@ defmodule Slipdock.Inbound.Cards do
       end)
 
     if stored != %{} and inline_images?(message) do
-      cid = fn id -> if a = stored[id], do: Boards.attachment_url(a) end
+      cid = fn id -> if a = stored[id], do: Boards.Attachments.attachment_url(a) end
       description = join_description(extra, description(message, cid))
 
       if description != card.description do
         {:ok, _} =
-          Boards.update_card(Repo.get!(Card, card.id), %{"description" => description},
+          Boards.Cards.update_card(Repo.get!(Card, card.id), %{"description" => description},
             by: user,
             actor: Actor.email(user)
           )
@@ -330,7 +330,7 @@ defmodule Slipdock.Inbound.Cards do
     end
 
     if left_off != [] do
-      Boards.add_comment(card, left_off_comment(Enum.reverse(left_off)), by: user)
+      Boards.Comments.add_comment(card, left_off_comment(Enum.reverse(left_off)), by: user)
     end
 
     :ok
@@ -352,7 +352,7 @@ defmodule Slipdock.Inbound.Cards do
         size: byte_size(file.data)
       }
 
-      case Boards.add_attachment(card, meta, path) do
+      case Boards.Attachments.add_attachment(card, meta, path) do
         {:ok, attachment} ->
           {:ok, attachment}
 

@@ -43,13 +43,13 @@ defmodule SlipdockWeb.MCP.Tools.ArchiveCard do
          {:ok, card} <- Args.refusal(CardWrites.fetch_card(id)),
          :ok <- Args.refusal(Authorize.card(auth, card, :write)),
          {:ok, card} <- Args.refusal(change(card, restore)) do
-      {:ok, Tools.card_written(Boards.get_card!(card.id), context.base_url)}
+      {:ok, Tools.card_written(Boards.Cards.get_card!(card.id), context.base_url)}
     end
   end
 
   # Asking for what is already so is answered with the card as it is.
   defp change(%{archived_at: nil} = card, true), do: {:ok, card}
-  defp change(card, true), do: Boards.unarchive_card(card)
-  defp change(%{archived_at: nil} = card, false), do: Boards.archive_card(card)
+  defp change(card, true), do: Boards.Cards.unarchive_card(card)
+  defp change(%{archived_at: nil} = card, false), do: Boards.Cards.archive_card(card)
   defp change(card, false), do: {:ok, card}
 end

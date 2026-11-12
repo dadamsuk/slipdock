@@ -222,7 +222,7 @@ defmodule Slipdock.WikiFrontMatterTest do
     end
 
     test "export writes board tags only where the file has no tags of its own", ctx do
-      {:ok, tag} = Slipdock.Boards.create_tag(ctx.board, %{"name" => "ops"})
+      {:ok, tag} = Slipdock.Boards.Tags.create_tag(ctx.board, %{"name" => "ops"})
       page = import!(ctx.board, ctx.user, "A.md", "---\ntags: [mine]\n---\nx")
       {:ok, _} = Wiki.set_tags(page, [tag])
 

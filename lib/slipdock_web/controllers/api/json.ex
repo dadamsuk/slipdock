@@ -972,7 +972,7 @@ defmodule SlipdockWeb.API.JSON do
       content_type: a.content_type,
       size: a.size,
       sha256: a.sha256,
-      url: Slipdock.Boards.attachment_url(a),
+      url: Slipdock.Boards.Attachments.attachment_url(a),
       hide_on_card: a.hide_on_card,
       transcript_status: a.transcript_status,
       transcript: a.transcript,

@@ -157,7 +157,7 @@ defmodule Slipdock.AutomationsTest do
       })
 
       card = card_fixture(backlog, %{"title" => "Write the docs"})
-      :ok = Boards.move_card(card.id, done.id)
+      :ok = Boards.Cards.move_card(card.id, done.id)
 
       assert [alert] = Automations.list_alerts(user_fixture())
       assert alert.title == "Write the docs is done"
@@ -173,9 +173,9 @@ defmodule Slipdock.AutomationsTest do
       })
 
       card = card_fixture(backlog)
-      {:ok, _} = Boards.toggle_completed(card)
+      {:ok, _} = Boards.Cards.toggle_completed(card)
 
-      assert [comment] = Boards.get_card!(card.id).comments
+      assert [comment] = Boards.Cards.get_card!(card.id).comments
       assert comment.body == "Closed on #{Date.utc_today()}."
     end
 
@@ -189,11 +189,11 @@ defmodule Slipdock.AutomationsTest do
 
       card = card_fixture(backlog)
 
-      {:ok, card} = Boards.update_card(card, %{"title" => "Renamed"})
+      {:ok, card} = Boards.Cards.update_card(card, %{"title" => "Renamed"})
       assert card.flags == []
 
-      {:ok, _} = Boards.update_card(card, %{"due_date" => "2030-01-01"})
-      assert Boards.get_card!(card.id).flags == ["review"]
+      {:ok, _} = Boards.Cards.update_card(card, %{"due_date" => "2030-01-01"})
+      assert Boards.Cards.get_card!(card.id).flags == ["review"]
     end
 
     test "a tag going on a card can trigger a rule" do
@@ -206,9 +206,9 @@ defmodule Slipdock.AutomationsTest do
       })
 
       card = card_fixture(backlog)
-      {:ok, _} = Boards.toggle_card_tag(card, tag)
+      {:ok, _} = Boards.Tags.toggle_card_tag(card, tag)
 
-      assert Boards.get_card!(card.id).priority == "critical"
+      assert Boards.Cards.get_card!(card.id).priority == "critical"
     end
 
     test "rules made in the same second run, and are listed, in id order" do
@@ -234,7 +234,7 @@ defmodule Slipdock.AutomationsTest do
 
       # The last rule to run has the last word.
       card = card_fixture(backlog)
-      assert Boards.get_card!(card.id).priority == "critical"
+      assert Boards.Cards.get_card!(card.id).priority == "critical"
     end
 
     test "a comment can trigger a rule" do
@@ -246,7 +246,7 @@ defmodule Slipdock.AutomationsTest do
       })
 
       card = card_fixture(backlog, %{"title" => "Spec"})
-      {:ok, _} = Boards.add_comment(card, "Looks good")
+      {:ok, _} = Boards.Comments.add_comment(card, "Looks good")
 
       assert [%{title: "New comment on Spec"}] = Automations.list_alerts(user_fixture())
     end
@@ -283,12 +283,15 @@ defmodule Slipdock.AutomationsTest do
       card = card_fixture(backlog)
 
       # High priority, but not tagged: no match.
-      {:ok, card} = Boards.update_card(card, %{"priority" => "high"})
+      {:ok, card} = Boards.Cards.update_card(card, %{"priority" => "high"})
       assert card.flags == []
 
-      {:ok, _} = Boards.toggle_card_tag(card, tag)
-      {:ok, _} = Boards.update_card(Boards.get_card!(card.id), %{"title" => "Now both"})
-      assert Boards.get_card!(card.id).flags == ["flagged"]
+      {:ok, _} = Boards.Tags.toggle_card_tag(card, tag)
+
+      {:ok, _} =
+        Boards.Cards.update_card(Boards.Cards.get_card!(card.id), %{"title" => "Now both"})
+
+      assert Boards.Cards.get_card!(card.id).flags == ["flagged"]
     end
 
     test "is_set and is_not_set look at whether a field has a value" do
@@ -326,9 +329,9 @@ defmodule Slipdock.AutomationsTest do
       })
 
       card = card_fixture(backlog, %{"title" => "The thing"})
-      {:ok, _} = Boards.toggle_completed(card)
+      {:ok, _} = Boards.Cards.toggle_completed(card)
 
-      card = Boards.get_card!(card.id)
+      card = Boards.Cards.get_card!(card.id)
       assert card.column_id == done.id
       assert Enum.map(card.tags, & &1.id) == [tag.id]
       assert "starred" in card.flags
@@ -345,7 +348,7 @@ defmodule Slipdock.AutomationsTest do
       })
 
       card = card_fixture(backlog)
-      assert Boards.get_card!(card.id).due_date == Date.add(Date.utc_today(), 3)
+      assert Boards.Cards.get_card!(card.id).due_date == Date.add(Date.utc_today(), 3)
     end
 
     test "create_card adds a card of its own" do
@@ -363,7 +366,7 @@ defmodule Slipdock.AutomationsTest do
       })
 
       card = card_fixture(backlog, %{"title" => "Launch"})
-      {:ok, _} = Boards.toggle_completed(card)
+      {:ok, _} = Boards.Cards.toggle_completed(card)
 
       titles =
         board.id
@@ -389,7 +392,7 @@ defmodule Slipdock.AutomationsTest do
 
       card = card_fixture(backlog)
 
-      assert Boards.get_card!(card.id).flags == ["blocked"]
+      assert Boards.Cards.get_card!(card.id).flags == ["blocked"]
       rule = Automations.get_rule!(rule.id)
       assert rule.last_error =~ "no list called"
       assert rule.run_count == 1
@@ -412,7 +415,7 @@ defmodule Slipdock.AutomationsTest do
       })
 
       card = card_fixture(backlog, %{"title" => "Yours", "assignee_id" => user.id})
-      {:ok, _} = Boards.update_card(card, %{"priority" => "high"})
+      {:ok, _} = Boards.Cards.update_card(card, %{"priority" => "high"})
 
       assert_email_sent(fn email ->
         assert elem(hd(email.to), 1) == fixture_email("holder@example.com")
@@ -441,11 +444,11 @@ defmodule Slipdock.AutomationsTest do
       })
 
       card = card_fixture(backlog, %{"title" => "Ours", "assignee_id" => ada.id})
-      {:ok, _} = Boards.update_card(card, %{"add_assignee_ids" => [bob.id]})
-      card = Boards.get_card!(card.id)
+      {:ok, _} = Boards.Cards.update_card(card, %{"add_assignee_ids" => [bob.id]})
+      card = Boards.Cards.get_card!(card.id)
       assert card.flags == ["starred"]
 
-      {:ok, _} = Boards.update_card(card, %{"priority" => "high"})
+      {:ok, _} = Boards.Cards.update_card(card, %{"priority" => "high"})
 
       assert_email_sent(fn email ->
         assert Enum.map(email.to, &elem(&1, 1)) == [
@@ -542,7 +545,7 @@ defmodule Slipdock.AutomationsTest do
         "actions" => [%{"type" => "webhook", "url" => "https://example.com/hooks/kanban"}]
       })
 
-      {:ok, _} = backlog |> a_card() |> Boards.toggle_completed()
+      {:ok, _} = backlog |> a_card() |> Boards.Cards.toggle_completed()
 
       assert_received {:callback, "POST", _params, body}
       assert %{"card" => %{"status" => "done", "completed" => true}} = Jason.decode!(body)
@@ -814,7 +817,7 @@ defmodule Slipdock.AutomationsTest do
         %{"scope" => "tree"}
       )
 
-      {:ok, template} = Boards.find_template(nil, "Simple")
+      {:ok, template} = Boards.Templates.find_template(nil, "Simple")
       epic = card_fixture(backlog)
       {:ok, sub} = sub_board(epic, template)
       sub = Boards.get_board!(sub.id)
@@ -869,8 +872,8 @@ defmodule Slipdock.AutomationsTest do
 
       card = card_fixture(backlog)
       # Without the depth guard this never returns.
-      :ok = Boards.move_card(card.id, doing.id)
-      assert Boards.get_card!(card.id).column_id in [backlog.id, doing.id]
+      :ok = Boards.Cards.move_card(card.id, doing.id)
+      assert Boards.Cards.get_card!(card.id).column_id in [backlog.id, doing.id]
     end
   end
 
@@ -888,8 +891,8 @@ defmodule Slipdock.AutomationsTest do
       age(stale, days: 10)
 
       assert Automations.run_scheduled() == 1
-      assert Boards.get_card!(stale.id).flags == ["waiting"]
-      assert Boards.get_card!(fresh.id).flags == []
+      assert Boards.Cards.get_card!(stale.id).flags == ["waiting"]
+      assert Boards.Cards.get_card!(fresh.id).flags == []
     end
 
     test "a rule fires once per occasion, however often the scheduler ticks" do
@@ -961,13 +964,13 @@ defmodule Slipdock.AutomationsTest do
       assert Automations.run_scheduled() == 1
       assert Automations.run_scheduled() == 0
       assert Automations.run_rule_now(rule) == 1
-      assert length(Boards.get_card!(card.id).comments) == 2
+      assert length(Boards.Cards.get_card!(card.id).comments) == 2
     end
 
     test "a tree-scoped rule reaches into sub-boards" do
       board = board_fixture(%{"name" => "Root"})
       [backlog | _] = board.columns
-      {:ok, template} = Boards.find_template(nil, "Simple")
+      {:ok, template} = Boards.Templates.find_template(nil, "Simple")
 
       epic = card_fixture(backlog, %{"title" => "Epic"})
       {:ok, sub} = sub_board(epic, template)
@@ -999,8 +1002,8 @@ defmodule Slipdock.AutomationsTest do
       })
 
       card = card_fixture(backlog, %{"title" => "This"})
-      {:ok, card} = Boards.update_card(card, %{"priority" => "high"})
-      {:ok, _} = Boards.update_card(card, %{"priority" => "low"})
+      {:ok, card} = Boards.Cards.update_card(card, %{"priority" => "high"})
+      {:ok, _} = Boards.Cards.update_card(card, %{"priority" => "low"})
 
       assert length(Automations.list_alerts(user_fixture())) == 1
     end

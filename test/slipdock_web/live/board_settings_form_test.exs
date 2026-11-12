@@ -119,7 +119,7 @@ defmodule SlipdockWeb.BoardSettingsFormTest do
 
   test "a sub-board's pair has the code alone", %{conn: conn, board: board} do
     card = card_fixture(hd(board.columns), %{"title" => "Epic"})
-    {:ok, t} = Boards.find_template(nil, "Simple")
+    {:ok, t} = Boards.Templates.find_template(nil, "Simple")
     {:ok, sub} = sub_board(card, t)
     view = open(conn, sub)
 

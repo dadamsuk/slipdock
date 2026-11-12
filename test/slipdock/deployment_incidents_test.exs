@@ -51,7 +51,7 @@ defmodule Slipdock.DeploymentIncidentsTest do
   defp incident!(board, todo, tag_name \\ "incident") do
     tag = Boards.find_tag(board, tag_name) |> then(fn {:ok, t} -> t end)
     card = card_fixture(todo, %{"title" => "Outage #{System.unique_integer([:positive])}"})
-    {:ok, card} = Boards.toggle_card_tag(card, tag)
+    {:ok, card} = Boards.Tags.toggle_card_tag(card, tag)
     card
   end
 

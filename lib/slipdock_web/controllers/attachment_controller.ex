@@ -18,7 +18,7 @@ defmodule SlipdockWeb.AttachmentController do
   alias SlipdockWeb.ByteRange
 
   def show(conn, %{"id" => id}) do
-    attachment = Boards.get_attachment!(id)
+    attachment = Boards.Attachments.get_attachment!(id)
     user = conn.assigns.current_user
 
     if readable?(user, attachment) do
@@ -48,7 +48,7 @@ defmodule SlipdockWeb.AttachmentController do
   defp readable?(_user, _attachment), do: false
 
   defp send_attachment(conn, attachment) do
-    path = Boards.attachment_path(attachment)
+    path = Boards.Attachments.attachment_path(attachment)
 
     if File.regular?(path) do
       disposition = if Attachment.inline?(attachment), do: :inline, else: :attachment

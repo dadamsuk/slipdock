@@ -54,7 +54,7 @@ defmodule Slipdock.OnboardingTest do
     assert board.name == "Getting Started"
     assert ["Backlog", "To Do", "In Progress", "Done"] == Enum.map(board.columns, & &1.name)
 
-    cards = Boards.list_cards(board)
+    cards = Boards.Cards.list_cards(board)
     written = Enum.map_join(cards, "\n", &"#{&1.title}\n#{&1.description}") |> String.downcase()
 
     # Every list has something in it: a Done list with nothing in it is the one
@@ -68,11 +68,11 @@ defmodule Slipdock.OnboardingTest do
 
     # Tags, a checklist, a comment and a completed card, because the cards
     # explaining those things are made of them.
-    assert length(Boards.list_tags(board.id)) == 4
+    assert length(Boards.Tags.list_tags(board.id)) == 4
     assert Enum.any?(cards, & &1.completed)
 
     moving = Enum.find(cards, &(&1.title == "Move this card to Done"))
-    moving = Boards.get_card!(moving.id)
+    moving = Boards.Cards.get_card!(moving.id)
     assert length(moving.checklist_items) == 3
     assert Enum.any?(moving.checklist_items, & &1.done)
     assert [_comment] = moving.comments
@@ -83,17 +83,17 @@ defmodule Slipdock.OnboardingTest do
 
     epic =
       board
-      |> Boards.list_cards()
+      |> Boards.Cards.list_cards()
       |> Enum.find(&(&1.title =~ "Break a big job"))
 
     sub = Repo.get_by!(Board, parent_card_id: epic.id)
-    subcards = Boards.list_cards(sub)
+    subcards = Boards.Cards.list_cards(sub)
     assert length(subcards) == 4
 
     blocked =
       subcards
       |> Enum.find(&(&1.title =~ "cannot start"))
-      |> then(&Boards.get_card!(&1.id))
+      |> then(&Boards.Cards.get_card!(&1.id))
 
     assert [blocker] = blocked.blocked_by
     assert blocker.title =~ "next piece"
@@ -110,7 +110,7 @@ defmodule Slipdock.OnboardingTest do
     assert Enum.count(pages, &(&1.parent_id == welcome.id)) == 2
 
     # Pinned to the card that sends you to it.
-    wiki_card = board |> Boards.list_cards() |> Enum.find(&(&1.title =~ "wiki"))
+    wiki_card = board |> Boards.Cards.list_cards() |> Enum.find(&(&1.title =~ "wiki"))
     docs = Wiki.pages_for_card(wiki_card, user)
     assert Enum.any?(docs, &(&1.pinned and &1.page.id == welcome.id))
 
@@ -195,7 +195,7 @@ defmodule Slipdock.OnboardingTest do
       board = Onboarding.build!(user)
       assert Onboarding.exists_for?(user)
 
-      {:ok, _} = Boards.archive_board(board)
+      {:ok, _} = Boards.Arrangement.archive_board(board)
       assert Onboarding.exists_for?(user)
     end
   end

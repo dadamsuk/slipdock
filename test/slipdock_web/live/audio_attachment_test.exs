@@ -19,10 +19,18 @@ defmodule SlipdockWeb.AudioAttachmentTest do
     on_exit(fn -> File.rm(path) end)
 
     {:ok, audio} =
-      Boards.add_attachment(card, %{filename: "call.mp3", content_type: "audio/mpeg"}, path)
+      Boards.Attachments.add_attachment(
+        card,
+        %{filename: "call.mp3", content_type: "audio/mpeg"},
+        path
+      )
 
     {:ok, pdf} =
-      Boards.add_attachment(card, %{filename: "deck.pdf", content_type: "application/pdf"}, path)
+      Boards.Attachments.add_attachment(
+        card,
+        %{filename: "deck.pdf", content_type: "application/pdf"},
+        path
+      )
 
     %{board: reload(board), card: card, audio: audio, pdf: pdf}
   end
@@ -57,7 +65,7 @@ defmodule SlipdockWeb.AudioAttachmentTest do
 
     assert has_element?(
              view,
-             "#audio-#{audio.id}[controls][preload=metadata][src='#{Boards.attachment_url(audio)}']"
+             "#audio-#{audio.id}[controls][preload=metadata][src='#{Boards.Attachments.attachment_url(audio)}']"
            )
 
     refute has_element?(view, "#audio-#{pdf.id}")
@@ -97,7 +105,9 @@ defmodule SlipdockWeb.AudioAttachmentTest do
              ~r/>We agreed to ship on Friday\.<\/p>/
 
     assert has_element?(view, "#transcribe-#{audio.id}", "Transcribe again")
-    assert Boards.get_attachment!(audio.id).transcript == "We agreed to ship on Friday."
+
+    assert Boards.Attachments.get_attachment!(audio.id).transcript ==
+             "We agreed to ship on Friday."
   end
 
   test "silence is said as such, not shown as an empty box", %{
@@ -140,7 +150,7 @@ defmodule SlipdockWeb.AudioAttachmentTest do
     set_up_server()
 
     {:ok, _} =
-      Boards.update_attachment_transcript(audio, %{
+      Boards.Attachments.update_attachment_transcript(audio, %{
         transcript_status: "running",
         transcript_started_at: DateTime.utc_now(:second)
       })
@@ -169,6 +179,6 @@ defmodule SlipdockWeb.AudioAttachmentTest do
     refute has_element?(view, "#transcribe-#{audio.id}")
 
     render_click(with_target(view, "#board-card"), "transcribe", %{"id" => to_string(audio.id)})
-    assert Boards.get_attachment!(audio.id).transcript_status == nil
+    assert Boards.Attachments.get_attachment!(audio.id).transcript_status == nil
   end
 end

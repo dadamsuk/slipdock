@@ -58,7 +58,7 @@ defmodule SlipdockWeb.MCP.TidyBoardPromptTest do
   end
 
   test "a clean board says there is nothing to tidy", ctx do
-    {:ok, _} = Slipdock.Boards.archive_card(ctx.stray)
+    {:ok, _} = Slipdock.Boards.Cards.archive_card(ctx.stray)
     text = ctx.conn |> prompt(%{board: "garden4tb"}) |> text!()
     assert text =~ "## Open suggestions (0)"
     assert text =~ "Nothing to tidy"

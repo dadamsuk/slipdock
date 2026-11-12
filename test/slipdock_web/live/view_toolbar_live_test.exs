@@ -108,7 +108,7 @@ defmodule SlipdockWeb.ViewToolbarLiveTest do
     test "a shared view's reader gets its name, no search or own controls, still in order",
          %{board: board} do
       {:ok, saved} =
-        Boards.create_saved_view(board, %{
+        Boards.SavedViews.create_saved_view(board, %{
           "name" => "Just this",
           "config" => Config.to_map(Config.defaults("table"))
         })

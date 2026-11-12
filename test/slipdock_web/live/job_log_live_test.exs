@@ -247,7 +247,7 @@ defmodule SlipdockWeb.JobLogLiveTest do
     end
 
     test "a sub-board follows its top board: shown read-only, linking to it", ctx do
-      {:ok, t} = Slipdock.Boards.find_template(nil, "Simple")
+      {:ok, t} = Slipdock.Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(ctx.card, t)
       {:ok, view, _} = live(ctx.conn, agentic_path(sub))
       refute has_element?(view, "#board-job-log-hours")

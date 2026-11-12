@@ -16,21 +16,21 @@ defmodule Slipdock.LinksTest do
     b = card_fixture(dcol, %{"title" => "Churn survey", "completed" => true})
     c = card_fixture(dcol, %{"title" => "Unrelated"})
 
-    assert {:ok, _} = Boards.add_link(a, goal, "contributes")
-    assert {:ok, _} = Boards.add_link(b, goal, "contributes")
-    assert {:ok, _} = Boards.add_link(a, c, "relates")
-    assert {:error, msg} = Boards.add_link(c, a, "relates")
+    assert {:ok, _} = Boards.Links.add_link(a, goal, "contributes")
+    assert {:ok, _} = Boards.Links.add_link(b, goal, "contributes")
+    assert {:ok, _} = Boards.Links.add_link(a, c, "relates")
+    assert {:error, msg} = Boards.Links.add_link(c, a, "relates")
     assert msg =~ "already related"
-    assert {:error, _} = Boards.add_link(a, goal, "contributes")
-    assert {:error, _} = Boards.add_link(a, a, "relates")
-    assert {:error, _} = Boards.add_link(a, goal, "bogus")
+    assert {:error, _} = Boards.Links.add_link(a, goal, "contributes")
+    assert {:error, _} = Boards.Links.add_link(a, a, "relates")
+    assert {:error, _} = Boards.Links.add_link(a, goal, "bogus")
 
-    goal = Boards.get_card!(goal.id)
+    goal = Boards.Cards.get_card!(goal.id)
 
     assert [%{title: "Onboarding emails"}, %{title: "Churn survey", completed: true}] =
              Card.contributions(goal)
 
-    a = Boards.get_card!(a.id)
+    a = Boards.Cards.get_card!(a.id)
     assert [%{title: "Grow retention", board: %{name: "Roadmap"}}] = Card.goals(a)
 
     delivery = reload(delivery)
@@ -40,11 +40,11 @@ defmodule Slipdock.LinksTest do
     csv = Table.csv(delivery, %{Config.defaults("table") | fields: ~w(title goal links)})
     assert csv =~ "Onboarding emails,Grow retention,contributes Grow retention; relates Unrelated"
 
-    assert [%{id: _}] = Boards.search_cards_across([roadmap.id, delivery.id], "retention")
-    assert Boards.search_cards_across([roadmap.id], "retention", [goal.id]) == []
+    assert [%{id: _}] = Boards.Links.search_cards_across([roadmap.id, delivery.id], "retention")
+    assert Boards.Links.search_cards_across([roadmap.id], "retention", [goal.id]) == []
 
     [link | _] = a.links_out
-    assert {:ok, _} = Boards.remove_link(link)
-    assert length(Boards.get_card!(a.id).links_out) == 1
+    assert {:ok, _} = Boards.Links.remove_link(link)
+    assert length(Boards.Cards.get_card!(a.id).links_out) == 1
   end
 end

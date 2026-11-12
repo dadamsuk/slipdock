@@ -28,22 +28,22 @@ defmodule SlipdockWeb.BoardLive.ItemEvents do
   @doc "Handles one of `events/0` for the item in the socket."
   def handle("add_check", %{"text" => text}, socket, reload) do
     if String.trim(text) != "" do
-      {:ok, _} = Boards.add_checklist_item(socket.assigns.item, String.trim(text))
+      {:ok, _} = Boards.Checklists.add_checklist_item(socket.assigns.item, String.trim(text))
     end
 
     {:noreply, socket |> update(:form_key, &(&1 + 1)) |> reload.()}
   end
 
   def handle("toggle_check", %{"id" => id}, socket, reload) do
-    if item = Boards.get_checklist_item(socket.assigns.item, id),
-      do: Boards.toggle_checklist_item(item)
+    if item = Boards.Checklists.get_checklist_item(socket.assigns.item, id),
+      do: Boards.Checklists.toggle_checklist_item(item)
 
     {:noreply, reload.(socket)}
   end
 
   def handle("delete_check", %{"id" => id}, socket, reload) do
-    if item = Boards.get_checklist_item(socket.assigns.item, id),
-      do: Boards.delete_checklist_item(item)
+    if item = Boards.Checklists.get_checklist_item(socket.assigns.item, id),
+      do: Boards.Checklists.delete_checklist_item(item)
 
     {:noreply, reload.(socket)}
   end
@@ -51,8 +51,8 @@ defmodule SlipdockWeb.BoardLive.ItemEvents do
   # Dropped into a new place by the drag handle (#1752): before the item
   # that now follows it, or last when nothing does.
   def handle("move_check", %{"id" => id} = params, socket, reload) do
-    if item = Boards.get_checklist_item(socket.assigns.item, id),
-      do: Boards.move_checklist_item(item, params["before"])
+    if item = Boards.Checklists.get_checklist_item(socket.assigns.item, id),
+      do: Boards.Checklists.move_checklist_item(item, params["before"])
 
     {:noreply, reload.(socket)}
   end
@@ -60,7 +60,10 @@ defmodule SlipdockWeb.BoardLive.ItemEvents do
   def handle("add_status_update", %{"health" => health} = params, socket, reload) do
     %{current_user: user, item: subject} = socket.assigns
 
-    case Boards.add_status_update(subject, user, %{"health" => health, "body" => params["body"]}) do
+    case Boards.StatusUpdates.add_status_update(subject, user, %{
+           "health" => health,
+           "body" => params["body"]
+         }) do
       {:ok, _} ->
         {:noreply, socket |> update(:form_key, &(&1 + 1)) |> reload.()}
 
@@ -71,7 +74,7 @@ defmodule SlipdockWeb.BoardLive.ItemEvents do
 
   def handle("delete_status_update", %{"id" => id}, socket, reload) do
     if Enum.any?(socket.assigns.item.status_updates, &(to_string(&1.id) == to_string(id))) do
-      {:ok, _} = Boards.delete_status_update(Params.id(id))
+      {:ok, _} = Boards.StatusUpdates.delete_status_update(Params.id(id))
       {:noreply, reload.(socket)}
     else
       {:noreply, socket}
@@ -82,7 +85,8 @@ defmodule SlipdockWeb.BoardLive.ItemEvents do
     body = body |> strip_upload_placeholder() |> String.trim()
 
     if body != "" do
-      {:ok, _} = Boards.add_comment(socket.assigns.item, body, by: socket.assigns.current_user)
+      {:ok, _} =
+        Boards.Comments.add_comment(socket.assigns.item, body, by: socket.assigns.current_user)
     end
 
     {:noreply, socket |> update(:form_key, &(&1 + 1)) |> reload.()}
@@ -91,16 +95,16 @@ defmodule SlipdockWeb.BoardLive.ItemEvents do
   # A writer takes back any comment; a commenter only their own (#863).
   def handle("delete_comment", %{"id" => id}, socket, _reload) do
     %{item: item, current_user: user} = socket.assigns
-    comment = Boards.get_comment(item, id)
+    comment = Boards.Comments.get_comment(item, id)
 
     if comment && (socket.assigns[:can_write] || comment.user_id == user.id),
-      do: Boards.delete_comment(comment)
+      do: Boards.Comments.delete_comment(comment)
 
     {:noreply, socket}
   end
 
   def handle("add_card_url", params, socket, reload) do
-    case Boards.add_card_url(socket.assigns.item, Map.take(params, ["url", "title"])) do
+    case Boards.CardUrls.add_card_url(socket.assigns.item, Map.take(params, ["url", "title"])) do
       {:ok, _} ->
         {:noreply, socket |> reload.() |> update(:form_key, &(&1 + 1))}
 
@@ -110,10 +114,10 @@ defmodule SlipdockWeb.BoardLive.ItemEvents do
   end
 
   def handle("remove_card_url", %{"id" => id}, socket, reload) do
-    url = Boards.get_card_url!(id)
+    url = Boards.CardUrls.get_card_url!(id)
 
     if Owned.owner_ref(url) == item_ref_of(socket.assigns.item) do
-      {:ok, _} = Boards.delete_card_url(url)
+      {:ok, _} = Boards.CardUrls.delete_card_url(url)
       {:noreply, reload.(socket)}
     else
       {:noreply, socket}

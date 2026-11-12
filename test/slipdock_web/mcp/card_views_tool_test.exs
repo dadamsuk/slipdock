@@ -223,7 +223,10 @@ defmodule SlipdockWeb.MCP.CardViewsToolTest do
       ok!(call(conn, %{action: "set_level", board: "vd7", list: doing.name, show: ["tags"]}))
 
       {:ok, _} =
-        Boards.create_saved_view(board, %{"name" => "Mine", "config" => %{"card_view" => "Quiet"}})
+        Boards.SavedViews.create_saved_view(board, %{
+          "name" => "Mine",
+          "config" => %{"card_view" => "Quiet"}
+        })
 
       applied =
         ok!(call(conn, %{action: "applied", board: "vd7", list: doing.name, saved_view: "Mine"}))

@@ -45,7 +45,7 @@ defmodule SlipdockWeb.VerifiedMergeTest do
 
   defp submit(card, ctx) do
     {:ok, card} =
-      Boards.update_card(
+      Boards.Cards.update_card(
         Repo.get!(Card, card.id),
         %{"completed" => true, "evidence_pr" => @pr, "evidence_commit" => "abc1234"},
         actor: ctx.builder
@@ -218,7 +218,7 @@ defmodule SlipdockWeb.VerifiedMergeTest do
       assert card.merge_sha == @sha
       assert card.column_id == ctx.done.id
       assert Enum.any?(comments(card), &(&1 =~ "**Merged** by runner m-dev as `#{@sha}`"))
-      assert SlipdockWeb.API.JSON.card(Boards.get_card!(card.id)).merge_sha == @sha
+      assert SlipdockWeb.API.JSON.card(Boards.Cards.get_card!(card.id)).merge_sha == @sha
     end
 
     test "failed sends it back to the top of To Do with the reason, for rework", ctx do
@@ -237,7 +237,7 @@ defmodule SlipdockWeb.VerifiedMergeTest do
       assert card.column_id == ctx.todo.id
       assert card.position == 0
       assert Verified.rejection(card).reason =~ "Merge failed"
-      assert Boards.get_card!(card.id).handoff.next_step =~ "Rework: the merge failed"
+      assert Boards.Cards.get_card!(card.id).handoff.next_step =~ "Rework: the merge failed"
       assert Enum.any?(comments(card), &(&1 =~ "rebase `card-#{card.id}` on the default branch"))
     end
 

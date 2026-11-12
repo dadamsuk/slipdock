@@ -64,7 +64,9 @@ defmodule SlipdockWeb.MCP.ResourcesTest do
     end
 
     test "My work, then favourites in the order marked, then pins on favourite boards", ctx do
-      {:ok, view} = Boards.create_saved_view(ctx.board, %{"name" => "Blocked", "config" => %{}})
+      {:ok, view} =
+        Boards.SavedViews.create_saved_view(ctx.board, %{"name" => "Blocked", "config" => %{}})
+
       pinned = page_fixture(ctx.board, %{"title" => "Runbook"}, user: ctx.user)
       {:ok, _} = Wiki.pin(pinned, {:board, ctx.board})
 
@@ -112,7 +114,7 @@ defmodule SlipdockWeb.MCP.ResourcesTest do
 
     test "an archived card is not listed, but reads by its number", ctx do
       {:ok, _} = Favourites.add(ctx.user, :card, ctx.card.id)
-      {:ok, _} = Boards.archive_card(ctx.card)
+      {:ok, _} = Boards.Cards.archive_card(ctx.card)
 
       assert ctx.conn |> rpc("resources/list", %{}) |> uris() == ["slipdock://work"]
       assert ctx.conn |> read("slipdock://card/#{ctx.card.id}") |> text!() =~ "Fix the retry"
@@ -158,7 +160,8 @@ defmodule SlipdockWeb.MCP.ResourcesTest do
 
   describe "resources/read" do
     test "reads each kind as Markdown", ctx do
-      {:ok, view} = Boards.create_saved_view(ctx.board, %{"name" => "Blocked", "config" => %{}})
+      {:ok, view} =
+        Boards.SavedViews.create_saved_view(ctx.board, %{"name" => "Blocked", "config" => %{}})
 
       for uri <- [
             "slipdock://board/#{ctx.board.code}",
@@ -190,7 +193,9 @@ defmodule SlipdockWeb.MCP.ResourcesTest do
     end
 
     test "another user's board, page or view is -32002 too", ctx do
-      {:ok, view} = Boards.create_saved_view(ctx.theirs, %{"name" => "Theirs", "config" => %{}})
+      {:ok, view} =
+        Boards.SavedViews.create_saved_view(ctx.theirs, %{"name" => "Theirs", "config" => %{}})
+
       page = page_fixture(ctx.theirs, %{"title" => "Hidden"})
 
       for uri <- [

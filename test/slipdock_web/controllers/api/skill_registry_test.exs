@@ -356,7 +356,7 @@ defmodule SlipdockWeb.API.SkillRegistryTest do
       {:ok, _} = SkillRegistry.enable(user, board, entry.id, entry.content_hash)
       board = Slipdock.Boards.get_board!(board.id)
       epic = card_fixture(hd(board.columns), %{"title" => "Epic"})
-      {:ok, template} = Slipdock.Boards.find_template(nil, "Simple")
+      {:ok, template} = Slipdock.Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(epic, template)
 
       assert %{"skills" => [%{"name" => "grilling"}]} =

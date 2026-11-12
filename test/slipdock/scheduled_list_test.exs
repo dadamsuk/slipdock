@@ -32,7 +32,7 @@ defmodule Slipdock.ScheduledListTest do
 
   defp scheduled(board) do
     {:ok, col} =
-      Boards.create_column(board, %{"name" => "Scheduled", "category" => "scheduled"})
+      Boards.Columns.create_column(board, %{"name" => "Scheduled", "category" => "scheduled"})
 
     col
   end
@@ -64,18 +64,20 @@ defmodule Slipdock.ScheduledListTest do
     test "a list takes it, made or changed, and gives it up", %{board: board, backlog: backlog} do
       col = scheduled(board)
       assert col.category == "scheduled"
-      assert Boards.scheduled_column(board).id == col.id
+      assert Boards.Columns.scheduled_column(board).id == col.id
 
-      {:ok, col} = Boards.update_column(col, %{"category" => ""})
+      {:ok, col} = Boards.Columns.update_column(col, %{"category" => ""})
       assert col.category == nil
-      assert Boards.scheduled_column(board) == nil
+      assert Boards.Columns.scheduled_column(board) == nil
 
-      {:ok, backlog} = Boards.update_column(backlog, %{"category" => "scheduled"})
-      assert Boards.scheduled_column(board).id == backlog.id
+      {:ok, backlog} = Boards.Columns.update_column(backlog, %{"category" => "scheduled"})
+      assert Boards.Columns.scheduled_column(board).id == backlog.id
     end
 
     test "a category that isn't one is refused", %{board: board} do
-      assert {:error, cs} = Boards.create_column(board, %{"name" => "X", "category" => "sched"})
+      assert {:error, cs} =
+               Boards.Columns.create_column(board, %{"name" => "X", "category" => "sched"})
+
       assert %{category: [_]} = errors_on(cs)
     end
   end
@@ -145,7 +147,7 @@ defmodule Slipdock.ScheduledListTest do
     setup ctx do
       card = card_fixture(ctx.todo, %{"title" => "Sweep the code", "due_date" => "2027-01-11"})
       {:ok, series} = Recurrence.set(card, %{"rule" => "mon"}, ctx.owner)
-      {:ok, _} = Boards.update_card(Repo.get!(Card, card.id), %{"completed" => true})
+      {:ok, _} = Boards.Cards.update_card(Repo.get!(Card, card.id), %{"completed" => true})
       %{card: card, series: series}
     end
 
@@ -160,7 +162,7 @@ defmodule Slipdock.ScheduledListTest do
 
       new = next_instance(ctx.series)
       assert new.column_id == col.id
-      assert [{:card, top} | _] = Boards.active_items(col.id)
+      assert [{:card, top} | _] = Boards.Columns.active_items(col.id)
       assert top == new.id
     end
 
@@ -234,7 +236,7 @@ defmodule Slipdock.ScheduledListTest do
   describe "the templates" do
     test "Simple and Slipdock carry Scheduled after To Do; the rest don't" do
       for name <- ["Simple", "Slipdock"] do
-        {:ok, template} = Boards.find_template(nil, name)
+        {:ok, template} = Boards.Templates.find_template(nil, name)
         names = Enum.map(template.columns, & &1["name"])
         i = Enum.find_index(names, &(&1 == "To Do"))
         assert Enum.at(template.columns, i + 1)["name"] == "Scheduled"
@@ -243,13 +245,13 @@ defmodule Slipdock.ScheduledListTest do
       end
 
       for name <- ["Checklist", "Bug triage", "Research", "Roadmap"] do
-        {:ok, template} = Boards.find_template(nil, name)
+        {:ok, template} = Boards.Templates.find_template(nil, name)
         refute Enum.any?(template.columns, &(&1["category"] == "scheduled"))
       end
     end
 
     test "a board made from Simple has it; a sub-board made from Simple doesn't", ctx do
-      {:ok, simple} = Boards.find_template(nil, "Simple")
+      {:ok, simple} = Boards.Templates.find_template(nil, "Simple")
 
       {:ok, board} =
         Boards.create_board(%{"name" => "Fresh"}, template: simple, owner_id: ctx.owner.id)
@@ -296,10 +298,10 @@ defmodule Slipdock.ScheduledListTest do
     test "not once started, done or archived, and not on someone else's list", ctx do
       yesterday = Date.add(Slipdock.Timezones.today("Europe/London"), -1)
       started = card_fixture(ctx.scheduled, %{"due_date" => yesterday})
-      Boards.move_card(started.id, ctx.doing.id)
+      Boards.Cards.move_card(started.id, ctx.doing.id)
       card_fixture(ctx.scheduled, %{"due_date" => yesterday, "completed" => true})
       archived = card_fixture(ctx.scheduled, %{"due_date" => yesterday})
-      {:ok, _} = Boards.archive_card(archived)
+      {:ok, _} = Boards.Cards.archive_card(archived)
       # Due yesterday, but in an ordinary list: not this reason.
       card_fixture(ctx.todo, %{"due_date" => yesterday})
 
@@ -327,7 +329,9 @@ defmodule Slipdock.ScheduledListTest do
       Repo.update_all(from(m in CardMove, where: m.card_id == ^card.id), set: [inserted_at: at])
 
       [card] =
-        CardState.put([Boards.get_card!(card.id)], ctx.board, usual: %{ctx.scheduled.id => 60})
+        CardState.put([Boards.Cards.get_card!(card.id)], ctx.board,
+          usual: %{ctx.scheduled.id => 60}
+        )
 
       assert card.state.age >= 10 * 86_400
       assert card.state.over_usual == nil
@@ -362,18 +366,21 @@ defmodule Slipdock.ScheduledListTest do
          ctx do
       feed(ctx.board, "To Do", "loop")
       feed(ctx.board, "To Do", "macstudio")
-      {:ok, col} = Boards.create_column(ctx.board, %{"name" => "Scheduled"})
+      {:ok, col} = Boards.Columns.create_column(ctx.board, %{"name" => "Scheduled"})
       # As the owner added #47 by hand, before the list had its category.
       feed(ctx.board, "Scheduled", "loop")
 
-      {:ok, _} = Boards.update_column(col, %{"category" => "scheduled"})
+      {:ok, _} = Boards.Columns.update_column(col, %{"category" => "scheduled"})
 
       assert Enum.map(feeds_on(ctx.board, "Scheduled"), &hd(&1.spec["actions"])["pool"])
              |> Enum.sort() ==
                ["loop", "macstudio"]
 
       assert {:ok, []} = ScheduledFeed.ensure(ctx.board)
-      {:ok, col} = Boards.update_column(Repo.get!(Column, col.id), %{"name" => "Scheduled"})
+
+      {:ok, col} =
+        Boards.Columns.update_column(Repo.get!(Column, col.id), %{"name" => "Scheduled"})
+
       assert col.category == "scheduled"
       assert length(feeds_on(ctx.board, "Scheduled")) == 2
     end
@@ -428,7 +435,10 @@ defmodule Slipdock.ScheduledListTest do
       end
 
       assert {:ok, col} =
-               Boards.create_column(ctx.board, %{"name" => "Scheduled", "category" => "scheduled"})
+               Boards.Columns.create_column(ctx.board, %{
+                 "name" => "Scheduled",
+                 "category" => "scheduled"
+               })
 
       assert col.category == "scheduled"
       assert feeds_on(ctx.board, "Scheduled") == []

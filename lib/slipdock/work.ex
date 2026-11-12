@@ -51,7 +51,7 @@ defmodule Slipdock.Work do
     today = opts[:today] || Date.utc_today()
 
     user
-    |> Boards.list_assigned_cards()
+    |> Boards.Cards.list_assigned_cards()
     |> then(&Access.filter_readable_cards(viewer, &1))
     |> then(fn cards ->
       case opts[:board_id] do

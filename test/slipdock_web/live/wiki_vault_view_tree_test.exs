@@ -99,7 +99,7 @@ defmodule SlipdockWeb.WikiVaultViewTreeTest do
   } do
     [{b1, _}, _, {b3, _} | _] = boards
     {b8, _} = List.last(boards)
-    :ok = Slipdock.Boards.reorder_boards(user, [b8.id, b3.id, b1.id])
+    :ok = Slipdock.Boards.Arrangement.reorder_boards(user, [b8.id, b3.id, b1.id])
 
     {:ok, view, _html} = live(conn, SlipdockWeb.VaultUrls.url(vault))
 
@@ -129,7 +129,7 @@ defmodule SlipdockWeb.WikiVaultViewTreeTest do
     test "shows when a sub-board below it has something written", ctx do
       %{conn: conn, user: user, vault: vault} = ctx
       parent = board_fixture(%{"name" => "Parent", "code" => "vvtparent"}, owner: user)
-      {:ok, template} = Slipdock.Boards.find_template(nil, "Simple")
+      {:ok, template} = Slipdock.Boards.Templates.find_template(nil, "Simple")
       [column | _] = Slipdock.Boards.get_board!(parent.id).columns
       {:ok, sub} = sub_board(card_fixture(column, %{"title" => "Epic"}), template)
       page_fixture(sub, %{"title" => "Deep note"}, user: user)
@@ -157,7 +157,7 @@ defmodule SlipdockWeb.WikiVaultViewTreeTest do
 
   describe "an archived board" do
     setup %{boards: [{board, [notes | _]} | _]} do
-      {:ok, board} = Slipdock.Boards.archive_board(board)
+      {:ok, board} = Slipdock.Boards.Arrangement.archive_board(board)
       %{archived: board, notes: notes}
     end
 

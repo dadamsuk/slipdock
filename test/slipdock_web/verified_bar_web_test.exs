@@ -186,7 +186,7 @@ defmodule SlipdockWeb.VerifiedBarWebTest do
     view |> form("#card-bar-form", card: %{"bar" => "Tests pass"}) |> render_change()
     assert Repo.get!(Card, ctx.card.id).bar == "Tests pass"
 
-    :ok = Boards.move_card(ctx.card.id, ctx.doing.id)
+    :ok = Boards.Cards.move_card(ctx.card.id, ctx.doing.id)
     {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/cards/#{ctx.card}")
     assert has_element?(view, "#card-bar-locked")
   end

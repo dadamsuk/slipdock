@@ -51,13 +51,13 @@ defmodule Slipdock.WorkWaitingTest do
 
   defp open_wait(card, by, attrs) do
     {:ok, wait} =
-      Boards.open_wait(card, agent(by), Map.merge(%{"needs" => "Which region?"}, attrs))
+      Boards.Waits.open_wait(card, agent(by), Map.merge(%{"needs" => "Which region?"}, attrs))
 
     wait
   end
 
   defp assign(card, users),
-    do: {:ok, _} = Boards.update_card(card, %{"assignee_ids" => Enum.map(users, & &1.id)})
+    do: {:ok, _} = Boards.Cards.update_card(card, %{"assignee_ids" => Enum.map(users, & &1.id)})
 
   defp ago(seconds),
     do: DateTime.utc_now() |> DateTime.add(-seconds, :second) |> DateTime.truncate(:second)
@@ -110,7 +110,7 @@ defmodule Slipdock.WorkWaitingTest do
 
     test "a wait on a sub-board's card is the root owner's", ctx do
       parent = card_fixture(ctx.todo)
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(parent, t)
       sub = Boards.get_board!(sub.id)
       card = card_fixture(hd(sub.columns))
@@ -123,7 +123,7 @@ defmodule Slipdock.WorkWaitingTest do
 
     test "a person asking anyone themselves doesn't wait on themselves", ctx do
       card = card_fixture(ctx.todo)
-      {:ok, _} = Boards.open_wait(card, Actor.web(ctx.owner), %{"needs" => "Anyone?"})
+      {:ok, _} = Boards.Waits.open_wait(card, Actor.web(ctx.owner), %{"needs" => "Anyone?"})
 
       assert reasons(ctx.owner) == []
     end
@@ -131,8 +131,8 @@ defmodule Slipdock.WorkWaitingTest do
     test "a review-flagged card assigned to me counts from when the flag went on", ctx do
       card = card_fixture(ctx.todo)
       assign(card, [ctx.dana])
-      {:ok, card} = Boards.update_card(card, %{"flags" => ["review"]})
-      {:ok, _} = Boards.update_card(card, %{"flags" => ["review", "blocked"]})
+      {:ok, card} = Boards.Cards.update_card(card, %{"flags" => ["review"]})
+      {:ok, _} = Boards.Cards.update_card(card, %{"flags" => ["review", "blocked"]})
 
       # The flag went on a while ago; the second change kept it on.
       [first, _second] =
@@ -157,9 +157,9 @@ defmodule Slipdock.WorkWaitingTest do
     test "a flag taken off and put back counts from when it went back on", ctx do
       card = card_fixture(ctx.todo)
       assign(card, [ctx.dana])
-      {:ok, card} = Boards.update_card(card, %{"flags" => ["waiting"]})
-      {:ok, card} = Boards.update_card(card, %{"flags" => []})
-      {:ok, _} = Boards.update_card(card, %{"flags" => ["waiting"]})
+      {:ok, card} = Boards.Cards.update_card(card, %{"flags" => ["waiting"]})
+      {:ok, card} = Boards.Cards.update_card(card, %{"flags" => []})
+      {:ok, _} = Boards.Cards.update_card(card, %{"flags" => ["waiting"]})
 
       [on, off, back] =
         from(a in Activity, where: a.card_id == ^card.id and like(a.message, "set flags%"))
@@ -188,7 +188,7 @@ defmodule Slipdock.WorkWaitingTest do
 
     test "a card the runner gave up on is the board owner's", ctx do
       card = card_fixture(ctx.doing)
-      {:ok, _} = Boards.update_card(card, %{"flags" => ["blocked"]})
+      {:ok, _} = Boards.Cards.update_card(card, %{"flags" => ["blocked"]})
       job = job(card, "done", recovery: "gave_up")
 
       assert [item] = Work.waiting_on_me(ctx.owner)
@@ -198,7 +198,7 @@ defmodule Slipdock.WorkWaitingTest do
       assert reasons(ctx.dana) == []
 
       # Unblocked by hand, it no longer needs anybody.
-      {:ok, _} = Boards.update_card(Boards.get_card!(card.id), %{"flags" => []})
+      {:ok, _} = Boards.Cards.update_card(Boards.Cards.get_card!(card.id), %{"flags" => []})
       assert reasons(ctx.owner) == []
     end
 
@@ -275,11 +275,14 @@ defmodule Slipdock.WorkWaitingTest do
     test "completed and archived cards drop out", ctx do
       done = card_fixture(ctx.todo)
       open_wait(done, ctx.owner, %{"on_user_id" => ctx.dana.id})
-      {:ok, _} = Boards.toggle_completed(Boards.get_card!(done.id))
+      {:ok, _} = Boards.Cards.toggle_completed(Boards.Cards.get_card!(done.id))
       archived = card_fixture(ctx.todo)
       assign(archived, [ctx.dana])
-      {:ok, _} = Boards.update_card(Boards.get_card!(archived.id), %{"flags" => ["review"]})
-      {:ok, _} = Boards.archive_card(Boards.get_card!(archived.id))
+
+      {:ok, _} =
+        Boards.Cards.update_card(Boards.Cards.get_card!(archived.id), %{"flags" => ["review"]})
+
+      {:ok, _} = Boards.Cards.archive_card(Boards.Cards.get_card!(archived.id))
 
       assert reasons(ctx.dana) == []
     end
@@ -301,7 +304,7 @@ defmodule Slipdock.WorkWaitingTest do
 
       reviewed = card_fixture(ctx.todo, %{"title" => "Reviewed"})
       assign(reviewed, [ctx.owner])
-      {:ok, _} = Boards.update_card(reviewed, %{"flags" => ["review"]})
+      {:ok, _} = Boards.Cards.update_card(reviewed, %{"flags" => ["review"]})
       # The review card is also waited on: one item, the wait.
       open_wait(reviewed, ctx.dana, %{"on_user_id" => ctx.owner.id})
 
@@ -337,7 +340,7 @@ defmodule Slipdock.WorkWaitingTest do
       open_wait(card, ctx.owner, %{"on_user_id" => ctx.dana.id})
       assert Work.waiting_count(ctx.dana) == 1
 
-      {:ok, _} = Boards.answer_wait(card, Actor.web(ctx.dana), %{"answer" => "eu"})
+      {:ok, _} = Boards.Waits.answer_wait(card, Actor.web(ctx.dana), %{"answer" => "eu"})
       assert Work.waiting_count(ctx.dana) == 0
     end
   end

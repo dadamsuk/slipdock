@@ -172,7 +172,7 @@ defmodule Slipdock.Automations.PresetsTest do
       card_fixture(ctx.doing, %{"title" => "Added"})
       moved = card_fixture(ctx.backlog, %{"title" => "Moved"})
       card_fixture(ctx.backlog, %{"title" => "Elsewhere"})
-      :ok = Boards.move_card(moved.id, ctx.doing.id)
+      :ok = Boards.Cards.move_card(moved.id, ctx.doing.id)
 
       assert Enum.sort(titles(ctx.owner)) == [
                "In #{ctx.doing.name}: Added",
@@ -187,15 +187,15 @@ defmodule Slipdock.Automations.PresetsTest do
       {:ok, _} =
         add(ctx.board, ctx.owner, "follow_card", %{"card" => "##{card.id}", "notify" => "email"})
 
-      {:ok, _} = Boards.toggle_completed(other)
+      {:ok, _} = Boards.Cards.toggle_completed(other)
       refute_email_sent()
 
       # Completing is a card_updated and a card_completed; following hears one.
-      {:ok, _} = Boards.toggle_completed(card)
+      {:ok, _} = Boards.Cards.toggle_completed(card)
       assert_email_sent(subject: "Watched: card_updated")
       refute_email_sent()
 
-      {:ok, _} = Boards.add_comment(Boards.get_card!(card.id), "Nice")
+      {:ok, _} = Boards.Comments.add_comment(Boards.Cards.get_card!(card.id), "Nice")
       assert_email_sent(subject: "Watched: comment_added")
     end
 
@@ -203,7 +203,7 @@ defmodule Slipdock.Automations.PresetsTest do
       sam = user_fixture("sam@example.com")
       share_fixture(ctx.board, sam)
       mine = card_fixture(ctx.backlog, %{"title" => "Sam's"})
-      {:ok, _} = Boards.update_card(mine, %{"assignee_ids" => [sam.id]})
+      {:ok, _} = Boards.Cards.update_card(mine, %{"assignee_ids" => [sam.id]})
       theirs = card_fixture(ctx.backlog, %{"title" => "Nobody's"})
 
       {:ok, _} =
@@ -211,8 +211,8 @@ defmodule Slipdock.Automations.PresetsTest do
           "assignee" => fixture_email("sam@example.com")
         })
 
-      {:ok, _} = Boards.add_comment(Boards.get_card!(theirs.id), "hello")
-      {:ok, _} = Boards.add_comment(Boards.get_card!(mine.id), "hello")
+      {:ok, _} = Boards.Comments.add_comment(Boards.Cards.get_card!(theirs.id), "hello")
+      {:ok, _} = Boards.Comments.add_comment(Boards.Cards.get_card!(mine.id), "hello")
 
       assert titles(ctx.owner) == ["New comment on Sam's"]
     end
@@ -221,10 +221,10 @@ defmodule Slipdock.Automations.PresetsTest do
       card = card_fixture(ctx.backlog, %{"title" => "Dated"})
       {:ok, _} = add(ctx.board, ctx.owner, "watch_field", %{"field" => "due_date"})
 
-      {:ok, card} = Boards.update_card(card, %{"title" => "Dated still"})
+      {:ok, card} = Boards.Cards.update_card(card, %{"title" => "Dated still"})
       assert titles(ctx.owner) == []
 
-      {:ok, _} = Boards.update_card(card, %{"due_date" => "2030-01-01"})
+      {:ok, _} = Boards.Cards.update_card(card, %{"due_date" => "2030-01-01"})
       assert titles(ctx.owner) == ["Due date changed: Dated still"]
     end
   end
@@ -234,9 +234,9 @@ defmodule Slipdock.Automations.PresetsTest do
       {:ok, _} = add(ctx.board, ctx.owner, "complete_in_done", %{"column" => ctx.done.name})
 
       card = card_fixture(ctx.backlog)
-      :ok = Boards.move_card(card.id, ctx.done.id)
+      :ok = Boards.Cards.move_card(card.id, ctx.done.id)
 
-      assert Boards.get_card!(card.id).completed
+      assert Boards.Cards.get_card!(card.id).completed
     end
 
     test "a tag raises the priority", ctx do
@@ -244,9 +244,9 @@ defmodule Slipdock.Automations.PresetsTest do
       {:ok, _} = add(ctx.board, ctx.owner, "tag_priority", %{"tag" => "urgent"})
 
       card = card_fixture(ctx.backlog)
-      {:ok, _} = Boards.toggle_card_tag(card, tag)
+      {:ok, _} = Boards.Tags.toggle_card_tag(card, tag)
 
-      assert Boards.get_card!(card.id).priority == "critical"
+      assert Boards.Cards.get_card!(card.id).priority == "critical"
     end
   end
 

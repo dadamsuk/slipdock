@@ -15,8 +15,8 @@ defmodule SlipdockWeb.FlowAPITest do
     [_backlog, todo, doing, done] = board.columns
 
     card = card_fixture(todo, %{"title" => "Shipped"})
-    :ok = Boards.move_card(card.id, doing.id, nil, actor: Actor.web(user))
-    :ok = Boards.move_card(card.id, done.id, nil, actor: Actor.web(user))
+    :ok = Boards.Cards.move_card(card.id, doing.id, nil, actor: Actor.web(user))
+    :ok = Boards.Cards.move_card(card.id, done.id, nil, actor: Actor.web(user))
     card_fixture(todo, %{"title" => "Waiting"})
 
     conn = put_req_header(conn, "accept", "application/json")

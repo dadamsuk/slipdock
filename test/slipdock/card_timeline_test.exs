@@ -41,7 +41,7 @@ defmodule Slipdock.CardTimelineTest do
     end
 
     Repo.update_all(from(c in Card, where: c.id == ^card.id), set: [inserted_at: at(hd(minutes))])
-    Boards.get_card!(card.id)
+    Boards.Cards.get_card!(card.id)
   end
 
   defp lists(timeline), do: Enum.map(timeline.stays, &{&1.list, &1.category})
@@ -49,8 +49,8 @@ defmodule Slipdock.CardTimelineTest do
   describe "stays" do
     test "each list it sat in, from the move in to the next, the last open to now", ctx do
       card = card_fixture(ctx.todo, %{"title" => "Ship it"})
-      :ok = Boards.move_card(card.id, ctx.doing.id, nil, actor: Actor.web(ctx.owner))
-      :ok = Boards.move_card(card.id, ctx.done.id, nil, actor: Actor.web(ctx.owner))
+      :ok = Boards.Cards.move_card(card.id, ctx.doing.id, nil, actor: Actor.web(ctx.owner))
+      :ok = Boards.Cards.move_card(card.id, ctx.done.id, nil, actor: Actor.web(ctx.owner))
       card = place(card, [0, 30, 90])
 
       tl = CardTimeline.for_card(card, now: at(120))
@@ -69,7 +69,7 @@ defmodule Slipdock.CardTimelineTest do
     test "an agent's move is credited to its label", ctx do
       card = card_fixture(ctx.todo)
       actor = %{Actor.unknown() | kind: "agent", via: "mcp", agent: "laptop"}
-      :ok = Boards.move_card(card.id, ctx.doing.id, nil, actor: actor)
+      :ok = Boards.Cards.move_card(card.id, ctx.doing.id, nil, actor: actor)
 
       assert [_, %{how: %{actor_kind: "agent", by: "laptop"}}] =
                CardTimeline.for_card(card).stays
@@ -77,8 +77,8 @@ defmodule Slipdock.CardTimelineTest do
 
     test "time archived is a stay of its own, ended by the restore", ctx do
       card = card_fixture(ctx.todo)
-      {:ok, card} = Boards.archive_card(card)
-      {:ok, card} = Boards.unarchive_card(card)
+      {:ok, card} = Boards.Cards.archive_card(card)
+      {:ok, card} = Boards.Cards.unarchive_card(card)
       card = place(card, [0, 10, 40])
 
       tl = CardTimeline.for_card(card, now: at(50))
@@ -90,7 +90,7 @@ defmodule Slipdock.CardTimelineTest do
 
     test "a move from a list the ledger never put it in leaves the stay before unsure", ctx do
       card = card_fixture(ctx.todo)
-      :ok = Boards.move_card(card.id, ctx.doing.id, nil, actor: Actor.web(ctx.owner))
+      :ok = Boards.Cards.move_card(card.id, ctx.doing.id, nil, actor: Actor.web(ctx.owner))
       card = place(card, [0, 20])
 
       # As the backfill leaves it: a move after one it couldn't read.
@@ -114,11 +114,11 @@ defmodule Slipdock.CardTimelineTest do
 
     test "time before a first row that isn't the card's creation is an unsure lead-in", ctx do
       card = card_fixture(ctx.todo)
-      :ok = Boards.move_card(card.id, ctx.doing.id, nil, actor: Actor.web(ctx.owner))
+      :ok = Boards.Cards.move_card(card.id, ctx.doing.id, nil, actor: Actor.web(ctx.owner))
       card = place(card, [0, 20])
       Repo.delete_all(from(m in CardMove, where: m.card_id == ^card.id and m.kind == "created"))
       Repo.update_all(from(c in Card, where: c.id == ^card.id), set: [inserted_at: at(-60)])
-      card = Boards.get_card!(card.id)
+      card = Boards.Cards.get_card!(card.id)
 
       tl = CardTimeline.for_card(card, now: at(30))
 
@@ -141,7 +141,7 @@ defmodule Slipdock.CardTimelineTest do
 
     test "a renamed list keeps the name it had then", ctx do
       card = card_fixture(ctx.todo)
-      {:ok, _} = Boards.update_column(ctx.todo, %{"name" => "Ready"})
+      {:ok, _} = Boards.Columns.update_column(ctx.todo, %{"name" => "Ready"})
 
       assert [%{list: "To Do"}] = CardTimeline.for_card(card).stays
     end
@@ -150,12 +150,12 @@ defmodule Slipdock.CardTimelineTest do
   describe "waits and jobs" do
     test "a wait runs from opened to answered; an open one runs to now", ctx do
       card = card_fixture(ctx.doing)
-      {:ok, _} = Boards.open_wait(card, Actor.web(ctx.owner), %{"needs" => "Which colour?"})
-      {:ok, _} = Boards.answer_wait(card, Actor.web(ctx.owner), %{"answer" => "Blue"})
-      {:ok, _} = Boards.open_wait(card, Actor.web(ctx.owner), %{"needs" => "Ship it?"})
+      {:ok, _} = Boards.Waits.open_wait(card, Actor.web(ctx.owner), %{"needs" => "Which colour?"})
+      {:ok, _} = Boards.Waits.answer_wait(card, Actor.web(ctx.owner), %{"answer" => "Blue"})
+      {:ok, _} = Boards.Waits.open_wait(card, Actor.web(ctx.owner), %{"needs" => "Ship it?"})
 
       now = DateTime.add(DateTime.utc_now(), 3600)
-      tl = CardTimeline.for_card(Boards.get_card!(card.id), now: DateTime.add(now, 0))
+      tl = CardTimeline.for_card(Boards.Cards.get_card!(card.id), now: DateTime.add(now, 0))
 
       assert [first, second] = tl.waits
       assert %{needs: "Which colour?", on: "anyone", open: false, reason: "answered"} = first

@@ -67,9 +67,9 @@ defmodule SlipdockWeb.API.AttachmentsTest do
       assert url == "/attachments/#{id}/shot.png"
       assert markdown == "![shot.png](#{url})"
 
-      [stored] = Boards.get_card!(card.id).attachments
+      [stored] = Boards.Cards.get_card!(card.id).attachments
       assert stored.id == id
-      assert File.read!(Boards.attachment_path(stored)) == @png
+      assert File.read!(Boards.Attachments.attachment_path(stored)) == @png
 
       # It shows on the card, and it is served back as the image it is.
       assert %{"card" => %{"attachments" => [%{"id" => ^id}]}} =
@@ -110,7 +110,7 @@ defmodule SlipdockWeb.API.AttachmentsTest do
 
     test "is listed, oldest first", %{conn: conn, card: card} do
       {:ok, a} =
-        Boards.add_attachment(
+        Boards.Attachments.add_attachment(
           card,
           %{filename: "a.png", content_type: "image/png"},
           upload("a.png", @png).path
@@ -124,20 +124,20 @@ defmodule SlipdockWeb.API.AttachmentsTest do
 
     test "is deleted, bytes and all", %{conn: conn, card: card} do
       {:ok, a} =
-        Boards.add_attachment(
+        Boards.Attachments.add_attachment(
           card,
           %{filename: "a.png", content_type: "image/png"},
           upload("a.png", @png).path
         )
 
-      path = Boards.attachment_path(a)
+      path = Boards.Attachments.attachment_path(a)
 
       assert %{"ok" => true} =
                conn
                |> delete("/api/cards/#{card.id}/attachments/#{a.id}")
                |> json_response(200)
 
-      assert Boards.get_card!(card.id).attachments == []
+      assert Boards.Cards.get_card!(card.id).attachments == []
       refute File.exists?(path)
     end
   end
@@ -157,12 +157,12 @@ defmodule SlipdockWeb.API.AttachmentsTest do
                })
                |> json_response(201)
 
-      assert Boards.get_attachment!(id).hide_on_card
+      assert Boards.Attachments.get_attachment!(id).hide_on_card
     end
 
     test "PATCH keeps an image off it, and puts it back", %{conn: conn, card: card} do
       {:ok, a} =
-        Boards.add_attachment(
+        Boards.Attachments.add_attachment(
           card,
           %{filename: "a.png", content_type: "image/png"},
           upload("a.png", @png).path
@@ -173,7 +173,7 @@ defmodule SlipdockWeb.API.AttachmentsTest do
                |> patch("/api/cards/#{card.id}/attachments/#{a.id}", %{hide_on_card: true})
                |> json_response(200)
 
-      assert Boards.get_attachment!(a.id).hide_on_card
+      assert Boards.Attachments.get_attachment!(a.id).hide_on_card
 
       # Leaving the field out changes nothing.
       assert %{"attachment" => %{"hide_on_card" => true}} =
@@ -186,7 +186,7 @@ defmodule SlipdockWeb.API.AttachmentsTest do
                |> patch("/api/cards/#{card.id}/attachments/#{a.id}", %{hide_on_card: false})
                |> json_response(200)
 
-      refute Boards.get_attachment!(a.id).hide_on_card
+      refute Boards.Attachments.get_attachment!(a.id).hide_on_card
     end
 
     test "a value that is not a boolean is a 422, and changes nothing", %{
@@ -194,7 +194,7 @@ defmodule SlipdockWeb.API.AttachmentsTest do
       card: card
     } do
       {:ok, a} =
-        Boards.add_attachment(
+        Boards.Attachments.add_attachment(
           card,
           %{filename: "a.png", content_type: "image/png"},
           upload("a.png", @png).path
@@ -212,8 +212,8 @@ defmodule SlipdockWeb.API.AttachmentsTest do
              })
              |> json_response(422)
 
-      refute Boards.get_attachment!(a.id).hide_on_card
-      assert [_] = Boards.get_card!(card.id).attachments
+      refute Boards.Attachments.get_attachment!(a.id).hide_on_card
+      assert [_] = Boards.Cards.get_card!(card.id).attachments
     end
 
     test "another card's file, or a read-only token, cannot change it", %{
@@ -225,7 +225,7 @@ defmodule SlipdockWeb.API.AttachmentsTest do
       theirs = card_fixture(hd(board.columns), %{"title" => "Theirs"})
 
       {:ok, a} =
-        Boards.add_attachment(
+        Boards.Attachments.add_attachment(
           theirs,
           %{filename: "a.png", content_type: "image/png"},
           upload("a.png", @png).path
@@ -239,14 +239,14 @@ defmodule SlipdockWeb.API.AttachmentsTest do
              |> patch("/api/cards/#{theirs.id}/attachments/#{a.id}", %{hide_on_card: true})
              |> json_response(403)
 
-      refute Boards.get_attachment!(a.id).hide_on_card
+      refute Boards.Attachments.get_attachment!(a.id).hide_on_card
     end
   end
 
   describe "transcribing" do
     setup %{card: card} do
       {:ok, a} =
-        Boards.add_attachment(
+        Boards.Attachments.add_attachment(
           card,
           %{filename: "call.mp3", content_type: "audio/mpeg"},
           upload("call.mp3", "ID3 audio", "audio/mpeg").path
@@ -305,7 +305,7 @@ defmodule SlipdockWeb.API.AttachmentsTest do
       set_up_server()
 
       {:ok, pdf} =
-        Boards.add_attachment(
+        Boards.Attachments.add_attachment(
           card,
           %{filename: "a.pdf", content_type: "application/pdf"},
           upload("a.pdf", "%PDF").path
@@ -321,7 +321,7 @@ defmodule SlipdockWeb.API.AttachmentsTest do
       set_up_server()
 
       {:ok, _} =
-        Boards.update_attachment_transcript(audio, %{
+        Boards.Attachments.update_attachment_transcript(audio, %{
           transcript_status: "running",
           transcript_started_at: DateTime.utc_now(:second)
         })
@@ -349,7 +349,7 @@ defmodule SlipdockWeb.API.AttachmentsTest do
              |> post("/api/cards/#{audio.card_id}/attachments/#{audio.id}/transcribe")
              |> json_response(403)
 
-      assert Boards.get_attachment!(audio.id).transcript_status == nil
+      assert Boards.Attachments.get_attachment!(audio.id).transcript_status == nil
     end
   end
 
@@ -368,7 +368,7 @@ defmodule SlipdockWeb.API.AttachmentsTest do
                |> json_response(422)
 
       assert error =~ "multipart file upload"
-      assert Boards.get_card!(card.id).attachments == []
+      assert Boards.Cards.get_card!(card.id).attachments == []
     end
 
     test "up to 250 MB is taken; a byte more is a 422, and nothing is stored", %{
@@ -396,7 +396,7 @@ defmodule SlipdockWeb.API.AttachmentsTest do
                |> json_response(422)
 
       assert msg =~ "less than or equal to"
-      assert Boards.get_card!(card.id).attachments == []
+      assert Boards.Cards.get_card!(card.id).attachments == []
     end
 
     test "an empty file is a validation failure", %{conn: conn, card: card} do
@@ -418,7 +418,7 @@ defmodule SlipdockWeb.API.AttachmentsTest do
       theirs = card_fixture(hd(board.columns), %{"title" => "Theirs"})
 
       {:ok, a} =
-        Boards.add_attachment(
+        Boards.Attachments.add_attachment(
           theirs,
           %{filename: "a.png", content_type: "image/png"},
           upload("a.png", @png).path
@@ -431,12 +431,12 @@ defmodule SlipdockWeb.API.AttachmentsTest do
                  |> json_response(404)
       end
 
-      assert [_] = Boards.get_card!(theirs.id).attachments
+      assert [_] = Boards.Cards.get_card!(theirs.id).attachments
     end
 
     test "a read-only token can list but not upload or delete", %{user: user, card: card} do
       {:ok, a} =
-        Boards.add_attachment(
+        Boards.Attachments.add_attachment(
           card,
           %{filename: "a.png", content_type: "image/png"},
           upload("a.png", @png).path
@@ -455,7 +455,7 @@ defmodule SlipdockWeb.API.AttachmentsTest do
              |> delete("/api/cards/#{card.id}/attachments/#{a.id}")
              |> json_response(403)
 
-      assert [_] = Boards.get_card!(card.id).attachments
+      assert [_] = Boards.Cards.get_card!(card.id).attachments
     end
 
     test "someone with no access to the board gets nothing", %{card: card} do
@@ -466,7 +466,7 @@ defmodule SlipdockWeb.API.AttachmentsTest do
                |> post("/api/cards/#{card.id}/attachments", %{file: upload("a.png", @png)})
                |> json_response(403)
 
-      assert Boards.get_card!(card.id).attachments == []
+      assert Boards.Cards.get_card!(card.id).attachments == []
     end
   end
 
@@ -484,7 +484,7 @@ defmodule SlipdockWeb.API.AttachmentsTest do
                  |> json_response(201)
       end
 
-      assert length(Boards.get_card!(card.id).attachments) == 2
+      assert length(Boards.Cards.get_card!(card.id).attachments) == 2
     end
 
     test "the response and the listing carry the stored file's sha256 (#1015)", %{
@@ -539,7 +539,7 @@ defmodule SlipdockWeb.API.AttachmentsTest do
       assert error =~ "12 bytes with sha256 #{sha(flipped)}"
       assert error =~ "not the #{sha(@png)} you sent"
       assert error =~ "nothing was stored"
-      assert Boards.get_card!(card.id).attachments == []
+      assert Boards.Cards.get_card!(card.id).attachments == []
     end
 
     test "that isn't a SHA-256 at all is a 422, and stores nothing", %{conn: conn, card: card} do
@@ -555,7 +555,7 @@ defmodule SlipdockWeb.API.AttachmentsTest do
         assert error =~ "64 hex characters"
       end
 
-      assert Boards.get_card!(card.id).attachments == []
+      assert Boards.Cards.get_card!(card.id).attachments == []
     end
 
     test "is checked on a page's upload too", %{conn: conn, page: page} do
@@ -598,7 +598,7 @@ defmodule SlipdockWeb.API.AttachmentsTest do
       assert third["replaced"] == [first, second["attachment"]["id"]]
 
       names =
-        Repo.preload(Boards.get_card!(card.id), :attachments, force: true).attachments
+        Repo.preload(Boards.Cards.get_card!(card.id), :attachments, force: true).attachments
         |> Enum.map(& &1.filename)
         |> Enum.sort()
 
@@ -720,6 +720,6 @@ defmodule SlipdockWeb.API.AttachmentsLimitTest do
 
     assert body["error"] == "card_limit_reached"
     assert body["retryable"] == false
-    assert Boards.get_card!(card.id).attachments == []
+    assert Boards.Cards.get_card!(card.id).attachments == []
   end
 end

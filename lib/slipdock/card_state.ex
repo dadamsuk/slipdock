@@ -42,8 +42,8 @@ defmodule Slipdock.CardState do
       person (`Slipdock.Attention`, #2624).
 
   `put/3` decorates a batch of cards with a fixed number of queries,
-  whatever their number: the board page, `Boards.list_cards/2` and
-  `Boards.get_card/1` go through it, and the tile, `API.JSON.card/1`, MCP
+  whatever their number: the board page, `Boards.Cards.list_cards/2` and
+  `Boards.Cards.get_card/1` go through it, and the tile, `API.JSON.card/1`, MCP
   `card_line/1` and the CLI all read the same values.
   """
 

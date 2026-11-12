@@ -18,10 +18,10 @@ defmodule SlipdockWeb.LanesAdviseWebTest do
     board = board_fixture(%{"name" => "Advise doors", "code" => unique_code()}, owner: user)
     [_backlog, todo, doing, _done] = board.columns
     running = card_fixture(doing, %{"title" => "Running"})
-    {:ok, running} = Boards.update_card(running, %{"paths" => ["lib/slipdock/runners/**"]})
+    {:ok, running} = Boards.Cards.update_card(running, %{"paths" => ["lib/slipdock/runners/**"]})
     working_job_fixture(running)
     card = card_fixture(todo, %{"title" => "Next"})
-    {:ok, card} = Boards.update_card(card, %{"paths" => ["lib/slipdock/runners/a.ex"]})
+    {:ok, card} = Boards.Cards.update_card(card, %{"paths" => ["lib/slipdock/runners/a.ex"]})
     {token, _} = Accounts.create_api_token(user, "bot")
 
     agent =

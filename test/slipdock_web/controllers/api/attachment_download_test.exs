@@ -164,8 +164,8 @@ defmodule SlipdockWeb.API.AttachmentDownloadTest do
 
     test "a file whose bytes are gone is a 404 that says so", %{conn: conn, card: card} do
       id = upload(conn, "/api/cards/#{card.id}/attachments", "gone.png", @png)
-      [stored] = Boards.get_card!(card.id).attachments
-      File.rm!(Boards.attachment_path(stored))
+      [stored] = Boards.Cards.get_card!(card.id).attachments
+      File.rm!(Boards.Attachments.attachment_path(stored))
 
       assert %{"error" => "the file's bytes not found"} =
                conn |> get("/api/attachments/#{id}/file") |> json_response(404)

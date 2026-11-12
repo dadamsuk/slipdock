@@ -81,7 +81,7 @@ defmodule SlipdockWeb.CommentAccessLiveTest do
       render_submit(card_panel(ctx.view), "add_status_update", %{"health" => "at_risk"})
       render_click(card_panel(ctx.view), "vote", %{"count" => "1"})
 
-      card = Boards.get_card!(ctx.card.id)
+      card = Boards.Cards.get_card!(ctx.card.id)
       assert [%{body: "My two cents"}] = card.comments
       assert [%{health: "at_risk"}] = card.status_updates
       assert Slipdock.Votes.mine(card, ctx.commenter) == 1
@@ -97,7 +97,7 @@ defmodule SlipdockWeb.CommentAccessLiveTest do
       render_submit(panel, "add_check", %{"text" => "Sneaky step"})
       render_click(panel, "archive_card", %{})
 
-      card = Boards.get_card!(ctx.card.id)
+      card = Boards.Cards.get_card!(ctx.card.id)
       assert card.title == "Discuss me"
       assert card.flags in [nil, []]
       assert card.checklist_items == []
@@ -105,8 +105,8 @@ defmodule SlipdockWeb.CommentAccessLiveTest do
     end
 
     test "takes back their own comment and nobody else's", ctx do
-      {:ok, mine} = Boards.add_comment(ctx.card, "Mine", by: ctx.commenter)
-      {:ok, theirs} = Boards.add_comment(ctx.card, "Theirs", by: ctx.user)
+      {:ok, mine} = Boards.Comments.add_comment(ctx.card, "Mine", by: ctx.commenter)
+      {:ok, theirs} = Boards.Comments.add_comment(ctx.card, "Theirs", by: ctx.user)
       {:ok, view, _} = live(conn_as(ctx.commenter), ~p"/boards/#{ctx.board}/cards/#{ctx.card.id}")
 
       assert has_element?(view, "#comment-#{mine.id} button[phx-click=delete_comment]")
@@ -115,7 +115,7 @@ defmodule SlipdockWeb.CommentAccessLiveTest do
       render_click(card_panel(view), "delete_comment", %{"id" => to_string(theirs.id)})
       render_click(card_panel(view), "delete_comment", %{"id" => to_string(mine.id)})
 
-      assert [%{body: "Theirs"}] = Boards.get_card!(ctx.card.id).comments
+      assert [%{body: "Theirs"}] = Boards.Cards.get_card!(ctx.card.id).comments
     end
   end
 
@@ -129,7 +129,7 @@ defmodule SlipdockWeb.CommentAccessLiveTest do
     assert render_submit(card_panel(view), "add_comment", %{"body" => "hi"}) =~
              "read-only access to this card"
 
-    assert Boards.get_card!(ctx.card.id).comments == []
+    assert Boards.Cards.get_card!(ctx.card.id).comments == []
   end
 
   describe "a page commenter" do

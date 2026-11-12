@@ -22,11 +22,11 @@ defmodule Slipdock.AIWaitAnswererTest do
   end
 
   defp ask(ctx, attrs) do
-    {:ok, wait} = Boards.open_wait(ctx.card, Actor.web(ctx.owner), attrs)
+    {:ok, wait} = Boards.Waits.open_wait(ctx.card, Actor.web(ctx.owner), attrs)
     wait
   end
 
-  defp loaded(ctx), do: Boards.get_card!(ctx.card.id)
+  defp loaded(ctx), do: Boards.Cards.get_card!(ctx.card.id)
 
   test "suggests the answer to question n, told the card and the questions", ctx do
     AIStub.reply_with(%{"answer" => "  eu-west-1 "})

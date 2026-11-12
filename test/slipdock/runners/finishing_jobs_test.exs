@@ -30,7 +30,7 @@ defmodule Slipdock.Runners.FinishingJobsTest do
 
   defp card(column, title, paths) do
     card = card_fixture(column, %{"title" => title})
-    {:ok, card} = Boards.update_card(card, %{"paths" => paths})
+    {:ok, card} = Boards.Cards.update_card(card, %{"paths" => paths})
     card
   end
 

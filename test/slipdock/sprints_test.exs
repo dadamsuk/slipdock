@@ -7,7 +7,7 @@ defmodule Slipdock.SprintsTest do
   alias Slipdock.Boards.{Board, Card}
 
   setup do
-    {:ok, template} = Boards.find_template(nil, "Sprint planning")
+    {:ok, template} = Boards.Templates.find_template(nil, "Sprint planning")
     sprints = board_fixture(%{"name" => "Sprints"}, template: template)
     work = board_fixture(%{"name" => "Work"})
     %{sprints: sprints, work: work, template: template}
@@ -91,13 +91,13 @@ defmodule Slipdock.SprintsTest do
     sub = Boards.get_board!(sprint.sub_board.id)
     [to_do | _] = sub.columns
     assert Enum.all?(added, &(&1.board_id == sub.id and &1.column_id == to_do.id))
-    assert Boards.get_card!(stays.id).board_id == work.id
+    assert Boards.Cards.get_card!(stays.id).board_id == work.id
 
     # A second sitting adds to what is there; a card already in is skipped.
     c = card_fixture(todo, %{"title" => "C"})
 
     assert {:ok, %{added: [%{title: "C"}], skipped: [{_, "it is already in the sprint"}]}} =
-             Sprints.add_cards(sprint, [c, Boards.get_card!(a.id)])
+             Sprints.add_cards(sprint, [c, Boards.Cards.get_card!(a.id)])
 
     assert Boards.get_board!(sub.id).columns |> hd() |> Map.get(:cards) |> length() == 3
   end
@@ -126,7 +126,7 @@ defmodule Slipdock.SprintsTest do
     card = card_fixture(todo)
 
     assert {:ok, %{added: [moved]}} = Sprints.add_cards(sprint, [card])
-    assert Boards.get_card!(sprint.id).sub_board.id == moved.board_id
+    assert Boards.Cards.get_card!(sprint.id).sub_board.id == moved.board_id
   end
 
   test "candidates are a board's open cards, list by list, with a way into subcards", %{
@@ -136,7 +136,7 @@ defmodule Slipdock.SprintsTest do
     {:ok, sprint} = Sprints.create_sprint(sprints)
     [backlog, todo | _] = work.columns
     epic = card_fixture(backlog, %{"title" => "Epic"})
-    {:ok, epic_board} = sub_board(epic, elem(Boards.find_template(nil, "Simple"), 1))
+    {:ok, epic_board} = sub_board(epic, elem(Boards.Templates.find_template(nil, "Simple"), 1))
     _done = card_fixture(todo, %{"title" => "Finished", "completed" => true})
     open = card_fixture(todo, %{"title" => "Open"})
 
@@ -219,7 +219,7 @@ defmodule Slipdock.SprintsTest do
 
       # A board that later goes out of reach drops out rather than failing.
       {:ok, sprints} = Sprints.put_sources(sprints, user, [{work, []}])
-      {:ok, _} = Boards.archive_board(work)
+      {:ok, _} = Boards.Arrangement.archive_board(work)
       assert Sprints.sources(sprints, user) == []
     end
 
@@ -263,7 +263,7 @@ defmodule Slipdock.SprintsTest do
       # An epic with no estimate of its own takes its open subcards'. Estimates
       # are written in hours and kept in minutes.
       epic = card_fixture(todo, %{"title" => "Epic"})
-      {:ok, simple} = Boards.find_template(nil, "Simple")
+      {:ok, simple} = Boards.Templates.find_template(nil, "Simple")
       {:ok, epic_board} = sub_board(epic, simple)
       [epic_todo | _] = Boards.get_board!(epic_board.id).columns
       task = card_fixture(epic_todo, %{"title" => "Task", "time_estimate" => 2})
@@ -325,7 +325,7 @@ defmodule Slipdock.SprintsTest do
 
     defp slot_titles(column_id) do
       column_id
-      |> Boards.active_items()
+      |> Boards.Columns.active_items()
       |> Enum.map(fn {:card, id} -> Slipdock.Repo.get!(Card, id) end)
       |> Enum.map(&if(&1.stand_in_for_id, do: "→ " <> &1.title, else: &1.title))
     end
@@ -344,12 +344,12 @@ defmodule Slipdock.SprintsTest do
       assert {:ok, %{added: [moved]}} = Sprints.add_cards(sprint, [b])
       assert slot_titles(todo.id) == ["A", "→ B", "C"]
 
-      [stand_in] = Boards.stand_ins_for(moved.id)
+      [stand_in] = Boards.Cards.stand_ins_for(moved.id)
       assert stand_in.board_id == work.id
       assert Card.stand_in?(stand_in)
 
       # It renders from the real card: its sprint, and where that card is.
-      loaded = Boards.get_card!(stand_in.id)
+      loaded = Boards.Cards.get_card!(stand_in.id)
       assert loaded.stand_in_for.id == moved.id
       assert loaded.stand_in_for.board.parent_card.title == sprint.title
       assert loaded.stand_in_for.column.id == moved.column_id
@@ -363,7 +363,7 @@ defmodule Slipdock.SprintsTest do
 
       refute stand_in.id in ids
       refute Map.has_key?(Boards.rollup(work).stats, stand_in.id)
-      assert Boards.search_cards(work.id, "B") == []
+      assert Boards.Links.search_cards(work.id, "B") == []
     end
 
     test "a stand-in cannot be edited, moved off its board or added to a sprint", %{
@@ -371,15 +371,15 @@ defmodule Slipdock.SprintsTest do
       todo: todo
     } do
       {:ok, %{added: [moved]}} = Sprints.add_cards(sprint, [card_fixture(todo)])
-      [stand_in] = Boards.stand_ins_for(moved.id)
+      [stand_in] = Boards.Cards.stand_ins_for(moved.id)
 
-      assert {:error, changeset} = Boards.update_card(stand_in, %{"title" => "New"})
+      assert {:error, changeset} = Boards.Cards.update_card(stand_in, %{"title" => "New"})
       assert changeset.errors[:stand_in_for_id]
 
       sub = Boards.get_board!(sprint.sub_board.id)
 
       assert {:error, "A stand-in stays" <> _} =
-               Boards.move_card_to_board(stand_in, hd(sub.columns))
+               Boards.Moves.move_card_to_board(stand_in, hd(sub.columns))
 
       assert {:ok, %{added: [], skipped: [{_, "it is a stand-in" <> _}]}} =
                Sprints.add_cards(sprint, [stand_in])
@@ -392,12 +392,12 @@ defmodule Slipdock.SprintsTest do
     } do
       {:ok, two} = Sprints.create_sprint(sprints)
       {:ok, %{added: [moved]}} = Sprints.add_cards(one, [card_fixture(todo)])
-      {:ok, %{added: [carried]}} = Sprints.add_cards(two, [Boards.get_card!(moved.id)])
+      {:ok, %{added: [carried]}} = Sprints.add_cards(two, [Boards.Cards.get_card!(moved.id)])
 
-      assert [stand_in] = Boards.stand_ins_for(carried.id)
+      assert [stand_in] = Boards.Cards.stand_ins_for(carried.id)
       assert stand_in.column_id == todo.id
 
-      loaded = Boards.get_card!(stand_in.id)
+      loaded = Boards.Cards.get_card!(stand_in.id)
       assert loaded.stand_in_for.board.parent_card.title == two.title
     end
 
@@ -413,10 +413,10 @@ defmodule Slipdock.SprintsTest do
 
       # Wherever on the board it is sent, the slot is where it goes.
       last = List.last(work.columns)
-      assert {:ok, %{card: back}} = Boards.move_card_to_board(moved, last)
+      assert {:ok, %{card: back}} = Boards.Moves.move_card_to_board(moved, last)
       assert back.column_id == todo.id
       assert slot_titles(todo.id) == ["A", "B", "C"]
-      assert Boards.stand_ins_for(b.id) == []
+      assert Boards.Cards.stand_ins_for(b.id) == []
     end
 
     test "reaching a done list takes the stand-in to its board's done list", %{
@@ -429,9 +429,9 @@ defmodule Slipdock.SprintsTest do
       sprint_done = Enum.find(sub.columns, &(&1.category == "done"))
       work_done = Enum.find(work.columns, &(&1.category == "done"))
 
-      :ok = Boards.move_card(moved.id, sprint_done.id)
+      :ok = Boards.Cards.move_card(moved.id, sprint_done.id)
 
-      [stand_in] = Boards.stand_ins_for(moved.id)
+      [stand_in] = Boards.Cards.stand_ins_for(moved.id)
       assert stand_in.column_id == work_done.id
       refute stand_in.completed
     end
@@ -441,10 +441,10 @@ defmodule Slipdock.SprintsTest do
       todo: todo
     } do
       {:ok, %{added: [moved]}} = Sprints.add_cards(sprint, [card_fixture(todo)])
-      [stand_in] = Boards.stand_ins_for(moved.id)
-      {:ok, _} = Boards.delete_card(moved)
+      [stand_in] = Boards.Cards.stand_ins_for(moved.id)
+      {:ok, _} = Boards.Cards.delete_card(moved)
 
-      loaded = Boards.get_card!(stand_in.id)
+      loaded = Boards.Cards.get_card!(stand_in.id)
       assert Card.stand_in?(loaded)
       assert loaded.stand_in_for == nil
     end
@@ -453,7 +453,7 @@ defmodule Slipdock.SprintsTest do
       {:ok, %{added: [moved]}} =
         Sprints.add_cards(sprint, [card_fixture(todo, %{"title" => "Once"})])
 
-      assert [_] = Boards.stand_ins_for(moved.id)
+      assert [_] = Boards.Cards.stand_ins_for(moved.id)
 
       document = user_fixture() |> Slipdock.Portable.export() |> Jason.encode!()
       assert length(Regex.scan(~r/"title":"Once"/, document)) == 1
@@ -485,7 +485,7 @@ defmodule Slipdock.SprintsTest do
   describe "charts" do
     # Completes `card` as if on `date`, by backdating its completed_at.
     defp complete_on(card, date) do
-      {:ok, card} = Boards.update_card(card, %{"completed" => true})
+      {:ok, card} = Boards.Cards.update_card(card, %{"completed" => true})
 
       card
       |> Ecto.Changeset.change(completed_at: DateTime.new!(date, ~T[12:00:00], "Etc/UTC"))
@@ -497,10 +497,10 @@ defmodule Slipdock.SprintsTest do
       card = card_fixture(todo)
       assert is_nil(card.completed_at)
 
-      {:ok, done} = Boards.update_card(card, %{"completed" => true})
+      {:ok, done} = Boards.Cards.update_card(card, %{"completed" => true})
       assert %DateTime{} = done.completed_at
 
-      {:ok, open} = Boards.update_card(done, %{"completed" => false})
+      {:ok, open} = Boards.Cards.update_card(done, %{"completed" => false})
       assert is_nil(open.completed_at)
     end
 
@@ -517,12 +517,12 @@ defmodule Slipdock.SprintsTest do
         for t <- ~w(A B C D), do: card_fixture(todo, %{"title" => t, "time_estimate" => "2"})
 
       {:ok, _} = Sprints.add_cards(sprint, cards)
-      [a, b, _c, _d] = Enum.map(cards, &Boards.get_card!(&1.id))
+      [a, b, _c, _d] = Enum.map(cards, &Boards.Cards.get_card!(&1.id))
 
       complete_on(a, ~D[2026-03-03])
       complete_on(b, ~D[2026-03-04])
 
-      chart = Sprints.burndown(Boards.get_card!(sprint.id), ~D[2026-03-04])
+      chart = Sprints.burndown(Boards.Cards.get_card!(sprint.id), ~D[2026-03-04])
 
       assert chart.total == 4
       assert chart.done == 2
@@ -551,7 +551,7 @@ defmodule Slipdock.SprintsTest do
 
         cards
         |> Enum.take(done)
-        |> Enum.each(&complete_on(Boards.get_card!(&1.id), sprint.start_date))
+        |> Enum.each(&complete_on(Boards.Cards.get_card!(&1.id), sprint.start_date))
       end
 
       fill.(one, 5, 3)

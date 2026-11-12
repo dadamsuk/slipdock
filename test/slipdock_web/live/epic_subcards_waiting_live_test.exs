@@ -23,7 +23,7 @@ defmodule SlipdockWeb.EpicSubcardsWaitingLiveTest do
     {:ok, _} = Slipdock.Access.grant(board, dana, "write", owner)
 
     epic = card_fixture(todo, %{"title" => "Epic"})
-    {:ok, t} = Boards.find_template(nil, "Simple")
+    {:ok, t} = Boards.Templates.find_template(nil, "Simple")
     {:ok, sub} = sub_board(epic, t)
     sub = Boards.get_board!(sub.id)
 
@@ -35,7 +35,7 @@ defmodule SlipdockWeb.EpicSubcardsWaitingLiveTest do
 
   defp wait_on(card, by, on) do
     {:ok, wait} =
-      Boards.open_wait(card, agent(by), %{"needs" => "Which region?", "on_user_id" => on.id})
+      Boards.Waits.open_wait(card, agent(by), %{"needs" => "Which region?", "on_user_id" => on.id})
 
     wait
   end
@@ -180,7 +180,7 @@ defmodule SlipdockWeb.EpicSubcardsWaitingLiveTest do
     assert has_element?(view, mark(card), "a question")
 
     {:ok, _} =
-      Boards.answer_wait(Repo.get!(Card, card.id), Actor.web(ctx.owner), %{"answer" => "EU"})
+      Boards.Waits.answer_wait(Repo.get!(Card, card.id), Actor.web(ctx.owner), %{"answer" => "EU"})
 
     refute has_element?(view, mark(card))
     refute has_element?(view, "#subcards-waiting-line")

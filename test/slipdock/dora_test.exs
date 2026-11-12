@@ -139,7 +139,7 @@ defmodule Slipdock.DoraTest do
   test "rework counts deploys naming an incident card", %{board: board, todo: todo} do
     tag = tag_fixture(board, "incident")
     card = card_fixture(todo, %{"title" => "Down"})
-    {:ok, _} = Boards.toggle_card_tag(card, tag)
+    {:ok, _} = Boards.Tags.toggle_card_tag(card, tag)
 
     deploy!(board, 100)
     deploy!(board, 50, %{commits: [commit(51, "fix ##{card.id}")]})
@@ -156,7 +156,7 @@ defmodule Slipdock.DoraTest do
     user: user
   } do
     card = card_fixture(todo, %{"title" => "Idea"})
-    :ok = Boards.move_card(card.id, doing.id, nil, actor: Actor.web(user))
+    :ok = Boards.Cards.move_card(card.id, doing.id, nil, actor: Actor.web(user))
 
     Repo.update_all(
       from(m in CardMove, where: m.card_id == ^card.id and m.to_category == "doing"),

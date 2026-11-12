@@ -88,7 +88,7 @@ defmodule SlipdockWeb.API.DependenciesTest do
                |> json_response(403)
 
       assert msg =~ "read"
-      assert Slipdock.Boards.get_card!(a.id).blocked_by == []
+      assert Slipdock.Boards.Cards.get_card!(a.id).blocked_by == []
 
       # Reading it is enough to wait on it...
       share_fixture(other, bob, "read")
@@ -105,12 +105,12 @@ defmodule SlipdockWeb.API.DependenciesTest do
                |> json_response(403)
 
       assert msg =~ "edit"
-      assert Slipdock.Boards.get_card!(foreign.id).blocked_by == []
+      assert Slipdock.Boards.Cards.get_card!(foreign.id).blocked_by == []
     end
 
     test "a reader who can't see the other board gets a hidden stub",
          %{home: home, a: a, foreign: foreign} do
-      {:ok, _} = Slipdock.Boards.add_dependency(a, foreign)
+      {:ok, _} = Slipdock.Boards.Dependencies.add_dependency(a, foreign)
       reader = user_fixture("reader-#{System.unique_integer([:positive])}@example.com")
       share_fixture(home, reader, "read")
       reader_conn = conn_as(reader) |> put_req_header("accept", "application/json")
@@ -141,7 +141,7 @@ defmodule SlipdockWeb.API.DependenciesTest do
 
     test "a token scoped to one board hides cards on the other",
          %{user: user, a: a, foreign: foreign, home: home} do
-      {:ok, _} = Slipdock.Boards.add_dependency(a, foreign)
+      {:ok, _} = Slipdock.Boards.Dependencies.add_dependency(a, foreign)
       {token, _} = Slipdock.Accounts.create_api_token(user, "scoped", scope_boards: [home.id])
 
       body =

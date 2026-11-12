@@ -28,14 +28,17 @@ defmodule SlipdockWeb.API.CardController do
 
       json(
         conn,
-        %{cards: Enum.map(Authorize.visible(conn, Boards.list_cards(board, params)), &V.card/1)}
+        %{
+          cards:
+            Enum.map(Authorize.visible(conn, Boards.Cards.list_cards(board, params)), &V.card/1)
+        }
         |> Map.merge(V.paused(board))
       )
     end
   end
 
   # A filter value that isn't one of the buckets is a mistake worth saying
-  # out loud: `Boards.list_cards/2` would quietly ignore it and hand back
+  # out loud: `Boards.Cards.list_cards/2` would quietly ignore it and hand back
   # everything, which reads as an answer.
   defp check_bucket(params, key, allowed) do
     case params[key] do
@@ -93,8 +96,8 @@ defmodule SlipdockWeb.API.CardController do
           |> Authorize.visible(Boards.with_state(card))
           |> V.card()
           |> Map.put(:docs, docs)
-          |> Map.put(:wait, V.wait(Boards.current_wait(card)))
-          |> Map.put(:last_wait, V.wait(Boards.last_wait(card)))
+          |> Map.put(:wait, V.wait(Boards.Waits.current_wait(card)))
+          |> Map.put(:last_wait, V.wait(Boards.Waits.last_wait(card)))
           |> V.put_delivery(card, zone)
           |> V.put_outcome(card, zone)
           |> V.put_lead_time(card)
@@ -138,12 +141,12 @@ defmodule SlipdockWeb.API.CardController do
     with {:ok, card} <- fetch_card(id),
          :ok <- Authorize.card(conn, card, :write),
          {:ok, _} <- timer_action(card, params["action"]) do
-      json(conn, %{card: V.card(Authorize.visible(conn, Boards.get_card!(card.id)))})
+      json(conn, %{card: V.card(Authorize.visible(conn, Boards.Cards.get_card!(card.id)))})
     end
   end
 
-  defp timer_action(card, "start"), do: Boards.start_timer(card)
-  defp timer_action(card, "stop"), do: Boards.stop_timer(card)
+  defp timer_action(card, "start"), do: Boards.Cards.start_timer(card)
+  defp timer_action(card, "stop"), do: Boards.Cards.stop_timer(card)
 
   defp timer_action(_card, _),
     do: {:error, :unprocessable_entity, "action must be start or stop"}
@@ -180,10 +183,10 @@ defmodule SlipdockWeb.API.CardController do
          :ok <- Authorize.card(conn, card, :write),
          {:ok, other} <- fetch_card(to),
          :ok <- Authorize.card(conn, other, :read),
-         {:ok, _} <- link_result(Boards.add_link(card, other, kind)) do
+         {:ok, _} <- link_result(Boards.Links.add_link(card, other, kind)) do
       conn
       |> put_status(:created)
-      |> json(%{card: V.card(Authorize.visible(conn, Boards.get_card!(card.id)))})
+      |> json(%{card: V.card(Authorize.visible(conn, Boards.Cards.get_card!(card.id)))})
     end
   end
 
@@ -191,8 +194,8 @@ defmodule SlipdockWeb.API.CardController do
     with {:ok, card} <- fetch_card(id),
          :ok <- Authorize.card(conn, card, :write),
          %{} = link <- find_link(card, link_id),
-         {:ok, _} <- Boards.remove_link(link) do
-      json(conn, %{card: V.card(Authorize.visible(conn, Boards.get_card!(card.id)))})
+         {:ok, _} <- Boards.Links.remove_link(link) do
+      json(conn, %{card: V.card(Authorize.visible(conn, Boards.Cards.get_card!(card.id)))})
     else
       nil -> {:error, :not_found, "link"}
       other -> other
@@ -212,14 +215,14 @@ defmodule SlipdockWeb.API.CardController do
     with {:ok, card} <- fetch_card(id),
          :ok <- Authorize.card(conn, card, :comment),
          {:ok, _} <-
-           Boards.add_status_update(
+           Boards.StatusUpdates.add_status_update(
              card,
              conn.assigns.current_user,
              Map.take(params, ~w(health body))
            ) do
       conn
       |> put_status(:created)
-      |> json(%{card: V.card(Authorize.visible(conn, Boards.get_card!(card.id)))})
+      |> json(%{card: V.card(Authorize.visible(conn, Boards.Cards.get_card!(card.id)))})
     end
   end
 
@@ -236,7 +239,7 @@ defmodule SlipdockWeb.API.CardController do
 
   # `board` moves the card to another board entirely — with its subcards, its
   # tags (by name) and whatever custom fields the destination also has. See
-  # `Slipdock.Boards.move_card_to_board/2`; `index` has no meaning there,
+  # `Slipdock.Boards.Moves.move_card_to_board/2`; `index` has no meaning there,
   # because the card lands at the end of a list it has never been in.
   def move(conn, %{"id" => id, "board" => ref} = params) when not is_nil(ref) do
     with {:ok, card} <- fetch_card(id),
@@ -245,7 +248,7 @@ defmodule SlipdockWeb.API.CardController do
          {:ok, column} <- resolve_column(board, params["column"]),
          {:ok, summary} <- move_to_board(card, column, Slipdock.Actor.from_conn(conn)) do
       json(conn, %{
-        card: V.card(Authorize.visible(conn, Boards.get_card!(card.id))),
+        card: V.card(Authorize.visible(conn, Boards.Cards.get_card!(card.id))),
         moved: Map.delete(summary, :card)
       })
     end
@@ -257,15 +260,15 @@ defmodule SlipdockWeb.API.CardController do
          board <- Boards.get_board!(card.board_id),
          {:ok, column} <- resolve_column(board, params["column"] || card.column_id),
          :ok <-
-           Boards.move_card_to_index(card, column, parse_index(params["index"]),
+           Boards.Cards.move_card_to_index(card, column, parse_index(params["index"]),
              actor: Slipdock.Actor.from_conn(conn)
            ) do
-      json(conn, %{card: V.card(Authorize.visible(conn, Boards.get_card!(card.id)))})
+      json(conn, %{card: V.card(Authorize.visible(conn, Boards.Cards.get_card!(card.id)))})
     end
   end
 
   defp move_to_board(card, column, actor) do
-    case Boards.move_card_to_board(card, column, actor: actor) do
+    case Boards.Moves.move_card_to_board(card, column, actor: actor) do
       {:ok, summary} -> {:ok, summary}
       # A limit on the destination: the fallback answers it with its 402.
       {:error, %Ecto.Changeset{}} = refused -> refused
@@ -276,23 +279,23 @@ defmodule SlipdockWeb.API.CardController do
   def archive(conn, %{"id" => id}) do
     with {:ok, card} <- fetch_card(id),
          :ok <- Authorize.card(conn, card, :write),
-         {:ok, card} <- Boards.archive_card(card) do
-      json(conn, %{card: V.card(Authorize.visible(conn, Boards.get_card!(card.id)))})
+         {:ok, card} <- Boards.Cards.archive_card(card) do
+      json(conn, %{card: V.card(Authorize.visible(conn, Boards.Cards.get_card!(card.id)))})
     end
   end
 
   def restore(conn, %{"id" => id}) do
     with {:ok, card} <- fetch_card(id),
          :ok <- Authorize.card(conn, card, :write),
-         {:ok, card} <- Boards.unarchive_card(card) do
-      json(conn, %{card: V.card(Authorize.visible(conn, Boards.get_card!(card.id)))})
+         {:ok, card} <- Boards.Cards.unarchive_card(card) do
+      json(conn, %{card: V.card(Authorize.visible(conn, Boards.Cards.get_card!(card.id)))})
     end
   end
 
   def delete(conn, %{"id" => id}) do
     with {:ok, card} <- fetch_card(id),
          :ok <- Authorize.card(conn, card, :write),
-         {:ok, _} <- Boards.delete_card(card) do
+         {:ok, _} <- Boards.Cards.delete_card(card) do
       json(conn, %{ok: true})
     end
   end
@@ -312,7 +315,7 @@ defmodule SlipdockWeb.API.CardController do
          {:ok, column} <- copy_column(board, card, params["column"]),
          {:ok, at} <- copy_at(params["at"]),
          {:ok, copy} <-
-           Boards.copy_card(card, column,
+           Boards.Cards.copy_card(card, column,
              by: conn.assigns.current_user,
              at: at,
              attrs: Map.take(params, ["title"])
@@ -343,7 +346,7 @@ defmodule SlipdockWeb.API.CardController do
       conn
       |> put_status(:created)
       |> json(%{
-        card: V.card(Authorize.visible(conn, Boards.get_card!(card.id))),
+        card: V.card(Authorize.visible(conn, Boards.Cards.get_card!(card.id))),
         board: V.board(Authorize.visible(conn, Boards.get_board!(board.id)))
       })
     end
@@ -361,7 +364,7 @@ defmodule SlipdockWeb.API.CardController do
     do: {:error, :bad_request, "pass template (id or name); see GET /api/templates"}
 
   defp fetch_template(conn, ref) do
-    case Boards.find_template(conn.assigns.current_user, ref) do
+    case Boards.Templates.find_template(conn.assigns.current_user, ref) do
       {:ok, t} -> {:ok, t}
       _ -> {:error, :not_found, "template"}
     end
@@ -375,8 +378,8 @@ defmodule SlipdockWeb.API.CardController do
          {:ok, {blocked, blocker}} <- dependency_pair(card, params),
          :ok <- Authorize.card(conn, blocked, :write),
          :ok <- Authorize.card(conn, blocker, :read),
-         {:ok, _} <- dependency_result(Boards.add_dependency(blocked, blocker)) do
-      json(conn, %{card: V.card(Authorize.visible(conn, Boards.get_card!(card.id)))})
+         {:ok, _} <- dependency_result(Boards.Dependencies.add_dependency(blocked, blocker)) do
+      json(conn, %{card: V.card(Authorize.visible(conn, Boards.Cards.get_card!(card.id)))})
     end
   end
 
@@ -384,7 +387,7 @@ defmodule SlipdockWeb.API.CardController do
     with {:ok, card} <- fetch_card(id),
          :ok <- Authorize.card(conn, card, :write),
          {:ok, other} <- fetch_card(other_id),
-         {:ok, card} <- Boards.remove_dependency(card, other) do
+         {:ok, card} <- Boards.Dependencies.remove_dependency(card, other) do
       json(conn, %{card: V.card(Authorize.visible(conn, card))})
     end
   end
@@ -408,7 +411,7 @@ defmodule SlipdockWeb.API.CardController do
   def add_checklist_item(conn, %{"id" => id, "text" => text}) do
     with {:ok, card} <- fetch_card(id),
          :ok <- Authorize.card(conn, card, :write),
-         {:ok, item} <- Boards.add_checklist_item(card, text) do
+         {:ok, item} <- Boards.Checklists.add_checklist_item(card, text) do
       conn |> put_status(:created) |> json(%{item: V.checklist_item(item)})
     end
   end
@@ -419,7 +422,7 @@ defmodule SlipdockWeb.API.CardController do
   end
 
   defp do_toggle_checklist_item(conn, item_id) do
-    with {:ok, item} <- Boards.toggle_checklist_item(String.to_integer(item_id)) do
+    with {:ok, item} <- Boards.Checklists.toggle_checklist_item(String.to_integer(item_id)) do
       json(conn, %{item: V.checklist_item(item)})
     end
   rescue
@@ -435,7 +438,8 @@ defmodule SlipdockWeb.API.CardController do
   def move_checklist_item(conn, %{"item_id" => item_id} = params) do
     with :ok <- authorize_item(conn, Slipdock.Boards.ChecklistItem, item_id),
          item = Slipdock.Repo.get!(Slipdock.Boards.ChecklistItem, String.to_integer(item_id)),
-         {:ok, items} <- move_result(Boards.move_checklist_item(item, params["before"])) do
+         {:ok, items} <-
+           move_result(Boards.Checklists.move_checklist_item(item, params["before"])) do
       json(conn, %{items: Enum.map(items, &V.checklist_item/1)})
     end
   end
@@ -451,7 +455,7 @@ defmodule SlipdockWeb.API.CardController do
   end
 
   defp do_delete_checklist_item(conn, item_id) do
-    with {:ok, _} <- Boards.delete_checklist_item(String.to_integer(item_id)) do
+    with {:ok, _} <- Boards.Checklists.delete_checklist_item(String.to_integer(item_id)) do
       json(conn, %{ok: true})
     end
   rescue
@@ -501,7 +505,7 @@ defmodule SlipdockWeb.API.CardController do
   def handoff(conn, %{"id" => id}) do
     with {:ok, card} <- fetch_card(id),
          :ok <- Authorize.card(conn, card, :read) do
-      history = Boards.handoff_history(card)
+      history = Boards.Handoffs.handoff_history(card)
 
       json(conn, %{
         card: card.id,
@@ -543,7 +547,7 @@ defmodule SlipdockWeb.API.CardController do
       json(conn, %{
         card: card.id,
         deleted: V.handoff(deleted),
-        handoff: card |> Boards.current_handoff() |> then(&(&1 && V.handoff(&1)))
+        handoff: card |> Boards.Handoffs.current_handoff() |> then(&(&1 && V.handoff(&1)))
       })
     end
   end
@@ -556,7 +560,7 @@ defmodule SlipdockWeb.API.CardController do
   def verify(conn, %{"id" => id} = params) do
     with {:ok, card} <- fetch_card(id),
          {:ok, card} <- CardWrites.verify(conn, card, params) do
-      json(conn, %{card: V.card(Authorize.visible(conn, Boards.get_card!(card.id)))})
+      json(conn, %{card: V.card(Authorize.visible(conn, Boards.Cards.get_card!(card.id)))})
     end
   end
 
@@ -590,7 +594,7 @@ defmodule SlipdockWeb.API.CardController do
   def waits(conn, %{"id" => id}) do
     with {:ok, card} <- fetch_card(id),
          :ok <- Authorize.card(conn, card, :read) do
-      json(conn, %{card: card.id, waits: Enum.map(Boards.list_waits(card), &V.wait/1)})
+      json(conn, %{card: card.id, waits: Enum.map(Boards.Waits.list_waits(card), &V.wait/1)})
     end
   end
 
@@ -605,7 +609,7 @@ defmodule SlipdockWeb.API.CardController do
   def add_comment(conn, %{"id" => id, "body" => body}) do
     with {:ok, card} <- fetch_card(id),
          :ok <- Authorize.card(conn, card, :comment),
-         {:ok, comment} <- Boards.add_comment(card, body, by: conn.assigns.current_user) do
+         {:ok, comment} <- Boards.Comments.add_comment(card, body, by: conn.assigns.current_user) do
       conn |> put_status(:created) |> json(%{comment: V.comment(comment)})
     end
   end
@@ -617,7 +621,7 @@ defmodule SlipdockWeb.API.CardController do
   def add_url(conn, %{"id" => id} = params) do
     with {:ok, card} <- fetch_card(id),
          :ok <- Authorize.card(conn, card, :write),
-         {:ok, url} <- Boards.add_card_url(card, Map.take(params, ["url", "title"])) do
+         {:ok, url} <- Boards.CardUrls.add_card_url(card, Map.take(params, ["url", "title"])) do
       conn |> put_status(:created) |> json(%{url: V.card_url(url)})
     end
   end
@@ -626,7 +630,7 @@ defmodule SlipdockWeb.API.CardController do
     with {:ok, card} <- fetch_card(id),
          :ok <- Authorize.card(conn, card, :write),
          %{} = url <- card_url_of(card, url_id),
-         {:ok, _} <- Boards.delete_card_url(url) do
+         {:ok, _} <- Boards.CardUrls.delete_card_url(url) do
       json(conn, %{ok: true})
     else
       nil -> {:error, :not_found, "link"}
@@ -666,7 +670,7 @@ defmodule SlipdockWeb.API.CardController do
          :ok <- Authorize.card(conn, card, :write),
          {:ok, meta, path} <- Uploads.take(params),
          {:ok, replace?} <- Uploads.replace(params),
-         {:ok, attachment} <- Boards.add_attachment(card, meta, path) do
+         {:ok, attachment} <- Boards.Attachments.add_attachment(card, meta, path) do
       conn |> put_status(:created) |> json(Uploads.stored(attachment, replace?))
     end
   end
@@ -680,7 +684,7 @@ defmodule SlipdockWeb.API.CardController do
          :ok <- Authorize.card(conn, card, :write),
          %{} = attachment <- attachment_of(card, attachment_id),
          {:ok, hide?} <- Uploads.hide_on_card(params, attachment.hide_on_card),
-         {:ok, attachment} <- Boards.hide_attachment_on_card(attachment, hide?) do
+         {:ok, attachment} <- Boards.Attachments.hide_attachment_on_card(attachment, hide?) do
       json(conn, %{attachment: Uploads.json(attachment)})
     else
       nil -> {:error, :not_found, "attachment"}
@@ -699,7 +703,9 @@ defmodule SlipdockWeb.API.CardController do
          %{} = attachment <- attachment_of(card, attachment_id) do
       case Slipdock.OCR.retry(attachment) do
         {:ok, _} ->
-          attachment = attachment.id |> Boards.get_attachment!() |> Repo.preload(:document_text)
+          attachment =
+            attachment.id |> Boards.Attachments.get_attachment!() |> Repo.preload(:document_text)
+
           conn |> put_status(:accepted) |> json(%{attachment: Uploads.json(attachment)})
 
         {:error, :running} ->
@@ -722,7 +728,7 @@ defmodule SlipdockWeb.API.CardController do
         {:ok, _} ->
           # Inline in the tests, so read it back rather than trust the copy
           # that set off.
-          attachment = Boards.get_attachment!(attachment.id)
+          attachment = Boards.Attachments.get_attachment!(attachment.id)
           conn |> put_status(:accepted) |> json(%{attachment: Uploads.json(attachment)})
 
         {:error, :running} ->
@@ -744,7 +750,7 @@ defmodule SlipdockWeb.API.CardController do
     with {:ok, card} <- fetch_card(id),
          :ok <- Authorize.card(conn, card, :write),
          %{} = attachment <- attachment_of(card, attachment_id),
-         {:ok, _} <- Boards.delete_attachment(attachment) do
+         {:ok, _} <- Boards.Attachments.delete_attachment(attachment) do
       json(conn, %{ok: true})
     else
       nil -> {:error, :not_found, "attachment"}
@@ -782,7 +788,7 @@ defmodule SlipdockWeb.API.CardController do
   end
 
   defp do_delete_comment(conn, comment_id) do
-    with {:ok, _} <- Boards.delete_comment(String.to_integer(comment_id)) do
+    with {:ok, _} <- Boards.Comments.delete_comment(String.to_integer(comment_id)) do
       json(conn, %{ok: true})
     end
   rescue

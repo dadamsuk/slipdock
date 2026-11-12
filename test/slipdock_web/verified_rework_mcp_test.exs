@@ -20,7 +20,7 @@ defmodule SlipdockWeb.VerifiedReworkMCPTest do
       %{Actor.unknown() | kind: "agent", via: "mcp", user_id: owner.id, agent: label}
     end
 
-    {:ok, card} = Boards.update_card(card, %{"completed" => true}, actor: agent.("builder"))
+    {:ok, card} = Boards.Cards.update_card(card, %{"completed" => true}, actor: agent.("builder"))
     %{owner: owner, card: card, checker: agent.("checker")}
   end
 

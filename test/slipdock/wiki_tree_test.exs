@@ -866,7 +866,7 @@ defmodule Slipdock.WikiTreeTest do
     # An epic on `board` with a sub-board, and a page on that sub-board.
     defp epic!(board, user, title, note) do
       [column | _] = Boards.get_board!(board.id).columns
-      {:ok, template} = Boards.find_template(nil, "Simple")
+      {:ok, template} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(card_fixture(column, %{"title" => title}), template)
       sub = Boards.get_board!(sub.id)
       {sub, page(sub, user, note)}

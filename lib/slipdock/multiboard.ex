@@ -44,7 +44,7 @@ defmodule Slipdock.Multiboard do
     boards =
       user
       |> Access.list_boards(token: opts[:token], wiki: false)
-      |> Boards.sort_boards(user.board_sort || "manual")
+      |> Boards.Arrangement.sort_boards(user.board_sort || "manual")
 
     columns =
       from(c in Column,
@@ -181,7 +181,7 @@ defmodule Slipdock.Multiboard do
 
   # The home page lists them, so it hears of each change.
   defp notify({:ok, _} = ok, user_id) do
-    Boards.notify_users_boards_changed([user_id])
+    Boards.PubSub.notify_users_boards_changed([user_id])
     ok
   end
 

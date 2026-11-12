@@ -18,7 +18,7 @@ defmodule Slipdock.Inbound.WaitReply do
   alias Slipdock.Boards.Wait
 
   @doc """
-  The attributes `Slipdock.Boards.answer_wait/3` takes for `text` as the
+  The attributes `Slipdock.Boards.Waits.answer_wait/3` takes for `text` as the
   answer to `wait`, or `{:error, why}` when it can't be matched.
   """
   @spec attrs(%Wait{}, String.t()) :: {:ok, map()} | {:error, String.t()}

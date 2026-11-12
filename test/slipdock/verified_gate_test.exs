@@ -75,7 +75,7 @@ defmodule Slipdock.VerifiedGateTest do
     %Job{} = Runners.claim(ctx.builder)
 
     {:ok, _} =
-      Boards.update_card(
+      Boards.Cards.update_card(
         Repo.get!(Card, ctx.card.id),
         %{
           "completed" => true,
@@ -145,7 +145,7 @@ defmodule Slipdock.VerifiedGateTest do
     assert [%{"id" => "DATA-2", "severity" => "must"}] = card.verify_checks["rules"]
 
     # A person accepts it as is: no agent verdict, so no audit.
-    {:ok, _} = Boards.answer_wait(card, Actor.web(ctx.owner), %{"choice" => 2})
+    {:ok, _} = Boards.Waits.answer_wait(card, Actor.web(ctx.owner), %{"choice" => 2})
     card = Repo.get!(Card, ctx.card.id)
     assert card.completed and card.verify_state == "accepted"
     assert Repo.all(from(j in Job, where: j.card_id == ^card.id and j.audit)) == []

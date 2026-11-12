@@ -22,7 +22,7 @@ defmodule SlipdockWeb.WaitQuestionsLiveTest do
 
   defp ask(ctx, attrs \\ %{"questions" => ["Which region?", "How many seats?"]}) do
     agent = %{Actor.unknown() | kind: "agent", via: "mcp", user_id: ctx.owner.id, agent: "claude"}
-    {:ok, wait} = Boards.open_wait(ctx.card, agent, attrs)
+    {:ok, wait} = Boards.Waits.open_wait(ctx.card, agent, attrs)
     wait
   end
 
@@ -59,7 +59,7 @@ defmodule SlipdockWeb.WaitQuestionsLiveTest do
       |> render_submit()
 
       assert %{close_reason: "answered", answers: ["eu", "12"], closed_by_id: id} =
-               Boards.last_wait(ctx.card)
+               Boards.Waits.last_wait(ctx.card)
 
       assert id == ctx.owner.id
       refute has_element?(view, "#card-wait")
@@ -74,7 +74,7 @@ defmodule SlipdockWeb.WaitQuestionsLiveTest do
       |> render_submit()
 
       assert render(view) =~ "an answer needs text or a choice"
-      assert Wait.open?(Boards.current_wait(ctx.card))
+      assert Wait.open?(Boards.Waits.current_wait(ctx.card))
     end
 
     test "a reader sees the numbered questions but no boxes", ctx do
@@ -96,9 +96,9 @@ defmodule SlipdockWeb.WaitQuestionsLiveTest do
 
       view |> element("#wait-skip") |> render_click()
 
-      assert %{close_reason: "skipped"} = Boards.last_wait(ctx.card)
+      assert %{close_reason: "skipped"} = Boards.Waits.last_wait(ctx.card)
       refute has_element?(view, "#card-wait")
-      refute "waiting" in Boards.get_card!(ctx.card.id).flags
+      refute "waiting" in Boards.Cards.get_card!(ctx.card.id).flags
     end
   end
 
@@ -118,7 +118,7 @@ defmodule SlipdockWeb.WaitQuestionsLiveTest do
 
       assert has_element?(view, "#wait-answer-1", "eu-west-1")
       assert has_element?(view, "#wait-answer-2", "12")
-      assert Wait.open?(Boards.current_wait(ctx.card))
+      assert Wait.open?(Boards.Waits.current_wait(ctx.card))
 
       assert_received {:ai_request, %{"messages" => [_, %{"content" => content}]}}
       assert content =~ "Ship to eu"
@@ -169,11 +169,11 @@ defmodule SlipdockWeb.WaitQuestionsLiveTest do
       })
       |> render_submit()
 
-      wait = Boards.current_wait(ctx.card)
+      wait = Boards.Waits.current_wait(ctx.card)
       assert wait.questions == ["Which region?", "Budget?"]
       assert wait.on_user_id == dana.id
       assert {wait.kind, wait.opened_by_id} == {"human", ctx.owner.id}
-      assert "waiting" in Boards.get_card!(ctx.card.id).flags
+      assert "waiting" in Boards.Cards.get_card!(ctx.card.id).flags
       assert has_element?(view, "#wait-question-2", "Budget?")
       refute has_element?(view, "#wait-ask")
     end
@@ -193,7 +193,7 @@ defmodule SlipdockWeb.WaitQuestionsLiveTest do
 
       view |> element("#wait-ask-cancel") |> render_click()
       refute has_element?(view, "#wait-ask-form")
-      assert Boards.current_wait(ctx.card) == nil
+      assert Boards.Waits.current_wait(ctx.card) == nil
     end
 
     test "no question at all is refused, and the form stays", ctx do
@@ -206,7 +206,7 @@ defmodule SlipdockWeb.WaitQuestionsLiveTest do
 
       assert render(view) =~ "say what you need"
       assert has_element?(view, "#wait-ask-form")
-      assert Boards.current_wait(ctx.card) == nil
+      assert Boards.Waits.current_wait(ctx.card) == nil
     end
 
     test "not offered while a wait is open, nor to a reader", ctx do
@@ -225,10 +225,10 @@ defmodule SlipdockWeb.WaitQuestionsLiveTest do
   describe "questions asked before" do
     test "lists each with its answers, who closed it and how", ctx do
       ask(ctx)
-      {:ok, _} = Boards.answer_wait(ctx.card, Actor.web(ctx.owner), %{"answers" => ["eu"]})
+      {:ok, _} = Boards.Waits.answer_wait(ctx.card, Actor.web(ctx.owner), %{"answers" => ["eu"]})
       ask(ctx, %{"needs" => "Ready to ship?"})
-      {:ok, _} = Boards.answer_wait(ctx.card, Actor.web(ctx.owner), %{"skip" => true})
-      [skipped, answered] = Boards.list_waits(ctx.card)
+      {:ok, _} = Boards.Waits.answer_wait(ctx.card, Actor.web(ctx.owner), %{"skip" => true})
+      [skipped, answered] = Boards.Waits.list_waits(ctx.card)
 
       {:ok, view, _} = open(ctx.conn, ctx)
 

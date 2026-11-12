@@ -30,7 +30,7 @@ defmodule Slipdock.ActivityActorsTest do
     )
   end
 
-  defp latest(board), do: board.id |> Boards.list_activities(1) |> hd()
+  defp latest(board), do: board.id |> Boards.ActivityLog.list_activities(1) |> hd()
 
   test "a script's token is an agent, under the token's label", ctx do
     ctx.user

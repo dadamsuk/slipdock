@@ -7,7 +7,7 @@ defmodule SlipdockWeb.SprintsLiveTest do
   alias Slipdock.{Boards, Sprints}
 
   setup do
-    {:ok, template} = Boards.find_template(nil, "Sprint planning")
+    {:ok, template} = Boards.Templates.find_template(nil, "Sprint planning")
     sprints = board_fixture(%{"name" => "Sprints"}, template: template)
     work = board_fixture(%{"name" => "Work"})
     [_backlog, todo | _] = work.columns
@@ -52,10 +52,10 @@ defmodule SlipdockWeb.SprintsLiveTest do
     view |> element("#sprint-add") |> render_click()
     assert render(view) =~ "Added 2 cards to Sprint 1."
 
-    sub = Boards.get_card!(sprint.id).sub_board
-    assert Boards.get_card!(a.id).board_id == sub.id
-    assert Boards.get_card!(b.id).board_id == sub.id
-    assert Boards.get_card!(stays.id).board_id == work.id
+    sub = Boards.Cards.get_card!(sprint.id).sub_board
+    assert Boards.Cards.get_card!(a.id).board_id == sub.id
+    assert Boards.Cards.get_card!(b.id).board_id == sub.id
+    assert Boards.Cards.get_card!(stays.id).board_id == work.id
   end
 
   test "tick all takes a whole list, and subcards can be stepped into", %{
@@ -67,7 +67,7 @@ defmodule SlipdockWeb.SprintsLiveTest do
     {:ok, sprint} = Sprints.create_sprint(sprints)
     _other = board_fixture(%{"name" => "Home"})
     epic = card_fixture(todo, %{"title" => "Epic"})
-    {:ok, simple} = Boards.find_template(nil, "Simple")
+    {:ok, simple} = Boards.Templates.find_template(nil, "Simple")
     {:ok, epic_board} = Boards.create_sub_board(epic, simple)
     epic_board = Boards.get_board!(epic_board.id)
     task = card_fixture(hd(epic_board.columns), %{"title" => "A task in the epic"})
@@ -93,10 +93,10 @@ defmodule SlipdockWeb.SprintsLiveTest do
     assert render(view) =~ "2 cards ticked"
     view |> element("#sprint-add") |> render_click()
 
-    assert Boards.get_card!(task.id).board_id == sprint.sub_board.id
-    assert Boards.get_card!(task2.id).board_id == sprint.sub_board.id
+    assert Boards.Cards.get_card!(task.id).board_id == sprint.sub_board.id
+    assert Boards.Cards.get_card!(task2.id).board_id == sprint.sub_board.id
     # The epic stays where it was; only its tasks went.
-    assert Boards.get_card!(epic.id).board_id == work.id
+    assert Boards.Cards.get_card!(epic.id).board_id == work.id
   end
 
   test "the open sprint card offers Add cards…", %{conn: conn, sprints: sprints} do
@@ -128,7 +128,7 @@ defmodule SlipdockWeb.SprintsLiveTest do
       a = card_fixture(todo, %{"title" => "Work task", "time_estimate" => 2})
       b = card_fixture(home_todo, %{"title" => "Home task", "time_estimate" => 3})
       epic = card_fixture(todo, %{"title" => "Epic"})
-      {:ok, simple} = Boards.find_template(nil, "Simple")
+      {:ok, simple} = Boards.Templates.find_template(nil, "Simple")
       {:ok, epic_board} = Boards.create_sub_board(epic, simple)
       task = card_fixture(hd(Boards.get_board!(epic_board.id).columns), %{"title" => "Inside"})
 
@@ -161,9 +161,9 @@ defmodule SlipdockWeb.SprintsLiveTest do
       assert has_element?(view, "#plan-card-#{task.id}")
 
       view |> element("#sprint-add") |> render_click()
-      sub = Boards.get_card!(sprint.id).sub_board
-      assert Boards.get_card!(a.id).board_id == sub.id
-      assert Boards.get_card!(b.id).board_id == sub.id
+      sub = Boards.Cards.get_card!(sprint.id).sub_board
+      assert Boards.Cards.get_card!(a.id).board_id == sub.id
+      assert Boards.Cards.get_card!(b.id).board_id == sub.id
     end
 
     test "the plan leaves out columns no card on the board has anything in", %{
@@ -235,7 +235,7 @@ defmodule SlipdockWeb.SprintsLiveTest do
       conn: conn,
       work: work
     } do
-      {:ok, template} = Boards.find_template(nil, "Sprint planning")
+      {:ok, template} = Boards.Templates.find_template(nil, "Sprint planning")
       {:ok, view, _} = live(conn, ~p"/")
       render_click(view, "start_create", %{})
 
@@ -273,7 +273,7 @@ defmodule SlipdockWeb.SprintsLiveTest do
     a = card_fixture(todo, %{"title" => "A"})
     b = card_fixture(todo, %{"title" => "B"})
     {:ok, _} = Sprints.add_cards(two, [a, b])
-    {:ok, _} = Boards.update_card(Boards.get_card!(a.id), %{"completed" => true})
+    {:ok, _} = Boards.Cards.update_card(Boards.Cards.get_card!(a.id), %{"completed" => true})
 
     {:ok, view, _} = live(conn, ~p"/boards/#{sprints}")
     view |> element("#sprint-charts") |> render_click()
@@ -285,7 +285,7 @@ defmodule SlipdockWeb.SprintsLiveTest do
     refute has_element?(view, "#burndown-#{two.id}")
     assert render(view) =~ "Nothing in this sprint yet"
 
-    {:ok, view, _} = live(conn, ~p"/boards/#{Boards.get_card!(two.id).sub_board.id}")
+    {:ok, view, _} = live(conn, ~p"/boards/#{Boards.Cards.get_card!(two.id).sub_board.id}")
     view |> element("#sprint-charts") |> render_click()
     assert has_element?(view, "#burndown-#{two.id}")
     refute has_element?(view, "#velocity-chart")
@@ -301,7 +301,7 @@ defmodule SlipdockWeb.SprintsLiveTest do
       {:ok, sprint} = Sprints.create_sprint(sprints)
       card = card_fixture(todo, %{"title" => "Fix the login bug"})
       {:ok, %{added: [moved]}} = Sprints.add_cards(sprint, [card])
-      [stand_in] = Boards.stand_ins_for(moved.id)
+      [stand_in] = Boards.Cards.stand_ins_for(moved.id)
 
       {:ok, view, html} = live(conn, ~p"/boards/#{work}")
       assert has_element?(view, "#card-#{stand_in.id}[data-stand-in='#{moved.id}']")
@@ -319,7 +319,7 @@ defmodule SlipdockWeb.SprintsLiveTest do
       todo: todo,
       work: work
     } do
-      {:ok, template} = Boards.find_template(nil, "Sprint planning")
+      {:ok, template} = Boards.Templates.find_template(nil, "Sprint planning")
       other = user_fixture("elsewhere@example.com")
       theirs = board_fixture(%{"name" => "Their sprints"}, template: template, owner: other)
       {:ok, sprint} = Sprints.create_sprint(theirs)
@@ -327,7 +327,7 @@ defmodule SlipdockWeb.SprintsLiveTest do
       {:ok, %{added: [moved]}} =
         Sprints.add_cards(sprint, [card_fixture(todo, %{"title" => "Secret-ish"})])
 
-      [stand_in] = Boards.stand_ins_for(moved.id)
+      [stand_in] = Boards.Cards.stand_ins_for(moved.id)
 
       {:ok, view, html} = live(conn, ~p"/boards/#{work}")
       assert html =~ "Secret-ish"
@@ -344,7 +344,7 @@ defmodule SlipdockWeb.SprintsLiveTest do
     } do
       {:ok, sprint} = Sprints.create_sprint(sprints)
       {:ok, %{added: [moved]}} = Sprints.add_cards(sprint, [card_fixture(todo)])
-      [stand_in] = Boards.stand_ins_for(moved.id)
+      [stand_in] = Boards.Cards.stand_ins_for(moved.id)
 
       {:ok, view, _} = live(conn, ~p"/boards/#{work}")
       assert view |> element("#column-#{todo.id} .badge") |> render() =~ "0 cards"
@@ -354,7 +354,7 @@ defmodule SlipdockWeb.SprintsLiveTest do
       |> render_click()
 
       refute has_element?(view, "#card-#{stand_in.id}")
-      assert Boards.stand_ins_for(moved.id) == []
+      assert Boards.Cards.stand_ins_for(moved.id) == []
     end
   end
 end

@@ -169,7 +169,7 @@ defmodule Slipdock.FlowTest do
     end
 
     test "uncategorised lists are left out, and coming from one is new scope", ctx do
-      {:ok, later} = Boards.create_column(ctx.board, %{"name" => "Maybe Later"})
+      {:ok, later} = Boards.Columns.create_column(ctx.board, %{"name" => "Maybe Later"})
       assert later.category == nil
 
       parked = bare_card(later)
@@ -207,11 +207,11 @@ defmodule Slipdock.FlowTest do
 
       epic = card_fixture(ctx.backlog, %{"title" => "Epic"})
       Repo.delete_all(from m in CardMove, where: m.card_id == ^epic.id)
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(epic, t)
       sub = Boards.get_board!(sub.id)
       sub_doing = hd(sub.columns)
-      {:ok, sub_doing} = Boards.update_column(sub_doing, %{"category" => "doing"})
+      {:ok, sub_doing} = Boards.Columns.update_column(sub_doing, %{"category" => "doing"})
       child = bare_card(sub_doing)
       row(child, "created", nil, sub_doing, ago(2 * @day))
 

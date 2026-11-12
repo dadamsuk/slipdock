@@ -44,7 +44,7 @@ defmodule Slipdock.IncidentsTest do
     do: Repo.all(from(f in Finding, where: f.source == "incident", order_by: f.id))
 
   defp set(card, attrs, user),
-    do: Boards.update_card(Repo.get!(Card, card.id), attrs, by: user)
+    do: Boards.Cards.update_card(Repo.get!(Card, card.id), attrs, by: user)
 
   defp error_on(changeset, field) do
     {message, _} = Keyword.fetch!(changeset.errors, field)
@@ -111,7 +111,7 @@ defmodule Slipdock.IncidentsTest do
 
     test "create takes them too, and refuses the same", ctx do
       {:ok, card} =
-        Boards.create_card(
+        Boards.Cards.create_card(
           ctx.todo,
           %{"title" => "Broke again", "caused_by" => ctx.cause.id, "missed_by" => "rules"},
           by: ctx.user
@@ -122,7 +122,9 @@ defmodule Slipdock.IncidentsTest do
       assert cause_id == ctx.cause.id
 
       assert {:error, cs} =
-               Boards.create_card(ctx.todo, %{"title" => "No", "caused_by" => ctx.hidden.id},
+               Boards.Cards.create_card(
+                 ctx.todo,
+                 %{"title" => "No", "caused_by" => ctx.hidden.id},
                  by: ctx.user
                )
 
@@ -279,7 +281,7 @@ defmodule Slipdock.IncidentsTest do
 
       # An incident on their own board, caused by the user's card: not listed for the user.
       {:ok, _} =
-        Boards.create_card(
+        Boards.Cards.create_card(
           hd(Boards.get_board!(ctx.hidden.board_id).columns),
           %{"title" => "Theirs", "caused_by" => ctx.cause.id},
           by: ctx.stranger

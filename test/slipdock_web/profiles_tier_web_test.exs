@@ -62,12 +62,12 @@ defmodule SlipdockWeb.ProfilesTierWebTest do
   # A schema card an agent built and another accepted: held for a person.
   defp held!(ctx) do
     card = card_fixture(ctx.doing, %{"title" => "Migrate"})
-    {:ok, card} = Boards.update_card(card, %{"profile" => "schema"})
+    {:ok, card} = Boards.Cards.update_card(card, %{"profile" => "schema"})
     builder = %{Actor.unknown() | kind: "agent", via: "api", user_id: ctx.user.id, agent: "b"}
     checker = %{builder | agent: "c"}
 
     {:ok, _} =
-      Boards.update_card(
+      Boards.Cards.update_card(
         card,
         %{
           "completed" => true,

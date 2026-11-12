@@ -64,7 +64,7 @@ defmodule SlipdockWeb.MCP.FileToolsTest do
   defp upload!(conn, args), do: conn |> call("upload_file", args) |> ok!()
 
   defp card_files(card),
-    do: Repo.preload(Boards.get_card!(card.id), :attachments, force: true).attachments
+    do: Repo.preload(Boards.Cards.get_card!(card.id), :attachments, force: true).attachments
 
   defp sha256(bytes), do: :crypto.hash(:sha256, bytes) |> Base.encode16(case: :lower)
 
@@ -81,7 +81,7 @@ defmodule SlipdockWeb.MCP.FileToolsTest do
       assert a["sha256"] == sha256(@png)
       assert a["size"] == byte_size(@png)
       [stored] = card_files(ctx.card)
-      assert a["sha256"] == sha256(File.read!(Boards.attachment_path(stored)))
+      assert a["sha256"] == sha256(File.read!(Boards.Attachments.attachment_path(stored)))
     end
 
     test "content_base64 without a sha256 is refused, so damage can't be stored silently (#1040)",
@@ -144,7 +144,7 @@ defmodule SlipdockWeb.MCP.FileToolsTest do
 
       assert listed["id"] == a["id"]
       [stored] = card_files(ctx.card)
-      assert File.read!(Boards.attachment_path(stored)) == @png
+      assert File.read!(Boards.Attachments.attachment_path(stored)) == @png
     end
 
     test "takes a text file's contents as they are, and hide_on_card", ctx do
@@ -161,7 +161,7 @@ defmodule SlipdockWeb.MCP.FileToolsTest do
       assert a["markdown"] =~ "[notes.md]("
       refute a["markdown"] =~ "!["
       [stored] = card_files(ctx.card)
-      assert File.read!(Boards.attachment_path(stored)) == "# Notes\n\nñ and ✓\n"
+      assert File.read!(Boards.Attachments.attachment_path(stored)) == "# Notes\n\nñ and ✓\n"
     end
 
     test "a content_type given wins over the name, and base64 may be wrapped", ctx do
@@ -236,7 +236,7 @@ defmodule SlipdockWeb.MCP.FileToolsTest do
       })
 
       [stored] = card_files(ctx.card)
-      assert File.read!(Boards.attachment_path(stored)) == @png
+      assert File.read!(Boards.Attachments.attachment_path(stored)) == @png
       assert [_] = Slipdock.Wiki.attachments(ctx.page)
     end
 
@@ -439,7 +439,7 @@ defmodule SlipdockWeb.MCP.FileToolsTest do
                "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 
       [stored] = card_files(ctx.card)
-      assert File.read!(Boards.attachment_path(stored)) == ctx.bytes
+      assert File.read!(Boards.Attachments.attachment_path(stored)) == ctx.bytes
       # A copy: the wiki keeps its file.
       assert {:ok, _, _} =
                Slipdock.Vaults.Sync.read_file(ctx.vault, ctx.user, ctx.entry.id)
@@ -581,7 +581,7 @@ defmodule SlipdockWeb.MCP.FileToolsTest do
       assert a["size"] == 100_000
       assert a["sha256"] == sha256(file)
       [stored] = card_files(ctx.card)
-      assert File.read!(Boards.attachment_path(stored)) == file
+      assert File.read!(Boards.Attachments.attachment_path(stored)) == file
 
       # The upload is gone once it is an attachment.
       assert ctx.conn
@@ -769,7 +769,7 @@ defmodule SlipdockWeb.MCP.FileToolsTest do
       on_exit(fn -> File.rm(path) end)
 
       {:ok, a} =
-        Boards.add_attachment(card, %{filename: name, content_type: type}, path)
+        Boards.Attachments.add_attachment(card, %{filename: name, content_type: type}, path)
 
       a
     end
@@ -844,7 +844,7 @@ defmodule SlipdockWeb.MCP.FileToolsTest do
 
     test "a file whose bytes are gone says so", ctx do
       a = attach(ctx.card, "gone.txt", "x", "text/plain")
-      File.rm!(Boards.attachment_path(a))
+      File.rm!(Boards.Attachments.attachment_path(a))
       assert ctx.conn |> call("download_file", %{attachment: a.id}) |> error!() =~ "missing"
     end
 
@@ -895,7 +895,7 @@ defmodule SlipdockWeb.MCP.FileToolsTest do
         upload!(ctx.conn, %{card: ctx.card.id, filename: "bad.docx", text: "corrupt"})
 
       [stored] = card_files(ctx.card)
-      path = Boards.attachment_path(stored)
+      path = Boards.Attachments.attachment_path(stored)
       assert File.exists?(path)
 
       assert %{"deleted" => true, "attachment" => ^id, "filename" => "bad.docx", "card" => card} =
@@ -990,7 +990,7 @@ defmodule SlipdockWeb.MCP.FileToolsTest do
       files = card_files(ctx.card)
       assert files |> Enum.map(& &1.id) |> Enum.sort() == Enum.sort([other.id, third])
       current = Enum.find(files, &(&1.id == third))
-      assert File.read!(Boards.attachment_path(current)) == "build 3"
+      assert File.read!(Boards.Attachments.attachment_path(current)) == "build 3"
     end
 
     test "with nothing to replace, replaced is empty", ctx do

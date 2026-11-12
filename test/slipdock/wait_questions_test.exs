@@ -34,14 +34,14 @@ defmodule Slipdock.WaitQuestionsTest do
     do: %{Actor.unknown() | kind: "agent", via: "mcp", user_id: user.id, agent: "claude"}
 
   defp open!(ctx, attrs) do
-    {:ok, wait} = Boards.open_wait(ctx.card, agent(ctx.owner), attrs)
+    {:ok, wait} = Boards.Waits.open_wait(ctx.card, agent(ctx.owner), attrs)
     wait
   end
 
   defp series!(ctx),
     do: open!(ctx, %{"questions" => ["Which region?", " How many seats? ", ""]})
 
-  defp bodies(ctx), do: Boards.get_card!(ctx.card.id).comments |> Enum.map(& &1.body)
+  defp bodies(ctx), do: Boards.Cards.get_card!(ctx.card.id).comments |> Enum.map(& &1.body)
 
   describe "split_questions/1" do
     test "splits a numbered list, keeping the words before it and lines under an item" do
@@ -108,21 +108,23 @@ defmodule Slipdock.WaitQuestionsTest do
     test "too many questions, or one too long, is refused and nothing opens", ctx do
       many = for n <- 1..21, do: "Q#{n}?"
 
-      assert {:error, cs} = Boards.open_wait(ctx.card, agent(ctx.owner), %{"questions" => many})
+      assert {:error, cs} =
+               Boards.Waits.open_wait(ctx.card, agent(ctx.owner), %{"questions" => many})
+
       assert {"at most %{count}", _} = cs.errors[:questions]
 
       long = String.duplicate("x", 1001)
 
       assert {:error, cs} =
-               Boards.open_wait(ctx.card, agent(ctx.owner), %{"questions" => ["A?", long]})
+               Boards.Waits.open_wait(ctx.card, agent(ctx.owner), %{"questions" => ["A?", long]})
 
       assert {"must each be at most 1000 characters", _} = cs.errors[:questions]
-      assert Boards.current_wait(ctx.card) == nil
+      assert Boards.Waits.current_wait(ctx.card) == nil
     end
 
     test "only blank questions and no needs is refused", ctx do
       assert {:error, cs} =
-               Boards.open_wait(ctx.card, agent(ctx.owner), %{"questions" => [" ", ""]})
+               Boards.Waits.open_wait(ctx.card, agent(ctx.owner), %{"questions" => [" ", ""]})
 
       assert {"can't be blank: say what you need", _} = cs.errors[:needs]
     end
@@ -133,12 +135,12 @@ defmodule Slipdock.WaitQuestionsTest do
       series!(ctx)
 
       {:ok, wait} =
-        Boards.answer_wait(ctx.card, Actor.web(ctx.dana), %{"answers" => [" eu ", "12"]})
+        Boards.Waits.answer_wait(ctx.card, Actor.web(ctx.dana), %{"answers" => [" eu ", "12"]})
 
       assert wait.close_reason == "answered"
       assert wait.answers == ["eu", "12"]
       assert wait.answer == nil
-      refute "waiting" in Boards.get_card!(ctx.card.id).flags
+      refute "waiting" in Boards.Cards.get_card!(ctx.card.id).flags
 
       assert ("Answered “2 questions: Which region?”:\n\n" <>
                 "1. Which region?\n   → eu\n2. How many seats?\n   → 12") in bodies(ctx)
@@ -148,7 +150,7 @@ defmodule Slipdock.WaitQuestionsTest do
       series!(ctx)
 
       {:ok, wait} =
-        Boards.answer_wait(ctx.card, Actor.web(ctx.dana), %{"answers" => %{"2" => "12"}})
+        Boards.Waits.answer_wait(ctx.card, Actor.web(ctx.dana), %{"answers" => %{"2" => "12"}})
 
       assert wait.answers == ["", "12"]
       assert Wait.answered_text(wait) =~ "1. Which region?\n   → (not answered)"
@@ -158,7 +160,7 @@ defmodule Slipdock.WaitQuestionsTest do
       series!(ctx)
 
       {:ok, wait} =
-        Boards.answer_wait(ctx.card, Actor.web(ctx.dana), %{
+        Boards.Waits.answer_wait(ctx.card, Actor.web(ctx.dana), %{
           "answers" => ["eu"],
           "answer" => "ask me again next week"
         })
@@ -172,27 +174,30 @@ defmodule Slipdock.WaitQuestionsTest do
       dana = Actor.web(ctx.dana)
 
       assert {:error, "an answer needs text or a choice"} =
-               Boards.answer_wait(ctx.card, dana, %{"answers" => ["", " "]})
+               Boards.Waits.answer_wait(ctx.card, dana, %{"answers" => ["", " "]})
 
       assert {:error, "3 answers for 2 questions"} =
-               Boards.answer_wait(ctx.card, dana, %{"answers" => ["a", "b", "c"]})
+               Boards.Waits.answer_wait(ctx.card, dana, %{"answers" => ["a", "b", "c"]})
 
       assert {:error, "answers are numbered 1 to 2, one per question"} =
-               Boards.answer_wait(ctx.card, dana, %{"answers" => %{"3" => "x"}})
+               Boards.Waits.answer_wait(ctx.card, dana, %{"answers" => %{"3" => "x"}})
 
       assert {:error, "answers is a list of strings, one per question"} =
-               Boards.answer_wait(ctx.card, dana, %{"answers" => "eu"})
+               Boards.Waits.answer_wait(ctx.card, dana, %{"answers" => "eu"})
 
       assert {:error, "an answer is too long: at most 8000 characters each"} =
-               Boards.answer_wait(ctx.card, dana, %{"answers" => [String.duplicate("x", 8001)]})
+               Boards.Waits.answer_wait(ctx.card, dana, %{
+                 "answers" => [String.duplicate("x", 8001)]
+               })
 
-      assert Wait.open?(Boards.current_wait(ctx.card))
+      assert Wait.open?(Boards.Waits.current_wait(ctx.card))
     end
 
     test "a single question answered through answers is its answer", ctx do
       open!(ctx, %{"needs" => "Which region?"})
 
-      {:ok, wait} = Boards.answer_wait(ctx.card, Actor.web(ctx.dana), %{"answers" => ["eu"]})
+      {:ok, wait} =
+        Boards.Waits.answer_wait(ctx.card, Actor.web(ctx.dana), %{"answers" => ["eu"]})
 
       assert wait.answer == "eu"
       assert wait.answers == []
@@ -204,12 +209,12 @@ defmodule Slipdock.WaitQuestionsTest do
     test "closes it as skipped, says who, takes the flag off, and keeps no answer", ctx do
       series!(ctx)
 
-      {:ok, wait} = Boards.answer_wait(ctx.card, Actor.web(ctx.dana), %{"skip" => true})
+      {:ok, wait} = Boards.Waits.answer_wait(ctx.card, Actor.web(ctx.dana), %{"skip" => true})
 
       assert wait.close_reason == "skipped"
       assert wait.closed_by_id == ctx.dana.id
       assert wait.answers == []
-      refute "waiting" in Boards.get_card!(ctx.card.id).flags
+      refute "waiting" in Boards.Cards.get_card!(ctx.card.id).flags
 
       assert "Dana skipped the questions “2 questions: Which region?”: carry on without the answers." in bodies(
                ctx
@@ -220,15 +225,15 @@ defmodule Slipdock.WaitQuestionsTest do
       open!(ctx, %{"needs" => "Which region?"})
 
       assert {:ok, %{close_reason: "skipped"}} =
-               Boards.answer_wait(ctx.card, Actor.web(ctx.dana), %{"skip" => "true"})
+               Boards.Waits.answer_wait(ctx.card, Actor.web(ctx.dana), %{"skip" => "true"})
     end
 
     test "a second skip or answer is told it was skipped, and by whom", ctx do
       series!(ctx)
-      {:ok, _} = Boards.answer_wait(ctx.card, Actor.web(ctx.dana), %{"skip" => true})
+      {:ok, _} = Boards.Waits.answer_wait(ctx.card, Actor.web(ctx.dana), %{"skip" => true})
 
       assert {:error, message} =
-               Boards.answer_wait(ctx.card, Actor.web(ctx.owner), %{"answers" => ["eu"]})
+               Boards.Waits.answer_wait(ctx.card, Actor.web(ctx.owner), %{"answers" => ["eu"]})
 
       assert message =~ "was already skipped by Dana"
     end
@@ -238,7 +243,7 @@ defmodule Slipdock.WaitQuestionsTest do
 
       assert {:error,
               "an agent can't answer the wait it opened itself: a person has to answer it"} =
-               Boards.answer_wait(ctx.card, agent(ctx.owner), %{"skip" => true})
+               Boards.Waits.answer_wait(ctx.card, agent(ctx.owner), %{"skip" => true})
     end
 
     test "a skipped runner job's card goes to its rule again, told to carry on", ctx do
@@ -252,10 +257,10 @@ defmodule Slipdock.WaitQuestionsTest do
 
       job = Runners.claim(runner)
       card = Repo.get!(Boards.Card, job.card_id)
-      :ok = Boards.move_card_to_index(card, ctx.doing, :top)
+      :ok = Boards.Cards.move_card_to_index(card, ctx.doing, :top)
 
       {:ok, _} =
-        Boards.open_wait(card, Actor.runner(ctx.owner, job.id), %{
+        Boards.Waits.open_wait(card, Actor.runner(ctx.owner, job.id), %{
           "questions" => ["Which region?", "How many seats?"],
           "job_id" => job.id
         })
@@ -263,7 +268,9 @@ defmodule Slipdock.WaitQuestionsTest do
       {:ok, %Job{status: "parked"}} = Runners.finish(runner, job.id, %{exit: "0", output: "x"})
 
       {:ok, wait} =
-        Boards.answer_wait(Boards.get_card!(card.id), Actor.web(ctx.dana), %{"skip" => true})
+        Boards.Waits.answer_wait(Boards.Cards.get_card!(card.id), Actor.web(ctx.dana), %{
+          "skip" => true
+        })
 
       assert wait.requeue_state == "queued"
       fresh = Repo.get!(Job, wait.requeue_job_id)
@@ -284,7 +291,7 @@ defmodule Slipdock.WaitQuestionsTest do
       card = Repo.get!(Boards.Card, job.card_id)
 
       {:ok, _} =
-        Boards.open_wait(card, Actor.runner(ctx.owner, job.id), %{
+        Boards.Waits.open_wait(card, Actor.runner(ctx.owner, job.id), %{
           "questions" => ["Which region?", "How many seats?"],
           "job_id" => job.id
         })
@@ -292,7 +299,7 @@ defmodule Slipdock.WaitQuestionsTest do
       {:ok, _} = Runners.finish(runner, job.id, %{exit: "0", output: "x"})
 
       {:ok, wait} =
-        Boards.answer_wait(Boards.get_card!(card.id), Actor.web(ctx.dana), %{
+        Boards.Waits.answer_wait(Boards.Cards.get_card!(card.id), Actor.web(ctx.dana), %{
           "answers" => ["eu", "12"]
         })
 
@@ -307,7 +314,7 @@ defmodule Slipdock.WaitQuestionsTest do
   describe "list_waits/1" do
     test "every wait the card has had, newest first, with who closed it", ctx do
       first = open!(ctx, %{"needs" => "Which region?"})
-      {:ok, _} = Boards.answer_wait(ctx.card, Actor.web(ctx.dana), %{"answer" => "eu"})
+      {:ok, _} = Boards.Waits.answer_wait(ctx.card, Actor.web(ctx.dana), %{"answer" => "eu"})
       second = series!(ctx)
 
       # Same second: the id breaks the tie.
@@ -315,14 +322,14 @@ defmodule Slipdock.WaitQuestionsTest do
         set: [inserted_at: ~U[2026-10-01 10:00:00Z]]
       )
 
-      assert [%Wait{id: id2} = open, %Wait{id: id1} = closed] = Boards.list_waits(ctx.card)
+      assert [%Wait{id: id2} = open, %Wait{id: id1} = closed] = Boards.Waits.list_waits(ctx.card)
       assert {id1, id2} == {first.id, second.id}
       assert Wait.open?(open)
       assert closed.closed_by.id == ctx.dana.id
     end
 
     test "a card that never asked has none", ctx do
-      assert Boards.list_waits(ctx.card) == []
+      assert Boards.Waits.list_waits(ctx.card) == []
     end
   end
 end

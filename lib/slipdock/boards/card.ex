@@ -66,7 +66,7 @@ defmodule Slipdock.Boards.Card do
     field :snooze_wake_on_activity, :boolean, default: true
     # What done means for this card (#1631), on a board that asks for it
     # before work starts; `bar_locked_at` is when work started and it locked.
-    # Set only through `Slipdock.Verified`'s checks in `Boards.update_card/3`.
+    # Set only through `Slipdock.Verified`'s checks in `Boards.Cards.update_card/3`.
     field :bar, :string
     # The paths this card's work will touch (#1628), as globs relative to
     # the repository: `lib/slipdock/runners/**`. See `Slipdock.Lanes`.
@@ -92,7 +92,7 @@ defmodule Slipdock.Boards.Card do
     field :evidence_no_code, :string
     # What kind of change it is (#1951): one of `Slipdock.Profiles.names/0`,
     # or nil. Inferred when an agent claims or starts it on a board with
-    # `profiles` on (`Boards.infer_profile/2`), and set at every door.
+    # `profiles` on (`Boards.Cards.infer_profile/2`), and set at every door.
     field :profile, :string
     # Who or what made it (#2778): one of `Slipdock.Origin.names/0`, and the
     # runner job when an agent made it during one. Not cast: `Boards` sets
@@ -486,7 +486,7 @@ defmodule Slipdock.Boards.Card do
       :caused_by_id,
       :missed_by,
       :board_id,
-      # Not `:column_id`: a card changes list only through `Boards.move_card/4`
+      # Not `:column_id`: a card changes list only through `Boards.Cards.move_card/4`
       # and `move_card_to_board/3`, which record who moved it.
       :assignee_id
     ])

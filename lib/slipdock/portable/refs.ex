@@ -29,7 +29,7 @@ defmodule Slipdock.Portable.Refs do
     |> Map.new(fn {record, index} -> {record.id, "#{prefix}#{index}"} end)
   end
 
-  # Lead first, then the rest in id order — as `Boards.assignee_ids/1` has it.
+  # Lead first, then the rest in id order — as `Boards.Cards.assignee_ids/1` has it.
   @doc false
   def assignee_ids(%Card{id: id, assignee_id: lead}, refs) do
     ids = Map.get(refs.loaded.assignees, id, [])
@@ -186,7 +186,7 @@ defmodule Slipdock.Portable.Refs do
   end
 
   # Whoever an address names, they can be put on an imported card only if
-  # they can open it — the rule `Slipdock.Boards.resolve_assignees/3` keeps
+  # they can open it — the rule `Slipdock.Boards.Cards.resolve_assignees/3` keeps
   # everywhere else. An imported tree is new and the importer's alone, so that
   # is the importer and nobody else; anyone else comes in unassigned, to be
   # shared with and assigned again. Nobody is not an error — the alternative is

@@ -100,7 +100,7 @@ defmodule SlipdockWeb.TimelineComponentsTest do
       card.("Ship it", %{"due_date" => "2030-01-25"})
       card.("Runs past the edge", %{"start_date" => "2030-04-10", "due_date" => "2030-05-30"})
       done = card.("Finished thing", %{"start_date" => "2030-01-02", "due_date" => "2030-01-20"})
-      {:ok, _} = Slipdock.Boards.update_card(done, %{"completed" => true})
+      {:ok, _} = Slipdock.Boards.Cards.update_card(done, %{"completed" => true})
       card.("Undated", %{})
 
       %{board: Slipdock.Boards.get_board!(board.id)}

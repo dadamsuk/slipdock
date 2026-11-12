@@ -89,7 +89,7 @@ defmodule SlipdockWeb.BoardHotkeyLiveTest do
     test "a sub-board's settings offer none", %{conn: conn, plan: plan} do
       [column | _] = plan.columns
       card = card_fixture(column, %{"title" => "Epic"})
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = Boards.create_sub_board(card, t)
 
       {:ok, view, _} = live(conn, ~p"/boards/#{sub}/settings")

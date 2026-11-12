@@ -386,7 +386,7 @@ defmodule SlipdockWeb.BoardLive.State do
   # Whatever the drag or the menu named: a card, or a wiki page placed on the
   # board. `page-7` is a page; a bare number is a card.
   def load_item(board, id) do
-    case Boards.item_ref(id) do
+    case Boards.Columns.item_ref(id) do
       {:card, card_id} -> load_card(board, card_id)
       {:page, page_id} -> load_placed_page(board, page_id)
       nil -> :error
@@ -397,7 +397,7 @@ defmodule SlipdockWeb.BoardLive.State do
   # own contexts; the swimlane grid asks for the same three things of either.
   # Whatever the row named, if the reader may change it.
   def writable_item(socket, id) do
-    case Boards.item_ref(id) do
+    case Boards.Columns.item_ref(id) do
       {:card, card_id} ->
         writable_card(socket, card_id)
 
@@ -419,9 +419,9 @@ defmodule SlipdockWeb.BoardLive.State do
   def readable_item(socket, id) do
     %{current_user: user, board: board, view_only: view_only} = socket.assigns
 
-    case Boards.item_ref(id) do
+    case Boards.Columns.item_ref(id) do
       {:card, card_id} ->
-        with %Card{} = card <- Boards.get_card(card_id),
+        with %Card{} = card <- Boards.Cards.get_card(card_id),
              true <- in_tree?(socket, card),
              true <-
                if(view_only,
@@ -452,7 +452,7 @@ defmodule SlipdockWeb.BoardLive.State do
     do: Wiki.place(page, column_id, before)
 
   def move_in_list(card, column_id, before, user),
-    do: Boards.move_card(card.id, column_id, before, actor: Slipdock.Actor.web(user))
+    do: Boards.Cards.move_card(card.id, column_id, before, actor: Slipdock.Actor.web(user))
 
   # A page has one assignee: given a set, it takes the first.
   def update_item(%Slipdock.Wiki.Page{} = page, %{"assignee_ids" => ids} = attrs),
@@ -465,11 +465,12 @@ defmodule SlipdockWeb.BoardLive.State do
   def update_item(%Slipdock.Wiki.Page{} = page, attrs),
     do: Wiki.update_page(Wiki.get_page!(page.id), attrs)
 
-  def update_item(card, attrs), do: Boards.update_card(Boards.get_card!(card.id), attrs)
+  def update_item(card, attrs),
+    do: Boards.Cards.update_card(Boards.Cards.get_card!(card.id), attrs)
 
   def set_item_tags(%Slipdock.Wiki.Page{} = page, tags), do: Wiki.set_tags(page, tags)
 
-  def set_item_tags(card, tags), do: Boards.set_card_tags(card, tags)
+  def set_item_tags(card, tags), do: Boards.Cards.set_card_tags(card, tags)
 
   @doc """
   What in the board's tree waits on the reader (#2095, `Slipdock.Work.Tree`):
@@ -613,7 +614,7 @@ defmodule SlipdockWeb.BoardLive.State do
   def writable_card(socket, id) do
     %{current_user: user, view_only: view_only, swim: config, swim_view: view} = socket.assigns
 
-    with %Card{} = card <- Boards.get_card(id),
+    with %Card{} = card <- Boards.Cards.get_card(id),
          true <- in_tree?(socket, card),
          true <-
            if(view_only,
@@ -629,5 +630,5 @@ defmodule SlipdockWeb.BoardLive.State do
   end
 
   # The list `id` on the open board, or nil.
-  def board_column(socket, id), do: Boards.get_board_column(socket.assigns.board.id, id)
+  def board_column(socket, id), do: Boards.Columns.get_board_column(socket.assigns.board.id, id)
 end

@@ -49,7 +49,7 @@ defmodule SlipdockWeb.MCP.Tools.CreateTag do
       # reached; asking again for one that exists is answered with it.
       # (By name only: `Boards.find_tag/2` would take "2026" for an id.)
       wanted = name |> String.trim() |> String.downcase()
-      existing = board |> Slipdock.Boards.Board.root_id() |> Boards.list_tags()
+      existing = board |> Slipdock.Boards.Board.root_id() |> Boards.Tags.list_tags()
 
       case Enum.find(existing, &(String.downcase(&1.name) == wanted)) do
         %{} = tag ->
@@ -58,7 +58,7 @@ defmodule SlipdockWeb.MCP.Tools.CreateTag do
         nil ->
           attrs = args |> Map.take(["color"]) |> Map.put("name", name)
 
-          with {:ok, tag} <- Args.refusal(Boards.create_tag(board, attrs)) do
+          with {:ok, tag} <- Args.refusal(Boards.Tags.create_tag(board, attrs)) do
             {:ok, %{tag: SlipdockWeb.API.JSON.tag(tag), created: true}}
           end
       end

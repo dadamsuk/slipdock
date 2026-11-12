@@ -18,7 +18,7 @@ defmodule Slipdock.FileCleanupTest do
     on_exit(fn -> File.rm(src) end)
 
     board = board_fixture(%{"name" => "Cleanup"})
-    {:ok, template} = Boards.find_template(nil, "Simple")
+    {:ok, template} = Boards.Templates.find_template(nil, "Simple")
     %{board: board, column: hd(board.columns), src: src, template: template}
   end
 
@@ -28,11 +28,13 @@ defmodule Slipdock.FileCleanupTest do
   end
 
   defp attach(card, src, name) do
-    {:ok, a} = Boards.add_attachment(card, %{filename: name, content_type: "text/plain"}, src)
+    {:ok, a} =
+      Boards.Attachments.add_attachment(card, %{filename: name, content_type: "text/plain"}, src)
+
     a
   end
 
-  defp on_disk?(a), do: File.exists?(Boards.attachment_path(a))
+  defp on_disk?(a), do: File.exists?(Boards.Attachments.attachment_path(a))
 
   # epic → its sub-board (a card, a page) → a deeper sub-board (a card).
   defp tree(%{column: column, src: src, template: t}) do
@@ -61,7 +63,7 @@ defmodule Slipdock.FileCleanupTest do
     bystander = attach(card_fixture(ctx.column, %{"title" => "Other"}), ctx.src, "keep.txt")
     assert Enum.all?(files, &on_disk?/1)
 
-    {:ok, _} = Boards.delete_card(Boards.get_card!(epic.id))
+    {:ok, _} = Boards.Cards.delete_card(Boards.Cards.get_card!(epic.id))
 
     refute Enum.any?(files, &on_disk?/1)
     assert on_disk?(bystander)
@@ -71,12 +73,12 @@ defmodule Slipdock.FileCleanupTest do
     %{epic: _epic, files: files} = tree(ctx)
     archived = card_fixture(ctx.column, %{"title" => "Archived"})
     archived_file = attach(archived, ctx.src, "archived.txt")
-    {:ok, _} = Boards.archive_card(archived)
+    {:ok, _} = Boards.Cards.archive_card(archived)
 
     [_, other_column | _] = ctx.board.columns
     bystander = attach(card_fixture(other_column, %{"title" => "Elsewhere"}), ctx.src, "keep.txt")
 
-    {:ok, _} = Boards.delete_column(ctx.column)
+    {:ok, _} = Boards.Columns.delete_column(ctx.column)
 
     refute Enum.any?([archived_file | files], &on_disk?/1)
     assert on_disk?(bystander)
@@ -86,7 +88,7 @@ defmodule Slipdock.FileCleanupTest do
     [_, other_column | _] = ctx.board.columns
     keep = attach(card_fixture(ctx.column, %{"title" => "Stays"}), ctx.src, "keep.txt")
 
-    {:ok, _} = Boards.delete_column(other_column)
+    {:ok, _} = Boards.Columns.delete_column(other_column)
     assert on_disk?(keep)
   end
 
@@ -114,7 +116,7 @@ defmodule Slipdock.FileCleanupTest do
   end
 
   test "card_file_keys/1 of no cards is nothing" do
-    assert Boards.card_file_keys([]) == []
+    assert Boards.Attachments.card_file_keys([]) == []
   end
 
   test "storing a file survives another removal emptying the folder it goes in", %{src: src} do
@@ -126,10 +128,10 @@ defmodule Slipdock.FileCleanupTest do
         Task.async(fn ->
           for i <- 1..150, key = "captures/race-#{n}-#{i}.wav", reduce: [] do
             acc ->
-              case Boards.put_file(src, key) do
+              case Boards.Attachments.put_file(src, key) do
                 :ok ->
-                  stored? = File.regular?(Path.join(Boards.uploads_dir(), key))
-                  Boards.remove_files([key])
+                  stored? = File.regular?(Path.join(Boards.Attachments.uploads_dir(), key))
+                  Boards.Attachments.remove_files([key])
                   if stored?, do: acc, else: [{key, :missing} | acc]
 
                 error ->
@@ -145,30 +147,30 @@ defmodule Slipdock.FileCleanupTest do
 
   test "storing a file that isn't there is still an error, not retried into success" do
     missing = Path.join(System.tmp_dir!(), "missing-#{System.unique_integer([:positive])}")
-    assert Boards.put_file(missing, "captures/never.wav") == {:error, :enoent}
-    refute File.exists?(Path.join(Boards.uploads_dir(), "captures/never.wav"))
+    assert Boards.Attachments.put_file(missing, "captures/never.wav") == {:error, :enoent}
+    refute File.exists?(Path.join(Boards.Attachments.uploads_dir(), "captures/never.wav"))
   end
 
   test "storing over a folder that is a file fails with the reason", %{src: src} do
-    File.mkdir_p!(Boards.uploads_dir())
-    File.write!(Path.join(Boards.uploads_dir(), "captures"), "not a folder")
-    assert Boards.put_file(src, "captures/x.wav") == {:error, :enotdir}
+    File.mkdir_p!(Boards.Attachments.uploads_dir())
+    File.write!(Path.join(Boards.Attachments.uploads_dir(), "captures"), "not a folder")
+    assert Boards.Attachments.put_file(src, "captures/x.wav") == {:error, :enotdir}
   end
 
   test "a file further up the path fails at once too, and is left alone", %{src: src} do
-    blocker = Path.join(Boards.uploads_dir(), "captures/2026")
+    blocker = Path.join(Boards.Attachments.uploads_dir(), "captures/2026")
     File.mkdir_p!(Path.dirname(blocker))
     File.write!(blocker, "not a folder")
 
-    assert Boards.put_file(src, "captures/2026/11/x.wav") == {:error, :enotdir}
+    assert Boards.Attachments.put_file(src, "captures/2026/11/x.wav") == {:error, :enotdir}
     assert File.read!(blocker) == "not a folder"
   end
 
   test "a file at the top of the uploads folder needs no folder made", %{src: src} do
-    assert Boards.put_file(src, "top.wav") == :ok
-    assert File.read!(Path.join(Boards.uploads_dir(), "top.wav")) == "bytes"
+    assert Boards.Attachments.put_file(src, "top.wav") == :ok
+    assert File.read!(Path.join(Boards.Attachments.uploads_dir(), "top.wav")) == "bytes"
 
     missing = Path.join(System.tmp_dir!(), "missing-#{System.unique_integer([:positive])}")
-    assert Boards.put_file(missing, "gone.wav") == {:error, :enoent}
+    assert Boards.Attachments.put_file(missing, "gone.wav") == {:error, :enoent}
   end
 end

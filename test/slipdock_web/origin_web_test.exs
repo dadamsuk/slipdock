@@ -78,11 +78,11 @@ defmodule SlipdockWeb.OriginWebTest do
     end
 
     test "cards filter by origin, and a bad one is refused", ctx do
-      Boards.create_card(ctx.todo, %{"title" => "Swept", "origin" => "sweep"},
+      Boards.Cards.create_card(ctx.todo, %{"title" => "Swept", "origin" => "sweep"},
         actor: Actor.runner(ctx.user, 3)
       )
 
-      Boards.create_card(ctx.todo, %{"title" => "Mine"}, actor: Actor.web(ctx.user))
+      Boards.Cards.create_card(ctx.todo, %{"title" => "Mine"}, actor: Actor.web(ctx.user))
 
       titles = fn origin ->
         ctx.conn
@@ -105,11 +105,11 @@ defmodule SlipdockWeb.OriginWebTest do
 
   describe "MCP" do
     test "list_cards filters by origin; create_card can't claim one outside a job", ctx do
-      Boards.create_card(ctx.todo, %{"title" => "Found", "origin" => "findings"},
+      Boards.Cards.create_card(ctx.todo, %{"title" => "Found", "origin" => "findings"},
         actor: Actor.runner(ctx.user, 4)
       )
 
-      Boards.create_card(ctx.todo, %{"title" => "Mine"}, actor: Actor.web(ctx.user))
+      Boards.Cards.create_card(ctx.todo, %{"title" => "Mine"}, actor: Actor.web(ctx.user))
 
       result = mcp(ctx.conn, "list_cards", %{"board" => ctx.board.code, "origin" => "findings"})
       assert result["isError"] == false
@@ -132,7 +132,7 @@ defmodule SlipdockWeb.OriginWebTest do
   describe "the web" do
     test "the card panel shows where it came from", ctx do
       {:ok, card} =
-        Boards.create_card(ctx.todo, %{"title" => "Swept", "origin" => "sweep"},
+        Boards.Cards.create_card(ctx.todo, %{"title" => "Swept", "origin" => "sweep"},
           actor: Actor.runner(ctx.user, 12)
         )
 
@@ -142,11 +142,12 @@ defmodule SlipdockWeb.OriginWebTest do
 
     test "the board's Origin filter narrows the cards", ctx do
       {:ok, swept} =
-        Boards.create_card(ctx.todo, %{"title" => "Swept", "origin" => "sweep"},
+        Boards.Cards.create_card(ctx.todo, %{"title" => "Swept", "origin" => "sweep"},
           actor: Actor.runner(ctx.user, 12)
         )
 
-      {:ok, mine} = Boards.create_card(ctx.todo, %{"title" => "Mine"}, actor: Actor.web(ctx.user))
+      {:ok, mine} =
+        Boards.Cards.create_card(ctx.todo, %{"title" => "Mine"}, actor: Actor.web(ctx.user))
 
       {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}")
       view |> element("[phx-click=filter_origin][phx-value-origin=sweep]") |> render_click()

@@ -144,7 +144,7 @@ defmodule SlipdockWeb.BrokenLabelsLiveTest do
     test "shows the time once a card has finished", %{conn: conn, user: user} do
       board = board_fixture(%{"name" => "Moving", "code" => "bl1698w"}, owner: user)
       card = card_fixture(hd(board.columns), %{"title" => "Finished"})
-      {:ok, _} = Boards.update_card(card, %{"completed" => true})
+      {:ok, _} = Boards.Cards.update_card(card, %{"completed" => true})
 
       {:ok, view, _} = live(conn, ~p"/boards/#{board}/visualise")
 

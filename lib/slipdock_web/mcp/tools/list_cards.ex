@@ -14,7 +14,7 @@ defmodule SlipdockWeb.MCP.Tools.ListCards do
   # them is far bigger than a page of lines.
   @full_default 20
 
-  # What `Boards.list_cards/2` takes for each.
+  # What `Boards.Cards.list_cards/2` takes for each.
   @archived %{"exclude" => nil, "include" => "all", "only" => "true"}
   @snoozed ~w(exclude include only)
 
@@ -111,7 +111,7 @@ defmodule SlipdockWeb.MCP.Tools.ListCards do
          {:ok, limit} <- Args.limit(args, "limit", if(full, do: @full_default, else: 50), @max),
          {:ok, board} <- Args.refusal(Authorize.fetch_board(auth, ref, :read)),
          :ok <- Boards.check_column(board, filters["column"]) do
-      cards = Authorize.visible(auth, Boards.list_cards(board, filters))
+      cards = Authorize.visible(auth, Boards.Cards.list_cards(board, filters))
       page = Enum.take(cards, limit)
 
       {:ok,
@@ -131,14 +131,14 @@ defmodule SlipdockWeb.MCP.Tools.ListCards do
   defp in_full(board, cards, context) do
     docs = Slipdock.Wiki.pages_for_cards(cards, context.user)
     ids = Enum.map(cards, & &1.id)
-    waits = Boards.current_waits(ids)
-    last_waits = Boards.last_waits(ids)
+    waits = Boards.Waits.current_waits(ids)
+    last_waits = Boards.Waits.last_waits(ids)
     findings = Slipdock.Findings.open_counts(ids)
     # What in each epic's tree waits on the caller (#2095), worked out once.
     tree = Slipdock.Work.Tree.for_board(context.user, board)
 
     board
-    |> Boards.with_details(cards)
+    |> Boards.Cards.with_details(cards)
     |> Enum.map(fn card ->
       card
       |> V.card()
@@ -218,7 +218,7 @@ defmodule SlipdockWeb.MCP.Tools.ListCards do
   end
 
   # A value that isn't one of the buckets would be quietly ignored by
-  # `Boards.list_cards/2`, handing back everything as if it were the answer.
+  # `Boards.Cards.list_cards/2`, handing back everything as if it were the answer.
   defp bucket(args, key, allowed) do
     with {:ok, value} <- Args.optional(args, key) do
       cond do

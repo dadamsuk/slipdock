@@ -399,14 +399,16 @@ defmodule SlipdockWeb.API.RunnersTest do
                |> post(~p"/api/jobs/#{job.id}/progress", %{"note" => "Halfway."})
                |> json_response(200)
 
-      comments = Slipdock.Boards.get_card!(ctx.card.id) |> Repo.preload(:comments)
+      comments = Slipdock.Boards.Cards.get_card!(ctx.card.id) |> Repo.preload(:comments)
       assert Enum.any?(comments.comments, &(&1.body == "Halfway."))
 
       # No note, no comment (#514's "Nothing").
       assert %{"status" => "ok"} =
                ctx.conn |> post(~p"/api/jobs/#{job.id}/progress", %{}) |> json_response(200)
 
-      assert length(Repo.preload(Slipdock.Boards.get_card!(ctx.card.id), :comments).comments) ==
+      assert length(
+               Repo.preload(Slipdock.Boards.Cards.get_card!(ctx.card.id), :comments).comments
+             ) ==
                length(comments.comments)
 
       assert ctx.conn
@@ -651,8 +653,8 @@ defmodule SlipdockWeb.API.RunnersTest do
   describe "parked jobs over HTTP (#1115)" do
     defp ask(ctx, job) do
       {:ok, wait} =
-        Slipdock.Boards.open_wait(
-          Slipdock.Boards.get_card!(ctx.card.id),
+        Slipdock.Boards.Waits.open_wait(
+          Slipdock.Boards.Cards.get_card!(ctx.card.id),
           Slipdock.Actor.runner(ctx.user, job.id),
           %{"needs" => "Which region?", "choices" => ["eu", "us"], "job_id" => job.id}
         )
@@ -701,8 +703,8 @@ defmodule SlipdockWeb.API.RunnersTest do
       )
 
       {:ok, _} =
-        Slipdock.Boards.answer_wait(
-          Slipdock.Boards.get_card!(ctx.card.id),
+        Slipdock.Boards.Waits.answer_wait(
+          Slipdock.Boards.Cards.get_card!(ctx.card.id),
           Slipdock.Actor.web(ctx.user),
           %{"choice" => 2}
         )
@@ -716,7 +718,7 @@ defmodule SlipdockWeb.API.RunnersTest do
       assert prompt =~ "Work on Slipdock card ##{ctx.card.id}"
       assert get_resp_header(again, "x-card-id") == [to_string(ctx.card.id)]
       assert get_resp_header(again, "x-wait-id") == [to_string(wait.id)]
-      handoff = Slipdock.Boards.current_handoff(ctx.card.id)
+      handoff = Slipdock.Boards.Handoffs.current_handoff(ctx.card.id)
       assert get_resp_header(again, "x-handoff-id") == [to_string(handoff.id)]
     end
 
@@ -757,7 +759,7 @@ defmodule SlipdockWeb.API.RunnersTest do
 
       assert body["job"]["status"] == "parked"
       assert body["wait"]["job_id"] == id
-      assert Slipdock.Boards.current_wait(ctx.card).job_id == id
+      assert Slipdock.Boards.Waits.current_wait(ctx.card).job_id == id
     end
   end
 end

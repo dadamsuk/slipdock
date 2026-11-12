@@ -208,7 +208,7 @@ defmodule Slipdock.ListOrderTest do
 
     test "save and clear; position, none and blank all mean the default", %{column: column} do
       {:ok, column} =
-        Boards.update_column(column, %{
+        Boards.Columns.update_column(column, %{
           "sort_by" => "due_date",
           "sort_dir" => "desc",
           "group_by" => "tag"
@@ -218,19 +218,23 @@ defmodule Slipdock.ListOrderTest do
                Repo.get!(Column, column.id)
 
       {:ok, column} =
-        Boards.update_column(column, %{"sort_by" => "position", "group_by" => "none"})
+        Boards.Columns.update_column(column, %{"sort_by" => "position", "group_by" => "none"})
 
       assert %Column{sort_by: nil, group_by: nil} = column
 
       {:ok, column} =
-        Boards.update_column(column, %{"sort_by" => "", "sort_dir" => "", "group_by" => ""})
+        Boards.Columns.update_column(column, %{
+          "sort_by" => "",
+          "sort_dir" => "",
+          "group_by" => ""
+        })
 
       assert %Column{sort_by: nil, sort_dir: "asc", group_by: nil} = Repo.get!(Column, column.id)
     end
 
     test "anything else is refused, and nothing changes", %{column: column} do
       for attrs <- [%{"sort_by" => "title"}, %{"sort_dir" => "up"}, %{"group_by" => "assignee"}] do
-        assert {:error, cs} = Boards.update_column(column, attrs)
+        assert {:error, cs} = Boards.Columns.update_column(column, attrs)
         [{field, _}] = Enum.to_list(attrs)
 
         assert %{^field => ["is invalid"]} =

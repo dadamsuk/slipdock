@@ -25,7 +25,7 @@ defmodule SlipdockWeb.CommentAuthorLiveTest do
     |> element("form[phx-submit='add_comment']")
     |> render_submit(%{body: "Looks right to me"})
 
-    assert [comment] = Boards.get_card!(ctx.card.id).comments
+    assert [comment] = Boards.Cards.get_card!(ctx.card.id).comments
     assert comment.user_id == ctx.user.id
 
     html = view |> element("#comment-#{comment.id}") |> render()
@@ -35,7 +35,7 @@ defmodule SlipdockWeb.CommentAuthorLiveTest do
   end
 
   test "a comment with no author says nothing about who wrote it", ctx do
-    {:ok, comment} = Boards.add_comment(ctx.card, "Runner job ended")
+    {:ok, comment} = Boards.Comments.add_comment(ctx.card, "Runner job ended")
     {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/cards/#{ctx.card.id}")
 
     html = view |> element("#comment-#{comment.id}") |> render()

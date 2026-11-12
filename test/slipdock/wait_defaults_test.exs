@@ -50,7 +50,7 @@ defmodule Slipdock.WaitDefaultsTest do
         attrs
       )
 
-    {:ok, wait} = Boards.open_wait(ctx.card, agent(ctx.owner, "builder"), attrs)
+    {:ok, wait} = Boards.Waits.open_wait(ctx.card, agent(ctx.owner, "builder"), attrs)
     wait
   end
 
@@ -64,19 +64,21 @@ defmodule Slipdock.WaitDefaultsTest do
     board
   end
 
-  defp bodies(ctx), do: Boards.get_card!(ctx.card.id).comments |> Enum.map(& &1.body)
+  defp bodies(ctx), do: Boards.Cards.get_card!(ctx.card.id).comments |> Enum.map(& &1.body)
   defp fresh(wait), do: Repo.get!(Wait, wait.id)
 
   describe "withdrawing a moot wait" do
     test "another agent is refused without a reason, and the wait stays open", ctx do
       wait = approval!(ctx)
 
-      assert {:error, message} = Boards.withdraw_wait(ctx.card, agent(ctx.owner, "verifier"))
+      assert {:error, message} =
+               Boards.Waits.withdraw_wait(ctx.card, agent(ctx.owner, "verifier"))
+
       assert message =~ "an agent withdrawing a wait it didn't open says why"
       assert is_nil(fresh(wait).closed_at)
 
       assert {:error, _} =
-               Boards.withdraw_wait(ctx.card, agent(ctx.owner, "verifier"), reason: "  ")
+               Boards.Waits.withdraw_wait(ctx.card, agent(ctx.owner, "verifier"), reason: "  ")
 
       assert is_nil(fresh(wait).closed_at)
     end
@@ -85,12 +87,12 @@ defmodule Slipdock.WaitDefaultsTest do
       wait = approval!(ctx)
 
       assert {:ok, closed} =
-               Boards.withdraw_wait(ctx.card, agent(ctx.owner, "verifier"),
+               Boards.Waits.withdraw_wait(ctx.card, agent(ctx.owner, "verifier"),
                  reason: "Moot: W-2514 settled it on #2048"
                )
 
       assert closed.close_reason == "withdrawn"
-      assert "waiting" not in Boards.get_card!(ctx.card.id).flags
+      assert "waiting" not in Boards.Cards.get_card!(ctx.card.id).flags
 
       assert Enum.any?(
                bodies(ctx),
@@ -103,20 +105,21 @@ defmodule Slipdock.WaitDefaultsTest do
       job_b = runner_job!(ctx)
 
       {:ok, _} =
-        Boards.open_wait(ctx.card, agent(ctx.owner, "runner-a", job_a.id), %{
+        Boards.Waits.open_wait(ctx.card, agent(ctx.owner, "runner-a", job_a.id), %{
           "needs" => "Which region?",
           "job_id" => job_a.id
         })
 
-      assert {:error, _} = Boards.withdraw_wait(ctx.card, agent(ctx.owner, "runner-b", job_b.id))
+      assert {:error, _} =
+               Boards.Waits.withdraw_wait(ctx.card, agent(ctx.owner, "runner-b", job_b.id))
     end
 
     test "the agent that opened it, and a person, need no reason", ctx do
       approval!(ctx)
-      assert {:ok, _} = Boards.withdraw_wait(ctx.card, agent(ctx.owner, "builder"))
+      assert {:ok, _} = Boards.Waits.withdraw_wait(ctx.card, agent(ctx.owner, "builder"))
 
       approval!(ctx)
-      assert {:ok, _} = Boards.withdraw_wait(ctx.card, Actor.web(ctx.dana))
+      assert {:ok, _} = Boards.Waits.withdraw_wait(ctx.card, Actor.web(ctx.dana))
 
       assert Enum.any?(
                bodies(ctx),
@@ -128,25 +131,27 @@ defmodule Slipdock.WaitDefaultsTest do
     end
 
     test "a person's own wait, withdrawn by an agent, needs a reason too", ctx do
-      {:ok, _} = Boards.open_wait(ctx.card, Actor.web(ctx.dana), %{"needs" => "Which region?"})
-      assert {:error, _} = Boards.withdraw_wait(ctx.card, agent(ctx.owner, "builder"))
+      {:ok, _} =
+        Boards.Waits.open_wait(ctx.card, Actor.web(ctx.dana), %{"needs" => "Which region?"})
+
+      assert {:error, _} = Boards.Waits.withdraw_wait(ctx.card, agent(ctx.owner, "builder"))
 
       assert {:ok, _} =
-               Boards.withdraw_wait(ctx.card, agent(ctx.owner, "builder"),
+               Boards.Waits.withdraw_wait(ctx.card, agent(ctx.owner, "builder"),
                  reason: "Answered in the description"
                )
     end
 
     test "a person's own token withdraws the wait they opened without one", ctx do
-      {:ok, _} = Boards.open_wait(ctx.card, Actor.web(ctx.dana), %{"needs" => "Mine?"})
-      assert {:ok, _} = Boards.withdraw_wait(ctx.card, agent(ctx.dana, "dana's token"))
+      {:ok, _} = Boards.Waits.open_wait(ctx.card, Actor.web(ctx.dana), %{"needs" => "Mine?"})
+      assert {:ok, _} = Boards.Waits.withdraw_wait(ctx.card, agent(ctx.dana, "dana's token"))
     end
 
     test "a reason over 2000 characters is refused", ctx do
       approval!(ctx)
 
       assert {:error, "the reason is too long" <> _} =
-               Boards.withdraw_wait(ctx.card, agent(ctx.owner, "verifier"),
+               Boards.Waits.withdraw_wait(ctx.card, agent(ctx.owner, "verifier"),
                  reason: String.duplicate("x", 2001)
                )
     end
@@ -161,7 +166,7 @@ defmodule Slipdock.WaitDefaultsTest do
 
     test "out of range, or with no choices, is refused", ctx do
       assert {:error, cs} =
-               Boards.open_wait(ctx.card, agent(ctx.owner, "builder"), %{
+               Boards.Waits.open_wait(ctx.card, agent(ctx.owner, "builder"), %{
                  "needs" => "Which?",
                  "choices" => ["a", "b"],
                  "default_choice" => 3
@@ -170,7 +175,7 @@ defmodule Slipdock.WaitDefaultsTest do
       assert %{default_choice: ["must be a choice's number, 1 to 2"]} = errors_on(cs)
 
       assert {:error, cs} =
-               Boards.open_wait(ctx.card, agent(ctx.owner, "builder"), %{
+               Boards.Waits.open_wait(ctx.card, agent(ctx.owner, "builder"), %{
                  "needs" => "Which?",
                  "default_choice" => 1
                })
@@ -226,7 +231,7 @@ defmodule Slipdock.WaitDefaultsTest do
 
     test "a sub-board without one takes the nearest board's above it", ctx do
       set_after!(ctx.board, "4h")
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, parent} = sub_board(ctx.card, t)
       [sub_todo | _] = Boards.get_board!(parent.id).columns
       sub_card = card_fixture(sub_todo, %{"title" => "Sub"})
@@ -251,7 +256,7 @@ defmodule Slipdock.WaitDefaultsTest do
       closed = fresh(wait)
       assert closed.close_reason == "answered"
       assert closed.choice == 1
-      assert "waiting" not in Boards.get_card!(ctx.card.id).flags
+      assert "waiting" not in Boards.Cards.get_card!(ctx.card.id).flags
 
       assert Enum.any?(
                bodies(ctx),
@@ -309,7 +314,7 @@ defmodule Slipdock.WaitDefaultsTest do
         age!(wait, 120)
         assert WaitDefaults.tick() == 0
         assert is_nil(fresh(wait).closed_at), kind
-        {:ok, _} = Boards.withdraw_wait(ctx.card, Actor.web(ctx.owner))
+        {:ok, _} = Boards.Waits.withdraw_wait(ctx.card, Actor.web(ctx.owner))
       end
     end
 
@@ -320,10 +325,12 @@ defmodule Slipdock.WaitDefaultsTest do
       age!(wait, 120)
       assert WaitDefaults.tick() == 0
       assert is_nil(fresh(wait).closed_at)
-      {:ok, _} = Boards.withdraw_wait(ctx.card, Actor.web(ctx.owner))
+      {:ok, _} = Boards.Waits.withdraw_wait(ctx.card, Actor.web(ctx.owner))
 
       {:ok, plain} =
-        Boards.open_wait(ctx.card, agent(ctx.owner, "builder"), %{"needs" => "Which region?"})
+        Boards.Waits.open_wait(ctx.card, agent(ctx.owner, "builder"), %{
+          "needs" => "Which region?"
+        })
 
       age!(plain, 120)
       assert WaitDefaults.tick() == 0
@@ -337,7 +344,7 @@ defmodule Slipdock.WaitDefaultsTest do
       age!(wait, 120)
 
       assert WaitDefaults.tick() == 0
-      assert {:error, _} = Boards.default_wait(fresh(wait), "1h")
+      assert {:error, _} = Boards.Waits.default_wait(fresh(wait), "1h")
     end
 
     test "the scheduler runs it" do

@@ -621,11 +621,11 @@ defmodule Slipdock.Gardener do
   defp log(%Suggestion{} = s, message) do
     for id <- Suggestion.card_ids(s),
         card = Repo.get(Boards.Card, id),
-        do: Boards.log_activity(card.board_id, card.id, "card", message)
+        do: Boards.ActivityLog.log_activity(card.board_id, card.id, "card", message)
 
     for id <- Suggestion.page_ids(s),
         page = Repo.get(Slipdock.Wiki.Page, id),
-        do: Boards.log_activity_for(page, "page", message)
+        do: Boards.ActivityLog.log_activity_for(page, "page", message)
 
     :ok
   end

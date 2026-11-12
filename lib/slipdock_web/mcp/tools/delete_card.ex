@@ -49,7 +49,7 @@ defmodule SlipdockWeb.MCP.Tools.DeleteCard do
          :ok <- Args.confirmed(args, "archive_card puts it away and can be undone"),
          {:ok, card} <- Args.refusal(CardWrites.fetch_card(id)),
          :ok <- Args.refusal(Authorize.card(auth, card, :write)),
-         {:ok, _} <- Args.refusal(Boards.delete_card(card)) do
+         {:ok, _} <- Args.refusal(Boards.Cards.delete_card(card)) do
       {:ok, %{deleted: true, card: card.id, title: card.title, board_id: card.board_id}}
     end
   end

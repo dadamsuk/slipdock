@@ -32,7 +32,7 @@ defmodule SlipdockWeb.WorkDismissLiveTest do
   test "the × dismisses for me; Undo brings it back; the counts say so", ctx do
     card = card_fixture(ctx.todo, %{"title" => "Flaky", "assignee_ids" => [ctx.dana.id]})
     agent = %{Slipdock.Actor.unknown() | kind: "agent", via: "mcp", user_id: ctx.dana.id}
-    {:ok, _} = Boards.open_wait(card, agent, %{"needs" => "Region?"})
+    {:ok, _} = Boards.Waits.open_wait(card, agent, %{"needs" => "Region?"})
     other = card_fixture(ctx.todo, %{"title" => "Other"})
     failed_job(other)
 
@@ -81,7 +81,7 @@ defmodule SlipdockWeb.WorkDismissLiveTest do
   test "a board's menu mutes its tree for me, the board says so, and Unmute lifts it", ctx do
     card = card_fixture(ctx.todo, %{"title" => "Flaky"})
     failed_job(card)
-    {:ok, t} = Boards.find_template(nil, "Simple")
+    {:ok, t} = Boards.Templates.find_template(nil, "Simple")
     {:ok, sub} = sub_board(card_fixture(ctx.todo, %{"title" => "Epic"}), t)
 
     {:ok, board_view, _} = live(log_in_user(build_conn(), ctx.owner), ~p"/boards/#{ctx.board.id}")

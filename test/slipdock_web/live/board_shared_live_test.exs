@@ -75,7 +75,7 @@ defmodule SlipdockWeb.BoardSharedLiveTest do
     owner: owner
   } do
     board = board_fixture(%{"name" => "Viewed"}, owner: owner)
-    {:ok, view_rec} = Slipdock.Boards.create_saved_view(board, %{"name" => "Due soon"})
+    {:ok, view_rec} = Slipdock.Boards.SavedViews.create_saved_view(board, %{"name" => "Due soon"})
     {:ok, _} = Access.grant(view_rec, user, "read", owner)
     assert Access.board_permission(user, board) == :view
 

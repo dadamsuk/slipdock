@@ -62,13 +62,13 @@ defmodule Slipdock.ProfilesTierTest do
 
   defp card(ctx, profile, attrs \\ %{}) do
     card = card_fixture(ctx.doing, Map.merge(%{"title" => "Work"}, attrs))
-    {:ok, card} = Boards.update_card(card, %{"profile" => profile})
+    {:ok, card} = Boards.Cards.update_card(card, %{"profile" => profile})
     card
   end
 
   defp submit(card, ctx) do
     {:ok, card} =
-      Boards.update_card(
+      Boards.Cards.update_card(
         Repo.get!(Card, card.id),
         %{"completed" => true, "evidence_pr" => @pr, "evidence_commit" => "abc1234"},
         actor: ctx.builder
@@ -153,11 +153,11 @@ defmodule Slipdock.ProfilesTierTest do
       assert ctx |> card("spike") |> Profiles.tier() == "none"
 
       parent = card(ctx, "feature")
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = Boards.create_sub_board(parent, t)
       [first | _] = Repo.preload(sub, :columns).columns
       sub_card = card_fixture(first, %{"title" => "Sub"})
-      {:ok, sub_card} = Boards.update_card(sub_card, %{"profile" => "schema"})
+      {:ok, sub_card} = Boards.Cards.update_card(sub_card, %{"profile" => "schema"})
       assert Profiles.tier(sub_card) == "before_merge"
 
       {:ok, _} = Boards.update_board(ctx.board, %{"profile_tiers" => %{"schema" => "ledger"}})
@@ -181,7 +181,7 @@ defmodule Slipdock.ProfilesTierTest do
 
     test "put_tiers refuses a sub-board's tiers, naming the root", ctx do
       parent = card(ctx, "feature")
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = Boards.create_sub_board(parent, t)
 
       assert {:error, message} =
@@ -200,7 +200,7 @@ defmodule Slipdock.ProfilesTierTest do
         {:ok, accepted} = accept(card, ctx.checker, ctx)
         assert accepted.verify_state == "merging", profile
         assert [_job] = merge_jobs(card)
-        assert is_nil(Boards.current_wait(card))
+        assert is_nil(Boards.Waits.current_wait(card))
       end
     end
 
@@ -212,7 +212,7 @@ defmodule Slipdock.ProfilesTierTest do
       assert "review" in held.flags
       assert merge_jobs(held) == []
 
-      wait = Boards.current_wait(held)
+      wait = Boards.Waits.current_wait(held)
       assert wait.purpose == "before_merge"
       assert wait.question == "release"
       assert wait.choices == ["Merge", "Send back"]
@@ -225,7 +225,7 @@ defmodule Slipdock.ProfilesTierTest do
 
     test "with no release route the wait is on the board's owner", ctx do
       held = held!(ctx, "security")
-      assert Boards.current_wait(held).on_user_id == ctx.owner.id
+      assert Boards.Waits.current_wait(held).on_user_id == ctx.owner.id
     end
 
     test "with profiles off, or a tier changed to none, a schema card merges", ctx do
@@ -253,7 +253,7 @@ defmodule Slipdock.ProfilesTierTest do
   describe "answering the wait" do
     test "Merge from a person queues the merge", ctx do
       held = held!(ctx)
-      {:ok, _} = Boards.answer_wait(held, person(ctx.owner), %{"choice" => 1})
+      {:ok, _} = Boards.Waits.answer_wait(held, person(ctx.owner), %{"choice" => 1})
 
       card = Repo.get!(Card, held.id)
       assert card.verify_state == "merging"
@@ -266,7 +266,7 @@ defmodule Slipdock.ProfilesTierTest do
       held = held!(ctx)
 
       {:ok, _} =
-        Boards.answer_wait(held, person(ctx.owner), %{
+        Boards.Waits.answer_wait(held, person(ctx.owner), %{
           "choice" => 2,
           "answer" => "the migration locks the cards table"
         })
@@ -282,7 +282,7 @@ defmodule Slipdock.ProfilesTierTest do
 
     test "a skip sends it back too, saying no reason was given", ctx do
       held = held!(ctx)
-      {:ok, _} = Boards.answer_wait(held, person(ctx.owner), %{"skip" => true})
+      {:ok, _} = Boards.Waits.answer_wait(held, person(ctx.owner), %{"skip" => true})
 
       card = Repo.get!(Card, held.id)
       assert card.verify_state == "rejected"
@@ -293,17 +293,17 @@ defmodule Slipdock.ProfilesTierTest do
       held = held!(ctx)
       other = %{ctx.builder | agent: "someone-else"}
 
-      assert {:error, message} = Boards.answer_wait(held, other, %{"choice" => 1})
+      assert {:error, message} = Boards.Waits.answer_wait(held, other, %{"choice" => 1})
       assert message =~ "a person decides"
-      assert {:error, _} = Boards.answer_wait(held, other, %{"skip" => true})
+      assert {:error, _} = Boards.Waits.answer_wait(held, other, %{"skip" => true})
 
       assert Repo.get!(Card, held.id).verify_state == "held"
-      assert Boards.current_wait(held)
+      assert Boards.Waits.current_wait(held)
     end
 
     test "a withdrawn wait leaves it held: nothing merges", ctx do
       held = held!(ctx)
-      {:ok, _} = Boards.withdraw_wait(held, person(ctx.owner))
+      {:ok, _} = Boards.Waits.withdraw_wait(held, person(ctx.owner))
       card = Repo.get!(Card, held.id)
       assert card.verify_state == "held"
       assert merge_jobs(card) == []
@@ -315,7 +315,7 @@ defmodule Slipdock.ProfilesTierTest do
       held = held!(ctx)
       assert {:ok, card} = accept(held, person(ctx.owner), ctx)
       assert card.verify_state == "merging"
-      assert is_nil(Boards.current_wait(card))
+      assert is_nil(Boards.Waits.current_wait(card))
       assert Repo.get_by!(Wait, card_id: card.id).close_reason == "withdrawn"
 
       held = held!(ctx)
@@ -377,7 +377,7 @@ defmodule Slipdock.ProfilesTierTest do
       assert line.().waiting_for == Slipdock.Accounts.User.display_name(ctx.releaser)
       assert "accepted" in line.().events
 
-      {:ok, _} = Boards.answer_wait(held, person(ctx.releaser), %{"choice" => 1})
+      {:ok, _} = Boards.Waits.answer_wait(held, person(ctx.releaser), %{"choice" => 1})
       assert is_nil(line.().waiting_for)
     end
   end

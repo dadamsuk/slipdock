@@ -36,7 +36,7 @@ defmodule Slipdock.LanesSiblingsTest do
     agent = %{Actor.unknown() | kind: "agent", via: "api", user_id: owner.id, agent: "bot"}
 
     epic = card_fixture(doing, %{"title" => "Epic"})
-    {:ok, t} = Boards.find_template(nil, "Simple")
+    {:ok, t} = Boards.Templates.find_template(nil, "Simple")
     {:ok, sub} = sub_board(epic, t)
     sub = Boards.get_board!(sub.id)
     sub_doing = Enum.find(sub.columns, &(&1.name == "Doing"))
@@ -60,14 +60,15 @@ defmodule Slipdock.LanesSiblingsTest do
 
   defp card(column, title, paths) do
     card = card_fixture(column, %{"title" => title})
-    {:ok, card} = Boards.update_card(card, %{"paths" => paths})
+    {:ok, card} = Boards.Cards.update_card(card, %{"paths" => paths})
     card
   end
 
   defp set_verify(card, state),
     do: Repo.update_all(from(c in Card, where: c.id == ^card.id), set: [verify_state: state])
 
-  defp move(card, column, ctx), do: Boards.move_card(card.id, column.id, nil, actor: ctx.agent)
+  defp move(card, column, ctx),
+    do: Boards.Cards.move_card(card.id, column.id, nil, actor: ctx.agent)
 
   describe "siblings under one epic job" do
     test "a sibling in progress holds its lane against the next subcard", ctx do
@@ -196,7 +197,7 @@ defmodule Slipdock.LanesSiblingsTest do
       running = card(ctx.doing, "Running", "lib/x.ex")
       working_job_fixture(running)
       epic = card(ctx.todo, "Second epic", "lib/**")
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(epic, t)
       sub = Boards.get_board!(sub.id)
       card(Enum.find(sub.columns, &(&1.name == "Doing")), "Started", "lib/x.ex")

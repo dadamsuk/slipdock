@@ -61,7 +61,7 @@ defmodule Slipdock.VerifiedAuditTest do
     assert id == work.id
 
     {:ok, card} =
-      Boards.update_card(card, %{"completed" => true, "evidence" => "ran it"},
+      Boards.Cards.update_card(card, %{"completed" => true, "evidence" => "ran it"},
         actor: agent(ctx, work.id)
       )
 
@@ -96,7 +96,7 @@ defmodule Slipdock.VerifiedAuditTest do
 
     test "a sub-board takes its root's setting", ctx do
       epic = card_fixture(ctx.doing, %{"title" => "Epic"})
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(epic, t)
       [column | _] = Boards.get_board!(sub.id).columns
       assert Verified.audit_every(card_fixture(column, %{"title" => "Child"})) == 1
@@ -140,7 +140,7 @@ defmodule Slipdock.VerifiedAuditTest do
       card = card_fixture(ctx.doing, %{"title" => "By hand"})
 
       {:ok, _} =
-        Boards.update_card(card, %{"completed" => true},
+        Boards.Cards.update_card(card, %{"completed" => true},
           actor: %{Actor.unknown() | kind: "agent", via: "mcp", user_id: ctx.owner.id, agent: "b"}
         )
 
@@ -237,7 +237,7 @@ defmodule Slipdock.VerifiedAuditTest do
       unchanged!(before)
       assert alerts(before) == []
 
-      body = Boards.get_card!(before.id).comments |> Enum.max_by(& &1.id) |> Map.get(:body)
+      body = Boards.Cards.get_card!(before.id).comments |> Enum.max_by(& &1.id) |> Map.get(:body)
       assert body =~ "**Audit: agrees** with the acceptance, by runner third."
       assert body =~ "Looked again\n\nChecks:\n\n- bar 1: ok"
     end
@@ -316,7 +316,8 @@ defmodule Slipdock.VerifiedAuditTest do
     end
 
     test "disagree files one rework card, named by the alert and the finding", ctx do
-      {:ok, card} = Boards.update_card(ctx.card, %{"paths" => ["lib/foo/**", "test/foo/**"]})
+      {:ok, card} =
+        Boards.Cards.update_card(ctx.card, %{"paths" => ["lib/foo/**", "test/foo/**"]})
 
       {:ok, _} =
         Verified.decide(
@@ -344,7 +345,7 @@ defmodule Slipdock.VerifiedAuditTest do
       assert ready.name == "To Do"
       assert rework.column_id == ready.id
 
-      said = Boards.get_card!(card.id).comments |> Enum.max_by(& &1.id)
+      said = Boards.Cards.get_card!(card.id).comments |> Enum.max_by(& &1.id)
       assert said.body =~ "**Audit: disagrees**"
       assert rework.description =~ "An audit disagreed with the acceptance of ##{card.id} "
       assert rework.description =~ "/boards/#{card.board_id}/cards/#{card.id}#comment-#{said.id}"
@@ -385,7 +386,7 @@ defmodule Slipdock.VerifiedAuditTest do
       assert [only] = Repo.all(from(c in Card, where: c.caused_by_id == ^ctx.card.id))
       assert only.id == rework.id
 
-      [comment] = Boards.get_card!(rework.id).comments
+      [comment] = Boards.Cards.get_card!(rework.id).comments
       assert comment.body =~ "**Audit: disagrees again** with the acceptance of ##{ctx.card.id}"
       assert comment.body =~ "second look"
       assert comment.body =~ "- bar 1"
@@ -393,7 +394,7 @@ defmodule Slipdock.VerifiedAuditTest do
       assert Enum.any?(alerts(ctx.card), &(&1.body =~ "Rework already open: ##{rework.id}"))
 
       # Once that rework is done, the next disagreement files a new one.
-      {:ok, _} = Boards.update_card(Repo.get!(Card, rework.id), %{"completed" => true})
+      {:ok, _} = Boards.Cards.update_card(Repo.get!(Card, rework.id), %{"completed" => true})
       {:ok, _} = disagree.("third look")
       assert length(Repo.all(from(c in Card, where: c.caused_by_id == ^ctx.card.id))) == 2
       refute Verified.open_rework(ctx.card).id == rework.id
@@ -420,7 +421,7 @@ defmodule Slipdock.VerifiedAuditTest do
           "body" => "Noticed\nRework filed: ##{rework.id} “x”."
         })
 
-      {:ok, _} = Boards.update_card(Repo.get!(Card, rework.id), %{"completed" => true})
+      {:ok, _} = Boards.Cards.update_card(Repo.get!(Card, rework.id), %{"completed" => true})
 
       assert Enum.map(alerts(ctx.card), & &1.title) == ["A rule's alert"]
       assert [_] = alerts(other)
@@ -449,7 +450,7 @@ defmodule Slipdock.VerifiedAuditTest do
       {:ok, by_rule} = Automations.raise_alert(Map.put(look_alike, "rule_id", rule.id))
       {:ok, for_user} = Automations.raise_alert(Map.put(look_alike, "user_id", ctx.owner.id))
 
-      {:ok, _} = Boards.update_card(Repo.get!(Card, rework.id), %{"completed" => true})
+      {:ok, _} = Boards.Cards.update_card(Repo.get!(Card, rework.id), %{"completed" => true})
 
       assert Enum.sort(Enum.map(alerts(ctx.card), & &1.id)) ==
                Enum.sort([by_rule.id, for_user.id])
@@ -462,7 +463,7 @@ defmodule Slipdock.VerifiedAuditTest do
       rework = Verified.open_rework(ctx.card)
 
       {:ok, rework} =
-        Boards.update_card(rework, %{"completed" => true, "evidence" => "fixed it"},
+        Boards.Cards.update_card(rework, %{"completed" => true, "evidence" => "fixed it"},
           actor: %{Actor.unknown() | kind: "agent", via: "mcp", user_id: ctx.owner.id, agent: "b"}
         )
 
@@ -481,7 +482,7 @@ defmodule Slipdock.VerifiedAuditTest do
       {:ok, _} = Boards.update_board(ctx.board, %{"ship_via" => "pull_request"})
 
       {:ok, rework} =
-        Boards.update_card(
+        Boards.Cards.update_card(
           rework,
           %{
             "completed" => true,
@@ -516,7 +517,7 @@ defmodule Slipdock.VerifiedAuditTest do
       assert second.body =~ "Rework already open: ##{rework.id}"
       assert second.body =~ "This alert clears itself once the rework is accepted or completed."
 
-      {:ok, _} = Boards.update_card(Repo.get!(Card, rework.id), %{"completed" => true})
+      {:ok, _} = Boards.Cards.update_card(Repo.get!(Card, rework.id), %{"completed" => true})
       assert alerts(ctx.card) == []
     end
 
@@ -529,7 +530,7 @@ defmodule Slipdock.VerifiedAuditTest do
       assert Automations.list_alerts(ctx.owner) == []
 
       assert {:ok, %Card{completed: true}} =
-               Boards.update_card(Repo.get!(Card, rework.id), %{"completed" => true})
+               Boards.Cards.update_card(Repo.get!(Card, rework.id), %{"completed" => true})
 
       assert alerts(ctx.card) == []
       # Nothing left to take down: a second pass is a no-op.
@@ -541,9 +542,9 @@ defmodule Slipdock.VerifiedAuditTest do
       ready = Enum.find(ctx.board.columns, &(&1.category == "todo"))
 
       {:ok, card} =
-        Boards.create_card(ready, %{"title" => "Broke later", "caused_by_id" => ctx.card.id})
+        Boards.Cards.create_card(ready, %{"title" => "Broke later", "caused_by_id" => ctx.card.id})
 
-      {:ok, _} = Boards.update_card(card, %{"completed" => true})
+      {:ok, _} = Boards.Cards.update_card(card, %{"completed" => true})
       assert [_] = alerts(ctx.card)
       assert Verified.clear_audit_alerts(card) == 0
       assert Verified.clear_audit_alerts(ctx.card) == 0
@@ -553,7 +554,7 @@ defmodule Slipdock.VerifiedAuditTest do
       ready = Enum.find(ctx.board.columns, &(&1.category == "todo"))
 
       {:ok, _} =
-        Boards.create_card(ready, %{"title" => "Broke later", "caused_by_id" => ctx.card.id})
+        Boards.Cards.create_card(ready, %{"title" => "Broke later", "caused_by_id" => ctx.card.id})
 
       assert Verified.open_rework(ctx.card) == nil
     end

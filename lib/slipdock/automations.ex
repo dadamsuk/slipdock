@@ -666,7 +666,7 @@ defmodule Slipdock.Automations do
 
   defp tell_passed_over(job, other, card) do
     with %Card{} = held <- Repo.get(Card, job.card_id) do
-      Slipdock.Boards.add_comment(
+      Slipdock.Boards.Comments.add_comment(
         held,
         "Job ##{job.id} was held: its paths overlap ##{other.id}, in progress. It gave " <>
           "way to ##{card.id}, which could start now. This card keeps its place in the " <>
@@ -713,7 +713,7 @@ defmodule Slipdock.Automations do
 
   defp tell_given_back(job) do
     with %Card{} = card <- Repo.get(Card, job.card_id) do
-      Slipdock.Boards.add_comment(
+      Slipdock.Boards.Comments.add_comment(
         card,
         "Job ##{job.id} gave this card back: no runner of pool #{job.pool} has been online " <>
           "for a while. A runner that is online can take it now; pool #{job.pool} is sent " <>
@@ -1309,7 +1309,7 @@ defmodule Slipdock.Automations do
   ## Helpers ------------------------------------------------------------------
 
   defp log_rule(%Rule{} = rule, message) do
-    Slipdock.Boards.log_activity(rule.board_id, nil, "automation", message)
+    Slipdock.Boards.ActivityLog.log_activity(rule.board_id, nil, "automation", message)
   end
 
   defp tap_ok({:ok, value} = result, fun) do

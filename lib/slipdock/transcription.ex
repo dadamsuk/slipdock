@@ -159,7 +159,7 @@ defmodule Slipdock.Transcription do
 
       true ->
         {:ok, attachment} =
-          Boards.update_attachment_transcript(attachment, %{
+          Boards.Attachments.update_attachment_transcript(attachment, %{
             transcript_status: "running",
             transcript_error: nil,
             transcript_started_at: DateTime.utc_now(:second)
@@ -192,7 +192,7 @@ defmodule Slipdock.Transcription do
 
   defp finish(attachment) do
     result =
-      transcribe_file(Boards.attachment_path(attachment),
+      transcribe_file(Boards.Attachments.attachment_path(attachment),
         filename: attachment.filename,
         content_type: attachment.content_type
       )
@@ -210,7 +210,7 @@ defmodule Slipdock.Transcription do
     # The file may have been deleted while the server worked on it.
     case Slipdock.Repo.get(Attachment, attachment.id) do
       nil -> :ok
-      current -> Boards.update_attachment_transcript(current, attrs)
+      current -> Boards.Attachments.update_attachment_transcript(current, attrs)
     end
   end
 

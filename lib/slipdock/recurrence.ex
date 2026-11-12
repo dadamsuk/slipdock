@@ -5,7 +5,7 @@ defmodule Slipdock.Recurrence do
   A card is given a series (`set/3`) with a rule (`Slipdock.Recurrence.Rule`).
   The scheduler's clock calls `tick/1`, which makes each series' next
   instance when its time comes, by copying the current instance as it is now
-  (`Slipdock.Boards.copy_card/3`) to the top of the series' own list, else
+  (`Slipdock.Boards.Cards.copy_card/3`) to the top of the series' own list, else
   its board's Scheduled list (#2100), else its ready list, due on the
   occurrence's date.
 
@@ -40,7 +40,7 @@ defmodule Slipdock.Recurrence do
   instance a card was made from.
 
   **After done.** An after-done series waits for its current instance to be
-  completed (`completion_changed/1`, called by `Boards.update_card/3`): the
+  completed (`completion_changed/1`, called by `Boards.Cards.update_card/3`): the
   next is due that long after the local day it was done.
 
   **Once only.** Each occurrence a series acts on is claimed in
@@ -77,7 +77,7 @@ defmodule Slipdock.Recurrence do
   @doc "Every series whose current instance is on `board` or a board under it."
   def list_for_board(board) do
     card_ids = Repo.all(from(c in Card, where: c.board_id == ^board.id, select: c.id))
-    ids = [board.id | Enum.flat_map(card_ids, &Boards.subtree_board_ids/1)]
+    ids = [board.id | Enum.flat_map(card_ids, &Boards.Moves.subtree_board_ids/1)]
 
     from(s in Series,
       join: c in Card,
@@ -183,7 +183,7 @@ defmodule Slipdock.Recurrence do
          {:ok, series} <- reschedule_after(series, card, existing, changeset) do
       if is_nil(card.series_id), do: put_series_id(card, series)
 
-      Boards.log_activity_for(
+      Boards.ActivityLog.log_activity_for(
         card,
         "card",
         if(existing,
@@ -192,7 +192,7 @@ defmodule Slipdock.Recurrence do
         )
       )
 
-      Boards.card_changed(card)
+      Boards.PubSub.card_changed(card)
       {:ok, series}
     end
   end
@@ -281,7 +281,7 @@ defmodule Slipdock.Recurrence do
     case rule.kind do
       :fixed ->
         due = Rule.next_date(rule, Date.add(attrs["starts_on"], -1))
-        Boards.update_card(card, %{"due_date" => due})
+        Boards.Cards.update_card(card, %{"due_date" => due})
 
       :after_done ->
         {:ok, card}
@@ -374,8 +374,8 @@ defmodule Slipdock.Recurrence do
 
       series ->
         Repo.delete(series)
-        Boards.log_activity_for(card, "card", "stopped “#{card.title}” recurring")
-        Boards.card_changed(card)
+        Boards.ActivityLog.log_activity_for(card, "card", "stopped “#{card.title}” recurring")
+        Boards.PubSub.card_changed(card)
         {:ok, series}
     end
   end
@@ -400,13 +400,13 @@ defmodule Slipdock.Recurrence do
       |> Repo.update()
       |> tap(fn
         {:ok, _} ->
-          Boards.log_activity_for(
+          Boards.ActivityLog.log_activity_for(
             card,
             "card",
             "skipped the occurrence of #{next_on} of “#{card.title}”"
           )
 
-          Boards.card_changed(card)
+          Boards.PubSub.card_changed(card)
 
         _ ->
           :ok
@@ -445,9 +445,9 @@ defmodule Slipdock.Recurrence do
     case for_card(card) do
       %Series{paused: false} = series ->
         {:ok, _} = series |> Ecto.Changeset.change(paused: true) |> Repo.update()
-        Boards.card_changed(card)
+        Boards.PubSub.card_changed(card)
 
-        Boards.add_comment(
+        Boards.Comments.add_comment(
           card,
           "This card repeats, and archiving it has paused the series. " <>
             "Restore it and resume the series to carry on, or stop it."
@@ -512,7 +512,7 @@ defmodule Slipdock.Recurrence do
         # really there: the copy's own notice went out inside the transaction.
         with %Series{card_id: card_id} <- Repo.get(Series, id),
              %Card{} = card <- Repo.get(Card, card_id),
-             do: Boards.card_changed(card)
+             do: Boards.PubSub.card_changed(card)
 
         :fired
 
@@ -548,7 +548,7 @@ defmodule Slipdock.Recurrence do
     with %Series{} = series <- Repo.get(Series, id),
          {:ok, _} <- series |> Ecto.Changeset.change(paused: true) |> Repo.update(),
          %Card{} = card <- Repo.get(Card, series.card_id) do
-      Boards.add_comment(
+      Boards.Comments.add_comment(
         card,
         "The next one of this recurring card couldn't be made, so the series is paused: " <>
           message
@@ -611,10 +611,10 @@ defmodule Slipdock.Recurrence do
     old = current.due_date
 
     {:ok, current} =
-      Boards.update_card(current, dated(current, series.next_on))
+      Boards.Cards.update_card(current, dated(current, series.next_on))
 
     {:ok, _} =
-      Boards.add_comment(
+      Boards.Comments.add_comment(
         current,
         "Missed occurrence of #{old || "its last date"}: this card was still open, so " <>
           "it is now due #{series.next_on} instead of a new one being made."
@@ -626,7 +626,7 @@ defmodule Slipdock.Recurrence do
 
   defp missed(series, current) do
     {:ok, _} =
-      Boards.add_comment(
+      Boards.Comments.add_comment(
         current,
         "Skipped the occurrence of #{series.next_on}: this card is still open."
       )
@@ -645,7 +645,7 @@ defmodule Slipdock.Recurrence do
       |> Map.merge(clean_start(current))
 
     # The clock made it (#2778).
-    case Boards.copy_card(current, column, at: :top, attrs: attrs, origin: "automation") do
+    case Boards.Cards.copy_card(current, column, at: :top, attrs: attrs, origin: "automation") do
       {:ok, copy} ->
         from(c in Card, where: c.id == ^copy.id) |> Repo.update_all(set: [series_id: series.id])
 

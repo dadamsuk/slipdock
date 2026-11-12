@@ -39,7 +39,7 @@ defmodule Slipdock.VerifiedPreexistingTest do
 
   defp submit(ctx) do
     {:ok, card} =
-      Boards.update_card(
+      Boards.Cards.update_card(
         Repo.get!(Card, ctx.card.id),
         %{"completed" => true, "evidence" => "built", "evidence_commit" => "abc1234"},
         actor: ctx.builder,
@@ -57,7 +57,7 @@ defmodule Slipdock.VerifiedPreexistingTest do
     do: Repo.all(from(f in Finding, where: f.card_id == ^card.id, order_by: f.id))
 
   defp bodies(card),
-    do: Boards.get_card!(card.id).comments |> Enum.sort_by(& &1.id) |> Enum.map(& &1.body)
+    do: Boards.Cards.get_card!(card.id).comments |> Enum.sort_by(& &1.id) |> Enum.map(& &1.body)
 
   describe "Checks.parse/1" do
     test "a pre-existing rule part takes its file and line, and an optional why" do

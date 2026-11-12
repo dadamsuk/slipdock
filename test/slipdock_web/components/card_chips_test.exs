@@ -97,8 +97,8 @@ defmodule SlipdockWeb.Components.CardChipsTest do
           "percent_complete" => 40
         })
 
-      {:ok, _} = Boards.set_card_tags(card, [tag])
-      {:ok, _} = Boards.add_comment(card, "A comment", by: ctx.user)
+      {:ok, _} = Boards.Cards.set_card_tags(card, [tag])
+      {:ok, _} = Boards.Comments.add_comment(card, "A comment", by: ctx.user)
 
       {:ok, _view, html} = live(ctx.conn, ~p"/boards/#{ctx.board}")
       node = card_node(html, card)
@@ -121,11 +121,11 @@ defmodule SlipdockWeb.Components.CardChipsTest do
 
     test "a saved view naming a card view that shows more still shows it", ctx do
       card = card_fixture(ctx.todo, %{"title" => "Talked about"})
-      {:ok, _} = Boards.add_comment(card, "First", by: ctx.user)
+      {:ok, _} = Boards.Comments.add_comment(card, "First", by: ctx.user)
       {:ok, _} = Slipdock.CardViews.create(ctx.user, %{"name" => "Busy", "show" => "comments"})
 
       {:ok, saved} =
-        Boards.create_saved_view(ctx.board, %{
+        Boards.SavedViews.create_saved_view(ctx.board, %{
           "name" => "Busy",
           "config" => Config.to_map(Config.put_card_view(Config.defaults("board"), "Busy"))
         })
@@ -147,7 +147,7 @@ defmodule SlipdockWeb.Components.CardChipsTest do
           "percent_complete" => 10
         })
 
-      {:ok, _} = Boards.add_comment(card, "A comment", by: ctx.user)
+      {:ok, _} = Boards.Comments.add_comment(card, "A comment", by: ctx.user)
       {:ok, _view, html} = live(ctx.conn, ~p"/boards/#{ctx.board}?density=compact")
       node = card_node(html, card)
 
@@ -214,9 +214,9 @@ defmodule SlipdockWeb.Components.CardChipsTest do
       flagged = card_fixture(ctx.todo, %{"title" => "Flagged", "flags" => ["blocked"]})
       blocker = card_fixture(ctx.todo, %{"title" => "Blocker"})
       blocked = card_fixture(ctx.todo, %{"title" => "Blocked"})
-      {:ok, _} = Boards.add_dependency(blocked, blocker)
+      {:ok, _} = Boards.Dependencies.add_dependency(blocked, blocker)
       waiting = card_fixture(ctx.doing, %{"title" => "Waiting"})
-      {:ok, _} = Boards.open_wait(waiting, Actor.web(ctx.user), %{"needs" => "A yes"})
+      {:ok, _} = Boards.Waits.open_wait(waiting, Actor.web(ctx.user), %{"needs" => "A yes"})
 
       {:ok, _view, html} = live(ctx.conn, ~p"/boards/#{ctx.board}")
 
@@ -240,7 +240,7 @@ defmodule SlipdockWeb.Components.CardChipsTest do
     end
 
     test "a list over its WIP limit keeps its red count", ctx do
-      {:ok, _} = Boards.update_column(ctx.todo, %{"wip_limit" => 1})
+      {:ok, _} = Boards.Columns.update_column(ctx.todo, %{"wip_limit" => 1})
       for n <- 1..2, do: card_fixture(ctx.todo, %{"title" => "W#{n}"})
       {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}")
       assert has_element?(view, ".badge-error[title='WIP limit 1']", "2/1")

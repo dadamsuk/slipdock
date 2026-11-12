@@ -152,7 +152,7 @@ defmodule Slipdock.Handbook.RulesForTest do
 
     test "a card with lane paths gets the rules for them", %{user: user, col: col} do
       card = card_fixture(col, %{"title" => "Menu"})
-      {:ok, card} = Boards.update_card(card, %{"paths" => ["lib/app_web/live/**"]})
+      {:ok, card} = Boards.Cards.update_card(card, %{"paths" => ["lib/app_web/live/**"]})
 
       reading = Handbook.for_card(card, user)
       assert Enum.map(reading.rules, & &1.id) == ["OPS-1", "UX-2", "UX-3", "UX-1"]
@@ -186,7 +186,7 @@ defmodule Slipdock.Handbook.RulesForTest do
 
       write(ux, "ux", "[lib/app_web/**]", Enum.join(items, "\n") <> "\n")
       card = card_fixture(col, %{"title" => "Menu"})
-      {:ok, card} = Boards.update_card(card, %{"paths" => ["lib/app_web/x.ex"]})
+      {:ok, card} = Boards.Cards.update_card(card, %{"paths" => ["lib/app_web/x.ex"]})
 
       reading = Handbook.for_card(card, user)
       assert byte_size(Jason.encode!(reading.rules)) <= Handbook.rules_cap()

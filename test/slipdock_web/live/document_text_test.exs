@@ -17,7 +17,13 @@ defmodule SlipdockWeb.DocumentTextLiveTest do
     File.write!(path, <<0x89, "PNG", 0, 0, 0, 0>>)
     on_exit(fn -> File.rm(path) end)
 
-    {:ok, a} = Boards.add_attachment(card, %{filename: "s.png", content_type: "image/png"}, path)
+    {:ok, a} =
+      Boards.Attachments.add_attachment(
+        card,
+        %{filename: "s.png", content_type: "image/png"},
+        path
+      )
+
     %{board: board, card: card, attachment: a}
   end
 

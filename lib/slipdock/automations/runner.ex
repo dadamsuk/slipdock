@@ -507,7 +507,7 @@ defmodule Slipdock.Automations.Runner do
       if card.column_id == column.id do
         {:ok, "already in #{column.name}"}
       else
-        Boards.move_card(card.id, column.id, nil, actor: Slipdock.Actor.automation())
+        Boards.Cards.move_card(card.id, column.id, nil, actor: Slipdock.Actor.automation())
         {:ok, "moved to #{column.name}"}
       end
     end
@@ -632,7 +632,7 @@ defmodule Slipdock.Automations.Runner do
 
   defp do_perform("archive_card", _action, ctx) do
     with {:ok, card} <- need_card(ctx) do
-      case Boards.archive_card(card) do
+      case Boards.Cards.archive_card(card) do
         {:ok, _} -> {:ok, "archived"}
         {:error, changeset} -> {:error, errors(changeset)}
       end
@@ -643,7 +643,7 @@ defmodule Slipdock.Automations.Runner do
     with {:ok, card} <- need_card(ctx) do
       body = text(action["body"], ctx, "")
 
-      case Boards.add_comment(card, body) do
+      case Boards.Comments.add_comment(card, body) do
         {:ok, _} -> {:ok, "commented"}
         {:error, changeset} -> {:error, errors(changeset)}
       end
@@ -655,9 +655,12 @@ defmodule Slipdock.Automations.Runner do
       items = action["items"] |> List.wrap() |> Enum.map(&text(&1, ctx, ""))
 
       added =
-        Enum.count(items, &match?({:ok, _}, Boards.add_checklist_item(card, &1, log: false)))
+        Enum.count(
+          items,
+          &match?({:ok, _}, Boards.Checklists.add_checklist_item(card, &1, log: false))
+        )
 
-      Boards.log_checklist(card, added: added)
+      Boards.Checklists.log_checklist(card, added: added)
 
       if added == length(items),
         do: {:ok, "added #{added} checklist items"},
@@ -711,10 +714,10 @@ defmodule Slipdock.Automations.Runner do
         |> put_if("due_date", action["due_date"])
         |> put_if("assignee_id", find_user(action["assignee"], board) |> then(&(&1 && &1.id)))
 
-      case Boards.create_card(column, attrs) do
+      case Boards.Cards.create_card(column, attrs) do
         {:ok, card} ->
           tags = for name <- List.wrap(action["tags"]), tag = find_tag(board, name), do: tag
-          if tags != [], do: Boards.set_card_tags(card, tags)
+          if tags != [], do: Boards.Cards.set_card_tags(card, tags)
           {:ok, "created “#{card.title}”"}
 
         {:error, changeset} ->
@@ -777,7 +780,7 @@ defmodule Slipdock.Automations.Runner do
 
   defp do_perform("log", action, ctx) do
     message = text(action["message"], ctx, ctx.rule.name)
-    Boards.log_activity(board_id(ctx), ctx.card && ctx.card.id, "automation", message)
+    Boards.ActivityLog.log_activity(board_id(ctx), ctx.card && ctx.card.id, "automation", message)
     {:ok, "logged"}
   end
 
@@ -895,7 +898,7 @@ defmodule Slipdock.Automations.Runner do
     end
   end
 
-  defp update_subject(%Card{} = card, attrs, _ctx), do: Boards.update_card(card, attrs)
+  defp update_subject(%Card{} = card, attrs, _ctx), do: Boards.Cards.update_card(card, attrs)
 
   defp update_subject(%Page{} = page, attrs, ctx) do
     Slipdock.Wiki.update_page(page, attrs,
@@ -957,7 +960,7 @@ defmodule Slipdock.Automations.Runner do
   end
 
   defp set_tags(%Page{} = page, tags), do: Slipdock.Wiki.set_tags(page, tags)
-  defp set_tags(card, tags), do: Boards.set_card_tags(card, tags)
+  defp set_tags(card, tags), do: Boards.Cards.set_card_tags(card, tags)
 
   defp need_card(%{card: %Card{} = card}), do: {:ok, card}
   defp need_card(_), do: {:error, "there is no card to act on"}

@@ -44,12 +44,12 @@ defmodule SlipdockWeb.GardenLiveTest do
     {:ok, view, _} = tidy(ctx.conn, ctx)
 
     view |> element("#suggestion-#{s.id} button", "Apply") |> render_click()
-    assert Boards.get_card!(card.id).column_id == ctx.done.id
+    assert Boards.Cards.get_card!(card.id).column_id == ctx.done.id
     refute has_element?(view, "#suggestion-#{s.id}")
     assert has_element?(view, "#applied-#{s.id}")
 
     view |> element("#applied-#{s.id} button", "Undo") |> render_click()
-    assert Boards.get_card!(card.id).column_id == ctx.doing.id
+    assert Boards.Cards.get_card!(card.id).column_id == ctx.doing.id
     assert has_element?(view, "#suggestion-#{s.id}")
   end
 
@@ -198,8 +198,8 @@ defmodule SlipdockWeb.GardenLiveTest do
     {:ok, view, _} = tidy(ctx.conn, ctx)
 
     view |> element("#garden-apply-all-completed_not_done") |> render_click()
-    assert Boards.get_card!(a.id).column_id == ctx.done.id
-    assert Boards.get_card!(b.id).column_id == ctx.done.id
+    assert Boards.Cards.get_card!(a.id).column_id == ctx.done.id
+    assert Boards.Cards.get_card!(b.id).column_id == ctx.done.id
     assert render(view) =~ "Applied 2."
   end
 

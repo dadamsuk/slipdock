@@ -10,7 +10,7 @@ defmodule Slipdock.Gardener.Checks.NoNextActionTest do
   setup do
     board = board_fixture()
     [_backlog, todo, _doing, _done] = board.columns
-    {:ok, t} = Boards.find_template(nil, "Simple")
+    {:ok, t} = Boards.Templates.find_template(nil, "Simple")
     epic = card_fixture(todo, %{"title" => "Epic"})
     {:ok, sub} = sub_board(epic, t)
     %{board: board, epic: epic, sub: Boards.get_board!(sub.id)}
@@ -30,7 +30,9 @@ defmodule Slipdock.Gardener.Checks.NoNextActionTest do
   end
 
   test "only dropped subcards is no next step either", %{board: board, sub: sub} do
-    {:ok, dropped} = Boards.create_column(sub, %{"name" => "Dropped", "category" => "dropped"})
+    {:ok, dropped} =
+      Boards.Columns.create_column(sub, %{"name" => "Dropped", "category" => "dropped"})
+
     card_fixture(dropped)
     assert [_] = find(NoNextAction, board)
   end
@@ -49,7 +51,7 @@ defmodule Slipdock.Gardener.Checks.NoNextActionTest do
     assert find(NoNextAction, board) == []
 
     other = card_fixture(hd(board.columns), %{"flags" => ["review"]})
-    {:ok, t} = Boards.find_template(nil, "Simple")
+    {:ok, t} = Boards.Templates.find_template(nil, "Simple")
     {:ok, _} = sub_board(other, t)
     refute Enum.any?(find(NoNextAction, board), &(&1.subject["cards"] == [other.id]))
     assert epic

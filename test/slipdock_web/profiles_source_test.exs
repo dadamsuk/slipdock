@@ -58,7 +58,7 @@ defmodule SlipdockWeb.ProfilesSourceTest do
   describe "recording it" do
     test "an agent starting the card on a profiles board records it as inferred", ctx do
       profiles_on(ctx)
-      {:ok, _} = Boards.update_card(ctx.card, %{"paths" => "priv/repo/migrations/**"})
+      {:ok, _} = Boards.Cards.update_card(ctx.card, %{"paths" => "priv/repo/migrations/**"})
 
       ctx.agent
       |> post(~p"/api/cards/#{ctx.card.id}/move", %{"column" => ctx.doing.name})
@@ -79,27 +79,29 @@ defmodule SlipdockWeb.ProfilesSourceTest do
 
     test "a write that leaves the profile alone keeps where it came from", ctx do
       {:ok, card} =
-        Boards.update_card(ctx.card, %{"profile" => "docs"}, actor: Slipdock.Actor.web(ctx.user))
+        Boards.Cards.update_card(ctx.card, %{"profile" => "docs"},
+          actor: Slipdock.Actor.web(ctx.user)
+        )
 
       assert card.profile_source == "person"
-      {:ok, card} = Boards.update_card(card, %{"title" => "Renamed"})
+      {:ok, card} = Boards.Cards.update_card(card, %{"title" => "Renamed"})
       assert card.profile_source == "person"
     end
 
     test "a rule setting it is a rule; nobody known records nothing", ctx do
       Process.put(:automation_depth, 1)
-      {:ok, card} = Boards.update_card(ctx.card, %{"profile" => "spike"})
+      {:ok, card} = Boards.Cards.update_card(ctx.card, %{"profile" => "spike"})
       Process.delete(:automation_depth)
       assert card.profile_source == "rule"
 
       Slipdock.Actor.put(nil)
-      {:ok, card} = Boards.update_card(card, %{"profile" => "feature"})
+      {:ok, card} = Boards.Cards.update_card(card, %{"profile" => "feature"})
       assert card.profile_source == nil
     end
 
     test "a card created with a profile records who made it", ctx do
       {:ok, card} =
-        Boards.create_card(ctx.todo, %{"title" => "Made", "profile" => "docs"},
+        Boards.Cards.create_card(ctx.todo, %{"title" => "Made", "profile" => "docs"},
           actor: Slipdock.Actor.mcp(%{user: ctx.user})
         )
 
@@ -195,7 +197,10 @@ defmodule SlipdockWeb.ProfilesSourceTest do
 
     test "a card with a migration path previews schema and names the path", ctx do
       profiles_on(ctx)
-      {:ok, _} = Boards.update_card(ctx.card, %{"paths" => "priv/repo/migrations/20261107_x.exs"})
+
+      {:ok, _} =
+        Boards.Cards.update_card(ctx.card, %{"paths" => "priv/repo/migrations/20261107_x.exs"})
+
       {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/cards/#{ctx.card}")
 
       preview = view |> element("#card-profile-preview") |> render()
@@ -248,7 +253,7 @@ defmodule SlipdockWeb.ProfilesSourceTest do
       assert chip =~ "Profile: schema, inferred"
 
       {:ok, _} =
-        Boards.update_card(Repo.get!(Card, ctx.card.id), %{"profile" => "fix"},
+        Boards.Cards.update_card(Repo.get!(Card, ctx.card.id), %{"profile" => "fix"},
           actor: Slipdock.Actor.web(ctx.user)
         )
 

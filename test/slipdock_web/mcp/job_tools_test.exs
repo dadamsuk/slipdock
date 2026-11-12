@@ -62,7 +62,7 @@ defmodule SlipdockWeb.MCP.JobToolsTest do
       (conn || ctx.conn) |> call("claim_job", %{board: ctx.board.code, pool: "default"}) |> ok!()
 
   test "a claimed job's prompt ends with the card's bar, when it has one (#1622)", ctx do
-    {:ok, _} = Slipdock.Boards.update_card(ctx.card, %{"bar" => "The parser reads dates"})
+    {:ok, _} = Slipdock.Boards.Cards.update_card(ctx.card, %{"bar" => "The parser reads dates"})
     {:ok, _} = queue(ctx.card)
     claimed = claim!(ctx)
     # Then the check at pickup, before building (#1883).
@@ -201,7 +201,7 @@ defmodule SlipdockWeb.MCP.JobToolsTest do
       assert job.status == "running"
       assert job.log_tail == "Tests written."
 
-      card = Slipdock.Boards.get_card!(ctx.card.id) |> Repo.preload(:comments)
+      card = Slipdock.Boards.Cards.get_card!(ctx.card.id) |> Repo.preload(:comments)
       assert Enum.any?(card.comments, &(&1.body == "Tests written."))
 
       out =
@@ -218,7 +218,7 @@ defmodule SlipdockWeb.MCP.JobToolsTest do
     # What "Nothing" on the card rests on (#514): the lease is renewed and the
     # job finished without a word on the card.
     test "progress with no note, and finishing with a summary, comment nothing", ctx do
-      before = Slipdock.Boards.get_card!(ctx.card.id) |> Repo.preload(:comments)
+      before = Slipdock.Boards.Cards.get_card!(ctx.card.id) |> Repo.preload(:comments)
 
       assert %{"status" => "ok"} = ctx.conn |> call("job_progress", %{job: ctx.job.id}) |> ok!()
       assert Repo.get!(Job, ctx.job.id).status == "running"
@@ -228,13 +228,13 @@ defmodule SlipdockWeb.MCP.JobToolsTest do
                |> call("finish_job", %{job: ctx.job.id, outcome: "done", summary: "abc1234"})
                |> ok!()
 
-      after_ = Slipdock.Boards.get_card!(ctx.card.id) |> Repo.preload(:comments)
+      after_ = Slipdock.Boards.Cards.get_card!(ctx.card.id) |> Repo.preload(:comments)
       assert length(after_.comments) == length(before.comments)
     end
 
     # #1668: a step shows on the job, not on the card.
     test "a step is kept on the job and posts nothing on the card", ctx do
-      before = Slipdock.Boards.get_card!(ctx.card.id) |> Repo.preload(:comments)
+      before = Slipdock.Boards.Cards.get_card!(ctx.card.id) |> Repo.preload(:comments)
 
       assert %{"status" => "ok"} =
                ctx.conn
@@ -247,7 +247,7 @@ defmodule SlipdockWeb.MCP.JobToolsTest do
       assert job.status == "running"
       assert job.log_tail in [nil, ""]
 
-      after_ = Slipdock.Boards.get_card!(ctx.card.id) |> Repo.preload(:comments)
+      after_ = Slipdock.Boards.Cards.get_card!(ctx.card.id) |> Repo.preload(:comments)
       assert length(after_.comments) == length(before.comments)
 
       # A blank step leaves the last one where it was.
@@ -333,9 +333,9 @@ defmodule SlipdockWeb.MCP.JobToolsTest do
       assert out["wait"]["needs"] == "Which region?"
       assert out["wait"]["job_id"] == ctx.job.id
       assert %Job{status: "parked", output: "Need the region"} = Repo.get!(Job, ctx.job.id)
-      wait = Slipdock.Boards.current_wait(ctx.card)
+      wait = Slipdock.Boards.Waits.current_wait(ctx.card)
       assert wait.job_id == ctx.job.id
-      assert "waiting" in Slipdock.Boards.get_card!(ctx.card.id).flags
+      assert "waiting" in Slipdock.Boards.Cards.get_card!(ctx.card.id).flags
     end
 
     test "outcome waiting with no wait is refused, and the job keeps running", ctx do
@@ -427,8 +427,8 @@ defmodule SlipdockWeb.MCP.JobToolsTest do
       {:ok, _} = Slipdock.Access.grant(ctx.board, dana, "write", ctx.user)
 
       {:ok, _} =
-        Slipdock.Boards.answer_wait(
-          Slipdock.Boards.get_card!(card.id),
+        Slipdock.Boards.Waits.answer_wait(
+          Slipdock.Boards.Cards.get_card!(card.id),
           Slipdock.Actor.web(dana),
           %{"choice" => 1}
         )

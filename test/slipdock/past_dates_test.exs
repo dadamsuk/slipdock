@@ -18,7 +18,7 @@ defmodule Slipdock.PastDatesTest do
     board = Boards.get_board!(board.id)
 
     {:ok, template} =
-      Boards.create_template(owner, %{
+      Boards.Templates.create_template(owner, %{
         "name" => "T#{System.unique_integer([:positive])}",
         "columns" => [%{"name" => "Open"}, %{"name" => "Done", "category" => "done"}]
       })
@@ -27,13 +27,13 @@ defmodule Slipdock.PastDatesTest do
   end
 
   defp epic(ctx, attrs, kids) do
-    {:ok, card} = Boards.create_card(ctx.column, attrs)
+    {:ok, card} = Boards.Cards.create_card(ctx.column, attrs)
     {:ok, sub} = sub_board(card, ctx.template)
     sub = Boards.get_board!(sub.id)
 
-    for k <- kids, do: {:ok, _} = Boards.create_card(hd(sub.columns), k)
+    for k <- kids, do: {:ok, _} = Boards.Cards.create_card(hd(sub.columns), k)
 
-    Boards.get_card!(card.id)
+    Boards.Cards.get_card!(card.id)
   end
 
   test "subcards ending late count against the due date only", ctx do
@@ -82,7 +82,7 @@ defmodule Slipdock.PastDatesTest do
   describe "days_past_due/2 is about today, not the subcards" do
     test "counts from the card's own due date", ctx do
       {:ok, card} =
-        Boards.create_card(ctx.column, %{"title" => "Late", "due_date" => ~D[2026-09-29]})
+        Boards.Cards.create_card(ctx.column, %{"title" => "Late", "due_date" => ~D[2026-09-29]})
 
       assert Card.days_past_due(card, ~D[2026-10-02]) == 3
       assert Card.days_past_due(card, ~D[2026-09-29]) == 0
@@ -91,7 +91,7 @@ defmodule Slipdock.PastDatesTest do
 
     test "a completed card is not past anything", ctx do
       {:ok, card} =
-        Boards.create_card(ctx.column, %{
+        Boards.Cards.create_card(ctx.column, %{
           "title" => "Done",
           "due_date" => ~D[2026-09-29],
           "completed" => true

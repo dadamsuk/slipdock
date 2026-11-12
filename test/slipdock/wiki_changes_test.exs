@@ -116,7 +116,7 @@ defmodule Slipdock.WikiChangesTest do
 
     assert page_id == page.id
 
-    {:ok, _} = Boards.delete_attachment(attachment)
+    {:ok, _} = Boards.Attachments.delete_attachment(attachment)
     assert %{subject: "attachment", action: "deleted"} = List.last(feed(ctx).changes)
   end
 

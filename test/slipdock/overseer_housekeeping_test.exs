@@ -20,8 +20,10 @@ defmodule Slipdock.OverseerHousekeepingTest do
     {:ok, owner} = Slipdock.Accounts.update_profile(owner, %{"timezone" => "Europe/London"})
     board = board_fixture(%{"name" => "Chores"}, owner: owner)
     [_backlog, _todo, doing, _done] = board.columns
-    {:ok, housekeeping} = Boards.create_column(board, %{"name" => "Housekeeping"})
-    {:ok, triage} = Boards.create_column(board, %{"name" => "Triage", "category" => "triage"})
+    {:ok, housekeeping} = Boards.Columns.create_column(board, %{"name" => "Housekeeping"})
+
+    {:ok, triage} =
+      Boards.Columns.create_column(board, %{"name" => "Triage", "category" => "triage"})
 
     feed =
       rule_fixture(
@@ -65,8 +67,8 @@ defmodule Slipdock.OverseerHousekeepingTest do
   end
 
   defp tagged(ctx, card, name) do
-    {:ok, tag} = Boards.create_tag(ctx.board, %{"name" => name})
-    Boards.set_card_tags(card, [tag])
+    {:ok, tag} = Boards.Tags.create_tag(ctx.board, %{"name" => name})
+    Boards.Cards.set_card_tags(card, [tag])
   end
 
   defp digest(ctx),
@@ -79,7 +81,7 @@ defmodule Slipdock.OverseerHousekeepingTest do
       c = worked(ctx, "Untagged")
       tagged(ctx, a, "ci")
       {:ok, ci} = {:ok, Repo.get_by!(Slipdock.Boards.Tag, name: "ci")}
-      Boards.set_card_tags(b, [ci])
+      Boards.Cards.set_card_tags(b, [ci])
 
       result = digest(ctx)
       assert [{"ci", [_, _]}, {"other", [only]}] = result.groups
@@ -124,13 +126,13 @@ defmodule Slipdock.OverseerHousekeepingTest do
 
     test "names one whose paths overlap a card in progress under an epic", ctx do
       epic = card_fixture(ctx.doing, %{"title" => "Epic"})
-      {:ok, sub} = Boards.create_sub_board(epic, hd(Boards.list_templates(nil)))
+      {:ok, sub} = Boards.create_sub_board(epic, hd(Boards.Templates.list_templates(nil)))
 
       {:ok, sub_doing} =
-        Boards.create_column(sub, %{"name" => "Doing", "category" => "doing"})
+        Boards.Columns.create_column(sub, %{"name" => "Doing", "category" => "doing"})
 
       subcard = card_fixture(sub_doing, %{"title" => "Epic work"})
-      {:ok, _} = Boards.update_card(subcard, %{"paths" => "lib/app/**"})
+      {:ok, _} = Boards.Cards.update_card(subcard, %{"paths" => "lib/app/**"})
 
       overlapping = worked(ctx, "Touches the epic", %{paths: ["lib/app/x.ex"]})
       apart = worked(ctx, "Elsewhere", %{paths: ["docs/**"]})

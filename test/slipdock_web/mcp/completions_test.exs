@@ -93,12 +93,12 @@ defmodule SlipdockWeb.MCP.CompletionsTest do
       feed = card_fixture(col, %{"title" => "Feed the cat"})
       done = card_fixture(col, %{"title" => "Fix done already", "completed" => true})
       gone = card_fixture(col, %{"title" => "Fix archived"})
-      {:ok, _} = Boards.archive_card(gone)
+      {:ok, _} = Boards.Cards.archive_card(gone)
       other = card_fixture(hd(beta.columns), %{"title" => "Fix on beta"})
       secret = card_fixture(hd(theirs.columns), %{"title" => "Fix their thing"})
 
       epic = card_fixture(col, %{"title" => "Epic"})
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(epic, t)
       deep = card_fixture(hd(Boards.get_board!(sub.id).columns), %{"title" => "Fix deep down"})
 

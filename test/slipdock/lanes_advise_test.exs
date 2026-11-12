@@ -28,7 +28,7 @@ defmodule Slipdock.LanesAdviseTest do
 
   defp card(column, title, paths) do
     card = card_fixture(column, %{"title" => title})
-    {:ok, card} = Boards.update_card(card, %{"paths" => paths})
+    {:ok, card} = Boards.Cards.update_card(card, %{"paths" => paths})
     card
   end
 
@@ -65,7 +65,7 @@ defmodule Slipdock.LanesAdviseTest do
     test "sub-boards made afterwards inherit it, and the root's mode holds for its tree", ctx do
       board = mode(ctx.board, "advise")
       epic = card_fixture(ctx.todo, %{"title" => "Epic"})
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(epic, t)
       assert {sub.lane_mode, sub.lanes} == {"advise", true}
 
@@ -89,19 +89,19 @@ defmodule Slipdock.LanesAdviseTest do
       next = card(ctx.todo, "Next", "lib/runners/claim.ex")
       assert %Card{id: id} = Lanes.conflict(next)
       assert id == ctx.running.id
-      assert :ok = Boards.move_card(next.id, ctx.doing.id, nil, actor: ctx.agent)
+      assert :ok = Boards.Cards.move_card(next.id, ctx.doing.id, nil, actor: ctx.agent)
       assert Repo.get!(Card, next.id).column_id == ctx.doing.id
 
       # Widening an in-progress card's paths onto another's isn't refused either.
       assert {:ok, _} =
-               Boards.update_card(Repo.get!(Card, next.id), %{"paths" => "lib/**"},
+               Boards.Cards.update_card(Repo.get!(Card, next.id), %{"paths" => "lib/**"},
                  actor: ctx.agent
                )
     end
 
     test "creating a card straight into progress with overlapping paths goes ahead", ctx do
       assert {:ok, _card} =
-               Boards.create_card(
+               Boards.Cards.create_card(
                  ctx.doing,
                  %{"title" => "Straight in", "paths" => ["lib/runners/a.ex"]},
                  actor: ctx.agent
@@ -149,7 +149,7 @@ defmodule Slipdock.LanesAdviseTest do
 
     test "every overlapping card is named, an epic's job standing for its subcard's", ctx do
       epic = card(ctx.doing, "Epic", "")
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(epic, t)
       doing = Boards.get_board!(sub.id).columns |> Enum.find(&(&1.name == "Doing"))
       doing = doing |> Ecto.Changeset.change(category: "doing") |> Repo.update!()
@@ -180,7 +180,7 @@ defmodule Slipdock.LanesAdviseTest do
       next = card(ctx.todo, "Next", "lib/a.ex")
 
       assert {:error, :unprocessable_entity, _} =
-               Boards.move_card(next.id, ctx.doing.id, nil, actor: ctx.agent)
+               Boards.Cards.move_card(next.id, ctx.doing.id, nil, actor: ctx.agent)
 
       {:ok, job} = queue(next)
       assert Map.has_key?(Lanes.held_cards(board.id), next.id)

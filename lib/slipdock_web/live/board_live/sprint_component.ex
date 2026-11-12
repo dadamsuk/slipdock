@@ -132,7 +132,7 @@ defmodule SlipdockWeb.BoardLive.SprintComponent do
   end
 
   defp event("open_sprint_picker", %{"id" => id}, socket) do
-    card = Boards.get_card(Params.id(id))
+    card = Boards.Cards.get_card(Params.id(id))
     user = socket.assigns.current_user
 
     cond do
@@ -224,7 +224,7 @@ defmodule SlipdockWeb.BoardLive.SprintComponent do
     cards =
       p.selected
       |> Map.keys()
-      |> Enum.map(&Boards.get_card/1)
+      |> Enum.map(&Boards.Cards.get_card/1)
       |> Enum.reject(&is_nil/1)
       |> Enum.filter(&Access.can_write?(Access.card_permission(user, &1)))
 
@@ -368,7 +368,7 @@ defmodule SlipdockWeb.BoardLive.SprintComponent do
        ) do
     with {id, ""} <- Integer.parse(id),
          true <- Enum.any?(v.sprints, &(&1.id == id)),
-         %Card{} = sprint <- Boards.get_card(id) do
+         %Card{} = sprint <- Boards.Cards.get_card(id) do
       {:noreply,
        assign(socket,
          sprint_charts: %{charts | burndown: Sprints.burndown(sprint), sprint_id: id}

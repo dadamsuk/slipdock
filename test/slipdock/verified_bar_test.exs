@@ -34,11 +34,13 @@ defmodule Slipdock.VerifiedBarTest do
     test "an agent starts a card with no bar, and a bar written never locks", ctx do
       refute ctx.board.bar_required
       assert Verified.switches(ctx.board) == []
-      assert :ok = Boards.move_card(ctx.card.id, ctx.doing.id, nil, actor: ctx.agent)
+      assert :ok = Boards.Cards.move_card(ctx.card.id, ctx.doing.id, nil, actor: ctx.agent)
       assert column_of(ctx.card) == ctx.doing.id
 
-      {:ok, card} = Boards.update_card(Repo.get!(Card, ctx.card.id), %{"bar" => "Tests pass"})
-      {:ok, _} = Boards.update_card(card, %{"title" => "Work, again"})
+      {:ok, card} =
+        Boards.Cards.update_card(Repo.get!(Card, ctx.card.id), %{"bar" => "Tests pass"})
+
+      {:ok, _} = Boards.Cards.update_card(card, %{"title" => "Work, again"})
       assert Repo.get!(Card, card.id).bar_locked_at == nil
     end
   end
@@ -52,84 +54,95 @@ defmodule Slipdock.VerifiedBarTest do
 
     test "an agent can't start a card with no bar, and the card stays put", ctx do
       assert {:error, :unprocessable_entity, message} =
-               Boards.move_card(ctx.card.id, ctx.doing.id, nil, actor: ctx.agent)
+               Boards.Cards.move_card(ctx.card.id, ctx.doing.id, nil, actor: ctx.agent)
 
       assert message =~ "bar"
       assert column_of(ctx.card) == ctx.todo.id
     end
 
     test "a blank bar is no bar", ctx do
-      {:ok, _} = Boards.update_card(ctx.card, %{"bar" => "   "})
+      {:ok, _} = Boards.Cards.update_card(ctx.card, %{"bar" => "   "})
       assert Repo.get!(Card, ctx.card.id).bar == nil
 
       assert {:error, :unprocessable_entity, _} =
-               Boards.move_card(ctx.card.id, ctx.doing.id, nil, actor: ctx.agent)
+               Boards.Cards.move_card(ctx.card.id, ctx.doing.id, nil, actor: ctx.agent)
     end
 
     test "a person, the assistant and an automation may start one with no bar", ctx do
-      assert :ok = Boards.move_card(ctx.card.id, ctx.doing.id, nil, actor: Actor.web(ctx.owner))
+      assert :ok =
+               Boards.Cards.move_card(ctx.card.id, ctx.doing.id, nil, actor: Actor.web(ctx.owner))
+
       assert Repo.get!(Card, ctx.card.id).bar_locked_at == nil
 
       other = card_fixture(ctx.todo, %{"title" => "Assisted"})
 
       assert :ok =
-               Boards.move_card(other.id, ctx.doing.id, nil, actor: Actor.assistant(ctx.owner))
+               Boards.Cards.move_card(other.id, ctx.doing.id, nil,
+                 actor: Actor.assistant(ctx.owner)
+               )
 
       third = card_fixture(ctx.todo, %{"title" => "Ruled"})
-      assert :ok = Boards.move_card(third.id, ctx.doing.id, nil, actor: Actor.automation())
+      assert :ok = Boards.Cards.move_card(third.id, ctx.doing.id, nil, actor: Actor.automation())
     end
 
     test "moving within a list, or to a list that isn't in progress, isn't checked", ctx do
-      assert :ok = Boards.move_card(ctx.card.id, ctx.todo.id, nil, actor: ctx.agent)
+      assert :ok = Boards.Cards.move_card(ctx.card.id, ctx.todo.id, nil, actor: ctx.agent)
       [backlog | _] = ctx.board.columns
-      assert :ok = Boards.move_card(ctx.card.id, backlog.id, nil, actor: ctx.agent)
+      assert :ok = Boards.Cards.move_card(ctx.card.id, backlog.id, nil, actor: ctx.agent)
     end
 
     test "the bar locks when work starts, and an agent can't change it after", ctx do
-      {:ok, card} = Boards.update_card(ctx.card, %{"bar" => "  Tests pass  "}, actor: ctx.agent)
+      {:ok, card} =
+        Boards.Cards.update_card(ctx.card, %{"bar" => "  Tests pass  "}, actor: ctx.agent)
+
       assert card.bar == "Tests pass"
       assert card.bar_locked_at == nil
 
-      assert :ok = Boards.move_card(card.id, ctx.doing.id, nil, actor: ctx.agent)
+      assert :ok = Boards.Cards.move_card(card.id, ctx.doing.id, nil, actor: ctx.agent)
       card = Repo.get!(Card, card.id)
       assert %DateTime{} = card.bar_locked_at
 
-      assert {:error, cs} = Boards.update_card(card, %{"bar" => "Less"}, actor: ctx.agent)
+      assert {:error, cs} = Boards.Cards.update_card(card, %{"bar" => "Less"}, actor: ctx.agent)
       assert %{bar: [message]} = errors_on(cs)
       assert message =~ "locked"
       assert Repo.get!(Card, card.id).bar == "Tests pass"
 
       # The same text again, and the card's other fields, are fine.
-      assert {:ok, _} = Boards.update_card(card, %{"bar" => "Tests pass "}, actor: ctx.agent)
-      assert {:ok, _} = Boards.update_card(card, %{"percent_complete" => 50}, actor: ctx.agent)
+      assert {:ok, _} =
+               Boards.Cards.update_card(card, %{"bar" => "Tests pass "}, actor: ctx.agent)
+
+      assert {:ok, _} =
+               Boards.Cards.update_card(card, %{"percent_complete" => 50}, actor: ctx.agent)
 
       # A person still can.
       assert {:ok, %{bar: "Less"}} =
-               Boards.update_card(card, %{"bar" => "Less"}, actor: Actor.web(ctx.owner))
+               Boards.Cards.update_card(card, %{"bar" => "Less"}, actor: Actor.web(ctx.owner))
     end
 
     test "it locks once: leaving and coming back keeps the first moment", ctx do
-      {:ok, card} = Boards.update_card(ctx.card, %{"bar" => "Done"})
-      :ok = Boards.move_card(card.id, ctx.doing.id, nil, actor: ctx.agent)
+      {:ok, card} = Boards.Cards.update_card(ctx.card, %{"bar" => "Done"})
+      :ok = Boards.Cards.move_card(card.id, ctx.doing.id, nil, actor: ctx.agent)
       first = Repo.get!(Card, card.id).bar_locked_at
-      :ok = Boards.move_card(card.id, ctx.todo.id, nil, actor: ctx.agent)
-      :ok = Boards.move_card(card.id, ctx.doing.id, nil, actor: ctx.agent)
+      :ok = Boards.Cards.move_card(card.id, ctx.todo.id, nil, actor: ctx.agent)
+      :ok = Boards.Cards.move_card(card.id, ctx.doing.id, nil, actor: ctx.agent)
       assert Repo.get!(Card, card.id).bar_locked_at == first
     end
 
     test "a person starting a card with a bar locks it too", ctx do
-      {:ok, card} = Boards.update_card(ctx.card, %{"bar" => "Done"})
-      :ok = Boards.move_card(card.id, ctx.doing.id, nil, actor: Actor.web(ctx.owner))
+      {:ok, card} = Boards.Cards.update_card(ctx.card, %{"bar" => "Done"})
+      :ok = Boards.Cards.move_card(card.id, ctx.doing.id, nil, actor: Actor.web(ctx.owner))
       assert Repo.get!(Card, card.id).bar_locked_at
     end
 
     test "a person changing a locked bar is a line in the activity log (#1622)", ctx do
-      {:ok, card} = Boards.update_card(ctx.card, %{"bar" => "Done"})
-      :ok = Boards.move_card(card.id, ctx.doing.id, nil, actor: ctx.agent)
+      {:ok, card} = Boards.Cards.update_card(ctx.card, %{"bar" => "Done"})
+      :ok = Boards.Cards.move_card(card.id, ctx.doing.id, nil, actor: ctx.agent)
       card = Repo.get!(Card, card.id)
 
       {:ok, _} =
-        Boards.update_card(card, %{"bar" => "Done, and documented"}, actor: Actor.web(ctx.owner))
+        Boards.Cards.update_card(card, %{"bar" => "Done, and documented"},
+          actor: Actor.web(ctx.owner)
+        )
 
       messages =
         Repo.all(
@@ -141,7 +154,7 @@ defmodule Slipdock.VerifiedBarTest do
     end
 
     test "a claimed job's prompt carries the card's bar; a verify job's is left alone", ctx do
-      {:ok, card} = Boards.update_card(ctx.card, %{"bar" => "Tests pass"})
+      {:ok, card} = Boards.Cards.update_card(ctx.card, %{"bar" => "Tests pass"})
       {:ok, job} = Slipdock.Runners.queue(card, %{pool: "dev", kind: "claude", prompt: "Do it."})
 
       # #1883: then the check at pickup, before building.
@@ -159,7 +172,7 @@ defmodule Slipdock.VerifiedBarTest do
       assert check =~
                "Don't build to your own reading of it and leave the conflict to the verifier."
 
-      :ok = Boards.move_card(card.id, ctx.doing.id, nil, actor: ctx.agent)
+      :ok = Boards.Cards.move_card(card.id, ctx.doing.id, nil, actor: ctx.agent)
       assert Slipdock.Runners.claimed_prompt(job) =~ "locked when work started"
 
       {:ok, verify} =
@@ -177,17 +190,19 @@ defmodule Slipdock.VerifiedBarTest do
     end
 
     test "turned off again, a locked bar is an agent's to change", ctx do
-      {:ok, card} = Boards.update_card(ctx.card, %{"bar" => "Done"})
-      :ok = Boards.move_card(card.id, ctx.doing.id, nil, actor: ctx.agent)
+      {:ok, card} = Boards.Cards.update_card(ctx.card, %{"bar" => "Done"})
+      :ok = Boards.Cards.move_card(card.id, ctx.doing.id, nil, actor: ctx.agent)
       {:ok, _} = Boards.update_board(ctx.board, %{"bar_required" => false})
 
       assert {:ok, %{bar: "Other"}} =
-               Boards.update_card(Repo.get!(Card, card.id), %{"bar" => "Other"}, actor: ctx.agent)
+               Boards.Cards.update_card(Repo.get!(Card, card.id), %{"bar" => "Other"},
+                 actor: ctx.agent
+               )
     end
 
     test "too long a bar is refused", ctx do
       assert {:error, cs} =
-               Boards.update_card(ctx.card, %{
+               Boards.Cards.update_card(ctx.card, %{
                  "bar" => String.duplicate("a", Card.bar_length() + 1)
                })
 
@@ -195,14 +210,14 @@ defmodule Slipdock.VerifiedBarTest do
     end
 
     test "a card's subcards take the switch", ctx do
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = Boards.create_sub_board(ctx.card, t)
       assert sub.bar_required
     end
 
     test "an export carries the switch and the bar, and an import keeps them", ctx do
-      {:ok, card} = Boards.update_card(ctx.card, %{"bar" => "Tests pass"})
-      :ok = Boards.move_card(card.id, ctx.doing.id, nil, actor: ctx.agent)
+      {:ok, card} = Boards.Cards.update_card(ctx.card, %{"bar" => "Tests pass"})
+      :ok = Boards.Cards.move_card(card.id, ctx.doing.id, nil, actor: ctx.agent)
 
       doc = Portable.export(ctx.owner, boards: [Boards.get_board!(ctx.board.id)])
       [tree] = doc.boards

@@ -14,7 +14,7 @@ defmodule Slipdock.VaultsTreeTest do
   setup do
     user = user_fixture()
     board = board_fixture(%{"name" => "Keystone", "code" => "vttkb"}, owner: user)
-    {:ok, template} = Boards.find_template(nil, "Simple")
+    {:ok, template} = Boards.Templates.find_template(nil, "Simple")
     [column | _] = board.columns
     epic = card_fixture(column, %{"title" => "Launch"})
     {:ok, sub} = sub_board(epic, template)

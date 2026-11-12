@@ -61,7 +61,10 @@ defmodule SlipdockWeb.BoardLive.ColumnComponent do
 
       column ->
         {:noreply,
-         assign(socket, column_modal: column, column_form: to_form(Boards.change_column(column)))}
+         assign(socket,
+           column_modal: column,
+           column_form: to_form(Boards.Columns.change_column(column))
+         )}
     end
   end
 
@@ -76,7 +79,7 @@ defmodule SlipdockWeb.BoardLive.ColumnComponent do
     {board_params, params} = Map.split(params, @board_fields)
     params = Map.update(params, "wip_limit", nil, &if(&1 == "", do: nil, else: &1))
 
-    case Boards.update_column(socket.assigns.column_modal, params) do
+    case Boards.Columns.update_column(socket.assigns.column_modal, params) do
       {:ok, _} ->
         save_board_fields(socket, board_params)
         {:noreply, assign(socket, column_modal: nil)}
@@ -91,12 +94,12 @@ defmodule SlipdockWeb.BoardLive.ColumnComponent do
 
   defp event("set_column_color", %{"color" => color}, socket) do
     color = if color == "", do: nil, else: color
-    {:ok, column} = Boards.update_column(socket.assigns.column_modal, %{"color" => color})
+    {:ok, column} = Boards.Columns.update_column(socket.assigns.column_modal, %{"color" => color})
     {:noreply, assign(socket, column_modal: column)}
   end
 
   defp event("delete_column", %{"id" => id}, socket) do
-    if column = board_column(socket, id), do: Boards.delete_column(column)
+    if column = board_column(socket, id), do: Boards.Columns.delete_column(column)
     {:noreply, assign(socket, column_modal: nil)}
   end
 
@@ -107,7 +110,7 @@ defmodule SlipdockWeb.BoardLive.ColumnComponent do
   defp save_board_fields(_socket, _params), do: :ok
 
   # The list `id` on the open board, or nil.
-  defp board_column(socket, id), do: Boards.get_board_column(socket.assigns.board.id, id)
+  defp board_column(socket, id), do: Boards.Columns.get_board_column(socket.assigns.board.id, id)
 
   @impl true
   def render(assigns) do

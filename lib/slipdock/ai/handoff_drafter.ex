@@ -80,10 +80,10 @@ defmodule Slipdock.AI.HandoffDrafter do
 
     recent =
       board.id
-      |> Boards.list_activities(@activity_limit, card.id)
+      |> Boards.ActivityLog.list_activities(@activity_limit, card.id)
       |> Enum.filter(&(DateTime.compare(&1.inserted_at, since) != :lt))
 
-    previous = Boards.current_handoff(card)
+    previous = Boards.Handoffs.current_handoff(card)
 
     [
       "Today is #{Date.to_iso8601(DateTime.to_date(now))}.",
@@ -103,7 +103,7 @@ defmodule Slipdock.AI.HandoffDrafter do
     |> Enum.join("\n")
   end
 
-  # A cleared one is no handoff (`Boards.current_handoff/1` says nil); the
+  # A cleared one is no handoff (`Boards.Handoffs.current_handoff/1` says nil); the
   # activity above says it was cleared.
   defp previous_text(%Handoff{} = h),
     do: String.trim_trailing("Next step: #{h.next_step}\n#{h.body || ""}")

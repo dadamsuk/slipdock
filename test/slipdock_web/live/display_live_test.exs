@@ -96,7 +96,7 @@ defmodule SlipdockWeb.DisplayLiveTest do
     assert has_element?(view, "#card-#{card.id} [title^='Due']")
 
     view |> form("form[phx-submit=swim_save_view]", %{"name" => "With dates"}) |> render_submit()
-    [saved] = Boards.list_saved_views(board.id)
+    [saved] = Boards.SavedViews.list_saved_views(board.id)
     assert saved.config["card_view"] == "Dates"
     # The card front itself is never stored in the view any more.
     {:ok, view, _} = live(conn, ~p"/boards/#{board}?view=#{saved.id}")
@@ -187,7 +187,7 @@ defmodule SlipdockWeb.DisplayLiveTest do
       |> form("form[phx-submit=swim_save_view]", %{"name" => "Slim lists"})
       |> render_submit()
 
-      [saved] = Boards.list_saved_views(board.id)
+      [saved] = Boards.SavedViews.list_saved_views(board.id)
       assert saved.config["mode"] == "board" and saved.config["width"] == "narrow"
 
       # Opening the view later brings the width back.

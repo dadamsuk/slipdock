@@ -49,7 +49,7 @@ defmodule SlipdockWeb.FavouriteLive.Index do
 
   @impl true
   def handle_info({:boards_changed}, socket) do
-    Slipdock.Boards.drain_boards_changed()
+    Slipdock.Boards.PubSub.drain_boards_changed()
     socket = SlipdockWeb.BoardNotices.resubscribe(socket)
     {:noreply, load(socket)}
   end

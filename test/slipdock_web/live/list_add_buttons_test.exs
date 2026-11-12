@@ -107,9 +107,9 @@ defmodule SlipdockWeb.ListAddButtonsTest do
 
     render_upload(upload, "Q3 plan.pdf")
 
-    assert [{:card, id}] = Boards.active_items(column.id)
+    assert [{:card, id}] = Boards.Columns.active_items(column.id)
 
-    card = Boards.get_card!(id)
+    card = Boards.Cards.get_card!(id)
     assert card.title == "Q3 plan"
     assert [%{filename: "Q3 plan.pdf", content_type: "application/pdf"}] = card.attachments
   end

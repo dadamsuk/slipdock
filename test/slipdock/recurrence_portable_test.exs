@@ -37,7 +37,7 @@ defmodule Slipdock.RecurrencePortableTest do
   defp import_as_receiver(ctx, document) do
     {:ok, report} = Portable.import(ctx.receiver, Jason.encode!(document))
     board = Boards.get_board!(hd(report.boards).id)
-    [card] = Boards.list_cards(board, %{})
+    [card] = Boards.Cards.list_cards(board, %{})
     {report, board, card}
   end
 

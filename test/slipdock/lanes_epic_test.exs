@@ -25,7 +25,7 @@ defmodule Slipdock.LanesEpicTest do
 
   defp card(column, title, paths, attrs \\ %{}) do
     card = card_fixture(column, Map.put(attrs, "title", title))
-    {:ok, card} = Boards.update_card(card, %{"paths" => paths})
+    {:ok, card} = Boards.Cards.update_card(card, %{"paths" => paths})
     card
   end
 
@@ -33,7 +33,7 @@ defmodule Slipdock.LanesEpicTest do
   # Progress and Done lists.
   defp epic(column, title \\ "Epic") do
     epic = card(column, title, "lib/**\ndocs/**")
-    {:ok, t} = Boards.find_template(nil, "Simple")
+    {:ok, t} = Boards.Templates.find_template(nil, "Simple")
     {:ok, sub} = sub_board(epic, t)
     sub = Boards.get_board!(sub.id)
     todo = hd(sub.columns)
@@ -52,7 +52,8 @@ defmodule Slipdock.LanesEpicTest do
 
   defp held(ctx, card), do: Lanes.held_cards(ctx.board.id)[card.id]
 
-  defp move(card, column, ctx), do: Boards.move_card(card.id, column.id, nil, actor: ctx.agent)
+  defp move(card, column, ctx),
+    do: Boards.Cards.move_card(card.id, column.id, nil, actor: ctx.agent)
 
   describe "an epic waiting" do
     test "isn't held while one subcard its pass could take is free", ctx do
@@ -117,7 +118,7 @@ defmodule Slipdock.LanesEpicTest do
       card(sub.todo, "Flagged", "docs/f.md", %{"flags" => ["blocked"]})
       blocked = card(sub.todo, "Blocked", "docs/x.md")
       blocker = card(ctx.todo, "Blocker", [])
-      {:ok, _} = Boards.add_dependency(blocked, blocker)
+      {:ok, _} = Boards.Dependencies.add_dependency(blocked, blocker)
 
       assert %Card{} = held(ctx, epic)
     end
@@ -154,7 +155,7 @@ defmodule Slipdock.LanesEpicTest do
     test "a card with an empty sub-board isn't an epic: it holds its own lane", ctx do
       wide = card(ctx.doing, "Wide", "lib/**")
       working_job_fixture(wide)
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, _sub} = sub_board(wide, t)
 
       other = card(ctx.todo, "Other", "lib/x.ex")

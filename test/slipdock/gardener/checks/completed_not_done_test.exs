@@ -24,12 +24,14 @@ defmodule Slipdock.Gardener.Checks.CompletedNotDoneTest do
   test "an open card, or a complete one in Done, is not", %{board: board, todo: todo, done: done} do
     card_fixture(todo)
     c = card_fixture(todo)
-    :ok = Boards.move_card(c.id, done.id)
+    :ok = Boards.Cards.move_card(c.id, done.id)
     assert find(CompletedNotDone, board) == []
   end
 
   test "a complete card in a dropped list is where it belongs", %{board: board} do
-    {:ok, dropped} = Boards.create_column(board, %{"name" => "Won't do", "category" => "dropped"})
+    {:ok, dropped} =
+      Boards.Columns.create_column(board, %{"name" => "Won't do", "category" => "dropped"})
+
     card_fixture(dropped, %{"completed" => true})
     assert find(CompletedNotDone, board) == []
   end
@@ -40,7 +42,7 @@ defmodule Slipdock.Gardener.Checks.CompletedNotDoneTest do
 
     for col <- board.columns,
         col.category == "done",
-        do: {:ok, _} = Boards.update_column(col, %{"category" => "", "name" => "Shelf"})
+        do: {:ok, _} = Boards.Columns.update_column(col, %{"category" => "", "name" => "Shelf"})
 
     card_fixture(hd(board.columns), %{"completed" => true})
     assert find(CompletedNotDone, board) == []

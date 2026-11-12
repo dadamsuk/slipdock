@@ -98,11 +98,12 @@ defmodule SlipdockWeb.HandoffAPITest do
                |> json_response(422)
 
       assert message =~ "say the one next step"
-      assert Boards.handoff_history(ctx.card) == []
+      assert Boards.Handoffs.handoff_history(ctx.card) == []
     end
 
     test "clear takes the string a form or a query sends", ctx do
-      {:ok, _} = Boards.leave_handoff(ctx.card, ctx.owner, %{next_step: "Old", via: "ui"})
+      {:ok, _} =
+        Boards.Handoffs.leave_handoff(ctx.card, ctx.owner, %{next_step: "Old", via: "ui"})
 
       assert %{"handoff" => %{"cleared" => true, "next_step" => nil}} =
                as(ctx.owner)
@@ -114,7 +115,8 @@ defmodule SlipdockWeb.HandoffAPITest do
     end
 
     test "clear: true clears it, and the history shows the clear", ctx do
-      {:ok, _} = Boards.leave_handoff(ctx.card, ctx.owner, %{next_step: "Old", via: "ui"})
+      {:ok, _} =
+        Boards.Handoffs.leave_handoff(ctx.card, ctx.owner, %{next_step: "Old", via: "ui"})
 
       assert %{"handoff" => %{"cleared" => true, "next_step" => nil}} =
                as(ctx.owner)
@@ -139,7 +141,8 @@ defmodule SlipdockWeb.HandoffAPITest do
     end
 
     test "a reader may read it but not write one", ctx do
-      {:ok, _} = Boards.leave_handoff(ctx.card, ctx.owner, %{next_step: "Mine", via: "ui"})
+      {:ok, _} =
+        Boards.Handoffs.leave_handoff(ctx.card, ctx.owner, %{next_step: "Mine", via: "ui"})
 
       assert %{"handoff" => %{"next_step" => "Mine"}} =
                as(ctx.reader) |> get("/api/cards/#{ctx.card.id}/handoff") |> json_response(200)
@@ -148,7 +151,7 @@ defmodule SlipdockWeb.HandoffAPITest do
              |> post("/api/cards/#{ctx.card.id}/handoff", %{next_step: "Theirs"})
              |> json_response(403)
 
-      assert [%{next_step: "Mine"}] = Boards.handoff_history(ctx.card)
+      assert [%{next_step: "Mine"}] = Boards.Handoffs.handoff_history(ctx.card)
     end
 
     test "a stranger's card is neither read nor written", ctx do
@@ -160,7 +163,7 @@ defmodule SlipdockWeb.HandoffAPITest do
              |> json_response(403)
 
       assert as(ctx.owner) |> get("/api/cards/999999999/handoff") |> json_response(404)
-      assert Boards.handoff_history(ctx.secret) == []
+      assert Boards.Handoffs.handoff_history(ctx.secret) == []
     end
 
     test "a read-only token, or one scoped to another board, can't write one", ctx do
@@ -175,14 +178,17 @@ defmodule SlipdockWeb.HandoffAPITest do
                |> json_response(403)
       end
 
-      assert Boards.handoff_history(ctx.card) == []
+      assert Boards.Handoffs.handoff_history(ctx.card) == []
     end
   end
 
   describe "DELETE /api/cards/:id/handoff (#1214)" do
     test "deletes the current one, answering it and the one now current", ctx do
-      {:ok, _} = Boards.leave_handoff(ctx.card, ctx.owner, %{next_step: "Earlier", via: "ui"})
-      {:ok, _} = Boards.leave_handoff(ctx.card, ctx.owner, %{next_step: "Wrong", via: "ui"})
+      {:ok, _} =
+        Boards.Handoffs.leave_handoff(ctx.card, ctx.owner, %{next_step: "Earlier", via: "ui"})
+
+      {:ok, _} =
+        Boards.Handoffs.leave_handoff(ctx.card, ctx.owner, %{next_step: "Wrong", via: "ui"})
 
       assert %{
                "card" => _,
@@ -204,7 +210,8 @@ defmodule SlipdockWeb.HandoffAPITest do
     end
 
     test "a commenter may delete their own, not someone else's", ctx do
-      {:ok, _} = Boards.leave_handoff(ctx.card, ctx.owner, %{next_step: "Owner's", via: "ui"})
+      {:ok, _} =
+        Boards.Handoffs.leave_handoff(ctx.card, ctx.owner, %{next_step: "Owner's", via: "ui"})
 
       assert %{"error" => error} =
                as(ctx.commenter)
@@ -212,9 +219,10 @@ defmodule SlipdockWeb.HandoffAPITest do
                |> json_response(403)
 
       assert error =~ "only its author or someone who can edit the card"
-      assert Boards.current_handoff(ctx.card).next_step == "Owner's"
+      assert Boards.Handoffs.current_handoff(ctx.card).next_step == "Owner's"
 
-      {:ok, _} = Boards.leave_handoff(ctx.card, ctx.commenter, %{next_step: "Mine", via: "ui"})
+      {:ok, _} =
+        Boards.Handoffs.leave_handoff(ctx.card, ctx.commenter, %{next_step: "Mine", via: "ui"})
 
       assert %{"deleted" => %{"next_step" => "Mine"}} =
                as(ctx.commenter)
@@ -223,7 +231,8 @@ defmodule SlipdockWeb.HandoffAPITest do
     end
 
     test "a reader, a stranger and a read-only token may not", ctx do
-      {:ok, _} = Boards.leave_handoff(ctx.card, ctx.owner, %{next_step: "Stay", via: "ui"})
+      {:ok, _} =
+        Boards.Handoffs.leave_handoff(ctx.card, ctx.owner, %{next_step: "Stay", via: "ui"})
 
       assert as(ctx.reader) |> delete("/api/cards/#{ctx.card.id}/handoff") |> json_response(403)
 
@@ -231,11 +240,13 @@ defmodule SlipdockWeb.HandoffAPITest do
              |> delete("/api/cards/#{ctx.card.id}/handoff")
              |> json_response(403)
 
-      {:ok, _} = Boards.leave_handoff(ctx.secret, nil, %{next_step: "Theirs", via: "runner"})
+      {:ok, _} =
+        Boards.Handoffs.leave_handoff(ctx.secret, nil, %{next_step: "Theirs", via: "runner"})
+
       assert as(ctx.owner) |> delete("/api/cards/#{ctx.secret.id}/handoff") |> json_response(403)
 
-      assert Boards.current_handoff(ctx.card).next_step == "Stay"
-      assert Boards.current_handoff(ctx.secret).next_step == "Theirs"
+      assert Boards.Handoffs.current_handoff(ctx.card).next_step == "Stay"
+      assert Boards.Handoffs.current_handoff(ctx.secret).next_step == "Theirs"
     end
   end
 
@@ -284,7 +295,8 @@ defmodule SlipdockWeb.HandoffAPITest do
     end
 
     test "clear takes the string a command line sends", ctx do
-      {:ok, _} = Boards.leave_handoff(ctx.card, ctx.owner, %{next_step: "Old", via: "ui"})
+      {:ok, _} =
+        Boards.Handoffs.leave_handoff(ctx.card, ctx.owner, %{next_step: "Old", via: "ui"})
 
       assert %{"handoff" => %{"cleared" => true}} =
                as(ctx.owner)
@@ -317,12 +329,15 @@ defmodule SlipdockWeb.HandoffAPITest do
              |> call("leave_handoff", %{card: ctx.secret.id, next_step: "No"})
              |> error!() =~ "you don't comment on this card"
 
-      assert [%{next_step: "Mine"}] = Boards.handoff_history(ctx.card)
+      assert [%{next_step: "Mine"}] = Boards.Handoffs.handoff_history(ctx.card)
     end
 
     test "delete: true deletes the current one, its author's or an editor's (#1214)", ctx do
-      {:ok, _} = Boards.leave_handoff(ctx.card, ctx.owner, %{next_step: "Earlier", via: "ui"})
-      {:ok, _} = Boards.leave_handoff(ctx.card, ctx.owner, %{next_step: "Wrong", via: "ui"})
+      {:ok, _} =
+        Boards.Handoffs.leave_handoff(ctx.card, ctx.owner, %{next_step: "Earlier", via: "ui"})
+
+      {:ok, _} =
+        Boards.Handoffs.leave_handoff(ctx.card, ctx.owner, %{next_step: "Wrong", via: "ui"})
 
       assert as(ctx.commenter)
              |> call("leave_handoff", %{card: ctx.card.id, delete: true})
@@ -336,7 +351,7 @@ defmodule SlipdockWeb.HandoffAPITest do
       assert %{"handoff" => %{"next_step" => "Earlier"}} =
                as(ctx.owner) |> call("get_card", %{card: ctx.card.id}) |> ok!()
 
-      {:ok, _} = Boards.clear_handoff(ctx.card, ctx.owner, %{via: "ui"})
+      {:ok, _} = Boards.Handoffs.clear_handoff(ctx.card, ctx.owner, %{via: "ui"})
 
       assert as(ctx.owner)
              |> call("leave_handoff", %{card: ctx.card.id, delete: true})
