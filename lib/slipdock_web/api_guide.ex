@@ -2284,8 +2284,9 @@ defmodule SlipdockWeb.APIGuide do
     `card_ids`; `job_id`; `run_url`; `note`) and the tree's `release`
     status. `GET /api/boards/:board/release` (`slipdock releases B`,
     `release_now` with `check: true`) reads that status alone: `mode`,
-    `running`, `queued`, `last` and the cards `awaiting`. A board that
-    releases on merge answers `409`.
+    `running`, `queued`, `last` and the cards `awaiting`. It is the whole
+    tree's: asked of a sub-board, it needs read on the root board too
+    (`403`). A board that releases on merge answers `409`.
 
     A request starts a runner job of kind `release`, with no card, for the
     pool that merges: its prompt is the root board's `release_command`

@@ -1238,7 +1238,8 @@ merges; its prompt is the board's `release_command` (default `gh workflow
 run release.yml --ref {default_branch}`), and it goes only to runners
 whose claims list `release` in `X-Runner-Kinds`. `slipdock releases
 <board>` (`GET /api/boards/:board/release`, `release_now` with `check:
-true`) says what is running, queued and awaiting release.
+true`) says what is running, queued and awaiting release, for the whole
+tree: asked of a sub-board, it needs read on the root board too.
 
 **Epics close over finished subcards.** On every board, with no switch, an
 agent can't complete (or submit) a card while its sub-board has open cards

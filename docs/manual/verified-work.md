@@ -626,6 +626,7 @@ nothing more until a person, or a critical merge, has released.
 
 `slipdock releases <board>` (`GET /api/boards/:board/release`,
 `release_now` with `check: true`) shows the release running, the one
-queued, the last that ended and the cards awaiting release. Every step is
-a line in the root board's activity, naming who or what asked and the
-cards covered.
+queued, the last that ended and the cards awaiting release. The status is
+the whole tree's, so asking it of a sub-board needs read on the root board
+too. Every step is a line in the root board's activity, naming who or what
+asked and the cards covered.

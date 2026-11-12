@@ -235,6 +235,12 @@ defmodule SlipdockWeb.RunnerDocsTest do
     assert guide =~ "`release` in `X-Runner-Kinds`"
     assert guide =~ "`release_command`"
     assert guide =~ "MCP `release_now`"
+    # A sub-board's status is its tree's, so it asks for the root too.
+    assert guide =~ "asked of a sub-board, it needs read on the root board too"
+    assert agents =~ "asked of a sub-board, it needs read on the root board too"
+
+    assert read("docs/manual/verified-work.md") =~
+             "asking it of a sub-board needs read on the root board"
 
     help = read("cli/help.txt")
     assert help =~ "release <board>"
