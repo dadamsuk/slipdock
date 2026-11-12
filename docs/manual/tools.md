@@ -186,7 +186,9 @@ Installing again adds only what is missing (the list, the page or the card,
 if deleted) and never touches the page once it is there. Installing 1.1.0
 over an older sweep gives its open *Sweep the code* card the current
 procedure (fixes to Housekeeping, design questions to Triage), and changes
-nothing else on it.
+nothing else on it; installing 1.2.0 adds that the same mechanical fix in
+many files is one issue: one card for the whole sweep, or a few split by
+lane, never a card per file, module or area (#2795).
 
 **A Triage list is never fed.** A list whose category is `triage` holds work
 for a person to look at, not for the loop: the agent guide never reads it as
