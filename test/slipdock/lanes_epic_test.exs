@@ -86,7 +86,7 @@ defmodule Slipdock.LanesEpicTest do
 
       assert Runners.claim(ctx.runner) == nil
       assert {:error, :unprocessable_entity, message} = move(epic, ctx.doing, ctx)
-      assert message =~ "##{running.id}"
+      assert message =~ ~r/##{running.id}\b/
     end
 
     test "a subcard in progress already, or one with no paths, frees it", ctx do
@@ -148,8 +148,8 @@ defmodule Slipdock.LanesEpicTest do
 
       same = card(ctx.todo, "Same file", "lib/a.ex")
       assert {:error, :unprocessable_entity, message} = move(same, ctx.doing, ctx)
-      assert message =~ "##{child.id}"
-      refute message =~ "##{epic.id}"
+      assert message =~ ~r/##{child.id}\b/
+      refute message =~ ~r/##{epic.id}\b/
     end
 
     test "a card with an empty sub-board isn't an epic: it holds its own lane", ctx do
@@ -160,7 +160,7 @@ defmodule Slipdock.LanesEpicTest do
 
       other = card(ctx.todo, "Other", "lib/x.ex")
       assert {:error, :unprocessable_entity, message} = move(other, ctx.doing, ctx)
-      assert message =~ "##{wide.id}"
+      assert message =~ ~r/##{wide.id}\b/
     end
   end
 end
