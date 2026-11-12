@@ -25,6 +25,25 @@ defmodule SlipdockWeb.HelpLive.FlowTest do
     "7. Afterwards"
   ]
 
+  # The page, mounted. A join the server refuses as stale or unauthorized
+  # comes back from LiveViewTest as a redirect to the page's own URL, and once
+  # under load (seed 711914 in `mix pre_push`'s repo checks, #2828) the first
+  # join here was, though nothing on the page or its hooks redirects. Such a
+  # refusal is tried once more; a page that really sends itself to itself is
+  # refused again, and the caller's `{:ok, …}` match fails as before. The
+  # mount is an argument so "mounting it" below can hold that with a stand-in.
+  defp live_flow(conn, mount \\ &live/2) do
+    path = ~p"/help/agents/flow"
+
+    case mount.(conn, path) do
+      {:error, {:redirect, %{to: to}}} = refused ->
+        if URI.parse(to).path == path, do: mount.(conn, path), else: refused
+
+      mounted ->
+        mounted
+    end
+  end
+
   defp doc(html), do: LazyHTML.from_document(html)
 
   defp texts(doc, selector),
@@ -80,10 +99,76 @@ defmodule SlipdockWeb.HelpLive.FlowTest do
     end
   end
 
+  describe "mounting it" do
+    # live_flow/2 with a stand-in mount that answers from a script, one reply
+    # per mount, and counts the mounts: what a refused join, a second
+    # refusal and a real redirect each get.
+    @self_refusal {:error, {:redirect, %{to: "http://www.example.com/help/agents/flow"}}}
+
+    defp scripted_mount(replies) do
+      Process.put(:flow_mount_replies, replies)
+
+      fn _conn, path ->
+        send(self(), {:mounted, path})
+        [reply | rest] = Process.get(:flow_mount_replies)
+        Process.put(:flow_mount_replies, rest)
+        reply
+      end
+    end
+
+    defp mounts do
+      receive do
+        {:mounted, "/help/agents/flow"} -> 1 + mounts()
+      after
+        0 -> 0
+      end
+    end
+
+    test "a mount that works first time is mounted once", %{conn: conn} do
+      assert live_flow(conn, scripted_mount([{:ok, :view, "html"}])) == {:ok, :view, "html"}
+      assert mounts() == 1
+    end
+
+    test "a join refused once is tried again, and the second mount is what comes back",
+         %{conn: conn} do
+      mount = scripted_mount([@self_refusal, {:ok, :view, "html"}])
+
+      assert live_flow(conn, mount) == {:ok, :view, "html"}
+      assert mounts() == 2
+    end
+
+    test "a page refused twice gives back the refusal, so the caller's {:ok, …} match fails",
+         %{conn: conn} do
+      mount = scripted_mount([@self_refusal, @self_refusal, {:ok, :view, "html"}])
+
+      assert live_flow(conn, mount) == @self_refusal
+      assert mounts() == 2
+    end
+
+    test "a redirect to another page comes back at once, with no second mount",
+         %{conn: conn} do
+      elsewhere = {:error, {:redirect, %{to: "http://www.example.com/help/agents"}}}
+      live_redirect = {:error, {:live_redirect, %{to: "/help/agents/flow"}}}
+
+      assert live_flow(conn, scripted_mount([elsewhere, {:ok, :view, "html"}])) == elsewhere
+      assert mounts() == 1
+
+      assert live_flow(conn, scripted_mount([live_redirect, {:ok, :view, "html"}])) ==
+               live_redirect
+
+      assert mounts() == 1
+    end
+
+    test "the real page mounts through it", %{conn: conn} do
+      assert {:ok, _view, html} = live_flow(conn)
+      assert_stages(html)
+    end
+  end
+
   describe "the page" do
     @tag :anonymous
     test "has the seven stages in order, each saying who acts", %{conn: conn} do
-      {:ok, _view, html} = live(conn, ~p"/help/agents/flow")
+      {:ok, _view, html} = live_flow(conn)
       d = doc(html)
 
       assert_stages(html)
@@ -98,7 +183,7 @@ defmodule SlipdockWeb.HelpLive.FlowTest do
     @tag :anonymous
     test "the diagram has a node per stage, in order, ringing the ones a person acts at",
          %{conn: conn} do
-      {:ok, _view, html} = live(conn, ~p"/help/agents/flow")
+      {:ok, _view, html} = live_flow(conn)
       d = doc(html)
 
       ids =
@@ -126,7 +211,7 @@ defmodule SlipdockWeb.HelpLive.FlowTest do
     test "says a resubmission is judged on what changed, the rest carried (#1944)", %{
       conn: conn
     } do
-      {:ok, _view, html} = live(conn, ~p"/help/agents/flow")
+      {:ok, _view, html} = live_flow(conn)
 
       text =
         doc(html) |> texts("#flow-verifying") |> Enum.join(" ") |> String.replace(~r/\s+/, " ")
@@ -138,7 +223,7 @@ defmodule SlipdockWeb.HelpLive.FlowTest do
     @tag :anonymous
     test "says the server moves a list_top job's card on claim, the prompt naming the list (#2633)",
          %{conn: conn} do
-      {:ok, _view, html} = live(conn, ~p"/help/agents/flow")
+      {:ok, _view, html} = live_flow(conn)
       text = doc(html) |> texts("#flow-claimed") |> Enum.join(" ")
 
       assert text =~ "the server makes the move the moment a runner claims it"
@@ -148,7 +233,7 @@ defmodule SlipdockWeb.HelpLive.FlowTest do
 
     @tag :anonymous
     test "marks every point where a person must act", %{conn: conn} do
-      {:ok, _view, html} = live(conn, ~p"/help/agents/flow")
+      {:ok, _view, html} = live_flow(conn)
       d = doc(html)
 
       notes = fn id -> texts(d, ~s{#flow-#{id} [data-person="true"]}) |> Enum.join(" ") end
@@ -179,7 +264,7 @@ defmodule SlipdockWeb.HelpLive.FlowTest do
   describe "what it names exists" do
     @tag :anonymous
     test "every slipdock command on the page is in the CLI's help", %{conn: conn} do
-      {:ok, _view, html} = live(conn, ~p"/help/agents/flow")
+      {:ok, _view, html} = live_flow(conn)
 
       commands =
         doc(html)
