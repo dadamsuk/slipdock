@@ -312,6 +312,164 @@ defmodule SlipdockWeb.ReleaseNowTest do
     end
   end
 
+  describe "a red release's hold (#2838)" do
+    setup ctx do
+      {:ok, _} =
+        Slipdock.Deployments.record_failure(ctx.board, %{
+          environment: "production",
+          sha: "feed0099",
+          stage: "test",
+          run_url: "https://github.com/example/app/actions/runs/88"
+        })
+
+      hold = Releases.hold(ctx.board)
+      assert hold["fix_card_id"]
+      %{hold: hold}
+    end
+
+    test "REST: GET shows it, POST is refused saying why, DELETE lifts it once", ctx do
+      body = ctx.agent |> get(~p"/api/boards/#{ctx.board.id}/release") |> json_response(200)
+      hold = body["release"]["hold"]
+      assert hold["reason"] == "the release failed at test"
+      assert hold["stage"] == "test"
+      assert hold["run_url"] == "https://github.com/example/app/actions/runs/88"
+      assert hold["fix_card_id"] == ctx.hold["fix_card_id"]
+      assert hold["text"] =~ "fix card ##{ctx.hold["fix_card_id"]} releases when it merges"
+
+      body = ctx.agent |> post(~p"/api/boards/#{ctx.board.id}/release") |> json_response(409)
+      assert inspect(body) =~ "releases are held: the release failed at test"
+      assert inspect(body) =~ "actions/runs/88"
+      assert Repo.aggregate(Request, :count) == 0
+
+      body =
+        ctx.agent |> delete(~p"/api/boards/#{ctx.board.id}/release/hold") |> json_response(200)
+
+      assert body["lifted"]["stage"] == "test"
+      assert body["line"] == "Release hold lifted. Nothing was released."
+      assert body["release"]["hold"] == nil
+      assert Repo.aggregate(Request, :count) == 0
+
+      body =
+        ctx.agent |> delete(~p"/api/boards/#{ctx.board.id}/release/hold") |> json_response(409)
+
+      assert inspect(body) =~ "aren't held"
+    end
+
+    test "REST: someone it is shared with can't lift it", ctx do
+      editor = user_fixture("editor#{System.unique_integer([:positive])}@example.com")
+      share_fixture(ctx.board, [editor], "write")
+      conn = with_token(editor, "theirs")
+
+      assert conn |> delete(~p"/api/boards/#{ctx.board.id}/release/hold") |> json_response(403)
+      assert Releases.hold(ctx.board)
+    end
+
+    test "MCP: check shows it, release_now is refused, lift_hold lifts it", ctx do
+      {false, text} = mcp(ctx.agent, "release_now", %{board: "#{ctx.board.id}", check: true})
+      assert Jason.decode!(text)["release"]["hold"]["stage"] == "test"
+
+      {true, text} = mcp(ctx.agent, "release_now", %{board: "#{ctx.board.id}"})
+      assert text =~ "releases are held"
+
+      editor = user_fixture("editor#{System.unique_integer([:positive])}@example.com")
+      share_fixture(ctx.board, [editor], "write")
+
+      {true, _} =
+        mcp(with_token(editor, "theirs"), "release_now", %{
+          board: "#{ctx.board.id}",
+          check: true,
+          lift_hold: true
+        })
+
+      assert Releases.hold(ctx.board)
+
+      # check with lift_hold lifts: the owner's lift wins over the read.
+      {false, text} =
+        mcp(ctx.agent, "release_now", %{board: "#{ctx.board.id}", check: true, lift_hold: true})
+
+      body = Jason.decode!(text)
+      assert body["lifted"]["stage"] == "test"
+      assert body["release"]["hold"] == nil
+      assert Repo.aggregate(Request, :count) == 0
+
+      {true, text} = mcp(ctx.agent, "release_now", %{board: "#{ctx.board.id}", lift_hold: true})
+      assert text =~ "aren't held"
+    end
+
+    test "the board page's banner says it is held, links the run, and Lift hold lifts it", ctx do
+      merged!(ctx.todo, "Waiting")
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}")
+
+      assert has_element?(
+               view,
+               "#release-banner-line",
+               "Releases held: the release failed at test"
+             )
+
+      assert has_element?(view, "#release-banner-line", "fix card ##{ctx.hold["fix_card_id"]}")
+
+      assert has_element?(
+               view,
+               ~s(#release-hold-run[href="https://github.com/example/app/actions/runs/88"]),
+               "the failing run"
+             )
+
+      view |> element("#release-lift-hold") |> render_click()
+
+      assert Releases.hold(ctx.board) == nil
+      assert Repo.aggregate(Request, :count) == 0
+      # The banner stays for the merged card, without Lift hold or the run.
+      assert has_element?(view, "#release-banner-line", "merged, awaiting release")
+      refute has_element?(view, "#release-lift-hold")
+      refute has_element?(view, "#release-hold-run")
+    end
+
+    test "someone it is shared with sees the hold but no Lift hold", ctx do
+      editor = user_fixture("editor#{System.unique_integer([:positive])}@example.com")
+      share_fixture(ctx.board, [editor], "write")
+
+      {:ok, view, _} = live(log_in_user(build_conn(), editor), ~p"/boards/#{ctx.board}")
+      assert has_element?(view, "#release-banner-line", "Releases held")
+      refute has_element?(view, "#release-lift-hold")
+
+      render_hook(view, "lift_release_hold", %{})
+      assert Releases.hold(ctx.board)
+    end
+
+    test "the Agentic Building page shows it with the run and lifts it", ctx do
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/agentic")
+      assert has_element?(view, "#board-release-line", "Releases held")
+
+      assert has_element?(
+               view,
+               ~s(#board-release-hold-run[href="https://github.com/example/app/actions/runs/88"])
+             )
+
+      view |> element("#board-release-lift-hold") |> render_click()
+
+      assert Releases.hold(ctx.board) == nil
+      refute has_element?(view, "#board-release-lift-hold")
+      assert render(view) =~ "Release hold lifted. Nothing was released."
+
+      # Lifted already (elsewhere, or a second click): the refusal says so.
+      render_hook(view, "lift_release_hold", %{})
+      assert render(view) =~ "this board&#39;s releases aren&#39;t held"
+    end
+
+    test "on the Agentic Building page someone it is shared with sees it, with no Lift hold",
+         ctx do
+      editor = user_fixture("editor#{System.unique_integer([:positive])}@example.com")
+      share_fixture(ctx.board, [editor], "write")
+
+      {:ok, view, _} = live(log_in_user(build_conn(), editor), ~p"/boards/#{ctx.board}/agentic")
+      assert has_element?(view, "#board-release-line", "Releases held")
+      refute has_element?(view, "#board-release-lift-hold")
+
+      render_hook(view, "lift_release_hold", %{})
+      assert Releases.hold(ctx.board)
+    end
+  end
+
   describe "someone who reads a sub-board alone" do
     # A tree's releases name and count its root's cards: reading a
     # sub-board is not reading those.
@@ -384,11 +542,13 @@ defmodule SlipdockWeb.ReleaseNowTest do
 
       {:ok, _view, html} = live(conn, ~p"/help/agents")
       assert html =~ "Release a batched board&#39;s merged work now"
-      assert html =~ "slipdock release, slipdock releases"
-      assert html =~ "release_now (check: true to read)"
+      assert html =~ "slipdock release [--lift-hold], slipdock releases"
+      assert html =~ "release_now (check: true to read, lift_hold: true)"
+      assert html =~ "DELETE …/release/hold"
 
       {:ok, _view, html} = live(conn, ~p"/help/agents/flow")
       assert html =~ "A batched board releases on a trigger, not on a merge."
+      assert html =~ "A red release holds the next one and files a"
     end
   end
 

@@ -146,7 +146,7 @@ READ
       --snoozed include|only                    (snoozed cards are left out otherwise)
       --stuck                                   (in their list longer than it usually takes)
       --driver all|agent|human                  (who holds or last moved it; runner boards)
-      --origin person|sweep|findings|health|overseer|verify|automation|import|agent|none
+      --origin person|sweep|findings|health|overseer|verify|release|automation|import|agent|none
                                                 (who or what made it; none: made before origins)
   card <id>                           show one card in full (checklist, comments)
   activity <board> [--limit N] [--card ID]  recent activity on a board (or one card)
@@ -1167,7 +1167,10 @@ WRITE
                                                  a runner's release job runs the release command
                                                  for every merged card awaiting release. One at a
                                                  time: during a release it queues one follow-up,
-                                                 and more join that. The board owner's
+                                                 and more join that. The board owner's. Refused
+                                                 while a red release holds releases (#2838)
+      --lift-hold                                lift that hold instead (the owner's); releases
+                                                 nothing. The fix card's merge lifts it too
   releases <board>                               where its releases stand: the one running, the
                                                  one queued, the last ended, the cards awaiting
   job-progress [<id>] [--step S] [--message NOTE] renew the job's lease (a session holds it 20 min);

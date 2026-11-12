@@ -638,6 +638,23 @@ finished job is the release, and the cards it covered show *Released*
 with its time. After a failed or timed-out release the age cap asks for
 nothing more until a person, or a critical merge, has released.
 
+**A red release holds releases.** When a release's suite, build or deploy
+fails (a failed deploy recorded on the tree, `slipdock deploy failed
+--stage S`), the tree's releases are held. The release banner says why,
+with the stage and the failing run, and Slipdock files one card of
+priority `critical` on top of the root board's ready list, naming the
+batch's cards and linking the run. While held, *Release now* is refused
+and says why, the age cap asks for nothing, a queued follow-up is dropped,
+and a critical card that isn't the fix card asks for nothing (the board's
+activity says so). When the fix card merges the hold lifts and its
+critical trigger releases. A second red release keeps the first hold and
+files no second card. The board's owner can lift the hold by hand: *Lift
+hold* on the banner or the Agentic Building page, `slipdock release
+<board> --lift-hold`, `DELETE /api/boards/:board/release/hold` or MCP
+`release_now` with `lift_hold: true`; that releases nothing. A release job
+that failed to fire, a backfilled deploy and a board that releases on
+merge hold nothing.
+
 `slipdock releases <board>` (`GET /api/boards/:board/release`,
 `release_now` with `check: true`) shows the release running, the one
 queued, the last that ended and the cards awaiting release. The status is

@@ -6,6 +6,7 @@ defmodule Slipdock.Origin do
     * `sweep`, `findings` — a generator named by an agent inside its job;
     * `health`, `overseer`, `verify` — the server's own monitors and
       verification follow-ups;
+    * `release` — the fix card a red release files (#2838);
     * `automation` — a rule's *create a card* action, or the clock;
     * `import` — brought in by an import;
     * `agent` — an agent, with its runner job's id when it made the card
@@ -17,7 +18,7 @@ defmodule Slipdock.Origin do
   origins were recorded have none.
   """
 
-  @names ~w(person sweep findings health overseer verify automation import agent)
+  @names ~w(person sweep findings health overseer verify release automation import agent)
   @claimable ~w(sweep findings)
 
   @doc "Every origin a card can have."

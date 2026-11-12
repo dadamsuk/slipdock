@@ -123,6 +123,8 @@ defmodule SlipdockCLI do
     release_mode: :string,
     release_age_cap: :string,
     release_command: :string,
+    # `release <board> --lift-hold` (#2838): lift a red release's hold.
+    lift_hold: :boolean,
     pr: :string,
     # Why a card changes no code (#1938): `done --no-code REASON`.
     no_code: :string,

@@ -431,7 +431,10 @@ defmodule SlipdockWeb.HelpLive.Guides do
           time: a runner runs the board's release command, and anything asked for meanwhile
           becomes one follow-up. A runner runs the default <code>gh workflow run</code>
           command itself; any other runs only if that machine's <code>local.json</code>
-          lists it, word for word, under <code>release_commands</code>.
+          lists it, word for word, under <code>release_commands</code>. A red release (its suite,
+          build or deploy failing) holds releases: the banner says why, with the failing run,
+          and a critical fix card goes on top of the ready list. Its merge lifts the hold and
+          releases; the owner can also press <em>Lift hold</em>, which releases nothing.
         </li>
         <li>
           <strong>Who gets asked</strong>: Agentic Building → <em>Who gets asked</em>

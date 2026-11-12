@@ -120,6 +120,54 @@ defmodule SlipdockCLI.ReleaseTest do
                "awaiting release: 2\n  #41 One\n  #42 Two\n"
   end
 
+  @hold %{
+    "reason" => "the release failed at test",
+    "stage" => "test",
+    "run_url" => "https://ci.example.com/runs/6",
+    "fix_card_id" => 50,
+    "text" =>
+      "the release failed at test (https://ci.example.com/runs/6); fix card #50 releases " <>
+        "when it merges, or the board's owner lifts the hold"
+  }
+
+  test "releases prints a hold first, saying why with the run (#2838)" do
+    serve([
+      {200,
+       JSON.encode!(%{"release" => %{"mode" => "batched", "hold" => @hold, "awaiting" => []}})}
+    ])
+
+    assert capture_io(fn -> Runners.run("releases", ["ops"], []) end) ==
+             "release mode: batched\n" <>
+               "held: the release failed at test (https://ci.example.com/runs/6); fix card #50 " <>
+               "releases when it merges, or the board's owner lifts the hold\n" <>
+               "awaiting release: none\n"
+  end
+
+  test "release --lift-hold deletes the hold and asks for no release (#2838)" do
+    {opts, ["release", "ops"], []} =
+      OptionParser.parse(["release", "ops", "--lift-hold"], strict: SlipdockCLI.switches())
+
+    assert opts[:lift_hold] == true
+
+    serve([
+      {200,
+       JSON.encode!(%{
+         "lifted" => @hold,
+         "line" => "Release hold lifted. Nothing was released.",
+         "release" => %{"mode" => "batched", "hold" => nil, "awaiting" => @awaiting}
+       })}
+    ])
+
+    out = capture_io(fn -> Runners.run("release", ["ops"], opts) end)
+
+    assert_received {:request, "DELETE", "/api/boards/ops/release/hold", _}
+    refute_received {:request, "POST", _, _}
+
+    assert out ==
+             "Release hold lifted. Nothing was released.\n" <>
+               "awaiting release: 2\n  #41 One\n  #42 Two\n"
+  end
+
   test "a request nothing is recorded as asking for prints no empty field" do
     bare = %{@request | "triggers" => [], "card_ids" => [], "job_id" => nil}
     odd = %{@request | "triggers" => [%{"trigger" => "webhook"}, %{"trigger" => "manual"}]}

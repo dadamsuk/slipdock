@@ -161,10 +161,13 @@ defmodule SlipdockCLI.Runners do
   end
 
   # Release now (#2835): on a board with batched releases, ask for a
-  # release of its merged work. The board owner's.
+  # release of its merged work. With --lift-hold (#2838), lift the hold a
+  # red release left instead, asking for no release. The board owner's.
   def run("release", [ref], o) do
-    HTTP.post("/boards/#{enc(ref)}/release", %{})
-    |> out(o, fn %{"line" => line, "release" => release} ->
+    path = "/boards/#{enc(ref)}/release"
+    answer = if o[:lift_hold], do: HTTP.delete(path <> "/hold"), else: HTTP.post(path, %{})
+
+    out(answer, o, fn %{"line" => line, "release" => release} ->
       IO.puts(line)
       release_lines(release)
     end)
@@ -348,6 +351,8 @@ defmodule SlipdockCLI.Runners do
 
   # Batched releases (#2835): what `release` and `releases` print.
   defp release_lines(release) do
+    if hold = release["hold"], do: IO.puts("held: #{hold["text"]}")
+
     Enum.each(~w(running queued last), fn key ->
       if r = release[key], do: IO.puts("#{key}: #{request_line(r)}")
     end)

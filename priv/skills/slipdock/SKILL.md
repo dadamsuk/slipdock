@@ -208,7 +208,7 @@ slipdock board <board>                  # full board: every column and card; "Wa
 slipdock cards <board> [--column C] [--tag T] [--priority P] [--flag F] [--search Q] [--open|--done] [--archived]
                      [--due overdue|today|week|month|has|none] [--deps blocked|ready|blocking|violated|free]
                      [--assignee NAME|EMAIL|me | --no-assignee] [--stuck] [--driver all|agent|human]
-                     [--origin person|sweep|findings|health|overseer|verify|automation|import|agent|none]
+                     [--origin person|sweep|findings|health|overseer|verify|release|automation|import|agent|none]
                      # each line ends with its state (▸ Running · runner-2 · 7m) and ⏳age in its list
 slipdock card <id>                      # full detail incl. checklist item ids and comments
                                         # on an epic, a "Waiting on you:" line: what in its tree is on you, with reasons
@@ -576,6 +576,8 @@ slipdock pause <board> [--pool P] --reason "…"   # owner: hold runner work (tr
 slipdock release <board>                      # owner, on a board with batched releases: Release now. A runner's release job runs the
                                               # board's release command for every merged card awaiting release; one at a time
                                               # (during a release it queues one follow-up). Only when the person asks: a card is done on merge
+slipdock release <board> --lift-hold          # owner: lift a red release's hold (releases nothing). Held, Release now is refused;
+                                              # the critical fix card it filed releases when it merges: fix that, don't lift
 slipdock releases <board>                     # where its releases stand: running, queued, the last ended, the cards awaiting
 slipdock set-board <board> --release-command "make release"   # the one line a release job runs (default: gh workflow run release.yml
                                               # --ref {default_branch}); `default` clears it. Any other command runs only on a

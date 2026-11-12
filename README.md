@@ -568,6 +568,10 @@ Each item in brief, with the detail in [the manual](docs/manual.md):
   any other command runs only if the machine's own `local.json` lists it,
   word for word, under `release_commands`, and is refused otherwise
   (`no_release: true` there stops the machine taking releases at all).
+  A red release holds the next one: the banner says why with the failing
+  run, a `critical` fix card naming the batch goes on top of the ready
+  list, and its merge releases (or the owner lifts the hold: *Lift hold*,
+  `slipdock release <board> --lift-hold`).
 
 ## Running it
 

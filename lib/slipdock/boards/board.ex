@@ -168,6 +168,11 @@ defmodule Slipdock.Boards.Board do
     # (`Slipdock.Releases.default_command/0`). The root board's, as the two
     # above.
     field :release_command, :string
+    # Releases held after a red one (#2838, `Slipdock.Releases.hold/1`): nil,
+    # or why (reason, stage, run_url, sha, deployment_id, card_ids,
+    # fix_card_id, held_at). The root board's, and written only by Releases,
+    # never by `changeset/2`.
+    field :release_hold, :map
 
     # The other addresses the board's card addresses take mail from (#1289),
     # besides each address owner's own: lower-cased, at most
