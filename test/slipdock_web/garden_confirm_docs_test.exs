@@ -9,6 +9,8 @@ defmodule SlipdockWeb.GardenConfirmDocsTest do
   """
   use ExUnit.Case, async: true
 
+  import Slipdock.DocsFacts, only: [assert_states: 2]
+
   @root Path.expand("../..", __DIR__)
 
   defp read(path), do: Slipdock.DocsText.read!(Path.join(@root, path))
@@ -17,17 +19,21 @@ defmodule SlipdockWeb.GardenConfirmDocsTest do
   test "the API guide sends a proposal to the Tidy-up page, whatever confirm says" do
     guide = flat(read("lib/slipdock_web/api_guide.ex"))
 
-    assert guide =~ "`…/dismiss` and `…/undo` decide one (a proposal excepted: see below)"
+    assert_states(guide, "`…/dismiss` and `…/undo` decide one (a proposal excepted: see below)")
 
-    assert guide =~
-             "a proposal is decided on the board's Tidy-up page (`/boards/<id>/tidy`, " <>
-               "which shows the section's diff), signed in, and nowhere else " <>
-               "(W-1945 §Permissions, #2668)"
+    assert_states(
+      guide,
+      "a proposal is decided on the board's Tidy-up page (`/boards/<id>/tidy`, " <>
+        "which shows the section's diff), signed in, and nowhere else " <>
+        "(W-1945 §Permissions, #2668)"
+    )
 
-    assert guide =~ "whatever token, headers or `confirm` they send"
+    assert_states(guide, "whatever token, headers or `confirm` they send")
 
-    assert guide =~
-             "a person decides each on the board's Tidy-up page, which `slipdock findings` links"
+    assert_states(
+      guide,
+      "a person decides each on the board's Tidy-up page, which `slipdock findings` links"
+    )
 
     refute guide =~ "--confirm"
   end
@@ -35,11 +41,13 @@ defmodule SlipdockWeb.GardenConfirmDocsTest do
   test "docs/agents.md says a proposal is decided on the Tidy-up page" do
     agents = flat(read("docs/agents.md"))
 
-    assert agents =~
-             "a proposal is decided on the board's Tidy-up page (`/boards/<id>/tidy`), " <>
-               "signed in, and nowhere else (W-1945 §Permissions, #2668)"
+    assert_states(
+      agents,
+      "a proposal is decided on the board's Tidy-up page (`/boards/<id>/tidy`), " <>
+        "signed in, and nowhere else (W-1945 §Permissions, #2668)"
+    )
 
-    assert agents =~ "Point the person at the page."
+    assert_states(agents, "Point the person at the page.")
     refute agents =~ "--confirm"
   end
 
@@ -53,17 +61,24 @@ defmodule SlipdockWeb.GardenConfirmDocsTest do
     assert page =~ "POST  /api/garden/suggestions/:id/undo\n"
 
     flat = flat(page)
-    assert flat =~ "**A proposal is decided on the Tidy-up page.**"
-    assert flat =~ "it is decided on the board's Tidy-up page (`/boards/<id>/tidy`), signed in"
-    assert flat =~ "The CLI, REST and MCP are refused with the page's link"
+    assert_states(flat, "**A proposal is decided on the Tidy-up page.**")
+
+    assert_states(
+      flat,
+      "it is decided on the board's Tidy-up page (`/boards/<id>/tidy`), signed in"
+    )
+
+    assert_states(flat, "The CLI, REST and MCP are refused with the page's link")
   end
 
   test "HelpLive.Agents says it beside garden_decide" do
     help = flat(read("lib/slipdock_web/live/help_live/agents.ex"))
 
-    assert help =~
-             "a proposed handbook edit is decided only on the board's Tidy-up page, " <>
-               "signed in, and <code>garden_decide</code> and the CLI are refused with its link"
+    assert_states(
+      help,
+      "a proposed handbook edit is decided only on the board's Tidy-up page, " <>
+        "signed in, and <code>garden_decide</code> and the CLI are refused with its link"
+    )
 
     refute help =~ "--confirm"
   end
@@ -71,16 +86,20 @@ defmodule SlipdockWeb.GardenConfirmDocsTest do
   test "the slipdock skill sends the person to the Tidy-up page" do
     skill = read("priv/skills/slipdock/SKILL.md")
 
-    assert skill =~
-             ~r/^\s+# a proposal: the person decides it on the board's Tidy-up\n\s+# page \(the listing links it\); the CLI is refused \(#2668\)$/m
+    assert_states(
+      skill,
+      "a proposal: the person decides it on the board's Tidy-up page (the listing links it); the CLI is refused (#2668)"
+    )
 
     flat = flat(skill)
-    assert flat =~ "(decided on the board's Tidy-up # page, which it links)"
+    assert_states(flat, "(decided on the board's Tidy-up # page, which it links)")
 
-    assert flat =~
-             "a proposal is decided on the board's Tidy-up page (`/boards/<id>/tidy`, signed in)"
+    assert_states(
+      flat,
+      "a proposal is decided on the board's Tidy-up page (`/boards/<id>/tidy`, signed in)"
+    )
 
-    assert flat =~ "give the person that link and leave the proposal to them"
+    assert_states(flat, "give the person that link and leave the proposal to them")
     refute skill =~ ~r/garden \S+ \S+ --confirm/
   end
 end

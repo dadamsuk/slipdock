@@ -6,6 +6,8 @@ defmodule SlipdockWeb.TransferLinksDocsTest do
   """
   use SlipdockWeb.ConnCase, async: true
 
+  import Slipdock.DocsFacts, only: [assert_states: 2]
+
   import Phoenix.LiveViewTest
 
   @root Path.expand("../..", __DIR__)
@@ -24,11 +26,11 @@ defmodule SlipdockWeb.TransferLinksDocsTest do
 
   test "the manual, README and docs/agents.md describe it" do
     manual = read("docs/manual.md")
-    assert manual =~ "`upload_url` that works once, for 10 minutes, with no token"
-    assert manual =~ "`download_url` that works once, for 10 minutes, with no token"
+    assert_states(manual, "`upload_url` that works once, for 10 minutes, with no token")
+    assert_states(manual, "`download_url` that works once, for 10 minutes, with no token")
     assert manual =~ "`410 link_gone`"
 
-    assert read("README.md") =~ "a single-use upload URL, good for ten minutes"
+    assert_states(read("README.md"), "a single-use upload URL, good for ten minutes")
     assert read("docs/agents.md") =~ "`curl -F file=@cv.docx -F sha256=<hex> <upload_url>`"
   end
 

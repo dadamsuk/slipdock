@@ -5,6 +5,8 @@ defmodule SlipdockWeb.VerifyRejectionLimitLiveTest do
   """
   use SlipdockWeb.ConnCase, async: true
 
+  import Slipdock.DocsFacts, only: [assert_states: 2]
+
   import Phoenix.LiveViewTest
   import Slipdock.Fixtures
 
@@ -54,17 +56,17 @@ defmodule SlipdockWeb.VerifyRejectionLimitLiveTest do
 
   test "the guide, docs/agents.md and the manual describe it", ctx do
     guide = SlipdockWeb.APIGuide.markdown(user: ctx.user) |> String.replace(~r/\s+/, " ")
-    assert guide =~ "Past the board's `verify_rejection_limit` (2 by default, 0 never)"
+    assert_states(guide, "Past the board's `verify_rejection_limit` (2 by default, 0 never)")
 
     agents = Slipdock.DocsText.read!("docs/agents.md") |> String.replace(~r/\s+/, " ")
     assert agents =~ "`verify_rejection_limit` (2 by default, 0 never;"
 
     manual = Slipdock.DocsText.read!("docs/manual.md") |> String.replace(~r/\s+/, " ")
-    assert manual =~ "**Too many rejections go to a person.**"
+    assert_states(manual, "**Too many rejections go to a person.**")
     assert manual =~ "--verify-rejection-limit 2"
-    assert manual =~ "*Rework as rejected* (or any other answer, or skipping)"
+    assert_states(manual, "*Rework as rejected* (or any other answer, or skipping)")
     # #1777's four checks and #1778's parts, in the manual too.
     assert manual =~ "**The verdict in parts.**"
-    assert manual =~ "The verifier judges four things in order"
+    assert_states(manual, "The verifier judges four things in order")
   end
 end

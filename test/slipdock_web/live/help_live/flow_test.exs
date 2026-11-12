@@ -11,6 +11,8 @@ defmodule SlipdockWeb.HelpLive.FlowTest do
   """
   use SlipdockWeb.ConnCase, async: true
 
+  import Slipdock.DocsFacts, only: [assert_states: 2, assert_states: 3]
+
   import Phoenix.LiveViewTest
 
   alias SlipdockWeb.HelpLive.{CLIHelp, Flow}
@@ -203,7 +205,7 @@ defmodule SlipdockWeb.HelpLive.FlowTest do
       # Both ways back are drawn on the diagram.
       [verifying] = texts(d, "#flow-node-verifying")
       assert verifying =~ "Rejected: back to 2"
-      assert verifying =~ "Rejected past the limit: a wait on you"
+      assert_states(verifying, "Rejected past the limit: a wait on you")
       assert texts(d, "#flow-node-building") |> hd() =~ "a wait on you"
     end
 
@@ -216,8 +218,12 @@ defmodule SlipdockWeb.HelpLive.FlowTest do
       text =
         doc(html) |> texts("#flow-verifying") |> Enum.join(" ") |> String.replace(~r/\s+/, " ")
 
-      assert text =~ "Submitted again, it is judged on what failed and what the new commits touch"
-      assert text =~ "shown as carried from the commit it passed at"
+      assert_states(
+        text,
+        "Submitted again, it is judged on what failed and what the new commits touch"
+      )
+
+      assert_states(text, "shown as carried from the commit it passed at")
     end
 
     @tag :anonymous
@@ -226,8 +232,8 @@ defmodule SlipdockWeb.HelpLive.FlowTest do
       {:ok, _view, html} = live_flow(conn)
       text = doc(html) |> texts("#flow-claimed") |> Enum.join(" ")
 
-      assert text =~ "the server makes the move the moment a runner claims it"
-      assert text =~ "the job's prompt names that list"
+      assert_states(text, "the server makes the move the moment a runner claims it")
+      assert_states(text, "the job's prompt names that list")
       refute text =~ "The agent moves the card into progress"
     end
 
@@ -239,18 +245,18 @@ defmodule SlipdockWeb.HelpLive.FlowTest do
       notes = fn id -> texts(d, ~s{#flow-#{id} [data-person="true"]}) |> Enum.join(" ") end
 
       # Applying proposals.
-      assert notes.("afterwards") =~ "The proposals are yours to apply"
+      assert_states(notes.("afterwards"), "The proposals are yours to apply")
       assert notes.("afterwards") =~ "Tidy-up page"
       # Rejections over the limit.
       assert notes.("verifying") =~ "Rejections before a person decides"
       assert notes.("verifying") =~ "accept it as is"
       # Accepting on a board without a verifier.
       assert notes.("verifying") =~ "With no verify pool"
-      assert notes.("submitting") =~ "With A second agent verifies off"
+      assert_states(notes.("submitting"), "With A second agent verifies off")
       # Waits.
       assert notes.("building") =~ "Answer its waits"
       # A bar a person has to word, and a pause only a person lifts.
-      assert notes.("writing") =~ "Write a bar that can be met"
+      assert_states(notes.("writing"), "Write a bar that can be met")
       assert notes.("claimed") =~ "Only a person resumes it"
     end
 
@@ -325,8 +331,11 @@ defmodule SlipdockWeb.HelpLive.FlowTest do
         [_, rest] = String.split(manual, heading <> " ", parts: 2)
         [section | _] = String.split(rest, " ## ", parts: 2)
 
-        assert section =~ "the help page **How work flows** (`/help/agents/flow`)",
-               "#{heading} doesn't point to the page"
+        assert_states(
+          section,
+          "the help page **How work flows** (`/help/agents/flow`)",
+          "#{heading} doesn't point to the page"
+        )
       end
     end
   end

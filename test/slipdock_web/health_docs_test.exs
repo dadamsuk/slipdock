@@ -6,6 +6,8 @@ defmodule SlipdockWeb.HealthDocsTest do
   """
   use SlipdockWeb.ConnCase, async: true
 
+  import Slipdock.DocsFacts, only: [assert_states: 2]
+
   @root Path.expand("../..", __DIR__)
   defp read(path), do: Slipdock.DocsText.read!(Path.join(@root, path))
 
@@ -30,7 +32,7 @@ defmodule SlipdockWeb.HealthDocsTest do
     assert manual =~ "[The health monitor](the-health-monitor.md)"
     assert manual =~ "slipdock health settings ops no_runner minutes=30"
     assert manual =~ "PATCH /api/boards/:board/health/settings"
-    assert manual =~ "**The health monitor needs a person**"
+    assert_states(manual, "**The health monitor needs a person**")
 
     for detector <- Slipdock.Health.detectors() do
       assert manual =~ "| `#{detector.key()}` |",
@@ -48,8 +50,8 @@ defmodule SlipdockWeb.HealthDocsTest do
   test "README links the manual's section, and the slipdock skill knows stuck and health" do
     assert read("README.md") =~ "docs/manual/the-health-monitor.md"
     skill = read("priv/skills/slipdock/SKILL.md")
-    assert skill =~ "flagged blocked review waiting starred stuck"
-    assert skill =~ "stuck is the health monitor's: leave it for a person"
+    assert_states(skill, "flagged blocked review waiting starred stuck")
+    assert_states(skill, "stuck is the health monitor's: leave it for a person")
     assert skill =~ "slipdock health <board> [--run]"
     assert skill =~ "slipdock health settings <board>"
   end

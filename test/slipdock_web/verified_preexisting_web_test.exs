@@ -7,6 +7,8 @@ defmodule SlipdockWeb.VerifiedPreexistingWebTest do
   """
   use SlipdockWeb.ConnCase, async: true
 
+  import Slipdock.DocsFacts, only: [assert_states: 2]
+
   import Phoenix.LiveViewTest
   import Slipdock.Fixtures
 
@@ -119,18 +121,23 @@ defmodule SlipdockWeb.VerifiedPreexistingWebTest do
     read = fn path -> path |> Slipdock.DocsText.read!() |> flat.() end
 
     guide = SlipdockWeb.APIGuide.markdown(user: ctx.user) |> flat.()
-    assert guide =~ "`rule:UX-4=pre-existing:lib/x.ex:42` for a rule broken only in lines"
+    assert_states(guide, "`rule:UX-4=pre-existing:lib/x.ex:42` for a rule broken only in lines")
     assert guide =~ "source `rejection`, `verification`"
-    assert guide =~ "asking whether the approach, not the fix, is wrong"
+    assert_states(guide, "asking whether the approach, not the fix, is wrong")
 
     manual = read.("docs/manual.md")
-    assert manual =~ "**Rule hits on code the change didn't touch are reported, not rejected.**"
-    assert manual =~ "say the approach may be wrong, not the fix"
+
+    assert_states(
+      manual,
+      "**Rule hits on code the change didn't touch are reported, not rejected.**"
+    )
+
+    assert_states(manual, "say the approach may be wrong, not the fix")
     assert manual =~ "sources `rejection`, `verification`"
 
     agents = read.("docs/agents.md")
     assert agents =~ "`rule:<id>=pre-existing:<file>:<line>`: never a rejection"
-    assert agents =~ "asks whether the approach, not the fix, is wrong"
+    assert_states(agents, "asks whether the approach, not the fix, is wrong")
 
     assert read.("cli/help.txt") =~ "rule:UX-4=pre-existing:lib/x.ex:42 is a rule broken"
     assert read.("priv/skills/slipdock/SKILL.md") =~ "# rule:<id>=pre-existing:<file>:<line>"

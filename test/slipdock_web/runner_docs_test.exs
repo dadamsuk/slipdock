@@ -6,6 +6,8 @@ defmodule SlipdockWeb.RunnerDocsTest do
   """
   use ExUnit.Case, async: true
 
+  import Slipdock.DocsFacts, only: [assert_states: 2]
+
   @root Path.expand("../..", __DIR__)
   defp read(path), do: Slipdock.DocsText.read!(Path.join(@root, path))
 
@@ -90,10 +92,12 @@ defmodule SlipdockWeb.RunnerDocsTest do
     manual = read("docs/manual.md")
     assert manual =~ "`no_skills_update: true`"
     assert manual =~ "fetches the server's\n`/api/skills.tar.gz`"
-    assert manual =~ "skill folder that is a symlink"
+    assert_states(manual, "skill folder that is a symlink")
 
-    assert read("CLAUDE.md") =~
-             "The runner daemon also puts the server's there before each agent job (#2614)"
+    assert_states(
+      read("CLAUDE.md"),
+      "The runner daemon also puts the server's there before each agent job (#2614)"
+    )
 
     refute read("CLAUDE.md") =~ "installs nothing yet"
   end
@@ -101,51 +105,59 @@ defmodule SlipdockWeb.RunnerDocsTest do
   test "agents.md and the API guide say the daemon keeps the skills current, and when not (#2643)" do
     agents = read("docs/agents.md")
 
-    assert agents =~
-             "needs no step for its skills: before\neach agent job its daemon puts the server's skills in place"
+    assert_states(
+      agents,
+      "needs no step for its skills: before\neach agent job its daemon puts the server's skills in place"
+    )
 
     assert agents =~ "whose `local.json` sets `no_skills_update: true`"
-    assert agents =~ "Under the `user` executor the job account unpacks\nthe skills itself"
+    assert_states(agents, "Under the `user` executor the job account unpacks\nthe skills itself")
     refute agents =~ "Under the `user` executor, and for a CLI the daemon doesn't write"
 
     guide = read("lib/slipdock_web/api_guide.ex")
 
-    assert guide =~
-             "under the `user`\n    executor the job account unpacks them; `no_skills_update` turns it\n    off"
+    assert_states(
+      guide,
+      "under the `user`\n    executor the job account unpacks them; `no_skills_update` turns it\n    off"
+    )
 
-    assert guide =~
-             "For skills it doesn't update and\n    a CLI it doesn't write, run the install one-liner"
+    assert_states(
+      guide,
+      "For skills it doesn't update and\n    a CLI it doesn't write, run the install one-liner"
+    )
 
     refute guide =~ "Otherwise, run the install one-liner"
   end
 
   test "a container job's live transcript is described as sent, and how it is read (#2625)" do
     machines = read("docs/manual/machines.md")
-    assert machines =~ "fresh,\n  empty directory of the job's own at `~/.claude/projects`"
-    assert machines =~ "The live transcript is sent as it is for any other job"
-    assert machines =~ "a link, a FIFO or a file over 128 MB"
+    assert_states(machines, "fresh,\n  empty directory of the job's own at `~/.claude/projects`")
+    assert_states(machines, "The live transcript is sent as it is for any other job")
+    assert_states(machines, "a link, a FIFO or a file over 128 MB")
     refute machines =~ "the live transcript isn't sent"
 
-    assert read("daemon/internal/contract/contract.md") =~
-             "an empty directory of its own for the agent's\n  transcript"
+    assert_states(
+      read("daemon/internal/contract/contract.md"),
+      "an empty directory of its own for the agent's\n  transcript"
+    )
   end
 
   test "the daemon keeping the CLI current is described in the manual, agents page and help (#2631)" do
     manual = read("docs/manual.md")
     assert manual =~ "`no_cli_update: true`"
     assert manual =~ "fetches\n`/cli/slipdock.escript`, checks its SHA-256"
-    assert manual =~ "A failed fetch or a wrong sum keeps the CLI there was"
+    assert_states(manual, "A failed fetch or a wrong sum keeps the CLI there was")
     refute manual =~ "There, and for the `slipdock` CLI, run the"
 
     agents = read("docs/agents.md")
     assert agents =~ "`no_cli_update: true`"
     # Only a signed (`v*` tag's) deploy; one from main shows unsigned (#2825).
-    assert agents =~ "so a deploy of a `v*` tag leaves no runner *cli\nold*"
+    assert_states(agents, "so a deploy of a `v*` tag leaves no runner *cli old*")
     refute agents =~ "The server never changes the machine: run the install"
 
     help = read("lib/slipdock_web/live/help_live/agents.ex")
     assert help =~ ~s(id="help-machine-keeps-current")
-    assert help =~ "A failed fetch or a wrong sum keeps the CLI it had"
+    assert_states(help, "A failed fetch or a wrong sum keeps the CLI it had")
     assert help =~ "<code>no_cli_update</code>"
 
     guide = read("lib/slipdock_web/api_guide.ex")
@@ -163,13 +175,13 @@ defmodule SlipdockWeb.RunnerDocsTest do
     assert read("docs/manual/machines.md") =~ "`cli_checksum_only: true` lets it install a CLI"
 
     help = read("lib/slipdock_web/live/help_live/agents.ex")
-    assert help =~ "installed only when its signature verifies"
+    assert_states(help, "installed only when its signature verifies")
     assert help =~ "<code>cli_checksum_only</code>"
 
     # The trust contract no longer says the CLI is checked only against the
     # server's checksum, except under cli_checksum_only.
     contract = read("daemon/internal/contract/contract.md")
-    assert contract =~ "Give the agent a `slipdock` CLI the project didn't sign."
+    assert_states(contract, "Give the agent a `slipdock` CLI the project didn't sign.")
     assert contract =~ "With `cli_checksum_only` set in `local.json`"
 
     refute contract =~
@@ -188,20 +200,22 @@ defmodule SlipdockWeb.RunnerDocsTest do
       assert text =~ "skills_unsigned", "#{path} doesn't name skills_unsigned"
     end
 
-    assert read("docs/manual/machines.md") =~
-             "`skills_unsigned: true` does the same for the skills"
+    assert_states(
+      read("docs/manual/machines.md"),
+      "`skills_unsigned: true` does the same for the skills"
+    )
 
     assert read("lib/slipdock_web/live/help_live/agents.ex") =~ "<code>skills_unsigned</code>"
 
     # docs/agents.md says what the daemon trusts the server with.
     agents = read("docs/agents.md")
-    assert agents =~ "**What the daemon trusts the server with.**"
-    assert agents =~ "a key the server doesn't hold"
+    assert_states(agents, "**What the daemon trusts the server with.**")
+    assert_states(agents, "a key the server doesn't hold")
 
     # The trust contract no longer says the skills are checked against
     # nothing but the server, except under skills_unsigned.
     contract = read("daemon/internal/contract/contract.md")
-    assert contract =~ "Give the agent slipdock skills the project didn't sign."
+    assert_states(contract, "Give the agent slipdock skills the project didn't sign.")
     assert contract =~ "With\n  `skills_unsigned` set in `local.json`"
 
     refute contract =~
@@ -217,7 +231,7 @@ defmodule SlipdockWeb.RunnerDocsTest do
     assert read("docs/agents.md") =~ "built-in `merge` kind"
 
     guide = read("lib/slipdock_web/api_guide.ex")
-    assert guide =~ "`merge` jobs (merging an accepted card's pull request)"
+    assert_states(guide, "`merge` jobs (merging an accepted card's pull request)")
     assert guide =~ "built into\n    the runner daemon"
     assert guide =~ "`X-Runner-Kinds`"
   end
@@ -237,11 +251,13 @@ defmodule SlipdockWeb.RunnerDocsTest do
     assert guide =~ "`release_command`"
     assert guide =~ "MCP `release_now`"
     # A sub-board's status is its tree's, so it asks for the root too.
-    assert guide =~ "asked of a sub-board, it needs read on the root board too"
-    assert agents =~ "asked of a sub-board, it needs read on the root board too"
+    assert_states(guide, "asked of a sub-board, it needs read on the root board too")
+    assert_states(agents, "asked of a sub-board, it needs read on the root board too")
 
-    assert read("docs/manual/verified-work.md") =~
-             "asking it of a sub-board needs read on the root board"
+    assert_states(
+      read("docs/manual/verified-work.md"),
+      "asking it of a sub-board needs read on the root board"
+    )
 
     # The daemon's built-in kind and its limits (#2836).
     assert agents =~ "built-in `release` kind"
@@ -258,7 +274,7 @@ defmodule SlipdockWeb.RunnerDocsTest do
     assert help =~ ~s(id="help-machine-release")
     assert help =~ "<code>release_commands</code>"
     assert help =~ "<code>no_release: true</code>"
-    assert help =~ "it never runs what the server sends"
+    assert_states(help, "it never runs what the server sends")
 
     # Every place that says what a board's release command does says a
     # custom one runs only where the machine lists it (#2836).
@@ -281,7 +297,7 @@ defmodule SlipdockWeb.RunnerDocsTest do
 
     contract = read("daemon/internal/contract/contract.md")
     assert contract =~ "- Start a release."
-    assert contract =~ "A board's release command is no exception"
+    assert_states(contract, "A board's release command is no exception")
 
     help = read("cli/help.txt")
     assert help =~ "release <board>"

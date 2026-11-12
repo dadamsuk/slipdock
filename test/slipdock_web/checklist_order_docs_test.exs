@@ -6,6 +6,8 @@ defmodule SlipdockWeb.ChecklistOrderDocsTest do
   """
   use SlipdockWeb.ConnCase, async: true
 
+  import Slipdock.DocsFacts, only: [assert_states: 2]
+
   @root Path.expand("../..", __DIR__)
   defp read(path), do: Slipdock.DocsText.read!(Path.join(@root, path))
 
@@ -23,7 +25,7 @@ defmodule SlipdockWeb.ChecklistOrderDocsTest do
 
   test "the manual, README, agents page and CLI help name it" do
     manual = read("docs/manual.md")
-    assert manual =~ "drag an item by its handle to put it in a new order"
+    assert_states(manual, "drag an item by its handle to put it in a new order")
     assert manual =~ "POST   /api/checklist/:item_id/move {before}"
     assert manual =~ "slipdock move-check 13 --before 11"
     assert read("README.md") =~ "`slipdock move-check`"

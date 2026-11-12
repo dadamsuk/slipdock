@@ -9,6 +9,8 @@ defmodule Slipdock.ScriptsRetiredDocsTest do
   """
   use ExUnit.Case, async: true
 
+  import Slipdock.DocsFacts, only: [assert_states: 2]
+
   @root Path.expand("../..", __DIR__)
 
   defp read(path), do: Slipdock.DocsText.read!(Path.join(@root, path))
@@ -67,8 +69,10 @@ defmodule Slipdock.ScriptsRetiredDocsTest do
     guide = SlipdockWeb.APIGuide.markdown()
     for phrase <- @gone, do: refute(guide =~ phrase, "the guide still says #{inspect(phrase)}")
 
-    assert String.replace(guide, ~r/\s+/, " ") =~
-             "every path under `/runner/`, where they were served, answers 410 Gone"
+    assert_states(
+      String.replace(guide, ~r/\s+/, " "),
+      "every path under `/runner/`, where they were served, answers 410 Gone"
+    )
   end
 
   test "the manual's Runners page says they were retired and points at Machines" do
@@ -79,12 +83,14 @@ defmodule Slipdock.ScriptsRetiredDocsTest do
     assert runners =~ "[machine](machines.md)"
     assert runners =~ "[Machines page](machines.md#the-machines-page)"
 
-    assert String.replace(runners, ~r/\s+/, " ") =~
-             "*Moving a machine's runners onto the daemon*"
+    assert_states(
+      String.replace(runners, ~r/\s+/, " "),
+      "*Moving a machine's runners onto the daemon*"
+    )
 
     machines = read("docs/manual/machines.md")
     refute machines =~ "its runners are still the\n[shell runners]"
-    assert machines =~ "It replaced the shell and PowerShell runners"
+    assert_states(machines, "It replaced the shell and PowerShell runners")
   end
 
   test "the README, agents.md and the help page say so too" do

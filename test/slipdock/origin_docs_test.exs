@@ -6,6 +6,8 @@ defmodule Slipdock.OriginDocsTest do
   """
   use ExUnit.Case, async: true
 
+  import Slipdock.DocsFacts, only: [assert_states: 3]
+
   @root Path.expand("../..", __DIR__)
 
   defp read(path), do: File.read!(Path.join(@root, path))
@@ -22,7 +24,7 @@ defmodule Slipdock.OriginDocsTest do
           {"cli/help.txt", "--origin sweep|findings"},
           {"priv/skills/slipdock/SKILL.md", "--origin sweep|findings names the generator"}
         ] do
-      assert read(path) =~ words, "#{path} doesn't say #{inspect(words)}"
+      assert_states(read(path), words, "#{path} doesn't say #{inspect(words)}")
     end
   end
 end

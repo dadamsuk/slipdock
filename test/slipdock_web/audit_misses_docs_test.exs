@@ -8,6 +8,8 @@ defmodule SlipdockWeb.AuditMissesDocsTest do
   """
   use SlipdockWeb.ConnCase, async: true
 
+  import Slipdock.DocsFacts, only: [assert_states: 2]
+
   import Phoenix.LiveViewTest
 
   @root Path.expand("../..", __DIR__)
@@ -17,27 +19,29 @@ defmodule SlipdockWeb.AuditMissesDocsTest do
   test "the manual's audit bullet says the verify prompt carries recent misses" do
     manual = @root |> Path.join("docs/manual/verified-work.md") |> File.read!() |> flat()
 
-    assert manual =~ "the verify prompt carries *What audits on this board caught recently*"
-    assert manual =~ "the last five audit disagreements of the last 30 days"
-    assert manual =~ "tells the verifier to check those first"
-    assert manual =~ "the audit prompt never carries it"
+    assert_states(manual, "the verify prompt carries *What audits on this board caught recently*")
+    assert_states(manual, "the last five audit disagreements of the last 30 days")
+    assert_states(manual, "tells the verifier to check those first")
+    assert_states(manual, "the audit prompt never carries it")
   end
 
   test "docs/agents.md, the API guide and the loop skill say it" do
     read = fn path -> @root |> Path.join(path) |> File.read!() |> flat() end
 
     agents = read.("docs/agents.md")
-    assert agents =~ "the verify prompt carries *What audits on this board caught recently*"
-    assert agents =~ "for the verifier to check first"
-    assert agents =~ "The audit prompt never carries it."
+    assert_states(agents, "the verify prompt carries *What audits on this board caught recently*")
+    assert_states(agents, "for the verifier to check first")
+    assert_states(agents, "The audit prompt never carries it.")
 
     guide = read.("lib/slipdock_web/api_guide.ex")
 
-    assert guide =~
-             "The verify prompt (never the audit's) lists the tree's last five audit misses"
+    assert_states(
+      guide,
+      "The verify prompt (never the audit's) lists the tree's last five audit misses"
+    )
 
     skill = read.("priv/skills/slipdock-loop/SKILL.md")
-    assert skill =~ "*What audits on this board caught recently*): check those first"
+    assert_states(skill, "*What audits on this board caught recently*): check those first")
     assert skill =~ "An audit's prompt never does"
   end
 
@@ -51,17 +55,17 @@ defmodule SlipdockWeb.AuditMissesDocsTest do
       |> LazyHTML.text()
       |> flat()
 
-    assert text =~ "what audits on this board caught recently"
-    assert text =~ "the last five audit disagreements of the last 30 days"
+    assert_states(text, "what audits on this board caught recently")
+    assert_states(text, "the last five audit disagreements of the last 30 days")
     assert text =~ "check those first"
-    assert text =~ "The audit's own prompt never carries the list"
+    assert_states(text, "The audit's own prompt never carries the list")
   end
 
   test "the Flow help page's audit item says it", %{conn: conn} do
     {:ok, _view, html} = live(conn, ~p"/help/agents/flow")
     text = html |> LazyHTML.from_document() |> LazyHTML.text() |> flat()
 
-    assert text =~ "The verify prompt then lists the board's last five audit misses"
+    assert_states(text, "The verify prompt then lists the board's last five audit misses")
     assert text =~ "the audit prompt never does"
   end
 end

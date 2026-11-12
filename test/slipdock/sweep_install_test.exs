@@ -6,6 +6,8 @@ defmodule Slipdock.SweepInstallTest do
   """
   use SlipdockWeb.ConnCase, async: true
 
+  import Slipdock.DocsFacts, only: [assert_states: 2]
+
   import Slipdock.Fixtures
 
   alias Slipdock.{Accounts, Handbook, Sweep}
@@ -57,6 +59,7 @@ defmodule Slipdock.SweepInstallTest do
     test "without a board it says to give one", %{user: user} do
       result = user |> token_conn() |> mcp(%{"tool" => "sweep"})
       assert result["isError"] == true
+      # not a doc: the tool's error
       assert hd(result["content"])["text"] =~ "the sweep installs onto a board: give board"
     end
 
@@ -105,6 +108,7 @@ defmodule Slipdock.SweepInstallTest do
                |> post("/api/tools/sweep/install", %{})
                |> json_response(422)
 
+      # not a doc: the tool's error
       assert inspect(error) =~ "the sweep installs onto a board: give board"
     end
 
@@ -125,30 +129,29 @@ defmodule Slipdock.SweepInstallTest do
       assert {:ok, section} = SlipdockWeb.APIGuide.section("handbook", [])
       assert section =~ "### Code sweeps"
       assert guide =~ "slipdock tools install-board sweep --board"
-      assert guide =~ "Never take work from a Triage list"
+      assert_states(guide, "Never take work from a Triage list")
     end
 
     test "the guide and the manual say a mechanical fix in many files is one issue (#2795)" do
-      flat = fn text -> String.replace(text, ~r/\s+/, " ") end
-
       for text <- [SlipdockWeb.APIGuide.markdown(), Slipdock.DocsText.read!("docs/manual.md")] do
-        text = flat.(text)
-        assert text =~ "the same mechanical fix in many files is one issue"
-        assert text =~ "never a card per file, module or area"
-        assert text =~ "one card for the whole sweep, or a few split by lane"
+        assert_states(text, "the same mechanical fix in many files is one issue")
+        assert_states(text, "never a card per file, module or area")
+        assert_states(text, "one card for the whole sweep, or a few split by lane")
       end
 
-      assert flat.(SlipdockWeb.APIGuide.markdown()) =~ "each one commit with its tests"
+      assert_states(SlipdockWeb.APIGuide.markdown(), "each one commit with its tests")
     end
 
     test "the manual, tool-packages, agents.md and both skills say so" do
       assert Slipdock.DocsText.read!("docs/manual.md") =~ "**The code sweep**"
-      assert Slipdock.DocsText.read!("docs/manual.md") =~ "**A Triage list is never fed.**"
+      assert_states(Slipdock.DocsText.read!("docs/manual.md"), "**A Triage list is never fed.**")
       assert Slipdock.DocsText.read!("docs/tool-packages.md") =~ "`triage`"
       assert Slipdock.DocsText.read!("docs/agents.md") =~ "Triage"
 
-      assert Slipdock.DocsText.read!("priv/skills/slipdock-loop/SKILL.md") =~
-               "Never take a card from a **Triage** list"
+      assert_states(
+        Slipdock.DocsText.read!("priv/skills/slipdock-loop/SKILL.md"),
+        "Never take a card from a **Triage** list"
+      )
 
       assert Slipdock.DocsText.read!("priv/skills/slipdock/SKILL.md") =~
                "install-board sweep --board B"

@@ -6,6 +6,8 @@ defmodule SlipdockWeb.HandbookHelpTest do
   """
   use SlipdockWeb.ConnCase, async: true
 
+  import Slipdock.DocsFacts, only: [assert_states: 2]
+
   import Phoenix.LiveViewTest
 
   test "/help/agents/skills names Principles and Playbook among the handbook's pages",
@@ -13,8 +15,10 @@ defmodule SlipdockWeb.HandbookHelpTest do
     {:ok, _view, html} = live(conn, ~p"/help/agents/skills")
     text = html |> Floki.parse_document!() |> Floki.text() |> String.replace(~r/\s+/, " ")
 
-    assert text =~
-             "shared modules, testing, operations, principles (the tie-breakers, each a PRIN rule) and the playbook (how an idea becomes cards on the board)"
+    assert_states(
+      text,
+      "shared modules, testing, operations, principles (the tie-breakers, each a PRIN rule) and the playbook (how an idea becomes cards on the board)"
+    )
   end
 
   test "/help/tools says what Principles and Playbook are for, and that editing them changes the process (#2041)",
@@ -22,11 +26,11 @@ defmodule SlipdockWeb.HandbookHelpTest do
     {:ok, _view, html} = live(conn, ~p"/help/tools")
     text = html |> Floki.parse_document!() |> Floki.text() |> String.replace(~r/\s+/, " ")
 
-    assert text =~ "How your board plans: Principles and Playbook"
+    assert_states(text, "How your board plans: Principles and Playbook")
     assert text =~ "Principles are the tie-breakers"
-    assert text =~ "it sizes the ask as a card, a feature or a system"
+    assert_states(text, "it sizes the ask as a card, a feature or a system")
     assert text =~ "A one-sentence ask stays one card."
-    assert text =~ "Editing these two pages is how a board changes its process"
+    assert_states(text, "Editing these two pages is how a board changes its process")
     assert text =~ "never touches one you've edited"
   end
 end

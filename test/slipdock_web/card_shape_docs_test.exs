@@ -9,6 +9,8 @@ defmodule SlipdockWeb.CardShapeDocsTest do
   # The guide reads the settings, so this needs the database.
   use SlipdockWeb.ConnCase, async: true
 
+  import Slipdock.DocsFacts, only: [assert_states: 2, assert_states: 3]
+
   import Phoenix.LiveViewTest
 
   alias SlipdockWeb.APIGuide
@@ -59,39 +61,49 @@ defmodule SlipdockWeb.CardShapeDocsTest do
         do: assert(String.starts_with?(item, start), item)
 
     text = flat(epics())
-    assert text =~ "Never an epic with one subcard"
-    assert text =~ "a **done-when** line, the stop condition the evidence answers"
-    assert text =~ "no Given/When/Then unless the board's Playbook asks for it"
-    assert text =~ "A one-card ask gets none unless the person said \"after X\"."
+    assert_states(text, "Never an epic with one subcard")
+    assert_states(text, "a **done-when** line, the stop condition the evidence answers")
+    assert_states(text, "no Given/When/Then unless the board's Playbook asks for it")
+    assert_states(text, "A one-card ask gets none unless the person said \"after X\".")
   end
 
   test "and says a handbook's Playbook overrides them" do
-    assert flat(epics()) =~
-             "A board's handbook can override these: the `## Card shape` section of its Playbook page wins wherever it says otherwise."
+    assert_states(
+      flat(epics()),
+      "A board's handbook can override these: the `## Card shape` section of its Playbook page wins wherever it says otherwise."
+    )
   end
 
   test "docs/agents.md says the same, bullet for bullet" do
     agents = File.read!(Path.join(@root, "docs/agents.md"))
-    assert agents =~ "## How an ask becomes a card"
+    assert_states(agents, "## How an ask becomes a card")
     assert bullets(agents) == bullets(epics())
 
-    assert flat(agents) =~
-             "the `## Card shape` section of its Playbook page wins wherever it says otherwise"
+    assert_states(
+      flat(agents),
+      "the `## Card shape` section of its Playbook page wins wherever it says otherwise"
+    )
   end
 
   test "slipdock-work points at it", %{} do
     for path <- copies("slipdock-work") do
       text = flat(File.read!(path))
-      assert text =~ "A one-sentence ask becomes a card as the guide's **Card shape** says", path
-      assert text =~ "A board's handbook Playbook `## Card shape` overrides it.", path
+
+      assert_states(
+        text,
+        "A one-sentence ask becomes a card as the guide's **Card shape** says",
+        path
+      )
+
+      assert_states(text, "A board's handbook Playbook `## Card shape` overrides it.", path)
     end
   end
 
   test "the agents help page lists them", %{conn: conn} do
     {:ok, _view, html} = live(conn, ~p"/help/agents/guide")
-    assert html =~ "How an ask becomes a card"
-    assert html =~ "Never an epic with one subcard"
-    assert html =~ "the Card shape section of its Playbook page wins"
+    assert_states(html, "How an ask becomes a card")
+    assert_states(html, "Never an epic with one subcard")
+    assert_states(html, "the Card shape section of its Playbook page wins")
   end
 
   test "sprints are their own section, and the short guide keeps its caps" do
@@ -100,7 +112,7 @@ defmodule SlipdockWeb.CardShapeDocsTest do
     assert sprints =~ "POST /api/cards/:sprint/sprint"
     refute epics() =~ "POST /api/cards/:sprint/sprint"
     # What a working agent must still know is in Epics: a stand-in is not work.
-    assert flat(epics()) =~ "It is not work: do not pick it up, edit it or count it"
+    assert_states(flat(epics()), "It is not work: do not pick it up, edit it or count it")
 
     short = APIGuide.short()
     assert short =~ "**Card shape.**"

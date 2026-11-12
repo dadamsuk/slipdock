@@ -10,6 +10,8 @@ defmodule Slipdock.MachinesDocsTest do
   """
   use ExUnit.Case, async: true
 
+  import Slipdock.DocsFacts, only: [assert_states: 2, assert_states: 3]
+
   @root Path.expand("../..", __DIR__)
   defp read(path), do: File.read!(Path.join(@root, path))
 
@@ -55,7 +57,10 @@ defmodule Slipdock.MachinesDocsTest do
   end
 
   test "README and the agents help page say what a machine key is" do
-    assert read("README.md") =~ "A machine running runners has a key of its own, not your token."
+    assert_states(
+      read("README.md"),
+      "A machine running runners has a key of its own, not your token."
+    )
 
     help = read("lib/slipdock_web/live/help_live/agents.ex")
     assert help =~ ~s(id="help-machines")
@@ -92,7 +97,7 @@ defmodule Slipdock.MachinesDocsTest do
     assert manual =~ "slipdock machine add-runner"
     assert read("docs/manual.md") =~ "(manual/machines.md#the-machines-page)"
     assert read("docs/agents.md") =~ "| A machine with the daemon |"
-    assert read("README.md") =~ "machine with the runner daemon (offered first"
+    assert_states(read("README.md"), "machine with the runner daemon (offered first")
 
     help = read("lib/slipdock_web/live/help_live/agents.ex")
     assert help =~ ~s(id="help-machine-page")
@@ -105,7 +110,7 @@ defmodule Slipdock.MachinesDocsTest do
              "--label is\n" <> String.duplicate(" ", 49) <> "the name the machine enrols under"
 
     assert manual =~ "slipdock machine rename"
-    assert manual =~ "the name the machine enrols under"
+    assert_states(manual, "the name the machine enrols under")
     assert help =~ "rename the machine"
   end
 
@@ -147,16 +152,16 @@ defmodule Slipdock.MachinesDocsTest do
             "GET /api/machine/setup-prompt",
             "Testing & tooling §Local setup"
           ] do
-        assert text =~ part, "missing #{part}"
+        assert_states(text, part, "missing #{part}")
       end
     end
 
     manual = read("docs/manual/machines.md")
-    assert manual =~ "### Set up this machine with Claude"
+    assert_states(manual, "### Set up this machine with Claude")
     assert manual =~ "slipdock-runner setup"
     assert manual =~ "init --no-setup"
     assert read("docs/manual.md") =~ "(manual/machines.md#set-up-this-machine-with-claude)"
-    assert read("README.md") =~ "*Set up this machine with Claude* there"
+    assert_states(read("README.md"), "*Set up this machine with Claude* there")
     assert read("lib/slipdock_web/live/help_live/agents.ex") =~ ~s(id="help-machine-setup")
     assert read("cli/help.txt") =~ "machine setup-prompt <id>"
     assert read("priv/skills/slipdock/SKILL.md") =~ "slipdock machine setup-prompt <id>"
@@ -174,7 +179,7 @@ defmodule Slipdock.MachinesDocsTest do
     assert guide =~ "with `scenario` (#{listed})"
 
     runners = String.replace(read("docs/manual/runners.md"), ~r/\s+/, " ")
-    assert runners =~ "where the work should happen — a machine with the runner daemon"
+    assert_states(runners, "where the work should happen — a machine with the runner daemon")
     for s <- scenarios, do: assert(runners =~ "`#{s}`", "runners.md's CLI row lacks #{s}")
 
     assert read("priv/skills/slipdock/SKILL.md") =~ "slipdock machine add-runner"
@@ -195,7 +200,7 @@ defmodule Slipdock.MachinesDocsTest do
           "`run --log-level`",
           "It exits non-zero when the daemon isn't running or a runner's settings were refused"
         ] do
-      assert manual =~ part, "missing #{part}"
+      assert_states(manual, part, "missing #{part}")
     end
   end
 
@@ -209,7 +214,7 @@ defmodule Slipdock.MachinesDocsTest do
           "Waking from sleep is noticed.",
           "a laptop that sleeps, roams or goes offline"
         ] do
-      assert manual =~ part, "the manual is missing #{part}"
+      assert_states(manual, part, "the manual is missing #{part}")
     end
 
     assert read("docs/manual.md") =~ "(manual/machines.md#when-the-connection-drops)"
@@ -225,7 +230,7 @@ defmodule Slipdock.MachinesDocsTest do
 
     help = read("lib/slipdock_web/live/help_live/agents.ex") |> String.replace(~r/\s+/, " ")
     assert help =~ ~s(id="help-machine-connection")
-    assert help =~ "a laptop that sleeps or changes networks"
+    assert_states(help, "a laptop that sleeps or changes networks")
   end
 
   # The Go a machine needs to build the daemon is go.mod's, wherever it is

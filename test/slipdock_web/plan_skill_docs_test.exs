@@ -10,6 +10,8 @@ defmodule SlipdockWeb.PlanSkillDocsTest do
   # The help page and the blueprint's pages are rendered, so this needs the database.
   use SlipdockWeb.ConnCase, async: true
 
+  import Slipdock.DocsFacts, only: [assert_states: 2, assert_states: 3]
+
   import Phoenix.LiveViewTest
 
   alias Slipdock.Handbook
@@ -64,15 +66,15 @@ defmodule SlipdockWeb.PlanSkillDocsTest do
 
     flat = flat(text)
     # No handbook: offered, installed only on a yes, else the baseline.
-    assert flat =~ "**No handbook:** say so, and offer to install one"
+    assert_states(flat, "**No handbook:** say so, and offer to install one")
     assert flat =~ "`install_tool` with `tool: \"handbook\"`"
-    assert flat =~ "Install it only when the person says yes"
+    assert_states(flat, "Install it only when the person says yes")
     # The card-sized stop.
-    assert flat =~ "**Card-sized:** make the card as the Playbook's `## Card shape` says"
+    assert_states(flat, "**Card-sized:** make the card as the Playbook's `## Card shape` says")
     assert flat =~ "and **stop**"
     # A named skill: enabled on the board, else installed, else the built-in
     # text, in that order, saying which (#2063).
-    assert flat =~ "When the section names one (`skill: <name>`), take the first of these"
+    assert_states(flat, "When the section names one (`skill: <name>`), take the first of these")
     assert flat =~ "and say which you used"
     step = section(text, "## 3. Run the stages") |> flat()
 
@@ -84,12 +86,12 @@ defmodule SlipdockWeb.PlanSkillDocsTest do
     assert [enabled, installed, neither] |> Enum.all?(&(&1 != :nomatch))
     assert elem(enabled, 0) < elem(installed, 0) and elem(installed, 0) < elem(neither, 0)
     assert step =~ "MCP: `get_guide` with `board`"
-    assert step =~ "a `changed` status means upstream moved on and the pinned text is still"
+    assert_states(step, "a `changed` status means upstream moved on and the pinned text is still")
     # The Decision page's shape.
     assert flat =~ "titled `Decision: <what was chosen>`, with four parts: **Context**"
-    assert flat =~ "**The choice**, **Alternatives** (each, and why not), **Where decided**"
+    assert_states(flat, "**The choice**, **Alternatives** (each, and why not), **Where decided**")
     # Principles are a person's call; the spec and the cards land where the Playbook says.
-    assert flat =~ "When the person agreed it in this conversation, append both"
+    assert_states(flat, "When the person agreed it in this conversation, append both")
     assert flat =~ "`slipdock garden propose <board> -`"
     assert flat =~ "--card <epic>"
     assert flat =~ "A default is never imposed."
@@ -137,14 +139,18 @@ defmodule SlipdockWeb.PlanSkillDocsTest do
     agents = Slipdock.DocsText.read!(Path.join(@root, "docs/agents.md"))
     assert agents =~ "| `slipdock-plan` | Planning:"
     assert agents =~ "## Planning an idea: the `slipdock-plan` skill"
-    assert flat(agents) =~ "It is not used for \"add a card…\"."
+    assert_states(flat(agents), "It is not used for \"add a card…\".")
 
     readme = flat(Slipdock.DocsText.read!(Path.join(@root, "README.md")))
-    assert readme =~ "**Planning.** The `slipdock-plan` skill runs when an agent is asked to plan"
+
+    assert_states(
+      readme,
+      "**Planning.** The `slipdock-plan` skill runs when an agent is asked to plan"
+    )
 
     manual = flat(Slipdock.DocsText.read!(Path.join(@root, "docs/manual.md")))
-    assert manual =~ "**`slipdock-plan`** — planning, when an agent is asked to plan"
-    assert manual =~ "not when asked for a card"
+    assert_states(manual, "**`slipdock-plan`** — planning, when an agent is asked to plan")
+    assert_states(manual, "not when asked for a card")
   end
 
   test "the agents help page lists it", %{conn: conn} do
@@ -157,43 +163,57 @@ defmodule SlipdockWeb.PlanSkillDocsTest do
   describe "a board's enabled skills, served to its agents (#2063)" do
     test "docs/agents.md and the guide name each door and the plan skill's order" do
       agents = flat(Slipdock.DocsText.read!(Path.join(@root, "docs/agents.md")))
-      assert agents =~ "`GET /api/boards/:board/skills`, for anyone who reads the board"
+      assert_states(agents, "`GET /api/boards/:board/skills`, for anyone who reads the board")
       assert agents =~ "`slipdock skills board <board>`"
-      assert agents =~ "MCP's is `get_guide` with `board`, which adds the same list as `skills`"
-      assert agents =~ "the one enabled on the board from the skills registry"
-      assert agents =~ "else one installed locally, else the stage's own text"
+
+      assert_states(
+        agents,
+        "MCP's is `get_guide` with `board`, which adds the same list as `skills`"
+      )
+
+      assert_states(agents, "the one enabled on the board from the skills registry")
+      assert_states(agents, "else one installed locally, else the stage's own text")
       refute agents =~ "uses the skill its section names when that skill is installed"
 
       guide = flat(SlipdockWeb.APIGuide.markdown())
-      assert guide =~ "What the board's agents get is `GET /api/boards/:board/skills`"
+      assert_states(guide, "What the board's agents get is `GET /api/boards/:board/skills`")
       assert guide =~ "CLI: `slipdock skills board <board> [<name>]`"
-      assert guide =~ "`get_guide` with `board`, whose answer adds the same list as `skills`"
+
+      assert_states(
+        guide,
+        "`get_guide` with `board`, whose answer adds the same list as `skills`"
+      )
 
       help = Slipdock.DocsText.read!(Path.join(@root, "cli/help.txt"))
       assert help =~ "skills board <board> [<name>]"
 
       manual = flat(Slipdock.DocsText.read!(Path.join(@root, "docs/manual.md")))
       assert manual =~ "**What the board's agents get.** `GET /api/boards/:board/skills`"
-      assert manual =~ "the one enabled on the board first, else one installed on the machine"
+
+      assert_states(
+        manual,
+        "the one enabled on the board first, else one installed on the machine"
+      )
+
       refute manual =~ "an installed skill named with `skill:`"
 
       readme = flat(Slipdock.DocsText.read!(Path.join(@root, "README.md")))
       assert readme =~ "`slipdock skills board <board> [<name>]`"
-      assert readme =~ "`slipdock-plan` uses one for a Playbook stage that names it"
+      assert_states(readme, "`slipdock-plan` uses one for a Playbook stage that names it")
     end
 
     test "the agents help page has the doors' row and the plan skill's order", %{conn: conn} do
       {:ok, _view, html} = live(conn, ~p"/help/agents")
       text = html |> Floki.parse_document!() |> Floki.text() |> flat()
-      assert text =~ "Get the skills enabled on a board, each with its pinned text"
+      assert_states(text, "Get the skills enabled on a board, each with its pinned text")
       assert text =~ "GET /api/boards/:board/skills"
       assert text =~ "get_guide's board"
       assert text =~ "slipdock skills board"
 
       {:ok, _view, html} = live(conn, ~p"/help/agents/skills")
       text = html |> Floki.parse_document!() |> Floki.text() |> flat()
-      assert text =~ "it uses the one enabled on the board from the skills registry"
-      assert text =~ "else one installed on the machine, else its own text, and says which"
+      assert_states(text, "it uses the one enabled on the board from the skills registry")
+      assert_states(text, "else one installed on the machine, else its own text, and says which")
     end
   end
 
@@ -202,32 +222,40 @@ defmodule SlipdockWeb.PlanSkillDocsTest do
       stage = skill() |> section("### Grill") |> flat()
       assert stage =~ "Ask in numbered rounds."
       refute stage =~ "one question at a time"
-      assert stage =~ "A round is every question whose prerequisites are settled"
-      assert stage =~ "numbered, each with the answer you recommend, so a yes is enough"
+      assert_states(stage, "A round is every question whose prerequisites are settled")
+      assert_states(stage, "numbered, each with the answer you recommend, so a yes is enough")
 
-      assert stage =~
-               "Nobody there: a round goes into one wait, a `--question` each with its recommended answer, never a wait per question"
+      assert_states(
+        stage,
+        "Nobody there: a round goes into one wait, a `--question` each with its recommended answer, never a wait per question"
+      )
 
-      assert stage =~ "The answers settle the next round's prerequisites."
-      assert stage =~ "Stop when the next answer wouldn't change the plan"
-      assert stage =~ "what is built, for whom, what done looks like and what is out of scope"
+      assert_states(stage, "The answers settle the next round's prerequisites.")
+      assert_states(stage, "Stop when the next answer wouldn't change the plan")
 
-      assert stage =~
-               "Produce a brief: the problem, who it is for, done-when, out of scope, open questions."
+      assert_states(
+        stage,
+        "what is built, for whom, what done looks like and what is out of scope"
+      )
+
+      assert_states(
+        stage,
+        "Produce a brief: the problem, who it is for, done-when, out of scope, open questions."
+      )
     end
 
     test "step 3 puts a round into one wait, with a command the CLI takes" do
       step = skill() |> section("## 3. Run the stages") |> flat()
-      assert step =~ "Put a grill round's or decide's questions, or the spike candidates,"
+      assert_states(step, "Put a grill round's or decide's questions, or the spike candidates,")
 
       assert step =~
                ~s{as one wait (`slipdock wait <epic> "intro" --question Q --question Q --kind product`}
 
-      assert step =~ "a grill question's recommended answer in its text"
-      assert step =~ "the answer starts the next pass, and the grill's next round"
+      assert_states(step, "a grill question's recommended answer in its text")
+      assert_states(step, "the answer starts the next pass, and the grill's next round")
 
       # The skill's example names a skill by its front-matter name.
-      assert step =~ ~s{"Grill: `grilling`, enabled on this board from mattpocock/skills"}
+      assert_states(step, ~s{"Grill: `grilling`, enabled on this board from mattpocock/skills"})
       refute skill() =~ ~r/[\w-]+:grilling/
 
       help = Slipdock.DocsText.read!(Path.join(@root, "cli/help.txt"))
@@ -244,8 +272,8 @@ defmodule SlipdockWeb.PlanSkillDocsTest do
             "a round goes into one wait",
             "the next answer wouldn't change the plan"
           ] do
-        assert flat(seed) =~ said, said
-        assert stage =~ said, said
+        assert_states(flat(seed), said, said)
+        assert_states(stage, said, said)
       end
     end
   end
@@ -253,25 +281,32 @@ defmodule SlipdockWeb.PlanSkillDocsTest do
   describe "the Spike stage (#2353)" do
     test "the skill has the three tests, the confirmation, the stop and the resume" do
       stage = skill() |> section("### Spike") |> flat()
-      assert stage =~ "only building answers it (not a person, not reading)?"
-      assert stage =~ ~s{A "no" changes the spec (say how)?}
-      assert stage =~ "counting flow time and lane contention as well as rework?"
-      assert stage =~ "Fails only the third: its card goes first in build order"
-      assert stage =~ "only those the person confirms become spikes"
-      assert stage =~ "None pass: skip the stage and say why"
+      assert_states(stage, "only building answers it (not a person, not reading)?")
+      assert_states(stage, ~s{A "no" changes the spec (say how)?})
+      assert_states(stage, "counting flow time and lane contention as well as rework?")
+      assert_states(stage, "Fails only the third: its card goes first in build order")
+      assert_states(stage, "only those the person confirms become spikes")
+      assert_states(stage, "None pass: skip the stage and say why")
 
       step = skill() |> section("## 3. Run the stages") |> flat()
-      assert step =~ "or the spike candidates, to the person as one wait"
+      assert_states(step, "or the spike candidates, to the person as one wait")
       assert step =~ "--kind product"
-      assert step =~ "**Spikes stop the plan.** With spike cards made, stop"
+      assert_states(step, "**Spikes stop the plan.** With spike cards made, stop")
 
-      assert step =~
-               ~s{slipdock handoff <epic> --next "Planning resumes at Spec once spikes #… are answered"}
+      assert_states(
+        step,
+        ~s{slipdock handoff <epic> --next "Planning resumes at Spec once spikes #… are answered"}
+      )
 
-      assert step =~ "**Resuming**, read each accepted spike's answer page and start at Spec"
+      assert_states(
+        step,
+        "**Resuming**, read each accepted spike's answer page and start at Spec"
+      )
 
-      assert step =~
-               "An *inconclusive* answer goes to the person: another spike, the risky card first, or drop it"
+      assert_states(
+        step,
+        "An *inconclusive* answer goes to the person: another spike, the risky card first, or drop it"
+      )
 
       write = skill() |> section("## 4. Write where the Playbook says") |> flat()
       assert write =~ "**The spikes:**"
@@ -281,16 +316,16 @@ defmodule SlipdockWeb.PlanSkillDocsTest do
 
     test "the spike's add command is one the CLI takes" do
       help = Slipdock.DocsText.read!(Path.join(@root, "cli/help.txt"))
-      assert help =~ "--profile P                 what kind of change it is"
+      assert_states(help, "--profile P                 what kind of change it is")
       assert help =~ "--bar TEXT  --paths"
       assert "spike" in Slipdock.Profiles.names()
     end
 
     test "docs/agents.md, the API guide and the manual describe the stage" do
       agents = flat(Slipdock.DocsText.read!(Path.join(@root, "docs/agents.md")))
-      assert agents =~ "Grill, Spike, Decide, Principles, Spec, Cards for a system"
-      assert agents =~ "Grill, Spike, Spec, Cards for a feature"
-      assert agents =~ "**Spike** runs only when an open question passes three tests"
+      assert_states(agents, "Grill, Spike, Decide, Principles, Spec, Cards for a system")
+      assert_states(agents, "Grill, Spike, Spec, Cards for a feature")
+      assert_states(agents, "**Spike** runs only when an open question passes three tests")
       assert agents =~ "Spikes answered (#…): resume planning"
 
       # The Profiles section, shown to a user with profiles on: read its source.
@@ -300,21 +335,21 @@ defmodule SlipdockWeb.PlanSkillDocsTest do
       assert guide =~ "Nothing resumes by itself"
 
       manual = flat(Slipdock.DocsText.read!(Path.join(@root, "docs/manual/skills.md")))
-      assert manual =~ "(grill, spike, decide, principles, spec, cards)"
-      assert manual =~ "becomes a `spike` subcard, once you confirm it"
+      assert_states(manual, "(grill, spike, decide, principles, spec, cards)")
+      assert_states(manual, "becomes a `spike` subcard, once you confirm it")
     end
 
     test "the help pages describe it", %{conn: conn} do
       {:ok, _view, html} = live(conn, ~p"/help/agents/skills")
       text = html |> Floki.parse_document!() |> Floki.text() |> flat()
-      assert text =~ "(grill, spike, decide, principles, spec, cards)"
-      assert text =~ "planning stops until the spikes are answered"
+      assert_states(text, "(grill, spike, decide, principles, spec, cards)")
+      assert_states(text, "planning stops until the spikes are answered")
 
       {:ok, _view, html} = live(conn, ~p"/help/agents/flow")
       text = html |> Floki.parse_document!() |> Floki.text() |> flat()
-      assert text =~ "An epic planned with the plan skill can start with spikes"
+      assert_states(text, "An epic planned with the plan skill can start with spikes")
       assert text =~ "--profile spike"
-      assert text =~ "the Spec is written from the answers"
+      assert_states(text, "the Spec is written from the answers")
     end
   end
 end

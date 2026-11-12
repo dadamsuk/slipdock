@@ -9,6 +9,8 @@ defmodule SlipdockWeb.AgentTextShapeDocsTest do
   """
   use SlipdockWeb.ConnCase, async: true
 
+  import Slipdock.DocsFacts, only: [assert_states: 2, assert_states: 3]
+
   import Phoenix.LiveViewTest
 
   alias SlipdockWeb.HelpLive.Flow
@@ -39,7 +41,7 @@ defmodule SlipdockWeb.AgentTextShapeDocsTest do
   # point, the parts in their fields.
   defp assert_says_the_shape(flat, where) do
     assert flat =~ "lines, not a paragraph", where
-    assert flat =~ "a first line that stands alone", where
+    assert_states(flat, "a first line that stands alone", where)
     assert flat =~ "a blank line", where
     assert flat =~ "one short line per point", where
     assert flat =~ "--check", where
@@ -84,7 +86,7 @@ defmodule SlipdockWeb.AgentTextShapeDocsTest do
 
     assert flat =~ "`slipdock done 12 --evidence-commit abc1234 --evidence -`"
     assert flat =~ "`slipdock verify 12 accept|reject --reason -`"
-    assert flat =~ "Evidence and a reason are lines, not a paragraph, sent on stdin"
+    assert_states(flat, "Evidence and a reason are lines, not a paragraph, sent on stdin")
     assert_says_the_shape(String.downcase(flat), "README.md")
     assert flat =~ ~s(--no-code "<why>" --evidence -`)
     assert_shaped_examples(readme, 1, "README.md")
@@ -95,13 +97,13 @@ defmodule SlipdockWeb.AgentTextShapeDocsTest do
     page = read("docs/manual/verified-work.md")
     flat = flat(page)
 
-    assert flat =~ "**Evidence and a reason are lines, not a paragraph.**"
+    assert_states(flat, "**Evidence and a reason are lines, not a paragraph.**")
     assert_says_the_shape(String.downcase(flat), "verified-work.md")
     assert flat =~ "`slipdock done 12 --evidence-commit abc1234 --evidence -`"
-    assert flat =~ "`slipdock reject 12 --reason -`, the reason on stdin as lines"
+    assert_states(flat, "`slipdock reject 12 --reason -`, the reason on stdin as lines")
     assert page =~ ~s(--check bar:2=fail:"no footer" --reason - <<'EOF')
-    assert flat =~ "`disagree --reason -` (the reason on stdin as lines"
-    assert page =~ "slipdock done 12 --evidence - <<'EOF'\nSubcards merged; main green."
+    assert_states(flat, "`disagree --reason -` (the reason on stdin as lines")
+    assert_states(page, "slipdock done 12 --evidence - <<'EOF'\nSubcards merged; main green.")
 
     assert page =~
              ~s(--no-code "a read-only sweep: filed #40 and #41" --evidence - <<'EOF')
@@ -114,19 +116,25 @@ defmodule SlipdockWeb.AgentTextShapeDocsTest do
   test "the manual and the API guide say a bare `-` reason is refused, beside the dashed evidence" do
     page = flat(read("docs/manual/verified-work.md"))
 
-    assert page =~
-             "Evidence that is a bare `-` (once trimmed) is refused for agents"
+    assert_states(
+      page,
+      "Evidence that is a bare `-` (once trimmed) is refused for agents"
+    )
 
-    assert page =~
-             "An agent's verdict whose reason is a bare `-` is refused the same way (`422`), on accept, reject, agree and disagree"
+    assert_states(
+      page,
+      "An agent's verdict whose reason is a bare `-` is refused the same way (`422`), on accept, reject, agree and disagree"
+    )
 
     assert page =~ "A person is never refused."
 
     guide = flat(guide())
-    assert guide =~ "So is evidence that is a bare `-` once trimmed"
+    assert_states(guide, "So is evidence that is a bare `-` once trimmed")
 
-    assert guide =~
-             "An agent's verdict whose reason is a bare `-` is refused the same way (`422`), on accept, reject, agree and disagree"
+    assert_states(
+      guide,
+      "An agent's verdict whose reason is a bare `-` is refused the same way (`422`), on accept, reject, agree and disagree"
+    )
 
     assert guide =~ "a person is never refused"
   end
@@ -135,9 +143,9 @@ defmodule SlipdockWeb.AgentTextShapeDocsTest do
     guide = guide()
     flat = flat(guide)
 
-    assert flat =~ "**Evidence and a reason are lines, not a paragraph.**"
+    assert_states(flat, "**Evidence and a reason are lines, not a paragraph.**")
     assert_says_the_shape(String.downcase(flat), "the API guide")
-    assert flat =~ "`slipdock done ID --evidence -`, the evidence on stdin as lines"
+    assert_states(flat, "`slipdock done ID --evidence -`, the evidence on stdin as lines")
     assert flat =~ ~s(--no-code "<why>" --evidence -`, what you did on stdin as lines)
     assert flat =~ "`slipdock verify ID accept|reject --reason - --evidence-commit SHA`"
     assert flat =~ "agree|disagree --reason -` (`verify_card`), the reason on stdin as lines"
@@ -154,9 +162,9 @@ defmodule SlipdockWeb.AgentTextShapeDocsTest do
     doc = LazyHTML.from_document(html)
     text = doc |> LazyHTML.text() |> flat()
 
-    assert text =~ "Evidence and a reason are lines, not a paragraph"
+    assert_states(text, "Evidence and a reason are lines, not a paragraph")
     assert_says_the_shape(String.downcase(text), "HelpLive.Flow")
-    assert text =~ "slipdock verify 12 reject --reason -, the reason on stdin as lines"
+    assert_states(text, "slipdock verify 12 reject --reason -, the reason on stdin as lines")
 
     for {role, example} <- [
           {"evidence-example", Flow.evidence_example()},

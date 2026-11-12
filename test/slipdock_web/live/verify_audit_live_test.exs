@@ -6,6 +6,8 @@ defmodule SlipdockWeb.VerifyAuditLiveTest do
   """
   use SlipdockWeb.ConnCase, async: true
 
+  import Slipdock.DocsFacts, only: [assert_states: 2]
+
   import Ecto.Query
   import Phoenix.LiveViewTest
   import Slipdock.Fixtures
@@ -50,6 +52,7 @@ defmodule SlipdockWeb.VerifyAuditLiveTest do
                |> patch(~p"/api/boards/#{ctx.board.code}", %{"verify_audit" => bad})
                |> json_response(422)
 
+      # not a doc: the setting's validation error
       assert msg =~ "must be 0 (no audits) or N"
     end
   end
@@ -124,13 +127,17 @@ defmodule SlipdockWeb.VerifyAuditLiveTest do
     assert guide =~ "A board's `verify_audit` (1 in N, 0 none)"
     assert guide =~ "agree|disagree --reason"
 
-    assert squash.(Slipdock.DocsText.read!("docs/agents.md")) =~
-             "A board's `verify_audit` (1 in N; 0, the default,"
+    assert_states(
+      squash.(Slipdock.DocsText.read!("docs/agents.md")),
+      "A board's `verify_audit` (1 in N; 0, the default,"
+    )
 
     assert squash.(Slipdock.DocsText.read!("docs/manual.md")) =~ "**Audits check the checker.**"
 
-    assert Slipdock.DocsText.read!("priv/skills/slipdock-loop/SKILL.md") =~
-             "- **An audit** (a verify job with `audit: true`"
+    assert_states(
+      Slipdock.DocsText.read!("priv/skills/slipdock-loop/SKILL.md"),
+      "- **An audit** (a verify job with `audit: true`"
+    )
 
     assert Slipdock.DocsText.read!("priv/skills/slipdock/SKILL.md") =~
              "slipdock verify <id> agree|disagree"

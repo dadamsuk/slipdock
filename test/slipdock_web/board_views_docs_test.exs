@@ -5,6 +5,8 @@ defmodule SlipdockWeb.BoardViewsDocsTest do
   """
   use ExUnit.Case, async: true
 
+  import Slipdock.DocsFacts, only: [assert_states: 2]
+
   @root Path.expand("../..", __DIR__)
   defp read(path), do: Slipdock.DocsText.read!(Path.join(@root, path))
 
@@ -19,40 +21,40 @@ defmodule SlipdockWeb.BoardViewsDocsTest do
 
   test "the table reads as text, with Assignee among the defaults", %{manual: m} do
     table = section(m, "Table")
-    assert table =~ "at rest a\ncell reads as plain text"
-    assert table =~ "Tab moves through the editable cells"
-    assert table =~ "priority, assignee, tags, due and done to start with"
+    assert_states(table, "at rest a\ncell reads as plain text")
+    assert_states(table, "Tab moves through the editable cells")
+    assert_states(table, "priority, assignee, tags, due and done to start with")
     assert table =~ "*+N*"
   end
 
   test "the timeline keeps titles whole and lines off them", %{manual: m} do
     timeline = section(m, "Timeline")
-    assert timeline =~ "shows the whole title beside it"
+    assert_states(timeline, "shows the whole title beside it")
     assert timeline =~ "never cross one"
-    assert timeline =~ "the width is remembered in this browser"
+    assert_states(timeline, "the width is remembered in this browser")
     assert timeline =~ "directly under the last row"
   end
 
   test "calendar chips lead with the title", %{manual: m} do
     calendar = section(m, "Calendar")
-    assert calendar =~ "Each chip starts with\nthe card's title"
-    assert calendar =~ "Point at a chip for the\nfull title"
+    assert_states(calendar, "Each chip starts with\nthe card's title")
+    assert_states(calendar, "Point at a chip for the\nfull title")
   end
 
   test "narrative and prioritise", %{manual: m} do
     assert section(m, "Narrative") =~ "don't repeat its title"
-    assert section(m, "Narrative") =~ "by the same person are one line"
+    assert_states(section(m, "Narrative"), "by the same person are one line")
     assert section(m, "Prioritise") =~ "straight after the value"
   end
 
   test "every activity entry names its actor", %{manual: m} do
     activity = section(m, "Activity")
-    assert activity =~ "Every entry says who\ndid it"
+    assert_states(activity, "Every entry says who\ndid it")
 
     for actor <- ["*Automation: <rule>*", "*Email from <name>*", "*System*", "*Someone*"],
         do: assert(activity =~ actor)
 
-    assert activity =~ "grouped by day in\nyour own timezone"
+    assert_states(activity, "grouped by day in\nyour own timezone")
   end
 
   test "each view's CSS has its own file, imported from app.css" do

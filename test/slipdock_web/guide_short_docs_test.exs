@@ -12,6 +12,8 @@ defmodule SlipdockWeb.GuideShortDocsTest do
   """
   use ExUnit.Case, async: true
 
+  import Slipdock.DocsFacts, only: [assert_states: 2]
+
   alias SlipdockWeb.APIGuide
 
   @root Path.expand("../..", __DIR__)
@@ -129,13 +131,15 @@ defmodule SlipdockWeb.GuideShortDocsTest do
         assert text =~ ~r/long/, path
       end
 
-      assert read("README.md") =~
-               "`?section=short` to start, then one section at a time; the whole of it is long"
+      assert_states(
+        read("README.md"),
+        "`?section=short` to start, then one section at a time; the whole of it is long"
+      )
     end
 
     test "the MCP server instructions still name get_guide as the short form" do
       plug = File.read!(Path.join(@root, "lib/slipdock_web/mcp/plug.ex"))
-      assert plug =~ "the get_guide tool (a short guide; it names the rest)"
+      assert_states(plug, "the get_guide tool (a short guide; it names the rest)")
       assert SlipdockWeb.MCP.Tools.GetGuide.description() =~ "Gives the short guide"
     end
   end

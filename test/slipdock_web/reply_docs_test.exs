@@ -6,6 +6,8 @@ defmodule SlipdockWeb.ReplyDocsTest do
   """
   use SlipdockWeb.ConnCase, async: true
 
+  import Slipdock.DocsFacts, only: [assert_states: 2]
+
   @root Path.expand("../..", __DIR__)
   defp read(path), do: Slipdock.DocsText.read!(Path.join(@root, path))
 
@@ -15,9 +17,9 @@ defmodule SlipdockWeb.ReplyDocsTest do
     assert manual =~ "`Reply-To:\nreply-…@<domain>`"
     assert manual =~ "**Quoted history is taken off**"
     assert manual =~ "**Answering a wait by reply.**"
-    assert manual =~ "start with the choice's number (`2`) or its text (`EU`)"
-    assert manual =~ "answer each in a paragraph of its own, in order"
-    assert manual =~ "The wait stays open, and a\n  second comment says why."
+    assert_states(manual, "start with the choice's number (`2`) or its text (`EU`)")
+    assert_states(manual, "answer each in a paragraph of its own, in order")
+    assert_states(manual, "The wait stays open, and a\n  second comment says why.")
     assert manual =~ "**Why a reply bounces.**"
     assert manual =~ "more than a year old"
     assert manual =~ "`Slipdock.Inbound.ReplyToken`"
@@ -38,12 +40,16 @@ defmodule SlipdockWeb.ReplyDocsTest do
   test "docs/agents.md and the API guide say a reply can be a comment" do
     assert read("docs/agents.md") =~ "manual/emailing-your-board.md#replying-to-a-notification"
 
-    assert SlipdockWeb.APIGuide.markdown() =~
-             "Emails about a card (mentions, waits, rule emails) can be replied to"
+    assert_states(
+      SlipdockWeb.APIGuide.markdown(),
+      "Emails about a card (mentions, waits, rule emails) can be replied to"
+    )
   end
 
   test "the slipdock skill explains kind reply in the log" do
-    assert Slipdock.DocsText.read!(Path.join(@root, "priv/skills/slipdock/SKILL.md")) =~
-             ~s(kind "reply" = a reply to a notification email)
+    assert_states(
+      Slipdock.DocsText.read!(Path.join(@root, "priv/skills/slipdock/SKILL.md")),
+      ~s(kind "reply" = a reply to a notification email)
+    )
   end
 end

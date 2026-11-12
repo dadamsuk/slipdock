@@ -7,6 +7,8 @@ defmodule SlipdockWeb.MCP.DocsTest do
   """
   use ExUnit.Case, async: true
 
+  import Slipdock.DocsFacts, only: [assert_states: 2, assert_states: 3]
+
   alias SlipdockWeb.MCP.{Prompts, Resources, Tools}
 
   @root Path.expand("../../..", __DIR__)
@@ -154,11 +156,16 @@ defmodule SlipdockWeb.MCP.DocsTest do
       for kind <- ~w(gotcha rule handbook-wrong tooling process),
           do: assert(gate =~ "- #{kind}:")
 
-      assert gate =~ "*would a\n   card on a different subject want to know this?*"
+      assert_states(gate, "*would a\n   card on a different subject want to know this?*")
       assert gate =~ "`Findings: none` is the usual answer"
       assert loop =~ ~r/- Handbook: updated W-3.*\n   - Findings:/
-      assert loop =~ "and the `Findings:` block with it: the evidence is the closing comment"
-      assert loop =~ "each as a finding in a `Findings:` block there"
+
+      assert_states(
+        loop,
+        "and the `Findings:` block with it: the evidence is the closing comment"
+      )
+
+      assert_states(loop, "each as a finding in a `Findings:` block there")
     end
 
     # #1941: every comment's block is recorded, so the skills say it is
@@ -186,7 +193,7 @@ defmodule SlipdockWeb.MCP.DocsTest do
             "- **something this card fixed**",
             "- **a fact about this card's code**: `Boards.move_card/4 returns :ok`"
           ],
-          do: assert(gate =~ never)
+          do: assert_states(gate, never)
 
       assert gate =~ "| A finding | Not a finding |"
       rows = Regex.scan(~r/^   \| `(gotcha|tooling|process):[^|]*\| `[^|]*\|$/m, gate)
@@ -198,7 +205,7 @@ defmodule SlipdockWeb.MCP.DocsTest do
       for path <- ~w(priv/skills/slipdock-work/SKILL.md priv/skills/slipdock-docs/SKILL.md
                      docs/agents.md lib/slipdock_web/api_guide.ex docs/manual.md) do
         text = read(path) |> String.replace(~r/\s+/, " ")
-        assert text =~ "a card on a different subject want to know this?", path
+        assert_states(text, "a card on a different subject want to know this?", path)
         assert text =~ "Never a pointer", path
         assert text =~ "something th", path
         assert text =~ "`Findings: none` is the usual answer", path
@@ -246,10 +253,10 @@ defmodule SlipdockWeb.MCP.DocsTest do
 
     test "the docs skill says where each kind of knowledge goes" do
       docs = read("priv/skills/slipdock-docs/SKILL.md")
-      assert docs =~ "### What you learned: the handbook, a finding, or your memory"
+      assert_states(docs, "### What you learned: the handbook, a finding, or your memory")
       assert docs =~ "your own **agent memory**"
-      assert docs =~ "Project facts never live only in agent memory"
-      assert docs =~ "would a card on a different subject want to know this?"
+      assert_states(docs, "Project facts never live only in agent memory")
+      assert_states(docs, "would a card on a different subject want to know this?")
     end
 
     test "the slipdock skill names the findings commands (#1781)" do
@@ -262,8 +269,12 @@ defmodule SlipdockWeb.MCP.DocsTest do
     test "the guide and docs/agents.md describe the block and its bar" do
       guide = read("lib/slipdock_web/api_guide.ex")
       assert guide =~ "## Findings"
-      assert guide =~ "would a card on a different subject want to know"
-      assert read("docs/agents.md") =~ "would a card on a different subject want to know this?"
+      assert_states(guide, "would a card on a different subject want to know")
+
+      assert_states(
+        read("docs/agents.md"),
+        "would a card on a different subject want to know this?"
+      )
     end
   end
 end

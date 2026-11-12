@@ -9,6 +9,8 @@ defmodule Slipdock.VerifyEvidenceStanceTest do
   """
   use SlipdockWeb.ConnCase, async: true
 
+  import Slipdock.DocsFacts, only: [assert_states: 2]
+
   import Phoenix.LiveViewTest
   import Slipdock.Fixtures
 
@@ -36,19 +38,23 @@ defmodule Slipdock.VerifyEvidenceStanceTest do
       prompt = Verified.verify_prompt(card(ctx, "feature"), ctx.board)
 
       refute prompt =~ "redo it"
-      assert prompt =~ "don't change the code or the card beyond your decision"
+      assert_states(prompt, "don't change the code or the card beyond your decision")
 
-      assert prompt =~
-               "The builder's evidence says where to look, not what to believe: check each claim in it, never carry one on its word."
+      assert_states(
+        prompt,
+        "The builder's evidence says where to look, not what to believe: check each claim in it, never carry one on its word."
+      )
 
-      assert prompt =~
-               "A test it names is read and run, a mutant it says was killed is broken again or sampled, a docs place it says it updated is opened."
+      assert_states(
+        prompt,
+        "A test it names is read and run, a mutant it says was killed is broken again or sampled, a docs place it says it updated is opened."
+      )
     end
 
     test "it holds on a card with no mutation step too", ctx do
       prompt = Verified.verify_prompt(card(ctx, "docs"), ctx.board)
       refute prompt =~ "redo it"
-      assert prompt =~ "says where to look, not what to believe"
+      assert_states(prompt, "says where to look, not what to believe")
       refute prompt =~ @guard
     end
   end
@@ -82,10 +88,12 @@ defmodule Slipdock.VerifyEvidenceStanceTest do
       step = Verified.mutation_step(card(ctx, "feature", %{"evidence" => @evidence}))
 
       assert step =~ "`mutant:killed=lib/a.ex:42:flip > to >=`"
-      assert step =~ "That list is a map, not a verdict."
+      assert_states(step, "That list is a map, not a verdict.")
 
-      assert step =~
-               "One it says was killed is carried only when you broke it again yourself (give your result) or a test the builder names plainly covers that line (`--check mutant:carried=<file>:<line>`, and say which test); otherwise break it again."
+      assert_states(
+        step,
+        "One it says was killed is carried only when you broke it again yourself (give your result) or a test the builder names plainly covers that line (`--check mutant:carried=<file>:<line>`, and say which test); otherwise break it again."
+      )
 
       refute step =~ "Don't break those again"
       refute step =~ "An audit carries nothing"
@@ -95,8 +103,10 @@ defmodule Slipdock.VerifyEvidenceStanceTest do
       card = card(ctx, "feature", %{"evidence" => @evidence})
       step = Verified.mutation_step(card, audit: true)
 
-      assert step =~
-               "An audit carries nothing: break again each one it says was killed, or give your own result for its line."
+      assert_states(
+        step,
+        "An audit carries nothing: break again each one it says was killed, or give your own result for its line."
+      )
 
       refute step =~ "mutant:carried"
       assert Verified.audit_prompt(accepted(card), ctx.board) =~ "An audit carries nothing"
@@ -104,7 +114,7 @@ defmodule Slipdock.VerifyEvidenceStanceTest do
 
     test "a builder that named none gets no map note", ctx do
       step = Verified.mutation_step(card(ctx, "feature", %{"evidence" => "Built it."}))
-      assert step =~ "The builder named no mutants in its evidence"
+      assert_states(step, "The builder named no mutants in its evidence")
       refute step =~ "That list is a map"
     end
   end
@@ -139,23 +149,33 @@ defmodule Slipdock.VerifyEvidenceStanceTest do
     test "HelpLive.Agents describes the mutation review as changed", %{conn: conn} do
       {:ok, _view, html} = live(conn, ~p"/help/agents/runners")
       text = text(html)
-      assert text =~ "3 to 5 of its most consequential lines and every guard or branch it adds"
-      assert text =~ "checks each claim in the builder's evidence rather than carry it"
+
+      assert_states(
+        text,
+        "3 to 5 of its most consequential lines and every guard or branch it adds"
+      )
+
+      assert_states(text, "checks each claim in the builder's evidence rather than carry it")
     end
 
     test "HelpLive.Flow says the builder's list is a map", %{conn: conn} do
       {:ok, _view, html} = live(conn, ~p"/help/agents/flow")
       text = text(html, "#flow-verifying")
-      assert text =~ "every guard or branch the change adds"
-      assert text =~ "that list is a map, not a verdict"
+      assert_states(text, "every guard or branch the change adds")
+      assert_states(text, "that list is a map, not a verdict")
       refute text =~ "breaks other lines rather than repeat them"
     end
   end
 
   test "the manual says it", _ctx do
     manual = File.read!("docs/manual/verified-work.md") |> String.replace(~r/\s+/, " ")
-    assert manual =~ "The builder's evidence says where to look, not what to believe (#2696)"
-    assert manual =~ "every guard or branch the diff adds"
-    assert manual =~ "An audit asks for the same guard mutants and carries none."
+
+    assert_states(
+      manual,
+      "The builder's evidence says where to look, not what to believe (#2696)"
+    )
+
+    assert_states(manual, "every guard or branch the diff adds")
+    assert_states(manual, "An audit asks for the same guard mutants and carries none.")
   end
 end

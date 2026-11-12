@@ -6,6 +6,8 @@ defmodule SlipdockWeb.InboundDocsTest do
   """
   use SlipdockWeb.ConnCase, async: true
 
+  import Slipdock.DocsFacts, only: [assert_states: 2]
+
   @root Path.expand("../..", __DIR__)
   defp read(path), do: Slipdock.DocsText.read!(Path.join(@root, path))
 
@@ -32,7 +34,7 @@ defmodule SlipdockWeb.InboundDocsTest do
     assert manual =~ "`Inbox`"
     assert manual =~ "`[Design/Decisions] Use Postgres`"
     assert manual =~ "**`+ Title` adds to a page instead**"
-    assert manual =~ "for `+ Title`: there is no page of that title"
+    assert_states(manual, "for `+ Title`: there is no page of that title")
     assert manual =~ "`Slipdock.Inbound.Pages`"
   end
 
@@ -40,7 +42,7 @@ defmodule SlipdockWeb.InboundDocsTest do
     manual = read("docs/manual.md")
     assert manual =~ "| `page-…@<domain>`, a folder's |"
     assert manual =~ "*Email this folder…*"
-    assert manual =~ "- **A folder's own address** files every page in that folder"
+    assert_states(manual, "- **A folder's own address** files every page in that folder")
 
     readme = read("README.md")
     assert readme =~ "*Email this folder…*, `slipdock inbound <board> --folder <path>`"
@@ -64,9 +66,9 @@ defmodule SlipdockWeb.InboundDocsTest do
 
   test "docs/agents.md says where to look when mail didn't arrive" do
     agents = read("docs/agents.md")
-    assert agents =~ "emailed a card or a page in and nothing happened"
+    assert_states(agents, "emailed a card or a page in and nothing happened")
     assert agents =~ "manual/emailing-your-board.md"
-    assert agents =~ "A `+ Title` mail bounces when no page has that title"
+    assert_states(agents, "A `+ Title` mail bounces when no page has that title")
   end
 
   test "the API guide and the agents page name the endpoints" do
@@ -90,11 +92,16 @@ defmodule SlipdockWeb.InboundDocsTest do
 
   test "the manual, README, guide, agents page and skills cover [#42] to a card address (#1272)" do
     manual = read("docs/manual.md")
-    assert manual =~ "**Adding to a card that exists.**"
-    assert manual =~ "comment on card 42 when the subject starts `[#42]`"
+    assert_states(manual, "**Adding to a card that exists.**")
+    assert_states(manual, "comment on card 42 when the subject starts `[#42]`")
     assert manual =~ "`Invoice #1234` is still a"
     assert read("README.md") =~ "`[#42] …` to the card address"
-    assert read("docs/agents.md") =~ "A `[#42] …` subject to a card address comments on card 42"
+
+    assert_states(
+      read("docs/agents.md"),
+      "A `[#42] …` subject to a card address comments on card 42"
+    )
+
     assert read("lib/slipdock_web/api_guide.ex") =~ "whose subject starts `[#42]`, on card 42"
 
     assert Slipdock.DocsText.read!(Path.join(@root, "priv/skills/slipdock/SKILL.md")) =~

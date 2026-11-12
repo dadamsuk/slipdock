@@ -5,6 +5,8 @@ defmodule SlipdockWeb.VisualisePolishTest do
   """
   use SlipdockWeb.ConnCase, async: true
 
+  import Slipdock.DocsFacts, only: [assert_states: 2]
+
   import Phoenix.LiveViewTest
   import Slipdock.Fixtures
 
@@ -78,7 +80,7 @@ defmodule SlipdockWeb.VisualisePolishTest do
     assert readme =~ "**Visualise**"
     assert readme =~ "slipdock flow <board>"
     assert readme =~ "slipdock runner-stats <board>"
-    assert manual =~ "## Visualise: flow, velocity, runners and delivery"
+    assert_states(manual, "## Visualise: flow, velocity, runners and delivery")
     assert manual =~ "(visualise-flow-velocity-runners-and-delivery.md)"
     assert agents =~ "history: true"
     assert agents =~ "runners: true"

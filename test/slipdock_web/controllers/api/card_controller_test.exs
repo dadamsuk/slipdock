@@ -162,6 +162,7 @@ defmodule SlipdockWeb.API.CardControllerTest do
                |> post("/api/boards/cardsapi/cards", %{title: "Typo", archved: true})
                |> json_response(422)
 
+      # not a doc: the API's error
       assert error =~ ~s(a new card has no field "archved")
       assert error =~ "archived"
       refute Slipdock.Repo.get_by(Boards.Card, title: "Typo")
@@ -361,6 +362,7 @@ defmodule SlipdockWeb.API.CardControllerTest do
       assert %{"error" => error} =
                conn |> patch("/api/cards/#{card.id}", %{add_tags: ["nope"]}) |> json_response(422)
 
+      # not a doc: the API's own error
       assert error =~ ~r/^no tag "nope" on board \S+; its tags are: bug, ux$/
 
       assert Enum.map(Boards.Cards.get_card!(card.id).tags, & &1.name) == ["ux"]

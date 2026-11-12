@@ -10,6 +10,8 @@ defmodule SlipdockWeb.SkillProgressDocsTest do
   """
   use ExUnit.Case, async: true
 
+  import Slipdock.DocsFacts, only: [assert_states: 2, assert_states: 3]
+
   @root Path.expand("../..", __DIR__)
 
   # Compared with line breaks folded, since the skills and docs wrap their prose.
@@ -19,11 +21,13 @@ defmodule SlipdockWeb.SkillProgressDocsTest do
   test "the loop skill has a runner's pass report steps, and the epic hear of each subcard" do
     loop = flat("priv/skills/slipdock-loop/SKILL.md")
 
-    assert loop =~
-             "in a runner's job (`$SLIPDOCK_JOB_ID` is set), each milestone as the job's step"
+    assert_states(
+      loop,
+      "in a runner's job (`$SLIPDOCK_JOB_ID` is set), each milestone as the job's step"
+    )
 
     assert loop =~ ~s(`slipdock job-progress --step "…"`)
-    assert loop =~ "The runner holds that job, so don't claim or finish it."
+    assert_states(loop, "The runner holds that job, so don't claim or finish it.")
   end
 
   test "the loop leaves an epic's progress lines to the server (#1881)" do
@@ -31,36 +35,40 @@ defmodule SlipdockWeb.SkillProgressDocsTest do
     loop = path |> Slipdock.DocsText.read!() |> String.replace(~r/\s+/, " ")
 
     refute loop =~ "a one-line comment on the epic itself as each subcard closes", path
-    assert loop =~ "the server posts each subcard's progress on the epic itself", path
+    assert_states(loop, "the server posts each subcard's progress on the epic itself", path)
     assert loop =~ "Don't repeat those.", path
 
-    assert loop =~
-             "Comment on the epic only what the server can't know: a decision, a surprise, " <>
-               "a dead end, a change of plan",
-           path
+    assert_states(
+      loop,
+      "Comment on the epic only what the server can't know: a decision, a surprise, " <>
+        "a dead end, a change of plan",
+      path
+    )
   end
 
   test "the manual describes an epic's comments (#1881)" do
     manual = flat("docs/manual.md")
-    assert manual =~ "the server posts a line on the epic"
-    assert manual =~ "consecutive lines within 10 seconds share one comment"
-    assert manual =~ "follows its subcards (done ÷ all, rounded down)"
+    assert_states(manual, "the server posts a line on the epic")
+    assert_states(manual, "consecutive lines within 10 seconds share one comment")
+    assert_states(manual, "follows its subcards (done ÷ all, rounded down)")
   end
 
   test "a build a closed subcard broke is fixed on a new subcard, not by reopening it" do
     loop = flat("priv/skills/slipdock-loop/SKILL.md")
 
     assert loop =~ ~s(slipdock add <sub-board> "Build failed: #<id> <title>")
-    assert loop =~ "the board refuses an agent reopening a done card"
-    assert loop =~ "file the fix under that epic as in section 5"
+    assert_states(loop, "the board refuses an agent reopening a done card")
+    assert_states(loop, "file the fix under that epic as in section 5")
     refute loop =~ "Take it back — `slipdock undone <id>`"
     refute loop =~ "taken back as in section 5"
   end
 
   test "the manual and agents.md say what counts as a sign of work" do
-    assert flat("docs/manual.md") =~
-             "no note on its card or on any card beneath it (an epic's pass writes on its subcards)"
+    assert_states(
+      flat("docs/manual.md"),
+      "no note on its card or on any card beneath it (an epic's pass writes on its subcards)"
+    )
 
-    assert flat("docs/agents.md") =~ "every runner job's prompt asks for its milestones too"
+    assert_states(flat("docs/agents.md"), "every runner job's prompt asks for its milestones too")
   end
 end

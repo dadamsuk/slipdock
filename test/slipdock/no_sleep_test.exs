@@ -158,6 +158,7 @@ defmodule Slipdock.NoSleepTest do
       assert [message] =
                problems(%{"test/a_test.exs" => [3, 9]}, %{"test/a_test.exs" => {1, "x"}})
 
+      # not a doc: the check's own failure message
       assert message =~ "has 2 sleeps, lines 3, 9; it may hold 1"
     end
 

@@ -6,6 +6,8 @@ defmodule SlipdockWeb.LedgerDocsTest do
   """
   use SlipdockWeb.ConnCase, async: true
 
+  import Slipdock.DocsFacts, only: [assert_states: 2]
+
   import Phoenix.LiveViewTest
 
   @root Path.expand("../..", __DIR__)
@@ -44,13 +46,17 @@ defmodule SlipdockWeb.LedgerDocsTest do
     assert manual =~ "slipdock ledger slipdock --since 7"
     assert manual =~ "GET /api/boards/:board/ledger?since="
 
-    assert manual =~
-             "**The Ledger page.** Each board has one at `/boards/:id/ledger`, a tile\non the board's [Agentic Building](the-header-and-the-avatar-menu.md#agentic-building) page."
+    assert_states(
+      manual,
+      "**The Ledger page.** Each board has one at `/boards/:id/ledger`, a tile\non the board's [Agentic Building](the-header-and-the-avatar-menu.md#agentic-building) page."
+    )
 
     assert manual =~ ~s|`view: "ledger"` (with `since`) gives the [ledger](the-ledger.md)|
 
-    assert flat("docs/manual.md") =~
-             "The window starts at 07:00 yesterday, in the board's timezone"
+    assert_states(
+      flat("docs/manual.md"),
+      "The window starts at 07:00 yesterday, in the board's timezone"
+    )
   end
 
   test "the README lists it with its doors" do

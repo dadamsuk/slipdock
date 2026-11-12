@@ -11,6 +11,8 @@ defmodule SlipdockWeb.ClaimMoveDocsTest do
   """
   use ExUnit.Case, async: true
 
+  import Slipdock.DocsFacts, only: [assert_states: 2]
+
   @root Path.expand("../..", __DIR__)
 
   # Compared with line breaks folded, since the skills and docs wrap their prose.
@@ -20,54 +22,69 @@ defmodule SlipdockWeb.ClaimMoveDocsTest do
   test "the loop skill's claim step leaves a runner's list_top move to the server" do
     loop = flat("priv/skills/slipdock-loop/SKILL.md")
 
-    assert loop =~ "**A runner's `list_top` job is moved already.**"
-    assert loop =~ "the server moved the card to the top of its board's doing list at the claim"
-    assert loop =~ "it is the prompt's name to use if you ever do move it by hand"
-    assert loop =~ "on a board with no doing list the prompt says to leave it where it is"
+    assert_states(loop, "**A runner's `list_top` job is moved already.**")
+
+    assert_states(
+      loop,
+      "the server moved the card to the top of its board's doing list at the claim"
+    )
+
+    assert_states(loop, "it is the prompt's name to use if you ever do move it by hand")
+    assert_states(loop, "on a board with no doing list the prompt says to leave it where it is")
   end
 
   test "the loop skill's bar and lanes parts say the claim has moved the card already" do
     loop = flat("priv/skills/slipdock-loop/SKILL.md")
 
-    assert loop =~
-             "In a runner's `list_top` job the claim has made that move already (step 4), so the bar is locked"
+    assert_states(
+      loop,
+      "In a runner's `list_top` job the claim has made that move already (step 4), so the bar is locked"
+    )
 
-    assert loop =~
-             "so paths you write now are checked as an in-progress card's paths edit"
+    assert_states(
+      loop,
+      "so paths you write now are checked as an in-progress card's paths edit"
+    )
   end
 
   test "the README's list_top bullet says the claim moves the card and the prompt names the list" do
     readme = flat("README.md")
 
-    assert readme =~
-             "The moment a runner claims that rule's job, the server moves the card to the top of its board's doing list"
+    assert_states(
+      readme,
+      "The moment a runner claims that rule's job, the server moves the card to the top of its board's doing list"
+    )
 
-    assert readme =~ "the job's prompt names the list"
+    assert_states(readme, "the job's prompt names the list")
   end
 
   test "the agents page says the claim moves the card, and what Right now lists" do
     agents = flat("docs/agents.md")
 
-    assert agents =~
-             "The moment a runner claims that rule's job, the server moves the card to the top of its board's doing list"
+    assert_states(
+      agents,
+      "The moment a runner claims that rule's job, the server moves the card to the top of its board's doing list"
+    )
 
-    assert agents =~ "The job's prompt names the list the card is in"
-    assert agents =~ "with `in_doing: false` when that is outside a doing list"
+    assert_states(agents, "The job's prompt names the list the card is in")
+    assert_states(agents, "with `in_doing: false` when that is outside a doing list")
   end
 
   test "the API guide's runner section says the claim moves the card and the prompt names the list" do
     guide = SlipdockWeb.APIGuide.markdown() |> String.replace(~r/\s+/, " ")
 
-    assert guide =~
-             "When a runner claims a `list_top` rule's job, the server moves the card to the top of its board's doing list"
+    assert_states(
+      guide,
+      "When a runner claims a `list_top` rule's job, the server moves the card to the top of its board's doing list"
+    )
 
-    assert guide =~ "The claimed job's prompt names the list the card is in"
+    assert_states(guide, "The claimed job's prompt names the list the card is in")
   end
 
   test "Right now's manual page names every job kind that doesn't count as building" do
     page = flat("docs/manual/right-now.md")
 
-    assert page =~ "a verify, merge, overseer or probe job), wherever it sits"
+    assert_states(page, "a verify, merge, overseer or probe job), wherever it sits")
     assert page =~ "`in_doing: false`"
   end
 end
