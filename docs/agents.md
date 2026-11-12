@@ -973,7 +973,13 @@ model) is handed those conditions and the pulse in its prompt, and nothing
 else: it reads nothing more, takes no action, and answers with one line of
 JSON, `{"health", "digest", "look_now"}`, kept as a status update on the
 board's *Overseer* card. Passes come every 10 minutes while cards are active,
-longer when little or nothing is in flight. `GET`/`PATCH
+longer when little or nothing is in flight. Once a day, at its `digest_at`
+(`HH:MM`, 07:00 by default, in the owner's time zone; `slipdock overseer
+<board> --digest-at 06:30`), the server also writes the morning digest of
+Housekeeping's work there: what the Housekeeping feeds worked since the last
+one, grouped by theme, naming only the cards rejected, escalated to Triage,
+given up on or overlapping a card in progress under an epic; no model, no
+tokens. `GET`/`PATCH
 /api/boards/:board/overseer` (reading needs read on the tree's root, not
 just the sub-board named), MCP `get_board overseer: true` and
 `update_board overseer: {…}`; see [the manual](manual/the-overseer.md).

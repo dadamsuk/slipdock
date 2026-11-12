@@ -137,7 +137,7 @@ defmodule Slipdock.Overseer.Housekeeping do
       match?(%Column{category: "triage"}, card.column) ->
         "escalated to Triage"
 
-      Enum.any?(jobs, &(&1.recovery == "gave_up" or Enum.member?(~w(failed timeout), &1.status))) ->
+      gave_up?(jobs) ->
         "given up on"
 
       epic = overlapping_epic(card, epics) ->
@@ -146,6 +146,15 @@ defmodule Slipdock.Overseer.Housekeeping do
       true ->
         nil
     end
+  end
+
+  # Judged on the card's newest job (the highest id), as `Slipdock.Work`
+  # does: a job that failed and was retried to done isn't given up on.
+  defp gave_up?([]), do: false
+
+  defp gave_up?(jobs) do
+    newest = Enum.max_by(jobs, & &1.id)
+    newest.recovery == "gave_up" or Enum.member?(~w(failed timeout), newest.status)
   end
 
   defp after?(%DateTime{} = at, since), do: DateTime.compare(at, since) != :lt
@@ -224,9 +233,9 @@ defmodule Slipdock.Overseer.Housekeeping do
   end
 
   defp time(at) do
-    case Time.from_iso8601((at || @default_at) <> ":00") do
+    case Settings.digest_time(at) do
       {:ok, time} -> time
-      _ -> ~T[07:00:00]
+      :error -> ~T[07:00:00]
     end
   end
 end
