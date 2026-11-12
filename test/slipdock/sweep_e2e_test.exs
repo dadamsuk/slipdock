@@ -6,7 +6,9 @@ defmodule Slipdock.SweepE2ETest do
   Triage ships a pull request that doesn't describe the hole (#1794); and
   the machine that runs it reports skill and CLI drift (#1795).
   """
-  use SlipdockWeb.ConnCase, async: true
+  # Not async: the signed skills archive the server serves is an application
+  # setting (#2916).
+  use SlipdockWeb.ConnCase, async: false
 
   import Ecto.Query
   import Slipdock.Fixtures
@@ -23,6 +25,23 @@ defmodule Slipdock.SweepE2ETest do
       Boards.update_board(board, %{"verify_work" => true, "ship_via" => "pull_request"})
 
     {:ok, runner, token} = Runners.create_runner(board, %{"name" => "box", "pool" => "loop"})
+
+    # A release's skills: the archive signed, so skills that differ are drift,
+    # not unsigned on server (#2916).
+    dir = Path.join(System.tmp_dir!(), "slipdock-sweep-#{System.unique_integer([:positive])}")
+    File.mkdir_p!(dir)
+    File.write!(Path.join(dir, "slipdock-skills.tar.gz"), "the archive")
+    File.write!(Path.join(dir, "slipdock-skills.tar.gz.sig"), "-----BEGIN SSH SIGNATURE-----\n")
+    saved = Application.get_env(:slipdock, :skills_signed_dir)
+    Application.put_env(:slipdock, :skills_signed_dir, dir)
+
+    on_exit(fn ->
+      if saved,
+        do: Application.put_env(:slipdock, :skills_signed_dir, saved),
+        else: Application.delete_env(:slipdock, :skills_signed_dir)
+
+      File.rm_rf!(dir)
+    end)
 
     %{board: board, runner: runner, token: token}
   end
