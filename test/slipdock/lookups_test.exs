@@ -17,7 +17,7 @@ defmodule Slipdock.LookupsTest do
   end
 
   defp simple do
-    {:ok, template} = Boards.find_template(nil, "Simple")
+    {:ok, template} = Boards.Templates.find_template(nil, "Simple")
     template
   end
 
@@ -59,7 +59,7 @@ defmodule Slipdock.LookupsTest do
     } do
       card = card_fixture(backlog)
       {:ok, _} = Boards.update_board(board, %{"name" => "Renamed"})
-      {:ok, _} = Boards.update_card(card, %{"title" => "Retitled"})
+      {:ok, _} = Boards.Cards.update_card(card, %{"title" => "Retitled"})
 
       assert Boards.reload_board!(board).name == "Renamed"
       assert Boards.Cards.reload_card!(card).title == "Retitled"
@@ -78,7 +78,7 @@ defmodule Slipdock.LookupsTest do
       backlog: backlog
     } do
       other = board_fixture(%{"name" => "A first"}, owner: owner)
-      {:ok, _} = Boards.archive_board(other)
+      {:ok, _} = Boards.Arrangement.archive_board(other)
 
       _theirs =
         board_fixture(%{"name" => "Not mine"}, owner: user_fixture("lookups-other@example.com"))
@@ -131,7 +131,7 @@ defmodule Slipdock.LookupsTest do
       a = card_fixture(backlog)
       b = card_fixture(backlog)
       archived = card_fixture(backlog)
-      {:ok, _} = Boards.archive_card(archived)
+      {:ok, _} = Boards.Cards.archive_card(archived)
       elsewhere = card_fixture(hd(board_fixture().columns))
 
       ids = [b.id, elsewhere.id, archived.id, a.id]
@@ -166,7 +166,7 @@ defmodule Slipdock.LookupsTest do
       sub = Boards.get_board!(sub.id)
       inner = card_fixture(hd(sub.columns), %{"title" => "Inner retry"})
       done = card_fixture(backlog, %{"title" => "Done retry"})
-      {:ok, _} = Boards.update_card(done, %{"completed" => true})
+      {:ok, _} = Boards.Cards.update_card(done, %{"completed" => true})
       odd = card_fixture(backlog, %{"title" => "100%_sure"})
       other = card_fixture(hd(board_fixture().columns), %{"title" => "Other retry"})
 
@@ -205,7 +205,7 @@ defmodule Slipdock.LookupsTest do
     } do
       a = card_fixture(backlog)
       archived = card_fixture(backlog)
-      {:ok, _} = Boards.archive_card(archived)
+      {:ok, _} = Boards.Cards.archive_card(archived)
       _other = card_fixture(hd(board_fixture().columns))
 
       assert [%Card{id: id, board: %Board{}, column: %{}, assignees: []}] =
@@ -246,8 +246,8 @@ defmodule Slipdock.LookupsTest do
 
     test "get_checklist_item!/1 and get_owned_row/2", %{backlog: backlog} do
       card = card_fixture(backlog)
-      {:ok, item} = Boards.add_checklist_item(card, "Step one")
-      {:ok, comment} = Boards.add_comment(card, "Hello")
+      {:ok, item} = Boards.Checklists.add_checklist_item(card, "Step one")
+      {:ok, comment} = Boards.Comments.add_comment(card, "Hello")
 
       assert Boards.Checklists.get_checklist_item!(item.id).text == "Step one"
       assert_raise Ecto.NoResultsError, fn -> Boards.Checklists.get_checklist_item!(-1) end
@@ -266,14 +266,18 @@ defmodule Slipdock.LookupsTest do
     test "get_card_url/1 and get_attachment/2", %{backlog: backlog} do
       Slipdock.TestConfig.own_uploads_dir()
       card = card_fixture(backlog)
-      {:ok, url} = Boards.add_card_url(card, %{"url" => "https://example.com/a"})
+      {:ok, url} = Boards.CardUrls.add_card_url(card, %{"url" => "https://example.com/a"})
 
       src = Path.join(System.tmp_dir!(), "lookups-#{System.unique_integer([:positive])}.txt")
       File.write!(src, "hello")
       on_exit(fn -> File.rm(src) end)
 
       {:ok, attachment} =
-        Boards.add_attachment(card, %{filename: "a.txt", content_type: "text/plain"}, src)
+        Boards.Attachments.add_attachment(
+          card,
+          %{filename: "a.txt", content_type: "text/plain"},
+          src
+        )
 
       assert Boards.CardUrls.get_card_url(url.id).url == "https://example.com/a"
       assert Boards.CardUrls.get_card_url(-1) == nil
@@ -294,7 +298,7 @@ defmodule Slipdock.LookupsTest do
 
       assert {:ok, :done} =
                Boards.Cards.transact(fn ->
-                 {:ok, _} = Boards.update_card(card, %{"title" => "Committed"})
+                 {:ok, _} = Boards.Cards.update_card(card, %{"title" => "Committed"})
                  {:ok, :done}
                end)
 
@@ -302,7 +306,7 @@ defmodule Slipdock.LookupsTest do
 
       assert {:error, {:error, "nope"}} =
                Boards.Cards.transact(fn ->
-                 {:ok, _} = Boards.update_card(card, %{"title" => "Rolled back"})
+                 {:ok, _} = Boards.Cards.update_card(card, %{"title" => "Rolled back"})
                  {:error, "nope"}
                end)
 
@@ -398,7 +402,7 @@ defmodule Slipdock.LookupsTest do
       [mine, late, theirs, awake] = for _ <- 1..4, do: card_fixture(backlog)
 
       for c <- [mine, late, awake],
-          do: {:ok, _} = Boards.update_card(c, %{"assignee_ids" => [owner.id]})
+          do: {:ok, _} = Boards.Cards.update_card(c, %{"assignee_ids" => [owner.id]})
 
       {:ok, _} = Snooze.snooze(mine, owner, soon)
       {:ok, _} = Snooze.snooze(late, owner, later)
