@@ -72,8 +72,10 @@ esac
 command -v ssh-keygen >/dev/null 2>&1 ||
   die "needs ssh-keygen (OpenSSH 8.1 or later) to check the release's signature"
 
+# --proto holds redirects too, so an https source's host can't send curl
+# on to plain http (install_test.go).
 if command -v curl >/dev/null 2>&1; then
-  fetch() { curl -fsSL --proto "$protos" --proto-redir "$protos" -o "$2" "$SOURCE/$1"; }
+  fetch() { curl -fsSL --proto "$protos" -o "$2" "$SOURCE/$1"; }
 elif command -v wget >/dev/null 2>&1; then
   fetch() { wget -q -O "$2" "$SOURCE/$1"; }
 else

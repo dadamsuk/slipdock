@@ -684,6 +684,9 @@ func TestHelpVersionAndUnknown(t *testing.T) {
 	if code := w.main("help"); code != 0 {
 		t.Fatal(code)
 	}
+	if !strings.Contains(w.out.String(), "init [--server URL] [--allow-http]") {
+		t.Fatalf("the usage names init's --allow-http:\n%s", w.out.String())
+	}
 	if code := w.main("version"); code != 0 || w.out.String() != "slipdock-runner dev (linux/amd64)\n" {
 		t.Fatalf("%q", w.out.String())
 	}
