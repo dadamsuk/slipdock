@@ -253,6 +253,12 @@ defmodule SlipdockWeb.RunnerDocsTest do
     assert machines =~ "`no_release: true` turns off the built-in release"
     assert machines =~ "`release_commands` lists, word for word"
 
+    help = read("lib/slipdock_web/live/help_live/agents.ex")
+    assert help =~ ~s(id="help-machine-release")
+    assert help =~ "<code>release_commands</code>"
+    assert help =~ "<code>no_release: true</code>"
+    assert help =~ "it never runs what the server sends"
+
     contract = read("daemon/internal/contract/contract.md")
     assert contract =~ "- Start a release."
     assert contract =~ "A board's release command is no exception"
