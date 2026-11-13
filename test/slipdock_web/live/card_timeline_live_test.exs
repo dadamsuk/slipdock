@@ -91,6 +91,11 @@ defmodule SlipdockWeb.CardTimelineLiveTest do
         {"Done", 30 * @day}
       ])
 
+      # A reader in Tokyo, so the stamps are in the reader's zone.
+      Repo.update_all(from(u in Slipdock.Accounts.User, where: u.id == ^ctx.user.id),
+        set: [timezone: "Asia/Tokyo"]
+      )
+
       {:ok, view, _html} = live(ctx.conn, ~p"/boards/#{ctx.board}/cards/#{ctx.card}")
 
       todo = span(view, "stays", "To Do") |> render()
@@ -113,8 +118,49 @@ defmodule SlipdockWeb.CardTimelineLiveTest do
       # The header still counts the whole time, to now.
       assert render(element(view, "#card-timeline h3")) =~ "30d"
 
-      # The axis says when it reached done.
-      assert render(element(view, "#card-timeline-done-at")) =~ "done "
+      # The earlier, closed stays are drawn to their (folded) scale.
+      refute todo =~ "not to scale"
+      refute doing =~ "not to scale"
+
+      # The axis says when it reached done: the Done move's time in the
+      # reader's zone, not the timeline's start.
+      done_at =
+        Repo.one(
+          from(m in CardMove,
+            where: m.card_id == ^ctx.card.id and m.to_column_name == "Done",
+            select: m.inserted_at
+          )
+        )
+
+      from_at =
+        Repo.one(
+          from(m in CardMove,
+            where: m.card_id == ^ctx.card.id and m.to_column_name == "To Do",
+            select: m.inserted_at
+          )
+        )
+
+      done_stamp = SlipdockWeb.Dates.datetime(done_at, zone: "Asia/Tokyo")
+      from_stamp = SlipdockWeb.Dates.datetime(from_at, zone: "Asia/Tokyo")
+      assert done_stamp != from_stamp
+
+      axis = render(element(view, "#card-timeline-done-at"))
+      assert axis =~ "done #{done_stamp}"
+      refute axis =~ from_stamp
+    end
+
+    test "a card created straight into done is drawn to scale, unfolded", ctx do
+      card = card_fixture(ctx.done, %{"title" => "Born done"})
+      backdate(card, [{"Done", @hour}])
+
+      {:ok, view, html} = live(ctx.conn, ~p"/boards/#{ctx.board}/cards/#{card}")
+
+      assert html =~ "Timeline"
+      refute has_element?(view, "#card-timeline-done-at")
+      done = span(view, "stays", "Done") |> render()
+      refute done =~ "not to scale"
+      assert style(done, "left") == 0.0
+      assert_in_delta style(done, "width"), 100.0, 0.1
     end
 
     test "places a job after it reached done in the tail", ctx do
