@@ -234,7 +234,7 @@
   priority, votes and scoring fields (RICE, ICE, …) are edited in place
 - **Quick add** in the table and outline: type a line like
   `Write the post due: tomorrow #high #todo #docs @dan` and press Enter
-- **Quick add in the header** of every page (or press `c`): one line of
+- **Quick add in the header** of every page (or press `q`): one line of
   plain English — "call the printers about the banners friday, urgent" —
   read by a cheap model into a card on your default board and list, both
   set under Account › Preferences

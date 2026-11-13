@@ -1267,7 +1267,7 @@ defmodule SlipdockWeb.Layouts do
   """
   def quick_add_bar(assigns) do
     ~H"""
-    <div class="relative contents sm:block" id="quick-add" phx-hook="QuickAddKey">
+    <div class="relative contents sm:block" id="quick-add">
       <button
         type="button"
         id="quick-add-open"
