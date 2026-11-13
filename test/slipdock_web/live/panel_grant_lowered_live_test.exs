@@ -214,7 +214,17 @@ defmodule SlipdockWeb.PanelGrantLoweredLiveTest do
         assert Access.list_grants(after_) == []
       end
 
+      # The upload is driven through `#attach-form`, so the form has to be
+      # there when it finishes. The panel works out what its reader may do
+      # again only when the board hands it a card that differs from the last
+      # (`CardComponent.State.take/2`), and the card's state carries the
+      # seconds it has been in its list: a told reload a second after the
+      # panel opened hands over a different card, the panel hides the form,
+      # and the upload has nothing to go through (#2984). The clock is
+      # pinned so the reload hands over the same card, and the form stays
+      # for the upload to finish against the panel's own check.
       test "the card panel stores no file that finishes uploading", ctx do
+        Slipdock.TestConfig.put(:card_state_now, DateTime.utc_now())
         card = card_fixture(ctx.column, %{"title" => "Open card"})
         {:ok, view, _} = live(as(ctx.writer), ~p"/boards/#{ctx.board}/cards/#{card}")
 
@@ -224,6 +234,8 @@ defmodule SlipdockWeb.PanelGrantLoweredLiveTest do
           ])
 
         lower(unquote(how), ctx)
+        # The board has taken the news in (told) before the upload is sent.
+        assert has_element?(view, "#attach-form")
         render_upload(input, "brief.pdf")
 
         assert Boards.Cards.get_card!(card.id).attachments == []
