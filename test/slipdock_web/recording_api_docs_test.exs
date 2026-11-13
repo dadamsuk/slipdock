@@ -52,9 +52,12 @@ defmodule SlipdockWeb.RecordingAPIDocsTest do
     assert read("docs/wiki.md") =~
              "GET    #{@route}            a meeting page's audio, with Range (read on the board; a draft's, write)"
 
+    # The rule is quoted so it is a fact, held exactly: with no facts the claim
+    # wants only most of its key words near each other, which the paragraph
+    # meets without the draft clause, or with it saying read (#2983).
     assert_states(
       SlipdockWeb.APIGuide.markdown(),
-      "It takes read on the board, as in the browser, and a draft page's takes write, like the draft itself"
+      ~s(It takes read on the board, as in the browser, and a "draft page's takes write", like the draft itself)
     )
 
     assert_states(
