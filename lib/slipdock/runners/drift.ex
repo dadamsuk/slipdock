@@ -11,11 +11,27 @@ defmodule Slipdock.Runners.Drift do
       X-Runner-Skills: slipdock=<sha256>,slipdock-loop=<sha256>,…
       X-Runner-CLI: <sha256>
 
-  each the SHA-256 of a skill's installed `SKILL.md` (line endings as LF) or
-  of the CLI file. This module keeps them on the runner, compares them with
-  what this server serves (the packaged `SKILL.md`s, and the escript
+  each one SHA-256 for a skill's installed files (below) or the SHA-256 of
+  the CLI file. This module keeps them on the runner, compares them with
+  what this server serves (the packaged skills' files, and the escript
   `/cli/SHA256SUMS` publishes), and keeps one alert on the runner's board
   while anything differs, cleared once it is current again.
+
+  **A skill's sum is of every file of it** (#3006), not its `SKILL.md`
+  alone: most of a skill can be in `references/`, and a runner with an old
+  reference file follows old instructions too. It is the SHA-256 of one
+  line for each file, in path order:
+
+      <path inside the skill, with forward slashes>\\0<the file's SHA-256>\\n
+
+  each file's SHA-256 taken with its carriage returns removed. The files
+  are `SKILL.md` and those in `references/`, as the server serves them; a
+  runner counts any other file beside its `SKILL.md` too, and neither side
+  counts a name that starts with a dot. So a reference that is changed,
+  missing or extra on the machine gives another sum. A daemon from before
+  #3006 sends the SHA-256 of the `SKILL.md` alone (line endings as LF):
+  that still reads as current while the `SKILL.md` matches, since it says
+  nothing about the other files (`served_skills/0`).
 
   **Report only.** Nothing here touches a machine: the server never calls
   out to a runner (ARCH-5). Installed copies are installed from the server,
@@ -104,8 +120,8 @@ defmodule Slipdock.Runners.Drift do
   ## Comparing ------------------------------------------------------------------
 
   @doc """
-  What the runner's skills are against `served` (name to SHA-256, see
-  `served_skills/0`), and whether this server serves their archive signed
+  What the runner's skills are against `served` (name to the sums that read
+  as current for it, one or a list, see `served_skills/0`), and whether this server serves their archive signed
   (`signed?`): `:unknown` when it never said, `:current`, or
   `{:drifted, names}` for each served skill installed with other contents.
   A skill this server doesn't serve, or one not installed, isn't drift.
@@ -125,7 +141,7 @@ defmodule Slipdock.Runners.Drift do
     drifted =
       for {name, sha} <- Enum.sort(skills),
           Map.has_key?(served, name),
-          served[name] != sha,
+          not Enum.member?(List.wrap(served[name]), sha),
           do: name
 
     cond do
@@ -184,8 +200,13 @@ defmodule Slipdock.Runners.Drift do
   def describe(state) when is_atom(state), do: Atom.to_string(state)
 
   @doc """
-  The packaged skills' SHA-256s: each `priv/skills/<name>/SKILL.md`, as a
-  runner computes it from its installed copy.
+  The sums that read as current for each packaged skill, name to
+  `[sum, skill_md]`: the sum of every file the server serves for it
+  (`skill_sum/1`), as a runner computes it from its installed copy, then
+  the SHA-256 of its `SKILL.md` alone, which is what a daemon from before
+  #3006 sends. That daemon can't say anything of the reference files, so
+  it reads as current while its `SKILL.md` is, as it always did, and not
+  as drifted on every runner the day the server is released.
   """
   def served_skills do
     dir = Slipdock.Skills.dir()
@@ -193,9 +214,32 @@ defmodule Slipdock.Runners.Drift do
     cached({:skills, dir}, fn ->
       for skill <- Slipdock.Skills.list(),
           {:ok, text} <- [File.read(Path.join([dir, skill.name, "SKILL.md"]))],
-          into: %{},
-          do: {skill.name, sha256(String.replace(text, "\r\n", "\n"))}
+          into: %{} do
+        files = served_files(Path.join(dir, skill.name), skill.files)
+        {skill.name, [skill_sum(files), sha256(String.replace(text, "\r\n", "\n"))]}
+      end
     end)
+  end
+
+  # The files of a skill that read, as `{path, contents}`.
+  defp served_files(root, files) do
+    for file <- files, {:ok, body} <- [File.read(Path.join(root, file))], do: {file, body}
+  end
+
+  @doc """
+  One sum for a skill's `files` (`{path inside the skill, contents}`): the
+  SHA-256 of a line for each in path order, `<path>\\0<sha256>\\n`, each
+  file's SHA-256 taken with its carriage returns removed, and a file whose
+  name starts with a dot left out, as the daemon leaves it. The daemon's
+  `sumSkill` (`daemon/internal/runner/drift.go`) is the same, and both
+  tests pin the same files to the same sum.
+  """
+  def skill_sum(files) do
+    files
+    |> Enum.reject(fn {path, _body} -> String.starts_with?(Path.basename(path), ".") end)
+    |> Enum.sort()
+    |> Enum.map(fn {path, body} -> [path, 0, sha256(String.replace(body, "\r", "")), "\n"] end)
+    |> sha256()
   end
 
   @doc """

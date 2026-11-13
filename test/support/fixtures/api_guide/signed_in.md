@@ -2055,8 +2055,12 @@ of kind `verify`, which a machine's runner takes with its own agent.
 `merge` jobs (merging an accepted card's pull request) are built into
 the runner daemon, and go only to runners whose claims list `merge`
 in `X-Runner-Kinds`; the runners list's `missing_kinds` says what the
-board needs that a runner lacks. Claims also say what the machine has installed (`X-Runner-Skills`, each
-slipdock skill's `SKILL.md` SHA-256; `X-Runner-CLI`, the CLI's), and
+board needs that a runner lacks. Claims also say what the machine has installed (`X-Runner-Skills`, one
+SHA-256 for each slipdock skill, over every file of it: its `SKILL.md`
+and each file in `references/`, by path and contents, so a reference
+changed, missing or extra differs too, while an older daemon's hash of
+the `SKILL.md` alone reads as current when that file matches;
+`X-Runner-CLI`, the CLI's SHA-256), and
 each runner's `drift` compares them with what this server serves:
 `skills` current, drifted, unsigned (`drifted_skills` names them in
 both: `unsigned` is skills that differ from an archive served with no

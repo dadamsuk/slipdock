@@ -322,10 +322,16 @@ itself from signed releases (see [Machines](machines.md#updates)).
 **Skill and CLI drift.** Installed copies of the slipdock skills can be older
 than the server's, and so can a machine's `slipdock` CLI, so a pass can
 follow stale instructions. Every claim also says what the machine has:
-the SHA-256 of each `slipdock*/SKILL.md` under `~/.claude/skills`
-(`skills_dir` in a machine's local file for another place; line endings
-count as LF) and of the CLI (`cli` there, else the daemon's own copy, else
-the `slipdock` on the PATH).
+one SHA-256 for each `slipdock*` skill under `~/.claude/skills`
+(`skills_dir` in a machine's local file for another place) and the
+SHA-256 of the CLI (`cli` there, else the daemon's own copy, else
+the `slipdock` on the PATH). A skill's hash covers every file of it, its
+`SKILL.md` and each file in its `references/` folder, by path and contents
+(line endings aside), so a reference file that is changed, missing or
+left over from an older release shows as drift even when the `SKILL.md`
+is current. A daemon from before that sends the hash of the `SKILL.md`
+alone: its runners read as current while that file matches, and say
+nothing of the reference files until the daemon updates itself.
 The server compares them with the skills it packages and the escript
 `/cli/SHA256SUMS` publishes. The Runners panel marks a runner *skills
 drifted* or *old CLI* (or *skills unsigned on server* and *CLI unsigned on
