@@ -267,7 +267,7 @@ defmodule Slipdock.ReleaseRequestsTest do
       [line] = activity(board)
       assert line =~ "Release now by somebody."
       assert line =~ "##{Enum.at(cards, 19).id} and 2 more."
-      refute line =~ "##{Enum.at(cards, 20).id}"
+      refute line =~ ~r/##{Enum.at(cards, 20).id}\b/
     end
 
     test "what the doors say of each outcome", %{board: board, todo: todo} do

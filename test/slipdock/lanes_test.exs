@@ -202,7 +202,7 @@ defmodule Slipdock.LanesTest do
                )
 
       {message, _} = changeset.errors[:paths]
-      assert message =~ "##{running.id}"
+      assert message =~ ~r/##{running.id}\b/
       assert Repo.get!(Card, mine.id).paths == ["lib/boards/**"]
 
       # Narrowing is fine; so is a person widening it, and a card not started.
@@ -238,7 +238,7 @@ defmodule Slipdock.LanesTest do
       assert {:error, :unprocessable_entity, message} =
                Boards.Cards.move_card(sibling.id, doing.id, nil, actor: ctx.agent)
 
-      assert message =~ "##{child.id}"
+      assert message =~ ~r/##{child.id}\b/
     end
 
     test "the root's switch holds on a sub-board made before it was on", ctx do
@@ -259,7 +259,7 @@ defmodule Slipdock.LanesTest do
       assert {:error, :unprocessable_entity, message} =
                Boards.Cards.move_card(child.id, doing.id, nil, actor: ctx.agent)
 
-      assert message =~ "##{running.id}"
+      assert message =~ ~r/##{running.id}\b/
     end
   end
 
