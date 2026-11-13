@@ -37,23 +37,31 @@ defmodule SlipdockWeb.BoardLive.TagsComponent do
   @impl true
   def update(%{board: board, current_user: user} = assigns, socket) do
     {:ok,
-     assign(socket,
-       board: board,
-       close_path: assigns.close_path,
-       can_write: Access.can_write?(Access.board_permission(user, board))
-     )}
+     socket
+     |> assign(board: board, current_user: user, close_path: assigns.close_path)
+     |> assign_access()}
+  end
+
+  # What the reader may do now. `update/2` runs only when the board hands
+  # the panel something new, and a lowered grant changes nothing it hands
+  # over, so every event asks again before it is let through (#2771).
+  defp assign_access(socket) do
+    %{board: board, current_user: user} = socket.assigns
+    assign(socket, can_write: Access.can_write?(Access.board_permission(user, board)))
   end
 
   @impl true
   def handle_event(event, _params, socket) when event not in @events,
     do: {:noreply, flash(socket, :error, "That isn't something this page can do.")}
 
-  def handle_event(event, _params, %{assigns: %{can_write: false}} = socket)
-      when event in @write_events,
-      do:
-        {:reply, %{ok: false}, assign(socket, error: "You have read-only access to this board.")}
+  def handle_event(event, params, socket), do: guarded(event, params, assign_access(socket))
 
-  def handle_event(event, params, socket), do: event(event, params, socket)
+  defp guarded(event, _params, %{assigns: %{can_write: false}} = socket)
+       when event in @write_events,
+       do:
+         {:reply, %{ok: false}, assign(socket, error: "You have read-only access to this board.")}
+
+  defp guarded(event, params, socket), do: event(event, params, socket)
 
   defp event("pick_tag_color", %{"color" => color}, socket) do
     color = if Enum.member?(Palette.names(), color), do: color, else: socket.assigns.new_tag_color
