@@ -74,12 +74,12 @@ defmodule SlipdockWeb.WikiGrantLoweredLiveTest do
     render(view)
   end
 
-  defp paste(view) do
-    view
-    |> file_input("#page-form", :page_image, [
+  defp paste(view), do: view |> image() |> render_upload("shot.png")
+
+  defp image(view) do
+    file_input(view, "#page-form", :page_image, [
       %{name: "shot.png", content: @png, type: "image/png"}
     ])
-    |> render_upload("shot.png")
   end
 
   for how <- [:told, :untold] do
@@ -117,6 +117,42 @@ defmodule SlipdockWeb.WikiGrantLoweredLiveTest do
         assert Wiki.attachments(ctx.page) == []
         assert Repo.aggregate(AutosaveFile, :count) == 0
       end
+    end
+  end
+
+  describe "an image part-way up is kept by nobody and refused to nobody until it is done:" do
+    test "for a writer, then kept when it finishes", ctx do
+      view = edit(ctx)
+      input = image(view)
+
+      html = render_upload(input, "shot.png", 50)
+
+      refute html =~ "You can&#39;t write on this board."
+      refute_push_event(view, "image_failed", %{})
+      refute_push_event(view, "image_uploaded", %{})
+      assert Wiki.attachments(ctx.page) == []
+
+      render_upload(input, "shot.png", 50)
+      assert_push_event(view, "image_uploaded", %{markdown: _})
+      assert [_] = Wiki.attachments(ctx.page)
+    end
+
+    test "for a reader lowered untold, then refused when it finishes", ctx do
+      view = edit(ctx)
+      input = image(view)
+      lower(:untold, ctx)
+
+      html = render_upload(input, "shot.png", 50)
+
+      refute html =~ "You can&#39;t write on this board."
+      refute_push_event(view, "image_failed", %{})
+      assert Wiki.attachments(ctx.page) == []
+
+      render_upload(input, "shot.png", 50)
+      assert_push_event(view, "image_failed", %{upload: "page_image"})
+      assert render(view) =~ "You can&#39;t write on this board."
+      assert Wiki.attachments(ctx.page) == []
+      assert Repo.aggregate(AutosaveFile, :count) == 0
     end
   end
 

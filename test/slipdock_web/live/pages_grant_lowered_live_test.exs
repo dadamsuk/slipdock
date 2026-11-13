@@ -222,6 +222,24 @@ defmodule SlipdockWeb.PagesGrantLoweredLiveTest do
 
   # The grant's row itself, for what gates on owner: a writer was never let
   # in, so there is nothing a lowered grant could leave behind.
+  test "Findings opened by its owner triages nothing once the board is handed on untold", ctx do
+    finding = finding(ctx.board)
+    {:ok, view, _} = live(as(ctx.owner), ~p"/boards/#{ctx.board}/findings")
+    assert has_element?(view, "[data-role=triage]")
+
+    # Left with read only, so what was let through was the board's owner_id.
+    assert {1, _} = Repo.update_all(grants(ctx, ctx.owner), set: [level: "read"])
+
+    assert {1, _} =
+             Repo.update_all(from(b in Boards.Board, where: b.id == ^ctx.board.id),
+               set: [owner_id: ctx.successor.id]
+             )
+
+    assert render_hook(view, "dismiss", %{"id" => "#{finding.id}"}) =~ @read_only
+    assert Repo.reload!(finding).status == "open"
+    refute has_element?(view, "[data-role=triage]")
+  end
+
   describe "the grant lowered to read, the board untold, on what only an owner changes:" do
     test "Agentic Building refused its writer before, and refuses its reader", ctx do
       {:ok, board} = Boards.update_board(ctx.board, %{"agentic_building" => true})
