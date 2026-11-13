@@ -464,7 +464,11 @@ directory) each job gets a git worktree of its own, on the branch
 never from whatever the runner's checkout has out. A card branch already
 there catches up with it: one with nothing of its own is moved up to it,
 and one with commits of its own (a rejected card's, here or only on the
-origin) has them rebased onto it. If that rebase conflicts, it is undone,
+origin) has them rebased onto it. A rejected attempt on the origin
+(`origin/card-<id>`, pushed from another machine) wins over a local branch
+with nothing of its own, or one it has moved on from; when each has
+commits the other lacks, the local one is used and the job's log says the
+origin's were not taken. If that rebase conflicts, it is undone,
 the branch is left as it was, and the job's log says how far behind it is.
 A worktree kept from an earlier job (it had uncommitted changes) is used
 as it is. A runner alone in its

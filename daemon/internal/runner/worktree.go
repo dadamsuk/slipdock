@@ -43,42 +43,72 @@ func openLane(ctx context.Context, run execFunc, isDir func(string) bool, dir st
 		// Every new worktree starts at the origin's default branch as
 		// fetched now (#3002). A card branch already there with nothing
 		// of its own is moved up to it; one with commits of its own (a
-		// rejected card's earlier attempt, here or only on the origin) is
+		// rejected card's earlier attempt, here or on the origin) is
 		// rebased onto it in the new worktree.
 		from := laneBase(ctx, run, top, note)
-		args, rebase := []string{"worktree", "add", path, branch}, ""
-		switch {
-		case hasRef(ctx, run, top, "refs/heads/"+branch):
-			if from != "HEAD" && isAncestor(ctx, run, top, branch, from) {
-				args = []string{"worktree", "add", "--no-track", "-B", branch, path, from}
-				note(fmt.Sprintf("slipdock-runner: branch %s had nothing of its own, so it starts again from %s", branch, from))
-			} else if from != "HEAD" {
-				rebase = branch
-			}
-		case from != "HEAD" && hasRef(ctx, run, top, "refs/remotes/origin/"+branch):
-			args = []string{"worktree", "add", "--no-track", "-b", branch, path, "origin/" + branch}
-			rebase = "origin/" + branch
-		default:
-			args = []string{"worktree", "add", "--no-track", "-b", branch, path, from}
-		}
+		args, rebase := laneStart(ctx, run, top, path, branch, from, note)
 		if out, err := run(ctx, top, "git", args...); err != nil {
 			note(out)
 			return nil, fmt.Errorf("could not make worktree %s, so the job was not run", path)
 		}
-		switch {
-		case rebase != "" && rebase != branch:
-			note(fmt.Sprintf("slipdock-runner: worktree %s on branch %s, from %s", path, branch, rebase))
-			rebaseLane(ctx, run, path, branch, from, note)
-		case len(args) == 4:
+		if len(args) == 4 {
 			note(fmt.Sprintf("slipdock-runner: worktree %s on branch %s", path, branch))
-			if rebase != "" {
-				rebaseLane(ctx, run, path, branch, from, note)
-			}
-		default:
-			note(fmt.Sprintf("slipdock-runner: worktree %s on branch %s, from %s", path, branch, from))
+		} else {
+			note(fmt.Sprintf("slipdock-runner: worktree %s on branch %s, from %s", path, branch, args[len(args)-1]))
+		}
+		if rebase {
+			rebaseLane(ctx, run, path, branch, from, note)
 		}
 	}
 	return &lane{path: path, repo: top, branch: branch}, nil
+}
+
+// laneStart is the git worktree add that makes the card's worktree, and
+// whether its branch is then rebased onto from. With from HEAD (no
+// origin, or no default branch on it) a branch already there is taken as
+// it is, and a new one starts at HEAD. Otherwise the branch's own commits
+// win, wherever they are: the local branch's, or the origin's when the
+// local one has nothing of its own or is behind it (a rejected attempt
+// pushed from another machine), each rebased onto from. A local branch
+// and an origin one that have both moved on keep the local one, and the
+// log says the origin's was not taken. With nothing of its own anywhere,
+// the branch starts at from.
+func laneStart(ctx context.Context, run execFunc, top, path, branch, from string, note func(string)) ([]string, bool) {
+	local := hasRef(ctx, run, top, "refs/heads/"+branch)
+	if from == "HEAD" {
+		if local {
+			return []string{"worktree", "add", path, branch}, false
+		}
+		return []string{"worktree", "add", "--no-track", "-b", branch, path, from}, false
+	}
+	create := "-b"
+	if local {
+		create = "-B"
+	}
+	remote := "origin/" + branch
+	ownRemote := hasRef(ctx, run, top, "refs/remotes/"+remote) && !isAncestor(ctx, run, top, remote, from)
+	switch {
+	case local && !isAncestor(ctx, run, top, branch, from):
+		if !ownRemote || isAncestor(ctx, run, top, remote, branch) {
+			return []string{"worktree", "add", path, branch}, true
+		}
+		if isAncestor(ctx, run, top, branch, remote) {
+			note(fmt.Sprintf("slipdock-runner: branch %s is behind %s, so it starts from there", branch, remote))
+			return []string{"worktree", "add", "--no-track", "-B", branch, path, remote}, true
+		}
+		note(fmt.Sprintf("slipdock-runner: %s has commits that branch %s lacks, and they were not taken: merge them before building on it", remote, branch))
+		return []string{"worktree", "add", path, branch}, true
+	case ownRemote:
+		if local {
+			note(fmt.Sprintf("slipdock-runner: branch %s had nothing of its own, so it starts from %s, an earlier attempt", branch, remote))
+		}
+		return []string{"worktree", "add", "--no-track", create, branch, path, remote}, true
+	default:
+		if local {
+			note(fmt.Sprintf("slipdock-runner: branch %s had nothing of its own, so it starts again from %s", branch, from))
+		}
+		return []string{"worktree", "add", "--no-track", create, branch, path, from}, false
+	}
 }
 
 // laneBase is what a new card branch starts from: the origin's default
