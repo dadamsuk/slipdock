@@ -568,6 +568,10 @@ func TestAWorktreeStartsFromTheOriginsDefaultBranch(t *testing.T) {
 	if f.exit != 0 || !strings.Contains(f.body, "on branch card-60, from origin/main") {
 		t.Fatalf("finish = %+v", f)
 	}
+	// A brand-new branch: no card-60 was there to have nothing of its own.
+	if strings.Contains(f.body, "had nothing of its own") {
+		t.Fatalf("a new branch logs a note about one already there: %s", f.body)
+	}
 	// Nothing committed on it, but it isn't merged into card-9, so the
 	// branch is kept: it is where the worktree started.
 	if got := git(r.dir, "rev-parse", "card-60"); got != newer {
@@ -603,6 +607,10 @@ func TestAWorktreeStartsFromTheOriginsDefaultBranch(t *testing.T) {
 	if !strings.Contains(f.body, "on branch card-61\n") || !strings.Contains(f.body, "branch card-61 rebased onto origin/main") {
 		t.Fatalf("log: %s", f.body)
 	}
+	// No origin/card-61, so nothing on the origin was left untaken.
+	if strings.Contains(f.body, "were not taken") {
+		t.Fatalf("no origin/card-61, yet the log says its commits were not taken: %s", f.body)
+	}
 	if got := git(r.dir, "rev-parse", "card-61~1"); got != newer {
 		t.Fatalf("card-61's own commit sits on %s, want origin/main (%s)", got, newer)
 	}
@@ -619,6 +627,10 @@ func TestAWorktreeStartsFromTheOriginsDefaultBranch(t *testing.T) {
 	f = r.runJob(fakeJob{id: 155, kind: "claude", card: 65, prompt: "x"})
 	if !strings.Contains(f.body, "on branch card-65, from origin/card-65") || !strings.Contains(f.body, "branch card-65 rebased onto origin/main") {
 		t.Fatalf("log: %s", f.body)
+	}
+	// No local card-65 was there to have nothing of its own.
+	if strings.Contains(f.body, "had nothing of its own") {
+		t.Fatalf("no local card-65, yet the log says it had nothing of its own: %s", f.body)
 	}
 	if got := git(r.dir, "rev-parse", "card-65~1"); got != newer {
 		t.Fatalf("card-65's own commit sits on %s, want origin/main (%s)", got, newer)
@@ -676,6 +688,9 @@ func TestAWorktreeStartsFromTheOriginsDefaultBranch(t *testing.T) {
 	f = r.runJob(fakeJob{id: 157, kind: "claude", card: 67, prompt: "x"})
 	if !strings.Contains(f.body, "on branch card-67\n") || strings.Contains(f.body, "rebased onto") {
 		t.Fatalf("log: %s", f.body)
+	}
+	if strings.Contains(f.body, "were not taken") {
+		t.Fatalf("no origin/card-67, yet the log says its commits were not taken: %s", f.body)
 	}
 	if got := git(r.dir, "rev-parse", "card-67"); got != on67 {
 		t.Fatalf("card-67 is at %s, want %s as it was", got, on67)
