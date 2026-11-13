@@ -59,25 +59,33 @@ defmodule Slipdock.Boards.Attachments do
   def store_attachment(owner, folder, meta, source) when is_map(owner) do
     ext = meta |> Map.get(:filename, "") |> Path.extname() |> String.downcase() |> safe_ext()
     key = Path.join(folder, Ecto.UUID.generate() <> ext)
+
+    owner
+    |> attachment_changeset(key, meta, source)
+    |> insert_attachment(source, key)
+  end
+
+  defp attachment_changeset(owner, key, meta, source) do
     size = Map.get(meta, :size) || File.stat!(source).size
     scope = attachment_scope(owner)
 
-    changeset =
-      Attachment.changeset(
-        struct(Attachment, owner),
-        Map.merge(owner, %{
-          filename: meta[:filename],
-          content_type: meta[:content_type],
-          size: size,
-          key: key,
-          hide_on_card: Map.get(meta, :hide_on_card, false)
-        })
-      )
-      # An upload is both a thing stored and bytes on a disk, so it is checked
-      # against both limits before a single byte is copied anywhere.
-      |> Quota.enforce(scope, :items)
-      |> Quota.enforce(scope, :storage, want: size)
+    Attachment.changeset(
+      struct(Attachment, owner),
+      Map.merge(owner, %{
+        filename: meta[:filename],
+        content_type: meta[:content_type],
+        size: size,
+        key: key,
+        hide_on_card: Map.get(meta, :hide_on_card, false)
+      })
+    )
+    # An upload is both a thing stored and bytes on a disk, so it is checked
+    # against both limits before a single byte is copied anywhere.
+    |> Quota.enforce(scope, :items)
+    |> Quota.enforce(scope, :storage, want: size)
+  end
 
+  defp insert_attachment(changeset, source, key) do
     # The hash is of the copy as it landed on disk, not of what was sent, so
     # it vouches for what a download will return (#1015).
     with {:ok, _} <- Ecto.Changeset.apply_action(changeset, :insert),

@@ -16,6 +16,22 @@ defmodule Slipdock.AttachmentsTest do
     %{board: board, card: card, src: src}
   end
 
+  test "a file that can't be copied is refused on the key, and nothing is recorded", %{
+    card: card
+  } do
+    missing = Path.join(System.tmp_dir!(), "kanban-attach-missing-#{System.unique_integer()}")
+
+    assert {:error, %Ecto.Changeset{} = cs} =
+             Boards.Attachments.add_attachment(
+               card,
+               %{filename: "gone.txt", content_type: "text/plain", size: 5},
+               missing
+             )
+
+    assert {"could not be stored: " <> _, _} = cs.errors[:key]
+    assert Boards.Cards.get_card!(card.id).attachments == []
+  end
+
   test "attaches a file, copying it into the uploads directory", %{card: card, src: src} do
     {:ok, a} =
       Boards.Attachments.add_attachment(

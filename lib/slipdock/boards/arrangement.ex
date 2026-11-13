@@ -107,60 +107,59 @@ defmodule Slipdock.Boards.Arrangement do
   theirs, are ignored.
   """
   def reorder_boards(%User{} = user, ids) do
-    keys = user |> keep_unnamed(Enum.map(ids, &order_key/1))
-
-    board_ids = for {:board, id} <- keys, do: id
-
-    visible =
-      from(b in Board, where: b.id in ^board_ids, select: b.id)
-      |> Repo.all()
-      |> MapSet.new()
-
-    own_vaults =
-      from(v in Vault, where: v.user_id == ^user.id, select: v.id)
-      |> Repo.all()
-      |> MapSet.new()
-
-    own_multiboards =
-      from(m in SavedMultiboard, where: m.user_id == ^user.id, select: m.id)
-      |> Repo.all()
-      |> MapSet.new()
+    keys = keep_unnamed(user, Enum.map(ids, &order_key/1))
+    placeable = placeable(user, keys)
 
     placed =
       keys
       |> Enum.uniq()
-      |> Enum.filter(fn
-        {:board, id} -> MapSet.member?(visible, id)
-        {:vault, id} -> MapSet.member?(own_vaults, id)
-        {:multiboard, id} -> MapSet.member?(own_multiboards, id)
-      end)
+      |> Enum.filter(&MapSet.member?(placeable, &1))
       |> Enum.with_index()
 
+    Repo.transaction(fn -> write_order(user, placed) end)
+
+    # The order is this person's alone.
+    Boards.PubSub.notify_users_boards_changed([user.id])
+    :ok
+  end
+
+  # The keys among `keys` the user may place: boards they can see, and their
+  # own vaults and saved multiboards.
+  defp placeable(%User{} = user, keys) do
+    board_ids = for {:board, id} <- keys, do: id
+
+    MapSet.new(
+      tagged(:board, from(b in Board, where: b.id in ^board_ids, select: b.id)) ++
+        tagged(:vault, from(v in Vault, where: v.user_id == ^user.id, select: v.id)) ++
+        tagged(
+          :multiboard,
+          from(m in SavedMultiboard, where: m.user_id == ^user.id, select: m.id)
+        )
+    )
+  end
+
+  defp tagged(kind, query), do: query |> Repo.all() |> Enum.map(&{kind, &1})
+
+  defp write_order(%User{} = user, placed) do
     now = DateTime.utc_now(:second)
 
     rows =
       for {{:board, id}, i} <- placed,
           do: %{user_id: user.id, board_id: id, position: i, inserted_at: now, updated_at: now}
 
-    Repo.transaction(fn ->
-      Repo.delete_all(from(o in BoardOrder, where: o.user_id == ^user.id))
-      Repo.insert_all(BoardOrder, rows)
-      Repo.update_all(from(v in Vault, where: v.user_id == ^user.id), set: [position: nil])
+    Repo.delete_all(from(o in BoardOrder, where: o.user_id == ^user.id))
+    Repo.insert_all(BoardOrder, rows)
+    Repo.update_all(from(v in Vault, where: v.user_id == ^user.id), set: [position: nil])
 
-      for {{:vault, id}, i} <- placed,
-          do: Repo.update_all(from(v in Vault, where: v.id == ^id), set: [position: i])
+    for {{:vault, id}, i} <- placed,
+        do: Repo.update_all(from(v in Vault, where: v.id == ^id), set: [position: i])
 
-      Repo.update_all(from(m in SavedMultiboard, where: m.user_id == ^user.id),
-        set: [position: nil]
-      )
+    Repo.update_all(from(m in SavedMultiboard, where: m.user_id == ^user.id),
+      set: [position: nil]
+    )
 
-      for {{:multiboard, id}, i} <- placed,
-          do: Repo.update_all(from(m in SavedMultiboard, where: m.id == ^id), set: [position: i])
-    end)
-
-    # The order is this person's alone.
-    Boards.PubSub.notify_users_boards_changed([user.id])
-    :ok
+    for {{:multiboard, id}, i} <- placed,
+        do: Repo.update_all(from(m in SavedMultiboard, where: m.id == ^id), set: [position: i])
   end
 
   # Boards, vaults and saved multiboards share the one order, told apart by
@@ -178,24 +177,11 @@ defmodule Slipdock.Boards.Arrangement do
   # multiboards): each placed one goes back behind as many of the things
   # that were named as were in front of it before.
   defp keep_unnamed(user, keys) do
-    named = fn kind -> Enum.any?(keys, &match?({^kind, _}, &1)) end
-
-    placed = fn kind ->
-      schema = if kind == :vault, do: Vault, else: SavedMultiboard
-
-      from(x in schema,
-        where: x.user_id == ^user.id and not is_nil(x.position),
-        select: {x.position, x.id}
-      )
-      |> Repo.all()
-      |> Enum.map(fn {pos, id} -> {pos, {kind, id}} end)
-    end
-
     {kept, named_places} =
       Enum.reduce([:vault, :multiboard], {[], []}, fn kind, {kept, named_places} ->
-        if named.(kind),
-          do: {kept, named_places ++ Enum.map(placed.(kind), &elem(&1, 0))},
-          else: {kept ++ placed.(kind), named_places}
+        if Enum.any?(keys, &match?({^kind, _}, &1)),
+          do: {kept, named_places ++ Enum.map(placed_of(user, kind), &elem(&1, 0))},
+          else: {kept ++ placed_of(user, kind), named_places}
       end)
 
     before = Map.values(board_order(user)) ++ named_places
@@ -206,6 +192,19 @@ defmodule Slipdock.Boards.Arrangement do
     |> Enum.reduce(keys, fn {{pos, key}, i}, keys ->
       List.insert_at(keys, Enum.count(before, &(&1 < pos)) + i, key)
     end)
+  end
+
+  # The user's vaults (or saved multiboards) that have a place in the order,
+  # as `{position, key}`.
+  defp placed_of(user, kind) do
+    schema = if kind == :vault, do: Vault, else: SavedMultiboard
+
+    from(x in schema,
+      where: x.user_id == ^user.id and not is_nil(x.position),
+      select: {x.position, x.id}
+    )
+    |> Repo.all()
+    |> Enum.map(fn {pos, id} -> {pos, {kind, id}} end)
   end
 
   @doc """

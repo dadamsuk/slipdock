@@ -148,72 +148,98 @@ defmodule Slipdock.Boards.Moves do
     # stand-in's slot, and the stand-in goes.
     slot = stand_in_on(card.id, to_column.board_id)
     to_column = if slot, do: Repo.get!(Column, slot.column_id), else: to_column
-    from_column = Repo.get!(Column, card.column_id)
     from_board = Repo.get!(Board, card.board_id)
     to_board = Repo.get!(Board, to_column.board_id)
-    from_root = Board.root_id(from_board)
-    to_root = Board.root_id(to_board)
-    to_owner = Repo.one(from(b in Board, where: b.id == ^to_root, select: b.owner_id))
-    board_ids = subtree_board_ids(card.id)
 
-    {:ok, summary} =
-      Repo.transaction(fn ->
-        Boards.Columns.repack(
-          List.delete(Boards.Columns.active_items(card.column_id), {:card, card.id}),
-          card.column_id
-        )
+    move = %{
+      slot: slot,
+      from_column: Repo.get!(Column, card.column_id),
+      to_column: to_column,
+      from_board: from_board,
+      to_board: to_board,
+      from_root: Board.root_id(from_board),
+      to_root: Board.root_id(to_board),
+      board_ids: subtree_board_ids(card.id)
+    }
 
-        position =
-          if slot,
-            do: slot.position,
-            else:
-              Boards.Shared.next_position(from(c in Card, where: c.column_id == ^to_column.id))
-
-        if slot, do: Repo.delete!(slot)
-
-        moved =
-          card
-          |> Ecto.Changeset.change(
-            board_id: to_board.id,
-            column_id: to_column.id,
-            position: position
-          )
-          |> Repo.update!()
-
-        # One row for the card, carrying both boards; its subcards ride
-        # along without changing list, so they get none.
-        record_move(moved, "moved", from_column, to_column, actor)
-
-        if board_ids != [] and from_root != to_root do
-          from(b in Board, where: b.id in ^board_ids)
-          # The owner too: a sub-board's own `owner_id` is what makes somebody
-          # its owner, and the mover keeping that after the destination's
-          # owner has revoked their access would be a door left open.
-          |> Repo.update_all(set: [root_id: to_root, owner_id: to_owner])
-        end
-
-        if from_root == to_root do
-          empty_move_summary(moved)
-        else
-          card_ids = [moved.id | subtree_card_ids(board_ids)]
-
-          %{
-            card: moved,
-            tags_created: remap_tags(card_ids, to_root),
-            fields_dropped: remap_field_values(card_ids, to_root),
-            milestones_unpinned: unpin_milestones(card_ids)
-          }
-        end
-      end)
+    {:ok, summary} = Repo.transaction(fn -> move_across(card, move, actor) end)
 
     moved = Repo.get!(Card, card.id)
+    log_move_across(card, moved, move)
+    moved_across(moved, move, actor)
+    {:ok, %{summary | card: Repo.get!(Card, moved.id)}}
+  end
+
+  # The move itself, inside its transaction: out of the old list, into the
+  # new one (or the stand-in's slot), the sub-boards re-rooted and the tree's
+  # tags, fields and milestones carried over.
+  defp move_across(%Card{} = card, move, actor) do
+    %{slot: slot, to_column: to_column, from_root: from_root, to_root: to_root} = move
+
+    Boards.Columns.repack(
+      List.delete(Boards.Columns.active_items(card.column_id), {:card, card.id}),
+      card.column_id
+    )
+
+    position =
+      if slot,
+        do: slot.position,
+        else: Boards.Shared.next_position(from(c in Card, where: c.column_id == ^to_column.id))
+
+    if slot, do: Repo.delete!(slot)
+
+    moved =
+      card
+      |> Ecto.Changeset.change(
+        board_id: move.to_board.id,
+        column_id: to_column.id,
+        position: position
+      )
+      |> Repo.update!()
+
+    # One row for the card, carrying both boards; its subcards ride
+    # along without changing list, so they get none.
+    record_move(moved, "moved", move.from_column, to_column, actor)
+
+    if from_root == to_root do
+      empty_move_summary(moved)
+    else
+      reroot_subtree(moved, move)
+    end
+  end
+
+  # Into another tree: the boards under the card follow it, and what the old
+  # tree's root owned is matched on the new one.
+  defp reroot_subtree(%Card{} = moved, %{board_ids: board_ids, to_root: to_root}) do
+    if board_ids != [] do
+      to_owner = Repo.one(from(b in Board, where: b.id == ^to_root, select: b.owner_id))
+
+      from(b in Board, where: b.id in ^board_ids)
+      # The owner too: a sub-board's own `owner_id` is what makes somebody
+      # its owner, and the mover keeping that after the destination's
+      # owner has revoked their access would be a door left open.
+      |> Repo.update_all(set: [root_id: to_root, owner_id: to_owner])
+    end
+
+    card_ids = [moved.id | subtree_card_ids(board_ids)]
+
+    %{
+      card: moved,
+      tags_created: remap_tags(card_ids, to_root),
+      fields_dropped: remap_field_values(card_ids, to_root),
+      milestones_unpinned: unpin_milestones(card_ids)
+    }
+  end
+
+  defp log_move_across(%Card{} = card, %Card{} = moved, move) do
+    %{from_board: from_board, to_board: to_board} = move
 
     Boards.ActivityLog.log(
       Repo,
       from_board.id,
       nil,
       "card",
-      "moved “#{card.title}” to #{to_board.name} › #{to_column.name}"
+      "moved “#{card.title}” to #{to_board.name} › #{move.to_column.name}"
     )
 
     Boards.ActivityLog.log(
@@ -221,8 +247,14 @@ defmodule Slipdock.Boards.Moves do
       to_board.id,
       moved.id,
       "card",
-      "moved “#{card.title}” in from #{from_board.name} › #{from_column.name}"
+      "moved “#{card.title}” in from #{from_board.name} › #{move.from_column.name}"
     )
+  end
+
+  # What follows a move across boards, once it is in: the lists' semantics,
+  # stand-ins, search, the board's rules and the broadcast to both boards.
+  defp moved_across(%Card{} = moved, move, actor) do
+    %{from_column: from_column, to_column: to_column} = move
 
     Boards.Cards.apply_column_semantics(moved, from_column, to_column)
     Boards.Cards.follow_stand_ins(moved, from_column, to_column)
@@ -243,9 +275,8 @@ defmodule Slipdock.Boards.Moves do
       actor: actor
     })
 
-    Boards.PubSub.broadcast(from_board.id)
-    Boards.PubSub.broadcast(to_board.id)
-    {:ok, %{summary | card: Repo.get!(Card, moved.id)}}
+    Boards.PubSub.broadcast(move.from_board.id)
+    Boards.PubSub.broadcast(move.to_board.id)
   end
 
   # Every change of a card's list passes here, once, with who made it — before
