@@ -5,10 +5,12 @@ defmodule Slipdock.Automations.SchedulerRulesTest do
   use Slipdock.DataCase, async: true
 
   import Ecto.Query
+  import ExUnit.CaptureLog
   import Slipdock.Fixtures
 
   alias Slipdock.{Boards, Repo}
-  alias Slipdock.Automations.Scheduler
+  alias Slipdock.Automations.{Rule, Scheduler}
+  alias Slipdock.Health.Pulse
 
   defp stale_card_rule do
     board = board_fixture(%{"name" => "Launch"})
@@ -41,5 +43,27 @@ defmodule Slipdock.Automations.SchedulerRulesTest do
 
   test "a tick with no rules due answers 0" do
     assert {:reply, 0, %{}} = Scheduler.handle_call(:tick, {self(), make_ref()}, %{})
+  end
+
+  test "a tick whose rules raise logs it, answers 0 and still runs the jobs before them" do
+    board = board_fixture(%{"name" => "Launch"})
+
+    # Stored straight, past the spec's checks: an hour of 25 makes
+    # `Time.new!/3` raise inside `Automations.run_scheduled/0`.
+    Repo.insert!(%Rule{
+      name: "Broken clock",
+      board_id: board.id,
+      enabled: true,
+      spec: %{"trigger" => %{"type" => "schedule", "at" => "25:00"}, "actions" => []}
+    })
+
+    log =
+      capture_log(fn ->
+        assert {:reply, 0, %{}} = Scheduler.handle_call(:tick, {self(), make_ref()}, %{})
+      end)
+
+    assert log =~ "Automation scheduler failed: cannot build time"
+    # The periodic jobs ran first: the pulse is the first of them.
+    assert %DateTime{} = Pulse.last("scheduler")
   end
 end
