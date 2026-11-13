@@ -232,6 +232,9 @@ defmodule SlipdockWeb.GardenAPITest do
       # The step names its page by code too, for a reader (#2592).
       assert step["page_code"] == ctx.page.code
       assert is_binary(base)
+      # The section as it saw it stays on the server (#2772).
+      refute Map.has_key?(step, "base_text")
+      assert s["shares_section_with"] == []
       assert [%{"id" => ^page_id, "code" => _}] = s["pages"]
 
       assert %{"created" => false, "suggestion" => %{"id" => id}} =
@@ -246,6 +249,43 @@ defmodule SlipdockWeb.GardenAPITest do
                |> json_response(200)
 
       assert listed["page_code"] == ctx.page.code
+    end
+
+    # #2772: the listing names open proposals that edit the same section.
+    test "two open proposals on one section name each other", ctx do
+      {:ok, a, :new} = Gardener.propose(ctx.board, ctx.owner, proposal(ctx.page))
+
+      other =
+        put_in(
+          proposal(ctx.page),
+          ["steps", Elixir.Access.at(0), "body"],
+          "- **DATA-1** must · judgement · Cast nothing."
+        )
+
+      {:ok, b, :new} = Gardener.propose(ctx.board, ctx.owner, other)
+
+      assert %{"suggestions" => listed} =
+               as(ctx.owner)
+               |> get("/api/boards/#{ctx.board.code}/garden?check=proposal")
+               |> json_response(200)
+
+      by_id = Map.new(listed, &{&1["id"], &1["shares_section_with"]})
+      code = ctx.page.code
+      page_id = ctx.page.id
+
+      assert [
+               %{
+                 "page" => ^page_id,
+                 "page_code" => ^code,
+                 "section" => "Data model/Rules",
+                 "with" => [b_id]
+               }
+             ] =
+               by_id[a.id]
+
+      assert b_id == b.id
+      assert [%{"with" => [a_id]}] = by_id[b.id]
+      assert a_id == a.id
     end
 
     test "a step outside the list, an unknown field, a reader and a read-only token are refused",

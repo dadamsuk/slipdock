@@ -124,6 +124,20 @@ page's link, whatever token, headers or `confirm` they send: an agent holding
 your token can't present your browser session. `slipdock garden <board>` and
 `slipdock findings <board>` give the page's link beside each proposal.
 
+**Two proposals on one section apply one after the other.** A proposal
+replaces its section whole, as it read it. When another has been applied
+since (or somebody edited the section), applying it lays only its own
+changed lines over the section as it is now, so two proposals that reword
+different rules both go in, in either order. It is refused only where both
+changed the same lines, naming the first of them: read the section again
+and propose afresh. The Tidy-up page says on each proposal which other open
+proposals edit the same section, and once the section has moved shows the
+diff of what applying it would do now. `slipdock garden <board>` gives the
+same as a `shares §… with #N` line, and the API and MCP as
+`shares_section_with` (`page`, `page_code`, `section`, `with`: the other
+suggestions' ids). A check's own section edit (a `rule_changed` revert, a
+`long_section` split) is still refused once its section has moved.
+
 A suggestion carries `check`, `label`, `explanation`, `cards` and `pages`
 (ids and titles), `proposal` (the steps: `complete`, `move`, `archive`,
 `link_duplicate`, `flag`, `comment`, `snooze`, `redate`, `rewrite_link`,

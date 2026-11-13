@@ -26,7 +26,8 @@ defmodule SlipdockWeb.API.GardenJSON do
   Suggestions, their subjects named (one query for the cards, one for the
   pages). Each step on a page keeps its `page` id, which applying it
   reads, and gains the page's `page_code` (`W-1944`), which a reader
-  needs (#2592).
+  needs (#2592). An open one that edits a section another open one in the
+  list edits too names them in `shares_section_with` (#2772).
   """
   def suggestions(list) when is_list(list) do
     card_ids = list |> Enum.flat_map(&Suggestion.card_ids/1) |> Enum.uniq()
@@ -40,13 +41,15 @@ defmodule SlipdockWeb.API.GardenJSON do
 
     pages = Slipdock.Wiki.page_briefs(page_ids)
 
-    Enum.map(list, &suggestion(&1, cards, pages))
+    shared = Gardener.shared_sections(Enum.filter(list, &(&1.state == "open")))
+
+    Enum.map(list, &suggestion(&1, cards, pages, shared))
   end
 
   @doc "One suggestion."
   def suggestion(%Suggestion{} = s), do: hd(suggestions([s]))
 
-  defp suggestion(%Suggestion{} = s, cards, pages) do
+  defp suggestion(%Suggestion{} = s, cards, pages, shared) do
     %{
       id: s.id,
       board_id: s.board_id,
@@ -62,6 +65,7 @@ defmodule SlipdockWeb.API.GardenJSON do
       person_only: Gardener.person_only?(s),
       alternatives: Map.new(s.alternatives || %{}, fn {k, steps} -> {k, coded(steps, pages)} end),
       needs_keep: Steps.needs_pick?(s.proposal),
+      shares_section_with: shares(shared[s.id] || [], pages),
       decided_by_id: s.decided_by_id,
       decided_at: s.decided_at,
       created_at: s.inserted_at
@@ -80,6 +84,19 @@ defmodule SlipdockWeb.API.GardenJSON do
 
   defp coded(steps, pages) when is_list(steps), do: Enum.map(steps, &coded_step(&1, pages))
   defp coded(steps, _pages), do: steps
+
+  # The open suggestions in the same list that edit a section this one does
+  # (#2772): applying one merges the others over what it leaves.
+  defp shares(entries, pages) do
+    Enum.map(entries, fn e ->
+      %{page: e.page, page_code: pages[e.page][:code], section: e.section, with: e.with}
+    end)
+  end
+
+  # `base_text` (the section as a proposal saw it, which applying merges
+  # against) stays on the server: a reader has the page.
+  defp coded_step(%{"base_text" => _} = step, pages),
+    do: step |> Map.delete("base_text") |> coded_step(pages)
 
   defp coded_step(%{"page" => id} = step, pages) when is_integer(id) do
     case pages[id] do

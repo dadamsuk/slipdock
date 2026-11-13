@@ -252,7 +252,7 @@ defmodule Slipdock.Gardener do
          {:ok, steps} <- chosen_steps(suggestion, opts[:choice]),
          {:ok, steps} <- Steps.resolve_picks(steps, opts[:keep]),
          :ok <- Steps.authorize(steps, user),
-         {:ok, inverse} <- Steps.apply_all(steps, user) do
+         {:ok, inverse} <- Steps.apply_all(mergeable(steps, suggestion), user) do
       log(suggestion, "via gardener: #{suggestion.explanation}")
 
       suggestion
@@ -361,6 +361,52 @@ defmodule Slipdock.Gardener do
   def decide(_s, _user, _other, _opts), do: {:error, "decision must be apply or dismiss"}
 
   @doc """
+  `steps` as `suggestion` applies them: a proposal's section edits merge
+  into a section changed since (#2772); any other check's (a `rule_changed`
+  revert, a `long_section` split) are refused once the section has moved,
+  as they always were, since they rewrite it whole on purpose.
+  """
+  def mergeable(steps, %Suggestion{check: @proposal}), do: steps
+
+  def mergeable(steps, %Suggestion{}) do
+    Enum.map(steps, fn
+      %{"op" => "edit_section"} = step -> Map.put(step, "merge", false)
+      step -> step
+    end)
+  end
+
+  @doc """
+  Which of `suggestions` edit a section another of them edits too (#2772):
+  `%{id => [%{page: id, section: path, with: [other ids]}]}`, only for the
+  ones that share one. Applying one of them merges the others over what it
+  leaves (`Steps.section_edit/2`), and refuses one where both changed the
+  same lines, so the person deciding them is told they go together.
+  """
+  def shared_sections(suggestions) when is_list(suggestions) do
+    suggestions
+    |> Enum.flat_map(&section_edits/1)
+    |> Enum.uniq_by(fn {id, page, key, _path} -> {id, page, key} end)
+    |> Enum.group_by(fn {_id, page, key, _path} -> {page, key} end)
+    |> Enum.filter(fn {_section, edits} -> length(edits) > 1 end)
+    |> Enum.flat_map(fn {_section, edits} -> Enum.map(edits, &shared_entry(&1, edits)) end)
+    |> Enum.sort_by(fn {id, entry} -> {id, entry.page, entry.section} end)
+    |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
+  end
+
+  # Each section a suggestion edits, once: {id, page, key, path}.
+  defp section_edits(%Suggestion{id: id, proposal: steps}) do
+    for %{"op" => "edit_section", "page" => page, "section" => path} <- List.wrap(steps),
+        do: {id, page, section_key(path), path}
+  end
+
+  defp shared_entry({id, page, _key, path}, edits) do
+    others = edits |> Enum.map(&elem(&1, 0)) |> Enum.reject(&(&1 == id)) |> Enum.sort()
+    {id, %{page: page, section: path, with: others}}
+  end
+
+  defp section_key(path), do: path |> String.trim() |> String.downcase()
+
+  @doc """
   Whether only a person may decide `suggestion`: a proposal, or one with a
   step that edits a page's section (the handbook's rules among them).
   """
@@ -405,7 +451,9 @@ defmodule Slipdock.Gardener do
     * `"steps"` – one or more, of `proposal_ops/0`. An `edit_section`
       names its page by id or code (`W-12`); its `base` (see
       `Slipdock.Gardener.Steps`) is filled in from the section as it is now
-      when not given, and refused when given and already stale.
+      when not given, and refused when given and already stale; the
+      section's text is kept with it as `base_text`, which applying merges
+      against once the section has moved on (#2772).
     * `"findings"`, `"cards"` – ids of the evidence
 
   `{:ok, suggestion, :new}`; `{:ok, suggestion, :exists}` when the same
@@ -546,9 +594,9 @@ defmodule Slipdock.Gardener do
        when is_binary(path) and is_binary(body) and path != "" do
     page = Repo.get!(Slipdock.Wiki.Page, step["page"])
 
-    case Steps.current_section_hash(page, path) do
-      {:ok, hash} -> same_section(step, hash, page, path)
-      {:error, message} -> {:error, message}
+    case Slipdock.Wiki.Section.read(page.body, path) do
+      {:ok, text} -> same_section(step, text, page, path)
+      {:error, :not_found} -> {:error, "“#{page.title}” has no section “#{path}”"}
     end
   end
 
@@ -571,25 +619,27 @@ defmodule Slipdock.Gardener do
     end
   end
 
-  # A base given must be the section as it is now; none is filled in.
-  defp same_section(%{"base" => base} = step, hash, _page, _path)
-       when base in [nil, ""] or base == hash,
-       do: {:ok, base_step(step, hash)}
+  # A base given must be the section as it is now; none is filled in. The
+  # section's text goes with it as `base_text`, so applying it after the
+  # section has moved on can merge rather than refuse (#2772).
+  defp same_section(step, text, page, path) do
+    hash = Steps.section_hash(text)
 
-  defp same_section(%{"base" => _stale}, _hash, page, path),
-    do:
-      {:error,
-       "“#{page.title}” §#{path} has changed since that base: read it again and propose afresh"}
+    if Enum.member?([nil, "", hash], step["base"]),
+      do: {:ok, base_step(step, hash, text)},
+      else:
+        {:error,
+         "“#{page.title}” §#{path} has changed since that base: read it again and propose afresh"}
+  end
 
-  defp same_section(step, hash, _page, _path), do: {:ok, base_step(step, hash)}
-
-  defp base_step(step, hash),
+  defp base_step(step, hash, text),
     do: %{
       "op" => "edit_section",
       "page" => step["page"],
       "section" => step["section"],
       "body" => step["body"],
-      "base" => hash
+      "base" => hash,
+      "base_text" => String.trim_trailing(text)
     }
 
   defp open(%Suggestion{state: "open"}), do: :ok

@@ -388,7 +388,9 @@ slipdock garden <board> [--run] [--check K]   # tidy-up suggestions, grouped, wi
 slipdock garden apply <id>... [--keep CARD] [--choice NAME]   # apply only what the user approved
 slipdock garden dismiss|undo <id>...     # a dismissal is remembered until its subject changes
                                        # a proposal: the person decides it on the board's Tidy-up
-                                       # page (the listing links it); the CLI is refused (#2668)
+                                       # page (the listing links it); the CLI is refused (#2668).
+                                       # Proposals on one section apply one after the other, each
+                                       # as its own lines; `shares §… with #N` names them (#2772)
 slipdock garden settings <board> [<check> key=value...]   # checks on/off, thresholds (days=30)
 slipdock health <board> [--run]           # work the health monitor found stuck: fixed, or flagged stuck
                                        # for a person; ends with the scheduler's and monitor's pulse

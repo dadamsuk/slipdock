@@ -1543,9 +1543,13 @@ it; `base`, filled in from the section as it is now when left out),
 other op is refused. It answers `201` with the suggestion (check
 `proposal`, `person_only: true`, its `findings`), or `200` and
 `created: false` with the one already filed: the same proposal again,
-even one a person dismissed, makes nothing new. Applying it refuses a
-section changed since `base`, and undoing it refuses a page edited
-since. An agent can't apply, dismiss or undo a proposal, or any
+even one a person dismissed, makes nothing new. Applying it after its
+section changed since `base` (another proposal on it applied first)
+lays only its own changed lines over the section as it is now, and
+refuses only where both changed the same lines (#2772); an open one
+lists the other open proposals on its section in
+`shares_section_with` (`page`, `page_code`, `section`, `with`).
+Undoing it refuses a page edited since. An agent can't apply, dismiss or undo a proposal, or any
 suggestion with an `edit_section` step, over REST or the CLI: only a
 person can, and a proposal is decided on the board's Tidy-up page
 (`/boards/<id>/tidy`, which shows the section's diff), signed in, and

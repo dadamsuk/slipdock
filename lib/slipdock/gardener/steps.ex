@@ -20,10 +20,13 @@ defmodule Slipdock.Gardener.Steps do
     * `file_page` `%{"page", "folder"}` – into that folder (nil: out of any)
     * `edit_section` `%{"page", "section", "body", "base"}` – replace one
       section of a page (a heading path, as `slipdock page section` takes)
-      with `body`, through `Slipdock.Wiki.replace_section/4`, which keeps
+      with `body`, as `Slipdock.Wiki.replace_section/4` would, keeping
       its heading. `base` is `section_hash/1` of the section as the
-      proposal saw it: one that has changed since is refused, so a stale
-      proposal never overwrites what somebody wrote after it (#1788)
+      proposal saw it, and `base_text` the section itself. One that has
+      changed since is merged, the proposal's own lines laid over what is
+      there now, and refused only where both changed the same lines, so a
+      stale proposal never overwrites what somebody wrote after it (#1788,
+      #2772; `section_edit/2`)
 
   A card id may be `"pick"`, with the candidates in `"from"`: the person
   chooses which when applying (`:keep` names the one that stays, so `"pick"`
@@ -362,34 +365,19 @@ defmodule Slipdock.Gardener.Steps do
     end
   end
 
-  defp apply_step(
-         %{"op" => "edit_section", "page" => id, "section" => path, "body" => body} = step,
-         user
-       ) do
+  defp apply_step(%{"op" => "edit_section", "page" => id} = step, user) do
     with {:ok, page} <- page(id),
-         {:ok, current} <- section(page, path),
-         :ok <- same_base(page, path, current, step["base"]) do
-      case Wiki.replace_section(page, path, body, user: user, via: "gardener") do
-        {:ok, saved} ->
-          {:ok,
-           [
-             %{
-               "op" => "set_body",
-               "page" => page.id,
-               "body" => page.body,
-               "expect" => saved.content_hash
-             }
-           ]}
-
-        {:error, :not_found, _hint} ->
-          {:error, "“#{page.title}” has no section “#{path}” any more"}
-
-        {:error, :conflict, _} ->
-          {:error, "the page changed while it was being saved"}
-
-        {:error, reason} ->
-          {:error, describe_error(reason)}
-      end
+         {:ok, body, _how} <- section_edit(page, step),
+         {:ok, saved} <- save_body(page, body, user) do
+      {:ok,
+       [
+         %{
+           "op" => "set_body",
+           "page" => page.id,
+           "body" => page.body,
+           "expect" => saved.content_hash
+         }
+       ]}
     end
   end
 
@@ -418,15 +406,97 @@ defmodule Slipdock.Gardener.Steps do
     end
   end
 
-  defp same_base(_page, _path, _current, nil), do: :ok
+  @doc """
+  What `page`'s body becomes when the `edit_section` `step` is applied:
+  `{:ok, body, :clean}` when the section is still as the proposal saw it,
+  `{:ok, body, :merged}` when it has changed since but in other lines (its
+  own changes are laid over the section as it is now, #2772), or
+  `{:error, sentence}` when it can't be applied.
 
-  defp same_base(page, path, current, base) do
-    if section_hash(current) == base,
-      do: :ok,
-      else:
+  Merging needs the section as the proposal saw it: the step's
+  `base_text`, filed with it since #2772, or for an older proposal the
+  newest revision of the page whose section has the step's `base` hash.
+  A step with `"merge" => false` (`Slipdock.Gardener.mergeable/2`: a
+  check's, not a proposal's) is refused instead.
+  """
+  def section_edit(%Page{} = page, %{"section" => path, "body" => body} = step) do
+    with {:ok, current} <- section(page, path) do
+      base = step["base"]
+
+      cond do
+        is_nil(base) or section_hash(current) == base ->
+          {:ok, new_body, _note} = Wiki.Section.replace(page.body, path, body)
+          {:ok, new_body, :clean}
+
+        step["merge"] == false ->
+          {:error, stale(page, path)}
+
+        true ->
+          merge_section(page, path, current, step)
+      end
+    end
+  end
+
+  defp merge_section(page, path, current, step) do
+    with {:ok, base_text} <- base_text(page, path, step),
+         {:ok, base_body, _} <- Wiki.Section.replace(page.body, path, base_text),
+         {:ok, proposed_body, _} <- Wiki.Section.replace(base_body, path, step["body"]),
+         {:ok, proposed} <- Wiki.Section.read(proposed_body, path),
+         {:ok, merged} <- Wiki.Merge3.merge_text(base_text, current, proposed),
+         {:ok, new_body, _} <- Wiki.Section.replace(page.body, path, merged) do
+      {:ok, new_body, :merged}
+    else
+      {:conflict, lines} ->
         {:error,
-         "“#{page.title}” §#{path} has changed since this was proposed: " <>
-           "read it again and propose afresh"}
+         "“#{page.title}” §#{path} has changed since this was proposed, in lines it changes " <>
+           "too (#{conflict_words(lines)}): read it again and propose afresh"}
+
+      _ ->
+        {:error, stale(page, path)}
+    end
+  end
+
+  defp stale(page, path),
+    do:
+      "“#{page.title}” §#{path} has changed since this was proposed: " <>
+        "read it again and propose afresh"
+
+  defp conflict_words(lines) do
+    line = lines |> Enum.map(&String.trim/1) |> Enum.find(&(&1 != "")) || ""
+    line = if String.length(line) > 60, do: String.slice(line, 0, 59) <> "…", else: line
+    more = length(lines) - 1
+
+    cond do
+      line == "" -> "a blank line"
+      more > 0 -> "“#{line}” and #{more} more"
+      true -> "“#{line}”"
+    end
+  end
+
+  # The section as the proposal saw it.
+  defp base_text(page, path, %{"base" => base} = step) do
+    with nil <- matching(step["base_text"], base),
+         nil <- from_revisions(page, path, base) do
+      :error
+    else
+      text when is_binary(text) -> {:ok, text}
+    end
+  end
+
+  defp matching(text, base) when is_binary(text),
+    do: if(section_hash(text) == base, do: text)
+
+  defp matching(_text, _base), do: nil
+
+  defp from_revisions(page, path, base) do
+    page
+    |> Wiki.list_revisions(200)
+    |> Enum.find_value(fn revision ->
+      case Wiki.Section.read(revision.body, path) do
+        {:ok, text} -> matching(text, base)
+        _ -> nil
+      end
+    end)
   end
 
   defp save_body(page, body, user) do
