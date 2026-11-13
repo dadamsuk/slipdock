@@ -10,6 +10,11 @@ defmodule Slipdock.Findings.Awaiting do
   with `findings`). So the Agentic Building tile, the Findings page,
   `GET /api/boards/:board/findings` and `slipdock findings` lead with these,
   and the open findings are the reference below them.
+
+  A finding such a proposal names is *waiting* (#2767): deciding it would
+  close the proposal (`Slipdock.Findings.Promote.settled/2`), which is the
+  person's call. So `Slipdock.Findings.list/2` leaves it out of `open`, the
+  list triage works from, and lists it under `waiting` instead.
   """
   import Ecto.Query
 
@@ -31,6 +36,18 @@ defmodule Slipdock.Findings.Awaiting do
 
   @doc "How many there are."
   def count(%Board{} = board), do: board |> proposals() |> length()
+
+  @doc """
+  The findings waiting on a person, as `%{finding_id => proposal_id}`: each
+  one an open proposal names, with the oldest proposal that names it.
+  """
+  def waiting(%Board{} = board) do
+    board
+    |> proposals()
+    |> Enum.reverse()
+    |> Enum.flat_map(fn s -> Enum.map(findings(s), &{&1, s.id}) end)
+    |> Map.new()
+  end
 
   @doc "The findings a proposal was drafted from."
   def findings(%Suggestion{subject: subject}),

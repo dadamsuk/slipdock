@@ -5,7 +5,10 @@ defmodule SlipdockWeb.API.FindingController do
 
     * `GET /api/boards/:board/findings?status=&kind=&source=&card=&since=&scope=` –
       the proposals drafted from them that wait on a person (`awaiting`,
-      as the garden lists them, #2123), then the tree's findings, open by default (`status=all` for every one;
+      as the garden lists them, #2123), then the tree's findings, open by default (`status=waiting` for the open ones
+      a proposal names, which wait on the person deciding it and are left out
+      of `open` (#2767), each with `waiting`, the proposal's id;
+      `status=all` for every one;
       `since` a date, an ISO 8601 time or a number of days; `scope` board by
       default, `runner` or `all`), each with the `cards` it was said on. Read
       access.

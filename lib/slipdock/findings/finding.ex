@@ -30,6 +30,9 @@ defmodule Slipdock.Findings.Finding do
     * `proposal` – the garden proposal drafted for it once its count reached
       the board's `findings_propose_at` (#1942), with `proposed_rule` (the
       rule id it proposes) and `proposed_at_count` (its count then)
+    * `waiting` (virtual) – set by `Slipdock.Findings.list/2` on an open
+      finding an open proposal names: that proposal's id. It waits on the
+      person deciding the proposal, not on triage (#2767)
   """
   use Ecto.Schema
   import Ecto.Changeset
@@ -53,6 +56,7 @@ defmodule Slipdock.Findings.Finding do
     field :comment_ids, {:array, :integer}, default: []
     field :scope, :string, default: "board"
     field :cards, {:array, :any}, virtual: true, default: []
+    field :waiting, :integer, virtual: true
 
     belongs_to :board, Slipdock.Boards.Board
     belongs_to :card, Slipdock.Boards.Card

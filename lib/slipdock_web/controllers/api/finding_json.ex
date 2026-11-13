@@ -23,6 +23,9 @@ defmodule SlipdockWeb.API.FindingJSON do
       # The garden proposal drafted for it (#1942) and the rule it proposes.
       proposal_id: f.proposal_id,
       proposed_rule: f.proposed_rule,
+      # Open, but named by an open proposal (its id): it waits on the person
+      # deciding that, not on triage (#2767). Nil otherwise.
+      waiting: f.waiting,
       runner: runner(f.runner),
       cards: Enum.map(f.cards || [], &card/1),
       created_at: f.inserted_at,

@@ -298,7 +298,9 @@ and MCP) and a link to the page that covers it.
   - Those drafted rules are what wait on a person, so
     the board's Findings page and its tile lead with the proposals and keep the
     findings as reference (a card says how many open ones it has), as do
-    `slipdock findings <board>` and `GET /api/boards/:board/findings`.
+    `slipdock findings <board>` and `GET /api/boards/:board/findings`. A
+    finding such a proposal names waits on the person, out of the open list
+    triage works from.
 - **Ledger** — [what shipped since yesterday, to skim](the-ledger.md):
   one line per card completed, accepted, merged or deployed, with who or what
   accepted it, its evidence, the `should` rules it missed, where its time went

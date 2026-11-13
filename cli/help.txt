@@ -677,8 +677,11 @@ WRITE
   findings <board> [--status S] [--kind K] [--source S] [--card ID] [--days N] [--scope board|runner|all]
                                       what cards taught (Findings: blocks) and what the system
                                       saw go wrong, on the tree's root board; open by default
-                                      (S: open|promoted|dismissed|merged|all). One row per lesson,
-                                      with the other cards it was said on ("also #12"). --scope
+                                      (S: open|waiting|promoted|dismissed|merged|all). One row per
+                                      lesson, with the other cards it was said on ("also #12").
+                                      waiting: open, but named by a proposal that waits on a
+                                      person ("[waiting on proposal #7]"); left out of open, as
+                                      triage has nothing to decide on it. --scope
                                       runner: the tooling (runner) items kept with a runner.
                                       First, what waits on you: the proposals drafted from
                                       findings ("2 proposals await you"), each by id, for a

@@ -31,7 +31,7 @@ defmodule Slipdock.Handbook do
   alias Slipdock.Wiki.{Folders, FrontMatter, Page}
 
   @name "handbook"
-  @version "1.9.1"
+  @version "1.9.2"
   @folder "Handbook"
   @decisions "Handbook/Decisions"
 
@@ -458,14 +458,14 @@ defmodule Slipdock.Handbook do
   @triage_description """
   Turn what passes learned (their `Findings:` blocks, and what the board recorded by itself) into handbook changes, so the handbook improves from use without an agent rewriting its rules. It comes every night; with nothing to triage it closes at once. Spec: W-2310 §Upkeep.
 
-  1. Read: `slipdock findings <board> --status open`. None open: close the card with `Handbook: no change (no open findings)` and stop; the Triage log is left alone.
+  1. Read: `slipdock findings <board> --status open`. None open: close the card with `Handbook: no change (no open findings)` and stop; the Triage log is left alone. A finding an open proposal names is not in that list: it is waiting on the person deciding the proposal (`--status waiting`), and deciding it would close their proposal, so it is not triage's to decide.
   2. Tidy: group them by what they are about. Merge duplicates into the oldest (`slipdock finding <id> merge --into <id>`, which adds up the counts). Dismiss one-offs that don't generalise, with the reason (`slipdock finding <id> dismiss --note "…"`).
   3. Promote what recurs (seen on two or more cards, or a count of two or more) or shows the handbook wrong:
      - a description that is wrong or missing (a fact, a link, a gotcha that is now settled): write it into the page yourself, by section, with `--message "#<this card> triage"`;
      - a new or changed **rule**, or a decision: don't edit it. File it as a proposal for a person to apply (`slipdock garden propose <board> <file.json>`, an `edit_section` step on the page's `## Rules`, the findings' ids as `findings`);
      - a rule whose check could be a test: file a card for the test instead (`slipdock add <board> "Test for <rule id>: …"`), and say so on the finding;
      - then `slipdock finding <id> promote --note "<what it became: W-12 §Tests, proposal #34, card #56>"`.
-  4. Decide every leftover. A finding that was already open at the last triage (older than the last line of the Index's `## Triage`) has had its night: it must be decided now, never left open a second time. It becomes a card (a fix or investigation in the Housekeeping list, which runners work after the ready list: `slipdock add <board> "…" --desc "…" --column Housekeeping --origin findings`, or the backlog on a board with no Housekeeping list; a design question, whose answer would change how the product or a process behaves, in Triage for a person, `--column Triage --origin findings`; `--desc -` with a heredoc for more than a line, since `--desc -` reads the description from stdin; then `promote --note "card #<id>"`), a proposal or a promotion as in step 3, or it is dismissed with the reason (`dismiss --note "left open on <date>; <why it isn't worth keeping>"`). Only a finding that arrived since the last triage may stay open, and only with a reason in the log line.
+  4. Decide every leftover. A finding that was already open at the last triage (older than the last line of the Index's `## Triage`) has had its night: it must be decided now, never left open a second time. It becomes a card (a fix or investigation in the Housekeeping list, which runners work after the ready list: `slipdock add <board> "…" --desc "…" --column Housekeeping --origin findings`, or the backlog on a board with no Housekeeping list; a design question, whose answer would change how the product or a process behaves, in Triage for a person, `--column Triage --origin findings`; `--desc -` with a heredoc for more than a line, since `--desc -` reads the description from stdin; then `promote --note "card #<id>"`), a proposal or a promotion as in step 3, or it is dismissed with the reason (`dismiss --note "left open on <date>; <why it isn't worth keeping>"`). Only a finding that arrived since the last triage may stay open, and only with a reason in the log line. A finding waiting on a proposal is none of these: it isn't listed as open, and is left for the person.
   5. Read the numbers: `slipdock quality <board> --rules` (the last 30 days) gives the rejections by part and by rule id, each rule with its page, the disputed `Handbook:` lines and rework by area. A rule that keeps being broken needs clearer wording or a test, as a proposal or a card. Disputed lines point at a page the docs gate keeps missing, and an area with a lot of rework at a section to read again. Say which rules you acted on in the log line.
   6. Log it: append to the Index's `## Triage` a line `- <date>: <n> read, <n> merged, <n> dismissed, <n> promoted, <n> filed as cards; <n> leftovers decided; <n> left open (<ids>: why); proposals <ids or none>`.
   7. Close the card with a `Handbook:` line naming what was written, and the proposals filed. The next one comes by itself tomorrow.
@@ -963,7 +963,8 @@ defmodule Slipdock.Handbook do
   end
 
   # 1.9.0 (#2779): the triage card files leftovers as fixes to Housekeeping
-  # and design questions to Triage. Installing over an older handbook moves
+  # and design questions to Triage. 1.9.2 (#2767): a finding an open
+  # proposal names is waiting on a person, not open, and triage leaves it. Installing over an older handbook moves
   # the newest open *Triage findings* card to the current procedure; one
   # already current is left alone. Reported as "<title> (updated: procedure)".
   defp upgrade_triage(root, user, report) do

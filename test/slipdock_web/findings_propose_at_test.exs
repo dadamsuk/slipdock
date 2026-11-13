@@ -93,7 +93,8 @@ defmodule SlipdockWeb.FindingsProposeAtTest do
 
     {:ok, s} = Promote.check(f.id)
 
-    {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/findings")
+    # While the proposal is open the finding waits on it (#2767).
+    {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/findings?status=waiting")
 
     assert has_element?(
              view,
@@ -102,9 +103,12 @@ defmodule SlipdockWeb.FindingsProposeAtTest do
            )
 
     %{"findings" => [json]} =
-      ctx.agent |> get(~p"/api/boards/#{ctx.board.id}/findings") |> json_response(200)
+      ctx.agent
+      |> get(~p"/api/boards/#{ctx.board.id}/findings?status=waiting")
+      |> json_response(200)
 
     assert json["proposal_id"] == s.id and json["proposed_rule"] == "SPEC-1"
+    assert json["waiting"] == s.id
   end
 
   test "the manual, agents.md, the API guide and the Flow help page describe it", ctx do

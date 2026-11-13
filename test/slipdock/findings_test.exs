@@ -14,6 +14,16 @@ defmodule Slipdock.FindingsTest do
     %{owner: owner, board: board, card: card, doing: doing}
   end
 
+  defp proposal(board, subject) do
+    Repo.insert!(%Slipdock.Gardener.Suggestion{
+      board_id: board.id,
+      check: "proposal",
+      fingerprint: "p#{System.unique_integer([:positive])}",
+      explanation: "add a rule",
+      subject: subject
+    })
+  end
+
   defp findings(card),
     do: Repo.all(from(f in Finding, where: f.card_id == ^card.id, order_by: f.id))
 
@@ -304,6 +314,42 @@ defmodule Slipdock.FindingsTest do
       assert {:ok, [_]} = Findings.list(board, %{"since" => "1"})
       assert {:ok, []} = Findings.list(board, %{"since" => "2999-01-01"})
       assert {:error, "since is" <> _} = Findings.list(board, %{"since" => "last week"})
+    end
+
+    # #2767: deciding a finding an open proposal names would close the
+    # proposal, the person's call, so it waits on them and not on triage.
+    test "an open finding an open proposal names is waiting, not open", %{
+      board: board,
+      card: card,
+      owner: owner
+    } do
+      [one, two] = findings(card)
+      proposal = proposal(board, %{"findings" => [one.id]})
+      Repo.update!(Ecto.Changeset.change(one, proposal_id: proposal.id))
+
+      assert {:ok, [%{id: id, waiting: nil}]} = Findings.list(board)
+      assert id == two.id
+      assert {:ok, [%{id: id, waiting: waiting}]} = Findings.list(board, %{"status" => "waiting"})
+      assert id == one.id and waiting == proposal.id
+
+      {:ok, all} = Findings.list(board, %{"status" => "all"})
+      assert Map.new(all, &{&1.id, &1.waiting}) == %{one.id => proposal.id, two.id => nil}
+
+      # A person dismisses the proposal: the finding is open for triage again.
+      {:ok, _} =
+        Slipdock.Gardener.dismiss(proposal, owner, actor: %{kind: "human", via: "web"})
+
+      assert {:ok, [_, _]} = Findings.list(board)
+      assert {:ok, []} = Findings.list(board, %{"status" => "waiting"})
+    end
+
+    test "a triaged finding a proposal names is not waiting", %{board: board, card: card} do
+      [one, _two] = findings(card)
+      proposal(board, %{"findings" => [one.id]})
+      {:ok, _} = Findings.triage(one, "promote", %{"note" => "proposal filed"})
+
+      assert {:ok, []} = Findings.list(board, %{"status" => "waiting"})
+      assert {:ok, [%{waiting: nil}]} = Findings.list(board, %{"status" => "promoted"})
     end
 
     test "another board's findings aren't listed", %{owner: owner} do

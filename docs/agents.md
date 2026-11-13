@@ -1095,6 +1095,9 @@ page (`/boards/:id/findings`, from the board's Agentic Building page, whose
 tile counts them; a card links there when it has open ones) leads with them,
 as `slipdock findings` (each by id), `awaiting` in
 `GET /api/boards/:board/findings` and MCP `garden` with `findings: true` do.
+A finding such a proposal names is *waiting* on that person, not open:
+the open list leaves it out (`--status waiting`, `status=waiting`, lists
+those), so triage has nothing to decide on it.
 The findings below them are reference, triaged by hand when wanted with
 `slipdock findings <board>`, `slipdock finding <id> promote|dismiss|merge
 --into <id>`, `GET /api/boards/:board/findings`; see

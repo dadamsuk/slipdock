@@ -80,10 +80,25 @@ defmodule SlipdockWeb.API.FindingControllerTest do
     proposal(ctx.board, [ctx.one.id], state: "applied")
     proposal(ctx.board, [])
 
-    assert %{"awaiting" => [listed], "findings" => [_, _]} = list(ctx.reader, ctx.board)
+    # The one it names waits on the person, out of the open list (#2767).
+    assert %{"awaiting" => [listed], "findings" => [two]} = list(ctx.reader, ctx.board)
+    assert two["id"] == ctx.two.id
     assert %{"id" => id, "check" => "proposal", "state" => "open", "findings" => [one]} = listed
     assert id == p.id and one == ctx.one.id
     assert listed["explanation"] == "Finding seen 3 times: add a rule"
+  end
+
+  # #2767: deciding it would close the person's proposal, so it isn't triage's.
+  test "a finding an open proposal names is waiting, out of the open list", ctx do
+    p = proposal(ctx.board, [ctx.one.id])
+
+    assert %{"awaiting" => [_], "findings" => [two]} = list(ctx.reader, ctx.board)
+    assert two["id"] == ctx.two.id and two["waiting"] == nil
+
+    assert %{"findings" => [one]} = list(ctx.reader, ctx.board, "?status=waiting")
+    assert one["id"] == ctx.one.id and one["status"] == "open" and one["waiting"] == p.id
+
+    assert %{"findings" => [_, _]} = list(ctx.reader, ctx.board, "?status=all")
   end
 
   test "filters by kind and status, and a bad since is a 422", ctx do

@@ -101,6 +101,12 @@ or `merge --into <id>` (`PATCH /api/findings/:id {action, note, into}`,
 write access) triages one. A card's `findings` (in `get_card` and
 `GET /api/cards/:id`) counts its open ones.
 
+An open finding that an open proposal names is *waiting* on the person
+deciding that proposal (#2767): triaging it would close the proposal, so
+`status=open` (the default) leaves it out and `status=waiting` lists just
+those. Each finding listed carries `waiting`, the proposal's id, or `null`;
+`slipdock findings` marks it `[waiting on proposal #id]`.
+
 What the findings leave for a person is the proposals drafted from them,
 not the open list, which triage and the server handle: the listing
 leads with `awaiting`, the open garden proposals whose subject names

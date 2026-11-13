@@ -164,11 +164,12 @@ defmodule SlipdockWeb.AgenticHubTest do
     # A proposal not drafted from findings is the Tidy-up page's, not this tile's.
     proposal(ctx.board, [])
 
+    # f waits on the open proposal (#2767): the other two are triage's.
     c = Hub.counts(ctx.board)
-    assert {c.proposals, c.findings} == {1, 3}
+    assert {c.proposals, c.findings} == {1, 2}
     tile = Enum.find(Hub.tiles(ctx.board, c), &(&1.key == "findings"))
     assert %{number: "1", unit: "proposal", attention: :info} = tile
-    assert tile.line == "To apply or dismiss · 3 findings being handled"
+    assert tile.line == "To apply or dismiss · 2 findings being handled"
 
     proposal(ctx.board, [f.id])
     tile = Enum.find(Hub.tiles(ctx.board, Hub.counts(ctx.board)), &(&1.key == "findings"))
