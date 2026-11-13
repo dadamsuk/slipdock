@@ -27,9 +27,20 @@ defmodule Slipdock.MergedElsewhereDocsTest do
 
   defp files do
     ["README.md", "lib/slipdock/quality.ex", "lib/slipdock_web/api_guide.ex"] ++
-      Path.wildcard(Path.join(@root, "lib/slipdock_web/live/help_live/*.ex")) ++
+      help_files() ++
       Path.wildcard(Path.join(@root, "docs/**/*.md")) ++
       Path.wildcard(Path.join(@root, "priv/skills/**/*.md"))
+  end
+
+  # The in-app help: its modules, and the templates and data files their
+  # words are in (#2919), each swept on its own so a hit names its file.
+  defp help_files,
+    do: Path.wildcard(Path.join(@root, "lib/slipdock_web/live/help_live/**/*.{ex,heex,exs}"))
+
+  defp read(file) do
+    if String.starts_with?(file, "lib/slipdock_web/live/help_live/"),
+      do: File.read!(Path.join(@root, file)),
+      else: Slipdock.DocsText.read!(Path.join(@root, file))
   end
 
   defp relative(path), do: Path.relative_to(Path.expand(path, @root), @root)
@@ -45,8 +56,7 @@ defmodule Slipdock.MergedElsewhereDocsTest do
   end
 
   defp texts do
-    Enum.map(files(), &{relative(&1), Slipdock.DocsText.read!(Path.join(@root, relative(&1)))}) ++
-      detector_docs()
+    Enum.map(files(), &{relative(&1), read(relative(&1))}) ++ detector_docs()
   end
 
   defp hits do
@@ -77,9 +87,21 @@ defmodule Slipdock.MergedElsewhereDocsTest do
           "docs/agents.md",
           "docs/manual/verified-work.md",
           "docs/manual/the-health-monitor.md",
-          "lib/slipdock/health/detectors/merge_failing.ex"
+          "lib/slipdock/health/detectors/merge_failing.ex",
+          "lib/slipdock_web/live/help_live/flow/stages/verifying.html.heex"
         ],
         do: assert(file in files, file)
+  end
+
+  test "the sweep reads every help template and data file" do
+    files = MapSet.new(files(), &relative/1)
+
+    for name <- ~w(guides agents flow),
+        part <- Slipdock.DocsText.help_parts(name),
+        do: assert(relative(part) in files, part)
+
+    assert "lib/slipdock_web/live/help_live/flow/stages/verifying.html.heex" in files
+    assert "lib/slipdock_web/live/help_live/flow/settings.exs" in files
   end
 
   test "the rule catches a sentence without the exception" do

@@ -47,6 +47,21 @@ defmodule SlipdockWeb.HelpLive.TemplatesTest do
       for part <- parts, do: assert(text =~ File.read!(part), part)
     end
 
+    # Named, not taken from help_parts/1 itself: a template in a
+    # subdirectory and a data file are among the parts read.
+    for {name, part} <- [
+          {"flow", "flow/stages/verifying.html.heex"},
+          {"flow", "flow/settings.exs"},
+          {"agents", "agents/topics/cli.html.heex"},
+          {"agents", "agents/features.exs"},
+          {"guides", "guides/sections.exs"},
+          {"guides", "guides/boards.html.heex"}
+        ] do
+      path = Path.join(@help, part)
+      assert path in Slipdock.DocsText.help_parts(name), part
+      assert Slipdock.DocsText.read!(Path.join(@help, name <> ".ex")) =~ File.read!(path), part
+    end
+
     assert Slipdock.DocsText.read!(Path.join(@help, "index.ex")) ==
              File.read!(Path.join(@help, "index.ex"))
   end
