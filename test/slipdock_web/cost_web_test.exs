@@ -25,9 +25,10 @@ defmodule SlipdockWeb.CostWebTest do
     Jason.encode!(%{type: "assistant", timestamp: ts(sec), message: message})
   end
 
-  # 30s of model; with usage, 1,500 tokens in all.
+  # 30s of model; with usage, 10,500 tokens in all, 1,500 of them new and
+  # 9,000 read from the cache (#3003).
   defp log(usage?) do
-    usage = usage? && %{input_tokens: 1000, output_tokens: 500}
+    usage = usage? && %{input_tokens: 1000, output_tokens: 500, cache_read_input_tokens: 9000}
     Enum.join([said(0, "m1", usage), said(30, "m2", nil)], "\n")
   end
 
@@ -93,7 +94,9 @@ defmodule SlipdockWeb.CostWebTest do
       assert lt["rollup"] == nil
       assert lt["cost"]["total"]["jobs"] == 2
       assert lt["cost"]["total"]["model_seconds"] == 60
-      assert lt["cost"]["total"]["tokens"]["total"] == 1500
+      assert lt["cost"]["total"]["tokens"]["total"] == 10_500
+      assert lt["cost"]["total"]["tokens"]["fresh"] == 1500
+      assert lt["cost"]["total"]["tokens"]["cache_read"] == 9000
       assert lt["cost"]["phases"]["build"]["tokens"]["input"] == 1000
       # The verify job's log carried no usage: no tokens, not zero.
       refute Map.has_key?(lt["cost"]["phases"]["verify"], "tokens")
@@ -102,6 +105,7 @@ defmodule SlipdockWeb.CostWebTest do
     test "MCP get_card carries the same; a card no job ran on has no lead_time", ctx do
       got = ctx.user |> with_token() |> mcp("get_card", %{"card" => ctx.card.id})
       assert got["lead_time"]["cost"]["total"]["tokens"]["output"] == 500
+      assert got["lead_time"]["cost"]["total"]["tokens"]["fresh"] == 1500
 
       idle = card_fixture(ctx.todo, %{"title" => "Idle"})
       got = ctx.user |> with_token() |> mcp("get_card", %{"card" => idle.id})
@@ -124,7 +128,7 @@ defmodule SlipdockWeb.CostWebTest do
       rollup = body["card"]["lead_time"]["rollup"]
       assert rollup["subcards"] == 1
       assert rollup["cost"]["total"]["jobs"] == 3
-      assert rollup["cost"]["total"]["tokens"]["total"] == 3000
+      assert rollup["cost"]["total"]["tokens"]["total"] == 21_000
     end
   end
 
@@ -135,10 +139,10 @@ defmodule SlipdockWeb.CostWebTest do
       assert has_element?(view, "#card-lead-time")
 
       assert view |> element("#card-lead-time [data-role=cost]") |> render() =~
-               "model 1m · tools 0s · 1.5k tokens"
+               "model 1m · tools 0s · 10.5k tokens (1.5k new)"
 
       phases = view |> element("#card-lead-time [data-role=cost-phases]") |> render()
-      assert phases =~ "build: model 30s · tools 0s · 1.5k tokens"
+      assert phases =~ "build: model 30s · tools 0s · 10.5k tokens (1.5k new)"
       assert phases =~ "verify: model 30s · tools 0s"
       refute phases =~ "verify: model 30s · tools 0s ·"
     end
@@ -174,7 +178,8 @@ defmodule SlipdockWeb.CostWebTest do
 
       items = Enum.flat_map(body["days"], & &1["items"])
       priced = Enum.find(items, &(&1["card"]["id"] == ctx.card.id))
-      assert priced["lead_time"]["cost"]["tokens"]["total"] == 1500
+      assert priced["lead_time"]["cost"]["tokens"]["total"] == 10_500
+      assert priced["lead_time"]["cost"]["tokens"]["fresh"] == 1500
       assert priced["lead_time"]["cost"]["jobs"] == 2
       assert Enum.find(items, &(&1["card"]["id"] == ctx.plain.id))["lead_time"]["cost"] == nil
     end
@@ -183,7 +188,7 @@ defmodule SlipdockWeb.CostWebTest do
       {:ok, view, _html} = live(conn, ~p"/boards/#{ctx.board.id}/ledger")
 
       assert view |> element("[data-role=cost]") |> render() =~
-               "spent model 1m · tools 0s · 1.5k tokens"
+               "spent model 1m · tools 0s · 10.5k tokens (1.5k new)"
     end
   end
 end

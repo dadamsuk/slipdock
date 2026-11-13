@@ -977,7 +977,7 @@ out where a card's time went (`card_lead_time`): its lead time by phase, from
 the ready list (and which jobs held the pool) through build, CI, verify and
 merge to deploy, with what it can't explain as a phase of its own, and what
 its jobs spent by phase (model and tool time from their logs, and tokens
-where a log carried `usage`; no prices). And it
+where a log carried `usage`, the new ones beside the cache reads; no prices). And it
 reads a job's log, summed up first (what the agent said, model and tool time
 by kind, the longest and the failed calls, each by line) and then any stretch
 in full, while the log lasts. CI is read
