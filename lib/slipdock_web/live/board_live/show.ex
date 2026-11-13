@@ -375,6 +375,9 @@ defmodule SlipdockWeb.BoardLive.Show do
       |> scroll_to_anchor()
       |> DisplayPrefs.sync()
 
+    # A view-only reader's lists follow the view just loaded.
+    socket = if socket.assigns.view_only, do: assign_columns(socket), else: socket
+
     if socket.assigns.view_only and is_nil(socket.redirected) do
       {:noreply, enforce_view_only(socket, params)}
     else
@@ -427,7 +430,7 @@ defmodule SlipdockWeb.BoardLive.Show do
         |> push_navigate(to: ~p"/")
 
       socket.assigns.swim_view == nil or socket.assigns.swim_view.id != view.id or
-          socket.assigns.swim_dirty ->
+        socket.assigns.swim_dirty or mode_name(socket) != Config.from_map(view.config).mode ->
         push_patch(socket, to: view_path(board, view))
 
       true ->
