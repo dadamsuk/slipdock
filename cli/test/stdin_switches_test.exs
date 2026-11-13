@@ -265,6 +265,35 @@ defmodule SlipdockCLI.StdinSwitchesTest do
       assert body["config"]["directory"] == "/w"
     end
 
+    test "machine set-runner and add-runner send any other config switch's dash as typed" do
+      body =
+        sent(
+          Machines,
+          "machine",
+          ["set-runner", "4", "12"],
+          ["--model", "-", "--dir", "-"],
+          "unread",
+          "PATCH",
+          "/api/machines/4/runners/12"
+        )
+
+      assert body["config"] == %{"model" => "-", "directory" => "-"}
+
+      body =
+        sent(
+          Machines,
+          "machine",
+          ["add-runner", "4", "b"],
+          ["--pool", "p", "--dir", "/w", "--agent", "-", "--instructions", "-"],
+          "only these\n",
+          "POST",
+          "/api/machines/4/runners"
+        )
+
+      assert body["config"]["agent"] == "-"
+      assert body["config"]["instructions"] == "only these\n"
+    end
+
     test "set-automation --text - reads the rule's words from stdin" do
       body =
         sent(
