@@ -46,11 +46,8 @@ dev_tools = System.get_env("SLIPDOCK_DEV_TOOLS") not in ["0", "false"]
 # watchers to your application. For example, we can use it
 # to bundle .js and .css sources.
 config :slipdock, SlipdockWeb.Endpoint,
-  # Binding to loopback ipv4 address prevents access from other machines.
-  # Change to `ip: {0, 0, 0, 0}` to allow access from other machines.
-  # Bind to the Tailscale interface only (this machine also has a public
-  # address and no firewall). Override with SLIPDOCK_BIND_IP=0.0.0.0 to listen
-  # everywhere, or SLIPDOCK_BIND_IP=127.0.0.1 for loopback only.
+  # Listens on bind_ip (above): SLIPDOCK_BIND_IP, else the Tailscale IPv4,
+  # else loopback. On a machine with a public address, keep it off 0.0.0.0.
   http: [ip: bind_ip, port: String.to_integer(System.get_env("PORT") || "4000")],
   # Links in emails (magic sign-in) must point at the address people use.
   url: [
