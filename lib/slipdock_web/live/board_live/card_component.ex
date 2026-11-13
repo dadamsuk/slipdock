@@ -152,6 +152,18 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
     end
   end
 
+  # The board was told the reader's grant changed (`Access.grant/4`) and
+  # reloaded the open card. The card it hands over is often the same, and
+  # then `update/2` below is never called, so the board asks the panel to
+  # work out again what the reader may do: its write controls go with the
+  # write (#2997).
+  def update(%{access_changed: card_id}, socket) do
+    case socket.assigns.card do
+      %Card{id: ^card_id} -> {:ok, State.assign_access(socket)}
+      _ -> {:ok, socket}
+    end
+  end
+
   def update(assigns, socket) do
     %{card: given, board: board, current_user: user} = assigns
 
