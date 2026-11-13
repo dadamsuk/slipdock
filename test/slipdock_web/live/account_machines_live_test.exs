@@ -161,6 +161,10 @@ defmodule SlipdockWeb.AccountMachinesLiveTest do
              )
 
       assert has_element?(view, "#enrolment-key-form-0 input[type=checkbox][name='boards[]']")
+
+      # It opens empty: no name is typed in for the user.
+      assert has_element?(view, "#enrolment-key-label-0")
+      refute has_element?(view, "#enrolment-key-label-0[value]:not([value=''])")
     end
 
     test "an enrolment key is shown once, with the init line, and needs a board", ctx do
