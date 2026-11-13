@@ -101,9 +101,10 @@ defmodule SlipdockWeb.BoardLive.CardComponent.State do
 
   # What the reader may do with the open card now, and nothing at all once
   # they may not see it. `update/2` takes a card only when the board hands
-  # the panel a changed one, and a lowered grant changes nothing it hands
-  # over, so every event (and every finished upload) asks again before it
-  # is let through (#2771).
+  # the panel a changed one; a told lowering of the grant asks this through
+  # `access_changed` (#2997), and a lowering the board is never told of
+  # hands over nothing, so every event (and every finished upload) asks
+  # again before it is let through (#2771).
   @doc false
   def assign_access(%{assigns: %{given: %Card{} = given, card: %Card{}}} = socket) do
     case access(socket, given) do

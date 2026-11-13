@@ -754,6 +754,14 @@ defmodule SlipdockWeb.BoardLive.Show do
         %{panel: :card, card: %Card{id: id}} ->
           case load_card(board, id) do
             {:ok, card} ->
+              # The reload may hand the panel the very card it has, and
+              # then the panel is not updated: it asks again what the
+              # reader may do with it (#2997).
+              send_update(SlipdockWeb.BoardLive.CardComponent,
+                id: "card-panel",
+                access_changed: id
+              )
+
               socket |> assign(card: card) |> assign_card_access()
 
             :error ->

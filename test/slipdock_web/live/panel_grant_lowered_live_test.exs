@@ -213,33 +213,59 @@ defmodule SlipdockWeb.PanelGrantLoweredLiveTest do
         assert is_nil(after_.archived_at)
         assert Access.list_grants(after_) == []
       end
+    end
+  end
 
-      # The upload is driven through `#attach-form`, so the form has to be
-      # there when it finishes. The panel works out what its reader may do
-      # again only when the board hands it a card that differs from the last
-      # (`CardComponent.State.take/2`), and the card's state carries the
-      # seconds it has been in its list: a told reload a second after the
-      # panel opened hands over a different card, the panel hides the form,
-      # and the upload has nothing to go through (#2984). The clock is
-      # pinned so the reload hands over the same card, and the form stays
-      # for the upload to finish against the panel's own check.
-      test "the card panel stores no file that finishes uploading", ctx do
-        Slipdock.TestConfig.put(:card_state_now, DateTime.utc_now())
-        card = card_fixture(ctx.column, %{"title" => "Open card"})
-        {:ok, view, _} = live(as(ctx.writer), ~p"/boards/#{ctx.board}/cards/#{card}")
+  # The card's state carries the seconds it has been in its list, so the
+  # clock is pinned: a told reload hands the panel the very card it already
+  # has, and only the panel's own check of the grant can take its write
+  # controls away (#2997).
+  describe "the card panel's write controls, the clock pinned:" do
+    setup ctx do
+      Slipdock.TestConfig.put(:card_state_now, DateTime.utc_now())
+      card = card_fixture(ctx.column, %{"title" => "Open card"})
+      {:ok, view, _} = live(as(ctx.writer), ~p"/boards/#{ctx.board}/cards/#{card}")
+      assert has_element?(view, "#attach-form")
+      %{card: card, view: view}
+    end
 
-        input =
-          file_input(view, "#attach-form", :attachment, [
-            %{name: "brief.pdf", content: "%PDF-1.4 fake", type: "application/pdf"}
-          ])
+    test "go once the grant is lowered to read and the board told", ctx do
+      lower(:told, ctx)
+      settle(ctx.view)
 
-        lower(unquote(how), ctx)
-        # The board has taken the news in (told) before the upload is sent.
-        assert has_element?(view, "#attach-form")
-        render_upload(input, "brief.pdf")
+      refute has_element?(ctx.view, "#attach-form")
+      assert has_element?(ctx.view, "#card-modal", "Open card")
+    end
 
-        assert Boards.Cards.get_card!(card.id).attachments == []
-      end
+    test "go once the grant is lowered to comment and the board told", ctx do
+      lower(:told, ctx, ctx.board, "comment")
+      settle(ctx.view)
+
+      refute has_element?(ctx.view, "#attach-form")
+      assert has_element?(ctx.view, "#card-modal", "Open card")
+    end
+
+    test "stay while the board hands over the same card to a writer", ctx do
+      send(ctx.view.pid, {:board_changed, ctx.board.id})
+      settle(ctx.view)
+
+      assert has_element?(ctx.view, "#attach-form")
+    end
+
+    # The upload is driven through `#attach-form`, so it has to be started
+    # while the form is there: a lowering the board is never told of leaves
+    # it, and the upload finishes against the panel's own check (#2771).
+    test "an upload finishing after an untold lowering stores no file", ctx do
+      input =
+        file_input(ctx.view, "#attach-form", :attachment, [
+          %{name: "brief.pdf", content: "%PDF-1.4 fake", type: "application/pdf"}
+        ])
+
+      lower(:untold, ctx)
+      assert has_element?(ctx.view, "#attach-form")
+      render_upload(input, "brief.pdf")
+
+      assert Boards.Cards.get_card!(ctx.card.id).attachments == []
     end
   end
 
@@ -343,6 +369,11 @@ defmodule SlipdockWeb.PanelGrantLoweredLiveTest do
       assert [%Tag{name: "allowed"}] = Repo.all(Tag)
     end
   end
+
+  # The board reloads on the news and sends the panel an update, which it
+  # takes after the reload: one render waits out the reload, so the next
+  # look comes after the update.
+  defp settle(view), do: render(view)
 
   defp sprint_board(ctx) do
     {:ok, template} = Boards.Templates.find_template(nil, "Sprint planning")
