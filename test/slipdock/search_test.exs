@@ -135,12 +135,104 @@ defmodule Slipdock.SearchTest do
       assert Repo.aggregate(from(e in Embedding, where: e.card_id == ^card.id), :count) == 1
     end
 
+    test "a queue longer than one flush embeds 40, keeps the rest, and the next flush takes it",
+         ctx do
+      # Each title has a word of its own, so each card can be searched for alone.
+      cards =
+        for n <- 1..45, do: card_fixture(ctx.column, %{"title" => "Imported batchitem#{n}"})
+
+      ids = Enum.map(cards, & &1.id)
+
+      embedded_cards = fn ->
+        Repo.aggregate(from(e in Embedding, where: e.card_id in ^ids), :count)
+      end
+
+      # Creating them queued them one by one; start again from the bulk path.
+      Indexer.reset()
+      assert Indexer.pending() == 0
+      Indexer.enqueue_all(ids)
+      assert Indexer.pending() == 45
+
+      assert {:ok, %{embedded: 40}} = Indexer.flush()
+      assert Indexer.pending() == 5
+      assert embedded_cards.() == 40
+
+      assert {:ok, %{embedded: 5}} = Indexer.flush()
+      assert Indexer.pending() == 0
+      assert embedded_cards.() == 45
+
+      for card <- cards do
+        [word] = Regex.run(~r/batchitem\d+/, card.title)
+        assert {:ok, results} = Search.search(ctx.owner, word)
+        assert Enum.any?(results, &(&1.card.id == card.id)), "#{word} was not found"
+      end
+    end
+
     test "a model change makes every chunk stale", ctx do
       card = card_fixture(ctx.column, %{"title" => "Alpha"})
       index(card)
 
       Repo.update_all(from(e in Embedding), set: [model: "some/older-model"])
       assert {:ok, %{embedded: 1, unchanged: 0}} = Search.index_card(card.id)
+    end
+  end
+
+  describe "the indexer's own timer" do
+    # Outside tests the queue flushes on a timer, not on `flush/0`. The indexer
+    # started at boot, where `Slipdock.TestConfig` can't reach, so the interval
+    # goes in the application env (this module is sync). It is an hour, so the
+    # timer is set and never fires: the test sends its message itself.
+    setup do
+      before = Application.get_env(:slipdock, :search)
+      Application.put_env(:slipdock, :search, Keyword.put(before || [], :interval, 3_600_000))
+      Indexer.reset()
+
+      on_exit(fn ->
+        if before,
+          do: Application.put_env(:slipdock, :search, before),
+          else: Application.delete_env(:slipdock, :search)
+
+        Indexer.reset()
+      end)
+    end
+
+    # Queues the ids and has the timer go off: its message, as `handle_info/2`
+    # gets it. Returns the timer the queueing set and the state after the flush.
+    defp timed_flush(ids) do
+      indexer = Process.whereis(Indexer)
+      Indexer.enqueue_all(ids)
+      %{timer: queued} = :sys.get_state(indexer)
+      assert is_reference(queued)
+      # It has "fired", as far as the indexer will know; don't leave it running.
+      Process.cancel_timer(queued)
+
+      send(indexer, :flush)
+      {queued, :sys.get_state(indexer)}
+    end
+
+    test "a timed flush that leaves a remainder sets the timer again for it", ctx do
+      ids = for n <- 1..45, do: card_fixture(ctx.column, %{"title" => "Timed item#{n}"}).id
+      Indexer.reset()
+
+      {queued, state} = timed_flush(ids)
+
+      assert MapSet.size(state.queue) == 5
+      assert Repo.aggregate(from(e in Embedding, where: e.card_id in ^ids), :count) == 40
+      # Without a new timer nothing would come back for the five left over.
+      assert is_reference(state.timer)
+      assert state.timer != queued
+      assert is_integer(Process.read_timer(state.timer))
+    end
+
+    test "a timed flush that empties the queue leaves no timer", ctx do
+      ids = for n <- 1..3, do: card_fixture(ctx.column, %{"title" => "Timed item#{n}"}).id
+      Indexer.reset()
+
+      {_queued, state} = timed_flush(ids)
+
+      assert MapSet.size(state.queue) == 0
+      assert Repo.aggregate(from(e in Embedding, where: e.card_id in ^ids), :count) == 3
+      assert state.timer == nil
     end
   end
 
