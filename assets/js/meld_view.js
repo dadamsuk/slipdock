@@ -41,15 +41,6 @@ export function decryptCipher(cipher, passphrase) {
   return cipher.kind === "block" ? decryptBlock(cipher.data, passphrase) : decryptNote(cipher.data, passphrase)
 }
 
-// The plaintext with the first remembered passphrase that opens it, or null.
-export async function tryRemembered(cipher) {
-  for (const p of session.passphrases) {
-    const plain = await decryptCipher(cipher, p)
-    if (plain !== null) return plain
-  }
-  return null
-}
-
 // Opens the dialog and resolves to {action, passphrase, remember, hint,
 // text}, or null when it was cancelled. The modes:
 //   decrypt  one passphrase
