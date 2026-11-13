@@ -75,6 +75,15 @@ defmodule SlipdockWeb.CardTagsLiveTest do
   end
 
   describe "tags" do
+    test "the picker's New tag link goes to the board's own tags", ctx do
+      {:ok, view, _} = open(ctx.conn, ctx)
+
+      assert has_element?(
+               view,
+               ~s(#card-tags-menu a#card-tag-manage[href="/boards/#{ctx.board.id}/tags"])
+             )
+    end
+
     test "on a board of 40 tags, only the applied ones are chips", ctx do
       tags = for i <- 1..40, do: tag!(ctx, "Tag #{i}")
       {:ok, _} = Boards.Tags.toggle_card_tag(ctx.card, Enum.at(tags, 4))
