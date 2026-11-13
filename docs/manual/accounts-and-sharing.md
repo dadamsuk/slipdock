@@ -314,7 +314,8 @@ or anyone who can edit it): the recipient sees that card, listed under
 card grant can also raise a board reader to a commenter or an editor on that
 one card. A
 saved view can be shared from the Views menu: the recipient opens the board
-only through that view, sees just the cards it selects, and can edit them
+only through that view, in the mode it was saved in, sees just the cards it
+selects whatever the address asks for, and can edit them
 only if the view grant is "can edit". Readers get a disabled card modal, no
 drag and drop, and no add buttons; the server refuses their writes too.
 

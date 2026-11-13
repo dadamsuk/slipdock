@@ -499,9 +499,16 @@ defmodule SlipdockWeb.BoardLive.State do
     %{board: board, filters: filters} = socket.assigns
     tree = socket.assigns[:waiting_tree] || %Slipdock.Work.Tree{}
     waiting = waiting_keep(socket.assigns[:waiting_filter], tree, board)
+    in_view = view_keep(socket.assigns)
 
     columns =
       Enum.map(board.columns, fn col ->
+        col = %{
+          col
+          | cards: Enum.filter(col.cards, in_view),
+            snoozed: Enum.filter(col.snoozed, in_view)
+        }
+
         cards = Enum.map(col.cards, &%{&1 | waiting_on_me: Slipdock.Work.Tree.of(tree, &1.id)})
 
         visible =
@@ -552,6 +559,19 @@ defmodule SlipdockWeb.BoardLive.State do
   end
 
   defp waiting_keep(_, _tree, _board), do: fn _ -> true end
+
+  # A reader whose access is a saved view sees the cards that view shows, in
+  # every mode, and none until a view granted to them is loaded. The view's
+  # saved settings decide it, not the address's changes to them.
+  defp view_keep(%{view_only: true} = assigns) do
+    %{swim_view: view, swim_base: base, allowed_views: allowed} = assigns
+
+    if view && Enum.any?(allowed, &(&1.id == view.id)),
+      do: &Swimlanes.matches?(&1, base),
+      else: fn _ -> false end
+  end
+
+  defp view_keep(_assigns), do: fn _ -> true end
 
   defp arrange(items, column, board) do
     items
