@@ -75,6 +75,30 @@ defmodule Slipdock.BoardOrderVaultsTest do
     assert Repo.reload(vault).position == 0
   end
 
+  test "an order of boards alone gives a vault that was never placed no place", ctx do
+    %{user: user, a: a, vault: vault} = ctx
+    assert vault.position == nil
+
+    :ok = Boards.Arrangement.reorder_boards(user, [a])
+
+    assert Repo.reload(vault).position == nil
+  end
+
+  test "an order naming only somebody else's vault unplaces one's own", ctx do
+    %{user: user, a: a, vault: vault} = ctx
+    stranger = user_fixture("bov-other@example.com")
+    {:ok, theirs} = stranger |> Vaults.root() |> Vaults.update_vault(%{"name" => "Theirs"})
+
+    :ok = Boards.Arrangement.reorder_boards(user, [vault, a])
+    assert Repo.reload(vault).position == 0
+
+    # It names a vault, so the order says where vaults go, and one's own
+    # isn't in it.
+    :ok = Boards.Arrangement.reorder_boards(user, [{:vault, theirs.id}, a])
+
+    assert Repo.reload(vault).position == nil
+  end
+
   test "nudge and place move a vault like a board", ctx do
     %{user: user, a: a, b: b, vault: vault} = ctx
     among = [a, b, vault]

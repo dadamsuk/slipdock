@@ -220,6 +220,45 @@ defmodule Slipdock.MoveBetweenBoardsTest do
            )
   end
 
+  test "each board's row names the other board and its list", %{
+    from: from,
+    from_todo: from_todo,
+    to: to,
+    to_backlog: to_backlog
+  } do
+    # Lists named apart, so a row naming the wrong one shows.
+    refute from_todo.name == to_backlog.name
+    card = card_fixture(from_todo, %{"title" => "Goes"})
+    {:ok, _} = Boards.Moves.move_card_to_board(card, to_backlog)
+
+    messages = fn board ->
+      Enum.map(Boards.ActivityLog.list_activities(board.id), & &1.message)
+    end
+
+    assert "moved “Goes” to Errands › #{to_backlog.name}" in messages.(from)
+    assert "moved “Goes” in from Plan › #{from_todo.name}" in messages.(to)
+  end
+
+  test "moved back to its board, the card takes a stand-in's slot below other cards" do
+    {:ok, template} = Boards.Templates.find_template(nil, "Sprint planning")
+    sprints = board_fixture(%{"name" => "Sprints"}, template: template)
+    work = board_fixture(%{"name" => "Work"})
+    [_backlog, todo | _] = work.columns
+    {:ok, sprint} = Slipdock.Sprints.create_sprint(sprints)
+
+    _a = card_fixture(todo, %{"title" => "A"})
+    _b = card_fixture(todo, %{"title" => "B"})
+    c = card_fixture(todo, %{"title" => "C"})
+    {:ok, %{added: [moved]}} = Slipdock.Sprints.add_cards(sprint, [c])
+    [stand_in] = Boards.Cards.stand_ins_for(c.id)
+    assert stand_in.position == 2
+
+    assert {:ok, %{card: back}} = Boards.Moves.move_card_to_board(moved, List.last(work.columns))
+    assert back.column_id == todo.id
+    assert back.position == 2
+    assert Boards.Cards.stand_ins_for(c.id) == []
+  end
+
   test "moving inside one tree keeps a pinned milestone pinned", %{
     from: from,
     from_todo: from_todo,
