@@ -115,7 +115,6 @@ defmodule Slipdock.Boards.Column do
       :position,
       :wip_limit,
       :color,
-      :board_id,
       :category,
       :horizon_from,
       :horizon_to,

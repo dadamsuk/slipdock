@@ -94,6 +94,49 @@ defmodule SlipdockWeb.BoardTenancyLiveTest do
       assert Repo.get(Card, ctx.their_card.id)
     end
 
+    test "the settings form saves the list's own fields and nothing else", ctx do
+      view = board_view(ctx.conn, ctx.mine)
+      before = Repo.get!(Column, ctx.my_col.id)
+
+      settings = with_target(view, "#board-column")
+      render_hook(settings, "edit_column", %{"id" => "#{ctx.my_col.id}"})
+
+      render_hook(settings, "save_column", %{
+        "column" => %{
+          "name" => "Renamed here",
+          "wip_limit" => "4",
+          "board_id" => "#{ctx.theirs.id}",
+          "position" => "#{before.position + 7}",
+          "color" => "rose"
+        }
+      })
+
+      column = Repo.get!(Column, ctx.my_col.id)
+      # What the form holds is saved,
+      assert column.name == "Renamed here"
+      assert column.wip_limit == 4
+      # and the rest of the row is as it was.
+      assert column.board_id == ctx.mine.id
+      assert column.position == before.position
+      assert column.color == before.color
+
+      assert Enum.map(Boards.get_board!(ctx.theirs.id).columns, & &1.id) ==
+               Enum.map(ctx.theirs.columns, & &1.id)
+    end
+
+    test "the settings form still saves the board's own fields beside them", ctx do
+      view = board_view(ctx.conn, ctx.mine)
+      settings = with_target(view, "#board-column")
+      render_hook(settings, "edit_column", %{"id" => "#{ctx.my_col.id}"})
+
+      render_hook(settings, "save_column", %{
+        "column" => %{"name" => "Kept", "wip_limit" => "", "add_card" => "false"}
+      })
+
+      assert %{name: "Kept", wip_limit: nil} = Repo.get!(Column, ctx.my_col.id)
+      refute Boards.get_board!(ctx.mine.id).add_card
+    end
+
     test "still work on your own board", ctx do
       view = board_view(ctx.conn, ctx.mine)
 

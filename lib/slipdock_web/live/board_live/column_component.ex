@@ -19,6 +19,10 @@ defmodule SlipdockWeb.BoardLive.ColumnComponent do
   # The board's own settings that the dialog carries alongside the list's.
   @board_fields ~w(add_card add_page add_document)
 
+  # The list's own settings: the fields the dialog's form has.
+  @column_fields ~w(name wip_limit category horizon_from horizon_to horizon_unit
+                    show_age show_images sort_by sort_dir group_by)
+
   @events ~w(edit_column close_column save_column set_column_color delete_column)
   # Everything here changes the board, but closing the panel.
   @write_events @events -- ~w(close_column)
@@ -76,8 +80,12 @@ defmodule SlipdockWeb.BoardLive.ColumnComponent do
     do: {:noreply, socket}
 
   defp event("save_column", %{"column" => params}, socket) do
-    {board_params, params} = Map.split(params, @board_fields)
-    params = Map.update(params, "wip_limit", nil, &if(&1 == "", do: nil, else: &1))
+    board_params = Map.take(params, @board_fields)
+
+    params =
+      params
+      |> Map.take(@column_fields)
+      |> Map.update("wip_limit", nil, &if(&1 == "", do: nil, else: &1))
 
     case Boards.Columns.update_column(socket.assigns.column_modal, params) do
       {:ok, _} ->

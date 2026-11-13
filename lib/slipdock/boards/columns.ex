@@ -42,7 +42,7 @@ defmodule Slipdock.Boards.Columns do
     position = Boards.Shared.next_position(from(c in Column, where: c.board_id == ^board.id))
 
     %Column{board_id: board.id, position: position}
-    |> Column.changeset(attrs |> Map.put("board_id", board.id) |> default_category())
+    |> Column.changeset(default_category(attrs))
     |> Repo.insert()
     |> Boards.Shared.tap_ok(fn col ->
       Boards.ActivityLog.log(Repo, board.id, nil, "column", "added list “#{col.name}”")
