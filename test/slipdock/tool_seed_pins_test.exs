@@ -20,7 +20,7 @@ defmodule Slipdock.ToolSeedPinsTest do
   # {the Tool's version, the SHA-256 of its seed}.
   @pins %{
     "handbook" => {"1.9.1", "b20d3ee9417d66ddc084a1cc60b2abfb8fd29eab838090b7934ff77504ef68ed"},
-    "sweep" => {"1.2.0", "5360827fc25f8aa082f06bff194c9fd47ba99c4dcf0022791ff9343cc269b3be"}
+    "sweep" => {"1.2.0", "4f909bba15a250fcf53912f9a5b9b7486dcb4495a28eb1e64191f550c677fe64"}
   }
 
   # What an install puts on a board. The Handbook's blueprint holds every
@@ -31,7 +31,11 @@ defmodule Slipdock.ToolSeedPinsTest do
   defp seed("handbook"), do: Handbook.blueprint()
 
   defp seed("sweep") do
-    [Sweep.blueprint(), Sweep.blueprint([{"An area", ["lib/app/**"]}]), Sweep.card_bar("W-1")]
+    [
+      Sweep.blueprint(),
+      Sweep.blueprint([{"An area", ["lib/app/**", "test/app/**"]}]),
+      Sweep.card_bar("W-1")
+    ]
   end
 
   defp version("handbook"), do: Handbook.version()
