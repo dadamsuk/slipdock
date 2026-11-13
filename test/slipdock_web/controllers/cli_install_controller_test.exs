@@ -77,6 +77,21 @@ defmodule SlipdockWeb.CLIInstallControllerTest do
     end
   end
 
+  describe "sh_single_quoted/1" do
+    test "a quote closes the string, gives a quote and opens it again" do
+      assert SlipdockWeb.CLIInstallController.sh_single_quoted("a'b") == ~S(a'\''b)
+
+      assert SlipdockWeb.CLIInstallController.sh_single_quoted("http://x.example") ==
+               "http://x.example"
+    end
+
+    test "what it gives stays one word to sh" do
+      quoted = SlipdockWeb.CLIInstallController.sh_single_quoted("it's'; rm -rf ~ '")
+      {out, 0} = System.cmd("sh", ["-c", "printf %s '#{quoted}'"])
+      assert out == "it's'; rm -rf ~ '"
+    end
+  end
+
   describe "GET /cli/install.ps1" do
     test "is plain text that installs from this server", %{conn: conn} do
       conn = conn |> Map.put(:host, "boards.example") |> get("/cli/install.ps1")

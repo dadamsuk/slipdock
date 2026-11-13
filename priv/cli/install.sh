@@ -40,9 +40,11 @@ erlang_help() {
     Linux)
       id=''
       like=''
-      if [ -r /etc/os-release ]; then
-        id=$(sed -n 's/^ID=//p' /etc/os-release | tr -d '"')
-        like=$(sed -n 's/^ID_LIKE=//p' /etc/os-release | tr -d '"')
+      # SLIPDOCK_OS_RELEASE is for the installer's own tests.
+      os_release=${SLIPDOCK_OS_RELEASE:-/etc/os-release}
+      if [ -r "$os_release" ]; then
+        id=$(sed -n 's/^ID=//p' "$os_release" | tr -d '"')
+        like=$(sed -n 's/^ID_LIKE=//p' "$os_release" | tr -d '"')
       fi
       case " $id $like " in
         *" debian "* | *" ubuntu "*) echo "  sudo apt-get install erlang-nox" ;;

@@ -86,15 +86,21 @@ defmodule SlipdockWeb.CLIInstallController do
     script =
       @install_sh
       |> String.replace("__SLIPDOCK_BASE_COMMENT__", base)
-      # BaseURL already refuses a Host that is not a plain name; in a
-      # single-quoted shell string only a quote means anything.
-      |> String.replace("__SLIPDOCK_BASE__", String.replace(base, "'", ~S('\'')))
+      |> String.replace("__SLIPDOCK_BASE__", sh_single_quoted(base))
       |> String.replace("__SLIPDOCK_RELEASE_KEY__", @release_key)
 
     conn
     |> put_resp_content_type("text/plain")
     |> send_resp(200, script)
   end
+
+  @doc """
+  `text` made safe inside a single-quoted shell string, where only a quote
+  means anything: it closes the string, gives a quote, and opens it again.
+  BaseURL already refuses a Host that is not a plain name, so this is the
+  second guard.
+  """
+  def sh_single_quoted(text), do: String.replace(text, "'", ~S('\''))
 
   # Not a hole: The escript's path is the release's own, not request input.
   # sobelow_skip ["Traversal.SendFile"]

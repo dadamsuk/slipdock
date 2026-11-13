@@ -103,16 +103,22 @@ defmodule SlipdockWeb.CLIShellInstallTest do
   defp url_file(ctx), do: Path.join([ctx.home, ".config", "slipdock", "url"])
 
   # Fetched from `url` as a person would, then run under sh with `args`.
-  defp install(ctx, args \\ [], url \\ nil) do
+  # `opts`: `:edit`, a function given the script as served, for a test that
+  # needs another release key in it; `:env`, more of the environment;
+  # `:path`, the PATH (the test's own bin folder by default).
+  defp install(ctx, args \\ [], url \\ nil, opts \\ []) do
     script = Path.join(ctx.dir, "install-#{System.unique_integer([:positive])}.sh")
-    File.write!(script, fetch(url || ctx.url))
+    edit = Keyword.get(opts, :edit, & &1)
+    File.write!(script, edit.(fetch(url || ctx.url)))
 
     cmd = [@sh, script | args]
     # A deadline inside ExUnit's 60 s, where there is a `timeout` to give one.
     {exe, argv} = if @timeout, do: {@timeout, ["-k", "5", "40" | cmd]}, else: {@sh, tl(cmd)}
 
     System.cmd(exe, argv,
-      env: [{"HOME", ctx.home}, {"PATH", ctx.bin}],
+      env:
+        [{"HOME", ctx.home}, {"PATH", Keyword.get(opts, :path, ctx.bin)}] ++
+          Keyword.get(opts, :env, []),
       stderr_to_stdout: true
     )
   end
@@ -237,6 +243,174 @@ defmodule SlipdockWeb.CLIShellInstallTest do
     assert code == 1
     assert out =~ "is Erlang/OTP 26; the CLI needs 27 or later"
     assert File.ls!(ctx.home) == []
+  end
+
+  # The script as served, with `key` as its release key instead.
+  defp with_release_key(key) do
+    &String.replace(&1, ~r/^RELEASE_KEY='.*'$/m, "RELEASE_KEY='#{key}'")
+  end
+
+  defp unlink(ctx, tool), do: File.rm(Path.join(ctx.bin, tool))
+
+  defp nothing_installed(ctx) do
+    refute File.exists?(dest(ctx))
+    refute File.exists?(url_file(ctx))
+  end
+
+  test "says nothing of the PATH when the folder it installed into is on it", ctx do
+    {out, 0} = install(ctx, [], nil, path: ctx.bin <> ":" <> Path.dirname(dest(ctx)))
+
+    assert out =~ "slipdock: installed #{dest(ctx)}"
+    refute out =~ "is not on your PATH"
+  end
+
+  test "a SHA256SUMS that doesn't name slipdock.escript is refused, and nothing installed",
+       ctx do
+    sums = String.duplicate("a", 64) <> "  something-else.escript\n"
+    {out, code} = install(ctx, [], serve({Answering, {"/cli/SHA256SUMS", sums}}))
+
+    assert code == 1
+    assert out =~ "/cli/SHA256SUMS has no checksum for slipdock.escript; nothing was installed"
+    nothing_installed(ctx)
+  end
+
+  test "an Erlang it can't read the version of is warned about, and the CLI installed", ctx do
+    erlang(ctx, "not-a-number")
+    {out, 0} = install(ctx)
+
+    assert out =~ "warning: couldn't tell which Erlang/OTP"
+    assert out =~ "the CLI needs 27 or later"
+    assert File.read!(dest(ctx)) == ctx.bytes
+  end
+
+  describe "without curl" do
+    setup ctx do
+      unlink(ctx, "curl")
+      :ok
+    end
+
+    test "it fetches with wget", ctx do
+      # A wget that takes only the arguments the script gives it, and
+      # fetches with curl from outside the PATH folder.
+      curl = System.find_executable("curl")
+
+      stub(ctx, "wget", """
+      [ "$1" = -q ] && [ "$2" = -O ] && [ $# -eq 4 ] || { echo "wget: unexpected $*" >&2; exit 2; }
+      exec #{curl} -fsS -o "$3" "$4"
+      """)
+
+      {out, 0} = install(ctx)
+
+      assert out =~ "slipdock: installed #{dest(ctx)}"
+      assert File.read!(dest(ctx)) == ctx.bytes
+    end
+
+    test "or with no wget either, says it needs one, and installs nothing", ctx do
+      {out, code} = install(ctx)
+
+      assert code == 1
+      assert out =~ "slipdock: needs curl or wget"
+      assert File.ls!(ctx.home) == []
+    end
+  end
+
+  test "with no sha256sum, as on an older macOS, it checks with shasum -a 256", ctx do
+    unlink(ctx, "sha256sum")
+
+    unless System.find_executable("shasum") do
+      # No shasum here: one that answers only for -a 256.
+      sha256sum = System.find_executable("sha256sum")
+      stub(ctx, "shasum", ~s([ "$1 $2" = "-a 256" ] || exit 2\nexec #{sha256sum} "$3"))
+    end
+
+    {out, 0} = install(ctx)
+
+    assert out =~ "slipdock: installed #{dest(ctx)}"
+    assert File.read!(dest(ctx)) == ctx.bytes
+  end
+
+  # A key of the test's own, and the CLI's bytes signed with it as the
+  # release is signed: ed25519, namespace slipdock-cli.
+  defp sign(ctx, keygen) do
+    key = Path.join(ctx.dir, "release_key")
+    {_, 0} = System.cmd(keygen, ["-q", "-t", "ed25519", "-N", "", "-C", "release", "-f", key])
+
+    {_, 0} =
+      System.cmd(keygen, ["-q", "-Y", "sign", "-f", key, "-n", "slipdock-cli", ctx.built])
+
+    public = key |> Kernel.<>(".pub") |> File.read!() |> String.split(" ") |> Enum.take(2)
+
+    %{
+      public_key: Enum.join(public, " "),
+      signed: {Answering, {"/cli/slipdock.escript.sig", File.read!(ctx.built <> ".sig")}}
+    }
+  end
+
+  describe "a signed release" do
+    setup ctx do
+      keygen = System.find_executable("ssh-keygen")
+      if keygen, do: Map.put(sign(ctx, keygen), :keygen, keygen), else: %{keygen: nil}
+    end
+
+    test "signed with the release key is checked, and installs", ctx do
+      if ctx.keygen do
+        {out, 0} = install(ctx, [], serve(ctx.signed), edit: with_release_key(ctx.public_key))
+
+        assert out =~ "signature checked against the release key"
+        assert File.read!(dest(ctx)) == ctx.bytes
+      end
+    end
+
+    test "with no release key in the installer is refused, and nothing installed", ctx do
+      if ctx.keygen do
+        {out, code} = install(ctx, [], serve(ctx.signed), edit: with_release_key(""))
+
+        assert code == 1
+        assert out =~ "serves a signature but this installer has no release key"
+        assert out =~ "nothing was installed"
+        nothing_installed(ctx)
+      end
+    end
+
+    test "with no ssh-keygen here is warned about, and installs on the checksum", ctx do
+      unlink(ctx, "ssh-keygen")
+      key = ctx[:public_key] || "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIA"
+      {out, 0} = install(ctx, [], serve(@bad_signature), edit: with_release_key(key))
+
+      assert out =~ "warning: no ssh-keygen here, so the signature wasn't checked"
+      assert File.read!(dest(ctx)) == ctx.bytes
+    end
+  end
+
+  describe "with no Erlang, on Linux, it names the distribution's package" do
+    setup ctx do
+      erlang(ctx, nil)
+      :ok
+    end
+
+    for {name, os_release, line} <- [
+          {"debian", "ID=debian\n", "sudo apt-get install erlang-nox"},
+          {"ubuntu", "ID=ubuntu\nID_LIKE=debian\n", "sudo apt-get install erlang-nox"},
+          {"fedora", ~s(ID="fedora"\n), "sudo dnf install erlang"},
+          {"rocky", ~s(ID="rocky"\nID_LIKE="rhel centos fedora"\n), "sudo dnf install erlang"},
+          {"arch", "ID=arch\n", "sudo pacman -S erlang"},
+          {"alpine", "ID=alpine\n", "sudo apk add erlang"},
+          {"opensuse", ~s(ID="opensuse-leap"\nID_LIKE="suse opensuse"\n),
+           "sudo zypper install erlang"},
+          {"an unknown one", "ID=plan9\n", "your distribution's erlang package"}
+        ] do
+      test "#{name}", ctx do
+        file = Path.join(ctx.dir, "os-release")
+        File.write!(file, unquote(os_release))
+
+        {out, 1} = install(ctx, [], nil, env: [{"SLIPDOCK_OS_RELEASE", file}])
+
+        assert out =~ "\n  #{unquote(line)}\n"
+        # Only the one it names.
+        assert length(Regex.scan(~r/^  (sudo |your distribution)/m, out)) == 1
+        assert File.ls!(ctx.home) == []
+      end
+    end
   end
 
   test "the script itself is POSIX sh, with no bashisms dash would trip on" do
