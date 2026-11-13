@@ -4,8 +4,10 @@ defmodule Slipdock.Automations.Scheduler do
   (a minute by default) it asks `Slipdock.Automations.run_scheduled/1` to look
   for cards that have gone stale, come due or run late.
 
-  Set `config :slipdock, :automations, interval: :manual` to keep it quiet and
-  drive it from `tick/1` instead, as the tests do.
+  Set `config :slipdock, :automations, interval: :manual` to keep it quiet,
+  as the tests do. A test then drives it with `run_now/0` (a whole tick: the
+  periodic jobs, then the rules) or calls `Slipdock.Automations.run_scheduled/1`
+  directly to run the rules at a chosen time.
   """
 
   use GenServer
@@ -18,9 +20,6 @@ defmodule Slipdock.Automations.Scheduler do
   @startup_delay :timer.seconds(20)
 
   def start_link(opts), do: GenServer.start_link(__MODULE__, opts, name: __MODULE__)
-
-  @doc "Runs the scheduled rules once, synchronously. Returns how many fired."
-  def tick(now \\ DateTime.utc_now()), do: Slipdock.Automations.run_scheduled(now)
 
   @doc "Asks the running scheduler to tick now, and waits for it."
   def run_now, do: GenServer.call(__MODULE__, :tick, 30_000)
@@ -44,16 +43,18 @@ defmodule Slipdock.Automations.Scheduler do
   def handle_call(:tick, _from, state), do: {:reply, safe_tick(), state}
 
   # A job or rule that blows up must not take the scheduler with it, nor
-  # skip the jobs after it: each runs through `guarded/3` on its own.
+  # skip the jobs after it: each runs through `guarded/3` on its own. Returns
+  # how many rules fired.
   defp safe_tick do
     run_jobs(jobs())
-    guarded("Automation scheduler", &tick/0, 0)
+    guarded("Automation scheduler", &Slipdock.Automations.run_scheduled/0, 0)
   end
 
   @doc false
   # The periodic jobs, in the order they run, before the rules themselves
-  # (`tick/0`). A new one goes here, as `{label, fun}`; `run_jobs/1` logs
-  # "<label> failed: ..." if it raises and carries on with the next.
+  # (`Slipdock.Automations.run_scheduled/0`). A new one goes here, as
+  # `{label, fun}`; `run_jobs/1` logs "<label> failed: ..." if it raises and
+  # carries on with the next.
   def jobs do
     [
       # The scheduler's pulse, for `/healthz` (see `Slipdock.Health.pulse/1`):
