@@ -3583,7 +3583,7 @@ defmodule Slipdock.Verified do
     {"the agents' and runners' in-app help (`HelpLive.Agents`, `HelpLive.Flow`, and the CLI reference's `cli/help.txt`)",
      "lib/slipdock_web/live/help_live/agents.ex lib/slipdock_web/live/help_live/agents/ lib/slipdock_web/live/help_live/flow.ex lib/slipdock_web/live/help_live/flow/ cli/help.txt"},
     {"the agents page", "docs/agents.md"},
-    {"the API guide", "lib/slipdock_web/api_guide.ex"},
+    {"the API guide", "lib/slipdock_web/api_guide.ex lib/slipdock_web/api_guide/"},
     {"the skills", "priv/skills/"}
   ]
 

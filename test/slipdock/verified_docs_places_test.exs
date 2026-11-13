@@ -23,7 +23,7 @@ defmodule Slipdock.VerifiedDocsPlacesTest do
     "lib/slipdock_web/live/help_live/guides.ex lib/slipdock_web/live/help_live/guides/",
     "lib/slipdock_web/live/help_live/agents.ex lib/slipdock_web/live/help_live/agents/ lib/slipdock_web/live/help_live/flow.ex lib/slipdock_web/live/help_live/flow/ cli/help.txt",
     "docs/agents.md",
-    "lib/slipdock_web/api_guide.ex",
+    "lib/slipdock_web/api_guide.ex lib/slipdock_web/api_guide/",
     "priv/skills/"
   ]
 
@@ -77,6 +77,17 @@ defmodule Slipdock.VerifiedDocsPlacesTest do
   defp claimed(card) do
     {:ok, job} = Runners.queue(card, %{pool: "dev", kind: "claude", prompt: "Do it."})
     Runners.claimed_prompt(job)
+  end
+
+  describe "the places" do
+    test "are the seven, each with every file and directory its prose is in" do
+      assert Enum.map(Verified.docs_places(), &elem(&1, 1)) == @places
+      # The API guide's prose is a Markdown file per section (#2924).
+      assert {"the API guide", "lib/slipdock_web/api_guide.ex lib/slipdock_web/api_guide/"} in Verified.docs_places()
+
+      # Every file and directory a place names is there to grep.
+      for files <- @places, path <- String.split(files), do: assert(File.exists?(path), path)
+    end
   end
 
   describe "the verify and audit prompts" do
