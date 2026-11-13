@@ -90,6 +90,11 @@ defmodule SlipdockWeb.BoardLive.Show do
 
   @known_events @owner_events ++ @board_write_events ++ @self_checked_events ++ @read_events
 
+  # Events gated on what the reader may do on this board: the level is read
+  # again before each (`access_hook/3`, #2981). Sharing a view is the
+  # owner's, checked in `share_target/2`.
+  @access_events @owner_events ++ @board_write_events ++ ~w(share revoke_grant)
+
   # Handled by `BoardLive.ViewEvents` and `BoardLive.Keyboard`, once the
   # guards have let them through.
   @view_events ViewEvents.events()
@@ -151,6 +156,7 @@ defmodule SlipdockWeb.BoardLive.Show do
 
     {:ok,
      socket
+     |> attach_hook(:refresh_access, :handle_event, &access_hook/3)
      |> assign(
        perm: perm,
        can_write: Access.can_write?(perm),
@@ -169,6 +175,19 @@ defmodule SlipdockWeb.BoardLive.Show do
      |> mount_assigns(board)
      |> assign_card_views()}
   end
+
+  # What the reader may do is read again before the guards at the top of
+  # `handle_event/3` (#2981): the assigns were worked out at mount or the
+  # last reload, and a lowering the board is never told of (a group's
+  # membership, a grant on the card a sub-board hangs from) leaves them
+  # saying what was true then. A reader with no access left is being sent
+  # away, and the event goes no further.
+  defp access_hook(event, _params, socket) when event in @access_events do
+    socket = refresh_access(socket)
+    if socket.redirected, do: {:halt, socket}, else: {:cont, socket}
+  end
+
+  defp access_hook(_event, _params, socket), do: {:cont, socket}
 
   defp mount_assigns(socket, board) do
     socket
