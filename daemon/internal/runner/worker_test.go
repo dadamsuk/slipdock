@@ -743,6 +743,25 @@ func TestAWorktreeStartsFromTheOriginsDefaultBranch(t *testing.T) {
 		t.Fatalf("card-77's own commit sits on %s, want origin/main (%s)", got, newer)
 	}
 
+	// A local branch ahead of the origin's (its push, then more work
+	// here): the local one, rebased, and the log has no word of the
+	// origin's, which it already holds.
+	pushed80 := commitOn("origin/main~2", "card 80's pushed")
+	git(r.dir, "push", "-q", "origin", pushed80+":refs/heads/card-80")
+	git(r.dir, "fetch", "-q", "origin")
+	git(r.dir, "branch", "card-80", commitOn(pushed80, "card 80's since"))
+	f = r.runJob(fakeJob{id: 170, kind: "claude", card: 80, prompt: "x"})
+	if !strings.Contains(f.body, "on branch card-80\n") || !strings.Contains(f.body, "branch card-80 rebased onto origin/main") ||
+		strings.Contains(f.body, "were not taken") || strings.Contains(f.body, "is behind origin/card-80") {
+		t.Fatalf("log: %s", f.body)
+	}
+	if got := git(r.dir, "log", "-2", "--format=%s", "card-80"); got != "card 80's since\ncard 80's pushed" {
+		t.Fatalf("card-80's commits are %q", got)
+	}
+	if got := git(r.dir, "rev-parse", "card-80~2"); got != newer {
+		t.Fatalf("card-80's commits sit on %s, want origin/main (%s)", got, newer)
+	}
+
 	// A stale local branch, and the origin's already merged into main:
 	// nothing of its own anywhere, so it starts again from origin/main.
 	git(other, "push", "-q", "origin", "HEAD~1:refs/heads/card-79")
