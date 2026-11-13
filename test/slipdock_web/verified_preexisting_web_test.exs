@@ -141,7 +141,9 @@ defmodule SlipdockWeb.VerifiedPreexistingWebTest do
 
     assert read.("cli/help.txt") =~ "rule:UX-4=pre-existing:lib/x.ex:42 is a rule broken"
     assert read.("priv/skills/slipdock/SKILL.md") =~ "# rule:<id>=pre-existing:<file>:<line>"
-    assert read.("priv/skills/slipdock-loop/SKILL.md") =~ "`rule:UX-4=pre-existing:<file>:<line>`"
+
+    assert read.("priv/skills/slipdock-loop/references/verifying.md") =~
+             "`rule:UX-4=pre-existing:<file>:<line>`"
 
     assert SlipdockWeb.MCP.Tools.VerifyCard.input_schema().properties.checks.description =~
              "pre-existing"

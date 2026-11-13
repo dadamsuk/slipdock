@@ -40,7 +40,7 @@ defmodule SlipdockWeb.AuditMissesDocsTest do
       "The verify prompt (never the audit's) lists the tree's last five audit misses"
     )
 
-    skill = read.("priv/skills/slipdock-loop/SKILL.md")
+    skill = read.("priv/skills/slipdock-loop/references/verifying.md")
     assert_states(skill, "*What audits on this board caught recently*): check those first")
     assert skill =~ "An audit's prompt never does"
   end

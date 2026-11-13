@@ -19,36 +19,42 @@ defmodule SlipdockWeb.SubagentWaitDocsTest do
   defp read(path), do: Slipdock.DocsText.read!(Path.join(@root, path))
   defp flat(text), do: String.replace(text, ~r/\s+/, " ")
 
-  defp copies do
-    [Path.join(@root, "priv/skills/slipdock-loop/SKILL.md")]
-  end
+  # Step 5 is one of the skill's references (#3004); the invariant stays in
+  # `SKILL.md`, which every pass reads.
+  @subcards "priv/skills/slipdock-loop/references/subcards.md"
 
   test "the loop skill waits for its subagents, and leaves no subcard stranded" do
-    for path <- copies() do
-      loop = path |> Slipdock.DocsText.read!() |> flat()
-
-      for part <- [
-            "**Wait for every subagent you started before your turn ends.**",
-            "In print mode (`claude -p`, as a runner runs it) the run ends when the turn does",
-            "Don't end the turn to be told they have finished: wait for them in it.",
-            "each subcard is finished and closed, or handed back (below) with a handoff",
-            "**Never end a pass with a subcard you moved in left in progress with nothing " <>
-              "working on it.**",
-            "then finish each subcard or hand it back with a handoff"
-          ],
-          do: assert_states(loop, part, "#{path}: #{part}")
-    end
+    for {path, parts} <- [
+          {@subcards,
+           [
+             "**Wait for every subagent you started before your turn ends.**",
+             "In print mode (`claude -p`, as a runner runs it) the run ends when the turn does",
+             "Don't end the turn to be told they have finished: wait for them in it.",
+             "each subcard is finished and closed, or handed back (`SKILL.md`, **Handing a " <>
+               "card back**) with a handoff"
+           ]},
+          {"priv/skills/slipdock-loop/SKILL.md",
+           [
+             "**Never end a pass with a subcard you moved in left in progress with nothing " <>
+               "working on it.**",
+             "then finish each subcard or hand it back with a handoff",
+             "Read `references/subcards.md` before starting one."
+           ]}
+        ],
+        loop = path |> read() |> flat(),
+        part <- parts,
+        do: assert_states(loop, part, "#{path}: #{part}")
   end
 
   test "the wait comes before the parent closes, in the subcards section" do
-    loop = read("priv/skills/slipdock-loop/SKILL.md")
+    loop = read(@subcards) <> "\n## "
     [_, section] = String.split(loop, "## 5. Subcards before the parent", parts: 2)
     [section | _] = String.split(section, "\n## ", parts: 2)
     assert_states(section, "Wait for every\nsubagent you started")
   end
 
   test "each subagent's brief says to run everything in the foreground (#2974)" do
-    loop = read("priv/skills/slipdock-loop/SKILL.md")
+    loop = read(@subcards) <> "\n## "
     [_, section] = String.split(loop, "## 5. Subcards before the parent", parts: 2)
     [section | _] = String.split(section, "\n## ", parts: 2)
     section = flat(section)

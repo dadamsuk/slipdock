@@ -43,19 +43,35 @@ defmodule SlipdockWeb.API.SkillsTest do
     assert markup =~ "[[Retry policy]]"
   end
 
+  # A part of slipdock-loop that only some passes read (#3004): a file under
+  # its `references/`, served beside its `SKILL.md`.
+  defp loop_reference(conn, file) do
+    conn
+    |> get("/api/skills/slipdock-loop/references/#{file}")
+    |> json_response(200)
+    |> Map.fetch!("content")
+  end
+
   @tag :anonymous
   test "slipdock-loop takes a job from a pool's queue when it is given one", %{conn: conn} do
     assert %{"content" => body} =
              conn |> get("/api/skills/slipdock-loop") |> json_response(200)
 
-    assert_states(body, "## 2b. A job first, when you are given a pool")
-    assert body =~ "slipdock claim-job <board> --pool <pool>"
+    picking = loop_reference(conn, "picking.md")
+
+    assert_states(picking, "## 2b. A job first, when you are given a pool")
+    assert picking =~ "slipdock claim-job <board> --pool <pool>"
     # The running log doubles as the heartbeat, and the job ends with the card.
-    assert body =~ "slipdock job-progress <job> --message"
-    assert body =~ "slipdock finish-job <job> --status done"
+    assert picking =~ "slipdock job-progress <job> --message"
+    assert picking =~ "slipdock finish-job <job> --status done"
     # No job means stop, unless told to fall back; an older server is no reason to fail.
-    assert_states(body, "only if the\n  invocation says to fall back")
-    assert body =~ "one older than runners"
+    assert_states(picking, "only if the\n  invocation says to fall back")
+    assert picking =~ "one older than runners"
+    # The pass that has to choose its card is sent there (#3004).
+    assert_states(
+      body,
+      "the invocation names a pool to take a job from | `references/picking.md`"
+    )
 
     assert %{"content" => work} = conn |> get("/api/skills/slipdock-work") |> json_response(200)
     assert work =~ "runner job"
@@ -103,30 +119,39 @@ defmodule SlipdockWeb.API.SkillsTest do
     assert %{"content" => body} =
              conn |> get("/api/skills/slipdock-loop") |> json_response(200)
 
+    picking = loop_reference(conn, "picking.md")
+    build = loop_reference(conn, "build.md")
+
     # Before picking: a red default branch becomes a card on top of To Do.
-    assert body =~ "## 2a. Check CI before you pick"
-    assert body =~ "gh run list --branch <default-branch> --limit 1"
-    assert body =~ ~s(CI failing on <branch>)
+    assert picking =~ "## 2a. Check CI before you pick"
+    assert picking =~ "gh run list --branch <default-branch> --limit 1"
+    assert picking =~ ~s(CI failing on <branch>)
 
     # A pass that died mid-watch resumes the watch rather than the work.
-    assert body =~ "last comment is `Build started`"
+    assert picking =~ "last comment is `Build started`"
 
     # ...including on an epic's sub-board, not just the top level.
-    assert body =~ "slipdock cards <sub-board-id> --column \"In Progress\" --assignee me --open"
+    assert picking =~
+             "slipdock cards <sub-board-id> --column \"In Progress\" --assignee me --open"
 
     # Closing out: announce the build, watch it quietly, report either way.
     assert body =~ "gh run list --commit <full-sha>"
-    assert body =~ "gh run watch <run-id> --exit-status --interval 10 > /dev/null"
+    assert build =~ "gh run watch <run-id> --exit-status --interval 10 > /dev/null"
+    refute build =~ "--interval 30"
     refute body =~ "--interval 30"
 
     # Headless (`claude -p`) passes exit when the turn ends, so the watch can't
-    # be left in the background to report back later.
-    assert body =~ "**Run it in the foreground**"
-    assert_states(body, "Never run the watch in\n   the background")
+    # be left in the background to report back later. The step says so itself,
+    # and sends the pass to the watch (#3004).
+    assert_states(body, "in the foreground, never in the background with the turn ended")
+    assert_states(body, "`references/build.md` has the watch")
+    assert build =~ "**Run it in the foreground**"
+    assert_states(build, "Never run the watch in\n   the background")
+    refute build =~ "background and wait to be notified"
     refute body =~ "background and wait to be notified"
-    assert body =~ "**Passed:** `Build passed:"
-    assert body =~ "**Failed:** `Build failed:"
-    assert body =~ "After **two** failed fix attempts"
+    assert build =~ "**Passed:** `Build passed:"
+    assert build =~ "**Failed:** `Build failed:"
+    assert build =~ "After **two** failed fix attempts"
     assert body =~ "CI: passed"
     assert_states(body, "**Never close a top-level card on a red build.**")
     refute body =~ "**Never close a card on a red build.**"
@@ -140,31 +165,43 @@ defmodule SlipdockWeb.API.SkillsTest do
     assert %{"content" => body} =
              conn |> get("/api/skills/slipdock-loop") |> json_response(200)
 
-    # A subcard closes on `Build started`; only the epic (or a lone card) waits.
-    assert_states(body, "4. **Wait for the build — for the pass's top-level card only.**")
-    assert body =~ "**A subcard** does not wait."
+    build = loop_reference(conn, "build.md")
+    subcards = loop_reference(conn, "subcards.md")
 
-    assert body =~
+    # A subcard closes on `Build started`; only the epic (or a lone card) waits.
+    assert_states(body, "4. **Wait for the build — for the pass's top-level card only**")
+    assert_states(body, "A subcard does not wait: its `Build started` comment is enough.")
+    assert_states(build, "4. **Wait for the build — for the pass's top-level card only.**")
+    assert build =~ "**A subcard** does not wait."
+
+    assert build =~
              "started — <workflow> #<run-id> <run url> (checked before the\n     epic closes)"
 
-    assert_states(body, "waits for the build of the last push")
+    assert_states(build, "waits for the build of the last push")
 
     # Between subcards: one look at the latest build, and a red one comes first.
+    assert_states(body, "| The card has subcards (an epic) | `references/subcards.md`")
+
     assert_states(
-      body,
+      subcards,
       "**before\nclaiming the next subcard, look at the latest build on the branch**"
     )
 
-    assert body =~ "gh run list --branch <branch> --limit 1"
+    assert subcards =~ "gh run list --branch <branch> --limit 1"
     # The fix goes on a new subcard: the board refuses reopening a done one (#1850, #1853).
-    assert body =~ ~s(slipdock add <sub-board> "Build failed: #<id> <title>")
-    refute body =~ "`slipdock undone <id>`"
+    assert subcards =~ ~s(slipdock add <sub-board> "Build failed: #<id> <title>")
+
+    for text <- [body, build, subcards],
+        do: refute(text =~ "`slipdock undone <id>`")
 
     # The epic closes only on a green build of its last push.
-    assert_states(body, "the build\nof the last push is green")
+    assert_states(subcards, "the build\nof the last push is green")
 
     # A red build from a dead pass's subcard is fixed under its epic, not on a new top-level card.
-    assert_states(body, "If the commit is a closed subcard's and its epic is still\nopen")
+    assert_states(
+      loop_reference(conn, "picking.md"),
+      "If the commit is a closed subcard's and its epic is still\nopen"
+    )
   end
 
   @tag :anonymous
@@ -196,10 +233,16 @@ defmodule SlipdockWeb.API.SkillsTest do
     assert_states(body, "`whoami` runs at the start of **every** pass")
 
     # A dead token mid-card is loud: no retries, no self-auth, an alert, a stopped loop.
-    assert body =~ "## When the token dies"
-    assert body =~ "never run `slipdock auth`\n   yourself"
-    assert body =~ "start the pass report with `SLIPDOCK AUTH FAILED`"
-    assert body =~ "ScheduleWakeup with `stop: true`"
+    assert_states(
+      body,
+      "If the token is dead, follow **When the token dies** in `references/stops.md`"
+    )
+
+    stops = loop_reference(conn, "stops.md")
+    assert stops =~ "## When the token dies"
+    assert stops =~ "never run `slipdock auth`\n   yourself"
+    assert stops =~ "start the pass report with `SLIPDOCK AUTH FAILED`"
+    assert stops =~ "ScheduleWakeup with `stop: true`"
   end
 
   @tag :anonymous
@@ -259,7 +302,10 @@ defmodule SlipdockWeb.API.SkillsTest do
     assert loop =~ "never one dense paragraph"
     # The claim and the running log keep their line breaks: stdin, not words.
     assert loop =~ "slipdock comment <id> --body - <<'EOF'\n**Picked up.**"
-    assert loop =~ "slipdock job-progress <job> --message - <<'EOF'"
+
+    assert loop_reference(conn, "picking.md") =~
+             "slipdock job-progress <job> --message - <<'EOF'"
+
     refute loop =~ "slipdock comment <id> Picked up. <what you read it as"
     # The wrap-up is a list, not a run of label lines.
     assert loop =~ "**Done.**\n\n   - What was done:"

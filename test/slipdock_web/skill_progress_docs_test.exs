@@ -54,13 +54,18 @@ defmodule SlipdockWeb.SkillProgressDocsTest do
   end
 
   test "a build a closed subcard broke is fixed on a new subcard, not by reopening it" do
-    loop = flat("priv/skills/slipdock-loop/SKILL.md")
+    # Step 5 and the CI check before a pick are two of the skill's references (#3004).
+    subcards = flat("priv/skills/slipdock-loop/references/subcards.md")
+    picking = flat("priv/skills/slipdock-loop/references/picking.md")
 
-    assert loop =~ ~s(slipdock add <sub-board> "Build failed: #<id> <title>")
-    assert_states(loop, "the board refuses an agent reopening a done card")
-    assert_states(loop, "file the fix under that epic as in section 5")
-    refute loop =~ "Take it back — `slipdock undone <id>`"
-    refute loop =~ "taken back as in section 5"
+    assert subcards =~ ~s(slipdock add <sub-board> "Build failed: #<id> <title>")
+    assert_states(subcards, "the board refuses an agent reopening a done card")
+    assert_states(picking, "file the fix under that epic as in section 5")
+
+    for loop <- [flat("priv/skills/slipdock-loop/SKILL.md"), subcards, picking] do
+      refute loop =~ "Take it back — `slipdock undone <id>`"
+      refute loop =~ "taken back as in section 5"
+    end
   end
 
   test "the manual and agents.md say what counts as a sign of work" do

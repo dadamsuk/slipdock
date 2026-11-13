@@ -135,7 +135,7 @@ defmodule SlipdockWeb.VerifyAuditLiveTest do
     assert squash.(Slipdock.DocsText.read!("docs/manual.md")) =~ "**Audits check the checker.**"
 
     assert_states(
-      Slipdock.DocsText.read!("priv/skills/slipdock-loop/SKILL.md"),
+      Slipdock.DocsText.read!("priv/skills/slipdock-loop/references/verifying.md"),
       "- **An audit** (a verify job with `audit: true`"
     )
 

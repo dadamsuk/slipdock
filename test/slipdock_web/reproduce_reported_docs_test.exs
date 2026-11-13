@@ -17,10 +17,33 @@ defmodule SlipdockWeb.ReproduceReportedDocsTest do
     do: @root |> Path.join(path) |> Slipdock.DocsText.read!() |> String.replace(~r/\s+/, " ")
 
   describe "the loop skill" do
-    setup do: %{loop: flat("priv/skills/slipdock-loop/SKILL.md")}
+    # The bug steps and the verify job are two of the skill's references
+    # (#3004); `SKILL.md` keeps the rule and names the file.
+    setup do
+      %{
+        loop: flat("priv/skills/slipdock-loop/references/bugs.md"),
+        verifying: flat("priv/skills/slipdock-loop/references/verifying.md"),
+        skill: flat("priv/skills/slipdock-loop/SKILL.md")
+      }
+    end
+
+    test "SKILL.md says a bug is reproduced before any fix, and where the steps are",
+         %{skill: skill} do
+      assert_states(skill, "**A bug card** is reproduced before any fix is built")
+
+      assert_states(
+        skill,
+        "the reported symptom, on the reporter's scenario, posted as its own comment"
+      )
+
+      assert_states(
+        skill,
+        "`references/bugs.md` says how, and what to do when it doesn't reproduce"
+      )
+    end
 
     test "reproduced means the reported symptom, on the reporter's scenario", %{loop: loop} do
-      assert_states(loop, "### A bug: reproduce what was reported")
+      assert_states(loop, "## A bug: reproduce what was reported")
       assert_states(loop, "**Reproduced means the reported symptom, on the reporter's scenario**")
       assert_states(loop, "Something else that fails nearby is not it.")
     end
@@ -63,7 +86,7 @@ defmodule SlipdockWeb.ReproduceReportedDocsTest do
       )
     end
 
-    test "the verify job's ask: would the reporter now see it fixed", %{loop: loop} do
+    test "the verify job's ask: would the reporter now see it fixed", %{verifying: loop} do
       assert_states(loop, "On a bug, the check is *would the reporter now see it fixed?*")
       assert_states(loop, "says the reported symptom or its cause was never seen")
       assert loop =~ "(`the ask: the reported symptom was never seen`), however good the tests."

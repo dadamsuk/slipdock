@@ -15,15 +15,17 @@ defmodule SlipdockWeb.VerifyByCiDocsTest do
   defp flat(path), do: path |> read() |> String.replace(~r/\s+/, " ")
 
   test "the loop skill: the builder's tests, and the verifier's CI check" do
-    loop = read("priv/skills/slipdock-loop/SKILL.md")
+    # The builder's steps and the verify job are two of the skill's
+    # references (#3004).
+    loop = read("priv/skills/slipdock-loop/references/verifying.md")
 
     assert_states(
-      flat("priv/skills/slipdock-loop/SKILL.md"),
+      flat("priv/skills/slipdock-loop/references/pull-requests.md"),
       "It is the full test run: before pushing, run only the tests you added or changed"
     )
 
     assert_states(
-      flat("priv/skills/slipdock-loop/SKILL.md"),
+      flat("priv/skills/slipdock-loop/references/pull-requests.md"),
       "never the whole suite as well, and complete the card once the checks pass."
     )
 

@@ -29,16 +29,32 @@ defmodule SlipdockWeb.LanesDocsTest do
   end
 
   test "the loop skill writes paths, stages only them and uses a worktree, all only when on" do
+    # The section is `references/lanes.md` (#3004).
+    lanes = read("priv/skills/slipdock-loop/references/lanes.md")
+    assert lanes =~ "## Lanes"
+    assert_states(lanes, "off unless the board\nor the runner has it on")
+    assert lanes =~ ~s(slipdock\n  edit <id> --paths)
+    assert lanes =~ "never `git add -A`"
+    assert lanes =~ "git worktree add\n  ../<repo>-lanes/card-<id> -b card-<id>"
+    assert lanes =~ "`$SLIPDOCK_WORKTREE` is set"
+    assert_states(lanes, "only a person overrides a lane")
+
+    # `SKILL.md` keeps the short of it: only when on, the paths, the staging,
+    # the worktree, and where the rest is.
     loop = read("priv/skills/slipdock-loop/SKILL.md")
-    assert loop =~ "## Lanes"
-    assert_states(loop, "off unless the board\nor the runner has it on")
-    assert loop =~ ~s(slipdock\n  edit <id> --paths)
-    assert loop =~ "never `git add -A`"
-    assert loop =~ "git worktree add\n  ../<repo>-lanes/card-<id> -b card-<id>"
-    assert loop =~ "`$SLIPDOCK_WORKTREE` is set"
-    assert_states(loop, "only a person overrides a lane")
+    [_, short] = String.split(loop, "\n## Lanes\n")
+    [short | _] = String.split(short, "\n## ")
+    assert_states(short, "off unless the board or the runner has it on")
+    assert_states(short, "The whole of it is in `references/lanes.md`")
+    assert_states(short, "write the card's paths before the claim's move")
+    assert_states(short, "stage only files under them, by name, never `git add -A`")
+    assert_states(short, "work in a git worktree of your own")
+    assert_states(short, "unless the runner already put you in one (`$SLIPDOCK_WORKTREE` is set)")
+    assert_states(short, "`git worktree add ../<repo>-lanes/card-<id> -b card-<id>`")
+    assert_states(short, "A job's prompt that lists the card's paths has them already")
     # Step 4 points at it.
     assert_states(loop, "On a board with lanes on, write the card's paths before the move")
+    assert_states(loop, "write the card's paths before the move (see `references/lanes.md`)")
   end
 
   test "the work skill and the CLI skill say the same" do
@@ -69,7 +85,7 @@ defmodule SlipdockWeb.LanesDocsTest do
     )
 
     assert_states(
-      read("priv/skills/slipdock-loop/SKILL.md"),
+      read("priv/skills/slipdock-loop/references/lanes.md"),
       "a card awaiting\n  verification frees its lane and stops blocking its dependents"
     )
 
@@ -153,7 +169,7 @@ defmodule SlipdockWeb.LanesDocsTest do
     assert read("priv/skills/slipdock-work/SKILL.md") =~ "Paths the board shares"
 
     assert_states(
-      read("priv/skills/slipdock-loop/SKILL.md"),
+      read("priv/skills/slipdock-loop/references/lanes.md"),
       "Declare the files the board shares too"
     )
   end
@@ -187,7 +203,9 @@ defmodule SlipdockWeb.LanesDocsTest do
              "slipdock set-board <board> --lane-mode off|hold|advise"
 
     assert_states(read("priv/skills/slipdock-work/SKILL.md"), "On a\n  board whose lanes advise")
-    assert read("priv/skills/slipdock-loop/SKILL.md") =~ "- **The board's lanes advise**"
+
+    assert read("priv/skills/slipdock-loop/references/lanes.md") =~
+             "- **The board's lanes advise**"
   end
 
   test "broad paths are said to be advice where paths are documented (#2698)" do

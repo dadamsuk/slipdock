@@ -109,7 +109,12 @@ defmodule SlipdockWeb.DocsPlacesDocsTest do
   test "the loop skill says it: a verify job, an audit, and the builder before submitting" do
     skill = File.read!(Path.join(@root, "priv/skills/slipdock-loop/SKILL.md"))
 
-    [_, verify_job] = String.split(skill, "- **A verify job**", parts: 2)
+    # A verify job and an audit are `references/verifying.md` (#3004).
+    verifying =
+      File.read!(Path.join(@root, "priv/skills/slipdock-loop/references/verifying.md")) <>
+        "\n## "
+
+    [_, verify_job] = String.split(verifying, "- **A verify job**", parts: 2)
     [verify_job, audit] = String.split(verify_job, "- **An audit**", parts: 2)
     [audit | _] = String.split(audit, "\n## ", parts: 2)
     verify_job = flat(verify_job)

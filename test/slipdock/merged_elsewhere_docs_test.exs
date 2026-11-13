@@ -81,7 +81,7 @@ defmodule Slipdock.MergedElsewhereDocsTest do
 
     for file <- [
           "docs/manual/visualise-flow-velocity-runners-and-delivery.md",
-          "priv/skills/slipdock-loop/SKILL.md",
+          "priv/skills/slipdock-loop/references/pull-requests.md",
           "priv/skills/slipdock-work/SKILL.md",
           "lib/slipdock/quality.ex",
           "docs/agents.md",
