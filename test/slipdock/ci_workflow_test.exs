@@ -343,6 +343,17 @@ defmodule Slipdock.CiWorkflowTest do
       refute {"go", ["test", "./..."], cd: "daemon", exec: true} in steps
     end
 
+    # CLAUDE.md and CONTRIBUTING.md said plain `go test` long after #2664 (#2766).
+    test "CLAUDE.md and CONTRIBUTING.md describe pre_push's daemon tests with -race" do
+      for doc <- ["CLAUDE.md", "CONTRIBUTING.md"] do
+        text = doc |> then(&File.read!(Path.join(@root, &1))) |> String.replace(~r/\s+/, " ")
+        assert text =~ "`go test -race`", "#{doc} doesn't say mix pre_push runs go test -race"
+        refute text =~ "`go test` in `daemon/`", "#{doc} still says go test without -race"
+        assert text =~ ~r/about 4 minutes/i, "#{doc} doesn't give mix pre_push's time"
+        assert text =~ "not a whole directory", "#{doc} doesn't say to run it beside a few files"
+      end
+    end
+
     test "one OS failing doesn't cancel the others" do
       assert has?(job("daemon"), "fail-fast: false")
     end

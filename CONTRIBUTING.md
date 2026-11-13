@@ -65,10 +65,15 @@ run rather than skip.
   asks for).
 - **What it runs**, in CI's order and stopping at the first failure: a forced
   compile with warnings as errors, the format checks (the app's, then the
-  CLI's, with its compile), `go vet` and `go test` in `daemon/`, the repo
-  checks in `test/repo_checks.txt`, `hex.audit`, `deps.audit`, `sobelow`, and
-  `credo diff` against where the branch left `origin/main`. Its steps are in
-  `mix.exs` (`pre_push_steps/1`), not a task under `lib/mix/tasks/`.
+  CLI's, with its compile), `go vet` and `go test -race` in `daemon/`, the
+  repo checks in `test/repo_checks.txt`, `hex.audit`, `deps.audit`,
+  `sobelow`, and `credo diff` against where the branch left `origin/main`.
+  Its steps are in `mix.exs` (`pre_push_steps/1`), not a task under
+  `lib/mix/tasks/`.
+- **How long it takes.** About 4 minutes, over half of it the daemon's tests
+  under the race detector. Start it beside the few test files you changed,
+  not a whole directory: beside a run of all of `test/slipdock_web/live` it
+  has timed out. A timeout there passes when run again by itself.
 - **The repo checks** are the tests that hold the repository's own files,
   docs and skills to a rule, which a change elsewhere can break. A new test of
   that kind goes on `test/repo_checks.txt`, or
