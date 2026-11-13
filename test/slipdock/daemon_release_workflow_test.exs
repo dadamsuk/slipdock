@@ -12,6 +12,7 @@ defmodule Slipdock.DaemonReleaseWorkflowTest do
   @root Path.expand("../..", __DIR__)
   @path Path.join(@root, ".github/workflows/release.yml")
   @external_resource @path
+  @external_resource Path.join(@root, ".github/workflows/ci.yml")
   @text File.read!(@path)
   @jobs YamlElixir.read_from_string!(@text)["jobs"]
 
@@ -75,6 +76,18 @@ defmodule Slipdock.DaemonReleaseWorkflowTest do
     assert run =~ "release-manifest -version \"$VERSION\" -platforms"
     assert run =~ "-X github.com/dadamsuk/slipdock/daemon/internal/cli.Version=$VERSION"
     assert run =~ "go test ./..."
+  end
+
+  # #2960: the race detector is ci.yml's daemon job's (#2664), which runs on
+  # the tag's tree; the release's own test stays quick, and says why.
+  test "the release's daemon tests run without -race, and the workflow says why" do
+    run = runs(job("daemon-build"))
+    assert run =~ ~r/^go test \.\/\.\.\.$/m
+    refute run =~ "-race"
+    assert @text =~ "# Without -race, on purpose (#2960)."
+
+    ci = YamlElixir.read_from_string!(File.read!(Path.join(@root, ".github/workflows/ci.yml")))
+    assert runs(ci["jobs"]["daemon"]) =~ "go test -race ./..."
   end
 
   test "the committed release key is a public key or none, never a private one" do

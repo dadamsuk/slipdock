@@ -481,6 +481,14 @@ jobs:
           go-version: stable
           cache: false
 
+      # Without -race, on purpose (#2960). The race detector is ci.yml's
+      # daemon job's (#2664): it runs on this tag's tree in the test job
+      # above unless the gate found the pull request's CI already passed on
+      # it, and that pull request's CI ran it whenever daemon/** changed;
+      # the nightly runs it on every OS. Here it would add 3 to 4 minutes to
+      # every release and find nothing those runs don't. This is a quick
+      # check that the tree the binaries are built from passes, in the job
+      # that builds them.
       - name: Vet and test
         run: |
           go vet ./...
