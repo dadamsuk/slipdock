@@ -3,6 +3,8 @@ defmodule SlipdockCLI.AddArchivedTest do
   `slipdock add --archived`: the card is made straight into the archive, the
   request says so only when asked, and the line printed back shows it.
   """
+  # Sync: sets HOME and the SLIPDOCK_* variables, which are one environment
+  # for the whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

@@ -6,6 +6,8 @@ defmodule SlipdockCLI.GuideTest do
   (the list of keys) to stderr and exits non-zero; that ends in
   `System.halt/1`, so it runs in a separate `elixir` of its own here.
   """
+  # Sync: sets HOME and the SLIPDOCK_* variables, which are one environment
+  # for the whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

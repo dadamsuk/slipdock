@@ -1,5 +1,7 @@
 defmodule SlipdockCLI.GardenTest do
   @moduledoc "`slipdock garden`: what it sends, and what it shows (W-1807)."
+  # Sync: sets HOME and the SLIPDOCK_* variables, which are one environment
+  # for the whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

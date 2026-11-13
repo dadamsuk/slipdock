@@ -5,6 +5,8 @@ defmodule SlipdockCLI.DeployTest do
   rollback, a shallow clone deepened), that `run` passes the command's exit
   code through and records how it ended, and that a dry run records nothing.
   """
+  # Sync: sets HOME and the SLIPDOCK_* variables, which are one environment
+  # for the whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

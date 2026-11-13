@@ -4,6 +4,8 @@ defmodule SlipdockCLI.JobLogTest do
   its live log as it arrives and returns once the job has ended (exit 0);
   `slipdock job-log <id>` prints what is there so far.
   """
+  # Sync: sets HOME and the SLIPDOCK_* variables, which are one environment
+  # for the whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

@@ -5,6 +5,8 @@ defmodule SlipdockCLI.SkillsBoardTest do
   not enabled there and a board out of reach end in `System.halt/1`, so they
   are checked on `board_skills/2`, which decides them.
   """
+  # Sync: sets the SLIPDOCK_* variables, which are one environment for the
+  # whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

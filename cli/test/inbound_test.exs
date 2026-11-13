@@ -1,5 +1,7 @@
 defmodule SlipdockCLI.InboundTest do
   @moduledoc "`slipdock inbound log`: your inbound mail and what came of it (#1242)."
+  # Sync: sets HOME and the SLIPDOCK_* variables, which are one environment
+  # for the whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

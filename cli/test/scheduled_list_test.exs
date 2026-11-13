@@ -4,6 +4,8 @@ defmodule SlipdockCLI.ScheduledListTest do
   send the `scheduled` category, `board` marks the list as one nobody picks
   from, and the help says what the category is.
   """
+  # Sync: sets HOME and the SLIPDOCK_* variables, which are one environment
+  # for the whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

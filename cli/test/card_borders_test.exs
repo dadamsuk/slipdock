@@ -1,5 +1,7 @@
 defmodule SlipdockCLI.CardBordersTest do
   @moduledoc "`--border` and `--border-top` and the rest on cards, and how a card shows them (#1209)."
+  # Sync: sets HOME and the SLIPDOCK_* variables, which are one environment
+  # for the whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

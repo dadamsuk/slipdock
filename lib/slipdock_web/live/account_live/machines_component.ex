@@ -24,7 +24,10 @@ defmodule SlipdockWeb.AccountLive.MachinesComponent do
     # again and leaves the key alone.
     cond do
       not Map.has_key?(socket.assigns, :machines) ->
-        {:ok, socket |> assign(new_key: nil, key_error: nil, form_key: 0) |> load()}
+        {:ok,
+         socket
+         |> assign(new_key: nil, key_error: nil, form_key: 0, key_form: key_form(""))
+         |> load()}
 
       reload? ->
         {:ok, load(socket)}
@@ -33,6 +36,9 @@ defmodule SlipdockWeb.AccountLive.MachinesComponent do
         {:ok, socket}
     end
   end
+
+  # The enrolment key form (COMP-1). No `as:`, so the field posts as `label`.
+  defp key_form(label), do: to_form(%{"label" => label})
 
   defp load(socket) do
     user = socket.assigns.current_user
@@ -57,12 +63,13 @@ defmodule SlipdockWeb.AccountLive.MachinesComponent do
       {:ok, key, _record} ->
         {:noreply,
          socket
-         |> assign(new_key: key, key_error: nil)
+         |> assign(new_key: key, key_error: nil, key_form: key_form(""))
          |> update(:form_key, &(&1 + 1))
          |> load()}
 
       {:error, :invalid, message} ->
-        {:noreply, assign(socket, key_error: message)}
+        # The name typed is kept, so a refusal doesn't cost it.
+        {:noreply, assign(socket, key_error: message, key_form: key_form(params["label"] || ""))}
     end
   end
 
@@ -202,7 +209,8 @@ defmodule SlipdockWeb.AccountLive.MachinesComponent do
             phx-target={@myself}
           >Done</button>
         </div>
-        <form
+        <.form
+          for={@key_form}
           id={"enrolment-key-form-#{@form_key}"}
           phx-submit="create_key"
           phx-target={@myself}
@@ -216,18 +224,19 @@ defmodule SlipdockWeb.AccountLive.MachinesComponent do
             </label>
           </fieldset>
           <p :if={@key_error} id="enrolment-key-error" class="text-sm text-error">{@key_error}</p>
-          <div class="flex flex-wrap items-center gap-2">
-            <input
-              type="text"
-              name="label"
-              placeholder="Machine name (default: its hostname)"
-              aria-label="The name the machine enrols under; without one, its hostname"
-              class="input field min-w-40 flex-1"
-              autocomplete="off"
-            />
+          <div class="field-row flex-wrap gap-2">
+            <div class="min-w-40 flex-1">
+              <.input
+                field={@key_form[:label]}
+                id={"enrolment-key-label-#{@form_key}"}
+                placeholder="Machine name (default: its hostname)"
+                aria-label="The name the machine enrols under; without one, its hostname"
+                autocomplete="off"
+              />
+            </div>
             <button type="submit" class="btn btn-primary btn-sm">Make enrolment key</button>
           </div>
-        </form>
+        </.form>
         <p :if={@keys != []} class="mt-3 text-xs text-base-content/50">
           Unused: {Enum.map_join(@keys, ", ", &(&1.label || "unlabelled"))}
         </p>

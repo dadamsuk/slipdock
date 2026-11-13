@@ -3,6 +3,8 @@ defmodule SlipdockCLI.PageSectionTest do
   `slipdock page section … --replace|--append` (#1756): the server says what
   a section write did to the section, and the command shows it.
   """
+  # Sync: sets HOME and the SLIPDOCK_* variables, which are one environment
+  # for the whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

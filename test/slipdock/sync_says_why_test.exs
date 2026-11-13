@@ -3,7 +3,9 @@ defmodule Slipdock.SyncSaysWhyTest do
   TEST-9 (#2607): a test module is `async: true` unless it shares something
   that can't be rolled back, and a sync one says why in a comment directly
   above its `use` line. Broken twice in 30 days (#2571) while it was only a
-  judgement, so this holds every test file to it.
+  judgement, so this holds every test file to it: the app's, under `test/`,
+  and the CLI's, under `cli/test/` (#2762), which is its own Mix project but
+  the same rule.
 
   A `use` line is sync when it says `async: false`, or when it uses
   `ExUnit.Case`, `Slipdock.DataCase` or `SlipdockWeb.ConnCase` with no
@@ -41,12 +43,28 @@ defmodule Slipdock.SyncSaysWhyTest do
 
   defp comment?(line), do: line =~ ~r/^\s*#/
 
-  defp test_files do
-    @root
-    |> Path.join("test/**/*_test.exs")
-    |> Path.wildcard()
-    |> Enum.map(&Path.relative_to(&1, @root))
+  # Where test files live: the app's own, and the CLI's.
+  @test_dirs ~w(test cli/test)
+
+  @doc false
+  # Every test file under `dirs` (relative to `root`), as paths relative to
+  # `root`.
+  def test_files(root \\ @root, dirs \\ @test_dirs) do
+    dirs
+    |> Enum.flat_map(&Path.wildcard(Path.join([root, &1, "**/*_test.exs"])))
+    |> Enum.map(&Path.relative_to(&1, root))
     |> Enum.sort()
+  end
+
+  @doc false
+  # `path:line` for every sync `use` line with no reason, in the test files
+  # under `root`.
+  def missing(root \\ @root, dirs \\ @test_dirs) do
+    for path <- test_files(root, dirs),
+        # Its own examples are sync use lines inside strings.
+        path != "test/slipdock/sync_says_why_test.exs",
+        n <- unexplained(File.read!(Path.join(root, path))),
+        do: "#{path}:#{n}"
   end
 
   describe "unexplained/1" do
@@ -184,13 +202,60 @@ defmodule Slipdock.SyncSaysWhyTest do
     end
   end
 
+  describe "the files it reads" do
+    @describetag :tmp_dir
+
+    test "the CLI's tests are read as well as the app's (#2762)" do
+      files = test_files()
+
+      assert "cli/test/page_props_test.exs" in files
+      assert "test/slipdock/sync_says_why_test.exs" in files
+    end
+
+    test "a sync module in cli/test with no reason fails, named by path and line",
+         %{tmp_dir: root} do
+      File.mkdir_p!(Path.join(root, "cli/test"))
+      File.mkdir_p!(Path.join(root, "test/slipdock"))
+
+      File.write!(Path.join(root, "cli/test/bare_test.exs"), """
+      defmodule SlipdockCLI.BareTest do
+        @moduledoc "Sync, and it doesn't say why."
+        use ExUnit.Case, async: false
+      end
+      """)
+
+      File.write!(Path.join(root, "cli/test/said_test.exs"), """
+      defmodule SlipdockCLI.SaidTest do
+        # Sync: sets HOME, which is one environment for the whole VM.
+        use ExUnit.Case, async: false
+      end
+      """)
+
+      File.write!(Path.join(root, "test/slipdock/bare_test.exs"), """
+      defmodule Slipdock.BareTest do
+        use Slipdock.DataCase
+      end
+      """)
+
+      # Not a test file: a helper under cli/test/support isn't read.
+      File.mkdir_p!(Path.join(root, "cli/test/support"))
+      File.write!(Path.join(root, "cli/test/support/helper.ex"), "use ExUnit.Case\n")
+
+      assert missing(root) == ["cli/test/bare_test.exs:3", "test/slipdock/bare_test.exs:2"]
+      assert missing(root, ["test"]) == ["test/slipdock/bare_test.exs:2"]
+    end
+
+    test "a tree with no cli/test at all is just the app's tests", %{tmp_dir: root} do
+      File.mkdir_p!(Path.join(root, "test"))
+      File.write!(Path.join(root, "test/a_test.exs"), "use ExUnit.Case, async: true\n")
+
+      assert test_files(root) == ["test/a_test.exs"]
+      assert missing(root) == []
+    end
+  end
+
   test "every sync test module says why above its use line (TEST-9)" do
-    missing =
-      for path <- test_files(),
-          # Its own examples are sync use lines inside strings.
-          path != "test/slipdock/sync_says_why_test.exs",
-          n <- unexplained(File.read!(Path.join(@root, path))),
-          do: "#{path}:#{n}"
+    missing = missing()
 
     assert missing == [],
            """

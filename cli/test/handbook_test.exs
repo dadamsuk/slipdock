@@ -4,6 +4,8 @@ defmodule SlipdockCLI.HandbookTest do
   sections with the command that reads each, and `slipdock handbook` prints
   a board's index or a card's reading.
   """
+  # Sync: sets HOME and the SLIPDOCK_* variables, which are one environment
+  # for the whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

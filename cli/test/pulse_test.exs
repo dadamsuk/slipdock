@@ -5,6 +5,8 @@ defmodule SlipdockCLI.PulseTest do
   so the CLI says what REST and MCP say. `set-board --show-pulse` turns the
   web strip on.
   """
+  # Sync: sets HOME and the SLIPDOCK_* variables, which are one environment
+  # for the whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

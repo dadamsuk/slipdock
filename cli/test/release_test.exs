@@ -4,6 +4,8 @@ defmodule SlipdockCLI.ReleaseTest do
   (#2835): what they send and print, and `set-board --release-command`.
   The server's side is in `test/slipdock_web/release_now_test.exs`.
   """
+  # Sync: sets HOME and the SLIPDOCK_* variables, which are one environment
+  # for the whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

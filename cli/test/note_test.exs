@@ -1,5 +1,7 @@
 defmodule SlipdockCLI.NoteTest do
   @moduledoc "`slipdock note`: a quick note, and where the server put it."
+  # Sync: sets the SLIPDOCK_* variables, which are one environment for the
+  # whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

@@ -1,5 +1,7 @@
 defmodule SlipdockCLI.NamesTest do
   @moduledoc "`slipdock names`, and `--short-names` on `folder ls` (#1594)."
+  # Sync: sets HOME and the SLIPDOCK_* variables, which are one environment
+  # for the whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

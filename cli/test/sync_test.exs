@@ -5,6 +5,8 @@ defmodule SlipdockCLI.SyncTest do
   and the lock that keeps two passes off one folder. The refusals end in
   `System.halt/1`, so they are covered as the values the command halts on.
   """
+  # Sync: sets HOME and the SLIPDOCK_* variables and changes the working
+  # directory, each of which is one for the whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

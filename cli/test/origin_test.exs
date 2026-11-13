@@ -4,6 +4,8 @@ defmodule SlipdockCLI.OriginTest do
   job, `cards --origin` filters by it, `add --origin` sends a generator's
   name, and the help says so.
   """
+  # Sync: sets HOME and the SLIPDOCK_* variables, which are one environment
+  # for the whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

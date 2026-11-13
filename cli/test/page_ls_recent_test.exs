@@ -1,5 +1,7 @@
 defmodule SlipdockCLI.PageLsRecentTest do
   @moduledoc "`slipdock page ls --recent`: the wiki tree's Recent view from a shell (#738)."
+  # Sync: sets HOME and the SLIPDOCK_* variables, which are one environment
+  # for the whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

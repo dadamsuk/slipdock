@@ -5,6 +5,8 @@ defmodule SlipdockCLI.AttachmentsTest do
   is printed. The refusals end in `System.halt/1`, so they are covered on the
   server's side, in `SlipdockWeb.API.AttachmentsTest`.
   """
+  # Sync: sets HOME and the SLIPDOCK_* variables and changes the working
+  # directory, each of which is one for the whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

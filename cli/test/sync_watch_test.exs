@@ -5,6 +5,7 @@ defmodule SlipdockCLI.SyncWatchTest do
   change feed asked between), `.slipdockignore`, and the service each
   system runs it as.
   """
+  # Sync: sets XDG_CONFIG_HOME, which is one environment for the whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

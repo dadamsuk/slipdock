@@ -4,6 +4,8 @@ defmodule SlipdockCLI.StatusBodyTest do
   which are joined into one line, or `--body`, `--file` or `--body -`
   (stdin), which arrive as written, as `comment` does. The help says so.
   """
+  # Sync: sets HOME and the SLIPDOCK_* variables, which are one environment
+  # for the whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

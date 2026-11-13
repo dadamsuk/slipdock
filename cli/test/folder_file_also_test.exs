@@ -1,5 +1,7 @@
 defmodule SlipdockCLI.FolderFileAlsoTest do
   @moduledoc "`slipdock folder file --also/--not-in` and `folder show`: one folder in several places (#808)."
+  # Sync: sets HOME and the SLIPDOCK_* variables, which are one environment
+  # for the whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

@@ -3,6 +3,8 @@ defmodule SlipdockCLI.CardsArchivedTest do
   `slipdock cards --archived` and `--all`: archived cards alone, or alongside
   the live ones, and neither by default.
   """
+  # Sync: sets HOME and the SLIPDOCK_* variables, which are one environment
+  # for the whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

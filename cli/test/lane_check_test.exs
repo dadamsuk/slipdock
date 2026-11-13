@@ -6,6 +6,8 @@ defmodule SlipdockCLI.LaneCheckTest do
   files listed, a card with no paths (or no card) passes, and a board that
   can't be reached warns and passes.
   """
+  # Sync: sets HOME and the SLIPDOCK_* variables, which are one environment
+  # for the whole VM.
   use ExUnit.Case, async: false
 
   alias SlipdockCLI.{FakeServer, Lanes}

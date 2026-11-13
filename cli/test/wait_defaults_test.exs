@@ -5,6 +5,8 @@ defmodule SlipdockCLI.WaitDefaultsTest do
   on the wait's line), and `wait <id> --withdraw --reason WHY` the reason
   an agent gives for withdrawing a wait it didn't open.
   """
+  # Sync: sets HOME and the SLIPDOCK_* variables, which are one environment
+  # for the whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

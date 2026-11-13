@@ -1,5 +1,7 @@
 defmodule SlipdockCLI.DoraTest do
   @moduledoc "`slipdock dora` (#1134): what it asks for, and how it prints on and off."
+  # Sync: sets HOME and the SLIPDOCK_* variables, which are one environment
+  # for the whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

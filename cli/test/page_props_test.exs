@@ -1,5 +1,7 @@
 defmodule SlipdockCLI.PagePropsTest do
   @moduledoc "`slipdock page props`: read a page's front matter, replace it, or clear it."
+  # Sync: sets HOME and the SLIPDOCK_* variables, which are one environment
+  # for the whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

@@ -7,6 +7,8 @@ defmodule SlipdockCLI.VerifiedDashTest do
   server's side is in `Slipdock.VerifiedDashTest`. Evidence piped in that
   merely starts with a dash goes through as written.
   """
+  # Sync: sets HOME and the SLIPDOCK_* variables, which are one environment
+  # for the whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

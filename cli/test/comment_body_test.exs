@@ -5,6 +5,8 @@ defmodule SlipdockCLI.CommentBodyTest do
   --message -` pipes its note in the same way. A comment with no text at all
   ends in the usage error's `System.halt/1`, so it is not run here.
   """
+  # Sync: sets HOME and the SLIPDOCK_* variables, which are one environment
+  # for the whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

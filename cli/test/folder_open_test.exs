@@ -1,5 +1,7 @@
 defmodule SlipdockCLI.FolderOpenTest do
   @moduledoc "`slipdock folder open`: one level of the wiki tree (W-103 R11.1)."
+  # Sync: sets HOME and the SLIPDOCK_* variables, which are one environment
+  # for the whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

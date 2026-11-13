@@ -4,6 +4,8 @@ defmodule SlipdockCLI.SyncStatusTest do
   each side, the conflicts left to resolve — and the warning when another
   sync tool is looking after the same folder.
   """
+  # Sync: sets HOME and the SLIPDOCK_* variables, which are one environment
+  # for the whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

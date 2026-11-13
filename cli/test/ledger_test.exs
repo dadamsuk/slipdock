@@ -1,5 +1,7 @@
 defmodule SlipdockCLI.LedgerTest do
   @moduledoc "`slipdock ledger`: what it sends and how a line reads (#1948)."
+  # Sync: sets HOME and the SLIPDOCK_* variables, which are one environment
+  # for the whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

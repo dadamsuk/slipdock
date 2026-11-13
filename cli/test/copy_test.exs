@@ -4,6 +4,8 @@ defmodule SlipdockCLI.CopyTest do
   `System.halt/1` through the shared `out/3`; the server's side of them is in
   the app's copy_card_api_test.
   """
+  # Sync: sets HOME and the SLIPDOCK_* variables, which are one environment
+  # for the whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

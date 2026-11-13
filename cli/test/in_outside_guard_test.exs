@@ -5,6 +5,8 @@ defmodule SlipdockCLI.InOutsideGuardTest do
   inverting a test fails here. A path that ends in `fail/1` or
   `System.halt/1` runs in a child VM, as `guide_test.exs` does.
   """
+  # Sync: sets HOME and the SLIPDOCK_* variables and changes the working
+  # directory, each of which is one for the whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

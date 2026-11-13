@@ -1,5 +1,7 @@
 defmodule SlipdockCLI.PageDiffTest do
   @moduledoc "`slipdock page diff`: one save's change, or two versions compared."
+  # Sync: sets HOME and the SLIPDOCK_* variables, which are one environment
+  # for the whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

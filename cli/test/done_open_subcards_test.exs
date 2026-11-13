@@ -6,6 +6,8 @@ defmodule SlipdockCLI.DoneOpenSubcardsTest do
   halts on (what `Util.out/3` prints, with its HTTP status); the server's
   side is in `SlipdockWeb.API.OpenSubcardsTest`.
   """
+  # Sync: sets HOME and the SLIPDOCK_* variables, which are one environment
+  # for the whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

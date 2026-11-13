@@ -3,6 +3,8 @@ defmodule SlipdockCLI.WikiShowTreeTest do
   `slipdock wiki show`, `wiki tree` and `wiki changes`: your wiki's boards,
   page count and synced folders, its tree, and what changed.
   """
+  # Sync: sets HOME and the SLIPDOCK_* variables, which are one environment
+  # for the whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

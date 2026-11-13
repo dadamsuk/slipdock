@@ -4,6 +4,8 @@ defmodule SlipdockCLI.PageTagsTest do
   Giving `--no-tags` and `--set-tag` together ends in `System.halt/1`, so it is
   not run here.
   """
+  # Sync: sets HOME and the SLIPDOCK_* variables, which are one environment
+  # for the whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

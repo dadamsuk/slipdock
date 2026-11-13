@@ -1,5 +1,7 @@
 defmodule SlipdockCLI.SkillsChatGPTTest do
   @moduledoc "`slipdock skills chatgpt`: saves the zips the server says exist, and only those."
+  # Sync: sets HOME and the SLIPDOCK_* variables, which are one environment
+  # for the whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

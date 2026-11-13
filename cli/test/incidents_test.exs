@@ -5,6 +5,8 @@ defmodule SlipdockCLI.IncidentsTest do
   `card` shows both ends of the link. The refusals (an unknown layer, a card
   the person can't read) are the server's (`Slipdock.IncidentsTest`).
   """
+  # Sync: sets HOME and the SLIPDOCK_* variables, which are one environment
+  # for the whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO
