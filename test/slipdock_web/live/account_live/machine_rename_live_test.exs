@@ -47,6 +47,7 @@ defmodule SlipdockWeb.AccountLive.MachineRenameLiveTest do
     {:ok, view, _} = live(ctx.conn, ~p"/machines/#{ctx.machine.id}")
     assert render(view) =~ "build-box"
     refute render(view) =~ "Silverbox"
+    assert page_title(view) =~ "build-box"
 
     assert %{"machine" => %{"name" => "Silverbox"}} =
              ctx |> rename_over_api("Silverbox") |> json_response(200)
@@ -57,6 +58,10 @@ defmodule SlipdockWeb.AccountLive.MachineRenameLiveTest do
     assert html =~ "Silverbox"
     assert has_element?(view, "#machine-rename input#machine-rename-name[value=Silverbox]")
     assert has_element?(view, "#machine-rename", "hostname build-box")
+
+    # And the browser tab's title follows it too (#2959).
+    assert page_title(view) =~ "Silverbox"
+    refute page_title(view) =~ "build-box"
   end
 
   test "a rename over the API reaches an open Account › Machines", ctx do
@@ -88,6 +93,7 @@ defmodule SlipdockWeb.AccountLive.MachineRenameLiveTest do
              ctx |> rename_over_api("   ") |> json_response(422)
 
     assert has_element?(page, "#machine-rename input#machine-rename-name[value=build-box]")
+    assert page_title(page) =~ "build-box"
     assert has_element?(settled(list), "#machine-#{ctx.machine.id}", "build-box")
   end
 

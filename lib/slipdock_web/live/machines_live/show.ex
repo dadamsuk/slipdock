@@ -39,7 +39,7 @@ defmodule SlipdockWeb.MachinesLive.Show do
 
         {:ok,
          socket
-         |> assign(page_title: machine.name, role: role, form: nil, editing: nil, notice: nil)
+         |> assign(role: role, form: nil, editing: nil, notice: nil)
          |> load(machine)}
 
       {:error, :not_found, _} ->
@@ -62,7 +62,10 @@ defmodule SlipdockWeb.MachinesLive.Show do
 
     runner_ids = Enum.map(runners, & &1.id)
 
+    # The tab's title is set here, with the name it follows, so a rename from
+    # any door (this page's form, the API, the CLI) reaches it (#2959).
     assign(socket,
+      page_title: machine.name,
       machine: machine,
       rename_form: to_form(%{"name" => machine.name}, as: :machine),
       runners: runners,
@@ -205,7 +208,6 @@ defmodule SlipdockWeb.MachinesLive.Show do
       {:ok, machine} ->
         {:noreply,
          socket
-         |> assign(page_title: machine.name)
          |> notice(:info, "Renamed: the machine is now #{machine.name}.")
          |> load(machine)}
 
