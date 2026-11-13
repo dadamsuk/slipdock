@@ -92,6 +92,36 @@ defmodule Slipdock.Automations.RunnerActionTest do
                )
     end
 
+    # The job keeps a prompt's leading whitespace, so the limit counts it:
+    # trimming both ends let a prompt through whose job was refused (#2910).
+    test "leading whitespace counts towards the limit" do
+      max = Runner.max_rule_prompt()
+
+      assert {:error, reason} =
+               Spec.validate(
+                 spec(%{
+                   "type" => "runner",
+                   "pool" => "dev",
+                   "prompt" => "  " <> String.duplicate("x", max)
+                 })
+               )
+
+      assert reason =~ "prompt is too long: #{max + 2} bytes, and at most #{max} fit"
+    end
+
+    # Over the limit with trailing whitespace: the message gives the bytes the
+    # job would get, which leave the trailing whitespace out.
+    test "the refusal counts a prompt's bytes without its trailing whitespace" do
+      max = Runner.max_rule_prompt()
+      over = String.duplicate("x", max + 3) <> " \n\t\n"
+
+      assert {:error, reason} =
+               Spec.validate(spec(%{"type" => "runner", "pool" => "dev", "prompt" => over}))
+
+      assert reason =~ "prompt is too long: #{max + 3} bytes, and at most #{max} fit"
+      refute reason =~ "#{byte_size(over)} bytes"
+    end
+
     test "a prompt under the runners' cap but over what is left is refused: it used to save" do
       between = String.duplicate("x", Runners.limits().max_prompt - 10)
 
@@ -205,6 +235,24 @@ defmodule Slipdock.Automations.RunnerActionTest do
 
       assert [%Job{prompt: prompt}] = Repo.all(Job)
       assert prompt == at <> "\n\n" <> Runner.unattended()
+      assert byte_size(prompt) == Runners.limits().max_prompt
+    end
+
+    test "a prompt with leading whitespace at the limit queues a job of exactly the cap", ctx do
+      card = card_fixture(ctx.todo, %{"title" => "Indented brief"})
+      at = "  " <> String.duplicate("x", Runner.max_rule_prompt() - 2)
+
+      rule =
+        rule_fixture(ctx.board, %{
+          "trigger" => %{"type" => "schedule", "at" => "23:59"},
+          "actions" => [%{"type" => "runner", "pool" => "dev", "prompt" => at}]
+        })
+
+      assert [{:ok, "queued job #" <> _}] =
+               Runner.run(rule, %{type: "card_updated", card: card, board_id: ctx.board.id})
+
+      assert [%Job{prompt: prompt}] = Repo.all(Job)
+      assert String.starts_with?(prompt, "  x")
       assert byte_size(prompt) == Runners.limits().max_prompt
     end
 
