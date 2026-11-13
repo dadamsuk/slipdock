@@ -196,7 +196,9 @@ function nextSibling(flat, index, kind) {
 // (`also`) is the page or folder seen from another folder, and so is
 // everything seen inside a placed folder (`via`). Those are renamed, moved,
 // archived and picked from their home row, so dragging, F2 and Delete, the
-// selection and the full menu all ask this one question (#2872).
+// selection, the full page and folder menu and a file's Archive… and Delete…
+// all ask this one question (#2872). A file is never placed (`also`), but a
+// file inside a placed folder is `via` and is refused like the rest.
 export function ownRow(row) {
   return !!row && !!row.writable && !row.mount && !row.also && !row.via
 }
@@ -412,9 +414,11 @@ export function menuItems(row, ctx) {
   if (row.kind === "file") {
     add(true, {label: "Open in a new tab", icon: "hero-arrow-top-right-on-square", action: "newTab", href: row.href})
     add(true, {label: "Copy link", icon: "hero-link", action: "copy", href: row.href})
-    // Put away, or gone for good (#769): the server asks, and says who may delete.
-    add(writable, {label: "Archive…", icon: "hero-archive-box", event: "ask_archive_file", payload: {id}, danger: true, group: "danger"})
-    add(writable, {label: "Delete…", icon: "hero-trash", event: "ask_delete_file", payload: {id}, danger: true, group: "danger"})
+    // Put away, or gone for good (#769): the server asks, and says who may
+    // delete. A file seen inside a placed folder (`via`) is archived and
+    // deleted from its home row (see ownRow), so it gets neither here.
+    add(ownRow(row), {label: "Archive…", icon: "hero-archive-box", event: "ask_archive_file", payload: {id}, danger: true, group: "danger"})
+    add(ownRow(row), {label: "Delete…", icon: "hero-trash", event: "ask_delete_file", payload: {id}, danger: true, group: "danger"})
     return items
   }
 

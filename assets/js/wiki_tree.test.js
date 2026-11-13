@@ -778,6 +778,7 @@ const ROW_KINDS = [
   ["a folder also filed here", folder(9, {also: true, placed_in: 4, key: "at:4|folder:9"}), false],
   ["a page inside a placed folder", page(3, {via: true, key: "at:4|page:3"}), false],
   ["a folder inside a placed folder", folder(5, {via: true, key: "at:4|folder:5"}), false],
+  ["a file inside a placed folder", file(6, {via: true, key: "at:4|file:6"}), false],
 ]
 
 for (const [name, row, own] of ROW_KINDS) {
@@ -802,6 +803,11 @@ for (const [name, row, own] of ROW_KINDS) {
     // The full menu (Rename, Move, Archive) only on one's own row
     const items = labels(menuItems({...row, href: "/x"}, {board: 1, canWrite: !!row.writable, selected: new Set()}))
     if (["page", "folder"].includes(row.kind) && !row.mount) assert.equal(items.includes("Move…"), own)
+    // A file's Archive… and Delete… only on one's own file
+    if (row.kind === "file") {
+      assert.equal(items.includes("Archive…"), own)
+      assert.equal(items.includes("Delete…"), own)
+    }
   })
 }
 
@@ -817,6 +823,18 @@ test("a row inside a placed folder gets the placed row's cut-down menu, with no 
   const items = menuItems(innerFolder, {board: 1, canWrite: true, selected: new Set()})
   assert.deepEqual(labels(items), ["Open", "Open in a new tab", "Copy link"])
   assert.equal(items[0].icon, "hero-folder-open")
+})
+
+test("a file inside a placed folder gets the cut-down file menu, and the Delete key passes it by", () => {
+  const inner = file(6, {via: true, key: "at:4|file:6", href: "/files/6"})
+  assert.deepEqual(labels(menuItems(inner, {board: 1, canWrite: true, selected: new Set()})), ["Open in a new tab", "Copy link"])
+  const {hook, pushed, press} = keyHook([inner])
+  hook.active = inner.key
+  press("Delete")
+  press("F2")
+  assert.deepEqual(pushed.slice(1), [])
+  // The same file at home keeps Archive… and Delete….
+  assert.deepEqual(labels(menuItems(file(6, {href: "/files/6"}), {board: 1, canWrite: true, selected: new Set()})), ["Open in a new tab", "Copy link", "Archive…", "Delete…"])
 })
 
 test("Shift-click across placed rows picks only the rows at home", () => {
