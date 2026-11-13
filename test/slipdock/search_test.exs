@@ -135,6 +135,39 @@ defmodule Slipdock.SearchTest do
       assert Repo.aggregate(from(e in Embedding, where: e.card_id == ^card.id), :count) == 1
     end
 
+    test "a queue longer than one flush embeds 40, keeps the rest, and the next flush takes it",
+         ctx do
+      # Each title has a word of its own, so each card can be searched for alone.
+      cards =
+        for n <- 1..45, do: card_fixture(ctx.column, %{"title" => "Imported batchitem#{n}"})
+
+      ids = Enum.map(cards, & &1.id)
+
+      embedded_cards = fn ->
+        Repo.aggregate(from(e in Embedding, where: e.card_id in ^ids), :count)
+      end
+
+      # Creating them queued them one by one; start again from the bulk path.
+      Indexer.reset()
+      assert Indexer.pending() == 0
+      Indexer.enqueue_all(ids)
+      assert Indexer.pending() == 45
+
+      assert {:ok, %{embedded: 40}} = Indexer.flush()
+      assert Indexer.pending() == 5
+      assert embedded_cards.() == 40
+
+      assert {:ok, %{embedded: 5}} = Indexer.flush()
+      assert Indexer.pending() == 0
+      assert embedded_cards.() == 45
+
+      for card <- cards do
+        [word] = Regex.run(~r/batchitem\d+/, card.title)
+        assert {:ok, results} = Search.search(ctx.owner, word)
+        assert Enum.any?(results, &(&1.card.id == card.id)), "#{word} was not found"
+      end
+    end
+
     test "a model change makes every chunk stale", ctx do
       card = card_fixture(ctx.column, %{"title" => "Alpha"})
       index(card)
