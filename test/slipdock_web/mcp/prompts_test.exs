@@ -7,6 +7,8 @@ defmodule SlipdockWeb.MCP.PromptsTest do
   """
   use SlipdockWeb.ConnCase, async: true
 
+  import Ecto.Query, only: [from: 2]
+  import ExUnit.CaptureLog
   import Slipdock.Fixtures
 
   alias Slipdock.Accounts
@@ -85,6 +87,34 @@ defmodule SlipdockWeb.MCP.PromptsTest do
 
     test "prompts/get without a name is -32602", %{conn: conn} do
       assert rpc(conn, "prompts/get", %{})["error"]["code"] == -32602
+    end
+
+    # The registry is a compile-time list, so the prompt that raises is a real
+    # one: plan-my-day asks what today is in the person's zone, and this zone
+    # (written past the changeset) is one the time zone database doesn't know.
+    test "a prompt that raises is -32603 naming the prompt, not the exception; the crash is logged",
+         %{conn: conn, user: user} do
+      Slipdock.Repo.update_all(
+        from(u in Accounts.User, where: u.id == ^user.id),
+        set: [timezone: "Nowhere/Lost"]
+      )
+
+      {body, log} = with_log(fn -> rpc(conn, "prompts/get", %{name: "plan-my-day"}) end)
+
+      assert body == %{
+               "jsonrpc" => "2.0",
+               "id" => 1,
+               "error" => %{"code" => -32603, "message" => "plan-my-day failed on the server"}
+             }
+
+      refute inspect(body) =~ "Nowhere/Lost"
+      refute inspect(body) =~ "ArgumentError"
+
+      assert log =~ "MCP prompt plan-my-day crashed: "
+      assert log =~ "ArgumentError"
+
+      # One broken prompt, not a broken connection: the next request is answered.
+      assert %{"result" => %{"prompts" => [_ | _]}} = rpc(conn, "prompts/list", %{})
     end
   end
 
