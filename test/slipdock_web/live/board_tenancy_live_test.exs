@@ -200,7 +200,13 @@ defmodule SlipdockWeb.BoardTenancyLiveTest do
 
       render_hook(card_panel(view), "attach_doc", %{"page" => "#{page.id}"})
       html = render(view)
-      refute html =~ page.code
+      # Looked for where an attached page shows, not for its short code
+      # anywhere in the HTML: the signed session tokens can hold `W-3`
+      # by chance (#2942). The panel lists only pages its reader can
+      # read, so the owner's view below is what catches a pin that landed.
+      assert has_element?(view, "#card-docs")
+      refute has_element?(view, "#card-docs li")
+      refute has_element?(view, "#card-docs", page.title)
       assert html =~ "couldn"
       assert Slipdock.Wiki.pages_for_card(ctx.my_card, ctx.victim) == []
     end
