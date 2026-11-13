@@ -197,8 +197,37 @@ defmodule Slipdock.Coverage do
     {pid, ref} = spawn_monitor(fn -> exit({:compiled, compile(beams)}) end)
 
     receive do
-      {:DOWN, ^ref, :process, ^pid, reason} -> reason == {:compiled, true}
+      {:DOWN, ^ref, :process, ^pid, {:compiled, true}} ->
+        true
+
+      {:DOWN, ^ref, :process, ^pid, _} ->
+        stop_cover()
+        false
     end
+  end
+
+  # Clears what a failed call leaves of :cover before the next one (#2917):
+  # the server, if the beam didn't kill it, and the workers it had compiling
+  # in parallel. Those aren't linked to the server, so a beam that kills it
+  # leaves them running into the next try, which halving makes the same
+  # beams: they write to the new server's tables and load over the modules
+  # it compiles, and a good beam fails with them. So kill every process
+  # :cover started, and wait until each has gone.
+  defp stop_cover do
+    for pid <- Process.list(), cover_process?(pid) do
+      ref = Process.monitor(pid)
+      Process.exit(pid, :kill)
+
+      receive do
+        {:DOWN, ^ref, :process, ^pid, _} -> :ok
+      end
+    end
+
+    :ok
+  end
+
+  defp cover_process?(pid) do
+    match?({:initial_call, {:cover, _, _}}, Process.info(pid, :initial_call))
   end
 
   defp compile([]), do: true

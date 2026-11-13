@@ -505,4 +505,37 @@ defmodule Slipdock.CoverageTest do
     refute Enum.any?(compiled, &String.starts_with?(&1, "CoverageBad"))
     refute "CoverageWorse" in compiled
   end
+
+  # A process :cover started, as the workers it compiles with are, left
+  # running from an earlier try: a chunk that fails has to clear it before
+  # the next try, or it writes into the new server's tables and loads over
+  # the modules it compiles (#2917). Its real workers mostly die on their
+  # own first, so this one waits for a message that never comes.
+  defp with_straggler(ctx) do
+    run(ctx.tmp_dir, """
+    straggler = spawn(:cover, :main_process_loop, [:straggler])
+    Slipdock.Coverage.start(#{inspect(ctx.ebin)}, export: "x", output: #{inspect(ctx.out)})
+    IO.puts("straggler alive: \#{Process.alive?(straggler)}")
+    IO.puts("cover: \#{:cover.modules() |> Enum.map(&inspect/1) |> Enum.sort() |> Enum.join(",")}")
+    """)
+  end
+
+  test "a chunk that fails stops what :cover left running before the next try", ctx do
+    # Every chunk compiles: nothing failed, so nothing is stopped.
+    {clean, 0} = with_straggler(ctx)
+    assert clean =~ "straggler alive: true"
+    assert clean =~ ~r/^cover: CoverageSample$/m
+
+    write_fillers(ctx, 40)
+    write_bad_beams(ctx.ebin)
+
+    {output, 0} = with_straggler(ctx)
+    assert output =~ "straggler alive: false"
+
+    [_, listed] = Regex.run(~r/^cover: (.*)$/m, output)
+    compiled = String.split(listed, ",")
+    assert length(compiled) == 41
+    assert "CoverageSample" in compiled
+    refute Enum.any?(compiled, &String.starts_with?(&1, "CoverageBad"))
+  end
 end
