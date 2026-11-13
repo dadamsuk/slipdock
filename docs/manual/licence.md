@@ -15,4 +15,4 @@ See [CONTRIBUTING.md](../../CONTRIBUTING.md) to work on it and
 
 ---
 
-← [As a service](as-a-service.md) · [Contents](../manual.md) · [Data](data.md) →
+← [Security notes](security-notes.md) · [Contents](../manual.md) · [Data](data.md) →

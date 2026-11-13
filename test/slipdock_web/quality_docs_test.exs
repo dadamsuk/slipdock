@@ -39,10 +39,10 @@ defmodule SlipdockWeb.QualityDocsTest do
              "`slipdock quality <board> [--days N]` and `GET /api/boards/:id/quality?days=`"
   end
 
-  test "the README lists the quality numbers and their doors" do
-    readme = read("README.md")
+  test "the feature digest lists the quality numbers and their doors" do
+    readme = read("docs/manual/every-feature-in-brief.md")
     assert_states(readme, "- **Quality numbers** — [is the agent loop right first time?]")
-    assert readme =~ "(docs/manual/visualise-flow-velocity-runners-and-delivery.md)"
+    assert readme =~ "(visualise-flow-velocity-runners-and-delivery.md)"
     assert readme =~ "`slipdock quality <board> [--days N] [--rules]`"
     assert readme =~ "`GET /api/boards/:id/quality?days=`"
   end

@@ -135,13 +135,14 @@ defmodule SlipdockWeb.PlanSkillDocsTest do
     assert ours == seed
   end
 
-  test "docs/agents.md, README and the manual name it and say when it runs" do
+  test "docs/agents.md, the feature digest and the manual name it and say when it runs" do
     agents = Slipdock.DocsText.read!(Path.join(@root, "docs/agents.md"))
     assert agents =~ "| `slipdock-plan` | Planning:"
     assert agents =~ "## Planning an idea: the `slipdock-plan` skill"
     assert_states(flat(agents), "It is not used for \"add a card…\".")
 
-    readme = flat(Slipdock.DocsText.read!(Path.join(@root, "README.md")))
+    readme =
+      flat(Slipdock.DocsText.read!(Path.join(@root, "docs/manual/every-feature-in-brief.md")))
 
     assert_states(
       readme,
@@ -197,7 +198,9 @@ defmodule SlipdockWeb.PlanSkillDocsTest do
 
       refute manual =~ "an installed skill named with `skill:`"
 
-      readme = flat(Slipdock.DocsText.read!(Path.join(@root, "README.md")))
+      readme =
+        flat(Slipdock.DocsText.read!(Path.join(@root, "docs/manual/every-feature-in-brief.md")))
+
       assert readme =~ "`slipdock skills board <board> [<name>]`"
       assert_states(readme, "`slipdock-plan` uses one for a Playbook stage that names it")
     end

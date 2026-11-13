@@ -99,10 +99,12 @@ defmodule SlipdockWeb.WaitDocsTest do
       refute manual =~ "say what was chosen, or comment, flag the card `waiting` and stop"
     end
 
-    test "README names waits, Waiting on you, parked jobs, pause and the pulse" do
-      readme = read("README.md")
-      assert readme =~ "docs/manual/waiting-on-a-person-waits.md"
-      assert readme =~ "docs/manual/flow-the-pulse-a-cards-state-and-its-age.md"
+    test "the feature digest names waits, Waiting on you, parked jobs, pause and the pulse" do
+      readme = read("docs/manual/every-feature-in-brief.md")
+      assert readme =~ "(waiting-on-a-person-waits.md)"
+      assert readme =~ "(flow-the-pulse-a-cards-state-and-its-age.md)"
+      assert read("README.md") =~ "docs/manual/waiting-on-a-person-waits.md"
+      assert read("README.md") =~ "docs/manual/flow-the-pulse-a-cards-state-and-its-age.md"
       assert readme =~ "**Waiting on you**"
       assert readme =~ "**A question parks the job.**"
       assert readme =~ "**A brake with a reason.**"
@@ -195,7 +197,7 @@ defmodule SlipdockWeb.WaitDocsTest do
   end
 
   describe "a series of questions (#1220)" do
-    test "the guides, manual, README and agents doc say to ask them one each, and how to skip" do
+    test "the guides, manual, the feature digest and agents doc say to ask them one each, and how to skip" do
       short = SlipdockWeb.APIGuide.short()
       assert_states(short, ~s(Several questions go as `{"questions": ["…", "…"]}`, one each))
 
@@ -211,7 +213,11 @@ defmodule SlipdockWeb.WaitDocsTest do
       assert manual =~ "**Questions asked before**"
       assert manual =~ "slipdock answer 12 --skip"
 
-      assert_states(read("README.md"), "Several questions are asked as a numbered series")
+      assert_states(
+        read("docs/manual/every-feature-in-brief.md"),
+        "Several questions are asked as a numbered series"
+      )
+
       assert read("docs/agents.md") =~ "Several questions go\nas `questions`"
     end
 
@@ -247,9 +253,14 @@ defmodule SlipdockWeb.WaitDocsTest do
       assert manual =~ "`update_board` `wait_routes` and `update_card` `wait` `question`"
     end
 
-    test "docs/agents.md, the README and the API guide tell an agent to give its kind" do
+    test "docs/agents.md, the feature digest and the API guide tell an agent to give its kind" do
       assert flat("docs/agents.md") =~ "**Give a wait its kind**: `question` (`--kind K`)"
-      assert_states(flat("README.md"), "**Who gets asked**: a wait says its kind of question")
+
+      assert_states(
+        flat("docs/manual/every-feature-in-brief.md"),
+        "**Who gets asked**: a wait says its kind of question"
+      )
+
       guide = SlipdockWeb.APIGuide.markdown()
       assert guide =~ ~s|"question": "product"|
       assert guide =~ ~s|{"wait_routes": {"product": ["dana@example.com"], "release": []}}|
@@ -276,7 +287,7 @@ defmodule SlipdockWeb.WaitDocsTest do
   end
 
   describe "an answer goes to any free runner (#2896)" do
-    test "the guide, the manual, the README and docs/agents.md say it isn't held for the asker" do
+    test "the guide, the manual, the feature digest and docs/agents.md say it isn't held for the asker" do
       assert_states(
         SlipdockWeb.APIGuide.markdown(),
         "pool's queue for any free runner, not held for the runner that asked"
@@ -292,7 +303,7 @@ defmodule SlipdockWeb.WaitDocsTest do
       assert_states(manual, "the card is not on anyone's *Waiting on you*")
 
       assert_states(
-        read("README.md"),
+        read("docs/manual/every-feature-in-brief.md"),
         "for any free runner of the pool, not only the one that asked"
       )
 
@@ -307,14 +318,14 @@ defmodule SlipdockWeb.WaitDocsTest do
       )
     end
 
-    test "the README and the slipdock skill say a feed's answer may be open beside its card" do
+    test "the feature digest and the slipdock skill say a feed's answer may be open beside its card" do
       both =
         ~r/an answered question's job may be open\s+beside\s+the card (it|the feed) sent,\s+and (it|the feed) sends the next card once both have closed/
 
-      assert read("README.md") =~ both
+      assert read("docs/manual/every-feature-in-brief.md") =~ both
       assert read("priv/skills/slipdock/SKILL.md") =~ both
 
-      refute read("README.md") =~
+      refute read("docs/manual/every-feature-in-brief.md") =~
                ~r/keeps one job open at a time, always for the top\s+ready card of the list, so/
     end
 

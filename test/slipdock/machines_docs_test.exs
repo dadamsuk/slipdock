@@ -56,9 +56,9 @@ defmodule Slipdock.MachinesDocsTest do
     end
   end
 
-  test "README and the agents help page say what a machine key is" do
+  test "the security notes and the agents help page say what a machine key is" do
     assert_states(
-      read("README.md"),
+      read("docs/manual/security-notes.md"),
       "A machine running runners has a key of its own, not your token."
     )
 
@@ -97,7 +97,11 @@ defmodule Slipdock.MachinesDocsTest do
     assert manual =~ "slipdock machine add-runner"
     assert read("docs/manual.md") =~ "(manual/machines.md#the-machines-page)"
     assert read("docs/agents.md") =~ "| A machine with the daemon |"
-    assert_states(read("README.md"), "machine with the runner daemon (offered first")
+
+    assert_states(
+      read("docs/manual/every-feature-in-brief.md"),
+      "machine with the runner daemon (offered first"
+    )
 
     help = read("lib/slipdock_web/live/help_live/agents.ex")
     assert help =~ ~s(id="help-machine-page")
@@ -161,7 +165,12 @@ defmodule Slipdock.MachinesDocsTest do
     assert manual =~ "slipdock-runner setup"
     assert manual =~ "init --no-setup"
     assert read("docs/manual.md") =~ "(manual/machines.md#set-up-this-machine-with-claude)"
-    assert_states(read("README.md"), "*Set up this machine with Claude* there")
+
+    assert_states(
+      read("docs/manual/every-feature-in-brief.md"),
+      "*Set up this machine with Claude* there"
+    )
+
     assert read("lib/slipdock_web/live/help_live/agents.ex") =~ ~s(id="help-machine-setup")
     assert read("cli/help.txt") =~ "machine setup-prompt <id>"
     assert read("priv/skills/slipdock/SKILL.md") =~ "slipdock machine setup-prompt <id>"
@@ -219,7 +228,11 @@ defmodule Slipdock.MachinesDocsTest do
 
     assert read("docs/manual.md") =~ "(manual/machines.md#when-the-connection-drops)"
 
-    for text <- [SlipdockWeb.APIGuide.markdown(), read("docs/agents.md"), read("README.md")] do
+    for text <- [
+          SlipdockWeb.APIGuide.markdown(),
+          read("docs/agents.md"),
+          read("docs/manual/every-feature-in-brief.md")
+        ] do
       text = String.replace(text, ~r/\s+/, " ")
 
       assert text =~ "notices a dead connection" or

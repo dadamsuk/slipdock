@@ -134,7 +134,7 @@ defmodule Slipdock.CardTextIsDataTest do
 
   describe "the README" do
     test "says every job's prompt ends with the rule, beside what else it is told" do
-      text = read("README.md") |> flat()
+      text = read("docs/manual/every-feature-in-brief.md") |> flat()
       assert_states(text, "every job is told nobody will answer questions")
 
       assert_states(

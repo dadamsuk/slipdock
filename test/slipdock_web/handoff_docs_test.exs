@@ -47,7 +47,7 @@ defmodule SlipdockWeb.HandoffDocsTest do
     assert_states(manual, "**Restore** makes an earlier one current again")
     assert_states(manual, "**Label** replaces *Left off* wherever a person reads it")
     assert manual =~ "DELETE /api/cards/:id/handoff"
-    assert read("README.md") =~ "`slipdock handoff 12 --delete`"
+    assert read("docs/manual/every-feature-in-brief.md") =~ "`slipdock handoff 12 --delete`"
     assert read("priv/skills/slipdock/SKILL.md") =~ "slipdock handoff <id> --delete"
     assert SlipdockWeb.MCP.Tools.LeaveHandoff.description() =~ "delete: true deletes"
   end

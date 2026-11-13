@@ -34,7 +34,13 @@ defmodule SlipdockWeb.HandbookDocsTest do
   end
 
   test "README, the CLI help and the skill name the commands" do
-    assert_states(read("README.md"), "**The handbook.** One Tool is built in")
+    # The bullet is in the manual's digest; the README keeps a line (#2792).
+    assert_states(
+      read("docs/manual/every-feature-in-brief.md"),
+      "One Tool is built in: `handbook` puts a `Handbook/` folder"
+    )
+
+    assert_states(read("README.md"), "One Tool is built in")
     help = read("cli/help.txt")
     assert help =~ "tools install-board handbook --board B"
     assert help =~ "handbook <board>|<card>"

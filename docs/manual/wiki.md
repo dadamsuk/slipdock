@@ -1151,8 +1151,8 @@ has the detail); editing the tags by hand doesn't.
 To make it play:
 
 1. **Connect Google Drive** on **Account → Preferences** (read-only). The
-   section is only there when the server has a Google client (see the
-   README).
+   section is only there when the server has a Google client (see
+   [Google Drive, for meeting recordings](google-drive-for-meeting-recordings.md)).
 2. **Set your wiki's recordings folder** on Wiki settings (e.g.
    `Meeting Recordings`), or `slipdock wiki set --recordings-folder
    "Meeting Recordings"`. The recordings are streamed through the wiki
@@ -1295,7 +1295,7 @@ The bar names the problem:
 
 | It says | Fix |
 | --- | --- |
-| Google Drive isn't set up on this server (`not_configured`) | The admin sets `GOOGLE_CLIENT_ID`/`SECRET` (README, *Google Drive*). |
+| Google Drive isn't set up on this server (`not_configured`) | The admin sets `GOOGLE_CLIENT_ID`/`SECRET` ([Google Drive, for meeting recordings](google-drive-for-meeting-recordings.md)). |
 | Google Drive isn't connected (`not_connected`) | The wiki's owner connects Drive on **Account → Preferences**. |
 | Drive access was revoked (`revoked`) | Connect again on **Account → Preferences** (weekly, in Google's Testing mode). |
 | No recordings folder set (`no_folder`) | The wiki's owner sets it in Wiki settings, or `slipdock wiki set --recordings-folder PATH`. |

@@ -35,14 +35,14 @@ defmodule SlipdockWeb.GeneratedNamesDocsTest do
     refute APIGuide.short() =~ "`<Series> <n>: <what>`"
   end
 
-  test "the manual and README name what's written" do
+  test "the manual and the feature digest name what's written" do
     manual = read("docs/manual.md")
     refute manual =~ "*Decisions / Pricing sync · 7 Oct 2026*"
     refute manual =~ "`/runner/examples/passlog.sh`"
     assert manual =~ "`Weekly review 2026-11-02`"
     assert manual =~ "`<rule>: <card> <date>`"
 
-    readme = read("README.md")
+    readme = read("docs/manual/every-feature-in-brief.md")
     assert readme =~ "`Cards/<short>/<short>.md`"
     assert readme =~ "`Pass <card> (<YYYY-MM-DD HH.MM>)`"
   end

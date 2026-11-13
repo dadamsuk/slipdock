@@ -38,13 +38,13 @@ defmodule SlipdockWeb.InboundDocsTest do
     assert manual =~ "`Slipdock.Inbound.Pages`"
   end
 
-  test "the manual, README and guide cover a folder's own address (#1277)" do
+  test "the manual, its Receiving email page and guide cover a folder's own address (#1277)" do
     manual = read("docs/manual.md")
     assert manual =~ "| `page-…@<domain>`, a folder's |"
     assert manual =~ "*Email this folder…*"
     assert_states(manual, "- **A folder's own address** files every page in that folder")
 
-    readme = read("README.md")
+    readme = read("docs/manual/receiving-email.md")
     assert readme =~ "*Email this folder…*, `slipdock inbound <board> --folder <path>`"
 
     assert SlipdockWeb.APIGuide.markdown() =~ "(`?folder=` a wiki folder's own `page`"
@@ -54,14 +54,18 @@ defmodule SlipdockWeb.InboundDocsTest do
     assert page =~ "inbound <board> --folder F"
   end
 
-  test "README links to it from the features and from Receiving email" do
-    readme = read("README.md")
-    assert readme =~ "**Email a card in**"
-    assert Regex.scan(~r/docs\/manual\/emailing-your-board\.md\)/, readme) |> length() >= 2
-    assert readme =~ "slipdock inbound\n<board>`"
-    assert readme =~ "(W-1933)"
-    assert readme =~ "`page-…@` address"
-    assert readme =~ "`+ Title` adds a dated section"
+  test "the feature digest and Receiving email link to it" do
+    digest = read("docs/manual/every-feature-in-brief.md")
+    receiving = read("docs/manual/receiving-email.md")
+    assert digest =~ "**Email a card in**"
+    assert digest =~ "Add](emailing-your-board.md)"
+    assert receiving =~ "board](emailing-your-board.md)"
+    assert read("README.md") =~ "(docs/manual/emailing-your-board.md)"
+    assert read("README.md") =~ "(docs/manual/receiving-email.md)"
+    assert receiving =~ "slipdock inbound\n<board>`"
+    assert receiving =~ "(W-1933)"
+    assert receiving =~ "`page-…@` address"
+    assert digest =~ "`+ Title` adds a dated section"
   end
 
   test "docs/agents.md says where to look when mail didn't arrive" do
@@ -90,12 +94,12 @@ defmodule SlipdockWeb.InboundDocsTest do
     assert skill =~ "slipdock inbound <board> --folder F [--rotate]"
   end
 
-  test "the manual, README, guide, agents page and skills cover [#42] to a card address (#1272)" do
+  test "the manual, its Receiving email page, guide, agents page and skills cover [#42] to a card address (#1272)" do
     manual = read("docs/manual.md")
     assert_states(manual, "**Adding to a card that exists.**")
     assert_states(manual, "comment on card 42 when the subject starts `[#42]`")
     assert manual =~ "`Invoice #1234` is still a"
-    assert read("README.md") =~ "`[#42] …` to the card address"
+    assert read("docs/manual/receiving-email.md") =~ "`[#42] …` to the card address"
 
     assert_states(
       read("docs/agents.md"),

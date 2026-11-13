@@ -74,8 +74,8 @@ defmodule SlipdockWeb.ScheduledListDocsTest do
     assert_states(manual, "`scheduled` for where recurring agent work lands")
   end
 
-  test "the README" do
-    readme = flat("README.md")
+  test "the feature digest" do
+    readme = flat("docs/manual/every-feature-in-brief.md")
     assert readme =~ "A board's **Scheduled** list (category `scheduled`"
     assert readme =~ "nobody picks from it"
   end

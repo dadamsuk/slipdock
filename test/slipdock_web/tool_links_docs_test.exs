@@ -19,7 +19,7 @@ defmodule SlipdockWeb.ToolLinksDocsTest do
     assert description =~ "link: true instead returns a single-use download_url"
   end
 
-  test "the package reference, the manual and README describe it" do
+  test "the package reference, the manual and the feature digest describe it" do
     assert_states(read("docs/tool-packages.md"), "**Any of these without a token**")
     manual = read("docs/manual.md")
     assert manual =~ "and with `link: true` (#1158) a single-use `download_url`"
@@ -29,7 +29,10 @@ defmodule SlipdockWeb.ToolLinksDocsTest do
       "With `skill`, that skill's `SKILL.md`, or with `file` a path in its folder."
     )
 
-    assert_states(read("README.md"), "`link: true` gives a single-use download URL for a file")
+    assert_states(
+      read("docs/manual/every-feature-in-brief.md"),
+      "`link: true` gives a single-use download URL for a file"
+    )
   end
 
   test "the slipdock skill names both options" do
@@ -43,8 +46,8 @@ defmodule SlipdockWeb.ToolLinksDocsTest do
     assert html =~ "links the whole package instead"
   end
 
-  test "the manual, the package reference and README say a package can be uploaded" do
-    for path <- ~w(docs/tool-packages.md docs/manual.md README.md) do
+  test "the manual, the package reference and the feature digest say a package can be uploaded" do
+    for path <- ~w(docs/tool-packages.md docs/manual.md docs/manual/every-feature-in-brief.md) do
       assert read(path) =~ "**Publish a Tool**", path
     end
   end
@@ -59,8 +62,8 @@ defmodule SlipdockWeb.ToolLinksDocsTest do
       assert SlipdockWeb.MCP.Tools.ListTools.input_schema().properties.package.type == "boolean"
     end
 
-    test "the package reference, the manual and README give the endpoint and the CLI" do
-      for path <- ~w(docs/tool-packages.md docs/manual.md README.md) do
+    test "the package reference, the manual and the feature digest give the endpoint and the CLI" do
+      for path <- ~w(docs/tool-packages.md docs/manual.md docs/manual/every-feature-in-brief.md) do
         text = read(path)
         assert text =~ "/api/tools/<name>/package.tar.gz", path
         assert text =~ "slipdock tools download", path

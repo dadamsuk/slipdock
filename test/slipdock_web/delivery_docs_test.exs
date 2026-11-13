@@ -15,13 +15,13 @@ defmodule SlipdockWeb.DeliveryDocsTest do
   @root Path.expand("../..", __DIR__)
   defp read(path), do: Slipdock.DocsText.read!(Path.join(@root, path))
 
-  test "README names the feature and its doors" do
-    readme = read("README.md")
+  test "the feature digest names the feature and its doors" do
+    readme = read("docs/manual/every-feature-in-brief.md")
     assert readme =~ "**Delivery metrics (DORA)**"
     assert readme =~ "slipdock deploy run --env production -- ./deploy.sh"
     assert readme =~ "slipdock dora <board>"
     assert readme =~ "`get_board` with `dora: true`"
-    assert readme =~ "(docs/manual/delivery-metrics-deploys-and-dora.md)"
+    assert readme =~ "(delivery-metrics-deploys-and-dora.md)"
   end
 
   test "the manual has the section README links to" do

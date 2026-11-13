@@ -72,7 +72,7 @@ defmodule SlipdockWeb.VisualisePolishTest do
   end
 
   test "the docs name the page and its new doors" do
-    readme = Slipdock.DocsText.read!("README.md")
+    readme = Slipdock.DocsText.read!("docs/manual/every-feature-in-brief.md")
     manual = Slipdock.DocsText.read!("docs/manual.md")
     agents = Slipdock.DocsText.read!("docs/agents.md")
     skill = Slipdock.DocsText.read!("priv/skills/slipdock/SKILL.md")

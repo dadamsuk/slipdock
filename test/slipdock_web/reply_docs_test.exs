@@ -25,16 +25,15 @@ defmodule SlipdockWeb.ReplyDocsTest do
     assert manual =~ "`Slipdock.Inbound.ReplyToken`"
   end
 
-  test "README links to it from the features and from Receiving email" do
-    readme = read("README.md")
+  test "the feature digest and Receiving email link to it" do
+    digest = read("docs/manual/every-feature-in-brief.md")
+    receiving = read("docs/manual/receiving-email.md")
 
-    assert Regex.scan(
-             ~r/docs\/manual\/emailing-your-board\.md#replying-to-a-notification/,
-             readme
-           )
-           |> length() >= 2
+    for text <- [digest, receiving] do
+      assert text =~ "(emailing-your-board.md#replying-to-a-notification)"
+    end
 
-    assert readme =~ "signed `reply-…@` `Reply-To`"
+    assert receiving =~ "signed `reply-…@` `Reply-To`"
   end
 
   test "docs/agents.md and the API guide say a reply can be a comment" do

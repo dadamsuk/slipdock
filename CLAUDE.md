@@ -18,7 +18,9 @@ holds the detail behind each rule.
    agents page and API guide (`docs/agents.md`, `lib/slipdock_web/api_guide.ex`),
    the in-app help (`HelpLive`), the packaged skills (`priv/skills/`), the
    `README.md` and the manual (`docs/manual.md`, a page per section in
-   `docs/manual/`).
+   `docs/manual/`). The README is the overview (#2792): a feature gets a line
+   and a link there at most, its paragraph goes in
+   `docs/manual/every-feature-in-brief.md` and its detail in its manual page.
 3. **Edit the skills only in `priv/skills/`.** Installed copies (such as
    `~/.claude/skills`) are overwritten from the server, so an edit there is
    lost.

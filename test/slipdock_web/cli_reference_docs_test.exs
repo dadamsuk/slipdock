@@ -19,10 +19,11 @@ defmodule SlipdockWeb.CLIReferenceDocsTest do
     assert cli =~ "`cli/help.txt`, the same file `slipdock help` prints"
   end
 
-  test "docs/agents.md and the README point at it" do
+  test "docs/agents.md and the feature digest point at it" do
     assert flat("docs/agents.md") =~
              "(`/help/agents/cli/reference`): every command in `slipdock help`"
 
-    assert flat("README.md") =~ "CLI command at `/help/agents/cli/reference`"
+    assert flat("docs/manual/every-feature-in-brief.md") =~
+             "CLI command at `/help/agents/cli/reference`"
   end
 end

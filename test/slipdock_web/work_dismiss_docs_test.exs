@@ -65,8 +65,8 @@ defmodule SlipdockWeb.WorkDismissDocsTest do
     assert help =~ "work --mute <board> | --unmute <board>"
   end
 
-  test "the README names dismiss, mute and the counts" do
-    readme = flat("README.md")
+  test "the feature digest names dismiss, mute and the counts" do
+    readme = flat("docs/manual/every-feature-in-brief.md")
     assert readme =~ "`slipdock work --dismiss <card>`"
     assert_states(readme, "**Mute on my Waiting on you**")
     assert readme =~ "`3 waiting · 2 dismissed · 1 board muted`"

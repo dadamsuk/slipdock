@@ -126,8 +126,8 @@ defmodule SlipdockWeb.WaitRuleDocsTest do
   end
 
   describe "the other places a reader looks for waits" do
-    test "the README names --default, withdrawing with a reason and wait_default_after" do
-      text = flat(read("README.md"))
+    test "the feature digest names --default, withdrawing with a reason and wait_default_after" do
+      text = flat(read("docs/manual/every-feature-in-brief.md"))
       assert_states(text, "names the one the agent proposes (`--default N`, `default`)")
       assert text =~ ~s(`slipdock wait 12 --withdraw --reason "…"`)
 

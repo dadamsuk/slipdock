@@ -3,7 +3,7 @@
 ## Emailing your board
 
 When the server receives mail (`SLIPDOCK_INBOUND_DOMAIN`, see
-[Receiving email](../../README.md#receiving-email)), every person has their own
+[Receiving email](receiving-email.md)), every person has their own
 addresses to send cards and wiki pages in from their mail client: forward an
 invoice, a bug report or a note to yourself, and it is a card; send meeting
 notes or a day's journal to the page address, and it is a page.

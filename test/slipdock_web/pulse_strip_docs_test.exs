@@ -14,12 +14,16 @@ defmodule SlipdockWeb.PulseStripDocsTest do
   defp read(path), do: Slipdock.DocsText.read!(Path.join(@root, path))
 
   defp pulse_item do
-    [_, item] = String.split(read("README.md"), "\n- **A board's pulse** — ", parts: 2)
+    [_, item] =
+      String.split(read("docs/manual/every-feature-in-brief.md"), "\n- **A board's pulse** — ",
+        parts: 2
+      )
+
     [item | _] = String.split(item, "\n- ", parts: 2)
     String.replace(item, ~r/\s+/, " ")
   end
 
-  test "the README's pulse line says the strip opens Right now with Agentic Building on" do
+  test "the feature digest's pulse line says the strip opens Right now with Agentic Building on" do
     item = pulse_item()
 
     assert_states(

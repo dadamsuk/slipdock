@@ -132,7 +132,7 @@ defmodule SlipdockWeb.GuideShortDocsTest do
       end
 
       assert_states(
-        read("README.md"),
+        read("docs/manual/every-feature-in-brief.md"),
         "`?section=short` to start, then one section at a time; the whole of it is long"
       )
     end

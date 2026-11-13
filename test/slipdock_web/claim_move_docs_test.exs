@@ -47,8 +47,8 @@ defmodule SlipdockWeb.ClaimMoveDocsTest do
     )
   end
 
-  test "the README's list_top bullet says the claim moves the card and the prompt names the list" do
-    readme = flat("README.md")
+  test "the feature digest's list_top bullet says the claim moves the card and the prompt names the list" do
+    readme = flat("docs/manual/every-feature-in-brief.md")
 
     assert_states(
       readme,

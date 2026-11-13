@@ -22,7 +22,7 @@ defmodule Slipdock.HandbookPageListsTest do
   # {where, the phrase that starts its list}
   defp copies do
     [
-      {"README.md", "- **The handbook.** One Tool is built in"},
+      {"docs/manual/every-feature-in-brief.md", "- **The handbook.** One Tool is built in"},
       {"docs/manual.md", "skeleton pages for"},
       {"docs/agents.md", "section page (Specification"},
       {"priv/skills/slipdock-docs/SKILL.md", "in the section page that covers it"},

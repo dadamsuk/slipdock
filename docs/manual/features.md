@@ -268,7 +268,7 @@
 
 ---
 
-[Contents](../manual.md) · [Getting Started](getting-started.md) →
+[Contents](../manual.md) · [Every feature in brief](every-feature-in-brief.md) →
 
 ## Who clears a flag
 
