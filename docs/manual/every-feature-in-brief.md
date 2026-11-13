@@ -498,6 +498,8 @@ and MCP) and a link to the page that covers it.
     succeeded deploy names it, then *Released to production* with the time
     (`release` on the card's JSON and `get_card`, the *Release* line in
     `slipdock card`).
+  - The release banner's *N merged, awaiting release* opens the list of
+    those cards: what the next release takes.
   - A release runs when a `critical` card merges, at the
     age cap, or on **Release now** (the board's banner, `slipdock release
     <board>`, `POST /api/boards/:board/release`, MCP `release_now`; the

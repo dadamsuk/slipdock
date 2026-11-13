@@ -281,10 +281,17 @@ defmodule Slipdock.ReleaseRequestsTest do
       merged!(todo, "One")
       merged!(todo, "Two")
       assert Releases.line(Releases.status(board)) == "2 merged, awaiting release"
+      # A view listing the cards (#3038) takes the count apart from the rest.
+      assert Releases.awaiting_text(Releases.status(board)) == "2 merged, awaiting release"
+      assert Releases.line(Releases.status(board), awaiting: false) == nil
 
       runner!(board, "box", ~w(merge release))
       {:ok, :started, _} = Releases.request(board, "manual", "Dana")
       assert Releases.line(Releases.status(board)) == "A release is running (2 cards)"
+      assert Releases.awaiting_text(Releases.status(board)) == nil
+
+      assert Releases.line(Releases.status(board), awaiting: false) ==
+               "A release is running (2 cards)"
     end
 
     test "prefers a pool whose runner takes release over one that only merges", %{board: board} do
