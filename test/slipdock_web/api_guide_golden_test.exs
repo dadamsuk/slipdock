@@ -104,6 +104,29 @@ defmodule SlipdockWeb.APIGuideGoldenTest do
     golden("signed_in.md", scrub(guide, owner, board))
   end
 
+  # Ids come from sequences the sandbox doesn't roll back, so in a full run
+  # the Golden board can draw a list or board id one of the guide's own
+  # examples uses. A scrub that rewrote `(#57)` everywhere failed the copy
+  # at the ask example only then (#2945). The guide read with no token has
+  # no board lines, so a scrub given every example id leaves it alone.
+  test "the scrub leaves the guide's example ids alone, whatever ids the board draws" do
+    {owner, board} = signed_in()
+    guide = APIGuide.markdown(base_url: @base)
+
+    ids =
+      Regex.scan(~r/#(\d+)/, guide, capture: :all_but_first)
+      |> List.flatten()
+      |> Enum.map(&String.to_integer/1)
+      |> Enum.uniq()
+
+    assert 57 in ids
+
+    for id <- ids do
+      drawn = %{board | id: id, columns: Enum.map(board.columns, &%{&1 | id: id})}
+      assert scrub(guide, owner, drawn) == guide, "the scrub changed the guide for id #{id}"
+    end
+  end
+
   # The short guide's boards section is the signed-in reader's alone (#2925):
   # the copy read with no token takes the anonymous one, so this holds the
   # boards list with the Housekeeping note left out of it.
