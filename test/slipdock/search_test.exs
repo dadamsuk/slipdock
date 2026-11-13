@@ -177,6 +177,65 @@ defmodule Slipdock.SearchTest do
     end
   end
 
+  describe "the indexer's own timer" do
+    # Outside tests the queue flushes on a timer, not on `flush/0`. The indexer
+    # started at boot, where `Slipdock.TestConfig` can't reach, so the interval
+    # goes in the application env (this module is sync). It is an hour, so the
+    # timer is set and never fires: the test sends its message itself.
+    setup do
+      before = Application.get_env(:slipdock, :search)
+      Application.put_env(:slipdock, :search, Keyword.put(before || [], :interval, 3_600_000))
+      Indexer.reset()
+
+      on_exit(fn ->
+        if before,
+          do: Application.put_env(:slipdock, :search, before),
+          else: Application.delete_env(:slipdock, :search)
+
+        Indexer.reset()
+      end)
+    end
+
+    # Queues the ids and has the timer go off: its message, as `handle_info/2`
+    # gets it. Returns the timer the queueing set and the state after the flush.
+    defp timed_flush(ids) do
+      indexer = Process.whereis(Indexer)
+      Indexer.enqueue_all(ids)
+      %{timer: queued} = :sys.get_state(indexer)
+      assert is_reference(queued)
+      # It has "fired", as far as the indexer will know; don't leave it running.
+      Process.cancel_timer(queued)
+
+      send(indexer, :flush)
+      {queued, :sys.get_state(indexer)}
+    end
+
+    test "a timed flush that leaves a remainder sets the timer again for it", ctx do
+      ids = for n <- 1..45, do: card_fixture(ctx.column, %{"title" => "Timed item#{n}"}).id
+      Indexer.reset()
+
+      {queued, state} = timed_flush(ids)
+
+      assert MapSet.size(state.queue) == 5
+      assert Repo.aggregate(from(e in Embedding, where: e.card_id in ^ids), :count) == 40
+      # Without a new timer nothing would come back for the five left over.
+      assert is_reference(state.timer)
+      assert state.timer != queued
+      assert is_integer(Process.read_timer(state.timer))
+    end
+
+    test "a timed flush that empties the queue leaves no timer", ctx do
+      ids = for n <- 1..3, do: card_fixture(ctx.column, %{"title" => "Timed item#{n}"}).id
+      Indexer.reset()
+
+      {_queued, state} = timed_flush(ids)
+
+      assert MapSet.size(state.queue) == 0
+      assert Repo.aggregate(from(e in Embedding, where: e.card_id in ^ids), :count) == 3
+      assert state.timer == nil
+    end
+  end
+
   describe "recording transcripts" do
     setup ctx do
       Slipdock.TestConfig.own_uploads_dir()
