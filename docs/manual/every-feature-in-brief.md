@@ -536,7 +536,8 @@ with the tail of the log — and a Cancel button.
 - **Each card has a timeline.** Near the bottom of the card, lanes on one
   time axis show each list it has sat in (coloured by the list's category,
   with who moved it), each wait on a person and each runner job, from its
-  first record to now. The same spans come from `GET
+  first record to now; a card in done keeps its time there to a short
+  fixed tail, so the earlier stays stay readable. The same spans come from `GET
   /api/cards/:id/timeline`, MCP `get_card` with `timeline: true` and
   `slipdock timeline <id>`.
 - **Watch a job as it runs, keep its log only if it matters.** The runner

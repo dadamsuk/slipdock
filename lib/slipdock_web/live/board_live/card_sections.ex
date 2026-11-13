@@ -1024,6 +1024,9 @@ defmodule SlipdockWeb.BoardLive.CardSections do
     """
   end
 
+  # The share of the axis the time before done gets on a folded timeline.
+  @timeline_active 85
+
   attr :timeline, Slipdock.CardTimeline, required: true
   attr :zone, :string, required: true, doc: "the reader's time zone"
 
@@ -1033,20 +1036,29 @@ defmodule SlipdockWeb.BoardLive.CardSections do
   record to now. A span's title says what, when, how long and who; a span
   the ledger can't vouch for is faded and dashed. Under the lanes, the
   same stays as a list, for reading rather than eyeballing.
+
+  A card sitting in a done list (#2827) doesn't stretch the axis: the
+  time before it reached done takes the first 85% and its stay in done
+  a fixed tail, so the stays that mattered keep their size however long
+  it has been done. Only the drawing folds; every duration is the real one.
   """
   def timeline_section(assigns) do
     tl = assigns.timeline
     total = max(DateTime.diff(tl.to, tl.from), 1)
+    scale = timeline_scale(tl, total)
+    bars = fn spans, fun -> Enum.map(spans, &fun.(&1, scale, assigns.zone)) end
 
     assigns =
       assign(assigns,
         total: total,
+        done_at: done_at(scale),
+        done_pct: @timeline_active,
         lanes:
           Enum.reject(
             [
-              {"Lists", "stays", Enum.map(tl.stays, &stay_bar(&1, tl.from, total, assigns.zone))},
-              {"Waits", "waits", Enum.map(tl.waits, &wait_bar(&1, tl.from, total, assigns.zone))},
-              {"Jobs", "jobs", Enum.map(tl.jobs, &job_bar(&1, tl.from, total, assigns.zone))}
+              {"Lists", "stays", bars.(tl.stays, &stay_bar/3)},
+              {"Waits", "waits", bars.(tl.waits, &wait_bar/3)},
+              {"Jobs", "jobs", bars.(tl.jobs, &job_bar/3)}
             ],
             fn {_, _, bars} -> bars == [] end
           )
@@ -1084,9 +1096,21 @@ defmodule SlipdockWeb.BoardLive.CardSections do
           </div>
         </div>
       </div>
-      <div class="flex justify-between pl-12 text-2xs text-base-content/50">
+      <div :if={is_nil(@done_at)} class="flex justify-between pl-12 text-2xs text-base-content/50">
         <span>{timeline_stamp(@timeline.from, @zone)}</span>
         <span>now</span>
+      </div>
+      <div :if={@done_at} class="flex pl-12 text-2xs text-base-content/50" id="card-timeline-axis">
+        <span class="min-w-0 truncate" style={"width: #{@done_pct}%"}>
+          {timeline_stamp(@timeline.from, @zone)}
+        </span>
+        <span
+          class="min-w-0 flex-1 truncate border-l border-base-content/30 pl-1"
+          id="card-timeline-done-at"
+          title="Reached done here; its time in done is drawn at a fixed width, not to scale"
+        >
+          done {timeline_stamp(@done_at, @zone)} · now
+        </span>
       </div>
       <details class="text-xs" id="card-timeline-list">
         <summary class="cursor-pointer text-base-content/60">
@@ -1112,7 +1136,37 @@ defmodule SlipdockWeb.BoardLive.CardSections do
     """
   end
 
-  defp stay_bar(stay, from, total, zone) do
+  # How time maps onto the axis: straight from first record to now, or, on
+  # a card whose current stay is in a done list it reached after its first
+  # record, folded at the moment it got there (#2827).
+  defp timeline_scale(tl, total) do
+    case List.last(tl.stays) do
+      %{open: true, category: "done", from: at} ->
+        if DateTime.compare(at, tl.from) == :gt,
+          do: {:folded, tl.from, at, tl.to},
+          else: {:linear, tl.from, total}
+
+      _ ->
+        {:linear, tl.from, total}
+    end
+  end
+
+  defp done_at({:folded, _from, at, _now}), do: at
+  defp done_at(_scale), do: nil
+
+  # Where `at` falls on the axis, as a percentage.
+  defp timeline_pos({:linear, from, total}, at), do: DateTime.diff(at, from) / total * 100
+
+  defp timeline_pos({:folded, from, done_at, now}, at) do
+    if DateTime.compare(at, done_at) == :gt do
+      tail = max(DateTime.diff(now, done_at), 1)
+      @timeline_active + min(DateTime.diff(at, done_at) / tail, 1) * (100 - @timeline_active)
+    else
+      DateTime.diff(at, from) / DateTime.diff(done_at, from) * @timeline_active
+    end
+  end
+
+  defp stay_bar(stay, scale, zone) do
     how =
       case stay.how do
         %{by: by} when is_binary(by) -> ", by #{by}"
@@ -1120,30 +1174,40 @@ defmodule SlipdockWeb.BoardLive.CardSections do
         _ -> ""
       end
 
-    bar(stay, from, total, zone, stay.list, category_class(stay.category))
+    folded =
+      if match?({:folded, _, _, _}, scale) and stay.open,
+        do: " (drawn at a fixed width, not to scale)",
+        else: ""
+
+    bar(stay, scale, zone, stay.list, category_class(stay.category))
     |> Map.merge(%{unsure: stay.unsure})
     |> then(
-      &%{&1 | title: "#{stay.list}: #{&1.title}#{how}#{if stay.unsure, do: " (time uncertain)"}"}
+      &%{
+        &1
+        | title:
+            "#{stay.list}: #{&1.title}#{how}#{if stay.unsure, do: " (time uncertain)"}#{folded}"
+      }
     )
   end
 
-  defp wait_bar(wait, from, total, zone) do
-    b = bar(wait, from, total, zone, "on #{wait.on}", "bg-warning/60")
+  defp wait_bar(wait, scale, zone) do
+    b = bar(wait, scale, zone, "on #{wait.on}", "bg-warning/60")
     %{b | title: "Waiting on #{wait.on}: #{wait.needs} — #{b.title}#{wait_end(wait)}"}
   end
 
   defp wait_end(%{open: true}), do: ""
   defp wait_end(%{reason: reason}), do: ", #{String.replace(reason || "closed", "_", " ")}"
 
-  defp job_bar(job, from, total, zone) do
-    b = bar(job, from, total, zone, "##{job.id} #{job.status}", job_class(job.status))
+  defp job_bar(job, scale, zone) do
+    b = bar(job, scale, zone, "##{job.id} #{job.status}", job_class(job.status))
     %{b | title: "Job ##{job.id} (#{job.pool} · #{job.kind}) #{job.status}: #{b.title}"}
   end
 
   # Where a span sits on the axis, as percentages, kept wide enough to see.
-  defp bar(span, from, total, zone, label, class) do
-    left = DateTime.diff(span.from, from) / total * 100
-    width = max(Slipdock.CardTimeline.seconds(span) / total * 100, 0.75)
+  # The title gives its real length, whatever the drawing does.
+  defp bar(span, scale, zone, label, class) do
+    left = timeline_pos(scale, span.from)
+    width = max(timeline_pos(scale, span.to) - left, 0.75)
     left = min(left, 100 - width)
 
     %{
