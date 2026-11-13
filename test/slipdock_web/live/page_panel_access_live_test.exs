@@ -93,6 +93,27 @@ defmodule SlipdockWeb.PagePanelAccessLiveTest do
     refute_panel(view, ctx.draft)
   end
 
+  # `can_comment` follows the reader's level on the page (#2907): a reader
+  # may open it but not comment, a commenter may.
+  test "a reader can't comment on a page they may read; a commenter can", ctx do
+    reader = user_fixture("reader-comment@example.com")
+    {:ok, _} = Access.grant(ctx.board, reader, "read", ctx.owner)
+
+    {:ok, view, _} = live(as(reader), ~p"/boards/#{ctx.board}?#{[page: ctx.page.id]}")
+    assert has_element?(view, "#page-panel", "Placed page")
+    view |> with_target("#board-page") |> render_click("add_comment", %{"body" => "hi"})
+    assert Slipdock.Repo.preload(Wiki.get_page!(ctx.page.id), :comments).comments == []
+
+    commenter = user_fixture("commenter-ok@example.com")
+    {:ok, _} = Access.grant(ctx.board, commenter, "comment", ctx.owner)
+
+    {:ok, view, _} = live(as(commenter), ~p"/boards/#{ctx.board}?#{[page: ctx.page.id]}")
+    view |> with_target("#board-page") |> render_click("add_comment", %{"body" => "hello"})
+
+    assert [%{body: "hello"}] =
+             Slipdock.Repo.preload(Wiki.get_page!(ctx.page.id), :comments).comments
+  end
+
   test "a commenter doesn't see a draft either", ctx do
     commenter = user_fixture("commenter@example.com")
     {:ok, _} = Access.grant(ctx.board, commenter, "comment", ctx.owner)
