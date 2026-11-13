@@ -44,12 +44,18 @@ defmodule SlipdockWeb.RecordingControllerTest do
     %{board: board, vault: vault}
   end
 
-  defp meeting(board, front_matter) do
-    page_fixture(board, %{
-      "title" => "Meeting #{System.unique_integer([:positive])}",
-      "front_matter" => "---\n" <> front_matter <> "\n---\n\n",
-      "body" => "Summary"
-    })
+  defp meeting(board, front_matter, attrs \\ %{}) do
+    page_fixture(
+      board,
+      Map.merge(
+        %{
+          "title" => "Meeting #{System.unique_integer([:positive])}",
+          "front_matter" => "---\n" <> front_matter <> "\n---\n\n",
+          "body" => "Summary"
+        },
+        attrs
+      )
+    )
   end
 
   test "streams the whole recording", %{conn: conn, board: board} do
@@ -102,6 +108,36 @@ defmodule SlipdockWeb.RecordingControllerTest do
 
     assert json_response(conn, 404) == %{"reason" => "not_found"}
     refute_received {:drive, _, _, _}
+  end
+
+  test "a draft is a writer's, as on the page itself", %{conn: conn, board: board} do
+    page = meeting(board, "recording: gdrive:Rec/m.m4a", %{"status" => "draft"})
+
+    for level <- ["read", "comment"] do
+      member = user_fixture("recording.#{level}@example.com")
+      share_fixture(board, member, level)
+      refused = build_conn() |> log_in_user(member) |> get(~p"/wiki-pages/#{page.id}/recording")
+
+      assert json_response(refused, 404) == %{"reason" => "not_found"}
+    end
+
+    refute_received {:drive, _, _, _}
+
+    writer = user_fixture("recording.writer@example.com")
+    share_fixture(board, writer, "write")
+    as_writer = build_conn() |> log_in_user(writer) |> get(~p"/wiki-pages/#{page.id}/recording")
+
+    assert response(as_writer, 200) == @audio_bytes
+    assert response(get(conn, ~p"/wiki-pages/#{page.id}/recording"), 200) == @audio_bytes
+  end
+
+  test "a reader may hear a published page", %{board: board} do
+    page = meeting(board, "recording: gdrive:Rec/m.m4a")
+    reader = user_fixture("recording.member@example.com")
+    share_fixture(board, reader, "read")
+    conn = build_conn() |> log_in_user(reader) |> get(~p"/wiki-pages/#{page.id}/recording")
+
+    assert response(conn, 200) == @audio_bytes
   end
 
   test "signed out is sent to sign in", %{board: board} do
