@@ -12,6 +12,8 @@ defmodule SlipdockWeb.BoardLive.AutomationsComponent do
   """
   use SlipdockWeb, :live_component
 
+  alias SlipdockWeb.LiveAccess
+
   import SlipdockWeb.SlipdockComponents
   import SlipdockWeb.BoardLive.Helpers, only: [flash: 3]
 
@@ -86,15 +88,20 @@ defmodule SlipdockWeb.BoardLive.AutomationsComponent do
     {:noreply, flash(socket, :error, "That isn't something this page can do.")}
   end
 
-  def handle_event(_event, _params, %{assigns: %{can_manage: false}} = socket) do
+  # Who owns the board is read again before the guard (#2998): `update/2`
+  # runs only when the board hands the panel something new.
+  def handle_event(event, params, socket),
+    do: event(event, params, LiveAccess.refresh_owner(socket))
+
+  defp event(_event, _params, %{assigns: %{can_manage: false}} = socket) do
     {:noreply, flash(socket, :error, "Only the board's owner can do that.")}
   end
 
-  def handle_event("rule_change", %{"text" => text}, socket),
+  defp event("rule_change", %{"text" => text}, socket),
     do: {:noreply, assign(socket, rule_text: text)}
 
   # Ready-made rules: pick one, fill in its few fields, add it. No model.
-  def handle_event("pick_rule_preset", %{"key" => key}, socket) do
+  defp event("pick_rule_preset", %{"key" => key}, socket) do
     case {socket.assigns.rule_preset, Presets.get(key)} do
       {^key, _} ->
         {:noreply, assign(socket, rule_preset: nil, rule_preset_error: nil)}
@@ -112,13 +119,13 @@ defmodule SlipdockWeb.BoardLive.AutomationsComponent do
     end
   end
 
-  def handle_event("rule_preset_change", %{"preset" => params}, socket),
+  defp event("rule_preset_change", %{"preset" => params}, socket),
     do: {:noreply, assign(socket, rule_preset_params: params)}
 
-  def handle_event("cancel_rule_preset", _params, socket),
+  defp event("cancel_rule_preset", _params, socket),
     do: {:noreply, assign(socket, rule_preset: nil, rule_preset_error: nil)}
 
-  def handle_event("create_rule_preset", %{"preset" => params}, socket) do
+  defp event("create_rule_preset", %{"preset" => params}, socket) do
     %{board: board, current_user: user, rule_preset: key} = socket.assigns
 
     case Automations.create_rule_from_preset(board, key, params, created_by: user) do
@@ -134,10 +141,10 @@ defmodule SlipdockWeb.BoardLive.AutomationsComponent do
     end
   end
 
-  def handle_event("use_example", %{"text" => text}, socket),
+  defp event("use_example", %{"text" => text}, socket),
     do: {:noreply, assign(socket, rule_text: text, rule_error: nil)}
 
-  def handle_event("edit_rule", %{"id" => id}, socket) do
+  defp event("edit_rule", %{"id" => id}, socket) do
     case Enum.find(socket.assigns.rules, &(to_string(&1.id) == id)) do
       nil ->
         {:noreply, socket}
@@ -148,12 +155,12 @@ defmodule SlipdockWeb.BoardLive.AutomationsComponent do
     end
   end
 
-  def handle_event("cancel_edit_rule", _params, socket),
+  defp event("cancel_edit_rule", _params, socket),
     do: {:noreply, assign(socket, editing_rule: nil, rule_text: "", rule_error: nil)}
 
   # Writing the rule means asking the model to turn it into a spec, which
   # takes a second or two; the composer keeps the text and says so meanwhile.
-  def handle_event("create_rule", %{"text" => text}, socket) do
+  defp event("create_rule", %{"text" => text}, socket) do
     text = String.trim(text)
     board = socket.assigns.board
     user = socket.assigns.current_user
@@ -174,7 +181,7 @@ defmodule SlipdockWeb.BoardLive.AutomationsComponent do
     end
   end
 
-  def handle_event("toggle_rule", %{"id" => id}, socket) do
+  defp event("toggle_rule", %{"id" => id}, socket) do
     case Automations.get_board_rule(socket.assigns.board.id, id) do
       nil ->
         {:noreply, socket}
@@ -185,7 +192,7 @@ defmodule SlipdockWeb.BoardLive.AutomationsComponent do
     end
   end
 
-  def handle_event("delete_rule", %{"id" => id}, socket) do
+  defp event("delete_rule", %{"id" => id}, socket) do
     case Automations.get_board_rule(socket.assigns.board.id, id) do
       nil ->
         {:noreply, socket}
@@ -203,7 +210,7 @@ defmodule SlipdockWeb.BoardLive.AutomationsComponent do
 
   # Time-based rules remember what they have already acted on; running one by
   # hand forgets that first, so it can act on the same cards again.
-  def handle_event("run_rule", %{"id" => id}, socket) do
+  defp event("run_rule", %{"id" => id}, socket) do
     case Automations.get_board_rule(socket.assigns.board.id, id) do
       nil ->
         {:noreply, socket}
