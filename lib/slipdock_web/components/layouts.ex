@@ -8,7 +8,6 @@ defmodule SlipdockWeb.Layouts do
   embed_templates "layouts/*"
 
   attr :flash, :map, required: true, doc: "the map of flash messages"
-  attr :current_scope, :map, default: nil
   attr :current_user, :any, default: nil
 
   attr :alerts, :list,
@@ -1652,7 +1651,6 @@ defmodule SlipdockWeb.Layouts do
 
   attr :class, :string, default: "size-7"
   attr :variant, :atom, default: :simple, values: [:simple, :detailed]
-  attr :icon_class, :string, default: nil, doc: "ignored; kept so existing callers still compile"
 
   @doc """
   The app mark. The icon ships with its own tile and corner radius (see

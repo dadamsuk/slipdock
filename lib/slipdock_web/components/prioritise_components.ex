@@ -10,12 +10,10 @@ defmodule SlipdockWeb.PrioritiseComponents do
   alias Slipdock.Fields
   alias Slipdock.Swimlanes.Config
 
-  attr :board, :any, required: true
   attr :config, Config, required: true
   attr :prioritise, :map, required: true, doc: "from Slipdock.Prioritise.build/4"
   attr :can_write, :boolean, default: true
   attr :can_manage, :boolean, default: false
-  attr :current_user, :any, default: nil
   attr :narrow, :boolean, default: false, doc: "stack each card instead of laying out columns"
 
   def prioritise_view(assigns) do

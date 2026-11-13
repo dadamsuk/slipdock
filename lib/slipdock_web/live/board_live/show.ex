@@ -1468,7 +1468,6 @@ defmodule SlipdockWeb.BoardLive.Show do
             config={@swim}
             rows={@table_rows}
             collapsed={@swim_collapsed}
-            form_key={@form_key}
             can_write={@can_write}
             quick_preview={@quick_preview}
           />
@@ -1479,7 +1478,6 @@ defmodule SlipdockWeb.BoardLive.Show do
             config={@swim}
             timeline={@timeline}
             collapsed={@swim_collapsed}
-            form_key={@form_key}
             can_write={@can_write}
           />
           <.outline_view
@@ -1496,12 +1494,10 @@ defmodule SlipdockWeb.BoardLive.Show do
           <.prioritise_view
             :if={@mode == :prioritise}
             narrow={@narrow?}
-            board={@board}
             config={@swim}
             prioritise={@prioritise}
             can_write={@can_write}
             can_manage={@can_manage}
-            current_user={@current_user}
           />
           <.narrative_view
             :if={@mode == :narrative}
@@ -1509,7 +1505,6 @@ defmodule SlipdockWeb.BoardLive.Show do
             config={@swim}
             narrative={@narrative}
             collapsed={@swim_collapsed}
-            can_write={@can_write}
             view_name={@swim_view && @swim_view.name}
             ai={@ai?}
             current_user={@current_user}

@@ -227,7 +227,6 @@ defmodule SlipdockWeb.PublicLive.Show do
                 config={@config}
                 rows={@table_rows}
                 collapsed={@collapsed}
-                form_key={@form_key}
                 can_write={false}
               />
             <% :timeline -> %>
@@ -237,7 +236,6 @@ defmodule SlipdockWeb.PublicLive.Show do
                 config={@config}
                 timeline={@timeline}
                 collapsed={@collapsed}
-                form_key={@form_key}
                 can_write={false}
               />
             <% :calendar -> %>
@@ -265,7 +263,6 @@ defmodule SlipdockWeb.PublicLive.Show do
                 config={@config}
                 narrative={@narrative}
                 collapsed={@collapsed}
-                can_write={false}
                 view_name={@view.name}
               />
           <% end %>

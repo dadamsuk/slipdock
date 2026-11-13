@@ -456,7 +456,6 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
   attr :form, :any, required: true
   attr :close_path, :string, required: true
   attr :grants, :list, required: true
-  attr :pages, :list, default: [], doc: "the wiki pages that talk about this card"
   attr :groups, :list, required: true
   attr :share_key, :integer, required: true
 

@@ -15,7 +15,6 @@ defmodule SlipdockWeb.TableComponents do
   attr :config, Config, required: true
   attr :rows, :map, required: true, doc: "from Slipdock.Table.rows/2"
   attr :collapsed, :any, required: true, doc: "MapSet of collapsed group keys"
-  attr :form_key, :integer, required: true
   attr :can_write, :boolean, default: true
   attr :quick_preview, :map, default: %{}, doc: "quick-add previews by form id"
   attr :narrow, :boolean, default: false, doc: "stack each row instead of laying out columns"
