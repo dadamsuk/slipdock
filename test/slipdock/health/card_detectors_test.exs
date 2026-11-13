@@ -153,6 +153,80 @@ defmodule Slipdock.Health.CardDetectorsTest do
       assert card!(epic).column_id == ctx.todo.id
     end
 
+    # #2915: an epic's job builds its subcards inside itself, so the one its
+    # step names has no job of its own, yet is worked.
+    defp epic_job_subcards(ctx) do
+      epic = card_fixture(ctx.doing, %{"title" => "Epic"})
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
+      {:ok, sub} = Boards.create_sub_board(epic, t)
+      sub = Boards.get_board!(sub.id)
+      sub_todo = Enum.find(sub.columns, &(&1.name == "To Do"))
+      sub_doing = Enum.find(sub.columns, &(&1.name == "Doing"))
+
+      [named, sibling] =
+        for title <- ["Named", "Sibling"] do
+          card = card_fixture(sub_todo, %{"title" => title})
+          moved_by_agent(ctx, card, sub_doing)
+          age(card, 180)
+          card
+        end
+
+      job =
+        Repo.insert!(%Job{
+          board_id: ctx.board.id,
+          root_board_id: ctx.board.id,
+          card_id: epic.id,
+          pool: "loop",
+          kind: "claude",
+          prompt: "",
+          status: "running",
+          step: "##{named.id} CI running"
+        })
+
+      %{named: named, sibling: sibling, job: job, sub_todo: sub_todo, sub_doing: sub_doing}
+    end
+
+    defp found_ids(ctx),
+      do: detect(OrphanInProgress, ctx.board) |> Enum.map(& &1.card_id) |> Enum.sort()
+
+    defp set_job(job, set), do: Repo.update_all(from(j in Job, where: j.id == ^job.id), set: set)
+
+    for status <- ~w(claimed running) do
+      test "a subcard its epic's #{status} job names isn't orphaned; its sibling is", ctx do
+        %{named: named, sibling: sibling, job: job, sub_todo: sub_todo, sub_doing: sub_doing} =
+          epic_job_subcards(ctx)
+
+        set_job(job, status: unquote(status))
+        assert found_ids(ctx) == [sibling.id]
+
+        assert {:ok, %{"fixed" => 1}} = Health.run(ctx.board, detectors: [OrphanInProgress])
+        assert card!(named).column_id == sub_doing.id
+        assert card!(sibling).column_id == sub_todo.id
+      end
+    end
+
+    test "a subcard the epic's job no longer works is orphaned again", ctx do
+      %{named: named, sibling: sibling, job: job} = epic_job_subcards(ctx)
+      both = Enum.sort([named.id, sibling.id])
+
+      # The job moved on to the sibling.
+      set_job(job, step: "##{sibling.id} started")
+      assert found_ids(ctx) == [named.id]
+
+      # The job ended; the epic itself, left in progress, is nobody's either.
+      set_job(job, step: "##{named.id} CI running", status: "done")
+      assert both -- found_ids(ctx) == []
+
+      # A verify job on the epic builds nothing.
+      set_job(job, status: "running", kind: "verify")
+      assert both -- found_ids(ctx) == []
+
+      # A running job on some other card that names it isn't its epic's.
+      other = card_fixture(ctx.todo, %{"title" => "Elsewhere"})
+      set_job(job, kind: "claude", card_id: other.id)
+      assert both -- found_ids(ctx) == []
+    end
+
     test "put back once with a comment, then flagged when it is orphaned again", ctx do
       card = card_fixture(ctx.todo, %{"title" => "Twice"})
       moved_by_agent(ctx, card, ctx.doing)
