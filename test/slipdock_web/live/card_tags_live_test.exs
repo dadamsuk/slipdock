@@ -200,6 +200,37 @@ defmodule SlipdockWeb.CardTagsLiveTest do
     assert Boards.Tags.list_tags(ctx.board.id) |> Enum.map(& &1.name) == ["Design"]
   end
 
+  describe "with write on the card alone" do
+    setup ctx do
+      writer = user_fixture("tags.card.writer@example.com")
+      {:ok, _} = Access.grant(ctx.card, writer, "write", ctx.owner)
+      %{writer_conn: log_in_user(build_conn(), writer)}
+    end
+
+    test "New tag of a new name is refused, and says so", ctx do
+      {:ok, view, _} = open(ctx.writer_conn, ctx)
+
+      view |> form("#card-tag-search", %{"name" => "Brand new"}) |> render_submit()
+
+      assert Boards.Tags.list_tags(ctx.board.id) == []
+      assert Boards.Cards.get_card!(ctx.card.id).tags == []
+
+      assert view |> element("#card-modal #panel-notice[data-callout=error]") |> render() =~
+               "only someone who can edit the board makes a new tag"
+    end
+
+    test "a name the board has is still put on the card", ctx do
+      tag = tag!(ctx, "Backend")
+      {:ok, view, _} = open(ctx.writer_conn, ctx)
+
+      view |> form("#card-tag-search", %{"name" => "backend"}) |> render_submit()
+
+      id = tag.id
+      assert [%{id: ^id}] = Boards.Tags.list_tags(ctx.board.id)
+      assert [%{id: ^id}] = Boards.Cards.get_card!(ctx.card.id).tags
+    end
+  end
+
   test "a reader with nothing applied sees None", ctx do
     reader = user_fixture("tags.reader.none@example.com")
     {:ok, _} = Access.grant(ctx.board, reader, "read", ctx.owner)

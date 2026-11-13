@@ -702,8 +702,10 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
   # "New tag" from the card's tag picker (#1727): a tag of that name on the
   # board tree, put on the card. A name the board already has (in any case)
   # is that tag, put on the card if it isn't already, never a second one.
+  # Making a new one changes the board's tag list, so it asks board write,
+  # as the tag manager does; a card writer can still apply one the board has.
   defp event("create_tag", %{"name" => name}, socket) do
-    %{board: board, card: card} = socket.assigns
+    %{board: board, card: card, current_user: user} = socket.assigns
     name = String.trim(name)
     on_card? = fn tag -> Enum.any?(card.tags, &(&1.id == tag.id)) end
 
@@ -714,6 +716,14 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
       tag = Enum.find(board.tags, &(String.downcase(&1.name) == String.downcase(name))) ->
         if not on_card?.(tag), do: {:ok, _} = Boards.Tags.toggle_card_tag(card, tag)
         {:noreply, socket}
+
+      not Access.can_write?(Access.board_permission(user, board)) ->
+        {:noreply,
+         notice(
+           socket,
+           :error,
+           "Tag not made: only someone who can edit the board makes a new tag. Pick one it has."
+         )}
 
       true ->
         colours = Palette.names()
