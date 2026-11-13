@@ -4,11 +4,12 @@ defmodule SlipdockWeb.API.RecordingController do
   same stream as the browser's (`SlipdockWeb.RecordingStream`), behind the
   token's own limits.
 
-  Hearing it takes read on the board, as in the browser. A page shared with
-  someone outside the board stays silent: playing it would hand them the
-  owner's Drive audio, and that is a decision of its own. A token limited to
-  other boards gets the API's usual 403, which says the token is why. Anything
-  the person can't read is a 404, as if it weren't there.
+  Hearing it takes read on the board, as in the browser, and a draft page's
+  takes write, like the draft itself (`Slipdock.Wiki.visible?/2`). A page
+  shared with someone outside the board stays silent: playing it would hand
+  them the owner's Drive audio, and that is a decision of its own. A token
+  limited to other boards gets the API's usual 403, which says the token is
+  why. Anything the person can't read is a 404, as if it weren't there.
   """
   use SlipdockWeb, :controller
 
