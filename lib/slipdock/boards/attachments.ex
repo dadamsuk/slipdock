@@ -29,6 +29,22 @@ defmodule Slipdock.Boards.Attachments do
   def get_attachment!(id), do: Attachment |> Repo.get!(id) |> Repo.preload([:card, :page])
 
   @doc """
+  The attachment `id` if it is on the card `card_id`, or nil: for ids a client
+  sent, which may name another card's file or one deleted since the page drew.
+  """
+  def get_card_attachment(card_id, id) do
+    case Boards.Shared.to_id(id) do
+      nil ->
+        nil
+
+      id ->
+        from(a in Attachment, where: a.id == ^id and a.card_id == ^card_id)
+        |> Repo.one()
+        |> Repo.preload([:card, :page])
+    end
+  end
+
+  @doc """
   Attaches a file to the card. `meta` names the file (`:filename`,
   `:content_type`, and optionally `:size`); `source` is the path of the
   uploaded bytes, which are copied into the uploads directory.

@@ -21,6 +21,17 @@ defmodule Slipdock.Boards.Milestones do
 
   def get_milestone!(id), do: Repo.get!(Milestone, id)
 
+  @doc """
+  The milestone `id` if it is on the tree rooted at `root_id`, or nil: for ids
+  a client sent.
+  """
+  def get_board_milestone(root_id, id) do
+    case Boards.Shared.to_id(id) do
+      nil -> nil
+      id -> Repo.one(from(m in Milestone, where: m.id == ^id and m.board_id == ^root_id))
+    end
+  end
+
   @doc "Adds a milestone to the tree `board` belongs to."
   def create_milestone(%Board{} = board, attrs) do
     root_id = Board.root_id(board)

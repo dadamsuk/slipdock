@@ -254,9 +254,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent.FieldEvents do
   end
 
   def handle_event("delete_attachment", %{"id" => id}, socket) do
-    attachment = Boards.Attachments.get_attachment!(id)
-
-    if attachment.card_id == socket.assigns.card.id do
+    if attachment = card_attachment(socket, id) do
       {:ok, _} = Boards.Attachments.delete_attachment(attachment)
     end
 
@@ -267,9 +265,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent.FieldEvents do
   # drawn before someone else's change, cannot flip it back the wrong way.
   def handle_event("hide_on_card", %{"id" => id, "hide" => hide}, socket)
       when hide in ~w(true false) do
-    attachment = Boards.Attachments.get_attachment!(id)
-
-    if attachment.card_id == socket.assigns.card.id do
+    if attachment = card_attachment(socket, id) do
       {:ok, _} = Boards.Attachments.hide_attachment_on_card(attachment, hide == "true")
     end
 
@@ -277,9 +273,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent.FieldEvents do
   end
 
   def handle_event("transcribe", %{"id" => id}, socket) do
-    attachment = Boards.Attachments.get_attachment!(id)
-
-    if attachment.card_id == socket.assigns.card.id do
+    if attachment = card_attachment(socket, id) do
       case Slipdock.Transcription.transcribe_attachment(attachment, socket.assigns.current_user) do
         {:ok, _} ->
           {:noreply, socket}
@@ -294,15 +288,18 @@ defmodule SlipdockWeb.BoardLive.CardComponent.FieldEvents do
   end
 
   def handle_event("read_text", %{"id" => id}, socket) do
-    attachment = Boards.Attachments.get_attachment!(id)
-
-    if attachment.card_id == socket.assigns.card.id do
+    if attachment = card_attachment(socket, id) do
       with {:error, reason} <- Slipdock.OCR.retry(attachment),
            do: send(self(), {:put_flash, :error, Slipdock.OCR.describe(reason)})
     end
 
     {:noreply, socket}
   end
+
+  # The card's own attachment, or nil: the id is the client's, and may name
+  # another card's file or one deleted since the panel drew.
+  defp card_attachment(socket, id),
+    do: Boards.Attachments.get_card_attachment(socket.assigns.card.id, id)
 
   defp log_time(socket, card, amount) do
     case Boards.Cards.update_card(card, %{"log_time" => amount}, by: socket.assigns.current_user) do
