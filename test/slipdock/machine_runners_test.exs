@@ -197,20 +197,30 @@ defmodule Slipdock.MachineRunnersTest do
     end
 
     test "another machine's change doesn't wake it", ctx do
-      add(ctx)
+      runner = add(ctx)
       {:ok, key, _} = Machines.create_enrolment_key(ctx.user, [ctx.board.id])
       {:ok, {_, other}} = Machines.enrol_with_key(key, @about)
 
-      task = Task.async(fn -> MachineRunners.wait_for_config(ctx.machine, 1, 300) end)
+      # A long wait, so the subscription outlives a slow scheduler: a short
+      # one (300 ms) timed out and unsubscribed before a loaded CI shard's
+      # await_subscribed looked, and it failed "never subscribed" (#2985).
+      task = Task.async(fn -> MachineRunners.wait_for_config(ctx.machine, 1, 10_000) end)
       await_subscribed(MachineRunners.topic(ctx.machine), task.pid)
 
+      # The broadcast is sent before add_runner returns, so it is already
+      # in the task's mailbox, or not, by the time we look.
       {:ok, _} =
         MachineRunners.add_runner(other, ctx.board, %{
           "pool" => "x",
           "config" => %{"directory" => @dir}
         })
 
-      assert Task.await(task) == nil
+      assert Task.yield(task, 100) == nil
+
+      # Still waiting, and its own machine's change is what wakes it.
+      {:ok, _} = MachineRunners.set_runner(runner, %{"config" => %{"model" => "sonnet"}})
+      assert %{version: 2, runners: [r]} = Task.await(task)
+      assert r.id == runner.id
     end
   end
 
