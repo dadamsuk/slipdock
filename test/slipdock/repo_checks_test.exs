@@ -3,10 +3,11 @@ defmodule Slipdock.RepoChecksTest do
   `test/repo_checks.txt` (#1867): the tests that hold the repository's own
   files, docs and skills to a rule or to the server, which `mix pre_push`
   runs. This keeps the list honest: a test file that reads `docs/`,
-  `README.md`, a module's moduledoc or `priv/skills/`, wildcards over `lib/`
-  or `test/`, or reads the compiler's cross-reference graph (`mix xref`), is
-  either on the list or among its exceptions, each with its reason (#2673
-  added the README and the moduledoc).
+  `README.md` or another file at the repository's root (`.gitignore`,
+  `Dockerfile`, `mix.exs`), a module's moduledoc or `priv/skills/`, wildcards
+  over `lib/` or `test/`, or reads the compiler's cross-reference graph (`mix
+  xref`), is either on the list or among its exceptions, each with its reason
+  (#2673 added the README and the moduledoc, #2972 the other root files).
 
   It also keeps the skills to one source (#2048): no test reads an installed
   copy of a skill (`~/.claude/skills/`), only the packaged one in
@@ -51,6 +52,7 @@ defmodule Slipdock.RepoChecksTest do
       docs != [] && "reads #{Enum.uniq(docs) |> Enum.join(", ")}",
       source =~ ~r{priv/skills|"priv",\s*"skills"} && "reads priv/skills/",
       readme_read?(source) && "reads README.md",
+      root_reason(source, exists?),
       moduledoc_read?(source) && "reads a moduledoc",
       (source =~ "Path.wildcard" and source =~ ~r{"(\.\./)*(lib|test)(/[^"]*)?"}) &&
         "wildcards over lib/ or test/",
@@ -64,10 +66,35 @@ defmodule Slipdock.RepoChecksTest do
   # `"README.md"` held as data (a package's file name, a lane path, a list of
   # paths for the rules) is not that.
   defp readme_read?(source) do
-    source =~ ~r{(\w[!?]?|\.)\(\s*"README\.md"} or
+    source =~ ~r{(?<=\w|\w[!?]|\.)\(\s*"README\.md"} or
       source =~ ~r{Path\.join\(\s*@root,\s*"README\.md"} or
       source =~ ~r{"README\.md"\s*\|>} or
       source =~ ~r{"(\.\./)+README\.md"}
+  end
+
+  # Why the source reads other files at the repository's root, or nil (#2972):
+  # `.gitignore`, `Dockerfile`, `mix.exs` and the like, each named once. A
+  # name counts when it is a file there (`exists?`) and is read the ways the
+  # README is: passed to a call, joined to `@root`, piped, or reached by
+  # `../`. The same name joined to a scratch directory (`Path.join(dir,
+  # ".gitignore")`) or held in a list is data. The README keeps its own
+  # reason. The call's name is a lookbehind, so the scan starts at the
+  # bracket: led by `\w` it took half a second over the test files.
+  @root_reads [
+    ~r{(?<=\w|\w[!?]|\.)\(\s*"([\w.\-]+)"},
+    ~r{Path\.join\(\s*@root,\s*"([\w.\-]+)"},
+    ~r{"([\w.\-]+)"\s*\|>},
+    ~r{"(?:\.\./)+([\w.\-]+)"}
+  ]
+
+  defp root_reason(source, exists?) do
+    names =
+      for pattern <- @root_reads, [_, name] <- Regex.scan(pattern, source), uniq: true, do: name
+
+    case Enum.filter(names -- ["README.md"], exists?) do
+      [] -> nil
+      root -> "reads #{Enum.join(root, ", ")} at the root"
+    end
   end
 
   # A module's moduledoc read by `Code.fetch_docs`, or off a source file by a
@@ -134,7 +161,7 @@ defmodule Slipdock.RepoChecksTest do
       end
     end
 
-    test "every test file that reads docs or skills, or wildcards over the code, is on it" do
+    test "every test file that reads docs, skills or a root file, or wildcards over the code, is on it" do
       missing = missing(flagged(), parsed())
 
       assert missing == [], """
@@ -222,6 +249,22 @@ defmodule Slipdock.RepoChecksTest do
     end
   end
 
+  describe "a root file's reader (#2972)" do
+    @gitignore_links "test/slipdock/gitignore_links_test.exs"
+
+    test "the .gitignore test is flagged, so the list without its line fails" do
+      why = reasons(File.read!(Path.join(@root, @gitignore_links)))
+      assert why == ["reads .gitignore at the root"]
+
+      list = parsed()
+      assert @gitignore_links in list.tests
+      assert missing(%{@gitignore_links => why}, list) == []
+
+      assert missing(%{@gitignore_links => why}, %{list | tests: list.tests -- [@gitignore_links]}) ==
+               ["#{@gitignore_links} (reads .gitignore at the root)"]
+    end
+  end
+
   describe "parse_repo_checks/1" do
     test "reads paths and exceptions, and skips comments and blank lines" do
       text = """
@@ -246,7 +289,17 @@ defmodule Slipdock.RepoChecksTest do
   end
 
   describe "reasons/2" do
-    defp exists?(path), do: path in ["docs/manual.md", "docs/agents.md"]
+    defp exists?(path),
+      do:
+        path in [
+          "docs/manual.md",
+          "docs/agents.md",
+          ".gitignore",
+          ".sobelow-conf",
+          "Dockerfile",
+          "mix.exs",
+          "README.md"
+        ]
 
     test "a docs file that exists is read; one that doesn't is a lane path as data" do
       assert reasons(~S|File.read!("docs/manual.md")|, &exists?/1) == ["reads docs/manual.md"]
@@ -300,10 +353,65 @@ defmodule Slipdock.RepoChecksTest do
             ~S|Handbook.rules_for(h, ["README.md", "lib/other.ex"])|,
             ~S|handbook(conn, board, paths: "README.md")|,
             ~S|%{"file" => "README.md", "line" => 40}|,
+            ~S|assert ("README.md" in paths)|,
             ~S|File.write!(Path.join(dir, "README.md"), "a")|
           ] do
         assert reasons(source, &exists?/1) == [], source
       end
+    end
+
+    test "a root file read by a call, joined to the root, piped or by ../ (#2972)" do
+      for source <- [
+            ~S|assert read(".gitignore") =~ "/deps"|,
+            ~S|ignore = Slipdock.DocsText.read!(".gitignore")|,
+            ~S|assert flat.(".gitignore") =~ "/deps"|,
+            ~S|File.cp!(Path.join(@root, ".gitignore"), Path.join(dir, ".gitignore"))|,
+            ~S|File.read!(Path.join( @root, ".gitignore"))|,
+            ~S{".gitignore" |> read() |> String.split("\n")},
+            ~S|File.read!(Path.expand("../../.gitignore", __DIR__))|,
+            ~s|File.read!(\n  ".gitignore"\n)|,
+            ~S|read( ".gitignore")|
+          ] do
+        assert reasons(source, &exists?/1) == ["reads .gitignore at the root"], source
+      end
+
+      # A name with a hyphen in it, as `.sobelow-conf` at the root has.
+      for source <- [
+            ~S|read(".sobelow-conf")|,
+            ~S|File.read!(Path.join(@root, ".sobelow-conf"))|,
+            ~S{".sobelow-conf" |> read()},
+            ~S|File.read!(Path.expand("../../.sobelow-conf", __DIR__))|
+          ] do
+        assert reasons(source, &exists?/1) == ["reads .sobelow-conf at the root"], source
+      end
+    end
+
+    test "but not a root file's name held as data, nor a name that is no file at the root" do
+      for source <- [
+            ~S|File.write!(Path.join(dir, ".gitignore"), "/_build/\n")|,
+            ~S|assert untracked(dir) == [".gitignore"]|,
+            ~S|assert Enum.sort(untracked(dir)) == [".gitignore", "_build", "deps"]|,
+            ~S|%{"file" => "mix.exs", "line" => 4}|,
+            ~S|assert ("mix.exs" in paths)|,
+            ~S|File.regular?(Path.join([@root, "cli", "mix.exs"]))|,
+            ~S|assert read("notes.txt") =~ "x"|,
+            ~S|File.read!(Path.join(@root, "scratch.md"))|,
+            ~S|File.read!(Path.expand("../../lib", __DIR__))|
+          ] do
+        assert reasons(source, &exists?/1) == [], source
+      end
+    end
+
+    test "names each root file once, in the order read, beside the other reasons" do
+      source =
+        ~S|read("mix.exs") <> read("Dockerfile") <> File.read!(Path.join(@root, "mix.exs"))|
+
+      assert reasons(source, &exists?/1) == ["reads mix.exs, Dockerfile at the root"]
+
+      assert reasons(~S|read("README.md") <> read("Dockerfile")|, &exists?/1) ==
+               ["reads README.md", "reads Dockerfile at the root"]
+
+      assert reasons(~S|read("README.md")|, &exists?/1) == ["reads README.md"]
     end
 
     test "a moduledoc read by Code.fetch_docs or off a source file (#2673)" do
