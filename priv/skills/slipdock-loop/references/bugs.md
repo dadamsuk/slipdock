@@ -1,6 +1,6 @@
 # A bug card
 
-Part of the `slipdock-loop` skill: read when the card reports a bug, before
+Part of the `slipdock-loop` skill: read when the card reports a bug or a flaky test, before
 building a fix.
 
 ## A bug: reproduce what was reported
@@ -8,6 +8,15 @@ building a fix.
 A bug card is fixed when the person who reported it would now see it fixed,
 not when a test you wrote passes. So before building a fix:
 
+- **First, has it been fixed since?** A flaky test or a bug report names
+  a file, a test or a path, and when it failed. Before reproducing, fetch
+  and look at what the default branch has done to it since:
+  `git fetch origin && git log --oneline --since="<when it failed>"
+  origin/<default-branch> -- <the file or path>`. A commit there may
+  already be the fix (another card's): read it first, and check whether
+  the failure still happens on the default branch's head before writing a
+  fix of your own. Your branch can be behind it, so rebase onto it before
+  you start.
 - **Post the *Picked up* comment first**, then reproduce, and post the
   repro as **its own comment** (`**Reproduced.**` or `**Not reproduced.**`):
   the screen, the size or data, the steps, and what you saw.
