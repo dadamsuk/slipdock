@@ -50,8 +50,9 @@ defmodule SlipdockWeb.BoardLive.SprintComponent do
        board: board,
        current_user: user,
        can_write: Access.can_write?(perm),
-       # A guest shown one card has not been shown the board's sprints.
-       card_only: perm == :none
+       # The board's sprints are shown to those who can read the board, not
+       # to a guest shown one card or one saved view of it.
+       can_read: Access.can_read?(perm)
      )}
   end
 
@@ -330,8 +331,8 @@ defmodule SlipdockWeb.BoardLive.SprintComponent do
 
   # Charts: on a sprint board, velocity across its sprints and the burndown of
   # one of them (the running one first); on a sprint's own board, its burndown.
-  # A guest shown one card has not been shown the board's sprints either.
-  defp event("open_sprint_charts", _params, %{assigns: %{card_only: true}} = socket),
+  # Only those who can read the board see its sprints' charts.
+  defp event("open_sprint_charts", _params, %{assigns: %{can_read: false}} = socket),
     do: {:noreply, socket}
 
   defp event("open_sprint_charts", _params, socket) do

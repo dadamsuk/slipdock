@@ -527,5 +527,30 @@ defmodule SlipdockWeb.BoardTenancyLiveTest do
       view |> with_target("#board-sprints") |> render_hook("open_sprint_charts", %{})
       refute has_element?(view, "#velocity-chart")
     end
+
+    test "a user shown one saved view can't open the sprint charts; a reader can", ctx do
+      {:ok, template} = Boards.Templates.find_template(nil, "Sprint planning")
+      sprints = board_fixture(%{"name" => "Sprints"}, template: template, owner: ctx.victim)
+      {:ok, _sprint} = Sprints.create_sprint(sprints)
+
+      {:ok, saved} =
+        Boards.SavedViews.create_saved_view(sprints, %{
+          "name" => "Everything",
+          "config" => Config.to_map(Config.defaults("table"))
+        })
+
+      {:ok, _} = Access.grant(saved, ctx.user, "read", ctx.victim)
+      assert Access.board_permission(ctx.user, sprints) == :view
+
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{sprints}/table?#{[view: saved.id]}")
+      view |> with_target("#board-sprints") |> render_hook("open_sprint_charts", %{})
+      refute has_element?(view, "#sprint-charts")
+      refute has_element?(view, "#velocity-chart")
+
+      {:ok, _} = Access.grant(sprints, ctx.user, "read", ctx.victim)
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{sprints}")
+      view |> with_target("#board-sprints") |> render_hook("open_sprint_charts", %{})
+      assert has_element?(view, "#velocity-chart")
+    end
   end
 end
