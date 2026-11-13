@@ -149,11 +149,13 @@ defmodule Slipdock.FileCleanupTest do
     assert failures == []
   end
 
-  # Holds the folders' lock until the returned function is called, so the
-  # test can see what waits for it. The function the lock runs waits in the
-  # lock's own process; `release` lets it go and checks it went. A test that
-  # fails first still lets it go when it exits, so the lock isn't left held
-  # for every store after it.
+  # Holds the folders' lock until it is let go, so the test can see what
+  # waits for it. The function the lock runs waits in the lock's own
+  # process. `release` lets it go and checks it went; `let_go` only lets it
+  # go, and does nothing once it has, since a second `{:release, ref}` would
+  # reach the lock after its function returned and be logged as an
+  # unexpected message (#2968). A test that fails first still lets it go
+  # when it exits, so the lock isn't left held for every store after it.
   defp hold_folders_lock do
     test = self()
     ref = make_ref()
@@ -170,25 +172,52 @@ defmodule Slipdock.FileCleanupTest do
       end)
 
     assert_receive {:held, ^ref, lock}
-    on_exit(fn -> send(lock, {:release, ref}) end)
+    released = :atomics.new(1, [])
 
-    fn ->
-      send(lock, {:release, ref})
+    let_go = fn ->
+      if :atomics.compare_exchange(released, 1, 0, 1) == :ok, do: send(lock, {:release, ref})
+      :ok
+    end
+
+    on_exit(let_go)
+
+    release = fn ->
+      let_go.()
       assert Task.await(holder) == :ok
     end
+
+    %{lock: lock, release: release, let_go: let_go}
   end
 
-  # Whether `task` is still waiting: it can't finish while the lock is held,
-  # so a busy machine can only make this more true, never less.
-  defp still_waiting?(task), do: Task.yield(task, 100) == nil
+  # Starts `fun` in a task and waits until it has asked for the lock `lock`
+  # holds: its call is then in the lock's mailbox, behind the function
+  # holding it, and can't go on until the lock is let go. It watches the
+  # task's sends rather than sleeping a fixed while, so the lock is held
+  # only as long as it takes to get there: every other async test's store
+  # or removal waits for it meanwhile.
+  defp queue_for_lock(lock, fun) do
+    task =
+      Task.async(fn ->
+        receive do
+          :go -> fun.()
+        end
+      end)
+
+    pid = task.pid
+    1 = :erlang.trace(pid, true, [:send])
+    send(pid, :go)
+    assert_receive {:trace, ^pid, :send, {:"$gen_call", _, {:run, _}}, ^lock}, 5_000
+    task
+  end
 
   test "a removal waits for the lock before taking an empty folder", %{src: src} do
     :ok = Boards.Attachments.put_file(src, "captures/last.wav")
     folder = Path.join(Boards.Attachments.uploads_dir(), "captures")
-    release = hold_folders_lock()
+    %{lock: lock, release: release} = hold_folders_lock()
 
-    removal = Task.async(fn -> Boards.Attachments.remove_files(["captures/last.wav"]) end)
-    assert still_waiting?(removal)
+    removal =
+      queue_for_lock(lock, fn -> Boards.Attachments.remove_files(["captures/last.wav"]) end)
+
     assert File.dir?(folder)
 
     release.()
@@ -198,15 +227,29 @@ defmodule Slipdock.FileCleanupTest do
 
   test "a store waits for the lock before making its folder", %{src: src} do
     folder = Path.join(Boards.Attachments.uploads_dir(), "captures")
-    release = hold_folders_lock()
+    %{lock: lock, release: release} = hold_folders_lock()
 
-    store = Task.async(fn -> Boards.Attachments.put_file(src, "captures/next.wav") end)
-    assert still_waiting?(store)
+    store = queue_for_lock(lock, fn -> Boards.Attachments.put_file(src, "captures/next.wav") end)
     refute File.exists?(folder)
 
     release.()
     assert Task.await(store) == :ok
     assert File.read!(Path.join(folder, "next.wav")) == "bytes"
+  end
+
+  test "a lock let go, and let go again as the test exits, gets one release" do
+    %{release: release, let_go: let_go} = hold_folders_lock()
+
+    log =
+      ExUnit.CaptureLog.capture_log(fn ->
+        release.()
+        # What the test's exit does: nothing reaches the lock this time.
+        let_go.()
+        # A turn at the lock, so anything sent to it has been handled.
+        assert Boards.Attachments.Folders.run(fn -> :done end) == :done
+      end)
+
+    refute log =~ "unexpected message"
   end
 
   test "a test's uploads folder can't be one a killed run left behind" do
