@@ -13,6 +13,13 @@ defmodule SlipdockWeb.SignInGateLiveTest do
 
   alias Slipdock.{Accounts, RateLimit}
 
+  # The sign-in limits count per hour. The rate-limit tests pin the clock in
+  # the middle of one: on the real clock a burst that crosses the hour's edge
+  # starts the count again, and the refusal never comes (#2922, TEST-13).
+  # Half an hour is then left of it, which each refusal says: a test that
+  # loses its `now:` fails on that, not once in a blue moon.
+  @mid_window 500 * 3_600_000 + 1_800_000
+
   setup do
     previous_limit = Application.get_env(:slipdock, :rate_limit)
 
@@ -100,7 +107,7 @@ defmodule SlipdockWeb.SignInGateLiveTest do
     @tag :anonymous
     test "the sixth try for one address is refused", %{conn: conn} do
       Application.put_env(:slipdock, :signups, open: true)
-      Application.put_env(:slipdock, :rate_limit, enabled: true)
+      Application.put_env(:slipdock, :rate_limit, enabled: true, now: @mid_window)
       RateLimit.reset()
 
       html =
@@ -112,7 +119,7 @@ defmodule SlipdockWeb.SignInGateLiveTest do
           |> render_submit()
         end)
 
-      assert html =~ "Too many sign-in attempts"
+      assert html =~ "Too many sign-in attempts. Try again in 30 minutes."
     end
   end
 
@@ -135,7 +142,7 @@ defmodule SlipdockWeb.SignInGateLiveTest do
     @tag :anonymous
     test "a stranger flooding your address cannot stop you entering your code", %{conn: conn} do
       user_fixture("owner@example.com")
-      Application.put_env(:slipdock, :rate_limit, enabled: true)
+      Application.put_env(:slipdock, :rate_limit, enabled: true, now: @mid_window)
       RateLimit.reset()
 
       {:ok, mine, _} = live(peer(conn, {198, 51, 100, 7}), ~p"/login")
@@ -157,7 +164,7 @@ defmodule SlipdockWeb.SignInGateLiveTest do
 
       # Sending is still capped per address, which is what stops this server
       # being used to mail somebody...
-      assert List.last(flood) =~ "Too many sign-in attempts"
+      assert List.last(flood) =~ "Too many sign-in attempts. Try again in 30 minutes."
 
       # ...but entering a code is not on that counter.
       assert {:error, {:redirect, %{to: "/login/" <> _}}} =
@@ -168,7 +175,7 @@ defmodule SlipdockWeb.SignInGateLiveTest do
 
     @tag :anonymous
     test "a forwarded header from an untrusted peer is not a fresh address", %{conn: conn} do
-      Application.put_env(:slipdock, :rate_limit, enabled: true)
+      Application.put_env(:slipdock, :rate_limit, enabled: true, now: @mid_window)
       RateLimit.reset()
 
       html =
@@ -185,7 +192,7 @@ defmodule SlipdockWeb.SignInGateLiveTest do
           |> render_submit()
         end)
 
-      assert html =~ "Too many sign-in attempts"
+      assert html =~ "Too many sign-in attempts. Try again in 30 minutes."
     end
   end
 
