@@ -162,7 +162,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
         <span class="hidden sm:inline">New sprint</span>
       </button>
       <button
-        :if={!@card_only and (Board.sprints?(@board) or @sprint_of)}
+        :if={!@view_only and !@card_only and (Board.sprints?(@board) or @sprint_of)}
         id="sprint-charts"
         type="button"
         class="btn btn-ghost btn-sm gap-1.5"
