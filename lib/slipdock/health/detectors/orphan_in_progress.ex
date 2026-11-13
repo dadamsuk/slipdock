@@ -5,8 +5,11 @@ defmodule Slipdock.Health.Detectors.OrphanInProgress do
   merging or held for a person (#1952, a person's to answer, not stuck),
   and not an epic with an open subcard in one of those states (#2567: the
   epic waits on that subcard's verifier or merge, as
-  `Slipdock.Runners.Recovery` skips it, #2371): the job that had it ended
-  and left it. The fix does what
+  `Slipdock.Runners.Recovery` skips it, #2371), and not a subcard an
+  epic's claimed or running build job is working (#2915: the job's step
+  names it, `Slipdock.CardState.epic_jobs/1`, as `Slipdock.Work`'s
+  `needs_owner` reads it; a sibling the step doesn't name is still found):
+  the job that had it ended and left it. The fix does what
   `Slipdock.Runners.Recovery` does — back to the top of its list (its last
   job's `list_top` list, else its board's ready list), with a comment —
   once; if it is back in progress and orphaned again, it is flagged.
@@ -53,6 +56,11 @@ defmodule Slipdock.Health.Detectors.OrphanInProgress do
         where: not exists(waiting_subcard())
       )
       |> Repo.all()
+
+    # A subcard an epic's job is building inside itself has no job of its
+    # own (#2915): it is worked, not orphaned.
+    worked = candidates |> Enum.map(& &1.id) |> Slipdock.CardState.epic_jobs()
+    candidates = Enum.reject(candidates, &is_map_key(worked, &1.id))
 
     ids = Enum.map(candidates, & &1.id)
     agents = Cards.agent_driven(ids)
