@@ -167,7 +167,11 @@ defmodule SlipdockWeb.BoardPanelAccessLiveTest do
 
       assert socket.assigns.archived == []
       assert socket.assigns.query == ""
-      assert_received {:put_flash, :error, "You don't have access to this board's archive."}
+      # Said in the modal (UX-29, #1978), not as a flash.
+      assert socket.assigns.panel_notice ==
+               {:error, "You don't have access to this board's archive."}
+
+      refute_received {:put_flash, _, _}
     end
   end
 end

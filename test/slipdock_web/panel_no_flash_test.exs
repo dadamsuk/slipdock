@@ -1,7 +1,8 @@
 defmodule SlipdockWeb.PanelNoFlashTest do
   @moduledoc """
-  UX-29 (#1973): what an action in the card modal or the page panel says (a
-  refusal, a result) is a `<.callout>` at the top of the panel
+  UX-29 (#1973, #1978): what an action in the card modal, the page panel or
+  the board's other modals (runners, move to another board, archive, tags)
+  says (a refusal, a result) is a `<.callout>` at the top of the panel
   (`BoardLive.Helpers.notice/3`), never a flash. The toast's dismissal reads
   as a click-away and closes the modal.
 
@@ -31,6 +32,10 @@ defmodule SlipdockWeb.PanelNoFlashTest do
     lib/slipdock_web/live/board_live/item_events.ex
     lib/slipdock_web/live/board_live/page_component.ex
     lib/slipdock_web/components/item_components.ex
+    lib/slipdock_web/live/board_live/runners_component.ex
+    lib/slipdock_web/live/board_live/move_board_component.ex
+    lib/slipdock_web/live/board_live/archive_component.ex
+    lib/slipdock_web/live/board_live/tags_component.ex
   )
 
   # {file, the text on the line, why it is a flash}. The panel is gone when
@@ -38,7 +43,14 @@ defmodule SlipdockWeb.PanelNoFlashTest do
   @exceptions [
     {"lib/slipdock_web/live/board_live/card_component/link_events.ex",
      ~s|put_flash(:info, "Started|,
-     "Write it up navigates to the new page's editor, leaving the board"}
+     "Write it up navigates to the new page's editor, leaving the board"},
+    {"lib/slipdock_web/live/board_live/move_board_component.ex",
+     ~s|flash(socket, :error, "You have read-only access to that card.")|,
+     "a read-only open_move_board never opens the picker, so there is no modal to say it in"},
+    {"lib/slipdock_web/live/board_live/move_board_component.ex", "put_flash(:info, message)",
+     "the move done closes the picker and follows the open card to its new board"},
+    {"lib/slipdock_web/live/board_live/move_board_component.ex", "flash(socket, :info, message)",
+     "the move done closes the picker, and no card panel is open on that card"}
   ]
 
   defp flashes(source) do
@@ -52,7 +64,7 @@ defmodule SlipdockWeb.PanelNoFlashTest do
   defp excepted?(path, line),
     do: Enum.any?(@exceptions, fn {file, text, _} -> file == path and line =~ text end)
 
-  test "no flash in the card modal's or the page panel's modules" do
+  test "no flash in the board's panels and modals" do
     hits =
       for path <- @panel_files,
           {line, n} <- flashes(File.read!(path)),

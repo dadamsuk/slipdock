@@ -17,7 +17,6 @@ defmodule SlipdockWeb.BoardLive.TagsComponent do
   use SlipdockWeb, :live_component
 
   import SlipdockWeb.SlipdockComponents
-  import SlipdockWeb.BoardLive.Helpers, only: [flash: 3]
 
   alias Slipdock.{Access, Boards, Palette}
   alias Slipdock.Boards.Tag
@@ -52,7 +51,7 @@ defmodule SlipdockWeb.BoardLive.TagsComponent do
 
   @impl true
   def handle_event(event, _params, socket) when event not in @events,
-    do: {:noreply, flash(socket, :error, "That isn't something this page can do.")}
+    do: {:noreply, assign(socket, error: "That isn't something this page can do.")}
 
   def handle_event(event, params, socket), do: guarded(event, params, assign_access(socket))
 
