@@ -116,6 +116,28 @@ defmodule Slipdock.ApiTokenScopeTest do
       assert stored.last_used_ip == "203.0.113.7"
     end
 
+    test "a request racing past the check doesn't overwrite a fresher stamp", ctx do
+      {plain, token} = Accounts.create_api_token(ctx.user, "cli")
+      Accounts.get_api_token(plain, ip: "203.0.113.7")
+
+      # What this request read: a stamp an interval old, so it will write.
+      backdate(token, seconds_from_now(-Accounts.api_token_touch_interval() - 1))
+      [read] = Accounts.list_api_tokens(ctx.user)
+
+      # Between its read and its write, another request stamps the row.
+      fresh = seconds_from_now(-1)
+
+      Slipdock.Repo.update_all(from(t in UserToken, where: t.id == ^token.id),
+        set: [last_used_at: fresh, last_used_ip: "203.0.113.9"]
+      )
+
+      Accounts.touch_api_token(read, "203.0.113.8")
+
+      [stored] = Accounts.list_api_tokens(ctx.user)
+      assert stored.last_used_ip == "203.0.113.9"
+      assert stored.last_used_at == fresh
+    end
+
     test "a request that fails to authenticate writes nothing", ctx do
       {plain, _} = Accounts.create_api_token(ctx.user, "stale", expires_at: days_from_now(-1))
       assert token_writes(fn -> refute Accounts.get_api_token(plain, ip: "203.0.113.7") end) == 0

@@ -997,7 +997,10 @@ defmodule Slipdock.Accounts do
   # once its stamp is an interval old. The same condition is in the update's
   # `where`, so requests racing past the check still make one write between
   # them. An IP that changes inside the interval shows at the next write.
-  defp touch_api_token(%UserToken{} = user_token, ip) do
+  # Public only so a test can hand it a struct read before another request
+  # freshened the row, which is the race the `where` guards.
+  @doc false
+  def touch_api_token(%UserToken{} = user_token, ip) do
     now = DateTime.utc_now(:second)
     cutoff = DateTime.add(now, -@api_token_touch_interval, :second)
 
