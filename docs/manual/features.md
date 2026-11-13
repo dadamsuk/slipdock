@@ -266,11 +266,7 @@
 - **A Getting Started board** built on a first sign-in: a tour of all of the
   above, made of cards, subcards, a live automation and wiki pages (see below)
 
----
-
-[Contents](../manual.md) · [Every feature in brief](every-feature-in-brief.md) →
-
-## Who clears a flag
+### Who clears a flag
 
 A flag on a card is drawn one of two ways, so a glance says whether you need
 to do anything about it:
@@ -295,3 +291,7 @@ flag goes depends on the card:
 The API's and MCP's card carries the same answer as `flag_attention`, one
 entry per flag (`attention` `person`, `auto` or `none`, and `why`), and
 `slipdock card` prints it beside each flag.
+
+---
+
+[Contents](../manual.md) · [Every feature in brief](every-feature-in-brief.md) →

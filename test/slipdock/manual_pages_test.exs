@@ -72,6 +72,18 @@ defmodule Slipdock.ManualPagesTest do
     |> MapSet.new()
   end
 
+  @doc false
+  # The headings after a part's footer: its last `---` outside fenced code,
+  # which only the contents and neighbours links should follow (#2906).
+  def headings_after_footer(text) do
+    lines = prose(text)
+
+    case lines |> Enum.with_index() |> Enum.filter(fn {l, _} -> l == "---" end) |> List.last() do
+      nil -> []
+      {_, at} -> lines |> Enum.drop(at + 1) |> Enum.filter(&(&1 =~ ~r/^\#{1,6} /))
+    end
+  end
+
   defp links(text) do
     for line <- prose(text), [_, target] <- Regex.scan(~r/\]\(([^)\s]+)\)/, line), do: target
   end
@@ -135,6 +147,17 @@ defmodule Slipdock.ManualPagesTest do
         end
       end
     end
+
+    test "none has a section after its footer" do
+      stray =
+        for path <- on_disk(),
+            heading <- headings_after_footer(File.read!(path)),
+            do: "#{rel(path)}: #{heading}"
+
+      assert stray == [],
+             "Move these above the page's footer, with a line in the contents:\n" <>
+               Enum.join(stray, "\n")
+    end
   end
 
   describe "links into the manual" do
@@ -173,6 +196,28 @@ defmodule Slipdock.ManualPagesTest do
     test "anchors/1 numbers repeats and skips fenced and inline code" do
       text = "## A\n\n### A\n\n```\n## Fenced\n```\n\n## B\n"
       assert anchors(text) == MapSet.new(["a", "a-1", "b"])
+    end
+
+    test "headings_after_footer/1 finds a section after the footer, not one in fenced code" do
+      foot = "\n---\n\n← [A](a.md) · [Contents](../manual.md)\n"
+      assert headings_after_footer("## A\n\n### B\n" <> foot) == []
+      assert headings_after_footer("## A\n" <> foot <> "\n### Late\n") == ["### Late"]
+      # Any level counts: the stray section this was written for was a `## `.
+      assert headings_after_footer("## A\n" <> foot <> "\n# One\n\n## Two\n") == [
+               "# One",
+               "## Two"
+             ]
+
+      # The footer is the last rule: one mid-page doesn't fail what is under it.
+      assert headings_after_footer("## A\n\n---\n\n### B\n" <> foot) == []
+
+      assert headings_after_footer("## A\n\n---\n\n### B\n" <> foot <> "\n### Late\n") == [
+               "### Late"
+             ]
+
+      assert headings_after_footer("## A\n" <> foot <> "\n```\n---\n## Fenced\n```\n") == []
+      assert headings_after_footer("## A\n\n```\n---\n```\n\n### B\n" <> foot) == []
+      assert headings_after_footer("## A\n\n### B\n") == []
     end
 
     test "a broken link is caught, an example in inline code is not" do
