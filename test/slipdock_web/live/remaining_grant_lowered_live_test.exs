@@ -160,6 +160,7 @@ defmodule SlipdockWeb.RemainingGrantLoweredLiveTest do
         assert Repo.get!(Job, job.id).transcript_page_id == nil
         assert Repo.aggregate(Page, :count) == 0
         assert html =~ "Only someone who can edit the card can keep its log."
+        refute has_element?(view, "##{id}-keep")
       end
 
       test "the move picker, open, moves no card off the board", ctx do
@@ -434,12 +435,42 @@ defmodule SlipdockWeb.RemainingGrantLoweredLiveTest do
 
       assert {1, _} = Repo.delete_all(from(g in Grant, where: g.page_id == ^page.id))
 
+      # Sent away told why: gone's flash, not the save's refusal after it.
       assert {:error, {:live_redirect, %{to: "/shared"}}} =
                render_hook(view, "save", %{
                  "page" => %{"title" => "Sneaked", "body" => "Sneaked."}
                })
 
+      assert assert_redirect(view, "/shared") == %{
+               "error" => "That isn't shared with you, or not any more."
+             }
+
       assert %Page{title: "Shared plan", body: "Nothing yet."} = Wiki.get_page!(page.id)
+    end
+
+    test "Shared with me stores no image that finishes uploading to a page no longer shared",
+         ctx do
+      TestConfig.own_uploads_dir()
+      page = page_fixture(ctx.board, %{"title" => "Shared plan", "body" => "Nothing yet."})
+      sharee = user_fixture("sharee@example.com")
+      {:ok, _} = Access.grant(page, sharee, "write", ctx.owner)
+      {:ok, view, _} = live(as(sharee), ~p"/shared/pages/#{page.id}/edit")
+
+      input =
+        file_input(view, "#shared-edit-form", :page_image, [
+          %{name: "shot.png", content: <<137, 80, 78, 71, 13, 10, 26, 10>>, type: "image/png"}
+        ])
+
+      assert {1, _} = Repo.delete_all(from(g in Grant, where: g.page_id == ^page.id))
+
+      assert {:error, {:live_redirect, %{to: "/shared"}}} =
+               render_upload(input, "shot.png")
+
+      assert assert_redirect(view, "/shared") == %{
+               "error" => "That isn't shared with you, or not any more."
+             }
+
+      assert Repo.aggregate(Slipdock.Boards.Attachment, :count) == 0
     end
 
     test "the move picker moves no card onto a board its reader owned when they picked it", ctx do
