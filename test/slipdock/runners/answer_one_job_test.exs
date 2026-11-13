@@ -362,6 +362,23 @@ defmodule Slipdock.Runners.AnswerOneJobTest do
                end)
     end
 
+    test "a feed on the tree that is switched off is not held (#2761)", ctx do
+      {loop_rule, white_rule} = setup_two_feeds(ctx)
+      park(ctx)
+      wait = Repo.one!(from(w in Wait, where: w.card_id == ^ctx.a.id))
+
+      Repo.update_all(from(r in Slipdock.Automations.Rule, where: r.id == ^white_rule.id),
+        set: [enabled: false]
+      )
+
+      assert :ran =
+               Requeue.quietly(wait, fn ->
+                 assert Process.get({:feeding, loop_rule.id})
+                 refute Process.get({:feeding, white_rule.id})
+                 :ran
+               end)
+    end
+
     test "a wait on a subcard, asked from the epic's job: the root board's feeds are held",
          ctx do
       # The asking rule and the other pool's are both on the root board,
