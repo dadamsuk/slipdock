@@ -327,21 +327,9 @@ defmodule SlipdockWeb.BoardLive.Show do
          |> put_flash(:error, "Couldn't tell which list that file was for — try again.")}
 
       true ->
-        meta = %{
-          filename: entry.client_name,
-          content_type: entry.client_type,
-          size: entry.client_size
-        }
-
         result =
           consume_uploaded_entry(socket, entry, fn %{path: path} ->
-            with {:ok, card} <-
-                   Boards.Cards.create_card(column, %{"title" => document_title(entry)}),
-                 {:ok, _} <- Boards.Attachments.add_attachment(card, meta, path) do
-              {:ok, {:ok, card}}
-            else
-              other -> {:ok, other}
-            end
+            {:ok, document_card(column, entry, path)}
           end)
 
         case result do
@@ -355,6 +343,19 @@ defmodule SlipdockWeb.BoardLive.Show do
             {:noreply,
              socket |> put_flash(:error, "Couldn't put that file on the board.") |> reload_board()}
         end
+    end
+  end
+
+  defp document_card(column, entry, path) do
+    meta = %{
+      filename: entry.client_name,
+      content_type: entry.client_type,
+      size: entry.client_size
+    }
+
+    with {:ok, card} <- Boards.Cards.create_card(column, %{"title" => document_title(entry)}),
+         {:ok, _} <- Boards.Attachments.add_attachment(card, meta, path) do
+      {:ok, card}
     end
   end
 
