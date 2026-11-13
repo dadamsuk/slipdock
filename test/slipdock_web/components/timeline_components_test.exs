@@ -114,8 +114,7 @@ defmodule SlipdockWeb.TimelineComponentsTest do
           board: board,
           config: config,
           timeline: Timeline.build(board, config, @today),
-          collapsed: MapSet.new(),
-          form_key: 0
+          collapsed: MapSet.new()
         )
 
       {:ok, doc} = Floki.parse_fragment(html)

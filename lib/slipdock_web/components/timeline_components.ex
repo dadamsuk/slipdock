@@ -17,7 +17,6 @@ defmodule SlipdockWeb.TimelineComponents do
   attr :config, Config, required: true
   attr :timeline, :map, required: true, doc: "from Slipdock.Timeline.build/3"
   attr :collapsed, :any, required: true, doc: "MapSet of collapsed group keys"
-  attr :form_key, :integer, required: true
   attr :can_write, :boolean, default: true
   attr :narrow, :boolean, default: false, doc: "render the phone's schedule instead of the chart"
 

@@ -17,7 +17,6 @@ defmodule SlipdockWeb.NarrativeComponents do
   attr :config, Config, required: true
   attr :narrative, :map, required: true, doc: "from Slipdock.Narrative.build/3"
   attr :collapsed, :any, required: true, doc: "MapSet of collapsed group keys"
-  attr :can_write, :boolean, default: true
   attr :view_name, :string, default: nil
   attr :ai, :boolean, default: false, doc: "offer the AI narrative generator"
   attr :current_user, :any, default: nil, doc: "whose OpenRouter key the generator spends"
@@ -128,7 +127,6 @@ defmodule SlipdockWeb.NarrativeComponents do
               :if={entry.changed?}
               entry={entry}
               board={@board}
-              today={@narrative.today}
               tell={@tell}
             />
             <% unchanged = Enum.reject(group.cards, & &1.changed?) %>
@@ -165,7 +163,6 @@ defmodule SlipdockWeb.NarrativeComponents do
 
   attr :entry, :map, required: true
   attr :board, :any, required: true
-  attr :today, :any, required: true
   attr :tell, :any, required: true, doc: "MapSet of the config's tell keys"
 
   defp card_story(assigns) do
