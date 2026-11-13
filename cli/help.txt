@@ -918,10 +918,11 @@ WRITE
                                       waits for a person to merge it or send it back;
                                       default puts it back (docs/fix/spike none, feature
                                       ledger, schema/security before_merge)
-  sprint <board> [--name N] [--start DATE] [--days N] [--goal TEXT]
+  sprint <board> [--name N] [--start DATE] [--days N] [--goal TEXT|-]
                                       start the next sprint on a sprint board: a dated card
                                       ("Sprint 4", following on from the last, 14 days unless
-                                      told) with its own board of subcards
+                                      told) with its own board of subcards (--goal - reads
+                                      the goal from stdin)
   sprint-add <sprint-id> <card-id>... move cards from any board into a sprint, with their
                                       subcards; ones that can't go in are listed, not fatal
   sprint-sources <board> [<source>[:list,list...]]... [--clear]
@@ -1011,8 +1012,9 @@ WRITE
                                                  add a ready-made rule, no AI needed (see
                                                  `automation-presets`), e.g. --preset follow_list
                                                  column=Doing notify=email
-  set-automation <board> <rule> [--on|--off] [--name N] [--spec JSON] [--text "..."]
+  set-automation <board> <rule> [--on|--off] [--name N] [--spec JSON] [--text "..."|-]
                                                  [--tree|--no-tree] also watch subcards, or not
+                                                 (--text - reads the rule's words from stdin)
   run-automation <board> <rule>                  run a timed rule now (forgets what it has done)
   delete-automation <board> <rule>
   dismiss <alert-id>... | dismiss --all           dismiss alerts (yours only; others keep theirs)
@@ -1084,7 +1086,7 @@ WRITE
              [--kind K] [--cwd DIR] [--permission-mode M]
              [--where desktop|cloud] [--repo owner/repo]
              [--column LIST [--top] [--[no-]wait-while-doing] [--requeue-stuck N]] [--alert]
-             [--verbosity nothing|quiet|normal|verbose] [--instructions TEXT]
+             [--verbosity nothing|quiet|normal|verbose] [--instructions TEXT|-]
              [--before-job CMD] [--after-job CMD] [--hooks prompt|hook]
              [--[no-]in-progress] [--[no-]assign] [--[no-]commit] [--[no-]push]
              [--[no-]move-done] [--[no-]complete] [--[no-]percent-100]
@@ -1132,7 +1134,8 @@ WRITE
                                                  add a runner to the machine for a board it
                                                  serves: --name, --agent, --permission-mode,
                                                  --timeout-minutes, --model, --executor,
-                                                 --[no-]worktree, --verbosity, --instructions,
+                                                 --[no-]worktree, --verbosity, --instructions
+                                                 (- reads them from stdin, lines and all),
                                                  --before-hook/--after-hook/--probe-hook (names
                                                  the machine defines), --image and --network
                                                  on|off (executor container: the machine runs
@@ -1190,7 +1193,8 @@ WRITE
                                                  reads the summary from stdin)
   finish-job <id> --status waiting --needs "Q" [--choice X]... [--on EMAIL]
                                                  ask a person and park the job in one step;
-                                                 the answer sends the card again
+                                                 the answer sends the card again (--needs -
+                                                 reads the question from stdin)
   save-view <board> <name> [view opts]            save a swimlane configuration
   update-view <board> <view> [view opts] [--name N] change a saved view
   delete-view <board> <view>

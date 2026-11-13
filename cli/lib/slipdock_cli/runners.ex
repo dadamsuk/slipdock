@@ -237,7 +237,7 @@ defmodule SlipdockCLI.Runners do
     compact(%{
       "scenario" => scenario,
       "verbosity" => o[:verbosity],
-      "instructions" => o[:instructions],
+      "instructions" => stdin_arg(o[:instructions], "--instructions"),
       "before_job" => o[:before_job],
       "after_job" => o[:after_job],
       "hooks" => o[:hooks],
@@ -290,7 +290,7 @@ defmodule SlipdockCLI.Runners do
 
       {"waiting", needs} ->
         compact(%{
-          "needs" => needs,
+          "needs" => stdin_arg(needs, "--needs"),
           "on" => o[:wait_on],
           "choices" => nonempty(Keyword.get_values(o, :choice))
         })

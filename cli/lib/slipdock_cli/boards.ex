@@ -1235,7 +1235,12 @@ defmodule SlipdockCLI.Boards do
 
   def run("sprint", [ref], o) do
     body =
-      compact(%{"name" => o[:name], "start" => o[:start], "days" => o[:days], "goal" => o[:goal]})
+      compact(%{
+        "name" => o[:name],
+        "start" => o[:start],
+        "days" => o[:days],
+        "goal" => stdin_arg(o[:goal], "--goal")
+      })
 
     HTTP.post("/boards/#{enc(ref)}/sprints", body)
     |> out(o, fn r ->

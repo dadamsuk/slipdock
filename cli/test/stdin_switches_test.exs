@@ -13,7 +13,7 @@ defmodule SlipdockCLI.StdinSwitchesTest do
 
   import ExUnit.CaptureIO
 
-  alias SlipdockCLI.{Boards, FakeServer, Findings, Runners, Util}
+  alias SlipdockCLI.{Automations, Boards, FakeServer, Findings, Machines, Runners, Util}
 
   setup do
     home = Path.join(System.tmp_dir!(), "slipdock-stdin-#{System.unique_integer([:positive])}")
@@ -217,6 +217,148 @@ defmodule SlipdockCLI.StdinSwitchesTest do
         )
 
       assert body == %{"action" => "dismiss", "note" => "a one-off\n"}
+    end
+  end
+
+  # The four #2678 left out (#2765).
+  describe "runner --instructions, set-automation --text, finish-job --needs, sprint --goal" do
+    test "runner new --instructions - reads the instructions from stdin" do
+      body =
+        sent(
+          Runners,
+          "runner",
+          ["new", "b"],
+          ["--pool", "p", "--instructions", "-"],
+          @markdown,
+          "POST",
+          "/api/boards/b/runners/setup"
+        )
+
+      assert body["instructions"] == @markdown
+      assert body["scenario"] == "daemon"
+    end
+
+    test "machine set-runner and add-runner --instructions - read them from stdin" do
+      body =
+        sent(
+          Machines,
+          "machine",
+          ["set-runner", "4", "12"],
+          ["--instructions", "-"],
+          @markdown,
+          "PATCH",
+          "/api/machines/4/runners/12"
+        )
+
+      assert body["config"] == %{"instructions" => @markdown}
+
+      body =
+        sent(
+          Machines,
+          "machine",
+          ["add-runner", "4", "b"],
+          ["--pool", "p", "--dir", "/w", "--instructions", "-"],
+          "one\ntwo\n",
+          "POST",
+          "/api/machines/4/runners"
+        )
+
+      assert body["config"]["instructions"] == "one\ntwo\n"
+      assert body["config"]["directory"] == "/w"
+    end
+
+    test "machine set-runner and add-runner send any other config switch's dash as typed" do
+      body =
+        sent(
+          Machines,
+          "machine",
+          ["set-runner", "4", "12"],
+          ["--model", "-", "--dir", "-"],
+          "unread",
+          "PATCH",
+          "/api/machines/4/runners/12"
+        )
+
+      assert body["config"] == %{"model" => "-", "directory" => "-"}
+
+      body =
+        sent(
+          Machines,
+          "machine",
+          ["add-runner", "4", "b"],
+          ["--pool", "p", "--dir", "/w", "--agent", "-", "--instructions", "-"],
+          "only these\n",
+          "POST",
+          "/api/machines/4/runners"
+        )
+
+      assert body["config"]["agent"] == "-"
+      assert body["config"]["instructions"] == "only these\n"
+    end
+
+    test "set-automation --text - reads the rule's words from stdin" do
+      body =
+        sent(
+          Automations,
+          "set-automation",
+          ["b", "3"],
+          ["--text", "-"],
+          "when a card lands in Done\nemail me\n",
+          "PATCH",
+          "/api/boards/b/automations/3"
+        )
+
+      assert body == %{"text" => "when a card lands in Done\nemail me\n"}
+    end
+
+    test "finish-job --status waiting --needs - reads the question from stdin" do
+      body =
+        sent(
+          Runners,
+          "finish-job",
+          ["9"],
+          ["--status", "waiting", "--needs", "-"],
+          "Which region?\nEU or US.\n",
+          "POST",
+          "/api/jobs/9/finish"
+        )
+
+      assert body["wait"]["needs"] == "Which region?\nEU or US.\n"
+    end
+
+    test "sprint --goal - reads the goal from stdin" do
+      body =
+        sent(
+          Boards,
+          "sprint",
+          ["b"],
+          ["--goal", "-"],
+          "ship runners\n",
+          "POST",
+          "/api/boards/b/sprints"
+        )
+
+      assert body == %{"goal" => "ship runners\n"}
+    end
+
+    test "each as plain text is the text itself" do
+      body =
+        sent(
+          Automations,
+          "set-automation",
+          ["b", "3"],
+          ["--text", "as typed"],
+          "unread",
+          "PATCH",
+          "/api/boards/b/automations/3"
+        )
+
+      assert body == %{"text" => "as typed"}
+
+      body =
+        sent(Boards, "sprint", ["b"], ["--goal", "plain"], "", "POST", "/api/boards/b/sprints")
+
+      assert body == %{"goal" => "plain"}
     end
   end
 
