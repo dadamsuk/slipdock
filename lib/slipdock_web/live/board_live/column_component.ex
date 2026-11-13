@@ -32,27 +32,39 @@ defmodule SlipdockWeb.BoardLive.ColumnComponent do
 
   @impl true
   def update(%{board: board, current_user: user}, socket) do
+    {:ok,
+     socket
+     |> assign(board: board, current_user: user)
+     |> assign_access()}
+  end
+
+  # What the reader may do now. `update/2` runs only when the board hands
+  # the component something new, and a lowered grant changes nothing it
+  # hands over, so every event asks again before it is let through (#2946,
+  # as the panels do since #2771).
+  defp assign_access(socket) do
+    %{board: board, current_user: user} = socket.assigns
     perm = Access.board_permission(user, board)
 
-    {:ok,
-     assign(socket,
-       board: board,
-       can_write: Access.can_write?(perm),
-       # What the foot of every list offers is the board's, not the list's,
-       # and only its owner changes the board (as through the API).
-       can_manage: perm == :owner
-     )}
+    assign(socket,
+      can_write: Access.can_write?(perm),
+      # What the foot of every list offers is the board's, not the list's,
+      # and only its owner changes the board (as through the API).
+      can_manage: perm == :owner
+    )
   end
 
   @impl true
   def handle_event(event, _params, socket) when event not in @events,
     do: {:noreply, flash(socket, :error, "That isn't something this page can do.")}
 
-  def handle_event(event, _params, %{assigns: %{can_write: false}} = socket)
-      when event in @write_events,
-      do: {:noreply, flash(socket, :error, "You have read-only access to this board.")}
+  def handle_event(event, params, socket), do: guarded(event, params, assign_access(socket))
 
-  def handle_event(event, params, socket), do: event(event, params, socket)
+  defp guarded(event, _params, %{assigns: %{can_write: false}} = socket)
+       when event in @write_events,
+       do: {:noreply, flash(socket, :error, "You have read-only access to this board.")}
+
+  defp guarded(event, params, socket), do: event(event, params, socket)
 
   defp event("edit_column", %{"id" => id}, socket) do
     case board_column(socket, id) do
