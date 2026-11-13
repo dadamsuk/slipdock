@@ -263,6 +263,85 @@ defmodule SlipdockWeb.BoardGrantLoweredLiveTest do
     assert columns(ctx.board) == lists
   end
 
+  # A file dropped at the foot of a list is stored by the upload's progress
+  # callback, not an event, so it reads the level again itself (#3000).
+  # Only untold: told, the board is redrawn for a reader and the drop zone
+  # (`:if={@can_write}`) is gone before a file could be sent.
+  defp drop_document(view, column) do
+    render_click(view, "aim_document", %{"id" => column.id})
+
+    view
+    |> file_input("#list-document-form", :list_document, [
+      %{name: "Q3 plan.pdf", content: "%PDF-1.4 fake", type: "application/pdf"}
+    ])
+    |> render_upload("Q3 plan.pdf")
+  end
+
+  test "a document dropped after an untold lowering stores no card", ctx do
+    [first | _] = columns(ctx.board)
+    {:ok, view, _} = live(as(ctx.writer), ~p"/boards/#{ctx.board}")
+    assert has_element?(view, "#list-document-form")
+
+    lower(:untold, ctx)
+
+    assert drop_document(view, first) =~ @read_only
+    assert cards(ctx.board) == []
+    assert Boards.Columns.active_items(first.id) == []
+    # Redrawn for a reader: no drop zone left to send another to.
+    refute has_element?(view, "#list-document-form")
+  end
+
+  test "a document dropped after an untold removal stores no card and sends the reader away",
+       ctx do
+    Process.flag(:trap_exit, true)
+    [first | _] = columns(ctx.board)
+    {:ok, view, _} = live(as(ctx.writer), ~p"/boards/#{ctx.board}")
+
+    remove(:untold, ctx)
+
+    try do
+      drop_document(view, first)
+    catch
+      :exit, _ -> :ok
+    end
+
+    # The upload is stored by a callback after its own channel round trip,
+    # so the redirect can land later than an event's would.
+    assert_redirect(view, ~p"/", 2000)
+    assert cards(ctx.board) == []
+  end
+
+  test "a writer whose grant is unchanged still drops a document as a card", ctx do
+    [first | _] = columns(ctx.board)
+    {:ok, view, _} = live(as(ctx.writer), ~p"/boards/#{ctx.board}")
+
+    refute drop_document(view, first) =~ @read_only
+    assert [%Card{title: "Q3 plan"}] = cards(ctx.board)
+  end
+
+  test "a document sent in two halves is stored once, when the second lands", ctx do
+    [first | _] = columns(ctx.board)
+    {:ok, view, _} = live(as(ctx.writer), ~p"/boards/#{ctx.board}")
+    render_click(view, "aim_document", %{"id" => first.id})
+
+    input =
+      file_input(view, "#list-document-form", :list_document, [
+        %{name: "Q3 plan.pdf", content: "%PDF-1.4 sent in two halves.", type: "application/pdf"}
+      ])
+
+    # Half of it: the progress callback runs with the entry not yet done,
+    # and neither re-reads access nor stores (the entry can't be consumed).
+    render_upload(input, "Q3 plan.pdf", 50)
+
+    assert Process.alive?(view.pid)
+    assert cards(ctx.board) == []
+
+    # The rest: now it is stored, once.
+    render_upload(input, "Q3 plan.pdf", 50)
+
+    assert [%Card{title: "Q3 plan"}] = cards(ctx.board)
+  end
+
   test "a writer whose grant is unchanged still renames the list", ctx do
     [first | _] = columns(ctx.board)
     {:ok, view, _} = live(as(ctx.writer), ~p"/boards/#{ctx.board}")
