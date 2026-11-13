@@ -416,7 +416,9 @@ defmodule SlipdockWeb.BoardLive.Index do
   defp with_owned_board(socket, id, fun) do
     board = find_board(socket, id)
 
-    if board && Access.board_permission(socket.assigns.current_user, board) == :owner do
+    # Of the board's row as it is now (#2999): who owns it is on the row, and
+    # the one this list drew can be somebody else's since.
+    if board && Access.board_permission_now(socket.assigns.current_user, board) == :owner do
       {:noreply, fun.(board)}
     else
       {:noreply, put_flash(socket, :error, "Only the board's owner can do that.")}

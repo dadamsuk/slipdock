@@ -219,7 +219,10 @@ defmodule Slipdock.Inbound.Tokens do
   defp may_write(user, %Folder{} = folder), do: may_write(user, folder_board(folder))
   defp may_write(user, board), do: if(writer?(user, board), do: :ok, else: {:error, :forbidden})
 
-  defp writer?(user, board), do: user |> Access.board_permission(board) |> Access.can_write?()
+  # The row read again: the struct a dialog left open kept can name an owner
+  # the board no longer has (#2999).
+  defp writer?(user, board),
+    do: user |> Access.board_permission_now(board) |> Access.can_write?()
 
   defp live(%User{id: user_id}, nil),
     do:

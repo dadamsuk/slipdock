@@ -13,7 +13,7 @@ defmodule SlipdockWeb.WikiLive.PageToolsComponent do
   """
   use SlipdockWeb, :live_component
 
-  alias Slipdock.{Boards, Wiki}
+  alias Slipdock.{Access, Boards, Wiki}
   alias Slipdock.Wiki.PageTools
   alias SlipdockWeb.Markdown
 
@@ -44,7 +44,7 @@ defmodule SlipdockWeb.WikiLive.PageToolsComponent do
     index = String.to_integer(index)
 
     with %{answer: %{items: items}} = assigns <- socket.assigns,
-         true <- cards?(assigns),
+         true <- may_make_card?(assigns),
          nil <- assigns.made[index],
          text when is_binary(text) <- Enum.at(items, index),
          [column | _] <- Boards.get_board!(assigns.board.id).columns,
@@ -77,6 +77,15 @@ defmodule SlipdockWeb.WikiLive.PageToolsComponent do
   defp write(assigns), do: [user: assigns.current_user, via: "web"]
 
   defp cards?(assigns), do: assigns.can_write and not assigns.editing and not is_nil(assigns.page)
+
+  # `cards?/1` for the event, asked of the database (#2999): the `can_write`
+  # the wiki handed over is as old as its last draw, a component's events pass
+  # no hook of the page's, and `create_card_from_selection/4` checks nobody.
+  # A card is made on the board, so it is the board that is asked.
+  defp may_make_card?(assigns) do
+    cards?(assigns) and
+      Access.can_write?(Access.board_permission_now(assigns.current_user, assigns.board))
+  end
 
   # Rewriting the page means something only while it is being written.
   defp tools(true), do: PageTools.tools()

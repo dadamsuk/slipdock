@@ -134,10 +134,13 @@ defmodule Slipdock.SkillRegistry.Pins do
   @spec enable(User.t(), Board.t(), Entry.t(), String.t()) ::
           {:ok, Enablement.t()} | {:error, String.t()}
   def enable(%User{} = user, %Board{} = board, %Entry{} = entry, seen_hash) do
-    root = root(board)
     entry = Repo.preload(entry, :source)
 
-    with :ok <- writer(user, root),
+    # The board's row read again: the struct an open page kept can name an
+    # owner the board no longer has (#2999).
+    with %Board{} = board <- Repo.reload(board) || {:error, "That board has gone."},
+         root = root(board),
+         :ok <- writer(user, root),
          :ok <- seen(entry, seen_hash),
          :ok <- free(root, entry) do
       %Enablement{board_id: root.id}
