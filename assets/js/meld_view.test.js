@@ -3,7 +3,7 @@
 import {test, beforeEach} from "node:test"
 import assert from "node:assert/strict"
 import {readFileSync} from "node:fs"
-import {session, unlockCipher, showPlain, relock, relockAll, hintOf, installMeld, tryRemembered} from "./meld_view.js"
+import {session, unlockCipher, showPlain, relock, relockAll, hintOf, installMeld, unlockWith} from "./meld_view.js"
 
 const vectors = JSON.parse(readFileSync(new URL("../../test/support/fixtures/meld_vectors.json", import.meta.url)))
 const v2 = vectors.inline[0]
@@ -101,7 +101,11 @@ test("a passphrase kept for the session opens the next block without asking", as
   assert.deepEqual(session.passphrases, [v2.passphrase])
   const plain = await unlockCipher(cipher, {prompt: () => assert.fail("asked again")})
   assert.equal(plain, v2.plaintext)
-  assert.equal(await tryRemembered({kind: "block", data: vectors.inline[2].text}), null, "a different passphrase's block still asks")
+  const asked = []
+  const other = await unlockWith({kind: "block", data: vectors.inline[2].text}, {prompt: o => (asked.push(o), Promise.resolve(null))})
+  assert.equal(other, null)
+  assert.equal(asked.length, 1, "a different passphrase's block still asks")
+  assert.deepEqual(await unlockWith(cipher, {prompt: () => assert.fail("asked again")}), {plain: v2.plaintext, passphrase: v2.passphrase}, "the remembered passphrase comes back for editing")
 })
 
 test("whole notes open the same way", async () => {

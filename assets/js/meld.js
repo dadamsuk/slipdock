@@ -134,7 +134,8 @@ export async function decryptBlock(block, passphrase) {
   return parsed ? decryptBase64(parsed.base64, passphrase, parsed.version) : null
 }
 
-// Whole-note files (.mdenc), written as Meld writes them: JSON, two-space indent.
+// Whole-note files (.mdenc), as Meld writes them: JSON, two-space indent. Only
+// read here: the editor encrypts blocks, never a whole note.
 export function parseNote(json) {
   try {
     const data = JSON.parse(json)
@@ -143,11 +144,6 @@ export function parseNote(json) {
     }
   } catch (_e) {}
   return null
-}
-
-export async function encryptNote(plaintext, passphrase, hint = "") {
-  const encodedData = await encryptBase64(plaintext, passphrase)
-  return JSON.stringify({version: "2.0", hint, encodedData}, null, 2)
 }
 
 export async function decryptNote(json, passphrase) {
