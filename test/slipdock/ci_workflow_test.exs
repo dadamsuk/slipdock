@@ -422,7 +422,8 @@ defmodule Slipdock.CiWorkflowTest do
           "GITHUB_OUTPUT" => out,
           "GITHUB_STEP_SUMMARY" => Path.join(dir, "changes-summary"),
           "CI_RUNNER" => nil,
-          "SUITE" => nil
+          "SUITE" => nil,
+          "RELEASE" => nil
         }
         |> Map.merge(Map.new(env))
         |> Enum.to_list()
@@ -580,6 +581,59 @@ defmodule Slipdock.CiWorkflowTest do
                ["slipdock-local", "macos-latest", "windows-latest"]
     end
 
+    test "a release of a branch tests the daemon on Linux alone; a v* tag's on every OS (#3010)",
+         %{tmp: dir} do
+      # A dispatched release: release.yml calls ci.yml, which keeps its event.
+      release = [
+        {"EVENT_NAME", "workflow_dispatch"},
+        {"REF", "refs/heads/main"},
+        {"RELEASE", "true"}
+      ]
+
+      assert changes(dir, release) == runs(true, false, true, true)
+      assert changes(dir, [{"SUITE", "false"} | release])["daemon_os"] == ["ubuntu-latest"]
+
+      assert changes(dir, [{"CI_RUNNER", "slipdock-local"} | release])["daemon_os"] ==
+               ["slipdock-local"]
+
+      # A push to main release.yml calls: Linux, as before.
+      push = [{"EVENT_NAME", "push"}, {"REF", "refs/heads/main"}, {"RELEASE", "true"}]
+      assert changes(dir, push)["daemon_os"] == ["ubuntu-latest"]
+
+      # The daemon's own release, a v* tag, still on every OS.
+      tag = [{"EVENT_NAME", "push"}, {"REF", "refs/tags/v1.2.3"}, {"RELEASE", "true"}]
+      assert changes(dir, tag) == runs(true, false, true, true, @all_os)
+
+      # And so does release.yml dispatched on a tag: the tag wins over the
+      # release, whatever the event.
+      tag_dispatch = [
+        {"EVENT_NAME", "workflow_dispatch"},
+        {"REF", "refs/tags/v1.2.3"},
+        {"RELEASE", "true"}
+      ]
+
+      assert changes(dir, tag_dispatch) == runs(true, false, true, true, @all_os)
+
+      # ci.yml dispatched by hand (no input: RELEASE empty or false) still runs them all.
+      for value <- ["", "false"] do
+        dispatch = [
+          {"EVENT_NAME", "workflow_dispatch"},
+          {"REF", "refs/heads/main"},
+          {"RELEASE", value}
+        ]
+
+        assert changes(dir, dispatch)["daemon_os"] == @all_os, inspect(value)
+      end
+    end
+
+    test "release.yml tells ci.yml it is a release, and ci.yml hands that to changes.sh (#3010)" do
+      {:ok, release} = YamlElixir.read_from_string(File.read!(".github/workflows/release.yml"))
+      assert release["jobs"]["test"]["with"]["release"] == true
+
+      call = ci_yaml()["on"]["workflow_call"]["inputs"]["release"]
+      assert call == %{"type" => "boolean", "default" => false}
+    end
+
     test "ci.yml runs nightly and on a dispatch, and on pull requests with no paths filter" do
       on = ci_yaml()["on"]
       assert [%{"cron" => _}] = on["schedule"]
@@ -600,6 +654,7 @@ defmodule Slipdock.CiWorkflowTest do
                "BASE" => "${{ github.event.pull_request.base.sha }}",
                "HEAD" => "${{ github.event.pull_request.head.sha }}",
                "SUITE" => "${{ inputs.suite }}",
+               "RELEASE" => "${{ inputs.release }}",
                "CI_RUNNER" => "${{ vars.CI_RUNNER }}"
              }
 

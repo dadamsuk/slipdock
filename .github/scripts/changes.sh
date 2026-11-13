@@ -20,22 +20,30 @@
 #
 # The daemon runs on Linux (CI_RUNNER, or GitHub's ubuntu-latest), and on
 # macOS and Windows too only on a v* tag, the nightly schedule or a manual
-# dispatch: those are GitHub's runners, paid by the minute.
+# dispatch of ci.yml: those are GitHub's runners, paid by the minute. A
+# release.yml run of a branch (RELEASE=true; a dispatched release keeps its
+# workflow_dispatch event when it calls ci.yml) stays on Linux (#3010): it
+# ships the server, and a macOS runner GitHub never found held two releases
+# up. The nightly run covers macOS and Windows for main.
 #
 # A diff that can't be read, or reads empty, runs everything: this script
 # never fails, and when it can't decide it says run.
 #
 # In:  EVENT_NAME, REF; BASE and HEAD (a pull request's base and head
 #      shas, the history fetched); SUITE (false: the gate skipped the
-#      suite); CI_RUNNER.
+#      suite); RELEASE (true: a release.yml run); CI_RUNNER.
 # Out: suite, repo_checks, cli, daemon (true|false) and daemon_os (a JSON
 #      list) on $GITHUB_OUTPUT; the decision on $GITHUB_STEP_SUMMARY.
 
 set -u
 
 linux=${CI_RUNNER:-ubuntu-latest}
-case "${EVENT_NAME:-}:${REF:-}" in
-  schedule:* | workflow_dispatch:* | *:refs/tags/v*)
+case "${EVENT_NAME:-}:${REF:-}:${RELEASE:-}" in
+  *:refs/tags/v*:* | schedule:*:*)
+    daemon_os="[\"$linux\", \"macos-latest\", \"windows-latest\"]" ;;
+  workflow_dispatch:*:true)
+    daemon_os="[\"$linux\"]" ;;
+  workflow_dispatch:*:*)
     daemon_os="[\"$linux\", \"macos-latest\", \"windows-latest\"]" ;;
   *)
     daemon_os="[\"$linux\"]" ;;

@@ -179,6 +179,10 @@ jobs:
     uses: ./.github/workflows/ci.yml
     with:
       suite: ${{ needs.suite.outputs.run != 'false' }}
+      # The daemon on Linux alone (#3010): a release ships the server, and
+      # GitHub's macOS runner, at capacity, held two releases up. A v* tag
+      # still tests every OS, the daemon's own release.
+      release: true
 
   # The slipdock CLI the image serves, signed (#2669, W-2542): on a v* tag
   # the CLI is built here, signed in the next job with the release key (in
