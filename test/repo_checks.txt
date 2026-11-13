@@ -17,9 +17,10 @@
 # is an exception below, with its reason.
 #
 # `test/slipdock/repo_checks_test.exs` fails when a test file reads docs/,
-# README.md, a module's moduledoc or priv/skills/, wildcards over lib/ or
-# test/, or reads `mix xref`, and is neither listed here nor an
-# `except <path>: <reason>` line (#2673).
+# README.md or another file at the root (.gitignore, Dockerfile, mix.exs),
+# a module's moduledoc or priv/skills/, wildcards over lib/ or test/, or
+# reads `mix xref`, and is neither listed here nor an
+# `except <path>: <reason>` line (#2673, #2972).
 
 # The boundaries, from `mix xref graph` (W-1945 §Boundaries)
 test/slipdock/boundaries_test.exs
@@ -185,6 +186,11 @@ test/slipdock/gitignore_links_test.exs
 # Every variable config/runtime.exs reads is in .env.example (OPS-9, #2609)
 test/slipdock/env_example_test.exs
 
+# Root files held to a rule: the Dockerfile, .credo.exs, compose.yaml (#2972)
+test/slipdock/dockerfile_test.exs
+test/slipdock/credo_checks_test.exs
+test/slipdock_web/client_ip_test.exs
+
 # Not on the list
 except test/slipdock_web/all_fields_test.exs: renders every LiveView route, 23 s alone; its one source rule (no daisyUI field sizes) waits for CI
 except test/slipdock/lanes_test.exs: its docs/ paths are lane globs held as data; it reads no file
@@ -197,3 +203,5 @@ except test/slipdock_web/runner_scripts_retired_test.exs: docs/manual/machines.m
 except test/slipdock/overseer_watch_test.exs: its docs/ paths are lane globs held as data; it reads no file
 except test/slipdock/verified_docs_places_test.exs: its docs and skills paths are the prompt's places, held as data; it reads no file
 except test/slipdock/handbook_rules_e2e_test.exs: its README.md is a card path given to the rules lookup, held as data; it reads no file
+except test/slipdock/pre_push_alias_test.exs: reads .credo.exs and mix.exs to test `mix pre_push` itself, 10 s alone, half the list's budget; it waits for CI
+except test/slipdock_web/controllers/cli_install_controller_test.exs: a controller test with one Dockerfile read (the image's build order); on the list its server-text assertions fall under the docs tests' whole-sentence rule (docs_tests_state_facts_test); it waits for CI
