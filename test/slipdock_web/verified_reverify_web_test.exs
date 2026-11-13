@@ -95,8 +95,10 @@ defmodule SlipdockWeb.VerifiedReverifyWebTest do
 
     loop = flat.("priv/skills/slipdock-loop/SKILL.md")
     assert_states(loop, "names the rejected commit and what changed since")
-    assert_states(loop, "**A resubmission** (the prompt says the card was judged before")
-    assert loop =~ "An audit carries nothing."
+    # The verifier's side is one of the skill's references (#3004).
+    verifying = flat.("priv/skills/slipdock-loop/references/verifying.md")
+    assert_states(verifying, "**A resubmission** (the prompt says the card was judged before")
+    assert verifying =~ "An audit carries nothing."
 
     assert_states(
       flat.("priv/skills/slipdock-work/SKILL.md"),

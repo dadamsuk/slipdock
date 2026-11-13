@@ -209,7 +209,7 @@ defmodule SlipdockWeb.VerifyChecksWebTest do
     assert agents =~ "--check bar:2=fail:why"
 
     assert_states(
-      File.read!("priv/skills/slipdock-loop/SKILL.md"),
+      File.read!("priv/skills/slipdock-loop/references/verifying.md"),
       "verdict in parts too, one `--check` each"
     )
 

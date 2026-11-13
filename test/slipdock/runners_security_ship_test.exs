@@ -115,8 +115,13 @@ defmodule Slipdock.RunnersSecurityShipTest do
     )
 
     assert_states(
-      Slipdock.DocsText.read!("priv/skills/slipdock-loop/SKILL.md"),
+      Slipdock.DocsText.read!("priv/skills/slipdock-loop/references/pull-requests.md"),
       "**A card tagged `security`** ships a neutral pull request"
+    )
+
+    assert_states(
+      Slipdock.DocsText.read!("priv/skills/slipdock-loop/SKILL.md"),
+      "`references/pull-requests.md` has: a `security` card's neutral pull request"
     )
   end
 end

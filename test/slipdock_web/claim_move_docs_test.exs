@@ -42,7 +42,7 @@ defmodule SlipdockWeb.ClaimMoveDocsTest do
     )
 
     assert_states(
-      loop,
+      flat("priv/skills/slipdock-loop/references/lanes.md"),
       "so paths you write now are checked as an in-progress card's paths edit"
     )
   end

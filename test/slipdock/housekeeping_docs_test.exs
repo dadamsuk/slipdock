@@ -20,7 +20,7 @@ defmodule Slipdock.HousekeepingDocsTest do
           {"docs/agents.md", "A **Housekeeping** list (category `housekeeping`"},
           {"lib/slipdock_web/live/help_live/flow.ex", "<em>Work Housekeeping with a runner</em>"},
           {"cli/help.txt", "never the ready list), housekeeping"},
-          {"priv/skills/slipdock-loop/SKILL.md",
+          {"priv/skills/slipdock-loop/references/picking.md",
            "A **Housekeeping** list (category `housekeeping`"}
         ] do
       assert_states(read(path), words, "#{path} doesn't say #{inspect(words)}")

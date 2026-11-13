@@ -247,23 +247,34 @@ defmodule SlipdockWeb.VerifyProgressTest do
   describe "the docs match the four checks (#1777)" do
     test "the loop skill, docs/agents.md and the guide name them, and the citations", ctx do
       skill = File.read!("priv/skills/slipdock-loop/SKILL.md")
+      # The verify job is one of the skill's references (#3004).
+      verifying = File.read!("priv/skills/slipdock-loop/references/verifying.md")
       agents = File.read!("docs/agents.md")
       {:ok, _} = Boards.update_board(ctx.board, %{"verify_work" => true})
       guide = SlipdockWeb.APIGuide.markdown(user: ctx.user) |> String.replace(~r/\s+/, " ")
 
-      for text <- [skill, agents] do
+      for text <- [verifying, agents] do
         assert text =~ ~r/\*\*the ask\*\*|\*\*The ask:\*\*/
         assert text =~ "--paths-from -"
         assert text =~ "a rule id"
       end
 
       # The skill's verify job: the four in order, and the builder runs them first.
-      assert skill =~
+      assert verifying =~
                ~r/1\. \*\*The ask:\*\*.*2\. \*\*The bar,\*\*.*3\. \*\*The rules\*\*.*4\. \*\*The `Handbook:` line\*\*/s
 
       assert skill =~ "**The verifier's checks, first.**"
       assert skill =~ "Put the `Handbook:`\n  line in `--evidence` too"
-      assert skill =~ ~s(reject --reason "<the check>: <what falls short, specifically>")
+      assert verifying =~ ~s(reject --reason "<the check>: <what falls short, specifically>")
+
+      # The builder is told the four without reading the verify job.
+      assert_states(
+        skill,
+        "the bar covers the ask, each part of the bar is met, no `must` rule for the diff " <>
+          "is broken, and the `Handbook:` line is honest"
+      )
+
+      assert skill =~ "(a verify job's, in `references/verifying.md`)"
 
       assert_states(
         guide,

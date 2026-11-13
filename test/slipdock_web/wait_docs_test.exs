@@ -142,12 +142,14 @@ defmodule SlipdockWeb.WaitDocsTest do
   describe "the skills" do
     test "slipdock-loop stops on paused, and opens a wait to hand a decision back" do
       loop = read("priv/skills/slipdock-loop/SKILL.md")
-      assert loop =~ "**`nothing queued to take: paused by …`**"
-      assert_states(loop, "If the answer starts with a `PAUSED` line")
+      # Choosing the card is one of the skill's references (#3004).
+      picking = read("priv/skills/slipdock-loop/references/picking.md")
+      assert picking =~ "**`nothing queued to take: paused by …`**"
+      assert_states(picking, "If the answer starts with a `PAUSED` line")
       assert loop =~ "open a wait and stop. `slipdock wait <id> \"the question\""
       # Waiting cards are still skipped by the flag the wait sets.
       assert_states(
-        loop,
+        picking,
         "flagged `blocked` or `waiting` (an open wait\non a person sets `waiting` itself)"
       )
     end

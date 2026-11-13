@@ -15,7 +15,7 @@ defmodule SlipdockWeb.ScheduledListDocsTest do
     do: @root |> Path.join(path) |> Slipdock.DocsText.read!() |> String.replace(~r/\s+/, " ")
 
   test "the loop skill never takes from it, even with the ready list empty" do
-    loop = flat("priv/skills/slipdock-loop/SKILL.md")
+    loop = flat("priv/skills/slipdock-loop/references/picking.md")
     assert_states(loop, "Nor from a **Scheduled** list (category `scheduled`")
     assert loop =~ "`scheduled: worked by feed rules`"
     assert_states(loop, "never takes from it, even when the ready list is empty")

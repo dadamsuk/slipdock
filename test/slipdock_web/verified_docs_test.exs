@@ -51,14 +51,21 @@ defmodule SlipdockWeb.VerifiedDocsTest do
     assert loop =~ "## Verified work"
     assert loop =~ "slipdock edit <id> --bar"
     assert loop =~ "--evidence-commit"
-    assert loop =~ "slipdock verify <id> accept"
     assert loop =~ "Submitted for verification"
     # #1626: never change a locked bar; structured evidence; a clean tree;
     # never verify your own.
     assert loop =~ "never try to change it"
     assert loop =~ "--suite"
-    assert loop =~ "git worktree add"
-    assert_states(loop, "Never verify a card you built")
+    # A verify job is one of the skill's references (#3004).
+    assert_states(
+      loop,
+      "| The job is of kind `verify`, or you are asked to verify or audit a card | `references/verifying.md`"
+    )
+
+    verifying = read("priv/skills/slipdock-loop/references/verifying.md")
+    assert verifying =~ "slipdock verify <id> accept"
+    assert verifying =~ "git worktree add"
+    assert_states(verifying, "Never verify a card you built")
 
     work = read("priv/skills/slipdock-work/SKILL.md")
     assert_states(work, "**Verified work, where a board has it on**")
@@ -71,14 +78,25 @@ defmodule SlipdockWeb.VerifiedDocsTest do
 
     # #1655: shipping by pull request — never push main, the PR's checks, done --pr.
     # Compared with its line breaks folded, since the skills wrap their prose.
-    for skill <- [loop, work], skill = String.replace(skill, ~r/\s+/, " ") do
+    # The loop skill's steps are one of its references (#3004); `SKILL.md`
+    # keeps the short of them, for a job whose prompt gives the rest.
+    pull_requests = read("priv/skills/slipdock-loop/references/pull-requests.md")
+
+    for skill <- [loop <> pull_requests, work], skill = String.replace(skill, ~r/\s+/, " ") do
       assert skill =~ "ships by pull request"
       assert skill =~ "gh pr create --head card-<id>"
       assert skill =~ "slipdock done <id> --pr <url>"
     end
 
-    assert String.replace(loop, ~r/\s+/, " ") =~ "never push the default branch"
-    assert String.replace(loop, ~r/\s+/, " ") =~ "gh pr checks card-<id> --watch"
+    for text <- [loop, pull_requests], text = String.replace(text, ~r/\s+/, " ") do
+      assert text =~ "never push the default branch"
+      assert text =~ "slipdock done <id> --pr <url> --evidence-commit <PR head sha>"
+    end
+
+    assert_states(loop, ~s{"the build to watch" is "the pull request's"})
+    assert_states(loop, "A job's prompt gives these steps in full, so follow them there.")
+    assert_states(loop, "`references/pull-requests.md` has them for a pass whose prompt doesn't")
+    assert String.replace(pull_requests, ~r/\s+/, " ") =~ "gh pr checks card-<id> --watch"
     assert cli =~ "--ship-via pull-request"
     assert cli =~ "--pr https://"
   end
@@ -131,7 +149,7 @@ defmodule SlipdockWeb.VerifiedDocsTest do
     flat = fn path -> path |> read() |> String.replace(~r/\s+/, " ") end
 
     for path <- [
-          "priv/skills/slipdock-loop/SKILL.md",
+          "priv/skills/slipdock-loop/references/pull-requests.md",
           "priv/skills/slipdock-work/SKILL.md",
           "lib/slipdock_web/api_guide.ex",
           "docs/manual.md"
@@ -156,8 +174,13 @@ defmodule SlipdockWeb.VerifiedDocsTest do
     assert flat.("lib/slipdock_web/api_guide.ex") =~ ~s(sets `verify_state: "merging"`)
 
     assert_states(
-      flat.("priv/skills/slipdock-loop/SKILL.md"),
+      flat.("priv/skills/slipdock-loop/references/pull-requests.md"),
       "the card shows *merging* until then"
+    )
+
+    assert_states(
+      flat.("priv/skills/slipdock-loop/SKILL.md"),
+      ~s{complete with `--evidence-commit`, and "don't merge it": accepting the card does}
     )
 
     assert_states(
@@ -192,8 +215,14 @@ defmodule SlipdockWeb.VerifiedDocsTest do
     assert flat.("lib/slipdock_web/api_guide.ex") =~ "or reopen a done card**"
 
     assert_states(
-      flat.("priv/skills/slipdock-loop/SKILL.md"),
+      flat.("priv/skills/slipdock-loop/references/subcards.md"),
       "Nor can an agent reopen a done card"
+    )
+
+    assert_states(
+      flat.("priv/skills/slipdock-loop/SKILL.md"),
+      "**Never reopen a done card** (the board refuses an agent): if one needs more, " <>
+        "add a card for that and link it."
     )
 
     assert_states(
@@ -216,9 +245,15 @@ defmodule SlipdockWeb.VerifiedDocsTest do
       "completes without a pull request of its own"
     )
 
-    loop = flat.("priv/skills/slipdock-loop/SKILL.md")
+    loop = flat.("priv/skills/slipdock-loop/references/pull-requests.md")
     assert loop =~ "complete the epic without `--pr`"
     assert loop =~ "never open a token PR"
+
+    assert_states(
+      flat.("priv/skills/slipdock-loop/SKILL.md"),
+      "an epic (no pull request of its own)"
+    )
+
     assert flat.("priv/skills/slipdock-work/SKILL.md") =~ "An epic names no PR"
 
     assert_states(

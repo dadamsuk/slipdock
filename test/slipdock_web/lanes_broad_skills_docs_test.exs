@@ -24,8 +24,15 @@ defmodule SlipdockWeb.LanesBroadSkillsDocsTest do
   ]
 
   test "the loop skill's Lanes section says what broad is and that it is narrowed first" do
-    [_, lanes] = String.split(read("priv/skills/slipdock-loop/SKILL.md"), "\n## Lanes\n")
-    [lanes | _] = String.split(lanes, "\n## ")
+    # The section is one of the skill's references (#3004): `SKILL.md` keeps
+    # the short of it and names the file.
+    [_, short] = String.split(read("priv/skills/slipdock-loop/SKILL.md"), "\n## Lanes\n")
+    [short | _] = String.split(short, "\n## ")
+    assert_states(short, "The whole of it is in `references/lanes.md`")
+    assert_states(short, "as narrow as the brief allows")
+
+    [_, lanes] =
+      String.split(read("priv/skills/slipdock-loop/references/lanes.md"), "\n## Lanes\n")
 
     assert_states(
       lanes,
