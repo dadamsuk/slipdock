@@ -659,12 +659,7 @@ defmodule SlipdockCLI.AttachmentsTest do
       refute File.exists?(dest <> ".part")
     end
 
-    # The temp file a cut-off download leaves is not asserted here: `out/3`
-    # halts the VM inside the `try`, so the `after` that removes it never
-    # runs. That is a fault in the code, not in a test, and this card is
-    # test-only: it is filed as its own card. What the `after` does do, on a
-    # download that works, is held by the test after this one.
-    test "Util.download_to_stdout/2 cut off mid-body: the error, exit 1, no bytes out",
+    test "Util.download_to_stdout/2 cut off mid-body: the error, exit 1, no bytes out, no temp file",
          %{home: home} do
       url = cut_off_url()
 
@@ -674,6 +669,28 @@ defmodule SlipdockCLI.AttachmentsTest do
       assert code == 1
       assert plain(out) =~ ~r/\Aerror: could not reach #{Regex.escape(url)} .*server_closed/
       refute out =~ "%PDF"
+      assert File.ls!(Path.join(home, "tmp")) == []
+    end
+
+    # The three commands that send a file to stdout, each through
+    # `download_to_stdout/2` (#2952).
+    for argv <- [
+          ["tools", "file", "demo", "files/a.txt"],
+          ["tools", "download", "demo", "--version", "1.0.0", "--out", "-"],
+          ["wiki", "get", "3", "notes/a.pdf", "--out", "-"]
+        ] do
+      test "slipdock #{Enum.join(argv, " ")} cut off mid-body: the error, exit 1, no temp file",
+           %{home: home} do
+        url = cut_off_url()
+
+        {out, code} = main(unquote(argv), home, url)
+
+        assert code == 1
+        assert plain(out) =~ ~r/\Aerror: could not reach #{Regex.escape(url)} .*server_closed/
+        refute out =~ "%PDF"
+        assert File.ls!(Path.join(home, "tmp")) == []
+        assert File.ls!(home) == ["tmp"]
+      end
     end
 
     test "Util.download_to_stdout/2 that works: the bytes out, its temp file removed",
