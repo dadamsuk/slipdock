@@ -108,7 +108,10 @@ jobs:
         if: steps.gate.outputs.run == 'false'
         continue-on-error: true
         run: |
-          deps="${{ runner.os }}-mix-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-${{ hashFiles('**/mix.lock') }}"
+          ws=$(printf '%s' "$GITHUB_WORKSPACE" | sha256sum | cut -c1-8)
+          base="${{ runner.os }}-mix-$ws-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}"
+          deps="$base-${{ hashFiles('**/mix.lock') }}"
+          echo "base=$base" >> "$GITHUB_OUTPUT"
           config="$deps-${{ hashFiles('mix.exs', 'config/**') }}"
           echo "deps=$deps" >> "$GITHUB_OUTPUT"
           echo "config=$config" >> "$GITHUB_OUTPUT"
@@ -126,7 +129,7 @@ jobs:
           restore-keys: |
             ${{ steps.keys.outputs.config }}-
             ${{ steps.keys.outputs.deps }}-
-            ${{ runner.os }}-mix-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-
+            ${{ steps.keys.outputs.base }}-
 
       # An exact hit means this tree's build is saved already, and the
       # rest of the job has nothing to do.

@@ -160,11 +160,20 @@ jobs:
       # file, mix.exs and config, then the code. A run restores the newest
       # build whose key shares the longest prefix with its own, so Mix only
       # recompiles what changed since then, and partition 1 saves the build
-      # under this tree's key once it compiles clean.
+      # under this tree's key once it compiles clean. Every layer starts
+      # with a hash of the checkout's path (#2901): Mix's compile manifest
+      # keeps that path, so a build from a runner that checks out
+      # elsewhere (each self-hosted runner has its own work directory) is
+      # recompiled whole. With the path in the key a runner restores only
+      # builds made where it checks out; GitHub's runners all check out at
+      # the same path, so for them it changes nothing.
       - name: Cache keys
         id: keys
         run: |
-          deps="${{ runner.os }}-mix-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-${{ hashFiles('**/mix.lock') }}"
+          ws=$(printf '%s' "$GITHUB_WORKSPACE" | sha256sum | cut -c1-8)
+          base="${{ runner.os }}-mix-$ws-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}"
+          deps="$base-${{ hashFiles('**/mix.lock') }}"
+          echo "base=$base" >> "$GITHUB_OUTPUT"
           config="$deps-${{ hashFiles('mix.exs', 'config/**') }}"
           echo "deps=$deps" >> "$GITHUB_OUTPUT"
           echo "config=$config" >> "$GITHUB_OUTPUT"
@@ -180,7 +189,7 @@ jobs:
           restore-keys: |
             ${{ steps.keys.outputs.config }}-
             ${{ steps.keys.outputs.deps }}-
-            ${{ runner.os }}-mix-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-
+            ${{ steps.keys.outputs.base }}-
 
       # The checkout gives every file a fresh mtime. Mix compares sources by
       # digest, but mix.exs and the config files by mtime alone, so a fresh
@@ -277,7 +286,10 @@ jobs:
       - name: Cache keys
         id: keys
         run: |
-          deps="${{ runner.os }}-mix-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-${{ hashFiles('**/mix.lock') }}"
+          ws=$(printf '%s' "$GITHUB_WORKSPACE" | sha256sum | cut -c1-8)
+          base="${{ runner.os }}-mix-$ws-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}"
+          deps="$base-${{ hashFiles('**/mix.lock') }}"
+          echo "base=$base" >> "$GITHUB_OUTPUT"
           config="$deps-${{ hashFiles('mix.exs', 'config/**') }}"
           echo "deps=$deps" >> "$GITHUB_OUTPUT"
           echo "config=$config" >> "$GITHUB_OUTPUT"
@@ -293,7 +305,7 @@ jobs:
           restore-keys: |
             ${{ steps.keys.outputs.config }}-
             ${{ steps.keys.outputs.deps }}-
-            ${{ runner.os }}-mix-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-
+            ${{ steps.keys.outputs.base }}-
 
       - name: Backdate mix.exs and config to the cached build
         if: startsWith(steps.mix-cache.outputs.cache-matched-key, format('{0}-', steps.keys.outputs.config))
@@ -352,7 +364,10 @@ jobs:
       - name: Cache keys
         id: keys
         run: |
-          deps="${{ runner.os }}-mix-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-${{ hashFiles('**/mix.lock') }}"
+          ws=$(printf '%s' "$GITHUB_WORKSPACE" | sha256sum | cut -c1-8)
+          base="${{ runner.os }}-mix-$ws-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}"
+          deps="$base-${{ hashFiles('**/mix.lock') }}"
+          echo "base=$base" >> "$GITHUB_OUTPUT"
           config="$deps-${{ hashFiles('mix.exs', 'config/**') }}"
           echo "deps=$deps" >> "$GITHUB_OUTPUT"
           echo "config=$config" >> "$GITHUB_OUTPUT"
@@ -368,7 +383,7 @@ jobs:
           restore-keys: |
             ${{ steps.keys.outputs.config }}-
             ${{ steps.keys.outputs.deps }}-
-            ${{ runner.os }}-mix-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-
+            ${{ steps.keys.outputs.base }}-
 
       - name: Backdate mix.exs and config to the cached build
         if: startsWith(steps.mix-cache.outputs.cache-matched-key, format('{0}-', steps.keys.outputs.config))
