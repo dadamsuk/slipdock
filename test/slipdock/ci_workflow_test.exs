@@ -1691,6 +1691,19 @@ defmodule Slipdock.CiWorkflowTest do
       assert restore.(coverage_job()) == restore.(suite_job())
     end
 
+    # It compiles with --warnings-as-errors on the same build, so it shares
+    # the per-checkout-path keys too (#2901).
+    test "the repo checks job restores the build the test job cached, under the same keys" do
+      repo_checks = workflow("ci.yml")["jobs"]["repo-checks"]
+
+      for name <- ["Cache keys", "Backdate mix.exs and config to the cached build"] do
+        assert step(repo_checks, "name", name) == step(suite_job(), "name", name), name
+      end
+
+      restore = &Enum.find(&1["steps"], fn s -> s["id"] == "mix-cache" end)
+      assert restore.(repo_checks) == restore.(suite_job())
+    end
+
     # The cache's exact key is this tree's build; another runner's checkout
     # is in another directory, and Mix would recompile all of it (#2848).
     test "the coverage job compiles nothing on an exact cache hit, and compiles on any other" do
