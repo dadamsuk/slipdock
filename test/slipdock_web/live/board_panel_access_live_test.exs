@@ -110,6 +110,24 @@ defmodule SlipdockWeb.BoardPanelAccessLiveTest do
     end
   end
 
+  # #2947: the board change that finds the reader's grant gone redirects them
+  # with the flash; the open card panel isn't patched shut on top of that,
+  # which raised and crashed the process before the redirect was sent.
+  test "a reader whose grant goes while a card is open is sent away, not crashed", ctx do
+    reader = user_fixture("reader@example.com")
+    {:ok, grant} = Access.grant(ctx.board, reader, "read", ctx.owner)
+
+    {:ok, view, _} = live(as(reader), ~p"/boards/#{ctx.board}/cards/#{ctx.card}")
+    assert render(view) =~ "Shared card"
+
+    {:ok, _} = Access.revoke(grant)
+    {:ok, _} = Boards.Cards.update_card(ctx.card, %{"title" => "Renamed card"})
+    send(view.pid, {:board_changed, ctx.board.id})
+
+    assert {"/", %{"error" => "Your access to that board was removed."}} =
+             assert_redirect(view)
+  end
+
   describe "ArchiveComponent below read on the board" do
     test "lists nothing", ctx do
       {viewer, _saved} = viewer(ctx)

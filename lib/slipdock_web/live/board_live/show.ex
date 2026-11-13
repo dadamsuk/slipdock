@@ -721,6 +721,11 @@ defmodule SlipdockWeb.BoardLive.Show do
 
     socket =
       case socket.assigns do
+        # Access was lost and the reader is already being sent away (#2947):
+        # nothing to refresh, and a patch on top of the redirect would raise.
+        _ when not is_nil(socket.redirected) ->
+          socket
+
         %{panel: :card, card: %Card{id: id}} ->
           case load_card(board, id) do
             {:ok, card} ->
