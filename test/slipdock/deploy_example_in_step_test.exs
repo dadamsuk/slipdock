@@ -48,14 +48,17 @@ defmodule Slipdock.DeployExampleInStepTest do
     assert start < run and run < healthy and healthy < finish
   end
 
-  # #2820: the failure job runs only on a failure, of a push, after the jobs
+  # #2820: the failure job runs only on a failure (or a cancelled job, #3009), of a push, after the jobs
   # on the way to the deploy; and every step of it may fail without failing
   # anything else.
   for {name, text} <- [{"release.yml", @release}, {"the example", @example}] do
     test "#{name}'s record-failure job runs on a failure and can't fail anything" do
       {:ok, yaml} = YamlElixir.read_from_string(unquote(text))
       job = yaml["jobs"]["record-failure"]
-      assert job["if"] =~ ~r/^\$\{\{ failure\(\) && \(*github.event_name == 'push'/
+      # A cancelled job counts as failed; a run a person cancels doesn't (#3009).
+      assert job["if"] =~
+               ~r/^\$\{\{ !cancelled\(\) && \(contains\(needs\.\*\.result, 'failure'\) \|\| contains\(needs\.\*\.result, 'cancelled'\)\) && \(*github.event_name == 'push'/
+
       assert "deploy" in List.wrap(job["needs"])
       assert job["environment"] == "production"
       assert Enum.all?(job["steps"], &(&1["continue-on-error"] == true))
@@ -151,6 +154,18 @@ defmodule Slipdock.DeployExampleInStepTest do
       assert stage(%{@main | "DEPLOY" => "failure"}) == "deploy"
       assert stage(%{@main | "DEPLOY" => "failure", "DEPLOY_STAGE" => "health"}) == "health"
       assert stage(%{@main | "DEPLOY" => "failure", "DEPLOY_STAGE" => "deploy"}) == "deploy"
+    end
+
+    test "a cancelled job is a failure at its stage (#3009)" do
+      # 43474584941: the macOS daemon job never got a runner, so test ended cancelled.
+      assert stage(%{@main | "TEST" => "cancelled", "MERGE" => "skipped", "DEPLOY" => "skipped"}) ==
+               "test"
+
+      assert stage(%{@main | "BUILD" => "cancelled", "MERGE" => "skipped", "DEPLOY" => "skipped"}) ==
+               "build"
+
+      assert stage(%{@main | "DEPLOY" => "cancelled", "DEPLOY_STAGE" => "health"}) == "health"
+      assert stage(%{@main | "MERGE" => "cancelled", "DEPLOY" => "skipped"}) == "merge"
     end
 
     test "a build failure comes before the test failure beside it" do

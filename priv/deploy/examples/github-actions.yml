@@ -87,10 +87,12 @@ jobs:
   # every job on the way to the deploy in `needs` and give the stage of the
   # first that failed (build, test, merge, deploy or health); Slipdock's own
   # works it out in .github/scripts/failed-stage.sh. The record may fail
-  # without failing anything else.
+  # without failing anything else. A job cancelled under the run (a runner
+  # never acquired, a job out of time) counts as failed: failure() alone is
+  # false then. A run a person cancels records nothing.
   record-failure:
     needs: [deploy]
-    if: ${{ failure() && github.event_name == 'push' }}
+    if: ${{ !cancelled() && (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')) && github.event_name == 'push' }}
     runs-on: ubuntu-latest
     environment: production
 
