@@ -506,36 +506,107 @@ defmodule Slipdock.CoverageTest do
     refute "CoverageWorse" in compiled
   end
 
-  # A process :cover started, as the workers it compiles with are, left
-  # running from an earlier try: a chunk that fails has to clear it before
-  # the next try, or it writes into the new server's tables and loads over
-  # the modules it compiles (#2917). Its real workers mostly die on their
-  # own first, so this one waits for a message that never comes.
-  defp with_straggler(ctx) do
+  # Runs the probe with a hook in each chunk (#2917) that reports, before
+  # the chunk compiles: whether it holds a bad beam (so fails), the :cover
+  # server it finds, and every other process under its group leader. A
+  # chunk that will fail also leaves a straggler as :cover's pmap workers
+  # are: spawned from a fun by the chunk, so `initial_call` says nothing of
+  # :cover, and still running when the chunk dies. `before` runs first.
+  defp probe_chunks(ctx, before \\ "") do
     run(ctx.tmp_dir, """
-    straggler = spawn(:cover, :main_process_loop, [:straggler])
+    me = self()
+
+    :persistent_term.put({Slipdock.Coverage, :chunk_hook}, fn beams ->
+      {:group_leader, gl} = Process.info(self(), :group_leader)
+
+      left =
+        for p <- Process.list(), p != self(),
+            Process.info(p, :group_leader) == {:group_leader, gl}, do: p
+
+      bad = Enum.any?(beams, &(&1 =~ ~r/CoverageBad|CoverageWorse/))
+      straggler = if bad, do: spawn(fn -> receive do: (:never -> :ok) end)
+      born = straggler && Process.info(straggler, :initial_call)
+      send(me, {:chunk, bad, Process.whereis(:cover_server), left, {straggler, born}})
+    end)
+
+    #{before}
     Slipdock.Coverage.start(#{inspect(ctx.ebin)}, export: "x", output: #{inspect(ctx.out)})
-    IO.puts("straggler alive: \#{Process.alive?(straggler)}")
+
+    chunks = Stream.repeatedly(fn -> receive do: (c -> c), after: (0 -> nil) end)
+    chunks = Enum.take_while(chunks, & &1)
+    IO.puts("chunks: \#{length(chunks)}")
+
+    for [{:chunk, true, _, _, _}, {:chunk, _, server, left, _}] <- Enum.chunk_every(chunks, 2, 1, :discard) do
+      IO.puts("after a failed chunk: server \#{inspect(server)}, left \#{length(left)}")
+    end
+
+    for {:chunk, true, _, _, {s, born}} <- chunks do
+      IO.puts("straggler \#{inspect(born)}, alive \#{Process.alive?(s)}")
+    end
+
+    if first = Process.get(:first_server), do: IO.puts("first server alive: \#{Process.alive?(first)}")
+
     IO.puts("cover: \#{:cover.modules() |> Enum.map(&inspect/1) |> Enum.sort() |> Enum.join(",")}")
     """)
   end
 
   test "a chunk that fails stops what :cover left running before the next try", ctx do
-    # Every chunk compiles: nothing failed, so nothing is stopped.
-    {clean, 0} = with_straggler(ctx)
-    assert clean =~ "straggler alive: true"
-    assert clean =~ ~r/^cover: CoverageSample$/m
-
     write_fillers(ctx, 40)
     write_bad_beams(ctx.ebin)
 
-    {output, 0} = with_straggler(ctx)
-    assert output =~ "straggler alive: false"
+    {output, 0} = probe_chunks(ctx)
+
+    # Each bad beam fails a chunk, and is halved down to alone.
+    failed = Regex.scan(~r/^after a failed chunk: server (.*), left (\d+)$/m, output)
+    assert length(failed) >= 3
+
+    # The next chunk starts with nothing of the last one left: no server,
+    # no worker, no straggler.
+    assert Enum.all?(failed, &match?([_, "nil", "0"], &1))
+
+    # Each straggler was spawned from a fun, as :cover's are, and is gone.
+    stragglers = Regex.scan(~r/^straggler (.*)$/m, output, capture: :all_but_first)
+    assert length(stragglers) > length(failed)
+    assert Enum.uniq(stragglers) == [["{:initial_call, {:erlang, :apply, 2}}, alive false"]]
 
     [_, listed] = Regex.run(~r/^cover: (.*)$/m, output)
     compiled = String.split(listed, ",")
     assert length(compiled) == 41
     assert "CoverageSample" in compiled
     refute Enum.any?(compiled, &String.starts_with?(&1, "CoverageBad"))
+  end
+
+  test "a straggler of :cover's looks like any process: spawned from a fun", ctx do
+    {output, 0} =
+      run(ctx.tmp_dir, """
+      {:ok, server} = :cover.start()
+      IO.inspect(Process.info(server, :initial_call), label: "server")
+      """)
+
+    assert output =~ "server: {:initial_call, {:erlang, :apply, 2}}"
+  end
+
+  test "a failed chunk that leaves the server alive gets a new one", ctx do
+    write_fillers(ctx, 3)
+    write_bad_beams(ctx.ebin)
+    File.rm!(Path.join(ctx.ebin, "Elixir.CoverageBadA.beam"))
+    File.rm!(Path.join(ctx.ebin, "Elixir.CoverageWorse.beam"))
+
+    # CoverageBadB alone: :cover refuses it and the server lives on. Started
+    # here, the server isn't under the probe's group leader: it goes by name.
+    {output, 0} =
+      probe_chunks(ctx, """
+      {:ok, first} = :cover.start()
+      Process.put(:first_server, first)
+      """)
+
+    assert output =~ "first server alive: false"
+
+    failed = Regex.scan(~r/^after a failed chunk: server (.*), left (\d+)$/m, output)
+    assert failed != []
+    assert Enum.all?(failed, &match?([_, "nil", "0"], &1))
+
+    [_, listed] = Regex.run(~r/^cover: (.*)$/m, output)
+    assert length(String.split(listed, ",")) == 4
   end
 end
