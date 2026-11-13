@@ -5,6 +5,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/http/httptrace"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -250,29 +251,95 @@ func TestAClaimThatTimesOutIsTriedAgainOnANewConnection(t *testing.T) {
 	}
 }
 
-func TestNothingSentOnABlackHoledConnectionReachesTheServer(t *testing.T) {
-	// A check on the fake server (#2807), with a plain client and no link:
-	// once a connection is silenced, nothing more sent on it is read. Up
-	// to Go 1.26 a plain client puts every retry back on it, so no claim
-	// is read after the held one, the bug the link fixes; from Go 1.27 its
-	// transport sometimes checks a connection after a cancelled request
-	// and moves to a new one, where its claims are read. Either way none
-	// is read on the dead connection.
+// retryAfterTheSilence claims three times with client, straight after
+// one another, against silenceSecond: answered, held on a connection that
+// goes silent, and the retry. It returns the connection (the client's
+// address, which is the server's RemoteAddr) the held claim and the retry
+// went on, as the client's transport chose it, and whether the retry
+// failed.
+func retryAfterTheSilence(t *testing.T, s *holeServer, client *Client) (held, retry string, failed bool) {
+	t.Helper()
+	claim := func() (string, error) {
+		var addr string
+		ctx := httptrace.WithClientTrace(context.Background(), &httptrace.ClientTrace{
+			GotConn: func(ci httptrace.GotConnInfo) { addr = ci.Conn.LocalAddr().String() },
+		})
+		_, _, err := client.Claim(ctx, 11, nil, 1)
+		return addr, err
+	}
+	if _, err := claim(); err != nil {
+		t.Fatalf("the first claim: %v", err)
+	}
+	held, err := claim()
+	if err == nil {
+		t.Fatal("the claim held on the silenced connection succeeded")
+	}
+	if seen := s.seen(); len(seen) != 2 || seen[1].addr != seen[0].addr || !seen[0].h2 {
+		t.Fatalf("the held claim wasn't read on the first connection over HTTP/2: %+v", seen)
+	}
+	retry, err = claim()
+	if held == "" || retry == "" {
+		t.Fatalf("the transport reported no connection: held on %q, retry on %q", held, retry)
+	}
+	return held, retry, err != nil
+}
+
+// roundTripOnly hides a transport's CloseIdleConnections, so a Client
+// without a link can't fall back to closing its idle connections.
+type roundTripOnly struct{ http.RoundTripper }
+
+func TestWithoutTheLinkTheRetryGoesBackOnTheDeadConnection(t *testing.T) {
+	// The bug the link fixes (#2807), shown on the fake server with a
+	// plain client and none of the fix: the claim straight after the one
+	// that timed out goes back on the silenced connection, and fails there
+	// too. It holds on Go 1.24 and on 1.27 alike.
+	//
+	// None of the fix means no link and no fallback either (#2909):
+	// without a link, Client.failed closes the client's idle connections,
+	// and that closes the dead one when Go has already let go of the
+	// cancelled stream, a race lost about one run in fifteen under -race.
+	// That, not Go 1.27, is what made this test's plain client sometimes
+	// move to a new connection.
 	old := PollSlack
 	PollSlack = 300 * time.Millisecond
 	t.Cleanup(func() { PollSlack = old })
 	s := newHoleServer(t, silenceSecond)
-	w, _ := linkWorker(t, s, link.Options{PingAfter: -1})
 	tr := s.ts.Client().Transport.(*http.Transport).Clone()
 	tr.ForceAttemptHTTP2 = true
-	w.Client = &Client{Server: s.ts.URL, Key: "k", HTTP: &http.Client{Transport: tr}}
-	runWorker(t, w)
-	held := s.waitFor(t, 2, 10*time.Second)[1]
-	time.Sleep(4 * time.Second)
-	for _, c := range s.seen()[2:] {
-		if c.addr == held.addr {
-			t.Fatalf("a claim was read on the silenced connection %s: the fake server isn't black-holing it", held.addr)
-		}
+	t.Cleanup(tr.CloseIdleConnections)
+	client := &Client{Server: s.ts.URL, Key: "k", HTTP: &http.Client{Transport: roundTripOnly{tr}}}
+
+	held, retry, failed := retryAfterTheSilence(t, s, client)
+	if retry != held || !failed {
+		t.Fatalf("a plain client's retry went on %s (failed: %v), the held claim on %s: the fake server no longer shows the bug the link fixes", retry, failed, held)
+	}
+	if n := len(s.seen()); n != 2 {
+		t.Fatalf("the server read %d claims, want 2: the retry sent on the silenced connection was read", n)
+	}
+}
+
+func TestWithTheLinkTheRetryGoesOnANewConnection(t *testing.T) {
+	// The same three claims over the link: the held claim timing out drops
+	// its connection, and the retry is dialled afresh and read.
+	old := PollSlack
+	PollSlack = 300 * time.Millisecond
+	t.Cleanup(func() { PollSlack = old })
+	s := newHoleServer(t, silenceSecond)
+	client, l := linkClient(t, s)
+
+	held, retry, failed := retryAfterTheSilence(t, s, client)
+	if failed {
+		t.Fatal("the retry over the link failed")
+	}
+	if retry == held {
+		t.Fatalf("the retry over the link went back on the dead connection %s", held)
+	}
+	seen := s.seen()
+	if len(seen) != 3 || seen[2].addr == held {
+		t.Fatalf("the retry wasn't read on a new connection: %+v", seen)
+	}
+	if l.Dials() != 2 {
+		t.Fatalf("the link dialled %d connections, want 2", l.Dials())
 	}
 }
 
