@@ -42,7 +42,7 @@ defmodule SlipdockWeb.AccountLive.MachinesComponent do
 
   defp load(socket) do
     user = socket.assigns.current_user
-    boards = Access.list_boards(user)
+    boards = Machines.servable_boards(user)
 
     assign(socket,
       machines: Machines.list_machines(user),

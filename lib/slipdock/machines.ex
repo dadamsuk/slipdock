@@ -18,7 +18,7 @@ defmodule Slipdock.Machines do
   machine's at once. It is never an API token: the API's token lookup only
   reads `users_tokens`, so a machine key there is unknown.
 
-  The boards a machine serves are top-level boards its owner can reach,
+  The boards a machine serves are top-level boards its owner can write to,
   checked when they are chosen.
   """
 
@@ -66,15 +66,27 @@ defmodule Slipdock.Machines do
   ## Boards --------------------------------------------------------------------
 
   @doc """
+  The top-level boards `user` may have a machine serve: those they own or
+  can write to. A machine takes a board's jobs and writes their results
+  back, so reading a board is not enough to serve it. `opts` are
+  `Access.list_boards/2`'s (`archived: :all` for the archived ones too).
+  """
+  def servable_boards(%User{} = user, opts \\ []) do
+    user
+    |> Access.list_boards(opts)
+    |> Enum.filter(&Access.can_write?(Access.board_permission(user, &1)))
+  end
+
+  @doc """
   The ids of the boards `refs` name (ids, or board codes), when every one is
-  a top-level board `user` can reach. `{:error, :invalid, message}` names
-  the first that isn't, and an empty choice is refused: a machine serving no
-  board has nothing to do.
+  a top-level board `user` may have a machine serve (`servable_boards/2`).
+  `{:error, :invalid, message}` names the first that isn't, and an empty
+  choice is refused: a machine serving no board has nothing to do.
   """
   def servable_board_ids(%User{} = user, refs) do
     refs = refs |> List.wrap() |> Enum.map(&to_string/1) |> Enum.map(&String.trim/1)
     refs = Enum.reject(refs, &(&1 == ""))
-    boards = Access.list_boards(user, archived: :all)
+    boards = servable_boards(user, archived: :all)
 
     {found, missing} =
       Enum.reduce(refs, {[], []}, fn ref, {found, missing} ->
@@ -90,7 +102,7 @@ defmodule Slipdock.Machines do
 
       missing != [] ->
         {:error, :invalid,
-         "not a top-level board you're a member of: #{missing |> Enum.reverse() |> Enum.join(", ")}"}
+         "not a top-level board you can write to: #{missing |> Enum.reverse() |> Enum.join(", ")}"}
 
       true ->
         {:ok, found |> Enum.reverse() |> Enum.uniq()}

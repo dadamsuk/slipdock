@@ -143,7 +143,7 @@ defmodule Slipdock.MachinesTest do
       theirs = board_fixture(%{"name" => "Not yours"}, owner: stranger)
       {:ok, {_, enrolment}} = Machines.request_enrolment(@about)
 
-      assert {:error, :invalid, "not a top-level board you're a member of: " <> named} =
+      assert {:error, :invalid, "not a top-level board you can write to: " <> named} =
                Machines.approve_enrolment(enrolment, ctx.user, [ctx.board.id, theirs.id])
 
       assert named == Integer.to_string(theirs.id)

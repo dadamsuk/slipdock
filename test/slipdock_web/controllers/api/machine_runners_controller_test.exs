@@ -108,7 +108,7 @@ defmodule SlipdockWeb.API.MachineRunnersControllerTest do
 
       theirs = board_fixture(%{}, owner: user_fixture("stranger@example.com"))
 
-      assert %{"error" => "not a top-level board you're a member of" <> _} =
+      assert %{"error" => "not a top-level board you can write to" <> _} =
                ctx.conn
                |> post(~p"/api/machines/#{ctx.machine.id}/runners", %{
                  board: theirs.id,
