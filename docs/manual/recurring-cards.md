@@ -125,8 +125,11 @@ A Housekeeping card is meant to be small and already decided. Its job's
 prompt tells the agent: if the card turns out to need a design choice, or
 is growing into feature work (a new surface, a data-model change, more than
 one sitting), stop before building, move it to Triage, leave a *product*
-wait saying what grew and the choice it needs, and finish without code.
-Nothing takes it from Triage until you move it out.
+wait saying what grew and the choice it needs, and finish without code. The
+prompt names your board's own Triage list (category *triage*), whatever you
+called it. Nothing takes it from Triage until you move it out. On a board
+with no Triage list the card stays where it is, and its wait holds it until
+you answer.
 
 **After done.** An after-done series makes nothing until its current instance
 is completed; then the next is due that long after the day it was done (in

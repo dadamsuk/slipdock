@@ -40,6 +40,33 @@ defmodule Slipdock.HousekeepingDocsTest do
     end
   end
 
+  test "each place says a board with no Triage list keeps the card where it is (#2905)" do
+    for {path, words} <- [
+          {"docs/manual/recurring-cards.md",
+           "On a board with no Triage list the card stays where it is, and its wait holds it"},
+          {"docs/agents.md",
+           "On a board with no Triage list, leave it where it is: the wait holds it"},
+          {"lib/slipdock_web/api_guide.ex",
+           "On a board with no Triage\n    list, don't move it: leave it where it is"},
+          {"lib/slipdock_web/live/help_live/flow.ex",
+           "With no Triage list on the board, it stays\n      where it is, held by its wait"},
+          {"priv/skills/slipdock-loop/SKILL.md",
+           "On a board with no Triage list, don't move it: leave it where it is"}
+        ] do
+      assert_states(read(path), words, "#{path} doesn't say #{inspect(words)}")
+    end
+  end
+
+  test "the loop skill and the guide name the board's own Triage list (#2905)" do
+    for {path, words} <- [
+          {"priv/skills/slipdock-loop/SKILL.md", "by the name the job's prompt gives it"},
+          {"lib/slipdock_web/api_guide.ex", "by the name the job's prompt gives it"},
+          {"docs/agents.md", "by the name its job's prompt\ngives"}
+        ] do
+      assert_states(read(path), words, "#{path} doesn't say #{inspect(words)}")
+    end
+  end
+
   test "each place says the overseer writes a morning digest of it (#2781)" do
     for {path, words} <- [
           {"README.md", "digest of the Housekeeping list's overnight work"},

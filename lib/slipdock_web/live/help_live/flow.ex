@@ -487,7 +487,8 @@ defmodule SlipdockWeb.HelpLive.Flow do
       To Do and Scheduled have nothing that pool could start. Your own work always goes first.
       A Housekeeping card that turns out to need a design choice, or grows into feature work,
       comes back to you: the agent moves it to Triage with a <em>product</em>
-      wait saying what grew, and builds nothing.
+      wait saying what grew, and builds nothing. With no Triage list on the board, it stays
+      where it is, held by its wait until you answer.
       With the overseer on, each morning (07:00 unless you set another time) its card gets a
       digest of what Housekeeping worked, grouped by theme, naming only what needs you.
     </p>
