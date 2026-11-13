@@ -602,8 +602,9 @@ defmodule SlipdockWeb.BoardLive.Show do
   ## AI ------------------------------------------------------------------------
 
   # The page as the assistant sees it: the cards the current view shows (the
-  # board's own cards, filtered as the mode filters them) and the open card.
-  defp ai_source(mode, board, columns, config, card, users, can_write) do
+  # board's own cards, filtered as the mode filters them) and the open card,
+  # its dependencies seen as the reader may see them.
+  defp ai_source(mode, board, columns, config, card, users, can_write, user) do
     %{
       kind: :board,
       board: board,
@@ -612,7 +613,7 @@ defmodule SlipdockWeb.BoardLive.Show do
       # documents rather than with cards whose titles contain the word.
       pages: ai_pages(board, can_write),
       mode: mode,
-      card: card,
+      card: card && Access.hide_unreadable_dependencies(user, card),
       users: users
     }
   end
@@ -1626,7 +1627,7 @@ defmodule SlipdockWeb.BoardLive.Show do
         id="page-ai"
         layout="drawer"
         title={"Chat about #{@board.name}"}
-        source={ai_source(@mode, @board, @columns, @swim, @card, @users, @can_write)}
+        source={ai_source(@mode, @board, @columns, @swim, @card, @users, @can_write, @current_user)}
         current_user={@current_user}
         can_write={@can_write}
       />

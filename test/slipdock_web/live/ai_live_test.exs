@@ -46,6 +46,38 @@ defmodule SlipdockWeb.AILiveTest do
     assert system =~ "“Shipped thing” (list: Done; DONE)"
   end
 
+  test "the open card's dependencies reach the chat as the reader sees them", %{
+    board: board,
+    card: card
+  } do
+    other = board_fixture(%{"name" => "Elsewhere"})
+    blocker = card_fixture(hd(other.columns), %{"title" => "Hush project"})
+    {:ok, _} = Boards.Dependencies.add_dependency(card, blocker)
+
+    shared = board_fixture(%{"name" => "Shared"})
+    readable = card_fixture(hd(shared.columns), %{"title" => "Open plan"})
+    {:ok, _} = Boards.Dependencies.add_dependency(card, readable)
+
+    reader = user_fixture("reader-#{System.unique_integer([:positive])}@example.com")
+    share_fixture(board, reader, "read")
+    share_fixture(shared, reader, "read")
+    conn = log_in_user(Phoenix.ConnTest.build_conn(), reader)
+
+    Slipdock.AIStub.reply_with("Something you can't see.")
+    {:ok, view, _} = live(conn, ~p"/boards/#{board}/cards/#{card}")
+    view |> element("#board-chat") |> render_click()
+    view |> form("#page-ai-form-0", %{"message" => "What blocks it?"}) |> render_submit()
+    render_async(view)
+
+    assert_receive {:ai_request,
+                    %{"messages" => [%{"role" => "system", "content" => system} | _]}}
+
+    [blocked_by] = Regex.run(~r/^Blocked by: .*$/m, system)
+    assert blocked_by =~ "##{blocker.id} A card you can't see"
+    assert blocked_by =~ "##{readable.id} Open plan"
+    refute system =~ "Hush project"
+  end
+
   test "edit mode proposes changes that apply on click", %{conn: conn, board: board, card: card} do
     Slipdock.AIStub.reply_with(%{
       "reply" => "I'll make it high priority and due on the 5th.",
