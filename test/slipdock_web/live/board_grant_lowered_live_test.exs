@@ -237,6 +237,32 @@ defmodule SlipdockWeb.BoardGrantLoweredLiveTest do
     assert columns(ctx.board) == lists
   end
 
+  # The other branch: the reader stays, so the redraw goes on to the
+  # swimlanes, finds the loaded view gone and patches it out of the address.
+  # (The patch clears the read-only message; the board is drawn for a reader.)
+  test "the grant lowered and the open view gone untold: the address drops the view", ctx do
+    [first | _] = lists = columns(ctx.board)
+
+    {:ok, saved} =
+      Boards.SavedViews.create_saved_view(ctx.board, %{
+        "name" => "Gone",
+        "config" => %{"mode" => "swimlanes"}
+      })
+
+    {:ok, view, _} = live(as(ctx.writer), ~p"/boards/#{ctx.board}/swimlanes?view=#{saved.id}")
+
+    lower(:untold, ctx)
+    assert {1, _} = Repo.delete_all(from(v in SavedView, where: v.id == ^saved.id))
+
+    render_hook(view, "rename_column", %{"column_id" => "#{first.id}", "name" => "Renamed"})
+
+    path = assert_patch(view)
+    assert path =~ ~p"/boards/#{ctx.board}/swimlanes"
+    refute path =~ "view="
+    refute has_element?(view, "#board-column")
+    assert columns(ctx.board) == lists
+  end
+
   test "a writer whose grant is unchanged still renames the list", ctx do
     [first | _] = columns(ctx.board)
     {:ok, view, _} = live(as(ctx.writer), ~p"/boards/#{ctx.board}")
