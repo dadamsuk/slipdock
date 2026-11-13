@@ -23,10 +23,11 @@ board reads true while you are inside the tree. `move` takes an optional
 ### While you work
 
 - **Every decision, surprise or dead end → a comment.** In Markdown, like
-  every field you write (bar, evidence, a question): a bold first line,
-  then short bullets — what you chose, what you rejected, the commit or
-  file — never one dense paragraph. A question lists its options and
-  recommends one (see *Recipes*).
+  every field you write (bar, evidence, a question):
+  a bold first line, then short bullets — what you chose, what you
+  rejected, the commit or file — never one dense
+  paragraph. A question lists its options and recommends one (see
+  *Recipes*).
 - **A long job → say so while it is still running.** Anything that will
   take more than a short sitting — a big refactor, a migration, a build you
   are babysitting — gets interim comments at its milestones, not one
