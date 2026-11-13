@@ -203,10 +203,18 @@ defmodule Slipdock.ManualPagesTest do
       assert headings_after_footer("## A\n\n### B\n" <> foot) == []
       assert headings_after_footer("## A\n" <> foot <> "\n### Late\n") == ["### Late"]
       # Any level counts: the stray section this was written for was a `## `.
-      assert headings_after_footer("## A\n" <> foot <> "\n# One\n\n## Two\n") == ["# One", "## Two"]
+      assert headings_after_footer("## A\n" <> foot <> "\n# One\n\n## Two\n") == [
+               "# One",
+               "## Two"
+             ]
+
       # The footer is the last rule: one mid-page doesn't fail what is under it.
       assert headings_after_footer("## A\n\n---\n\n### B\n" <> foot) == []
-      assert headings_after_footer("## A\n\n---\n\n### B\n" <> foot <> "\n### Late\n") == ["### Late"]
+
+      assert headings_after_footer("## A\n\n---\n\n### B\n" <> foot <> "\n### Late\n") == [
+               "### Late"
+             ]
+
       assert headings_after_footer("## A\n" <> foot <> "\n```\n---\n## Fenced\n```\n") == []
       assert headings_after_footer("## A\n\n```\n---\n```\n\n### B\n" <> foot) == []
       assert headings_after_footer("## A\n\n### B\n") == []
