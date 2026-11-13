@@ -123,7 +123,36 @@ defmodule SlipdockWeb.BoardLive.JobLogComponent do
   defp read_more(socket, _opts), do: socket
 
   @impl true
-  def handle_event("keep", _params, %{assigns: %{can_write: true, user: %{} = user}} = socket) do
+  def handle_event("keep", _params, %{assigns: %{user: %{} = user}} = socket) do
+    # Asked of the database, not of the `can_write` the panel handed over
+    # when it last drew this (#2999): `keep/3` checks nobody.
+    if may_keep?(user, socket.assigns.job), do: keep(socket, user), else: refuse_keep(socket)
+  end
+
+  def handle_event("keep", _params, socket), do: refuse_keep(socket)
+
+  def handle_event("toggle", _params, socket) do
+    # The lines left the page when it folded, so opening reads them afresh.
+    if socket.assigns.open do
+      {:noreply, assign(socket, open: false)}
+    else
+      {:noreply,
+       socket |> assign(open: true, next: nil, count: 0, skipped: 0) |> read_more(reset: true)}
+    end
+  end
+
+  # Whoever may edit the job's card now may keep its log.
+  defp may_keep?(user, %Job{card_id: card_id}) do
+    case card_id && Slipdock.Boards.Cards.get_card(card_id) do
+      %Slipdock.Boards.Card{} = card ->
+        Slipdock.Access.can_write?(Slipdock.Access.card_permission(user, card))
+
+      _ ->
+        false
+    end
+  end
+
+  defp keep(socket, user) do
     case TranscriptRetention.keep(socket.assigns.job, user, via: "web") do
       {:ok, _page, job} ->
         # The card's Docs list the page it became.
@@ -139,20 +168,13 @@ defmodule SlipdockWeb.BoardLive.JobLogComponent do
     end
   end
 
-  def handle_event("keep", _params, socket),
+  defp refuse_keep(socket),
     do:
       {:noreply,
-       assign(socket, keep_error: "Only someone who can edit the card can keep its log.")}
-
-  def handle_event("toggle", _params, socket) do
-    # The lines left the page when it folded, so opening reads them afresh.
-    if socket.assigns.open do
-      {:noreply, assign(socket, open: false)}
-    else
-      {:noreply,
-       socket |> assign(open: true, next: nil, count: 0, skipped: 0) |> read_more(reset: true)}
-    end
-  end
+       assign(socket,
+         can_write: false,
+         keep_error: "Only someone who can edit the card can keep its log."
+       )}
 
   @impl true
   def render(assigns) do

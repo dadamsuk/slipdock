@@ -39,6 +39,11 @@ defmodule SlipdockWeb.SharedLive do
 
     {:ok,
      socket
+     # Before every event (#2999): see `refresh_access/1`.
+     |> attach_hook(:refresh_access, :handle_event, fn _event, _params, socket ->
+       socket = refresh_access(socket)
+       if socket.redirected, do: {:halt, socket}, else: {:cont, socket}
+     end)
      |> allow_upload(:page_image,
        accept: ~w(.png .jpg .jpeg .gif .webp image/png image/jpeg image/gif image/webp),
        max_entries: 5,
@@ -160,6 +165,37 @@ defmodule SlipdockWeb.SharedLive do
     |> push_navigate(to: ~p"/shared")
   end
 
+  # What the reader may do with what is open, read again from the database
+  # (#2999). `can_write` is worked out when a page or folder is shown, and a
+  # share's change redraws it (`{:shares_changed}`), but an event can arrive
+  # first, and a level can drop with nobody told (a group's membership, the
+  # board's own grant). So every event, and a finished upload, asks again
+  # before its guard; somebody the thing is no longer shared with is sent
+  # back to the list, as showing it would have sent them.
+  defp refresh_access(%{assigns: %{page: %Page{id: id}}} = socket) do
+    user = socket.assigns.current_user
+
+    with %Page{archived_at: nil} = page <- Wiki.get_page(id),
+         level = Access.page_permission(user, page),
+         true <- Wiki.visible?(page, level) do
+      assign(socket, can_write: Access.can_write?(level))
+    else
+      _ -> socket |> assign(can_write: false) |> gone()
+    end
+  end
+
+  defp refresh_access(%{assigns: %{folder: %Folder{id: id}}} = socket) do
+    with %Folder{} = folder <- Wiki.get_folder(id),
+         level = Access.folder_permission(socket.assigns.current_user, folder),
+         true <- Access.can_read?(level) do
+      assign(socket, can_write: Access.can_write?(level))
+    else
+      _ -> socket |> assign(can_write: false) |> gone()
+    end
+  end
+
+  defp refresh_access(socket), do: socket
+
   defp render_body(socket, page),
     do:
       Renderer.to_html(page.body || "", page: page, as: socket.assigns.current_user, shared: true)
@@ -219,8 +255,11 @@ defmodule SlipdockWeb.SharedLive do
   ## Uploads ---------------------------------------------------------------------
 
   defp handle_upload(name, entry, socket) do
+    # Not an event, so the hook hasn't run: asked here, once the file is in.
+    socket = if entry.done?, do: refresh_access(socket), else: socket
+
     cond do
-      not entry.done? ->
+      not entry.done? or socket.redirected ->
         {:noreply, socket}
 
       socket.assigns.form && socket.assigns.can_write ->
@@ -341,7 +380,8 @@ defmodule SlipdockWeb.SharedLive do
   end
 
   def handle_event("new_page", %{"title" => title}, socket) do
-    with %Folder{} = folder <- socket.assigns.folder,
+    with true <- socket.assigns.can_write,
+         %Folder{} = folder <- socket.assigns.folder,
          {:ok, page} <-
            Wiki.create_page(board_of(folder), %{"title" => title, "folder_id" => folder.id},
              user: socket.assigns.current_user,
@@ -357,7 +397,8 @@ defmodule SlipdockWeb.SharedLive do
   end
 
   def handle_event("new_folder", %{"name" => name}, socket) do
-    with %Folder{} = folder <- socket.assigns.folder,
+    with true <- socket.assigns.can_write,
+         %Folder{} = folder <- socket.assigns.folder,
          {:ok, made} <-
            Wiki.create_folder(board_of(folder), %{"name" => name, "parent_id" => folder.id},
              user: socket.assigns.current_user
@@ -372,7 +413,8 @@ defmodule SlipdockWeb.SharedLive do
   end
 
   def handle_event("new_drawing", _params, socket) do
-    with %Folder{} = folder <- socket.assigns.folder,
+    with true <- socket.assigns.can_write,
+         %Folder{} = folder <- socket.assigns.folder,
          {:ok, page} <-
            Drawings.create(board_of(folder), folder,
              user: socket.assigns.current_user,
@@ -438,6 +480,7 @@ defmodule SlipdockWeb.SharedLive do
     end
   end
 
+  defp refusal(false), do: "That was shared with you to read, not to change."
   defp refusal(_), do: "You can't do that here."
 
   ## Live -----------------------------------------------------------------------

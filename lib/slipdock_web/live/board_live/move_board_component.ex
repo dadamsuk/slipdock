@@ -61,6 +61,24 @@ defmodule SlipdockWeb.BoardLive.MoveBoardComponent do
   def handle_event(_event, _params, socket),
     do: {:noreply, notice(socket, :error, "That isn't something this page can do.")}
 
+  # Both ends asked again, of the database (#2999): the picker was opened by a
+  # writer of the card, and can sit open while that is taken away; the
+  # target's struct is as old as the pick, and who owns it is on its row.
+  defp move_refused(user, card, target) do
+    card = Boards.Cards.get_card(card.id)
+
+    cond do
+      is_nil(card) or not Access.can_write?(Access.card_permission(user, card)) ->
+        "You have read-only access to that card."
+
+      not Access.can_write?(Access.board_permission_now(user, target)) ->
+        "You have read-only access to that board."
+
+      true ->
+        nil
+    end
+  end
+
   # The card panel stands aside while the picker is open, so the board is
   # told when it opens and closes.
   defp tell_moving(socket) do
@@ -136,8 +154,8 @@ defmodule SlipdockWeb.BoardLive.MoveBoardComponent do
       is_nil(column) ->
         {:noreply, socket}
 
-      not Access.can_write?(Access.board_permission(user, target)) ->
-        {:noreply, notice(socket, :error, "You have read-only access to that board.")}
+      refused = move_refused(user, card, target) ->
+        {:noreply, notice(socket, :error, refused)}
 
       true ->
         case Boards.Moves.move_card_to_board(card, column, actor: Slipdock.Actor.web(user)) do

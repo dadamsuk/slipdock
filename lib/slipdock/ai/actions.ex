@@ -110,7 +110,7 @@ defmodule Slipdock.AI.Actions do
       title == "" ->
         [failed("Create a card", "no title given")]
 
-      not Access.can_write?(Access.board_permission(scope[:user], board)) ->
+      may_create(board, scope) != :ok ->
         [failed("Create “#{title}”", "you have read-only access to this board")]
 
       true ->
@@ -136,7 +136,10 @@ defmodule Slipdock.AI.Actions do
 
           [
             step(label, fn ->
-              with {:ok, card} <- Boards.Cards.create_card(column, attrs),
+              # Asked again when it is applied: the proposal can be older
+              # than the reader's level on the board (#2999).
+              with :ok <- may_create(board, scope),
+                   {:ok, card} <- Boards.Cards.create_card(column, attrs),
                    {:ok, tags} <- ensure_tags(tags, card.board_id, scope) do
                 if tags != [], do: Boards.Cards.set_card_tags(card, tags)
                 :ok
@@ -357,10 +360,7 @@ defmodule Slipdock.AI.Actions do
          :ok <- authorize_page(page, scope) do
       [
         step("Archive the page “#{page.title}” (#{page.code})", fn ->
-          case Slipdock.Wiki.get_page(page.id) do
-            nil -> {:error, "the page no longer exists"}
-            fresh -> normalize_result(Slipdock.Wiki.archive_page(fresh))
-          end
+          archive_page(page, scope)
         end)
       ]
     else
@@ -370,6 +370,15 @@ defmodule Slipdock.AI.Actions do
 
   defp prepare_one(%{"type" => type}, _scope), do: [failed("#{type}", "unknown action")]
   defp prepare_one(_, _scope), do: [failed("(malformed action)", "no type given")]
+
+  # The page read again, and its reader asked again, as a card's step asks in
+  # `fresh/2`: the proposal can be older than their level (#2999).
+  defp archive_page(page, scope) do
+    with %{} = fresh <- Slipdock.Wiki.get_page(page.id) || {:error, "the page no longer exists"},
+         :ok <- authorize_page(fresh, scope) do
+      normalize_result(Slipdock.Wiki.archive_page(fresh))
+    end
+  end
 
   defp archive_step(id, scope) do
     with {:ok, card} <- find_card(id, scope),
@@ -909,6 +918,14 @@ defmodule Slipdock.AI.Actions do
   end
 
   defp find_page(_, _), do: {:error, "this page has no wiki to change"}
+
+  # The board's own row is read again: who owns it is on the row, and the
+  # scope's struct is as old as the page that opened the chat.
+  defp may_create(%Board{} = board, scope) do
+    if Access.can_write?(Access.board_permission_now(scope[:user], board)),
+      do: :ok,
+      else: {:error, "you have read-only access to this board"}
+  end
 
   defp authorize_page(page, scope) do
     if Access.can_write?(Access.page_permission(scope[:user], page)),
