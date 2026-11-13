@@ -9,26 +9,27 @@ defmodule Slipdock.GitignoreLinksTest do
   """
   use ExUnit.Case, async: true
 
+  alias Slipdock.ThrowawayGit
+
   @root Path.expand("../..", __DIR__)
   @shared ["deps", "_build"]
 
+  # A git hook or a worktree can leave GIT_DIR and friends set, which would
+  # point git at the real repository instead of the scratch one; the
+  # helper's ceiling doesn't cover a GIT_DIR given outright.
+  @unset_git_vars for var <- ~w(GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE), do: {var, nil}
+
   setup do
-    dir = Path.join(System.tmp_dir!(), "gitignore-links-#{System.unique_integer([:positive])}")
-    File.mkdir_p!(dir)
-    on_exit(fn -> File.rm_rf!(dir) end)
-    {"", 0} = git(dir, ["init", "-q"])
+    dir = ThrowawayGit.tmp_dir!("gitignore-links")
+    {"", 0} = ThrowawayGit.git(dir, ["init", "-q"], env: @unset_git_vars)
     %{dir: dir}
   end
 
-  # A git hook or a worktree can leave GIT_DIR and friends set, which would
-  # point these commands at the real repository instead of the scratch one.
-  defp git(dir, args) do
-    env = for var <- ~w(GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE), do: {var, nil}
-    System.cmd("git", args, cd: dir, env: env, stderr_to_stdout: true)
-  end
-
   defp untracked(dir) do
-    {out, 0} = git(dir, ["status", "--porcelain", "--untracked-files=all"])
+    {out, 0} =
+      ThrowawayGit.git(dir, ["status", "--porcelain", "--untracked-files=all"],
+        env: @unset_git_vars
+      )
 
     out
     |> String.split("\n", trim: true)
@@ -56,7 +57,8 @@ defmodule Slipdock.GitignoreLinksTest do
     assert untracked(dir) == [".gitignore"]
 
     for name <- @shared do
-      assert {_, 0} = git(dir, ["check-ignore", "-q", name]), "#{name} (a symlink) is not ignored"
+      assert {_, 0} = ThrowawayGit.git(dir, ["check-ignore", "-q", name], env: @unset_git_vars),
+             "#{name} (a symlink) is not ignored"
     end
   end
 
