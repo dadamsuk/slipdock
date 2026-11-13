@@ -17,6 +17,12 @@ on:
       suite:
         type: boolean
         default: true
+      # A release of a branch (#3010): the daemon on Linux alone. A called
+      # run keeps the caller's event, so a dispatched release read as a
+      # manual dispatch of this workflow and waited on GitHub's macOS.
+      release:
+        type: boolean
+        default: false
   # The daemon on macOS and Windows, nightly (#2832): a pull request runs it
   # on Linux alone.
   schedule:
@@ -84,6 +90,7 @@ jobs:
           BASE: ${{ github.event.pull_request.base.sha }}
           HEAD: ${{ github.event.pull_request.head.sha }}
           SUITE: ${{ inputs.suite }}
+          RELEASE: ${{ inputs.release }}
           CI_RUNNER: ${{ vars.CI_RUNNER }}
 
       - name: Install gitleaks
