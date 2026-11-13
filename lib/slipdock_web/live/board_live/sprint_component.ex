@@ -43,22 +43,27 @@ defmodule SlipdockWeb.BoardLive.SprintComponent do
   @impl true
   def update(assigns, socket) do
     %{board: board, current_user: user} = assigns
+    {:ok, socket |> assign(board: board, current_user: user) |> assign_access()}
+  end
+
+  # What the reader may do now. `update/2` runs only when the board hands
+  # the component something new, and a lowered grant changes nothing it
+  # hands over, so every event asks again before it is handled (#2771).
+  defp assign_access(socket) do
+    %{board: board, current_user: user} = socket.assigns
     perm = Access.board_permission(user, board)
 
-    {:ok,
-     assign(socket,
-       board: board,
-       current_user: user,
-       can_write: Access.can_write?(perm),
-       # The board's sprints are shown to those who can read the board, not
-       # to a guest shown one card or one saved view of it.
-       can_read: Access.can_read?(perm)
-     )}
+    assign(socket,
+      can_write: Access.can_write?(perm),
+      # The board's sprints are shown to those who can read the board, not
+      # to a guest shown one card or one saved view of it.
+      can_read: Access.can_read?(perm)
+    )
   end
 
   @impl true
   def handle_event(event, params, socket) when event in @events do
-    {:noreply, socket} = event(event, params, socket)
+    {:noreply, socket} = event(event, params, assign_access(socket))
     {:noreply, tell_picking(socket)}
   end
 
@@ -229,18 +234,21 @@ defmodule SlipdockWeb.BoardLive.SprintComponent do
       |> Enum.reject(&is_nil/1)
       |> Enum.filter(&Access.can_write?(Access.card_permission(user, &1)))
 
-    case Sprints.add_cards(p.sprint, cards, actor: Slipdock.Actor.web(user)) do
-      {:ok, %{added: added, skipped: skipped}} ->
-        {:noreply,
-         socket
-         |> assign(sprint_picker: nil)
-         |> flash(
-           if(added == [] and skipped != [], do: :error, else: :info),
-           sprint_added_message(p.sprint, added, skipped)
-         )}
-
-      {:error, message} ->
-        {:noreply, flash(socket, :error, message)}
+    # The sprint was the reader's to fill when the picker opened; it has to
+    # be still (#2771).
+    with true <- Access.can_write?(Access.card_permission(user, p.sprint)),
+         {:ok, %{added: added, skipped: skipped}} <-
+           Sprints.add_cards(p.sprint, cards, actor: Slipdock.Actor.web(user)) do
+      {:noreply,
+       socket
+       |> assign(sprint_picker: nil)
+       |> flash(
+         if(added == [] and skipped != [], do: :error, else: :info),
+         sprint_added_message(p.sprint, added, skipped)
+       )}
+    else
+      false -> {:noreply, flash(socket, :error, "You have read-only access to that sprint.")}
+      {:error, message} -> {:noreply, flash(socket, :error, message)}
     end
   end
 

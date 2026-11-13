@@ -127,9 +127,21 @@ defmodule SlipdockWeb.BoardPanelAccessLiveTest do
       assert html =~ "No archived cards."
     end
 
-    test "searches nothing" do
+    test "searches nothing", ctx do
+      {viewer, _saved} = viewer(ctx)
+
+      # The panel asks what its reader may do at every event (#2771), so the
+      # socket carries who is asking and about which board.
       socket = %Phoenix.LiveView.Socket{
-        assigns: %{__changed__: %{}, reader?: false, query: "", archived: []}
+        assigns: %{
+          __changed__: %{},
+          board: ctx.board,
+          current_user: viewer,
+          reader?: true,
+          can_write: true,
+          query: "",
+          archived: []
+        }
       }
 
       assert {:noreply, socket} =

@@ -21,17 +21,10 @@ defmodule SlipdockWeb.BoardLive.CardComponent.State do
   # typed into its pickers.
   @doc false
   def take(socket, given) do
-    %{card: current, board: board, current_user: user, swim: config, swim_view: view} =
-      socket.assigns
+    %{card: current, current_user: user} = socket.assigns
 
     same = match?(%Card{id: id} when id == given.id, current)
-    perm = Access.board_permission(user, board)
-
-    {readable, level} =
-      if given.board_id == board.id,
-        do: card_access(given, user, perm == :view, config, view),
-        else: {false, :none}
-
+    {readable, level, perm} = access(socket, given)
     writable = Access.can_write?(level)
 
     socket =
@@ -87,6 +80,50 @@ defmodule SlipdockWeb.BoardLive.CardComponent.State do
       )
     end
   end
+
+  # Whether the reader may see `given` now, at what level, and their level
+  # on the board.
+  defp access(socket, given) do
+    %{board: board, current_user: user, swim: config, swim_view: view} = socket.assigns
+    perm = Access.board_permission(user, board)
+
+    {readable, level} =
+      if given.board_id == board.id,
+        do: card_access(given, user, perm == :view, config, view),
+        else: {false, :none}
+
+    {readable, level, perm}
+  end
+
+  # What the reader may do with the open card now, and nothing at all once
+  # they may not see it. `update/2` takes a card only when the board hands
+  # the panel a changed one, and a lowered grant changes nothing it hands
+  # over, so every event (and every finished upload) asks again before it
+  # is let through (#2771).
+  @doc false
+  def assign_access(%{assigns: %{given: %Card{} = given, card: %Card{}}} = socket) do
+    case access(socket, given) do
+      {true, level, perm} ->
+        writable = Access.can_write?(level)
+
+        assign(socket,
+          can_write: writable,
+          can_comment: Access.can_comment?(level),
+          can_share: perm == :owner or writable
+        )
+
+      {false, _level, _perm} ->
+        assign(socket,
+          card: nil,
+          card_form: nil,
+          can_write: false,
+          can_comment: false,
+          can_share: false
+        )
+    end
+  end
+
+  def assign_access(socket), do: socket
 
   # The wiki pages that talk about this card, pinned first (see
   # `Slipdock.Wiki.Links`), and who it is shared with.

@@ -186,29 +186,27 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
   end
 
   # Called as each chunk lands; stores the file once the whole upload is in.
+  defp handle_upload(_name, %{done?: false}, socket), do: {:noreply, socket}
+
   defp handle_upload(name, entry, socket) do
+    socket = State.assign_access(socket)
     card = socket.assigns.card
 
-    cond do
-      not entry.done? ->
-        {:noreply, socket}
+    if is_nil(card) or not socket.assigns.can_write do
+      {:noreply, cancel_upload(socket, name, entry.ref)}
+    else
+      meta = %{
+        filename: entry.client_name,
+        content_type: entry.client_type,
+        size: entry.client_size
+      }
 
-      is_nil(card) or not socket.assigns.can_write ->
-        {:noreply, cancel_upload(socket, name, entry.ref)}
+      result =
+        consume_uploaded_entry(socket, entry, fn %{path: path} ->
+          {:ok, Boards.Attachments.add_attachment(card, meta, path)}
+        end)
 
-      true ->
-        meta = %{
-          filename: entry.client_name,
-          content_type: entry.client_type,
-          size: entry.client_size
-        }
-
-        result =
-          consume_uploaded_entry(socket, entry, fn %{path: path} ->
-            {:ok, Boards.Attachments.add_attachment(card, meta, path)}
-          end)
-
-        {:noreply, uploaded(socket, name, result)}
+      {:noreply, uploaded(socket, name, result)}
     end
   end
 
@@ -218,21 +216,24 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
   def handle_event(event, _params, socket) when event not in @events,
     do: {:noreply, notice(socket, :error, "That isn't something this page can do.")}
 
-  def handle_event(_event, _params, %{assigns: %{card: nil}} = socket), do: {:noreply, socket}
+  def handle_event(event, params, socket),
+    do: guarded(event, params, State.assign_access(socket))
 
-  def handle_event(event, _params, %{assigns: %{can_share: false}} = socket)
-      when event in @share_events,
-      do: {:noreply, notice(socket, :error, "You can't share that.")}
+  defp guarded(_event, _params, %{assigns: %{card: nil}} = socket), do: {:noreply, socket}
 
-  def handle_event(event, params, %{assigns: %{can_comment: true}} = socket)
-      when event in @comment_events,
-      do: dispatch(event, params, clear_notice(socket))
+  defp guarded(event, _params, %{assigns: %{can_share: false}} = socket)
+       when event in @share_events,
+       do: {:noreply, notice(socket, :error, "You can't share that.")}
 
-  def handle_event(event, _params, %{assigns: %{can_write: false}} = socket)
-      when event not in @read_events and event not in @share_events,
-      do: {:noreply, notice(socket, :error, read_only_message(socket))}
+  defp guarded(event, params, %{assigns: %{can_comment: true}} = socket)
+       when event in @comment_events,
+       do: dispatch(event, params, clear_notice(socket))
 
-  def handle_event(event, params, socket), do: dispatch(event, params, clear_notice(socket))
+  defp guarded(event, _params, %{assigns: %{can_write: false}} = socket)
+       when event not in @read_events and event not in @share_events,
+       do: {:noreply, notice(socket, :error, read_only_message(socket))}
+
+  defp guarded(event, params, socket), do: dispatch(event, params, clear_notice(socket))
 
   # Auto generate's draft (#1099), into the form if it is still open.
   @impl true

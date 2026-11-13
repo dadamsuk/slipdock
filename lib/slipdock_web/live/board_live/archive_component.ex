@@ -36,18 +36,20 @@ defmodule SlipdockWeb.BoardLive.ArchiveComponent do
         do: socket.assigns.query,
         else: assigns[:query] || ""
 
-    perm = Access.board_permission(user, board)
-
     {:ok,
      socket
-     |> assign(
-       board: board,
-       close_path: assigns.close_path,
-       reader?: Access.can_read?(perm),
-       can_write: Access.can_write?(perm),
-       query: query
-     )
+     |> assign(board: board, current_user: user, close_path: assigns.close_path, query: query)
+     |> assign_access()
      |> list_archived()}
+  end
+
+  # What the reader may do now. `update/2` runs only when the board hands
+  # the panel something new, and a lowered grant changes nothing it hands
+  # over, so every event asks again before it is let through (#2771).
+  defp assign_access(socket) do
+    %{board: board, current_user: user} = socket.assigns
+    perm = Access.board_permission(user, board)
+    assign(socket, reader?: Access.can_read?(perm), can_write: Access.can_write?(perm))
   end
 
   defp list_archived(%{assigns: %{reader?: false}} = socket), do: assign(socket, archived: [])
@@ -62,17 +64,24 @@ defmodule SlipdockWeb.BoardLive.ArchiveComponent do
   def handle_event(event, _params, socket) when event not in @events,
     do: {:noreply, flash(socket, :error, "That isn't something this page can do.")}
 
-  def handle_event(_event, _params, %{assigns: %{reader?: false}} = socket),
-    do: {:noreply, flash(socket, :error, "You don't have access to this board's archive.")}
+  def handle_event(event, params, socket), do: guarded(event, params, assign_access(socket))
+
+  # A reader who has lost the board since the panel opened keeps no list.
+  defp guarded(_event, _params, %{assigns: %{reader?: false}} = socket) do
+    {:noreply,
+     socket
+     |> list_archived()
+     |> flash(:error, "You don't have access to this board's archive.")}
+  end
 
   # Looking is reading, so searching is open to read-only access too.
-  def handle_event("filter_archived", %{"q" => q}, socket),
+  defp guarded("filter_archived", %{"q" => q}, socket),
     do: {:noreply, socket |> assign(query: q) |> list_archived()}
 
-  def handle_event(_event, _params, %{assigns: %{can_write: false}} = socket),
+  defp guarded(_event, _params, %{assigns: %{can_write: false}} = socket),
     do: {:noreply, flash(socket, :error, "You have read-only access to this board.")}
 
-  def handle_event(event, params, socket), do: event(event, params, socket)
+  defp guarded(event, params, socket), do: event(event, params, socket)
 
   defp event("restore_card", %{"id" => id}, socket) do
     case Boards.Cards.get_archived_card(socket.assigns.board.id, id) do

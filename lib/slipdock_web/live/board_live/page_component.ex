@@ -52,8 +52,7 @@ defmodule SlipdockWeb.BoardLive.PageComponent do
         close_path: assigns.close_path,
         # Another page starts its panel without the last one's notice.
         panel_notice:
-          if(page_id == socket.assigns[:page_id], do: socket.assigns.panel_notice, else: nil),
-        board_can_write: Access.can_write?(Access.board_permission(user, board))
+          if(page_id == socket.assigns[:page_id], do: socket.assigns.panel_notice, else: nil)
       )
 
     {:ok, load(socket)}
@@ -62,28 +61,48 @@ defmodule SlipdockWeb.BoardLive.PageComponent do
   # The page as it is now, and what this reader may do with it: nothing at
   # all unless they may see the page itself.
   defp load(socket) do
-    %{board: board, current_user: user, page_id: page_id} = socket.assigns
+    %{board: board, page_id: page_id} = socket.assigns
 
-    with {:ok, page} <- load_placed_page(board, page_id),
-         level = Access.page_permission(user, page),
-         true <- Wiki.visible?(page, level) do
+    case load_placed_page(board, page_id) do
+      {:ok, page} ->
+        socket
+        |> assign(item: page, form: to_form(Wiki.change_page(page, %{})))
+        |> assign_access()
+
+      _ ->
+        socket |> assign(item: nil) |> assign_access()
+    end
+  end
+
+  # What the reader may do with the page now, and nothing at all once they
+  # may not see it. `update/2` runs only when the board hands the panel
+  # something new, and a lowered grant changes nothing it hands over, so
+  # every event asks again before it is let through (#2771).
+  defp assign_access(%{assigns: %{item: %Wiki.Page{} = page}} = socket) do
+    %{board: board, current_user: user} = socket.assigns
+    level = Access.page_permission(user, page)
+
+    if Wiki.visible?(page, level) do
       assign(socket,
-        item: page,
-        form: to_form(Wiki.change_page(page, %{})),
         can_read: true,
         can_write: Access.can_write?(level),
-        can_comment: Access.can_comment?(level)
+        can_comment: Access.can_comment?(level),
+        board_can_write: Access.can_write?(Access.board_permission(user, board))
       )
     else
-      _ ->
-        assign(socket,
-          item: nil,
-          form: nil,
-          can_read: false,
-          can_write: false,
-          can_comment: false
-        )
+      socket |> assign(item: nil) |> assign_access()
     end
+  end
+
+  defp assign_access(socket) do
+    assign(socket,
+      item: nil,
+      form: nil,
+      can_read: false,
+      can_write: false,
+      can_comment: false,
+      board_can_write: false
+    )
   end
 
   # Something about the page changed: the board shows it too.
@@ -96,18 +115,20 @@ defmodule SlipdockWeb.BoardLive.PageComponent do
   def handle_event(event, _params, socket) when event not in @events,
     do: {:noreply, notice(socket, :error, "That isn't something this page can do.")}
 
-  def handle_event(event, _params, %{assigns: %{item: nil}} = socket) when event != "close_page",
+  def handle_event(event, params, socket), do: guarded(event, params, assign_access(socket))
+
+  defp guarded(event, _params, %{assigns: %{item: nil}} = socket) when event != "close_page",
     do: {:noreply, socket}
 
-  def handle_event(event, params, %{assigns: %{can_comment: true}} = socket)
-      when event in @comment_events,
-      do: dispatch(event, params, clear_notice(socket))
+  defp guarded(event, params, %{assigns: %{can_comment: true}} = socket)
+       when event in @comment_events,
+       do: dispatch(event, params, clear_notice(socket))
 
-  def handle_event(event, _params, %{assigns: %{can_write: false}} = socket)
-      when event not in @read_events,
-      do: {:noreply, notice(socket, :error, "You have read-only access to that page.")}
+  defp guarded(event, _params, %{assigns: %{can_write: false}} = socket)
+       when event not in @read_events,
+       do: {:noreply, notice(socket, :error, "You have read-only access to that page.")}
 
-  def handle_event(event, params, socket), do: dispatch(event, params, clear_notice(socket))
+  defp guarded(event, params, socket), do: dispatch(event, params, clear_notice(socket))
 
   defp dispatch(event, params, socket) do
     if Enum.member?(@own_events, event),
