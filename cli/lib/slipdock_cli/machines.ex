@@ -245,12 +245,17 @@ defmodule SlipdockCLI.Machines do
     |> Enum.flat_map(fn key ->
       case o[key] do
         nil -> []
-        value -> [{if(key == :dir, do: "directory", else: Atom.to_string(key)), value}]
+        value -> [{if(key == :dir, do: "directory", else: Atom.to_string(key)), text(key, value)}]
       end
     end)
     |> Map.new()
     |> worktree(o[:worktree])
   end
+
+  # A runner's instructions are often several lines: `-` reads them from
+  # stdin (#2765), as the other free-text switches do (#2678).
+  defp text(:instructions, value), do: stdin_arg(value, "--instructions")
+  defp text(_key, value), do: value
 
   # A container runner runs as its image, and says when its network is off.
   defp runs_as(%{"executor" => "container", "image" => image} = c) do

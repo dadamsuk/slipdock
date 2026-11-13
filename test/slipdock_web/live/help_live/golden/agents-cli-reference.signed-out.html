@@ -4816,11 +4816,11 @@ sprint</span>
 <span class="inline-block max-w-full">
 [--days N]</span>
 <span class="inline-block max-w-full">
-[--goal TEXT]</span>
+[--goal TEXT|-]</span>
 </code>
 </dt>
 <dd class="mt-1 break-words text-sm text-base-content/70">
-start the next sprint on a sprint board: a dated card (&quot;Sprint 4&quot;, following on from the last, 14 days unless told) with its own board of subcards</dd>
+start the next sprint on a sprint board: a dated card (&quot;Sprint 4&quot;, following on from the last, 14 days unless told) with its own board of subcards (--goal - reads the goal from stdin)</dd>
 </div>
 <div class="min-w-0 py-3" data-role="cli-command">
 <dt>
@@ -5433,13 +5433,13 @@ set-automation</span>
 <span class="inline-block max-w-full">
 [--spec JSON]</span>
 <span class="inline-block max-w-full">
-[--text &quot;...&quot;]</span>
+[--text &quot;...&quot;|-]</span>
 <span class="inline-block max-w-full">
 [--tree|--no-tree]</span>
 </code>
 </dt>
 <dd class="mt-1 break-words text-sm text-base-content/70">
-also watch subcards, or not</dd>
+also watch subcards, or not (--text - reads the rule&#39;s words from stdin)</dd>
 </div>
 <div class="min-w-0 py-3" data-role="cli-command">
 <dt>
@@ -5765,7 +5765,7 @@ P</span>
 <span class="inline-block max-w-full">
 [--verbosity nothing|quiet|normal|verbose]</span>
 <span class="inline-block max-w-full">
-[--instructions TEXT]</span>
+[--instructions TEXT|-]</span>
 <span class="inline-block max-w-full">
 [--before-job CMD]</span>
 <span class="inline-block max-w-full">
@@ -5988,7 +5988,8 @@ add a runner to the machine for a board it serves: --name, --agent, --permission
 <dd class="mt-2 min-w-0">
 <pre class="overflow-x-auto rounded-xl bg-base-200 px-3 py-2 font-mono text-xs leading-relaxed">
 --timeout-minutes, --model, --executor,
---[no-]worktree, --verbosity, --instructions,
+--[no-]worktree, --verbosity, --instructions
+(- reads them from stdin, lines and all),
 --before-hook/--after-hook/--probe-hook (names
 the machine defines), --image and --network
 on|off (executor container: the machine runs
@@ -6285,7 +6286,7 @@ waiting</span>
 </code>
 </dt>
 <dd class="mt-1 break-words text-sm text-base-content/70">
-ask a person and park the job in one step; the answer sends the card again</dd>
+ask a person and park the job in one step; the answer sends the card again (--needs - reads the question from stdin)</dd>
 </div>
 <div class="min-w-0 py-3" data-role="cli-command">
 <dt>

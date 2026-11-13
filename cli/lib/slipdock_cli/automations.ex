@@ -91,7 +91,7 @@ defmodule SlipdockCLI.Automations do
         "enabled" => cond_bool(o[:on], o[:off]),
         "name" => o[:name],
         "spec" => o[:spec] && spec_json(o[:spec]),
-        "text" => o[:text],
+        "text" => stdin_arg(o[:text], "--text"),
         "scope" => scope_of(o[:tree])
       })
 

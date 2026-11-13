@@ -56,4 +56,16 @@ defmodule SlipdockCLI.HelpTextTest do
     assert @file_text =~ "(--summary -\n"
     assert @file_text =~ "[--desc TEXT|-]"
   end
+
+  test "help says - reads stdin for the last four free-text switches (#2765)" do
+    assert @file_text =~ "[--instructions TEXT|-]"
+
+    assert @file_text =~
+             "--instructions\n" <> String.duplicate(" ", 49) <> "(- reads them from stdin"
+
+    assert @file_text =~ "(--text - reads the rule's words from stdin)"
+    assert @file_text =~ "(--needs -\n"
+    assert @file_text =~ "[--goal TEXT|-]"
+    assert @file_text =~ "(--goal - reads\n"
+  end
 end
