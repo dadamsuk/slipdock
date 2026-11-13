@@ -252,6 +252,26 @@ defmodule SlipdockWeb.PanelGrantLoweredLiveTest do
       assert has_element?(ctx.view, "#attach-form")
     end
 
+    # The panel checks again only for the card it holds: news of another
+    # card's access leaves it as it was, lowered grant and all. A recheck
+    # there would take the form away; no clause for it would end the view.
+    # The other card is only an id: making one would tell the board, whose
+    # reload asks the panel about the open card.
+    test "stay when the panel is told of another card's access", ctx do
+      lower(:untold, ctx)
+
+      Phoenix.LiveView.send_update(ctx.view.pid, SlipdockWeb.BoardLive.CardComponent,
+        id: "card-panel",
+        access_changed: ctx.card.id + 1
+      )
+
+      settle(ctx.view)
+
+      assert Process.alive?(ctx.view.pid)
+      assert has_element?(ctx.view, "#attach-form")
+      assert has_element?(ctx.view, "#card-modal", "Open card")
+    end
+
     # The upload is driven through `#attach-form`, so it has to be started
     # while the form is there: a lowering the board is never told of leaves
     # it, and the upload finishes against the panel's own check (#2771).
