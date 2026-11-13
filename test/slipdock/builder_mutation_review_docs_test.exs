@@ -22,7 +22,7 @@ defmodule Slipdock.BuilderMutationReviewDocsTest do
     "lib/slipdock_web/live/help_live/flow.ex"
   ]
 
-  defp read(path), do: @root |> Path.join(path) |> File.read!() |> unwrap()
+  defp read(path), do: @root |> Path.join(path) |> Slipdock.DocsText.read!() |> unwrap()
 
   # Hard-wrapped prose and comment-column text read as one line, and the
   # help page's entities as the characters they stand for.

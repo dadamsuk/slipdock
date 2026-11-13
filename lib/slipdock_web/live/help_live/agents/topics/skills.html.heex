@@ -1,0 +1,162 @@
+<.part title="How they work">
+  <p>
+    A skill is a Markdown file of instructions that an agent loads when the task matches.
+    The guide tells an agent how to make each call; the skills tell it how to work well:
+    what to pick up next, what belongs on the wiki rather than in a comment, and how to
+    leave a record someone will want to read.
+  </p>
+  <p>
+    They contain nothing about your own boards. Board names, lists and tags come from the
+    guide for each caller, so renaming a list never makes a skill wrong.
+  </p>
+</.part>
+
+<.part title="What you get" id="help-skills-list">
+  <ul class="space-y-1">
+    <li><code>slipdock</code>: the command and API reference.</li>
+    <li>
+      <code>slipdock-work</code>: working from a board, with epics, subcards and what to pick up next.
+    </li>
+    <li><code>slipdock-wiki</code>: finding, reading, writing and linking wiki pages.</li>
+    <li><code>slipdock-docs</code>: what's worth writing down, and where it belongs.</li>
+    <li>
+      <code>slipdock-plan</code>: planning. Asked to plan ("I want to build…", "break this
+      into cards"), it follows the board's handbook Playbook: it sizes the ask as a card,
+      a feature or a system, then runs the stages that size takes (grill, spike, decide,
+      principles, spec, cards) and writes Decisions, Principles, the spec on the epic and
+      the cards. A question only building can answer becomes a <code>spike</code>
+      subcard you confirm, and planning stops until the spikes are answered: the
+      server then asks you to resume, and the Spec is written from their answers. A one-sentence ask stays one card, and a board with no handbook is
+      offered one. For a stage whose Playbook section names a skill
+      (<code>skill: grilling</code>), it uses the one enabled on the board from the
+      <.link navigate={~p"/skills"} class="link">skills registry</.link>
+      (its pinned text, from <code>slipdock skills board</code>), else one installed
+      on the machine, else its own text, and says which.
+    </li>
+    <li>
+      <code>slipdock-loop</code>: working the To Do list unattended, one card per pass, from
+      <code>/loop</code>
+      or a schedule. It watches the build after each push and never closes a card while the build is red.
+    </li>
+  </ul>
+</.part>
+
+<.part title="Install them for Claude Code" id="help-skills-install">
+  <p>
+    Into <code>~/.claude/skills</code>, on any machine with <code>curl</code>
+    and <code>tar</code>. This installs the skills only; the CLI is <code>/cli/install.sh</code>.
+    This also saves this server's address in <code>~/.config/slipdock/url</code>. It
+    doesn't sign anything in.
+  </p>
+  <.snippet id="help-skills-sh" text={"curl -fsSL #{@base_url}/install.sh | sh"} />
+  <p>On Windows, in PowerShell (not WSL, whose home folder Claude on Windows doesn't read):</p>
+  <.snippet id="help-skills-ps" text={"irm #{@base_url}/install.ps1 | iex"} />
+  <p>
+    Want to read the script first? <code>curl {@base_url}/install.sh</code>
+    prints it. The skills are also available as
+    <a href={~p"/api/skills.tar.gz"} class="link">a tar.gz</a>
+    and as <a href={~p"/api/skills"} class="link">a JSON listing</a>. They're versioned with this
+    server, and <code>slipdock skills check</code>
+    tells you if your copy is out of date.
+  </p>
+</.part>
+
+<.part title="For ChatGPT" id="help-skills-chatgpt">
+  <p>
+    ChatGPT can't run commands, so each skill also comes as a zip that names the
+    <.link patch={~p"/help/agents/mcp"} class="link">MCP</.link>
+    tool to use instead of each command. Connect ChatGPT to <code>{@base_url}/mcp</code>
+    first, then upload the zips you want:
+  </p>
+  <ul class="list-disc space-y-1 pl-5">
+    <li :for={skill <- Slipdock.Skills.ChatGPT.list()}>
+      <a href={~p"/api/skills/#{skill.name}/chatgpt.zip"} class="link" download>
+        {skill.name}.zip
+      </a>
+    </li>
+  </ul>
+  <p>
+    There's no <code>slipdock-loop</code> zip, because that skill commits, pushes and
+    watches builds, and a chat can't do any of those.
+  </p>
+</.part>
+
+<.part title="Skills that come with a Tool" id="help-skills-tools">
+  <p>
+    A <.link navigate={~p"/help/tools"} class="link">Tool</.link>
+    brings skills of its own, alongside a board. Its page has them for each client: one
+    command for Claude Code (<code>slipdock tools install &lt;name&gt;</code>), and a zip
+    per skill for claude.ai's and ChatGPT's skill upload. A Tool's setup skill calls
+    <code>install_tool</code>
+    over MCP, which has the server build the board — lists, folders, tags, page skeletons
+    and rules — and answers with its code; the skill then fills the pages in with you.
+    <code>list_tools</code>
+    says which Tools you can install and which board each install made, which is how a
+    Tool's skills find their board; with <code>file</code>
+    it reads one file of the Tool, from its newest version, so a skill can fetch its
+    own steps as it runs (<code>skill</code>
+    alone reads that skill's SKILL.md), and with <code>link: true</code>
+    it gives a single-use download link to the file, the skill's zip or every skill
+    at once, for a shell with no API token; <code>package: true</code>
+    links the whole package instead, every file at its path, which
+    <code>slipdock tools download</code>
+    also saves.
+  </p>
+  <p>
+    A Tool is a folder with <code>tool.json</code>, <code>README.md</code>, an optional <code>board.json</code>,
+    <code>skills/&lt;name&gt;/SKILL.md</code>
+    and an optional <code>files/</code>, published with <code>slipdock tools publish</code>.
+    <.link navigate={~p"/help/tools#tools-format"} class="link">The package</.link>
+    has the details.
+  </p>
+</.part>
+
+<.part title="Names worth keeping" id="help-names">
+  <p>
+    The skills and the guide ask for card titles of about 60 characters at most, a
+    series as <code>&lt;Series&gt; &lt;n&gt;: &lt;what&gt;</code>, with the detail in
+    the description. A title becomes a folder in a synced vault, and a page written
+    for a card sits in that folder, so it needn't repeat the card's title.
+  </p>
+</.part>
+
+<.part title="The handbook" id="help-handbook">
+  <p>
+    One Tool is built in. <code>slipdock tools install-board handbook --board B</code>
+    (or <code>install_tool</code>
+    with <code>board</code>) gives a board's root a <code>Handbook/</code>
+    folder: pages for {handbook_pages()}, one page per
+    decision, and an Index that lists them, plus a card that drafts them from the code and a weekly one that
+    catches drift.
+  </p>
+  <p>
+    You write no instructions for it. On that board every card a pass reads
+    (<code>slipdock card</code>, <code>get_card</code>) carries a <strong>Handbook</strong>
+    block: the sections to read before building, picked from the card's title,
+    description and the paths it names. Before closing, the loop runs a docs gate
+    against the diff and leaves a <code>Handbook:</code>
+    line in its closing comment — what it updated, or <code>no change (why)</code>.
+    <code>slipdock handbook &lt;board&gt;</code>
+    prints the index.
+  </p>
+  <p id="help-handbook-docs-places">
+    The rule that a change is written up everywhere a reader would look (<code>SPEC-10</code>)
+    is checked by enumeration, not judged. For a card whose paths fall in its scope, the
+    verifier takes the names the diff introduces or alters (commands, flags, tool names,
+    settings, page names), greps them across the seven places (the README, the manual, this
+    help, <code>docs/agents.md</code>, the API guide and the skills) and gives each one
+    result: updated, deferred to a card whose bar names that place, not applicable with why,
+    or missing. One missing is the rule broken. The builder is told the same, so a place its
+    lane can't reach goes on the deferral card's bar by name; a deferral whose bar doesn't
+    list the place doesn't count.
+  </p>
+  <p id="help-audit-misses">
+    On a board that audits accepted work (<em>Audit 1 in N accepted cards</em>), the
+    verifier's prompt also carries <strong>what audits on this board caught recently</strong>: the last five audit disagreements of the last 30 days, newest first, each the
+    rework card's title and the parts it failed. The verifier is told to check those first
+    on the card in front of it. A miss stays on the list after its rework is done, since
+    the lesson is the miss, and keeps the date the audit disagreed even when its finding is
+    triaged. The audit's own prompt never carries the list, so an auditor
+    judges afresh.
+  </p>
+</.part>

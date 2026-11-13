@@ -1,0 +1,100 @@
+<.part title="Ready-made rules" id="automations-presets">
+  <p>
+    Every board has an <strong>Automations</strong>
+    panel, in the board's menu, for its owner. It opens with a gallery of the rules most
+    boards want, each set up with a short form. These need no AI model:
+  </p>
+  <ul class="list-disc space-y-1 pl-5">
+    <li>
+      <strong>Follow</strong>: new cards, a list, one card, comments, a field changing, cards assigned to you.
+    </li>
+    <li><strong>Remind</strong>: due soon, overdue, or untouched for a number of days.</li>
+    <li>
+      <strong>Tidy</strong>: complete cards that reach Done, archive old ones, let a tag set the
+      priority, and a <em>Weekly tidy-up</em>
+      that looks the board over and alerts you to what <em>Tidy up…</em>
+      found, changing nothing.
+    </li>
+    <li>
+      <strong>Connect</strong>: call a URL on every change (a <.link
+        patch={~p"/help/agents/webhooks"}
+        class="link"
+      >webhook</.link>).
+    </li>
+  </ul>
+</.part>
+
+<.part title="Rules in your own words" id="automations-words">
+  <p>Or describe a rule in a sentence:</p>
+  <.snippet
+    id="help-automations-example"
+    text="automatically move cards in In Progress to Backlog if they've not been touched for 7 days"
+  />
+  <p>
+    A model turns the sentence into a rule once, and the app runs that rule from then on.
+    The panel reads the rule back to you as a sentence, so you can check it says what you
+    meant. Anything the model makes up that the app doesn't support is rejected before the
+    rule is saved.
+  </p>
+</.part>
+
+<.part title="Triggers, conditions and actions" id="automations-parts">
+  <ul class="list-disc space-y-1 pl-5">
+    <li>
+      <strong>Triggers</strong>: a card is created, arrives in a list, moves, changes, is
+      completed, assigned, tagged, flagged or commented on; or, on a clock, it's
+      untouched, due soon, overdue, starting soon, or it's a time of day.
+    </li>
+    <li>
+      <strong>Conditions</strong>: the list, priority, tag, assignee, flag, dates, health,
+      age, a card's bar, paths, profile and verification, and more.
+    </li>
+    <li>
+      <strong>Actions</strong>: send an email, raise an alert, move, set priority, tag,
+      flag, assign, comment, set dates, complete or archive, add checklist items, set the
+      card's bar, paths or profile, create a card, start a wiki page, call a URL, or send
+      the card to a <.link patch={~p"/help/agents/runners"} class="link">runner</.link>
+      for an AI agent to work.
+    </li>
+  </ul>
+  <p>
+    Text in an action can include details of the card, such as <code>{"{{card.title}}"}</code>
+    or <code>{"{{card.url}}"}</code>.
+  </p>
+  <p>
+    The checks on agents' work don't hold a rule: like you, it can change a card's bar after
+    work has started, or lower its profile.
+  </p>
+</.part>
+
+<.part title="From an agent" id="automations-agents">
+  <p>
+    The board's owner can also have an AI agent list, add, change, switch off and delete
+    rules, over <.link patch={~p"/help/agents/mcp"} class="link">MCP</.link>
+    or with the <.link patch={~p"/help/agents/cli"} class="link">CLI</.link>. An agent can
+    write a rule exactly, start from a ready-made one, or describe it in a sentence as you would.
+  </p>
+</.part>
+
+<.part title="Alerts" id="automations-alerts">
+  <p>
+    An alert is the quiet option: no email, just a line in the header of every page,
+    with a count and how urgent it is. Each person dismisses their own alerts, and you
+    only see alerts from boards you can read.
+  </p>
+</.part>
+
+<.part title="Safety rails" id="automations-limits">
+  <ul class="list-disc space-y-1 pl-5">
+    <li>Automation email only goes to people who can read the board.</li>
+    <li>
+      One rule's changes can set off another, but the chain stops after three steps, so
+      two rules can't bounce a card back and forth forever.
+    </li>
+    <li>
+      Each rule shows how often it has run and what went wrong last time. Rules can be
+      switched off, reworded or run by hand.
+    </li>
+    <li>Recent callbacks lists what each call to a URL got back.</li>
+  </ul>
+</.part>

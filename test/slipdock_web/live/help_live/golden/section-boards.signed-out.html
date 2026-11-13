@@ -1,0 +1,802 @@
+<div phx-r="" id="help" class="kanban-scroll h-full overflow-y-auto">
+<div phx-r="" data-page-width="standard" class="mx-auto w-full px-4 py-6 sm:px-6 sm:py-10 max-w-5xl space-y-8">
+<nav phx-r="" id="help-sections-nav" aria-label="Help sections" class="flex gap-1 overflow-x-auto rounded-2xl bg-base-100 p-1 text-sm shadow-sm ring-1 ring-base-content/10">
+<a phx-r="" href="/help" data-phx-link="patch" data-phx-link-state="push" class="flex items-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+<span phx-r="" class="hero-arrow-left size-4">
+</span>
+ Help
+  </a>
+<a phx-r="" href="/help/boards" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium bg-primary/10 text-primary" aria-current="page">
+
+  Boards
+</a>
+<a phx-r="" href="/help/wiki" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+  Wiki
+</a>
+<a phx-r="" href="/help/sharing" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+  Sharing
+</a>
+<a phx-r="" href="/help/email" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+  Email
+</a>
+<a phx-r="" href="/help/automations" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+  Automations
+</a>
+<a phx-r="" href="/help/tools" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+  Tools
+</a>
+<a phx-r="" href="/help/ai" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+  AI
+</a>
+<a phx-r="" href="/help/agents" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+  Agents
+</a>
+</nav>
+<article phx-r="" id="help-section-boards" class="space-y-6">
+<header class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+<header phx-r="" id="page-header" data-role="page-header" class="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-3 ">
+<div class="min-w-0">
+<h1 class="page-title">
+<span class="mr-2 inline-flex align-middle">
+<span phx-r="" class="hero-view-columns size-6 text-primary">
+</span>
+</span>
+Boards
+    </h1>
+<p data-role="page-subtitle" class="mt-1 max-w-2xl text-sm text-base-content/60">
+
+      Boards hold lists and lists hold cards. Any card can have subcards of its own, so a board can be a plan, a backlog, a sprint or a roadmap.
+    </p>
+</div>
+</header>
+<ul class="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm">
+<li>
+<a href="#boards-basics" class="link">
+Boards, lists and cards</a>
+</li>
+<li>
+<a href="#boards-subcards" class="link">
+Subcards and epics</a>
+</li>
+<li>
+<a href="#boards-waiting" class="link">
+Waiting on you</a>
+</li>
+<li>
+<a href="#boards-desktop-notifications" class="link">
+Desktop notifications</a>
+</li>
+<li>
+<a href="#boards-views" class="link">
+Views</a>
+</li>
+<li>
+<a href="#boards-card-views" class="link">
+Card views</a>
+</li>
+<li>
+<a href="#boards-planning" class="link">
+Planning</a>
+</li>
+<li>
+<a href="#boards-fast" class="link">
+Getting around fast</a>
+</li>
+<li>
+<a href="#boards-moving" class="link">
+Templates, moving and archiving</a>
+</li>
+</ul>
+</header>
+<section phx-r="" id="boards-basics" class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+<h2 class="section-title">
+Boards, lists and cards</h2>
+<div class="help-prose mt-2 space-y-3 text-sm text-base-content/70">
+<p phx-r="">
+
+    A board is a set of lists (columns), and each list holds cards that you drag
+    between and within lists. Every board also has a short <strong>
+code</strong>
+, such
+    as <code>
+qvm-v1-rem</code>
+, that names it in links, the API and the CLI.
+  </p>
+<p phx-r="">
+A card can carry:</p>
+<ul phx-r="" class="list-disc space-y-1 pl-5">
+<li>
+a Markdown description, a checklist and comments</li>
+<li>
+a priority from low to critical, a start date and a due date</li>
+<li>
+flags: flagged, blocked, needs review, waiting, starred, stuck</li>
+<li>
+tags, one or more assignees, a cover colour, web links and attachments</li>
+<li>
+a timer, with time spent against an estimate</li>
+</ul>
+<p phx-r="" id="help-flag-attention">
+
+    A flag says who clears it. <strong>
+Filled</strong>
+, with a solid icon (and a
+    raised hand on the open card), means nothing on the board will clear it: a
+    person has to act. <strong>
+Outline only</strong>
+, and <em>
+clears itself</em>
+
+    on the open card, means something already in motion will: a blocked card
+    whose blocker is still open is unblocked when that card is done, and a card
+    awaiting verification on a board with a verify pool is decided by a verifier
+    agent. Waiting, flagged and stuck always need a person; a starred card asks
+    nothing of anyone. Hover a flag to see who clears it.
+  </p>
+<p phx-r="">
+<code>
+@name</code>
+ in a description or comment mentions someone who can see the
+    board, and they get an email (and a desktop notification, if they have those on). Lists can have a colour, a WIP limit, and their own
+    sort order or grouping.
+  </p>
+<p phx-r="" id="help-card-authors">
+
+    Under a card&#39;s properties, <strong>
+Created by</strong>
+
+    says who made it and <strong>
+Last changed by</strong>
+
+    who touched it last (an edit, a move, a comment, a
+    checklist item, an attachment or a flag) and when. That can be a person, a runner
+    loop by its runner&#39;s name (&quot;Dev server loop&quot;), an agent by its token&#39;s label, or
+    an automation rule by its name. When nobody was recorded, as on cards older than
+    this, only the time is shown.
+  </p>
+</div>
+</section>
+<section phx-r="" id="boards-subcards" class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+<h2 class="section-title">
+Subcards and epics</h2>
+<div class="help-prose mt-2 space-y-3 text-sm text-base-content/70">
+<p phx-r="">
+
+    Any card can have subcards. It becomes a board of its own, with lists from a
+    template, and those subcards can have subcards too, to any depth. A common pattern
+    is for top-level cards to be <strong>
+epics</strong>
+ and their subcards to be the actual tasks.
+  </p>
+<p phx-r="">
+
+    Each card summarises everything beneath it: how many tasks are done, the earliest
+    start and latest due date, whether anything below is blocked or overdue, and a
+    health state. <span phx-r="" class="font-medium text-base-content">
+My work</span>
+
+    lists everything assigned to you across every board and level, after what is waiting
+    on you: the overseer&#39;s alerts first, when a board has it on (Automations, Overseer).
+    Open cards with no due date aren&#39;t listed there; its header says how many there are,
+    and completed ones are under Show completed. The API, the CLI, the MCP tools and the
+    AI chat still see every assigned card.
+  </p>
+<p phx-r="">
+
+    Cards can also <strong>
+depend</strong>
+
+    on each other (&quot;blocked by&quot; and &quot;blocks&quot;). A card waiting on unfinished work shows a
+    blocked badge.
+  </p>
+</div>
+</section>
+<section phx-r="" id="boards-waiting" class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+<h2 class="section-title">
+Waiting on you</h2>
+<div class="help-prose mt-2 space-y-3 text-sm text-base-content/70">
+<p phx-r="">
+<span phx-r="" class="font-medium text-base-content">
+My work</span>
+
+    opens with everything that needs you, oldest first: questions waiting on you, cards
+    flagged for your review, failed runner jobs, cards in progress with nobody on them and
+    Scheduled cards not started by the end of their day, on the boards you own. The header counts them on every page.
+  </p>
+<p phx-r="">
+
+    The boards show them too. An epic&#39;s card carries <strong>
+⏸ 2 waiting on you</strong>
+
+    for what in its subcards is on you, and a line naming each with its reason, such as <em>
+Waiting on you: #2063 (a question), #2075 (3 rejections)</em>
+. Questions waiting on
+    other people show in the line only (<em>
+and 1 on someone else</em>
+), never in the count. Click the
+    chip to open the sub-board showing only those cards. Open the epic and its subcard list
+    marks the same rows: each one waiting on you carries a badge with its reason (<em>
+to verify</em>
+, <em>
+a question</em>
+),
+    one waiting on someone else a quieter mark naming who it waits on, and the line&#39;s #ids above the list jump to their rows.
+    A card further down marks the subcard it sits under, with its own #id. The board&#39;s header says
+    <strong>
+Waiting on you: N</strong>
+
+    for the whole board and opens My work kept to it. <code>
+slipdock card</code>
+
+    and <code>
+slipdock board</code>
+
+    print the same line.
+  </p>
+<p phx-r="">
+
+    A question addressed to you also raises an alert in the header that only you see, and
+    an email, and so does a card of yours past its board&#39;s rejection limit. Turn either off in <span phx-r="" class="font-medium text-base-content">
+account settings</span>
+, under <strong>
+When something waits on you</strong>
+.
+  </p>
+<p phx-r="">
+
+    Some of them you won&#39;t act on. The <strong>
+×</strong>
+
+    on a row dismisses it from your own list. It stays off for that reason only: a second
+    failed job, a new question or the flag put on again brings the card back. To keep a
+    whole board quiet, choose <strong>
+Mute on my Waiting on you</strong>
+
+    in the board&#39;s <strong>
+…</strong>
+
+    menu. Nothing from that board or any board under it shows on your list, and a strip on
+    the board says it is muted. Muting is not archiving: the board works as before, for
+    you and everyone else.
+  </p>
+<p phx-r="">
+
+    Both are yours alone. Nobody else&#39;s list changes. The list always says what it is
+    hiding (<em>
+3 waiting · 2 dismissed · 1 board muted</em>
+), and <strong>
+Show</strong>
+
+    lists them with <strong>
+Undo</strong>
+
+    and <strong>
+Unmute</strong>
+. From the CLI it is <code>
+slipdock work --dismiss</code>
+, <code>
+--dismissed</code>
+, <code>
+--undismiss</code>
+,
+    <code>
+--mute</code>
+
+    and <code>
+--unmute</code>
+.
+  </p>
+</div>
+</section>
+<section phx-r="" id="boards-desktop-notifications" class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+<h2 class="section-title">
+Desktop notifications</h2>
+<div class="help-prose mt-2 space-y-3 text-sm text-base-content/70">
+<p phx-r="">
+
+    Slipdock can show a notification on your computer when a card starts waiting on you,
+    a question is routed to you, or somebody <code>
+@</code>
+mentions you: the same things
+    that email you, which they still do. Turn on
+    <strong>
+Desktop notifications on this browser</strong>
+
+    under <span phx-r="" class="font-medium text-base-content">
+Account → Preferences</span>
+;
+    the browser asks whether to allow them. It is off until you do.
+  </p>
+<p phx-r="">
+
+    They come through a Slipdock tab you have open, in the background too, and with
+    several tabs open you get one, not one each. With no tab open nothing shows, on
+    purpose: Slipdock doesn&#39;t reach you when you have closed it. Clicking one brings the
+    tab forward and opens the card. You get none for what you did yourself, nor while
+    you are looking at that card.
+  </p>
+<p phx-r="">
+
+    The setting is kept in this browser, because the browser&#39;s permission is too: turn it
+    on in each one you use. If notifications are blocked for the site, or the browser
+    can&#39;t show them, the toggle says so; unblock them in the browser&#39;s site settings.
+    Only the web app shows them; the API, the CLI and agents have nothing to set.
+  </p>
+</div>
+</section>
+<section phx-r="" id="boards-views" class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+<h2 class="section-title">
+Views</h2>
+<div class="help-prose mt-2 space-y-3 text-sm text-base-content/70">
+<p phx-r="">
+
+    The same cards, shown different ways. Switch between them from the view menu, or press <kbd class="kbd kbd-xs">
+v</kbd>
+:
+  </p>
+<ul phx-r="" class="list-disc space-y-1 pl-5">
+<li>
+<strong>
+Board</strong>
+: lists side by side.</li>
+<li>
+<strong>
+Swimlanes</strong>
+: a grid with any attribute on each axis, such as assignee by priority.
+    </li>
+<li>
+<strong>
+Table</strong>
+: a sortable row per card, with editing in place and CSV export.
+    </li>
+<li>
+<strong>
+Timeline</strong>
+: a Gantt chart by start and due date, with dependency lines.
+    </li>
+<li>
+<strong>
+Calendar</strong>
+: a month or week, by due date.</li>
+<li>
+<strong>
+Outline</strong>
+: the board as a tree of cards and subcards.</li>
+<li>
+<strong>
+Narrative</strong>
+: what happened to the cards over a date range, told as prose.
+    </li>
+<li>
+<strong>
+Prioritise</strong>
+: a ranked table where priority, votes and scores are edited in place.
+    </li>
+</ul>
+<p phx-r="">
+
+    The filter bar narrows any view by text, tag, priority, flag, due date and origin (who
+    or what made the card: a person, the sweep, an agent&#39;s job…). A view
+    with its filters can be saved, shared, or published as a public link.
+  </p>
+<p phx-r="" id="boards-search-results">
+
+    On the board, a search or filter shows its matches as one list down the page, grouped by
+    the list each card is in, in board order, so none sit off the side of the screen. Each
+    heading gives the list&#39;s name and how many match; click it to fold or unfold the group.
+    Done, and any list with more than 10 matches, starts folded, and the lists with no
+    matches are named on one line at the end. Click a row to open the card, or use its
+    arrow to move it to another list. <strong>
+Board</strong>
+
+    in the banner shows the matches in their columns instead, for that search;
+    <strong>
+Clear</strong>
+
+    brings the whole board back.
+  </p>
+</div>
+</section>
+<section phx-r="" id="boards-card-views" class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+<h2 class="section-title">
+Card views</h2>
+<div class="help-prose mt-2 space-y-3 text-sm text-base-content/70">
+<p phx-r="">
+
+    Choose what you see of a card: each part of its front, each section of the opened card
+    and each property and group of its sidebar, assignees and dates included. Card views are yours alone and kept on the server, so
+    they follow you to every browser. Nobody else&#39;s cards change.
+  </p>
+<ul phx-r="" class="list-disc space-y-1 pl-5">
+<li>
+<strong>
+Levels</strong>
+: global, then a board, then one list on it. Each states only
+      what it changes, <em>
+Show</em>
+ or <em>
+Hide</em>
+, and inherits the rest from the level below.
+    </li>
+<li>
+<strong>
+Named card views</strong>
+: save a set under a name and apply it at any level,
+      with that level&#39;s own choices on top. A saved view can name one too, under
+      Display → <em>
+Card view for this view</em>
+.
+    </li>
+<li>
+<strong>
+Show all</strong>
+: a switch in the Display menu that shows every part of the
+      card front on this board while it is on.
+    </li>
+<li>
+<strong>
+The handoff note</strong>
+: show <em>
+Handoff note (2 lines)</em>
+
+      or <em>
+Handoff note in full</em>
+
+      to read where a card was left without opening it.
+    </li>
+</ul>
+<p phx-r="">
+
+    Open them from the Display menu&#39;s <strong>
+Card views…</strong>
+, from
+    <strong>
+Card view…</strong>
+
+    in a list&#39;s ⋯ menu, or at <span phx-r="" class="font-medium text-base-content">
+Card views</span>
+. The board&#39;s own settings always win: a card view never brings back
+    what a simple board or a list hides. The list level applies on the board and swimlanes;
+    the timeline, calendar and outline use the board&#39;s.
+  </p>
+</div>
+</section>
+<section phx-r="" id="boards-planning" class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+<h2 class="section-title">
+Planning</h2>
+<div class="help-prose mt-2 space-y-3 text-sm text-base-content/70">
+<ul phx-r="" class="list-disc space-y-1 pl-5">
+<li>
+<strong>
+Sprints</strong>
+: a sprint board where every card is a sprint, with burndown
+      and velocity charts.
+    </li>
+<li>
+<strong>
+Roadmaps</strong>
+: give lists a category (to do, in progress, done, dropped,
+      triage, scheduled, housekeeping)
+      and a horizon such as Q1 2027; add milestones; colour any view by list, priority,
+      health, assignee or tag.
+    </li>
+<li>
+<strong>
+Recurring cards</strong>
+: <em>
+Repeat…</em>
+
+      on a card (or <code>
+every: mon</code>
+
+      in quick add) makes it repeat: daily, weekdays, weekly, monthly on a date or the
+      last Friday, yearly, or some days after the last one is done. The next one is a copy
+      of the current one, made in your timezone, and one still open has its due date moved
+      on rather than another piling up. On a board with a <strong>
+Scheduled</strong>
+
+      list (a list in the <em>
+Scheduled</em>
+
+      category; the Slipdock and Simple templates have one, after To Do) the next one is
+      made there unless you chose a list: recurring agent work waits there for the runners&#39;
+      rules to send it on its day, out of your To Do, and nobody picks from it. One still
+      there after its day is on your <em>
+Waiting on you</em>
+. <em>
+Duplicate</em>
+
+      makes the same copy by hand.
+    </li>
+<li>
+<strong>
+Snooze</strong>
+: <em>
+Snooze…</em>
+
+      on a card, or <kbd>
+z</kbd>
+
+      over it on the board (<kbd>
+z</kbd>
+<kbd>
+z</kbd>
+
+      is tomorrow), hides a card that isn&#39;t actionable yet until a day, then brings it back
+      at the top of its list. Each list&#39;s foot counts what is snoozed in it and shows them,
+      faded, on a click. <code>
+snooze: mon</code>
+
+      in quick add does it as you add the card.
+    </li>
+<li>
+<strong>
+Tidy up…</strong>
+
+      in the board&#39;s menu looks the board, and every board beneath it, over for rot: epics
+      whose work is all done but still open, cards in Done never ticked off, cards stuck in
+      progress, epics with no next step, long-overdue cards, likely duplicates, wiki pages
+      nothing links to and links with a typo. Each comes with the evidence and a proposed fix
+      to apply or dismiss; a dismissal is remembered, and an applied fix can be undone. Board
+      settings → <em>
+Gardening</em>
+
+      picks the checks and how long before something counts.
+    </li>
+<li>
+<strong>
+Findings</strong>
+: what agents&#39; passes learned on a board, and what went wrong
+      (a rejection, a job that timed out). Triage and the server handle them; what waits on
+      you is a rule drafted from one that recurs. Its tile on the board&#39;s
+      <em>
+Agentic Building</em>
+
+      page counts those proposals and opens the board&#39;s Findings page (a card&#39;s Findings link opens it too),
+      which leads with them, each linking the Tidy-up page to apply or dismiss. Below, for
+      reference, the findings: filter by status, kind, source, card or date, and promote a
+      finding into the handbook, merge repeats or dismiss it. A card with open findings
+      says how many, and links there.
+    </li>
+<li>
+<strong>
+Ledger</strong>
+: what shipped on a board since 07:00 yesterday, a line per card
+      completed, accepted, merged or deployed, with who accepted it, its evidence, the
+      <em>
+should</em>
+
+      rules it missed, where its time went and what its jobs spent, grouped by day. Its
+      tile on the board&#39;s <em>
+Agentic Building</em>
+
+      page opens it; <em>
+Look closer</em>
+
+      opens a card with its chat. Ten minutes&#39; reading instead of approving each card.
+    </li>
+<li>
+<strong>
+Batched releases</strong>
+: Agentic Building → <em>
+Releases</em>
+
+      on the root board chooses how merged work reaches production: with each merge, or in
+      batches, with an age cap in hours for how long the oldest merge may wait. A merged
+      card is still done, and <em>
+Release now</em>
+
+      is how a person ships it; on a batched board it shows <em>
+merged, awaiting release</em>
+
+      until a deploy ships it, then <em>
+released</em>
+
+      with the time. A release runs when a card of priority <em>
+critical</em>
+
+      merges, when the oldest merge reaches the age cap, or when the board&#39;s owner presses <em>
+Release now</em>
+, on the board&#39;s release banner or on that page. Releases run one at a
+      time: a runner runs the board&#39;s release command, and anything asked for meanwhile
+      becomes one follow-up. A runner runs the default <code>
+gh workflow run</code>
+
+      command itself; any other runs only if that machine&#39;s <code>
+local.json</code>
+
+      lists it, word for word, under <code>
+release_commands</code>
+. A red release (its suite,
+      build or deploy failing) holds releases: the banner says why, with the failing run,
+      and a critical fix card goes on top of the ready list. Its merge lifts the hold and
+      releases; the owner can also press <em>
+Lift hold</em>
+, which releases nothing.
+    </li>
+<li>
+<strong>
+Who gets asked</strong>
+: Agentic Building → <em>
+Who gets asked</em>
+
+      names a person for each kind of question an agent asks (product, UX, security,
+      release, anything else). Their waits go to that person, and to the board&#39;s owner
+      when nobody is named. Beside it, <em>
+An approval&#39;s proposal stands after</em>
+
+      (off until set; 4h, say) lets an unanswered wait of kind other that offers
+      choices and proposes one go ahead with its proposal: the card says so and the
+      person asked is told. Product, UX, security and release questions, and a wait
+      that proposes nothing, always wait for a person.
+    </li>
+<li>
+<strong>
+Profiles</strong>
+: one word for what kind of change a card is (security,
+      schema, feature, fix, docs or spike), off until Agentic Building → <em>
+Profiles</em>
+
+      turns them on. An agent starting a card with none gets one from its paths and tags,
+      strictest first; the card&#39;s front shows it as a chip, and the card panel&#39;s <em>
+Profile</em>
+
+      select sets or clears it. When an agent completes the card, the profile is checked
+      again against what the change touched, and raised, never lowered: a migration or a
+      security path raises even one you set, and more than 400 changed lines makes an
+      agent&#39;s or an inferred fix or docs a feature (a fix you set keeps it). <em>
+Human tier, by profile</em>
+, on the same page, says
+      whether an agent&#39;s acceptance merges the card, merges it onto the ledger or holds it
+      for a person: by default schema and security changes wait for you. A spike merges nothing:
+      its prototype stays on its branch, and it holds no lane.
+    </li>
+<li>
+<strong>
+Incidents</strong>
+: when a card broke something that shipped, its <em>
+Incident</em>
+
+      line, under Dependencies, names the card that shipped it and the check that should
+      have caught it (bar, rules, CI, verify, audit or none). The causing card then shows
+      the incident it caused, and carries a finding naming that check.
+    </li>
+<li>
+<strong>
+Status updates</strong>
+: on track, at risk or off track, with a note, shown
+      beside the health the board works out for itself. On a card agents work, the board
+      posts each step itself (Writing code, Verifying, Merged, Shipped to production…),
+      quietly, at the top of the card; a finished card shows there how it ended (done when,
+      accepted by whom, what merged and shipped) instead of a next step. With delivery
+      metrics on, a merged card that no succeeded deploy names after 20 minutes (the
+      board&#39;s <em>
+Not shipped after</em>
+
+      setting) shows an amber <em>
+Merged 1a634c6 · not shipped after 45m</em>
+
+      and raises one warning alert on the board, whether or not the overseer is on; the
+      deploy that names it clears both. On a board with batched releases the minutes count
+      from the card&#39;s release, not its merge, so a card waiting for its batch raises
+      nothing. How long ago each
+      one was (&quot;18 min ago&quot;) keeps up with the clock while the card is open.
+    </li>
+<li>
+<strong>
+Custom fields</strong>
+
+      (numbers, ratings, choices, dates, text) and formula fields with RICE and ICE presets.
+    </li>
+<li>
+<strong>
+Budget voting</strong>
+: everyone spends a set number of votes across the board.
+    </li>
+<li>
+<strong>
+Typed links</strong>
+
+      between cards on any board, so a goal card can collect the work contributing to it.
+    </li>
+</ul>
+</div>
+</section>
+<section phx-r="" id="boards-fast" class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+<h2 class="section-title">
+Getting around fast</h2>
+<div class="help-prose mt-2 space-y-3 text-sm text-base-content/70">
+<ul phx-r="" class="list-disc space-y-1 pl-5">
+<li>
+<strong>
+Quick add</strong>
+: press <kbd class="kbd kbd-xs">
+c</kbd>
+
+      or use the header box and type a line such as &quot;call the printers about the banners
+      friday, urgent&quot;. It becomes a card on your default board. After a semicolon comes the
+      card&#39;s description, after two a comment: &quot;Fix the login; seen on Safari only;; ask Sam first&quot;.
+    </li>
+<li>
+<kbd class="kbd kbd-xs">
+Ctrl</kbd>
+-<kbd class="kbd kbd-xs">
+P</kbd>
+
+      opens the command palette, and <kbd class="kbd kbd-xs">
+Ctrl</kbd>
+-<kbd class="kbd kbd-xs">
+O</kbd>
+
+      opens any card by its title or number. Press <kbd class="kbd kbd-xs">
+?</kbd>
+
+      for every keyboard shortcut.
+    </li>
+<li>
+<strong>
+Favourites</strong>
+: heart a board, list, card or saved view to keep it two
+      taps away.
+    </li>
+<li id="help-select-mode">
+<strong>
+Select</strong>
+
+      in the board&#39;s toolbar picks out cards to change all at once:
+      click a card to pick it, <kbd class="kbd kbd-xs">
+Shift</kbd>
+-click another to pick
+      every card between the two (down a list, then across), or press the tick in a list&#39;s
+      header to pick every card it shows (again to let them go). <strong>
+Select all</strong>
+
+      in a list&#39;s ⋯ menu turns select mode on with every card the list shows picked; in
+      select mode it adds them to what is already picked, and never lets any go.
+    </li>
+<li>
+
+      On a phone, the board becomes one list at a time, with navigation and quick add in thumb reach.
+    </li>
+</ul>
+</div>
+</section>
+<section phx-r="" id="boards-moving" class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+<h2 class="section-title">
+Templates, moving and archiving</h2>
+<div class="help-prose mt-2 space-y-3 text-sm text-base-content/70">
+<ul phx-r="" class="list-disc space-y-1 pl-5">
+<li>
+<span phx-r="" class="font-medium text-base-content">
+Templates</span>
+
+      are named sets of lists for new boards and sub-boards.
+    </li>
+<li>
+
+      A card moves to another board with its subcards, from the same menu that moves it between lists.
+    </li>
+<li>
+
+      Archiving a card or a whole board puts it away without deleting anything, and it can be restored.
+    </li>
+<li>
+
+      Boards can be imported from Trello or another Slipdock server, and everything you
+      have can be exported, under <span phx-r="" class="font-medium text-base-content">
+Account → Import &amp; export</span>
+.
+    </li>
+</ul>
+</div>
+</section>
+</article>
+</div>
+</div>

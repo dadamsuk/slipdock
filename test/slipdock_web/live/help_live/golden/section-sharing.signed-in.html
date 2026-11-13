@@ -1,0 +1,206 @@
+<div phx-r="" id="help" class="kanban-scroll h-full overflow-y-auto">
+<div phx-r="" data-page-width="standard" class="mx-auto w-full px-4 py-6 sm:px-6 sm:py-10 max-w-5xl space-y-8">
+<nav phx-r="" id="help-sections-nav" aria-label="Help sections" class="flex gap-1 overflow-x-auto rounded-2xl bg-base-100 p-1 text-sm shadow-sm ring-1 ring-base-content/10">
+<a phx-r="" href="/help" data-phx-link="patch" data-phx-link-state="push" class="flex items-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+<span phx-r="" class="hero-arrow-left size-4">
+</span>
+ Help
+  </a>
+<a phx-r="" href="/help/boards" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+  Boards
+</a>
+<a phx-r="" href="/help/wiki" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+  Wiki
+</a>
+<a phx-r="" href="/help/sharing" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium bg-primary/10 text-primary" aria-current="page">
+
+  Sharing
+</a>
+<a phx-r="" href="/help/email" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+  Email
+</a>
+<a phx-r="" href="/help/automations" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+  Automations
+</a>
+<a phx-r="" href="/help/tools" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+  Tools
+</a>
+<a phx-r="" href="/help/ai" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+  AI
+</a>
+<a phx-r="" href="/help/agents" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+  Agents
+</a>
+</nav>
+<article phx-r="" id="help-section-sharing" class="space-y-6">
+<header class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+<header phx-r="" id="page-header" data-role="page-header" class="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-3 ">
+<div class="min-w-0">
+<h1 class="page-title">
+<span class="mr-2 inline-flex align-middle">
+<span phx-r="" class="hero-user-plus size-6 text-primary">
+</span>
+</span>
+Sharing
+    </h1>
+<p data-role="page-subtitle" class="mt-1 max-w-2xl text-sm text-base-content/60">
+
+      Share a board, a single card, a saved view, or a wiki page or folder with a person or a group. Give each one read-only, comment or edit access.
+    </p>
+</div>
+</header>
+<ul class="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm">
+<li>
+<a href="#sharing-levels" class="link">
+Access levels</a>
+</li>
+<li>
+<a href="#sharing-what" class="link">
+What you can share</a>
+</li>
+<li>
+<a href="#sharing-pages" class="link">
+Wiki pages and folders</a>
+</li>
+<li>
+<a href="#sharing-groups" class="link">
+Groups and new people</a>
+</li>
+<li>
+<a href="#sharing-public" class="link">
+Public links</a>
+</li>
+</ul>
+</header>
+<section phx-r="" id="sharing-levels" class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+<h2 class="section-title">
+Access levels</h2>
+<div class="help-prose mt-2 space-y-3 text-sm text-base-content/70">
+<p phx-r="">
+
+    Every board has one <strong>
+owner</strong>
+: the person who made it. Anything you share,
+    you share at one of three levels:
+  </p>
+<ul phx-r="" class="list-disc space-y-1 pl-5">
+<li>
+<strong>
+Read only</strong>
+: can see, but not change anything.</li>
+<li>
+<strong>
+Can comment</strong>
+: a reader who can also comment, post status updates
+      and vote, but not change the card itself.
+    </li>
+<li>
+<strong>
+Can edit</strong>
+: can change cards and pages.</li>
+</ul>
+<p phx-r="">
+
+    Only the owner can rename or delete a board. The server enforces these levels,
+    and they apply the same way to the API, the CLI and agents.
+  </p>
+</div>
+</section>
+<section phx-r="" id="sharing-what" class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+<h2 class="section-title">
+What you can share</h2>
+<div class="help-prose mt-2 space-y-3 text-sm text-base-content/70">
+<ul phx-r="" class="list-disc space-y-1 pl-5">
+<li>
+<strong>
+A board</strong>
+, from its settings: covers every card on it and every
+      sub-board inside them. A board shared with you sits on your board list, marked with who shared it.
+    </li>
+<li>
+<strong>
+A single card</strong>
+, from its window: the person sees that card and nothing
+      else on the board. It&#39;s listed under &quot;Cards shared with you&quot; on their home page.
+    </li>
+<li>
+<strong>
+A saved view</strong>
+, from the Views menu: the person sees the board only
+      through that view, and only the cards it selects.
+    </li>
+<li>
+<strong>
+A wiki page or folder</strong>
+: see below.</li>
+</ul>
+</div>
+</section>
+<section phx-r="" id="sharing-pages" class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+<h2 class="section-title">
+Wiki pages and folders</h2>
+<div class="help-prose mt-2 space-y-3 text-sm text-base-content/70">
+<p phx-r="">
+<strong>
+Share…</strong>
+
+    on a page&#39;s or folder&#39;s menu shares it with someone who has no reason to see the rest
+    of the board. A folder shares everything filed in it, to any depth, and a page brings
+    the images and files it embeds. What&#39;s shared with you appears under <strong>
+Shared with me</strong>
+, below your wiki tree, without showing the board it&#39;s on.
+  </p>
+<p phx-r="">
+
+    Someone with edit access to a shared folder can write and rearrange inside it, but
+    can&#39;t delete anything, move it out of the share, or share it on.
+  </p>
+</div>
+</section>
+<section phx-r="" id="sharing-groups" class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+<h2 class="section-title">
+Groups and new people</h2>
+<div class="help-prose mt-2 space-y-3 text-sm text-base-content/70">
+<p phx-r="">
+<a phx-r="" href="/groups" data-phx-link="redirect" data-phx-link-state="push" class="link">
+Groups</a>
+
+    are named sets of people you can share with in one go. Sharing with an email address
+    that has no account usually invites that person. Whether that&#39;s allowed, and who may
+    register at all, is up to the server&#39;s admin.
+  </p>
+<p phx-r="">
+
+    Signing in needs no password: you get a one-time link and code by email, or you can
+    use a passkey once you&#39;ve added one.
+  </p>
+</div>
+</section>
+<section phx-r="" id="sharing-public" class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+<h2 class="section-title">
+Public links</h2>
+<div class="help-prose mt-2 space-y-3 text-sm text-base-content/70">
+<p phx-r="">
+
+    For readers without an account, a <strong>
+saved view</strong>
+
+    or a <strong>
+wiki page</strong>
+
+    can be published at a public, read-only link. A published view is live; a published
+    page is its text plus a snapshot of its query answers. Unpublishing withdraws the link
+    immediately.
+  </p>
+</div>
+</section>
+</article>
+</div>
+</div>

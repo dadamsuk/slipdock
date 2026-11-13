@@ -14,21 +14,33 @@ defmodule Slipdock.DocsText do
   module and then every section, so a test holding "the API guide" to a
   sentence finds it in whichever file it is.
 
+  The help pages are the same (#2919): `HelpLive.Guides`, `HelpLive.Agents`
+  and `HelpLive.Flow` are code, and their words are templates and data files
+  in a directory beside each (`help_live/guides/` beside `guides.ex`).
+  `read!/1` reads such a module as the module and then every file under its
+  directory, so a test holding "the in-app help" to a sentence finds it in
+  whichever file it is.
+
   Any other path reads as `File.read!/1` does.
   """
 
   @root Path.expand("../..", __DIR__)
   @index "docs/manual.md"
   @api_guide "lib/slipdock_web/api_guide.ex"
+  @help ~w(guides agents flow)
 
   @doc """
   `File.read!/1`, except that the manual's index reads as the whole manual,
-  and the API guide's module as the module and its sections.
+  the API guide's module as the module and its sections, and a help page's
+  module as the module and the files beside it.
   """
   def read!(path) do
+    full = Path.expand(path, @root)
+
     cond do
-      Path.expand(path) == Path.join(@root, @index) -> manual()
-      Path.expand(path) == Path.join(@root, @api_guide) -> api_guide()
+      full == Path.join(@root, @index) -> manual()
+      full == Path.join(@root, @api_guide) -> api_guide()
+      help = Enum.find(@help, &(full == help_module(&1))) -> help_page(help)
       true -> File.read!(path)
     end
   end
@@ -55,4 +67,22 @@ defmodule Slipdock.DocsText do
     for [_, part] <- Regex.scan(~r{^- \[[^\]]+\]\(manual/([\w-]+\.md)\)$}m, index),
         do: Path.join([@root, "docs/manual", part])
   end
+
+  @doc """
+  A help page (`"guides"`, `"agents"` or `"flow"`): its module, then each
+  file beside it.
+  """
+  def help_page(name) when name in @help do
+    Enum.map_join([help_module(name) | help_parts(name)], "\n", &File.read!/1)
+  end
+
+  @doc "The files a help page's words are in: absolute paths, sorted."
+  def help_parts(name) when name in @help do
+    @root
+    |> Path.join("lib/slipdock_web/live/help_live/#{name}/**/*.{heex,exs}")
+    |> Path.wildcard()
+    |> Enum.sort()
+  end
+
+  defp help_module(name), do: Path.join(@root, "lib/slipdock_web/live/help_live/#{name}.ex")
 end

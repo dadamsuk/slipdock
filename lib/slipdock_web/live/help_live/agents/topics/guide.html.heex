@@ -1,0 +1,128 @@
+<.part title="How it works">
+  <p>
+    <a href={~p"/api/guide?section=short"} class="link">{@base_url}/api/guide?section=short</a>
+    is written for agents rather than people. It explains how these boards are used
+    (top-level cards are epics and their subcards are the tasks), how to choose
+    what to do next and what to write back while working, then names the guide's
+    other sections (the wiki, runners, automations, a <code>curl</code>
+    line for every call…), each one request away with <code>?section=</code>
+    and its name. The running server generates it, so it always matches the API.
+  </p>
+  <p>
+    The whole guide, <code>{@base_url}/api/guide</code>
+    with no section (or <code>?section=all</code>), is long: tens of thousands of
+    words, a large share of an agent's context before it has read a card.
+  </p>
+  <p>
+    The guide is the only thing on the server an agent can read without signing in.
+    Everything about your boards needs a token, including just listing them.
+  </p>
+</.part>
+
+<.part title="Get started" id="help-guide-start">
+  <p>Paste this at the start of a session:</p>
+  <.snippet
+    id="help-guide-prompt"
+    text={"Work from my Slipdock board at #{@base_url}. Read #{@base_url}/api/guide?section=short and follow it, fetching a section it names when the task needs one. Nothing about my boards is readable until you sign in, so start with the device flow the guide describes and tell me the code to approve."}
+  />
+  <p>
+    The agent asks the server for a short code and shows it to you. You open
+    <code>{@base_url}/activate</code>
+    in a browser where you're signed in, check what's asking, and approve. A few
+    seconds later the agent gets a token that acts as you and saves it in <code>~/.config/slipdock/token</code>. Your password never reaches the agent, and
+    the code expires after a few minutes.
+  </p>
+  <p>
+    After it signs in, the agent should read the guide again. With a token, the guide
+    ends with your own boards and their lists, so the agent doesn't have to guess
+    their names.
+  </p>
+</.part>
+
+<.part title="Choosing what it can do">
+  <p>
+    If you'd rather hand the agent a token yourself, make one under <.app_link
+      current_user={@current_user}
+      to={~p"/account/tokens"}
+    >Account → API tokens</.app_link>:
+  </p>
+  <ul class="list-disc space-y-1 pl-5">
+    <li><strong>Read only</strong> lets it summarise, search and report, but change nothing.</li>
+    <li>
+      <strong>Read and write</strong> is the usual choice for an agent that works the board.
+    </li>
+    <li>A token can also be <strong>limited to some boards</strong>.</li>
+  </ul>
+  <p>
+    Every token is listed with when and where it was last used, and <strong>Revoke</strong>
+    cuts off its access immediately.
+  </p>
+</.part>
+
+<.part title="Good to know">
+  <ul class="list-disc space-y-1 pl-5">
+    <li>
+      Any agent that can make an HTTP request works this way: Claude Code, Codex,
+      Cursor, a shell script or a cron job.
+    </li>
+    <li>
+      Point agents at the URL instead of pasting API details into their instructions.
+      A copied description goes out of date; the URL stays current.
+    </li>
+    <li>
+      <code>?format=json</code> on the guide returns the same text, plus the vocabularies
+      and endpoint list as data.
+    </li>
+  </ul>
+</.part>
+
+<.part title="How an ask becomes a card" id="help-card-shape">
+  <p>
+    Every agent on a board writes a one-sentence ask up the same way, whichever model it is.
+    The guide's <strong>Card shape</strong> says:
+  </p>
+  <ul class="list-disc space-y-1 pl-5">
+    <li>
+      <strong>One card</strong>
+      when the ask fits one sitting, one agent and one PR and was said in
+      a sentence; an epic with subcards only when it doesn't. Never an epic with one subcard, nor
+      subcards the person didn't imply.
+    </li>
+    <li>
+      <strong>Where:</strong> under the epic it serves if there is one (search first); otherwise
+      top level, without making an epic to hold it.
+    </li>
+    <li>
+      <strong>Three things in the description</strong>, each in proportion: what, in the person's
+      words; where, if known; and a <strong>done-when</strong> line, the stop condition the
+      evidence answers.
+    </li>
+    <li>
+      <strong>Don't add</strong> an estimate, priority, tags, a due date or an assignee unless the
+      person said so or the board's convention does.
+    </li>
+    <li>
+      <strong>Don't repeat the repo's rules</strong>
+      (tests, every door, the handbook line): whoever
+      builds it reads those from the handbook and the repo.
+    </li>
+    <li>
+      <strong>Two readings:</strong> write the obvious one and note the other in the description;
+      ask only when they differ materially, once, before filing.
+    </li>
+    <li>
+      <strong>A bar item made moot</strong>
+      by a later, cited decision or rule: read it the obvious way and say so. Not a wait.
+    </li>
+    <li>
+      <strong>Dependencies:</strong>
+      blocked-by means <em>can't start until</em>, not <em>should come after</em>:
+      set it where a card builds on another's code, schema or decision, and use list position for
+      mere preference.
+    </li>
+  </ul>
+  <p>
+    A board's handbook can override these: the Card shape section of its Playbook page wins
+    wherever it says otherwise.
+  </p>
+</.part>

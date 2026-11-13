@@ -82,21 +82,35 @@ defmodule Slipdock.ProfilesDocsTest do
     ~r/schema[ ,\/]+security[ ,\/]+(and |or )?spike[ )]*(before_merge|changes wait|wait|card an agent accepts (is )?(held|waits))/
   ]
 
-  test "nothing lists spike's tier as before_merge" do
-    files =
-      Enum.flat_map(
-        ["lib/**/*.ex", "lib/**/*.md", "docs/**/*.md", "priv/skills/**/*.md"],
-        &Path.wildcard(Path.join(@root, &1))
-      ) ++
-        Enum.map(["README.md", "cli/help.txt"], &Path.join(@root, &1))
+  # Code, and the templates and data files the help's words are in (#2919),
+  # each read on its own so a hit names its file.
+  defp swept do
+    Enum.flat_map(
+      ["lib/**/*.{ex,heex,exs}", "lib/**/*.md", "docs/**/*.md", "priv/skills/**/*.md"],
+      &Path.wildcard(Path.join(@root, &1))
+    ) ++
+      Enum.map(["README.md", "cli/help.txt"], &Path.join(@root, &1))
+  end
 
+  test "nothing lists spike's tier as before_merge" do
     stale =
-      for file <- files,
+      for file <- swept(),
           text = file |> File.read!() |> flatten(),
           Enum.any?(@stale_spike, &Regex.match?(&1, text)),
           do: Path.relative_to(file, @root)
 
     assert stale == []
+  end
+
+  test "the sweep reads every help template and data file" do
+    files = swept()
+
+    for name <- ~w(guides agents flow),
+        part <- Slipdock.DocsText.help_parts(name),
+        do: assert(part in files, part)
+
+    for part <- ["flow/settings.exs", "flow/stages/writing.html.heex"],
+        do: assert(Path.join(@root, "lib/slipdock_web/live/help_live/" <> part) in files, part)
   end
 
   test "the stale wording is caught, wrapped or quoted" do

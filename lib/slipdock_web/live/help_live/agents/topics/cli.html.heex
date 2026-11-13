@@ -1,0 +1,134 @@
+<.part title="How it works">
+  <p>
+    <code>slipdock</code>
+    is a command-line client for everything the API does: boards, cards, comments,
+    the wiki, files (<code>slipdock attach</code>
+    and <code>slipdock download</code>), search,
+    automations and runners. It saves the server's
+    address and your token, so neither you nor the agent has to repeat them, and its
+    output is easier to read in a transcript than raw JSON.
+  </p>
+  <p>
+    It's an Elixir escript, so the machine that runs it needs Erlang/OTP. That's why
+    nothing else on this page depends on it.
+  </p>
+</.part>
+
+<.part title="Every command" id="help-cli-commands">
+  <p>
+    The
+    <.link
+      patch={~p"/help/agents/cli/reference"}
+      id="help-cli-reference-link"
+      class="link font-medium"
+    >command reference</.link>
+    lists every command by group, with a filter to find one by name. It is made from the
+    same text <code>slipdock help</code>
+    prints, so it never falls behind the CLI, and is easier to search than a terminal.
+  </p>
+</.part>
+
+<.part title="Install it" id="help-cli-install">
+  <p>
+    On Linux and macOS, into <code>~/.local/bin/slipdock</code>. It needs Erlang/OTP 27 or later,
+    and if there is none it says what to install (<code>brew install erlang</code>
+    on a Mac) rather than running anything as root. It checks the download against
+    <code>/cli/SHA256SUMS</code>
+    first, and against the release key's signature when there is one:
+  </p>
+  <.snippet
+    id="help-cli-unix"
+    text={"curl -fsSL #{@base_url}/cli/install.sh | sh\nslipdock auth"}
+  />
+  <p>
+    That is <code>/cli/install.sh</code>, the CLI; <code>/install.sh</code>
+    without <code>/cli/</code>
+    installs the skills.
+  </p>
+  <p>On Windows, in PowerShell. This installs Erlang through winget if it isn't already there:</p>
+  <.snippet id="help-cli-windows" text={"irm #{@base_url}/cli/install.ps1 | iex\nslipdock auth"} />
+  <p>From a checkout, build it from the repository (Elixir 1.19 or later):</p>
+  <.snippet
+    id="help-cli-build"
+    text={"cd cli && mix escript.build && cp slipdock ~/.local/bin/\nslipdock url #{@base_url}\nslipdock auth"}
+  />
+  <p>
+    <code>slipdock auth</code>
+    uses the same sign-in as <.link patch={~p"/help/agents/guide"} class="link">the guide</.link>: it prints a code and you approve it in the browser.
+    <code>slipdock url</code>
+    with no argument shows which server it's pointing at, which is the first thing to
+    check when it can't connect.
+  </p>
+</.part>
+
+<.part title="What it has that MCP doesn't">
+  <ul class="list-disc space-y-1 pl-5">
+    <li>
+      <code>slipdock sync</code>
+      mirrors your wiki to a local folder and keeps the two in step, so you can edit pages
+      in Obsidian or any other editor; <code>slipdock sync from-server</code>
+      and <code>slipdock sync to-server</code>
+      run a pass one way only.
+    </li>
+    <li>
+      <code>slipdock attach</code>
+      uploads files up to 250 MB, recordings included, where MCP takes up to 10 MB.
+    </li>
+    <li>Importing and exporting boards and pages, including from Trello.</li>
+    <li>
+      <code>slipdock skills install</code>
+      and <code>slipdock skills check</code>
+      keep the skills up to date, and <code>slipdock tools install</code>
+      and <code>slipdock tools check</code>
+      do the same for a Tool's skills.
+    </li>
+    <li>
+      <code>slipdock tools publish</code> packs a folder and publishes it as a Tool.
+    </li>
+  </ul>
+</.part>
+
+<.part title="Good to know">
+  <ul class="list-disc space-y-1 pl-5">
+    <li>
+      <code>$SLIPDOCK_URL</code>
+      and <code>$SLIPDOCK_TOKEN</code>
+      override the saved address and token for a single command, such as one run against
+      another server.
+    </li>
+    <li>
+      <code>slipdock guide</code>
+      prints the short agent guide, which ends with the names of its other sections;
+      <code>slipdock guide wiki</code>
+      prints one of them, and <code>slipdock guide all</code>
+      the whole guide, which is long.
+    </li>
+    <li>
+      <code>slipdock work</code>
+      lists what is waiting on you, and <code>slipdock card</code>
+      on an epic and <code>slipdock board</code>
+      print a <code>Waiting on you:</code>
+      line for what in the tree is on you (<code>waiting_on_me</code>
+      on <code>get_card</code>
+      and <code>get_board</code>: <code>count</code>, <code>cards</code>
+      with their reasons, <code>on_others</code>
+      and <code>line</code>); an epic whose tree is all waiting on a person has nothing workable;
+      <code>slipdock wait</code>
+      and <code>slipdock answer</code>
+      open and answer a wait on a person (<code>--question</code>
+      once per question, <code>--answer</code>
+      once per answer, <code>--skip</code>
+      to move on without them, <code>--kind</code>
+      the kind of question, which the board routes to its person; <code>slipdock waits</code>
+      lists the ones asked before); <code>slipdock pulse</code>
+      gives a board's flow numbers; <code>slipdock pause</code>
+      and <code>slipdock resume</code>
+      hold and release its runner work.
+    </li>
+    <li>
+      The <.link patch={~p"/help/agents/skills"} class="link">skills</.link>
+      use the CLI where it's installed and fall back to <code>curl</code>
+      where it isn't.
+    </li>
+  </ul>
+</.part>

@@ -23,7 +23,7 @@ defmodule Slipdock.GardenConfirmDocsTest do
       "lib/slipdock_web/api_guide.ex",
       "cli/help.txt"
     ] ++
-      Path.wildcard(Path.join(@root, "lib/slipdock_web/live/help_live/*.ex")) ++
+      Path.wildcard(Path.join(@root, "lib/slipdock_web/live/help_live/**/*.{ex,heex,exs}")) ++
       Path.wildcard(Path.join(@root, "cli/lib/**/*.ex")) ++
       Path.wildcard(Path.join(@root, "docs/**/*.md")) ++
       Path.wildcard(Path.join(@root, "priv/skills/**/*.md"))
@@ -32,9 +32,13 @@ defmodule Slipdock.GardenConfirmDocsTest do
   defp relative(path), do: Path.relative_to(Path.expand(path, @root), @root)
 
   # Elixir comments in the CLI's source are notes for its readers, not
-  # instructions a person sees.
+  # instructions a person sees. The help's modules, templates and data files
+  # (#2919) are each read on their own, so a hit names its file.
   defp text(file) do
-    text = Slipdock.DocsText.read!(Path.join(@root, file))
+    text =
+      if String.starts_with?(file, "lib/slipdock_web/live/help_live/"),
+        do: File.read!(Path.join(@root, file)),
+        else: Slipdock.DocsText.read!(Path.join(@root, file))
 
     if String.starts_with?(file, "cli/lib/"),
       do: text |> String.split("\n") |> Enum.reject(&(&1 =~ ~r/^\s*#/)) |> Enum.join("\n"),
@@ -78,6 +82,17 @@ defmodule Slipdock.GardenConfirmDocsTest do
     findings = File.read!(Path.join(@root, "cli/lib/slipdock_cli/findings.ex"))
     assert_states(findings, ~s|"  Decide each on the board's Tidy-up page: "|)
     refute findings =~ "add --confirm"
+  end
+
+  test "the sweep reads every help template and data file" do
+    files = MapSet.new(files(), &relative/1)
+
+    for name <- ~w(guides agents flow),
+        part <- Slipdock.DocsText.help_parts(name),
+        do: assert(relative(part) in files, part)
+
+    assert "lib/slipdock_web/live/help_live/agents/topics/cli.html.heex" in files
+    assert "lib/slipdock_web/live/help_live/agents/features.exs" in files
   end
 
   test "the rule catches --confirm beside a decision, and only there" do

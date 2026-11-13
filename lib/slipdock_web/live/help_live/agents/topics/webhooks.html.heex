@@ -1,0 +1,48 @@
+<.part title="How they work">
+  <p>
+    Every board has <strong>Automations</strong>: rules that react when something happens,
+    such as a card being added, moved, commented on, or coming due. One thing a rule can do is <strong>call a URL</strong>. It POSTs a JSON body with the rule, the event, the board
+    and the card (title, link, list, priority, assignee, dates, status, health, flags and
+    tags), or sends the same fields as query parameters if you choose GET.
+  </p>
+  <p>
+    It's the lightest way to connect: nothing to install, and no token to hand out,
+    because the board calls you. It only goes one way, though. To change the board in
+    response, the receiving end needs the <.link patch={~p"/help/agents/guide"} class="link">API</.link>,
+    <.link patch={~p"/help/agents/mcp"} class="link">MCP</.link>
+    or the <.link patch={~p"/help/agents/cli"} class="link">CLI</.link>.
+  </p>
+</.part>
+
+<.part title="Set one up" id="help-webhooks-setup">
+  <p>
+    On a board you own, open <strong>Automations</strong>
+    and pick the ready-made <strong>webhook</strong>
+    rule, or describe what you want in your own words, for example:
+  </p>
+  <.snippet
+    id="help-webhooks-example"
+    text="when a card moves to Done, POST to https://example.com/hooks/done"
+  />
+  <p>
+    The URL can include placeholders such as <code>{"{{card.id}}"}</code> in its path or query.
+  </p>
+</.part>
+
+<.part title="Good to know">
+  <ul class="list-disc space-y-1 pl-5">
+    <li>
+      Only public <code>http</code>
+      and <code>https</code>
+      addresses are called. Loopback, private and tailnet addresses are refused, so a
+      webhook can't reach into the network the server runs on.
+    </li>
+    <li>
+      To have an agent <em>work</em>
+      the card, rather than just hear about it, use a <.link
+        patch={~p"/help/agents/runners"}
+        class="link"
+      >runner</.link>.
+    </li>
+  </ul>
+</.part>

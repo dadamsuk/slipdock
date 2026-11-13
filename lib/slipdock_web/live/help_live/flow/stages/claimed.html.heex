@@ -1,0 +1,61 @@
+<p>
+  An automation rule queues a <strong>job</strong>
+  for a <strong>pool</strong>: <em>Send cards to a runner</em>
+  when a card arrives in a list, or <em>Work a list with a runner</em>, which sends the top
+  card, one at a time. A runner in that pool pulls the job, or a session takes it with <code>slipdock claim-job B --pool loop</code>.
+</p>
+<p>
+  Recurring agent work (a nightly sweep, the handbook's reconcile) lands in the board's
+  <strong>Scheduled</strong>
+  list, when it has one: a list in the <code>scheduled</code>
+  category, after To Do. Nobody picks from it, people or agents asked what to do next. Its
+  own <em>Work Scheduled with a runner</em>
+  rules send each card on its day: when a list becomes Scheduled, every rule working the
+  ready list gets one beside it, for the same pool. A Scheduled card still there after its
+  due day is on its owner's <strong>Waiting on you</strong>.
+</p>
+<p>
+  Small fixes and investigations that sweeps, findings triage and agents file wait in the
+  <strong>Housekeeping</strong>
+  list (category <code>housekeeping</code>). It gets the same rules beside the ready list's, <em>Work Housekeeping with a runner</em>, but each one backfills: it sends a card only while
+  To Do and Scheduled have nothing that pool could start. Your own work always goes first.
+  A Housekeeping card that turns out to need a design choice, or grows into feature work,
+  comes back to you: the agent moves it to Triage with a <em>product</em>
+  wait saying what grew, and builds nothing. With no Triage list on the board, it stays
+  where it is, held by its wait until you answer.
+  With the overseer on, each morning (07:00 unless you set another time) its card gets a
+  digest of what Housekeeping worked, grouped by theme, naming only what needs you.
+</p>
+<p>
+  The card moves into progress, and the <strong>bar locks</strong>: from then on only a
+  person can change it. For a <em>Work a list with a runner</em> job the server makes the
+  move the moment a runner claims it, to the board's doing list (the one the guide names),
+  and the job's prompt names that list; for any other job the agent moves the card. A job is held, saying why, while the board is paused, its WIP
+  limit is full (<em>WIP limits hold automated work</em>), another card is in progress, or
+  its lane overlaps one.
+</p>
+<p>
+  While the job is claimed or running, the card's Assignees show the <strong>loop</strong>:
+  the runner and the job's kind (build or verify), linked to the job. It goes when the job
+  ends. The agent doesn't assign the card to anyone, since it signs in with a person's token.
+</p>
+<.person_note>
+  <strong>A batched board releases on a trigger, not on a merge.</strong>
+  A card there is done when it merges; agents don't wait for its release. A release runs when
+  a critical card merges, at the board's age cap, or when the owner presses <em>Release now</em>
+  (<code>slipdock release B</code>): a runner's <code>release</code>
+  job runs the board's release command, one release at a time. A command other than the
+  default <code>gh workflow run</code>
+  runs only on a machine whose <code>local.json</code>
+  lists it under <code>release_commands</code>. A red release holds the next one and files a
+  critical fix card: fix that card, and its merge releases; only the owner lifts a hold by
+  hand. <em>Not shipped</em>
+  counts from the release there, never from the merge, so a card awaiting release is not
+  late.
+</.person_note>
+<.person_note>
+  <strong>A pause is yours to lift.</strong>
+  Agents may pause runner work (<code>slipdock pause B --reason "…"</code>), and an agent
+  that sees it takes nothing. Only a person resumes it: <code>slipdock resume B</code>
+  or the Runners panel.
+</.person_note>

@@ -1,0 +1,20 @@
+<p>
+  <em>Ship accepted work by</em> chooses how the work reaches the default branch, and so
+  the deploy.
+</p>
+<ul class="list-disc space-y-1 pl-5">
+  <li>
+    <strong>By push</strong>
+    (the default): the builder pushes the default branch. If a push to main deploys, the work
+    is live before anyone has checked it.
+  </li>
+  <li>
+    <strong>By pull request</strong>: the builder never pushes the default branch. It pushes a
+    <code>card-12</code>
+    branch and opens a pull request. That pull request's CI is the one full test run: the
+    builder runs only the tests it changed and the pre-push checks first, then watches the checks
+    with <code>gh pr checks card-12 --watch --fail-fast</code>, so a failure is seen when it
+    happens. A card that changes no code (a sweep, a handbook reconcile) has no pull request: it
+    completes with <code>slipdock done 12 --no-code "why"</code>, and accepting it merges nothing.
+  </li>
+</ul>

@@ -1,0 +1,405 @@
+<.part title="Boards, lists and cards" id="boards-basics">
+  <p>
+    A board is a set of lists (columns), and each list holds cards that you drag
+    between and within lists. Every board also has a short <strong>code</strong>, such
+    as <code>qvm-v1-rem</code>, that names it in links, the API and the CLI.
+  </p>
+  <p>A card can carry:</p>
+  <ul class="list-disc space-y-1 pl-5">
+    <li>a Markdown description, a checklist and comments</li>
+    <li>a priority from low to critical, a start date and a due date</li>
+    <li>flags: flagged, blocked, needs review, waiting, starred, stuck</li>
+    <li>tags, one or more assignees, a cover colour, web links and attachments</li>
+    <li>a timer, with time spent against an estimate</li>
+  </ul>
+  <p id="help-flag-attention">
+    A flag says who clears it. <strong>Filled</strong>, with a solid icon (and a
+    raised hand on the open card), means nothing on the board will clear it: a
+    person has to act. <strong>Outline only</strong>, and <em>clears itself</em>
+    on the open card, means something already in motion will: a blocked card
+    whose blocker is still open is unblocked when that card is done, and a card
+    awaiting verification on a board with a verify pool is decided by a verifier
+    agent. Waiting, flagged and stuck always need a person; a starred card asks
+    nothing of anyone. Hover a flag to see who clears it.
+  </p>
+  <p>
+    <code>@name</code> in a description or comment mentions someone who can see the
+    board, and they get an email (and a desktop notification, if they have those on). Lists can have a colour, a WIP limit, and their own
+    sort order or grouping.
+  </p>
+  <p id="help-card-authors">
+    Under a card's properties, <strong>Created by</strong>
+    says who made it and <strong>Last changed by</strong>
+    who touched it last (an edit, a move, a comment, a
+    checklist item, an attachment or a flag) and when. That can be a person, a runner
+    loop by its runner's name ("Dev server loop"), an agent by its token's label, or
+    an automation rule by its name. When nobody was recorded, as on cards older than
+    this, only the time is shown.
+  </p>
+</.part>
+
+<.part title="Subcards and epics" id="boards-subcards">
+  <p>
+    Any card can have subcards. It becomes a board of its own, with lists from a
+    template, and those subcards can have subcards too, to any depth. A common pattern
+    is for top-level cards to be <strong>epics</strong> and their subcards to be the actual tasks.
+  </p>
+  <p>
+    Each card summarises everything beneath it: how many tasks are done, the earliest
+    start and latest due date, whether anything below is blocked or overdue, and a
+    health state. <.app_link current_user={@current_user} to={~p"/work"}>My work</.app_link>
+    lists everything assigned to you across every board and level, after what is waiting
+    on you: the overseer's alerts first, when a board has it on (Automations, Overseer).
+    Open cards with no due date aren't listed there; its header says how many there are,
+    and completed ones are under Show completed. The API, the CLI, the MCP tools and the
+    AI chat still see every assigned card.
+  </p>
+  <p>
+    Cards can also <strong>depend</strong>
+    on each other ("blocked by" and "blocks"). A card waiting on unfinished work shows a
+    blocked badge.
+  </p>
+</.part>
+
+<.part title="Waiting on you" id="boards-waiting">
+  <p>
+    <.app_link current_user={@current_user} to={~p"/work"}>My work</.app_link>
+    opens with everything that needs you, oldest first: questions waiting on you, cards
+    flagged for your review, failed runner jobs, cards in progress with nobody on them and
+    Scheduled cards not started by the end of their day, on the boards you own. The header counts them on every page.
+  </p>
+  <p>
+    The boards show them too. An epic's card carries <strong>⏸ 2 waiting on you</strong>
+    for what in its subcards is on you, and a line naming each with its reason, such as <em>Waiting on you: #2063 (a question), #2075 (3 rejections)</em>. Questions waiting on
+    other people show in the line only (<em>and 1 on someone else</em>), never in the count. Click the
+    chip to open the sub-board showing only those cards. Open the epic and its subcard list
+    marks the same rows: each one waiting on you carries a badge with its reason (<em>to verify</em>, <em>a question</em>),
+    one waiting on someone else a quieter mark naming who it waits on, and the line's #ids above the list jump to their rows.
+    A card further down marks the subcard it sits under, with its own #id. The board's header says
+    <strong>Waiting on you: N</strong>
+    for the whole board and opens My work kept to it. <code>slipdock card</code>
+    and <code>slipdock board</code>
+    print the same line.
+  </p>
+  <p>
+    A question addressed to you also raises an alert in the header that only you see, and
+    an email, and so does a card of yours past its board's rejection limit. Turn either off in <.app_link
+      current_user={@current_user}
+      to={~p"/account/settings"}
+    >account settings</.app_link>, under <strong>When something waits on you</strong>.
+  </p>
+  <p>
+    Some of them you won't act on. The <strong>×</strong>
+    on a row dismisses it from your own list. It stays off for that reason only: a second
+    failed job, a new question or the flag put on again brings the card back. To keep a
+    whole board quiet, choose <strong>Mute on my Waiting on you</strong>
+    in the board's <strong>…</strong>
+    menu. Nothing from that board or any board under it shows on your list, and a strip on
+    the board says it is muted. Muting is not archiving: the board works as before, for
+    you and everyone else.
+  </p>
+  <p>
+    Both are yours alone. Nobody else's list changes. The list always says what it is
+    hiding (<em>3 waiting · 2 dismissed · 1 board muted</em>), and <strong>Show</strong>
+    lists them with <strong>Undo</strong>
+    and <strong>Unmute</strong>. From the CLI it is <code>slipdock work --dismiss</code>, <code>--dismissed</code>, <code>--undismiss</code>,
+    <code>--mute</code>
+    and <code>--unmute</code>.
+  </p>
+</.part>
+
+<.part title="Desktop notifications" id="boards-desktop-notifications">
+  <p>
+    Slipdock can show a notification on your computer when a card starts waiting on you,
+    a question is routed to you, or somebody <code>@</code>mentions you: the same things
+    that email you, which they still do. Turn on
+    <strong>Desktop notifications on this browser</strong>
+    under <.app_link current_user={@current_user} to={~p"/account/settings"}>Account → Preferences</.app_link>;
+    the browser asks whether to allow them. It is off until you do.
+  </p>
+  <p>
+    They come through a Slipdock tab you have open, in the background too, and with
+    several tabs open you get one, not one each. With no tab open nothing shows, on
+    purpose: Slipdock doesn't reach you when you have closed it. Clicking one brings the
+    tab forward and opens the card. You get none for what you did yourself, nor while
+    you are looking at that card.
+  </p>
+  <p>
+    The setting is kept in this browser, because the browser's permission is too: turn it
+    on in each one you use. If notifications are blocked for the site, or the browser
+    can't show them, the toggle says so; unblock them in the browser's site settings.
+    Only the web app shows them; the API, the CLI and agents have nothing to set.
+  </p>
+</.part>
+
+<.part title="Views" id="boards-views">
+  <p>
+    The same cards, shown different ways. Switch between them from the view menu, or press <kbd class="kbd kbd-xs">v</kbd>:
+  </p>
+  <ul class="list-disc space-y-1 pl-5">
+    <li><strong>Board</strong>: lists side by side.</li>
+    <li>
+      <strong>Swimlanes</strong>: a grid with any attribute on each axis, such as assignee by priority.
+    </li>
+    <li>
+      <strong>Table</strong>: a sortable row per card, with editing in place and CSV export.
+    </li>
+    <li>
+      <strong>Timeline</strong>: a Gantt chart by start and due date, with dependency lines.
+    </li>
+    <li><strong>Calendar</strong>: a month or week, by due date.</li>
+    <li><strong>Outline</strong>: the board as a tree of cards and subcards.</li>
+    <li>
+      <strong>Narrative</strong>: what happened to the cards over a date range, told as prose.
+    </li>
+    <li>
+      <strong>Prioritise</strong>: a ranked table where priority, votes and scores are edited in place.
+    </li>
+  </ul>
+  <p>
+    The filter bar narrows any view by text, tag, priority, flag, due date and origin (who
+    or what made the card: a person, the sweep, an agent's job…). A view
+    with its filters can be saved, shared, or published as a public link.
+  </p>
+  <p id="boards-search-results">
+    On the board, a search or filter shows its matches as one list down the page, grouped by
+    the list each card is in, in board order, so none sit off the side of the screen. Each
+    heading gives the list's name and how many match; click it to fold or unfold the group.
+    Done, and any list with more than 10 matches, starts folded, and the lists with no
+    matches are named on one line at the end. Click a row to open the card, or use its
+    arrow to move it to another list. <strong>Board</strong>
+    in the banner shows the matches in their columns instead, for that search;
+    <strong>Clear</strong>
+    brings the whole board back.
+  </p>
+</.part>
+
+<.part title="Card views" id="boards-card-views">
+  <p>
+    Choose what you see of a card: each part of its front, each section of the opened card
+    and each property and group of its sidebar, assignees and dates included. Card views are yours alone and kept on the server, so
+    they follow you to every browser. Nobody else's cards change.
+  </p>
+  <ul class="list-disc space-y-1 pl-5">
+    <li>
+      <strong>Levels</strong>: global, then a board, then one list on it. Each states only
+      what it changes, <em>Show</em> or <em>Hide</em>, and inherits the rest from the level below.
+    </li>
+    <li>
+      <strong>Named card views</strong>: save a set under a name and apply it at any level,
+      with that level's own choices on top. A saved view can name one too, under
+      Display → <em>Card view for this view</em>.
+    </li>
+    <li>
+      <strong>Show all</strong>: a switch in the Display menu that shows every part of the
+      card front on this board while it is on.
+    </li>
+    <li>
+      <strong>The handoff note</strong>: show <em>Handoff note (2 lines)</em>
+      or <em>Handoff note in full</em>
+      to read where a card was left without opening it.
+    </li>
+  </ul>
+  <p>
+    Open them from the Display menu's <strong>Card views…</strong>, from
+    <strong>Card view…</strong>
+    in a list's ⋯ menu, or at <.app_link
+      current_user={@current_user}
+      to={~p"/card-views"}
+    >Card views</.app_link>. The board's own settings always win: a card view never brings back
+    what a simple board or a list hides. The list level applies on the board and swimlanes;
+    the timeline, calendar and outline use the board's.
+  </p>
+</.part>
+
+<.part title="Planning" id="boards-planning">
+  <ul class="list-disc space-y-1 pl-5">
+    <li>
+      <strong>Sprints</strong>: a sprint board where every card is a sprint, with burndown
+      and velocity charts.
+    </li>
+    <li>
+      <strong>Roadmaps</strong>: give lists a category (to do, in progress, done, dropped,
+      triage, scheduled, housekeeping)
+      and a horizon such as Q1 2027; add milestones; colour any view by list, priority,
+      health, assignee or tag.
+    </li>
+    <li>
+      <strong>Recurring cards</strong>: <em>Repeat…</em>
+      on a card (or <code>every: mon</code>
+      in quick add) makes it repeat: daily, weekdays, weekly, monthly on a date or the
+      last Friday, yearly, or some days after the last one is done. The next one is a copy
+      of the current one, made in your timezone, and one still open has its due date moved
+      on rather than another piling up. On a board with a <strong>Scheduled</strong>
+      list (a list in the <em>Scheduled</em>
+      category; the Slipdock and Simple templates have one, after To Do) the next one is
+      made there unless you chose a list: recurring agent work waits there for the runners'
+      rules to send it on its day, out of your To Do, and nobody picks from it. One still
+      there after its day is on your <em>Waiting on you</em>. <em>Duplicate</em>
+      makes the same copy by hand.
+    </li>
+    <li>
+      <strong>Snooze</strong>: <em>Snooze…</em>
+      on a card, or <kbd>z</kbd>
+      over it on the board (<kbd>z</kbd> <kbd>z</kbd>
+      is tomorrow), hides a card that isn't actionable yet until a day, then brings it back
+      at the top of its list. Each list's foot counts what is snoozed in it and shows them,
+      faded, on a click. <code>snooze: mon</code>
+      in quick add does it as you add the card.
+    </li>
+    <li>
+      <strong>Tidy up…</strong>
+      in the board's menu looks the board, and every board beneath it, over for rot: epics
+      whose work is all done but still open, cards in Done never ticked off, cards stuck in
+      progress, epics with no next step, long-overdue cards, likely duplicates, wiki pages
+      nothing links to and links with a typo. Each comes with the evidence and a proposed fix
+      to apply or dismiss; a dismissal is remembered, and an applied fix can be undone. Board
+      settings → <em>Gardening</em>
+      picks the checks and how long before something counts.
+    </li>
+    <li>
+      <strong>Findings</strong>: what agents' passes learned on a board, and what went wrong
+      (a rejection, a job that timed out). Triage and the server handle them; what waits on
+      you is a rule drafted from one that recurs. Its tile on the board's
+      <em>Agentic Building</em>
+      page counts those proposals and opens the board's Findings page (a card's Findings link opens it too),
+      which leads with them, each linking the Tidy-up page to apply or dismiss. Below, for
+      reference, the findings: filter by status, kind, source, card or date, and promote a
+      finding into the handbook, merge repeats or dismiss it. A card with open findings
+      says how many, and links there.
+    </li>
+    <li>
+      <strong>Ledger</strong>: what shipped on a board since 07:00 yesterday, a line per card
+      completed, accepted, merged or deployed, with who accepted it, its evidence, the
+      <em>should</em>
+      rules it missed, where its time went and what its jobs spent, grouped by day. Its
+      tile on the board's <em>Agentic Building</em>
+      page opens it; <em>Look closer</em>
+      opens a card with its chat. Ten minutes' reading instead of approving each card.
+    </li>
+    <li>
+      <strong>Batched releases</strong>: Agentic Building → <em>Releases</em>
+      on the root board chooses how merged work reaches production: with each merge, or in
+      batches, with an age cap in hours for how long the oldest merge may wait. A merged
+      card is still done, and <em>Release now</em>
+      is how a person ships it; on a batched board it shows <em>merged, awaiting release</em>
+      until a deploy ships it, then <em>released</em>
+      with the time. A release runs when a card of priority <em>critical</em>
+      merges, when the oldest merge reaches the age cap, or when the board's owner presses <em>Release now</em>, on the board's release banner or on that page. Releases run one at a
+      time: a runner runs the board's release command, and anything asked for meanwhile
+      becomes one follow-up. A runner runs the default <code>gh workflow run</code>
+      command itself; any other runs only if that machine's <code>local.json</code>
+      lists it, word for word, under <code>release_commands</code>. A red release (its suite,
+      build or deploy failing) holds releases: the banner says why, with the failing run,
+      and a critical fix card goes on top of the ready list. Its merge lifts the hold and
+      releases; the owner can also press <em>Lift hold</em>, which releases nothing.
+    </li>
+    <li>
+      <strong>Who gets asked</strong>: Agentic Building → <em>Who gets asked</em>
+      names a person for each kind of question an agent asks (product, UX, security,
+      release, anything else). Their waits go to that person, and to the board's owner
+      when nobody is named. Beside it, <em>An approval's proposal stands after</em>
+      (off until set; 4h, say) lets an unanswered wait of kind other that offers
+      choices and proposes one go ahead with its proposal: the card says so and the
+      person asked is told. Product, UX, security and release questions, and a wait
+      that proposes nothing, always wait for a person.
+    </li>
+    <li>
+      <strong>Profiles</strong>: one word for what kind of change a card is (security,
+      schema, feature, fix, docs or spike), off until Agentic Building → <em>Profiles</em>
+      turns them on. An agent starting a card with none gets one from its paths and tags,
+      strictest first; the card's front shows it as a chip, and the card panel's <em>Profile</em>
+      select sets or clears it. When an agent completes the card, the profile is checked
+      again against what the change touched, and raised, never lowered: a migration or a
+      security path raises even one you set, and more than 400 changed lines makes an
+      agent's or an inferred fix or docs a feature (a fix you set keeps it). <em>Human tier, by profile</em>, on the same page, says
+      whether an agent's acceptance merges the card, merges it onto the ledger or holds it
+      for a person: by default schema and security changes wait for you. A spike merges nothing:
+      its prototype stays on its branch, and it holds no lane.
+    </li>
+    <li>
+      <strong>Incidents</strong>: when a card broke something that shipped, its <em>Incident</em>
+      line, under Dependencies, names the card that shipped it and the check that should
+      have caught it (bar, rules, CI, verify, audit or none). The causing card then shows
+      the incident it caused, and carries a finding naming that check.
+    </li>
+    <li>
+      <strong>Status updates</strong>: on track, at risk or off track, with a note, shown
+      beside the health the board works out for itself. On a card agents work, the board
+      posts each step itself (Writing code, Verifying, Merged, Shipped to production…),
+      quietly, at the top of the card; a finished card shows there how it ended (done when,
+      accepted by whom, what merged and shipped) instead of a next step. With delivery
+      metrics on, a merged card that no succeeded deploy names after 20 minutes (the
+      board's <em>Not shipped after</em>
+      setting) shows an amber <em>Merged 1a634c6 · not shipped after 45m</em>
+      and raises one warning alert on the board, whether or not the overseer is on; the
+      deploy that names it clears both. On a board with batched releases the minutes count
+      from the card's release, not its merge, so a card waiting for its batch raises
+      nothing. How long ago each
+      one was ("18 min ago") keeps up with the clock while the card is open.
+    </li>
+    <li>
+      <strong>Custom fields</strong>
+      (numbers, ratings, choices, dates, text) and formula fields with RICE and ICE presets.
+    </li>
+    <li>
+      <strong>Budget voting</strong>: everyone spends a set number of votes across the board.
+    </li>
+    <li>
+      <strong>Typed links</strong>
+      between cards on any board, so a goal card can collect the work contributing to it.
+    </li>
+  </ul>
+</.part>
+
+<.part title="Getting around fast" id="boards-fast">
+  <ul class="list-disc space-y-1 pl-5">
+    <li>
+      <strong>Quick add</strong>: press <kbd class="kbd kbd-xs">c</kbd>
+      or use the header box and type a line such as "call the printers about the banners
+      friday, urgent". It becomes a card on your default board. After a semicolon comes the
+      card's description, after two a comment: "Fix the login; seen on Safari only;; ask Sam first".
+    </li>
+    <li>
+      <kbd class="kbd kbd-xs">Ctrl</kbd>-<kbd class="kbd kbd-xs">P</kbd>
+      opens the command palette, and <kbd class="kbd kbd-xs">Ctrl</kbd>-<kbd class="kbd kbd-xs">O</kbd>
+      opens any card by its title or number. Press <kbd class="kbd kbd-xs">?</kbd>
+      for every keyboard shortcut.
+    </li>
+    <li>
+      <strong>Favourites</strong>: heart a board, list, card or saved view to keep it two
+      taps away.
+    </li>
+    <li id="help-select-mode">
+      <strong>Select</strong>
+      in the board's toolbar picks out cards to change all at once:
+      click a card to pick it, <kbd class="kbd kbd-xs">Shift</kbd>-click another to pick
+      every card between the two (down a list, then across), or press the tick in a list's
+      header to pick every card it shows (again to let them go). <strong>Select all</strong>
+      in a list's ⋯ menu turns select mode on with every card the list shows picked; in
+      select mode it adds them to what is already picked, and never lets any go.
+    </li>
+    <li>
+      On a phone, the board becomes one list at a time, with navigation and quick add in thumb reach.
+    </li>
+  </ul>
+</.part>
+
+<.part title="Templates, moving and archiving" id="boards-moving">
+  <ul class="list-disc space-y-1 pl-5">
+    <li>
+      <.app_link current_user={@current_user} to={~p"/templates"}>Templates</.app_link>
+      are named sets of lists for new boards and sub-boards.
+    </li>
+    <li>
+      A card moves to another board with its subcards, from the same menu that moves it between lists.
+    </li>
+    <li>
+      Archiving a card or a whole board puts it away without deleting anything, and it can be restored.
+    </li>
+    <li>
+      Boards can be imported from Trello or another Slipdock server, and everything you
+      have can be exported, under <.app_link current_user={@current_user} to={~p"/account/data"}>Account → Import & export</.app_link>.
+    </li>
+  </ul>
+</.part>

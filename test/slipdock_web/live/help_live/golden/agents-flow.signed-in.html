@@ -1,0 +1,1527 @@
+<div phx-r="" id="help" class="kanban-scroll h-full overflow-y-auto">
+<div phx-r="" data-page-width="standard" class="mx-auto w-full px-4 py-6 sm:px-6 sm:py-10 max-w-5xl space-y-8">
+<nav phx-r="" id="help-sections-nav" aria-label="Help sections" class="flex gap-1 overflow-x-auto rounded-2xl bg-base-100 p-1 text-sm shadow-sm ring-1 ring-base-content/10">
+<a phx-r="" href="/help" data-phx-link="patch" data-phx-link-state="push" class="flex items-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+<span phx-r="" class="hero-arrow-left size-4">
+</span>
+ Help
+  </a>
+<a phx-r="" href="/help/boards" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+  Boards
+</a>
+<a phx-r="" href="/help/wiki" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+  Wiki
+</a>
+<a phx-r="" href="/help/sharing" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+  Sharing
+</a>
+<a phx-r="" href="/help/email" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+  Email
+</a>
+<a phx-r="" href="/help/automations" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+  Automations
+</a>
+<a phx-r="" href="/help/tools" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+  Tools
+</a>
+<a phx-r="" href="/help/ai" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+  AI
+</a>
+<a phx-r="" href="/help/agents" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium bg-primary/10 text-primary" aria-current="page">
+
+  Agents
+</a>
+</nav>
+<nav phx-r="" id="help-topics" aria-label="Help topics" class="flex gap-1 overflow-x-auto rounded-2xl bg-base-100 p-1 text-sm shadow-sm ring-1 ring-base-content/10">
+<a phx-r="" href="/help/agents" data-phx-link="patch" data-phx-link-state="push" class="flex items-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+<span phx-r="" class="hero-arrow-left size-4">
+</span>
+ All ways in
+  </a>
+<a phx-r="" href="/help/agents/flow" data-phx-link="patch" data-phx-link-state="push" id="help-topics-flow" class="flex items-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-2 font-medium bg-primary/10 text-primary" aria-current="page">
+
+    How work flows
+  </a>
+<a phx-r="" href="/help/agents/guide" data-phx-link="patch" data-phx-link-state="push" class="flex items-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+    Guide &amp; API
+  </a>
+<a phx-r="" href="/help/agents/mcp" data-phx-link="patch" data-phx-link-state="push" class="flex items-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+    MCP
+  </a>
+<a phx-r="" href="/help/agents/cli" data-phx-link="patch" data-phx-link-state="push" class="flex items-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+    CLI
+  </a>
+<a phx-r="" href="/help/agents/skills" data-phx-link="patch" data-phx-link-state="push" class="flex items-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+    Skills
+  </a>
+<a phx-r="" href="/help/agents/runners" data-phx-link="patch" data-phx-link-state="push" class="flex items-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+    Runners
+  </a>
+<a phx-r="" href="/help/agents/webhooks" data-phx-link="patch" data-phx-link-state="push" class="flex items-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+    Webhooks
+  </a>
+</nav>
+<article phx-r="" id="help-flow" class="space-y-6">
+<header class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+<header phx-r="" id="page-header" data-role="page-header" class="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-3 ">
+<div class="min-w-0">
+<h1 class="page-title">
+<span class="mr-2 inline-flex align-middle">
+<span phx-r="" class="hero-arrow-path-rounded-square size-6 text-primary">
+</span>
+</span>
+How work flows
+    </h1>
+<p data-role="page-subtitle" class="mt-1 max-w-2xl text-sm text-base-content/60">
+
+      What happens to a card on a board that runners work, from the moment you write it to the deploy: who acts at each stage, what the board checks, and where it waits for you.
+    </p>
+</div>
+</header>
+<p class="mt-2 text-sm text-base-content/70">
+
+      The other help pages say how to connect an agent. This one says what it does once
+      connected. Each check below is a board setting, off until you turn it on; with them
+      all off, an agent&#39;s <em>
+done</em>
+ is simply done.
+    </p>
+<p id="flow-step-statuses" class="mt-2 text-sm text-base-content/70">
+
+      At each stage the board posts the card&#39;s <strong>
+step status</strong>
+
+      itself, as an <em>
+On track</em>
+
+      status update by Slipdock: it shows at the top of the card and in its Status updates, and,
+      being routine, tells nobody following the card. Agents needn&#39;t post these; a person&#39;s own
+      update (at risk, off track) still tells them. A finished card shows its outcome there
+      instead of a next step: done when, accepted by whom, merged and shipped.
+    </p>
+</header>
+<section phx-r="" id="flow-diagram" aria-labelledby="flow-diagram-title" class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+<h2 id="flow-diagram-title" class="section-title">
+The flow at a glance</h2>
+<p class="mt-1 text-sm text-base-content/70">
+
+    Who acts at each stage.
+    <span phx-r="" class="hero-hand-raised size-4 align-text-bottom text-warning">
+</span>
+<strong class="text-base-content">
+Ringed</strong>
+
+    stages are where a person has to act.
+  </p>
+<p phx-r="" class="mt-3 flex flex-wrap gap-2 text-xs text-base-content/70">
+<span class="flex items-center gap-1">
+<span class="badge badge-sm badge-warning">
+Person</span>
+
+    you, or whoever owns the board
+  </span>
+<span class="flex items-center gap-1">
+<span class="badge badge-sm badge-info badge-soft">
+Builder</span>
+
+    the agent doing the card
+  </span>
+<span class="flex items-center gap-1">
+<span class="badge badge-sm badge-success badge-soft">
+Verifier</span>
+
+    a second agent
+  </span>
+<span class="flex items-center gap-1">
+<span class="badge badge-sm badge-ghost">
+CI</span>
+
+    your repository&#39;s checks
+  </span>
+<span class="flex items-center gap-1">
+<span class="badge badge-sm badge-ghost italic">
+The board</span>
+
+    its rules and checks
+  </span>
+</p>
+<ol class="mt-4 space-y-0">
+<li id="flow-node-writing">
+<div class="flex min-w-0 items-start gap-3 rounded-xl p-3 bg-warning/10 ring-2 ring-warning" data-person="true">
+<span class="flex size-7 shrink-0 items-center justify-center rounded-full bg-base-100 text-sm font-semibold tabular-nums ring-1 ring-base-content/15">
+
+          1
+        </span>
+<div class="min-w-0 flex-1">
+<div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+<a href="#flow-writing" class="link font-semibold">
+Writing the card</a>
+<span class="badge badge-sm badge-warning">
+
+              Person
+            </span>
+<span class="inline-flex items-center gap-1 text-xs font-medium text-base-content">
+<span phx-r="" class="hero-hand-raised size-4 text-warning">
+</span>
+ You act here
+            </span>
+</div>
+<p class="mt-1 text-sm text-base-content/70">
+You write the ask and a bar that can be met.</p>
+</div>
+</div>
+<div class="flex justify-start py-1 pl-5 text-base-content/40" aria-hidden="true">
+<span phx-r="" class="hero-arrow-down size-4">
+</span>
+</div>
+</li>
+<li id="flow-node-claimed">
+<div class="flex min-w-0 items-start gap-3 rounded-xl p-3 bg-base-200/60">
+<span class="flex size-7 shrink-0 items-center justify-center rounded-full bg-base-100 text-sm font-semibold tabular-nums ring-1 ring-base-content/15">
+
+          2
+        </span>
+<div class="min-w-0 flex-1">
+<div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+<a href="#flow-claimed" class="link font-semibold">
+Queued and claimed</a>
+<span class="badge badge-sm badge-ghost italic">
+
+              The board
+            </span>
+<span class="badge badge-sm badge-info badge-soft">
+
+              Builder
+            </span>
+</div>
+<p class="mt-1 text-sm text-base-content/70">
+A rule queues a job; a runner pulls it; the bar locks.</p>
+</div>
+</div>
+<div class="flex justify-start py-1 pl-5 text-base-content/40" aria-hidden="true">
+<span phx-r="" class="hero-arrow-down size-4">
+</span>
+</div>
+</li>
+<li id="flow-node-building">
+<div class="flex min-w-0 items-start gap-3 rounded-xl p-3 bg-warning/10 ring-2 ring-warning" data-person="true">
+<span class="flex size-7 shrink-0 items-center justify-center rounded-full bg-base-100 text-sm font-semibold tabular-nums ring-1 ring-base-content/15">
+
+          3
+        </span>
+<div class="min-w-0 flex-1">
+<div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+<a href="#flow-building" class="link font-semibold">
+Building</a>
+<span class="badge badge-sm badge-info badge-soft">
+
+              Builder
+            </span>
+<span class="inline-flex items-center gap-1 text-xs font-medium text-base-content">
+<span phx-r="" class="hero-hand-raised size-4 text-warning">
+</span>
+ You act here
+            </span>
+</div>
+<p class="mt-1 text-sm text-base-content/70">
+Keeps to the handbook&#39;s rules, runs the pre-push checks. Waits on you if stuck.</p>
+<p phx-r="" class="mt-1.5 flex items-start gap-1.5 text-xs text-base-content/70">
+<span phx-r="" class="hero-pause-circle mt-px size-4 shrink-0 text-warning">
+</span>
+<span>
+
+            Stuck on something only you can give: a <strong phx-r="">
+wait</strong>
+
+            on you. Your answer sends it back to work.
+          </span>
+</p>
+</div>
+</div>
+<div class="flex justify-start py-1 pl-5 text-base-content/40" aria-hidden="true">
+<span phx-r="" class="hero-arrow-down size-4">
+</span>
+</div>
+</li>
+<li id="flow-node-shipping">
+<div class="flex min-w-0 items-start gap-3 rounded-xl p-3 bg-base-200/60">
+<span class="flex size-7 shrink-0 items-center justify-center rounded-full bg-base-100 text-sm font-semibold tabular-nums ring-1 ring-base-content/15">
+
+          4
+        </span>
+<div class="min-w-0 flex-1">
+<div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+<a href="#flow-shipping" class="link font-semibold">
+Shipping</a>
+<span class="badge badge-sm badge-info badge-soft">
+
+              Builder
+            </span>
+<span class="badge badge-sm badge-ghost">
+
+              CI
+            </span>
+</div>
+<p class="mt-1 text-sm text-base-content/70">
+Pushes main, or opens a pull request whose CI is the full test run.</p>
+</div>
+</div>
+<div class="flex justify-start py-1 pl-5 text-base-content/40" aria-hidden="true">
+<span phx-r="" class="hero-arrow-down size-4">
+</span>
+</div>
+</li>
+<li id="flow-node-submitting">
+<div class="flex min-w-0 items-start gap-3 rounded-xl p-3 bg-base-200/60">
+<span class="flex size-7 shrink-0 items-center justify-center rounded-full bg-base-100 text-sm font-semibold tabular-nums ring-1 ring-base-content/15">
+
+          5
+        </span>
+<div class="min-w-0 flex-1">
+<div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+<a href="#flow-submitting" class="link font-semibold">
+Submitting</a>
+<span class="badge badge-sm badge-info badge-soft">
+
+              Builder
+            </span>
+</div>
+<p class="mt-1 text-sm text-base-content/70">
+Completes with evidence, a Handbook line and Findings.</p>
+</div>
+</div>
+<div class="flex justify-start py-1 pl-5 text-base-content/40" aria-hidden="true">
+<span phx-r="" class="hero-arrow-down size-4">
+</span>
+</div>
+</li>
+<li id="flow-node-verifying">
+<div class="flex min-w-0 items-start gap-3 rounded-xl p-3 bg-warning/10 ring-2 ring-warning" data-person="true">
+<span class="flex size-7 shrink-0 items-center justify-center rounded-full bg-base-100 text-sm font-semibold tabular-nums ring-1 ring-base-content/15">
+
+          6
+        </span>
+<div class="min-w-0 flex-1">
+<div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+<a href="#flow-verifying" class="link font-semibold">
+Verifying</a>
+<span class="badge badge-sm badge-success badge-soft">
+
+              Verifier
+            </span>
+<span class="badge badge-sm badge-warning">
+
+              Person
+            </span>
+<span class="inline-flex items-center gap-1 text-xs font-medium text-base-content">
+<span phx-r="" class="hero-hand-raised size-4 text-warning">
+</span>
+ You act here
+            </span>
+</div>
+<p class="mt-1 text-sm text-base-content/70">
+A second agent accepts or rejects. You decide without one, or past the limit.</p>
+<p phx-r="" class="mt-1.5 flex items-start gap-1.5 text-xs text-base-content/70">
+<span phx-r="" class="hero-arrow-uturn-left mt-px size-4 shrink-0 text-warning">
+</span>
+<span>
+<strong phx-r="">
+Rejected:</strong>
+ back to 2, the reason as its next brief.
+          </span>
+</p>
+<p phx-r="" class="mt-1.5 flex items-start gap-1.5 text-xs text-base-content/70">
+<span phx-r="" class="hero-hand-raised mt-px size-4 shrink-0 text-warning">
+</span>
+<span>
+<strong phx-r="">
+Rejected past the limit:</strong>
+
+            a wait on you: rework it, or accept it as is.
+          </span>
+</p>
+</div>
+</div>
+<div class="flex justify-start py-1 pl-5 text-base-content/40" aria-hidden="true">
+<span phx-r="" class="hero-arrow-down size-4">
+</span>
+</div>
+</li>
+<li id="flow-node-afterwards">
+<div class="flex min-w-0 items-start gap-3 rounded-xl p-3 bg-warning/10 ring-2 ring-warning" data-person="true">
+<span class="flex size-7 shrink-0 items-center justify-center rounded-full bg-base-100 text-sm font-semibold tabular-nums ring-1 ring-base-content/15">
+
+          7
+        </span>
+<div class="min-w-0 flex-1">
+<div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+<a href="#flow-afterwards" class="link font-semibold">
+Afterwards</a>
+<span class="badge badge-sm badge-ghost">
+
+              CI
+            </span>
+<span class="badge badge-sm badge-warning">
+
+              Person
+            </span>
+<span class="inline-flex items-center gap-1 text-xs font-medium text-base-content">
+<span phx-r="" class="hero-hand-raised size-4 text-warning">
+</span>
+ You act here
+            </span>
+</div>
+<p class="mt-1 text-sm text-base-content/70">
+Deploy, then you triage findings and apply the gardener&#39;s proposals.</p>
+</div>
+</div>
+</li>
+</ol>
+</section>
+<section phx-r="" id="flow-writing" class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+<h2 class="section-title">
+1. Writing the card</h2>
+<div class="help-prose mt-2 space-y-3 text-sm text-base-content/70">
+<p phx-r="" class="flex flex-wrap items-center gap-1.5">
+<span class="font-medium text-base-content">
+Who acts:</span>
+<span class="badge badge-sm badge-warning">
+Person</span>
+</p>
+<p phx-r="">
+
+  The card&#39;s description is <strong>
+the ask</strong>
+: what you want and why. Its
+  <strong>
+bar</strong>
+
+  says what done means, one line per part, and is what the work is judged against. On a
+  board with <em>
+A bar before work starts</em>
+
+  on, an agent can&#39;t start a card without one (<code>
+slipdock edit 12 --bar &quot;…&quot;</code>
+).
+</p>
+<div phx-r="" data-person="true" class="flex gap-2 rounded-xl bg-warning/10 p-3 ring-1 ring-warning">
+<span phx-r="" class="hero-hand-raised mt-0.5 size-4 shrink-0 text-warning">
+</span>
+<div class="min-w-0 text-base-content">
+<span class="sr-only">
+A person acts here: </span>
+<strong phx-r="">
+Write a bar that can be met.</strong>
+
+  An agent may not take a step that is yours: changing a handbook rule, merging, deploying to
+  production, applying a proposal. Phrase those as what an agent can do: &quot;proposed as a garden
+  proposal (rule id, wording)&quot; rather than &quot;W-12 has rule Y&quot;, and &quot;pull request open, its CI
+  green&quot; rather than &quot;merged&quot;. A bar asking for a person&#39;s step is caught at pickup and comes
+  back to you as a wait.
+
+  </div>
+</div>
+<p phx-r="">
+
+  On a board with <em>
+Lanes</em>
+
+  on, give the card its <strong>
+paths</strong>
+: the files its work will touch, as globs
+  (<code>
+slipdock edit 12 --paths &quot;lib/billing/**,docs/manual.md&quot;</code>
+). Two agents can&#39;t
+  work cards whose paths overlap at once; the second waits. Set lanes to <em>
+Advise</em>
+
+  (<code>
+slipdock set-board B --lane-mode advise</code>
+) and the second starts anyway, its job&#39;s
+  prompt naming the card already in those files. Files nearly every card edits,
+  such as the manual, go in the board&#39;s <strong>
+shared paths</strong>
+
+  (<code>
+slipdock set-board B --shared-paths docs/manual.md,README.md</code>
+): cards can
+  declare them without holding each other, and their edits are left to merge.
+</p>
+<p phx-r="">
+
+  An epic planned with the plan skill can start with <strong>
+spikes</strong>
+: a question only
+  building can answer, which you confirm, becomes a card with the <code>
+spike</code>
+
+  profile (<code>
+slipdock add 12 &quot;Spike: does the API page?&quot; --profile spike</code>
+), its
+  bar the question. A spike needs no paths and holds no lane, and its code is never merged:
+  its answer is a page pinned to the epic. Planning waits until the last is accepted, then
+  a product wait on the epic asks you to resume, and the Spec is written from the answers.
+</p>
+<p phx-r="">
+
+  On a board with a <strong>
+handbook</strong>
+
+  (its <code>
+Handbook/</code>
+
+  wiki pages), the card lists the sections the builder should read first, and the rules
+  that cover its paths (<code>
+slipdock card 12</code>
+).
+</p>
+</div>
+</section>
+<section phx-r="" id="flow-claimed" class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+<h2 class="section-title">
+2. Queued and claimed</h2>
+<div class="help-prose mt-2 space-y-3 text-sm text-base-content/70">
+<p phx-r="" class="flex flex-wrap items-center gap-1.5">
+<span class="font-medium text-base-content">
+Who acts:</span>
+<span class="badge badge-sm badge-ghost italic">
+The board</span>
+<span class="badge badge-sm badge-info badge-soft">
+Builder</span>
+</p>
+<div phx-r="" id="flow-claimed-steps" class="flex flex-wrap items-center gap-1.5">
+<span class="font-medium text-base-content">
+Step status:</span>
+<span class="badge badge-sm badge-success badge-soft">
+Writing code</span>
+<span class="badge badge-sm badge-success badge-soft">
+Reworking after verify failed</span>
+</div>
+<p phx-r="">
+
+  An automation rule queues a <strong>
+job</strong>
+
+  for a <strong>
+pool</strong>
+: <em>
+Send cards to a runner</em>
+
+  when a card arrives in a list, or <em>
+Work a list with a runner</em>
+, which sends the top
+  card, one at a time. A runner in that pool pulls the job, or a session takes it with <code>
+slipdock claim-job B --pool loop</code>
+.
+</p>
+<p phx-r="">
+
+  Recurring agent work (a nightly sweep, the handbook&#39;s reconcile) lands in the board&#39;s
+  <strong>
+Scheduled</strong>
+
+  list, when it has one: a list in the <code>
+scheduled</code>
+
+  category, after To Do. Nobody picks from it, people or agents asked what to do next. Its
+  own <em>
+Work Scheduled with a runner</em>
+
+  rules send each card on its day: when a list becomes Scheduled, every rule working the
+  ready list gets one beside it, for the same pool. A Scheduled card still there after its
+  due day is on its owner&#39;s <strong>
+Waiting on you</strong>
+.
+</p>
+<p phx-r="">
+
+  Small fixes and investigations that sweeps, findings triage and agents file wait in the
+  <strong>
+Housekeeping</strong>
+
+  list (category <code>
+housekeeping</code>
+). It gets the same rules beside the ready list&#39;s, <em>
+Work Housekeeping with a runner</em>
+, but each one backfills: it sends a card only while
+  To Do and Scheduled have nothing that pool could start. Your own work always goes first.
+  A Housekeeping card that turns out to need a design choice, or grows into feature work,
+  comes back to you: the agent moves it to Triage with a <em>
+product</em>
+
+  wait saying what grew, and builds nothing. With no Triage list on the board, it stays
+  where it is, held by its wait until you answer.
+  With the overseer on, each morning (07:00 unless you set another time) its card gets a
+  digest of what Housekeeping worked, grouped by theme, naming only what needs you.
+</p>
+<p phx-r="">
+
+  The card moves into progress, and the <strong>
+bar locks</strong>
+: from then on only a
+  person can change it. For a <em>
+Work a list with a runner</em>
+ job the server makes the
+  move the moment a runner claims it, to the board&#39;s doing list (the one the guide names),
+  and the job&#39;s prompt names that list; for any other job the agent moves the card. A job is held, saying why, while the board is paused, its WIP
+  limit is full (<em>
+WIP limits hold automated work</em>
+), another card is in progress, or
+  its lane overlaps one.
+</p>
+<p phx-r="">
+
+  While the job is claimed or running, the card&#39;s Assignees show the <strong>
+loop</strong>
+:
+  the runner and the job&#39;s kind (build or verify), linked to the job. It goes when the job
+  ends. The agent doesn&#39;t assign the card to anyone, since it signs in with a person&#39;s token.
+</p>
+<div phx-r="" data-person="true" class="flex gap-2 rounded-xl bg-warning/10 p-3 ring-1 ring-warning">
+<span phx-r="" class="hero-hand-raised mt-0.5 size-4 shrink-0 text-warning">
+</span>
+<div class="min-w-0 text-base-content">
+<span class="sr-only">
+A person acts here: </span>
+<strong phx-r="">
+A batched board releases on a trigger, not on a merge.</strong>
+
+  A card there is done when it merges; agents don&#39;t wait for its release. A release runs when
+  a critical card merges, at the board&#39;s age cap, or when the owner presses <em phx-r="">
+Release now</em>
+
+  (<code phx-r="">
+slipdock release B</code>
+): a runner&#39;s <code phx-r="">
+release</code>
+
+  job runs the board&#39;s release command, one release at a time. A command other than the
+  default <code phx-r="">
+gh workflow run</code>
+
+  runs only on a machine whose <code phx-r="">
+local.json</code>
+
+  lists it under <code phx-r="">
+release_commands</code>
+. A red release holds the next one and files a
+  critical fix card: fix that card, and its merge releases; only the owner lifts a hold by
+  hand. <em phx-r="">
+Not shipped</em>
+
+  counts from the release there, never from the merge, so a card awaiting release is not
+  late.
+
+  </div>
+</div>
+<div phx-r="" data-person="true" class="flex gap-2 rounded-xl bg-warning/10 p-3 ring-1 ring-warning">
+<span phx-r="" class="hero-hand-raised mt-0.5 size-4 shrink-0 text-warning">
+</span>
+<div class="min-w-0 text-base-content">
+<span class="sr-only">
+A person acts here: </span>
+<strong phx-r="">
+A pause is yours to lift.</strong>
+
+  Agents may pause runner work (<code phx-r="">
+slipdock pause B --reason &quot;…&quot;</code>
+), and an agent
+  that sees it takes nothing. Only a person resumes it: <code phx-r="">
+slipdock resume B</code>
+
+  or the Runners panel.
+
+  </div>
+</div>
+</div>
+</section>
+<section phx-r="" id="flow-building" class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+<h2 class="section-title">
+3. Building</h2>
+<div class="help-prose mt-2 space-y-3 text-sm text-base-content/70">
+<p phx-r="" class="flex flex-wrap items-center gap-1.5">
+<span class="font-medium text-base-content">
+Who acts:</span>
+<span class="badge badge-sm badge-info badge-soft">
+Builder</span>
+</p>
+<div phx-r="" id="flow-building-steps" class="flex flex-wrap items-center gap-1.5">
+<span class="font-medium text-base-content">
+Step status:</span>
+<span class="badge badge-sm badge-success badge-soft">
+Waiting for human</span>
+</div>
+<p phx-r="">
+
+  The builder reads the card and its handoff, and checks each part of the bar can be met.
+  It keeps to the <strong>
+handbook&#39;s rules</strong>
+
+  for the files it touches (<code>
+slipdock handbook B --paths lib/a.ex,lib/b.ex</code>
+):
+  breaking a <code>
+must</code>
+
+  rule gets the card rejected, a <code>
+should</code>
+
+  is noted. It runs the project&#39;s own pre-push checks, the ones its <code>
+CLAUDE.md</code>
+
+  or contributing guide lists, and comments on the card as it goes.
+</p>
+<div phx-r="" data-person="true" class="flex gap-2 rounded-xl bg-warning/10 p-3 ring-1 ring-warning">
+<span phx-r="" class="hero-hand-raised mt-0.5 size-4 shrink-0 text-warning">
+</span>
+<div class="min-w-0 text-base-content">
+<span class="sr-only">
+A person acts here: </span>
+<strong phx-r="">
+Answer its waits.</strong>
+
+  Nobody watches a job, so an agent that needs something only you can give (a decision, a
+  credential, a bar it can&#39;t meet) opens a <strong phx-r="">
+wait</strong>
+
+  and stops. The job is parked and the card goes back on top of its list. Answer it on the
+  card, in My work&#39;s <em phx-r="">
+Waiting on you</em>
+
+  (<code phx-r="">
+slipdock work</code>
+), or with <code phx-r="">
+slipdock answer 12 &quot;…&quot;</code>
+, and the card is
+  sent again with your answer at the top of its prompt, to whichever runner of the pool is free.
+  A wait is for what is yours to decide: readings that differ in cost or in what you see,
+  product, UX, security and release calls, and your steps (merging, a handbook rule, a
+  deploy). A bar item a later decision made moot isn&#39;t one: the agent reads it the obvious
+  way, says so on the card with the citation, and the verifier judges it. A wait that offers
+  choices names the one the agent proposes, so your answer can be one click; with
+  <em phx-r="">
+An approval&#39;s proposal stands after</em>
+
+  set, an unanswered one of kind other goes ahead with it and you are told. A wait that has
+  gone moot (answered elsewhere, the bar edited) is withdrawn by the next agent to find it,
+  with a comment saying why.
+
+  </div>
+</div>
+</div>
+</section>
+<section phx-r="" id="flow-shipping" class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+<h2 class="section-title">
+4. Shipping</h2>
+<div class="help-prose mt-2 space-y-3 text-sm text-base-content/70">
+<p phx-r="" class="flex flex-wrap items-center gap-1.5">
+<span class="font-medium text-base-content">
+Who acts:</span>
+<span class="badge badge-sm badge-info badge-soft">
+Builder</span>
+<span class="badge badge-sm badge-ghost">
+CI</span>
+</p>
+<p phx-r="">
+<em>
+Ship accepted work by</em>
+ chooses how the work reaches the default branch, and so
+  the deploy.
+</p>
+<ul phx-r="" class="list-disc space-y-1 pl-5">
+<li>
+<strong>
+By push</strong>
+
+    (the default): the builder pushes the default branch. If a push to main deploys, the work
+    is live before anyone has checked it.
+  </li>
+<li>
+<strong>
+By pull request</strong>
+: the builder never pushes the default branch. It pushes a
+    <code>
+card-12</code>
+
+    branch and opens a pull request. That pull request&#39;s CI is the one full test run: the
+    builder runs only the tests it changed and the pre-push checks first, then watches the checks
+    with <code>
+gh pr checks card-12 --watch --fail-fast</code>
+, so a failure is seen when it
+    happens. A card that changes no code (a sweep, a handbook reconcile) has no pull request: it
+    completes with <code>
+slipdock done 12 --no-code &quot;why&quot;</code>
+, and accepting it merges nothing.
+  </li>
+</ul>
+</div>
+</section>
+<section phx-r="" id="flow-submitting" class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+<h2 class="section-title">
+5. Submitting</h2>
+<div class="help-prose mt-2 space-y-3 text-sm text-base-content/70">
+<p phx-r="" class="flex flex-wrap items-center gap-1.5">
+<span class="font-medium text-base-content">
+Who acts:</span>
+<span class="badge badge-sm badge-info badge-soft">
+Builder</span>
+</p>
+<div phx-r="" id="flow-submitting-steps" class="flex flex-wrap items-center gap-1.5">
+<span class="font-medium text-base-content">
+Step status:</span>
+<span class="badge badge-sm badge-success badge-soft">
+Verifying</span>
+<span class="badge badge-sm badge-success badge-soft">
+Waiting for human to accept</span>
+</div>
+<p phx-r="">
+
+  The builder completes the card with its <strong>
+evidence</strong>
+: what it checked, the
+  commit, the tests it added or changed, the suite&#39;s result, and the pull request
+  (<code>
+slipdock done 12 --evidence-commit abc1234 --suite passed:412:0 --pr URL --evidence -</code>
+, the rest on stdin). With
+  <em>
+Evidence on completion</em>
+
+  on, a completion without any is refused. Evidence that is a bare <code>
+-</code>
+
+  is refused on any board: it is what a client that doesn&#39;t read stdin sends for <code>
+--evidence -</code>
+, so pass the text itself, or pipe it from a CLI that reads stdin. A card&#39;s description or bar that is a bare
+  <code>
+-</code>
+
+  is refused the same way, on a create or an update, for <code>
+--desc -</code>
+
+  and <code>
+--bar -</code>
+.
+</p>
+<p phx-r="">
+<strong>
+Evidence and a reason are lines, not a paragraph</strong>
+: a first line that
+  stands alone, a blank line, then one short line per point, the parts in <code>
+--check</code>
+
+  or the evidence&#39;s fields rather than repeated in the text. The command line loses line
+  breaks, so they go on stdin (<code>
+--evidence -</code>
+, <code>
+--reason -</code>
+):
+</p>
+<pre phx-r="" class="whitespace-pre-wrap break-words rounded-xl bg-base-200 px-3 py-2 font-mono text-xs leading-relaxed" data-role="evidence-example">
+slipdock done 12 --evidence-commit abc1234 --suite passed:412:0 --evidence - &lt;&lt;&#39;EOF&#39;
+Built and tested; CI green.
+
+- the export keeps archived cards (`Export.run/1`)
+- Handbook: updated W-3 §Exports
+EOF</pre>
+<p phx-r="">
+
+  On a board with a handbook, the closing comment has a <strong>
+<code>
+Handbook:</code>
+ line</strong>
+, the sections it updated or why none needed it, and a <strong>
+<code>
+Findings:</code>
+ block</strong>
+: what the card taught that the code and
+  handbook don&#39;t show, for the daily triage to handle. An item already dealt with says where
+  and is kept promoted, not open: <code>
+[done: W-1950 §Local setup]</code>
+
+  after its kind, or <code>
+→ #2087</code>
+
+  at its end for a card filed for it. A fix is a card, not a finding: a concrete change
+  someone could be handed (a missing test, a stale doc, a tooling bug) goes on the board
+  as a card at once, in the Housekeeping list when the board has one (a design question
+  goes to Triage, for a person), and the block names it with the arrow; a finding is only for what is
+  uncertain, cuts across cards, or shows the handbook wrong.
+</p>
+<div phx-r="" data-person="true" class="flex gap-2 rounded-xl bg-warning/10 p-3 ring-1 ring-warning">
+<span phx-r="" class="hero-hand-raised mt-0.5 size-4 shrink-0 text-warning">
+</span>
+<div class="min-w-0 text-base-content">
+<span class="sr-only">
+A person acts here: </span>
+<strong phx-r="">
+No verifier, no check.</strong>
+
+  With <em phx-r="">
+A second agent verifies</em>
+
+  off, the agent&#39;s completion is final: the card is done and in Done. Read the evidence
+  yourself if you want it looked at.
+
+  </div>
+</div>
+</div>
+</section>
+<section phx-r="" id="flow-verifying" class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+<h2 class="section-title">
+6. Verifying</h2>
+<div class="help-prose mt-2 space-y-3 text-sm text-base-content/70">
+<p phx-r="" class="flex flex-wrap items-center gap-1.5">
+<span class="font-medium text-base-content">
+Who acts:</span>
+<span class="badge badge-sm badge-success badge-soft">
+Verifier</span>
+<span class="badge badge-sm badge-warning">
+Person</span>
+</p>
+<div phx-r="" id="flow-verifying-steps" class="flex flex-wrap items-center gap-1.5">
+<span class="font-medium text-base-content">
+Step status:</span>
+<span class="badge badge-sm badge-success badge-soft">
+Verify failed; queued for rework</span>
+<span class="badge badge-sm badge-success badge-soft">
+Waiting for human (rejection limit)</span>
+<span class="badge badge-sm badge-success badge-soft">
+Waiting for human (held before merge)</span>
+<span class="badge badge-sm badge-success badge-soft">
+Accepted; merging</span>
+<span class="badge badge-sm badge-success badge-soft">
+Merged</span>
+<span class="badge badge-sm badge-success badge-soft">
+Done</span>
+</div>
+<p phx-r="">
+
+  With <em>
+A second agent verifies</em>
+
+  on, the completion is a <strong>
+submission</strong>
+: the card stays in progress, awaiting
+  verification. With <em>
+Runner pool for verify jobs</em>
+
+  set, a <strong>
+verifier</strong>
+
+  in that pool, never the runner that built it, judges in order: does the bar cover the ask;
+  is each part of the bar met; did the suite pass (on a pull request board, the pull
+  request&#39;s checks); are the rules kept (<code>
+must</code>
+
+  and <code>
+should</code>
+; a rule broken only in code the change didn&#39;t touch is reported as
+  pre-existing and kept as a finding, never a rejection); and is the Handbook line honest. A
+  rejection names every instance found: once a rule is broken, the verifier looks for every
+  other instance of the same break (the same list, the same string, the same door) and lists
+  them all under that one rule, each with its file and line, so one round fixes them all. The
+  rule that a change is written up everywhere a reader would look (<code>
+SPEC-10</code>
+)
+  is checked by enumeration: for a card in its scope the verifier greps the names the diff
+  introduces or alters across the seven places and gives each one updated, deferred to a card
+  whose bar names that place, not applicable with why, or missing, and one missing is the rule
+  broken. With
+  profiles on, a <code>
+docs</code>
+
+  card gets no verifier (the server accepts it on its suite), and a <code>
+schema</code>
+
+  or <code>
+security</code>
+
+  card&#39;s verifier also reviews the diff for defects, rejecting on an Important one. On a <code>
+fix</code>
+, <code>
+feature</code>
+,
+  <code>
+schema</code>
+
+  or <code>
+security</code>
+
+  card the verifier also mutates the change: it breaks 3 to 5 of the lines the change added
+  or changed and, on top of those, every guard or branch the change adds (a new condition,
+  clause, pattern match or early return), each named with its line, one at a time, runs only the card&#39;s tests and restores each line. A break no
+  test catches (a surviving mutant) is a rejection naming the mutation and the test to
+  write; on a fix, one break undoes the fix, which the regression test must catch. A
+  survivor in lines the change didn&#39;t touch is kept as a finding. The builder runs the
+  mutation review before submitting, on its own change, and names the mutants it tried in
+  the evidence, one line each (<code>
+mutant:killed=lib/foo.ex:42:flip &gt; to &gt;=</code>
+):
+  that list is a map, not a verdict: the verifier carries a killed one only when it broke
+  it again or a test the builder names plainly covers that line, and checks every other
+  claim in the evidence too (a named test is read and run, a docs place is opened). The
+  profile is checked against the change the agent completes with
+  (<code>
+slipdock done 12 --diff-base origin/main</code>
+): a migration makes it <code>
+schema</code>
+, a security path <code>
+security</code>
+, and over 400 changed lines a
+  <code>
+fix</code>
+
+  or <code>
+docs</code>
+
+  card a <code>
+feature</code>
+, never lower. Then <code>
+slipdock verify 12 accept</code>
+
+  or <code>
+slipdock verify 12 reject --reason -</code>
+, the reason on stdin as lines, its
+  parts in <code>
+--check</code>
+:
+</p>
+<pre phx-r="" class="whitespace-pre-wrap break-words rounded-xl bg-base-200 px-3 py-2 font-mono text-xs leading-relaxed" data-role="reason-example">
+slipdock verify 12 reject --check bar:2=fail:&quot;no test&quot; --reason - &lt;&lt;&#39;EOF&#39;
+bar 2: the export drops archived cards
+
+- `Export.run/1` filters on `archived_at`
+- no test exports an archived card
+EOF</pre>
+<p phx-r="">
+<strong>
+On a bug, the ask is the reported symptom</strong>
+: the check is would the reporter
+  now see it fixed, not does the work meet the bar. The builder reproduces the reported symptom
+  on the reporter&#39;s scenario and posts the repro as its own comment; a clean repro that doesn&#39;t
+  show it opens a wait saying what was seen and asking for a screenshot or steps (which screen,
+  which control), never conditions built until something fails. The verifier rejects (<code>
+the ask: …</code>
+) a bug card whose card or evidence says the reported symptom or its cause
+  was never seen, however good the tests.
+</p>
+<ul phx-r="" class="list-disc space-y-1 pl-5">
+<li>
+<strong>
+Accepted</strong>
+
+    by push: the card is done. By pull request: a runner merges it, and the merge completes the
+    card. A failed merge comes back as a rejection, unless the pull request was already merged:
+    at the accepted commit the card completes with that merge, at another head it stays merging
+    and says which head, and neither counts as a rejection.
+  </li>
+<li>
+<strong>
+Rejected</strong>
+: the card goes back to the top of its list, and the reason is the
+    next pass&#39;s brief. Submitted again, it is judged on what failed and what the new commits
+    touch; a part that passed before and nothing since touches is carried, shown as
+    <em>
+carried from</em>
+
+    the commit it passed at.
+  </li>
+<li>
+<strong>
+Audits check the checker</strong>
+: with <em>
+Audit 1 in N accepted cards</em>
+
+    set, another runner rechecks about one accepted card in N. The acceptance stands; a
+    disagreement files the rework as a card in the ready list, titled from the audit&#39;s
+    reason, with what failed and a link to the audit, caused by the accepted card (high
+    priority for a surviving mutant or a broken <em>
+must</em>
+
+    rule). The alert names it and clears itself once that card is accepted or completed,
+    and a second disagreement comments on it rather than filing another. The verify
+    prompt then lists the board&#39;s last five audit misses of the last 30 days, each its
+    rework&#39;s title and the parts it failed, for the verifier to check first; the audit
+    prompt never does.
+  </li>
+</ul>
+<div phx-r="" data-person="true" class="flex gap-2 rounded-xl bg-warning/10 p-3 ring-1 ring-warning">
+<span phx-r="" class="hero-hand-raised mt-0.5 size-4 shrink-0 text-warning">
+</span>
+<div class="min-w-0 text-base-content">
+<span class="sr-only">
+A person acts here: </span>
+<strong phx-r="">
+You decide when no verifier can.</strong>
+<ul phx-r="" class="mt-1 list-disc space-y-1 pl-5">
+<li>
+
+      With no verify pool, or no runner in it other than the builder&#39;s, the card waits for you:
+      <strong>
+Accept</strong>
+
+      or <strong>
+Reject</strong>
+
+      on the card, or <code>
+slipdock accept 12</code>
+. It is in My work&#39;s <em>
+Waiting on you</em>
+.
+    </li>
+<li>
+
+      A second rejection, or one for a rule an earlier rejection named, says the card is
+      going round in circles: it stays flagged <strong>
+review</strong>
+
+      until it is accepted, a comment lists the rounds and what failed in each, an alert goes up
+      and you are emailed, and it heads My work&#39;s <em>
+Waiting on you</em>
+. The runners still
+      rework it; look at whether it needs a different approach or a reworded bar.
+    </li>
+<li>
+
+      After <em>
+Rejections before a person decides</em>
+
+      (2 by default), the next rejection opens a wait on the board&#39;s owner: rework it as
+      rejected, or accept it as is. It lists what failed each time, and asks whether the
+      approach, not the fix, is wrong. You can reword the bar first.
+    </li>
+<li>
+
+      When no runner can merge, merge the pull request yourself and press
+      <strong>
+Merged it myself</strong>
+
+      (<code>
+slipdock verify 12 merged</code>
+).
+    </li>
+<li>
+
+      An audit that disagrees has already filed its rework card: read the alert, and reword
+      or reprioritise the card if the audit was wrong about what matters. The alert goes
+      by itself when the rework is accepted or completed.
+    </li>
+</ul>
+</div>
+</div>
+</div>
+</section>
+<section phx-r="" id="flow-afterwards" class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+<h2 class="section-title">
+7. Afterwards</h2>
+<div class="help-prose mt-2 space-y-3 text-sm text-base-content/70">
+<p phx-r="" class="flex flex-wrap items-center gap-1.5">
+<span class="font-medium text-base-content">
+Who acts:</span>
+<span class="badge badge-sm badge-ghost">
+CI</span>
+<span class="badge badge-sm badge-warning">
+Person</span>
+</p>
+<div phx-r="" id="flow-afterwards-steps" class="flex flex-wrap items-center gap-1.5">
+<span class="font-medium text-base-content">
+Step status:</span>
+<span class="badge badge-sm badge-success badge-soft">
+Shipped to production</span>
+<span class="badge badge-sm badge-success badge-soft">
+Reopened</span>
+</div>
+<p phx-r="">
+
+  Your CI deploys what reaches the default branch. With delivery metrics on, it records the
+  deploy (<code>
+slipdock deploy run --env production -- ./deploy.sh</code>
+), and the cards
+  it names get a <em>
+Shipped</em>
+
+  line. A merged card no deploy names after 20 minutes
+  (the board&#39;s <em>
+Not shipped after</em>
+) shows an amber
+  <em>
+Merged 1a634c6 · not shipped after 45m</em>
+
+  instead and raises a warning alert, overseer on or off, until a deploy names it:
+  <code>
+not_shipped</code>
+
+  in the card&#39;s JSON and <code>
+get_card</code>
+, <em>
+Not shipped</em>
+
+  in <code>
+slipdock card</code>
+. On a board with batched releases a merge deploys nothing:
+  the card is done, shows <em>
+merged, awaiting release</em>
+, and the 20 minutes count from
+  its release (<code>
+release_requested_at</code>
+
+  in <code>
+not_shipped</code>
+), not from its merge.
+</p>
+<p phx-r="">
+
+  The <strong>
+handbook improves from use</strong>
+. The nightly <em>
+Reconcile the handbook</em>
+
+  card brings its pages up to date with what landed, and <em>
+Triage findings</em>
+
+  merges repeated findings and promotes what recurs, filing a new rule or decision as a
+  proposal for you.
+</p>
+<div phx-r="" data-person="true" class="flex gap-2 rounded-xl bg-warning/10 p-3 ring-1 ring-warning">
+<span phx-r="" class="hero-hand-raised mt-0.5 size-4 shrink-0 text-warning">
+</span>
+<div class="min-w-0 text-base-content">
+<span class="sr-only">
+A person acts here: </span>
+<strong phx-r="">
+The proposals are yours to apply.</strong>
+<ul phx-r="" class="mt-1 list-disc space-y-1 pl-5">
+<li>
+
+      A rule is a person&#39;s call. An agent proposes one
+      (<code>
+slipdock garden propose B proposal.json</code>
+), and you apply or dismiss it on the
+      board&#39;s <strong>
+Tidy-up page</strong>
+
+      (<strong>
+Tidy up…</strong>
+
+      in the board&#39;s menu, or <code>
+slipdock garden B</code>
+). A rule an agent edited itself
+      shows there too, for you to keep or put back.
+    </li>
+<li>
+
+      Findings are handled by the daily triage and the server. A finding seen three times
+      (the board&#39;s setting) is drafted as a rule on the Tidy-up page, and those proposals
+      are what wait for you: the board&#39;s <strong>
+Findings page</strong>
+
+      (a tile on the board&#39;s <em>
+Agentic Building</em>
+
+      page, counting them; a card with open findings links to it) and
+      <code>
+slipdock findings B</code>
+
+      lead with them. The findings below are reference, to promote, merge or dismiss
+      by hand when you want (<code>
+slipdock finding 41 promote --note &quot;…&quot;</code>
+).
+    </li>
+<li>
+
+      What shipped is on the board&#39;s <strong>
+Ledger page</strong>
+
+      (a tile on <em>
+Agentic Building</em>
+), or <code>
+slipdock ledger B [--since 7]</code>
+: since 07:00
+      yesterday, each card with who accepted it, its evidence, the <em>
+should</em>
+
+      rules it missed, where its time went and what its jobs spent (the model&#39;s and
+      the tools&#39; time, and tokens where the logs carried them). Skim it each morning,
+      and open any card&#39;s chat from it. A card a runner worked shows the same
+      under <em>
+Lead time</em>
+
+      in its panel, phase by phase.
+    </li>
+</ul>
+</div>
+</div>
+</div>
+</section>
+<section phx-r="" id="flow-settings" class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+<h2 class="section-title">
+The settings, in one place</h2>
+<div class="help-prose mt-2 space-y-3 text-sm text-base-content/70">
+<p phx-r="">
+
+      Each is on the board&#39;s <strong>
+Agentic Building</strong>
+
+      page: turn on Agentic Building in Board settings, Features, then open it from the board menu. From a terminal,
+      <code>
+slipdock set-board</code>
+
+      sets each. A card&#39;s subcards take their parent board&#39;s choices.
+    </p>
+<dl phx-r="" class="divide-y divide-base-content/10">
+<div class="py-2">
+<dt class="font-medium text-base-content">
+A bar before work starts</dt>
+<dd class="mt-0.5">
+Agents write each card&#39;s bar before they may start it; it locks then.</dd>
+<dd class="mt-1">
+<code class="break-words">
+slipdock set-board B --bar-required</code>
+</dd>
+</div>
+<div class="py-2">
+<dt class="font-medium text-base-content">
+Lanes</dt>
+<dd class="mt-0.5">
+Hold: an agent can&#39;t start a card whose paths overlap a card in progress. Advise: it starts, and its prompt names that card.</dd>
+<dd class="mt-1">
+<code class="break-words">
+slipdock set-board B --lane-mode hold</code>
+</dd>
+</div>
+<div class="py-2">
+<dt class="font-medium text-base-content">
+Profiles</dt>
+<dd class="mt-0.5">
+A card an agent starts gets one word for what kind of change it is; a schema or security card an agent accepts waits for a person before it merges, and a spike merges nothing and holds no lane. A docs card gets no verify job, and a schema or security card&#39;s verifier also reviews it for defects. A fix, feature, schema or security card&#39;s verifier breaks a few of the changed lines to see that a test fails.</dd>
+<dd class="mt-1">
+<code class="break-words">
+slipdock set-board B --profiles on</code>
+</dd>
+</div>
+<div class="py-2">
+<dt class="font-medium text-base-content">
+Human tier, by profile</dt>
+<dd class="mt-0.5">
+Change what an agent&#39;s acceptance of a profile does: none, ledger or before_merge.</dd>
+<dd class="mt-1">
+<code class="break-words">
+slipdock set-board B --profile-tier schema=none</code>
+</dd>
+</div>
+<div class="py-2">
+<dt class="font-medium text-base-content">
+Shared paths</dt>
+<dd class="mt-0.5">
+Files nearly every card edits: an overlap there never holds a card or a job.</dd>
+<dd class="mt-1">
+<code class="break-words">
+slipdock set-board B --shared-paths docs/manual.md,README.md</code>
+</dd>
+</div>
+<div class="py-2">
+<dt class="font-medium text-base-content">
+WIP limits hold automated work</dt>
+<dd class="mt-0.5">
+A full first in-progress list holds runner jobs too.</dd>
+<dd class="mt-1">
+<code class="break-words">
+slipdock set-board B --automation-wip</code>
+</dd>
+</div>
+<div class="py-2">
+<dt class="font-medium text-base-content">
+Evidence on completion</dt>
+<dd class="mt-0.5">
+An agent completing a card says what it checked.</dd>
+<dd class="mt-1">
+<code class="break-words">
+slipdock set-board B --evidence-required</code>
+</dd>
+</div>
+<div class="py-2">
+<dt class="font-medium text-base-content">
+A second agent verifies</dt>
+<dd class="mt-0.5">
+An agent&#39;s completion is a submission, decided by someone else.</dd>
+<dd class="mt-1">
+<code class="break-words">
+slipdock set-board B --verify-work</code>
+</dd>
+</div>
+<div class="py-2">
+<dt class="font-medium text-base-content">
+Runner pool for verify jobs</dt>
+<dd class="mt-0.5">
+Sends each submission to that pool as a verify job. Blank: you decide.</dd>
+<dd class="mt-1">
+<code class="break-words">
+slipdock set-board B --verify-pool checkers</code>
+</dd>
+</div>
+<div class="py-2">
+<dt class="font-medium text-base-content">
+Ship accepted work by</dt>
+<dd class="mt-0.5">
+Push (the default) or pull request. Pull request needs verification on.</dd>
+<dd class="mt-1">
+<code class="break-words">
+slipdock set-board B --ship-via pull-request</code>
+</dd>
+</div>
+<div class="py-2">
+<dt class="font-medium text-base-content">
+Rejections before a person decides</dt>
+<dd class="mt-0.5">
+The rejection after this many opens a wait on the board&#39;s owner (2; 0 never).</dd>
+<dd class="mt-1">
+<code class="break-words">
+slipdock set-board B --verify-rejection-limit 2</code>
+</dd>
+</div>
+<div class="py-2">
+<dt class="font-medium text-base-content">
+Audit 1 in N accepted cards</dt>
+<dd class="mt-0.5">
+Another runner rechecks about one accepted card in N (0, the default, none).</dd>
+<dd class="mt-1">
+<code class="break-words">
+slipdock set-board B --verify-audit 10</code>
+</dd>
+</div>
+<div class="py-2">
+<dt class="font-medium text-base-content">
+An approval&#39;s proposal stands after</dt>
+<dd class="mt-0.5">
+An unanswered approval wait (kind other, with a proposed choice) goes ahead with its proposal (off by default).</dd>
+<dd class="mt-1">
+<code class="break-words">
+slipdock set-board B --wait-default-after 4h</code>
+</dd>
+</div>
+</dl>
+</div>
+</section>
+<section phx-r="" id="flow-overseer" class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+<h2 class="section-title">
+The overseer: when to look</h2>
+<div class="help-prose mt-2 space-y-3 text-sm text-base-content/70">
+<p phx-r="">
+
+      The board&#39;s owner can turn on an eye on outcomes, in the board&#39;s Automations panel
+      under <strong>
+Overseer</strong>
+, or with <code>
+slipdock overseer B --on</code>
+.
+      Every minute the server checks the tree for work going round (a second rejection, a
+      third runner pass), something waiting on you while nothing runs, a card past the
+      board&#39;s P85 or a job on one step for 30 minutes, idle runners beside a full ready
+      list or jobs queued behind one lane, and an epic whose open subcards are all blocked.
+    </p>
+<p phx-r="">
+
+      One check needs no switch: on a board with delivery metrics on, a card merged more
+      than 20 minutes ago (the board&#39;s <em>
+Not shipped after</em>
+, <code>
+slipdock set-board B --not-shipped-minutes N</code>
+)
+      that no succeeded deploy names raises an alert whether or not the overseer is on.
+      On a board with batched releases the minutes count from the card&#39;s release, not its
+      merge.
+    </p>
+<p phx-r="">
+
+      Each fires once: an alert, an email, and the top of My work&#39;s <em>
+Waiting on you</em>
+,
+      saying why and what to do. It clears itself when the condition ends. A cheap model on
+      one of your runners (a <code>
+job_overseer</code>
+
+      in its config) reads only those and the pulse, never a card or a log, and writes a
+      digest on the board&#39;s <em>
+Overseer</em>
+
+      card: every 10 minutes while cards are active, longer when little or nothing is in
+      flight. It flags; it never acts.
+    </p>
+</div>
+</section>
+<section phx-r="" id="flow-more" class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+<h2 class="section-title">
+More detail</h2>
+<div class="help-prose mt-2 space-y-3 text-sm text-base-content/70">
+<ul phx-r="" class="list-disc space-y-1 pl-5">
+<li>
+<a phx-r="" href="/help/agents/runners" data-phx-link="patch" data-phx-link-state="push" class="link">
+Runners</a>
+: connecting one,
+        and the rules that send it work.
+      </li>
+<li>
+<a href="/api/guide" class="link">
+The agent guide</a>
+
+        (its <em>
+Verified work</em>
+, <em>
+Lanes</em>
+
+        and <em>
+Shipping by pull request</em>
+
+        parts):
+        exactly what agents are told.
+      </li>
+<li>
+<a phx-r="" href="/help/agents/cli/reference" data-phx-link="patch" data-phx-link-state="push" class="link">
+Every CLI command</a>
+,
+        with each option.
+      </li>
+<li>
+
+        The manual (<code>
+docs/manual.md</code>
+
+        in the source): <em>
+Verified work</em>
+, <em>
+Lanes</em>
+, <em>
+Waiting on a person</em>
+, <em>
+Tidying up</em>
+,
+        <em>
+The overseer</em>
+
+        and <em>
+Findings</em>
+,
+        and <code>
+docs/agents.md</code>
+
+        on the handbook&#39;s rules and runners.
+      </li>
+</ul>
+</div>
+</section>
+</article>
+</div>
+</div>

@@ -20,8 +20,8 @@ defmodule Slipdock.VerifiedDocsPlacesTest do
   @places [
     "README.md",
     "docs/manual.md docs/manual/",
-    "lib/slipdock_web/live/help_live/guides.ex",
-    "lib/slipdock_web/live/help_live/agents.ex lib/slipdock_web/live/help_live/flow.ex cli/help.txt",
+    "lib/slipdock_web/live/help_live/guides.ex lib/slipdock_web/live/help_live/guides/",
+    "lib/slipdock_web/live/help_live/agents.ex lib/slipdock_web/live/help_live/agents/ lib/slipdock_web/live/help_live/flow.ex lib/slipdock_web/live/help_live/flow/ cli/help.txt",
     "docs/agents.md",
     "lib/slipdock_web/api_guide.ex",
     "priv/skills/"

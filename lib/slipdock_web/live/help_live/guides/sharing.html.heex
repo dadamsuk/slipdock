@@ -1,0 +1,72 @@
+<.part title="Access levels" id="sharing-levels">
+  <p>
+    Every board has one <strong>owner</strong>: the person who made it. Anything you share,
+    you share at one of three levels:
+  </p>
+  <ul class="list-disc space-y-1 pl-5">
+    <li><strong>Read only</strong>: can see, but not change anything.</li>
+    <li>
+      <strong>Can comment</strong>: a reader who can also comment, post status updates
+      and vote, but not change the card itself.
+    </li>
+    <li><strong>Can edit</strong>: can change cards and pages.</li>
+  </ul>
+  <p>
+    Only the owner can rename or delete a board. The server enforces these levels,
+    and they apply the same way to the API, the CLI and agents.
+  </p>
+</.part>
+
+<.part title="What you can share" id="sharing-what">
+  <ul class="list-disc space-y-1 pl-5">
+    <li>
+      <strong>A board</strong>, from its settings: covers every card on it and every
+      sub-board inside them. A board shared with you sits on your board list, marked with who shared it.
+    </li>
+    <li>
+      <strong>A single card</strong>, from its window: the person sees that card and nothing
+      else on the board. It's listed under "Cards shared with you" on their home page.
+    </li>
+    <li>
+      <strong>A saved view</strong>, from the Views menu: the person sees the board only
+      through that view, and only the cards it selects.
+    </li>
+    <li><strong>A wiki page or folder</strong>: see below.</li>
+  </ul>
+</.part>
+
+<.part title="Wiki pages and folders" id="sharing-pages">
+  <p>
+    <strong>Share…</strong>
+    on a page's or folder's menu shares it with someone who has no reason to see the rest
+    of the board. A folder shares everything filed in it, to any depth, and a page brings
+    the images and files it embeds. What's shared with you appears under <strong>Shared with me</strong>, below your wiki tree, without showing the board it's on.
+  </p>
+  <p>
+    Someone with edit access to a shared folder can write and rearrange inside it, but
+    can't delete anything, move it out of the share, or share it on.
+  </p>
+</.part>
+
+<.part title="Groups and new people" id="sharing-groups">
+  <p>
+    <.app_link current_user={@current_user} to={~p"/groups"}>Groups</.app_link>
+    are named sets of people you can share with in one go. Sharing with an email address
+    that has no account usually invites that person. Whether that's allowed, and who may
+    register at all, is up to the server's admin.
+  </p>
+  <p>
+    Signing in needs no password: you get a one-time link and code by email, or you can
+    use a passkey once you've added one.
+  </p>
+</.part>
+
+<.part title="Public links" id="sharing-public">
+  <p>
+    For readers without an account, a <strong>saved view</strong>
+    or a <strong>wiki page</strong>
+    can be published at a public, read-only link. A published view is live; a published
+    page is its text plus a snapshot of its query answers. Unpublishing withdraws the link
+    immediately.
+  </p>
+</.part>

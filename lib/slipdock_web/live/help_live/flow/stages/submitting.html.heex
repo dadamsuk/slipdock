@@ -1,0 +1,39 @@
+<p>
+  The builder completes the card with its <strong>evidence</strong>: what it checked, the
+  commit, the tests it added or changed, the suite's result, and the pull request
+  (<code>slipdock done 12 --evidence-commit abc1234 --suite passed:412:0 --pr URL --evidence -</code>, the rest on stdin). With
+  <em>Evidence on completion</em>
+  on, a completion without any is refused. Evidence that is a bare <code>-</code>
+  is refused on any board: it is what a client that doesn't read stdin sends for <code>--evidence -</code>, so pass the text itself, or pipe it from a CLI that reads stdin. A card's description or bar that is a bare
+  <code>-</code>
+  is refused the same way, on a create or an update, for <code>--desc -</code>
+  and <code>--bar -</code>.
+</p>
+<p>
+  <strong>Evidence and a reason are lines, not a paragraph</strong>: a first line that
+  stands alone, a blank line, then one short line per point, the parts in <code>--check</code>
+  or the evidence's fields rather than repeated in the text. The command line loses line
+  breaks, so they go on stdin (<code>--evidence -</code>, <code>--reason -</code>):
+</p>
+<pre
+  class="whitespace-pre-wrap break-words rounded-xl bg-base-200 px-3 py-2 font-mono text-xs leading-relaxed"
+  data-role="evidence-example"
+  phx-no-format
+>{evidence_example()}</pre>
+<p>
+  On a board with a handbook, the closing comment has a <strong><code>Handbook:</code> line</strong>, the sections it updated or why none needed it, and a <strong><code>Findings:</code> block</strong>: what the card taught that the code and
+  handbook don't show, for the daily triage to handle. An item already dealt with says where
+  and is kept promoted, not open: <code>[done: W-1950 §Local setup]</code>
+  after its kind, or <code>→ #2087</code>
+  at its end for a card filed for it. A fix is a card, not a finding: a concrete change
+  someone could be handed (a missing test, a stale doc, a tooling bug) goes on the board
+  as a card at once, in the Housekeeping list when the board has one (a design question
+  goes to Triage, for a person), and the block names it with the arrow; a finding is only for what is
+  uncertain, cuts across cards, or shows the handbook wrong.
+</p>
+<.person_note>
+  <strong>No verifier, no check.</strong>
+  With <em>A second agent verifies</em>
+  off, the agent's completion is final: the card is done and in Done. Read the evidence
+  yourself if you want it looked at.
+</.person_note>
