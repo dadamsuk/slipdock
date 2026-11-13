@@ -182,6 +182,9 @@ test/slipdock/tool_cli_flags_test.exs
 # A lane worktree's deps and _build symlinks are ignored (#2902)
 test/slipdock/gitignore_links_test.exs
 
+# Every variable config/runtime.exs reads is in .env.example (OPS-9, #2609)
+test/slipdock/env_example_test.exs
+
 # Not on the list
 except test/slipdock_web/all_fields_test.exs: renders every LiveView route, 23 s alone; its one source rule (no daisyUI field sizes) waits for CI
 except test/slipdock/lanes_test.exs: its docs/ paths are lane globs held as data; it reads no file
