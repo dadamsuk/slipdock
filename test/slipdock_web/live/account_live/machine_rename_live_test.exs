@@ -29,6 +29,13 @@ defmodule SlipdockWeb.AccountLive.MachineRenameLiveTest do
     |> patch(~p"/api/machines/#{ctx.machine.id}", %{name: name})
   end
 
+  # The list hears a rename as `:config_changed` and reloads its section with
+  # `send_update`, which is a message the LiveView sends itself. A single
+  # round trip (the ping behind `has_element?`) can sit in the mailbox ahead
+  # of that message and see the old list (#2961). Waiting until the LiveView
+  # has handled the broadcast puts the update ahead of the next ping.
+  defp settle(view), do: _ = :sys.get_state(view.pid)
+
   defp api_token(user) do
     {token, _} = Accounts.create_api_token(user, "rename")
     token
@@ -64,6 +71,7 @@ defmodule SlipdockWeb.AccountLive.MachineRenameLiveTest do
     assert has_element?(view, "#machine-#{ctx.machine.id}", "build-box")
 
     ctx |> rename_over_api("Silverbox") |> json_response(200)
+    settle(view)
 
     assert has_element?(settled(view), "#machine-#{ctx.machine.id}", "Silverbox")
     refute has_element?(view, "#machine-#{ctx.machine.id}", "build-box")
@@ -76,6 +84,7 @@ defmodule SlipdockWeb.AccountLive.MachineRenameLiveTest do
     assert has_element?(view, "#shared-machine-#{ctx.machine.id}", "build-box")
 
     ctx |> rename_over_api("Silverbox") |> json_response(200)
+    settle(view)
 
     assert has_element?(settled(view), "#shared-machine-#{ctx.machine.id}", "Silverbox")
   end
@@ -86,6 +95,8 @@ defmodule SlipdockWeb.AccountLive.MachineRenameLiveTest do
 
     assert %{"error" => "give the machine a name"} =
              ctx |> rename_over_api("   ") |> json_response(422)
+
+    settle(list)
 
     assert has_element?(page, "#machine-rename input#machine-rename-name[value=build-box]")
     assert has_element?(settled(list), "#machine-#{ctx.machine.id}", "build-box")
@@ -100,6 +111,7 @@ defmodule SlipdockWeb.AccountLive.MachineRenameLiveTest do
     Slipdock.Repo.update!(Ecto.Changeset.change(ctx.machine, name: "Quietly"))
     Phoenix.PubSub.broadcast(Slipdock.PubSub, topic, {:config_reported, ctx.machine.id})
     Phoenix.PubSub.broadcast(Slipdock.PubSub, topic, {:probe_changed, 1})
+    settle(view)
 
     assert has_element?(settled(view), "#machine-#{ctx.machine.id}", "build-box")
     assert Process.alive?(view.pid)
