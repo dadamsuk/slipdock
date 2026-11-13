@@ -41,8 +41,10 @@ The scope is `drive.readonly`. Tokens are stored encrypted with a key derived
 from `SECRET_KEY_BASE`, so changing that key means everyone connects again. A
 wiki's recordings are served through its owner's connection to anyone who can
 read the board, and only files under its recordings folder are served. A
-client that holds an API token plays the same stream from
-`GET /api/pages/:id/recording`.
+draft page's recording is its writers' only, like the draft itself: someone
+who can read the board but not write on it gets a 404. A client that holds an
+API token plays the same stream from `GET /api/pages/:id/recording`, under the
+same rule.
 
 What a meeting page has to look like to play, for whatever records and
 transcribes your meetings, is in the manual:

@@ -5,6 +5,8 @@ defmodule SlipdockWeb.RecordingAPIDocsTest do
   """
   use SlipdockWeb.ConnCase, async: true
 
+  import Slipdock.DocsFacts, only: [assert_states: 2]
+
   @root Path.expand("../..", __DIR__)
   @route "/api/pages/:id/recording"
   @reasons ~w(not_connected revoked no_folder no_vault outside_folder not_audio not_found
@@ -41,6 +43,19 @@ defmodule SlipdockWeb.RecordingAPIDocsTest do
     assert read("docs/manual.md") =~ "GET    #{@route}"
     assert read("docs/wiki.md") =~ "GET    #{@route}"
     assert read("docs/manual/google-drive-for-meeting-recordings.md") =~ "`GET #{@route}`"
+  end
+
+  test "a draft page's recording is a writer's, in each place that says who may play (#2975)" do
+    drive = read("docs/manual/google-drive-for-meeting-recordings.md")
+    assert_states(drive, "A draft page's recording is its writers' only, like the draft itself")
+
+    assert read("docs/wiki.md") =~
+             "GET    #{@route}            a meeting page's audio, with Range (read on the board; a draft's, write)"
+
+    assert_states(
+      read("docs/manual.md"),
+      "A page shared with someone outside the board answers 404, as does a draft, unless they can edit the board"
+    )
   end
 
   test "there is no MCP tool for it" do
