@@ -15,7 +15,9 @@ defmodule Slipdock.Wiki.Section do
 
   A section runs from its heading to the next heading at the same level or
   higher, so replacing `## Rollback` takes its `### …` subsections with it —
-  which is what anyone editing "the rollback section" means.
+  which is what anyone editing "the rollback section" means. An append is
+  the other way round: it lands at the end of the section's own text, before
+  its first subsection (see `append/3`).
   """
 
   @type path :: String.t()
@@ -107,8 +109,15 @@ defmodule Slipdock.Wiki.Section do
   end
 
   @doc """
-  Adds `text` to the end of a section, before whatever follows it, and says
-  how it joined: `"table extended"`, `"list extended"` or `"appended"`.
+  Adds `text` to the end of a section's own text, and says how it joined:
+  `"table extended"`, `"list extended"` or `"appended"`.
+
+  A section's own text is what sits under its heading before its first
+  subsection, so a line appended to `## Local setup` lands under Local
+  setup's own paragraphs, not at the end of its last `### …` (#2768). Text
+  that brings a heading of its own is the exception: it goes at the end of
+  the whole section, after the subsections, since put before them it would
+  take them over as its own.
 
   This is the write that can never conflict, and the one an agent should
   reach for: appending a dated note under `## Log` touches nothing anyone
@@ -117,15 +126,16 @@ defmodule Slipdock.Wiki.Section do
   @spec append(String.t() | nil, path, String.t()) ::
           {:ok, String.t(), String.t()} | {:error, :not_found}
   def append(body, path, text) do
-    with {:ok, {_from, to}} <- span(body, path) do
+    added =
+      text |> String.trim_trailing() |> lines() |> Enum.drop_while(&(String.trim(&1) == ""))
+
+    with {:ok, {from, to}} <- span(body, path) do
       all = lines(body)
+      to = if scan(added) == [], do: own_end(all, from, to), else: to
       {before, rest} = Enum.split(all, to)
 
       before =
         before |> Enum.reverse() |> Enum.drop_while(&(String.trim(&1) == "")) |> Enum.reverse()
-
-      added =
-        text |> String.trim_trailing() |> lines() |> Enum.drop_while(&(String.trim(&1) == ""))
 
       # A bullet added to a list of bullets is part of that list, and rows
       # added to a table are part of that table; anything else is a new
@@ -197,6 +207,15 @@ defmodule Slipdock.Wiki.Section do
           |> Enum.find(fn {l, _title, at} -> at > line and l <= level end)
 
         {:ok, {line, (following && elem(following, 2)) || length(all)}}
+    end
+  end
+
+  # Where a section's own text ends: the first heading after its own, which
+  # is either its first subsection or the one that ends the section.
+  defp own_end(all, from, to) do
+    case Enum.find(scan(all), fn {_level, _title, at} -> at > from end) do
+      {_level, _title, at} -> at
+      nil -> to
     end
   end
 

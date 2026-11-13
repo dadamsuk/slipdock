@@ -319,6 +319,9 @@ WIKI  (Markdown pages on a board: how it works, what was decided and why.
   page section <page> <path> --append TEXT | --body TEXT | --file F [--message M]
                                       add to, or replace, one section. Appending cannot
                                       conflict and needs no hash — the write to prefer.
+                                      An append lands at the end of the section's own
+                                      text, before its first subsection; text with a
+                                      heading of its own goes after the subsections
                                       --append - and --body - read the text from stdin
   page append <page> --body TEXT|--file F [--message M]   add to the end of the page
   page encrypt <page> [--section S] [--hint H] [--purge-history]

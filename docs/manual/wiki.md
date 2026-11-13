@@ -554,7 +554,10 @@ renaming a page can never break the links into it.
 `## Rollback` under the `# Deploy` — and read, replaced or appended to one
 section at a time. Two writers touching different sections never collide, and
 an append cannot clobber anything at all, so it takes no hash and never
-refuses. That is the write an agent keeping a `## Log` should use.
+refuses. That is the write an agent keeping a `## Log` should use. An append
+lands at the end of the section's own text, before its first subsection; text
+that brings a heading of its own goes after the subsections, so it can't take
+them over.
 
 **Live queries.** A fenced ```` ```slipdock ```` block in a page is a question,
 answered when the page is *read* rather than when it was written — so a

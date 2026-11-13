@@ -41,7 +41,9 @@ defmodule SlipdockWeb.MCP.Tools.WritePage do
         body: %{type: "string", description: "Markdown."},
         section: %{
           type: "string",
-          description: "Heading path for the section modes, e.g. \"Deploy/Rollback\"."
+          description:
+            "Heading path for the section modes, e.g. \"Deploy/Rollback\". " <>
+              "append_section lands before the section's first subsection."
         },
         base_hash: %{type: "string", description: "content_hash you read; required to replace."},
         message: %{type: "string", description: "What changed, for the page history."}

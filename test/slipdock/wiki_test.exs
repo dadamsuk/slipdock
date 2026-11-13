@@ -613,4 +613,76 @@ defmodule Slipdock.WikiTest do
       assert saved.body =~ "| a | add |\n| d | del |"
     end
   end
+
+  describe "appending to a section with subsections (#2768)" do
+    setup %{board: board, user: user} do
+      body =
+        "# Guide\n\n## Local setup\n\nClone it.\n\n### A runner machine\n\nGo 1.22.\n\n" <>
+          "#### Its PATH\n\nSet it by hand.\n\n## Deploy\n\nShip it.\n"
+
+      {:ok, page} = Wiki.create_page(board, %{"title" => "Setup", "body" => body}, user: user)
+      %{page: page}
+    end
+
+    test "lands at the end of the section's own text, before its first subsection", %{
+      page: page
+    } do
+      assert {:ok, saved, "appended"} =
+               Wiki.edit_section(page, :append, "Guide/Local setup", "Then run mix setup.")
+
+      assert saved.body =~
+               "## Local setup\n\nClone it.\n\nThen run mix setup.\n\n### A runner machine\n\nGo 1.22."
+
+      assert saved.body =~ "#### Its PATH\n\nSet it by hand.\n\n## Deploy"
+    end
+
+    test "a bullet joins the list the section's own text ends in", %{page: page, user: user} do
+      {:ok, page} =
+        Wiki.replace_section(page, "Local setup", "- clone\n\n### A runner machine\n\nGo.",
+          user: user
+        )
+
+      assert {:ok, saved, "list extended"} =
+               Wiki.edit_section(page, :append, "Local setup", "- mix setup")
+
+      assert saved.body =~ "## Local setup\n\n- clone\n- mix setup\n\n### A runner machine"
+    end
+
+    test "a section with no text of its own gets it under its heading", %{page: page} do
+      assert {:ok, saved, "appended"} =
+               Wiki.edit_section(page, :append, "Guide", "Read me first.")
+
+      assert saved.body =~ "# Guide\n\nRead me first.\n\n## Local setup\n\nClone it."
+    end
+
+    test "a subsection is appended to at its own end, before its own subsection", %{page: page} do
+      assert {:ok, saved, "appended"} =
+               Wiki.edit_section(page, :append, "Guide/Local setup/A runner machine", "And mix.")
+
+      assert saved.body =~ "Go 1.22.\n\nAnd mix.\n\n#### Its PATH"
+    end
+
+    test "text with a heading of its own goes after the subsections, taking none of them", %{
+      page: page
+    } do
+      assert {:ok, saved, "appended"} =
+               Wiki.edit_section(page, :append, "Local setup", "### A laptop\n\nBrew it.")
+
+      assert saved.body =~ "Set it by hand.\n\n### A laptop\n\nBrew it.\n\n## Deploy"
+      assert saved.body =~ "## Local setup\n\nClone it.\n\n### A runner machine"
+    end
+
+    test "a # line inside fenced code in the text is not a heading", %{page: page} do
+      text = "```sh\n# a comment\nmix setup\n```"
+      assert {:ok, saved, "appended"} = Wiki.edit_section(page, :append, "Local setup", text)
+
+      assert saved.body =~
+               "Clone it.\n\n```sh\n# a comment\nmix setup\n```\n\n### A runner machine"
+    end
+
+    test "a section without subsections still appends at its end", %{page: page} do
+      assert {:ok, saved, "appended"} = Wiki.edit_section(page, :append, "Deploy", "Watch it.")
+      assert String.ends_with?(saved.body, "## Deploy\n\nShip it.\n\nWatch it.\n")
+    end
+  end
 end
