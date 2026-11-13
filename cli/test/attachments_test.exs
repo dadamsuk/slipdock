@@ -391,4 +391,300 @@ defmodule SlipdockCLI.AttachmentsTest do
       assert Boards.download_dest("shot.png", 5, force: true) == {:ok, "shot.png"}
     end
   end
+
+  # A download the server refuses, or that never reaches it (#2088). Each of
+  # these ends in `fail/1`'s `System.halt(1)`, so the command runs in a child
+  # VM, against a FakeServer (or a closed port) started here: what is asserted
+  # is what the person sees, the exit status, and that nothing is left where
+  # the file would have gone.
+  describe "a download that fails" do
+    defp child(code, home, url) do
+      System.cmd("elixir", ["-pa", Mix.Project.compile_path(), "-e", code],
+        cd: home,
+        env: [
+          {"HOME", home},
+          {"TMPDIR", Path.join(home, "tmp")},
+          {"SLIPDOCK_URL", url},
+          {"SLIPDOCK_TOKEN", "test-token"}
+        ],
+        stderr_to_stdout: true
+      )
+    end
+
+    defp main(argv, home, url), do: child("SlipdockCLI.main(#{inspect(argv)})", home, url)
+
+    defp plain(text), do: String.replace(text, ~r/\e\[[0-9;]*m/, "")
+
+    # A port nothing listens on: bound, then let go.
+    defp closed_url do
+      {:ok, listen} = :gen_tcp.listen(0, [:binary, active: false])
+      {:ok, port} = :inet.port(listen)
+      :ok = :gen_tcp.close(listen)
+      "http://127.0.0.1:#{port}"
+    end
+
+    # A server that starts a file and hangs up: a 200 whose content-length
+    # promises 1000 bytes, four of them sent, then the socket closed. It is the
+    # one failure that leaves bytes on disk, so the one where the callers'
+    # clean-up does anything: on a refusal or a closed port `:httpc` never
+    # creates the file.
+    defp cut_off_url do
+      {:ok, listen} = :gen_tcp.listen(0, [:binary, packet: :raw, active: false, reuseaddr: true])
+      {:ok, port} = :inet.port(listen)
+
+      pid =
+        spawn_link(fn ->
+          {:ok, socket} = :gen_tcp.accept(listen)
+          read_head(socket, "")
+
+          :ok =
+            :gen_tcp.send(socket, [
+              "HTTP/1.1 200 OK\r\ncontent-type: application/octet-stream\r\n",
+              "content-length: 1000\r\nconnection: close\r\n\r\n",
+              "%PDF"
+            ])
+
+          :gen_tcp.close(socket)
+        end)
+
+      :ok = :gen_tcp.controlling_process(listen, pid)
+      "http://127.0.0.1:#{port}"
+    end
+
+    defp read_head(socket, acc) do
+      {:ok, data} = :gen_tcp.recv(socket, 0, 5_000)
+      acc = acc <> data
+      if acc =~ "\r\n\r\n", do: :ok, else: read_head(socket, acc)
+    end
+
+    setup %{home: home} do
+      File.mkdir_p!(Path.join(home, "tmp"))
+      :ok
+    end
+
+    for {status, body, said} <- [
+          {404, ~s({"error":"attachment not found"}), "error: attachment not found (HTTP 404)"},
+          {403, ~s({"error":"forbidden"}), "error: forbidden (HTTP 403)"},
+          {500, "Internal Server Error", ~s(error: HTTP 500: %{"raw" => "Internal Server Error"})}
+        ] do
+      test "slipdock download --out on a #{status}: says so, exits 1, and leaves no file",
+           %{home: home} do
+        url = FakeServer.start([{unquote(status), unquote(body)}])
+        dest = Path.join(home, "invoice.pdf")
+
+        {out, code} = main(["download", "7", "--out", dest], home, url)
+
+        assert_received {:request, "GET", "/api/attachments/7/file", _}
+        assert code == 1
+        assert plain(out) =~ unquote(said)
+        refute plain(out) =~ "saved"
+        refute File.exists?(dest)
+        refute File.exists?(dest <> ".part")
+      end
+    end
+
+    test "a refused download leaves the file already at --out as it was", %{home: home} do
+      url = FakeServer.start([{404, ~s({"error":"attachment not found"})}])
+      dest = Path.join(home, "invoice.pdf")
+      File.write!(dest, "the copy I had")
+
+      assert {_, 1} = main(["download", "7", "--out", dest], home, url)
+
+      assert File.read!(dest) == "the copy I had"
+      refute File.exists?(dest <> ".part")
+    end
+
+    test "with no --out, a refused file is not saved under its own name", %{home: home} do
+      url =
+        FakeServer.start([
+          {200, ~s({"attachment":{"id":7,"filename":"invoice.pdf","size":4,"card":12}})},
+          {404, ~s({"error":"attachment not found"})}
+        ])
+
+      {out, code} = main(["download", "7"], home, url)
+
+      assert code == 1
+      assert plain(out) =~ "error: attachment not found (HTTP 404)"
+      assert File.ls!(home) |> Enum.sort() == ["tmp"]
+    end
+
+    test "--out - on a refusal writes no bytes and removes its temp file", %{home: home} do
+      url = FakeServer.start([{404, ~s({"error":"attachment not found"})}])
+
+      {out, code} = main(["download", "7", "--out", "-"], home, url)
+
+      assert code == 1
+      assert plain(out) == "error: attachment not found (HTTP 404)\n"
+      assert File.ls!(Path.join(home, "tmp")) == []
+    end
+
+    test "a server that isn't there: says it could not reach it, exits 1, no file",
+         %{home: home} do
+      url = closed_url()
+      dest = Path.join(home, "invoice.pdf")
+
+      {out, code} = main(["download", "7", "--out", dest], home, url)
+
+      assert code == 1
+      assert plain(out) =~ "error: could not reach #{url}"
+      assert plain(out) =~ "econnrefused"
+      refute File.exists?(dest)
+      refute File.exists?(dest <> ".part")
+    end
+
+    test "Util.download_to/3 on a 404: the error, exit 1, neither dest nor dest.part",
+         %{home: home} do
+      url = FakeServer.start([{404, ~s({"error":"tool not found"})}])
+      dest = Path.join(home, "demo.tar.gz")
+
+      {out, code} =
+        child(
+          "SlipdockCLI.Util.download_to(#{inspect("/tools/demo/package.tar.gz")}, " <>
+            "#{inspect(dest)}, [])",
+          home,
+          url
+        )
+
+      assert_received {:request, "GET", "/api/tools/demo/package.tar.gz", _}
+      assert code == 1
+      assert plain(out) =~ "error: tool not found (HTTP 404)"
+      refute plain(out) =~ "saved"
+      refute File.exists?(dest)
+      refute File.exists?(dest <> ".part")
+    end
+
+    test "slipdock tools download on a 404 leaves no package behind", %{home: home} do
+      url = FakeServer.start([{404, ~s({"error":"tool not found"})}])
+      dest = Path.join(home, "demo.tar.gz")
+
+      {out, code} =
+        main(["tools", "download", "demo", "--version", "1.0.0", "--out", dest], home, url)
+
+      assert code == 1
+      assert plain(out) =~ "error: tool not found (HTTP 404)"
+      refute File.exists?(dest)
+      refute File.exists?(dest <> ".part")
+    end
+
+    test "Util.download_to/3 with the server gone: could not reach it, no dest.part",
+         %{home: home} do
+      url = closed_url()
+      dest = Path.join(home, "demo.tar.gz")
+
+      {out, code} =
+        child(
+          "SlipdockCLI.Util.download_to(\"/tools/demo/package.tar.gz\", #{inspect(dest)}, [])",
+          home,
+          url
+        )
+
+      assert code == 1
+      assert plain(out) =~ "error: could not reach #{url}"
+      refute File.exists?(dest)
+      refute File.exists?(dest <> ".part")
+    end
+
+    test "Util.download_to_stdout/2 on a 500: no bytes out, its temp file removed",
+         %{home: home} do
+      url = FakeServer.start([{500, ~s({"error":"boom"})}])
+
+      {out, code} =
+        child("SlipdockCLI.Util.download_to_stdout(\"/tools/demo/files/a.txt\", [])", home, url)
+
+      assert code == 1
+      assert plain(out) == "error: boom (HTTP 500)\n"
+      assert File.ls!(Path.join(home, "tmp")) == []
+    end
+
+    test "slipdock download --out cut off mid-body: says so, exits 1, no dest or dest.part",
+         %{home: home} do
+      url = cut_off_url()
+      dest = Path.join(home, "invoice.pdf")
+
+      {out, code} = main(["download", "7", "--out", dest], home, url)
+
+      assert code == 1
+      assert plain(out) =~ "error: could not reach #{url}"
+      assert plain(out) =~ "server_closed"
+      refute plain(out) =~ "saved"
+      refute File.exists?(dest)
+      refute File.exists?(dest <> ".part")
+      assert File.ls!(home) == ["tmp"]
+    end
+
+    test "a download cut off mid-body leaves the file already at --out as it was",
+         %{home: home} do
+      url = cut_off_url()
+      dest = Path.join(home, "invoice.pdf")
+      File.write!(dest, "the copy I had")
+
+      {out, code} = main(["download", "7", "--out", dest], home, url)
+
+      assert code == 1
+      assert plain(out) =~ "error: could not reach #{url}"
+      assert File.read!(dest) == "the copy I had"
+      refute File.exists?(dest <> ".part")
+    end
+
+    test "--out - cut off mid-body: the error, exit 1, no temp file left", %{home: home} do
+      url = cut_off_url()
+
+      {out, code} = main(["download", "7", "--out", "-"], home, url)
+
+      assert code == 1
+      assert plain(out) =~ "error: could not reach #{url}"
+      assert plain(out) =~ "server_closed"
+      assert File.ls!(Path.join(home, "tmp")) == []
+    end
+
+    test "Util.download_to/3 cut off mid-body: the error, exit 1, neither dest nor dest.part",
+         %{home: home} do
+      url = cut_off_url()
+      dest = Path.join(home, "demo.tar.gz")
+
+      {out, code} =
+        child(
+          "SlipdockCLI.Util.download_to(\"/tools/demo/package.tar.gz\", #{inspect(dest)}, [])",
+          home,
+          url
+        )
+
+      assert code == 1
+      assert plain(out) =~ "error: could not reach #{url}"
+      assert plain(out) =~ "server_closed"
+      refute plain(out) =~ "saved"
+      refute File.exists?(dest)
+      refute File.exists?(dest <> ".part")
+    end
+
+    # The temp file a cut-off download leaves is not asserted here: `out/3`
+    # halts the VM inside the `try`, so the `after` that removes it never
+    # runs. That is a fault in the code, not in a test, and this card is
+    # test-only: it is filed as its own card. What the `after` does do, on a
+    # download that works, is held by the test after this one.
+    test "Util.download_to_stdout/2 cut off mid-body: the error, exit 1, no bytes out",
+         %{home: home} do
+      url = cut_off_url()
+
+      {out, code} =
+        child("SlipdockCLI.Util.download_to_stdout(\"/tools/demo/files/a.txt\", [])", home, url)
+
+      assert code == 1
+      assert plain(out) =~ ~r/\Aerror: could not reach #{Regex.escape(url)} .*server_closed/
+      refute out =~ "%PDF"
+    end
+
+    test "Util.download_to_stdout/2 that works: the bytes out, its temp file removed",
+         %{home: home} do
+      url = FakeServer.start([{200, "print('hi')\n"}])
+
+      {out, code} =
+        child("SlipdockCLI.Util.download_to_stdout(\"/tools/demo/files/a.txt\", [])", home, url)
+
+      assert_received {:request, "GET", "/api/tools/demo/files/a.txt", _}
+      assert code == 0
+      assert out == "print('hi')\n"
+      assert File.ls!(Path.join(home, "tmp")) == []
+    end
+  end
 end

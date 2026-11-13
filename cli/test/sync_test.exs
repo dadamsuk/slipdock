@@ -358,6 +358,28 @@ defmodule SlipdockCLI.SyncTest do
       assert {:error, "file 9 in this vault not found (HTTP 404)"} = Remote.read_file(3, 9, dest)
     end
 
+    # A refusal comes back in memory, never as the file's bytes (#2088): no
+    # file is written for the sync to hash, and a closed port is an error too.
+    test "a refused or unreachable file read writes nothing at dest", %{home: home} do
+      System.put_env(
+        "SLIPDOCK_URL",
+        FakeServer.start([{500, ~s({"error":"boom"})}])
+      )
+
+      dest = Path.join(home, "dl-refused")
+
+      assert {:error, "boom (HTTP 500)"} = Remote.read_file(3, 9, dest)
+      refute File.exists?(dest)
+
+      {:ok, listen} = :gen_tcp.listen(0, [:binary, active: false])
+      {:ok, port} = :inet.port(listen)
+      :ok = :gen_tcp.close(listen)
+      System.put_env("SLIPDOCK_URL", "http://127.0.0.1:#{port}")
+
+      assert {:error, "could not reach the server" <> _} = Remote.read_file(3, 9, dest)
+      refute File.exists?(dest)
+    end
+
     test "a file goes up as multipart with its path and base; a move is a PATCH", %{home: home} do
       src = Path.join(home, "pic.png")
       File.write!(src, "PNGDATA")
