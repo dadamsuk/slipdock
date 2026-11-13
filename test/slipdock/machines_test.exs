@@ -315,6 +315,23 @@ defmodule Slipdock.MachinesTest do
       assert {:ok, %{name: "old box"}} = Machines.rename_machine(revoked, "old box")
     end
 
+    test "rename_machine/2 tells the machine's followers, from any door; a refusal doesn't (#2764)",
+         ctx do
+      {_, machine} = approved_key(ctx)
+      id = machine.id
+      version = machine.config_version
+      Slipdock.Runners.MachineRunners.subscribe(machine)
+
+      assert {:ok, _} = Machines.rename_machine(machine, "Silverbox")
+      assert_receive {:config_changed, ^id}
+
+      assert {:error, :invalid, _} = Machines.rename_machine(machine, "  ")
+      refute_receive {:config_changed, ^id}, 50
+
+      # It wakes the daemon's long-poll without a new config to fetch.
+      assert Repo.get!(Machine, id).config_version == version
+    end
+
     test "boards_for/2 names only the boards the owner can still reach", ctx do
       {_, machine} = approved_key(ctx)
       assert [%{id: id}] = Machines.boards_for(machine, ctx.user)
