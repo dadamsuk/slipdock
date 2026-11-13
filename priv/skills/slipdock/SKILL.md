@@ -455,7 +455,7 @@ slipdock templates                                        # sets of lists for ne
 slipdock new-template <name> [--desc TEXT] --list "Name[:wip[:color]]"... | slipdock delete-template <t>   # yours only; built-ins refuse (403)
 slipdock subboard <card-id> --template T                  # card becomes a board of subcards (prints its id)
 slipdock subboard <card-id> --off                         # remove the subcards
-slipdock sprint <board> [--name N] [--start DATE] [--days N] [--goal TEXT]   # next sprint on a sprint board
+slipdock sprint <board> [--name N] [--start DATE] [--days N] [--goal TEXT|-]   # next sprint on a sprint board
 slipdock sprint-add <sprint-id> <card-id>...              # move cards (with subcards) into a sprint; each leaves a stand-in (↪stand-in-for:#N) — never work or edit a stand-in, act on the card it names
 slipdock sprint-sources <board> [<board>[:list,list]]... [--clear]   # where a sprint board plans from (no args: show)
 slipdock sprint-plan <sprint-id> [--sort score|priority|estimate]   # source lists' open cards: priority, scores, votes, estimates, committed
@@ -518,7 +518,7 @@ slipdock automation-presets                   # ready-made rules (follow a board
 slipdock new-automation <board> --preset KEY [field=value...] [--name N]   # one of those, filled in
 slipdock new-automation <board> --spec JSON [--name N] [--tree]   # exact; --spec - reads stdin
 slipdock new-automation <board> <description...>                  # the server's AI writes the spec
-slipdock set-automation <board> <rule> [--on|--off] [--name N] [--spec JSON] [--text "..."]
+slipdock set-automation <board> <rule> [--on|--off] [--name N] [--spec JSON] [--text "..."|-]   # --text - reads the rule's words from stdin
 slipdock run-automation <board> <rule>        # run a timed rule now (forgets what it has done)
 slipdock delete-automation <board> <rule>
 slipdock callbacks <board> [--limit N]        # the calls its rules made, and what came back
@@ -529,7 +529,7 @@ slipdock dismiss <alert-id>... | --all        # dismiss yours; other people keep
 slipdock runner new <board> --pool P [--scenario daemon|loop|cloud|chatgpt]
     [--kind K] [--cwd DIR] [--permission-mode M] [--where desktop|cloud] [--repo owner/repo]
     [--column LIST [--top] [--[no-]wait-while-doing]] [--verbosity nothing|quiet|normal|verbose]
-    [--instructions TEXT]
+    [--instructions TEXT|-]   # - reads them from stdin, lines and all
     [--before-job CMD] [--after-job CMD] [--hooks prompt|hook]
     [--[no-]in-progress] [--[no-]assign] [--[no-]commit] [--[no-]push] [--[no-]move-done]
     [--[no-]complete] [--[no-]percent-100]    # what a job does to the card: each off unless given
@@ -553,7 +553,7 @@ slipdock machines                             # yours, then the ones serving you
 slipdock machine show <id>                    # ceiling, runners, their state and probes, refusals, changes
 slipdock machine add-runner <id> <board> --pool P --dir D [--name N] [--agent A]
     [--permission-mode M] [--timeout-minutes N] [--model M] [--executor me|user|confined|container]
-    [--[no-]worktree] [--verbosity quiet|normal|verbose] [--instructions TEXT]
+    [--[no-]worktree] [--verbosity quiet|normal|verbose] [--instructions TEXT|-]   # - reads them from stdin (set-runner too)
     [--before-hook H] [--after-hook H] [--probe-hook H]   # hooks: names the machine defines
     [--image NAME] [--network on|off]   # container: an image on the machine's own allow-list
 slipdock machine set-runner <id> <runner> [same options]  # only what you give changes
@@ -588,7 +588,7 @@ slipdock resume <board> [--pool P]            # let exactly that pause off (refu
 slipdock job-progress <id> [--message NOTE]   # renew the lease (20 min for a session); note → card
 slipdock job-progress [<id>] --step "…"       # what the job is doing now: on the job, never a card comment; on an epic's job name the subcard ("#2835 CI running") and it shows the job as its loop
 slipdock finish-job <id> --status done|failed|cancelled|timeout [--summary S]
-slipdock finish-job <id> --status waiting --needs "Q" [--choice X]... [--on EMAIL]   # ask and park in one step
+slipdock finish-job <id> --status waiting --needs "Q"|- [--choice X]... [--on EMAIL]   # ask and park in one step; --needs - reads the question from stdin
 
 # Tools: a board blueprint + skills + files that people on this server publish and install.
 # The server builds a Tool's board; never build one by hand from its README.
