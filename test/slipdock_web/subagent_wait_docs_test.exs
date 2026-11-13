@@ -60,6 +60,18 @@ defmodule SlipdockWeb.SubagentWaitDocsTest do
             "never wakes in a runner's job"
         ],
         do: assert_states(section, part, part)
+
+    # Each part that carries the meaning is a fact here (a short quotation),
+    # so a claim can't pass on the rest of its key words: turning "foreground"
+    # into "background", dropping "never" or the CI watch fails (#2974).
+    for part <- [
+          ~s{the brief says "run everything" "in the foreground"},
+          ~s{"in the foreground": its tests, its pre-push checks and "its CI watch"},
+          ~s{a subagent's "background run" "never wakes" in a runner's job}
+        ],
+        do: assert_states(section, part, part)
+
+    refute section =~ "in the background", "§5 must not tell a subagent to run in the background"
   end
 
   test "the manual's runner section says why, and what a Claude runner exports" do
