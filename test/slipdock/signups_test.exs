@@ -179,10 +179,16 @@ defmodule Slipdock.SignupsTest do
     end
   end
 
+  # The rate-limit tests pin the clock half an hour into one: on the real clock
+  # a burst that crosses the hour's edge starts the count again, and the
+  # refusal never comes (#2944, TEST-13). Each refusal then says 1801 seconds,
+  # so a test that loses its `now:` fails on that, not once in a blue moon.
+  @mid_window 500 * 3_600_000 + 1_800_000
+
   describe "the sign-in limiter" do
     setup do
       previous = Application.get_env(:slipdock, :rate_limit)
-      Application.put_env(:slipdock, :rate_limit, enabled: true)
+      Application.put_env(:slipdock, :rate_limit, enabled: true, now: @mid_window)
       RateLimit.reset()
 
       on_exit(fn ->
@@ -199,15 +205,15 @@ defmodule Slipdock.SignupsTest do
 
       for _ <- 1..5, do: assert(:ok = RateLimit.hit(key.("Owner@Example.com"), 5, 3_600_000))
 
-      assert {:error, _} = RateLimit.hit(key.("  owner@example.com  "), 5, 3_600_000)
-      assert {:error, _} = RateLimit.hit(key.("OWNER@EXAMPLE.COM"), 5, 3_600_000)
+      assert {:error, 1801} = RateLimit.hit(key.("  owner@example.com  "), 5, 3_600_000)
+      assert {:error, 1801} = RateLimit.hit(key.("OWNER@EXAMPLE.COM"), 5, 3_600_000)
     end
   end
 
   describe "Slipdock.RateLimit" do
     setup do
       previous = Application.get_env(:slipdock, :rate_limit)
-      Application.put_env(:slipdock, :rate_limit, enabled: true)
+      Application.put_env(:slipdock, :rate_limit, enabled: true, now: @mid_window)
       RateLimit.reset()
 
       on_exit(fn ->
@@ -222,14 +228,12 @@ defmodule Slipdock.SignupsTest do
       window = :timer.hours(1)
       for _ <- 1..3, do: assert(:ok = RateLimit.hit(ctx.key, 3, window))
 
-      assert {:error, seconds} = RateLimit.hit(ctx.key, 3, window)
-      assert seconds > 0
-      assert seconds <= 3601
+      assert {:error, 1801} = RateLimit.hit(ctx.key, 3, window)
     end
 
     test "counts each key separately", ctx do
       assert :ok = RateLimit.hit(ctx.key, 1, :timer.hours(1))
-      assert {:error, _} = RateLimit.hit(ctx.key, 1, :timer.hours(1))
+      assert {:error, 1801} = RateLimit.hit(ctx.key, 1, :timer.hours(1))
       assert :ok = RateLimit.hit(ctx.key <> ":other", 1, :timer.hours(1))
     end
 
@@ -241,10 +245,13 @@ defmodule Slipdock.SignupsTest do
     end
 
     test "a new window forgives", ctx do
-      # A one-millisecond window has certainly rolled over by the next line.
-      assert :ok = RateLimit.hit(ctx.key, 1, 1)
-      Process.sleep(2)
-      assert :ok = RateLimit.hit(ctx.key, 1, 1)
+      window = :timer.hours(1)
+      assert :ok = RateLimit.hit(ctx.key, 1, window)
+      assert {:error, _} = RateLimit.hit(ctx.key, 1, window)
+
+      # The pinned clock moves on to the next hour.
+      Application.put_env(:slipdock, :rate_limit, enabled: true, now: @mid_window + window)
+      assert :ok = RateLimit.hit(ctx.key, 1, window)
     end
 
     test "disabled, it allows everything", ctx do
