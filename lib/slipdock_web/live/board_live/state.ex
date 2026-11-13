@@ -516,7 +516,9 @@ defmodule SlipdockWeb.BoardLive.State do
 
         # A draft the reader couldn't have written was never theirs to see, so
         # it is not something the filters are hiding.
-        readable = Enum.filter(col.pages, &page_visible?(&1, socket))
+        # A saved view keeps its placed pages to its settings too, as it does
+        # its cards.
+        readable = Enum.filter(col.pages, &(page_visible?(&1, socket) and in_view.(&1)))
 
         pages =
           Enum.filter(

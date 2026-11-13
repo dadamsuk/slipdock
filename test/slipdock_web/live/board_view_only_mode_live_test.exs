@@ -98,6 +98,34 @@ defmodule SlipdockWeb.BoardViewOnlyModeLiveTest do
     refute render(view) =~ "Beta hidden"
   end
 
+  test "a list's placed pages are kept to the view too", ctx do
+    column = hd(ctx.board.columns)
+    kept = page_fixture(ctx.board, %{"title" => "Alpha page", "status" => "published"})
+    dropped = page_fixture(ctx.board, %{"title" => "Beta page", "status" => "published"})
+    {:ok, _} = Slipdock.Wiki.place(kept, column)
+    {:ok, _} = Slipdock.Wiki.place(dropped, column)
+
+    {conn, saved} = share(ctx, "board")
+    {:ok, view, html} = live(conn, ~p"/boards/#{ctx.board}?view=#{saved.id}")
+
+    %{socket: socket} = :sys.get_state(view.pid)
+
+    assert [["Alpha page"]] =
+             for(
+               c <- socket.assigns.columns,
+               c.column.id == column.id,
+               do: Enum.map(c.pages, & &1.title)
+             )
+
+    # What the view leaves out is not counted as hidden by a filter.
+    assert [0] = for(c <- socket.assigns.columns, c.column.id == column.id, do: c.hidden)
+
+    assert has_element?(view, "#page-#{kept.id}")
+    refute has_element?(view, "#page-#{dropped.id}")
+    refute html =~ "Beta page"
+    refute render(view) =~ "Beta page"
+  end
+
   # The live view at `path`, after any redirect or patch its mount makes.
   defp open(conn, path) do
     case live(conn, path) do
