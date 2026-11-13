@@ -79,8 +79,12 @@ a lane of the lists it has sat in, coloured by the list's category (to do,
 in progress, done, dropped, and grey while archived); a lane of its waits on
 a person; and a lane of its runner jobs. Hover a span for when, how long,
 and who moved it. A stay recovered from the old activity log whose end the
-history can't vouch for is faded and dashed. Under the lanes, *stays in
-lists* lists the same stays as text. Over the API it is
+history can't vouch for is faded and dashed. Once the card sits in a done
+list, its time there no longer stretches the drawing: the time before it
+got there fills most of the axis, the stay in done is a short fixed tail,
+and the axis marks when it reached done. Only the drawing is folded; the
+span's title, the list below and the API still give its real length.
+Under the lanes, *stays in lists* lists the same stays as text. Over the API it is
 `GET /api/cards/:id/timeline` (`stays`, `waits` and `jobs`, each with
 `from`, `to`, `seconds` and `open`), over MCP `get_card` with
 `timeline: true`, and on the command line `slipdock timeline <id>`.
