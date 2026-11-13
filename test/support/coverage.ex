@@ -158,9 +158,9 @@ defmodule Slipdock.Coverage do
     # taking every module compiled so far along (#2848: one bad beam fails
     # the whole parallel call). So try them a chunk at a time from a process
     # of its own, halve the chunks that die until the culprits are alone,
-    # then compile all the ones that survived in one call. Nothing to stop
-    # in between: a beam that kills the server takes all it held, so it
-    # only ever holds good ones, and compiling one again replaces it.
+    # then compile all the ones that survived in one call. A chunk that
+    # fails stops what is left of :cover before the next (stop_cover/1),
+    # taking the good ones it held, and compiling one again replaces it.
     {good, bad} =
       beams
       |> Enum.chunk_every(@chunk)
@@ -193,11 +193,105 @@ defmodule Slipdock.Coverage do
   # beam that kills :cover doesn't take the merge with it: true when they
   # all compiled. They stay compiled after the process goes: the server
   # isn't linked to whoever started it.
+  #
+  # The process runs under the probe's own group leader, which every
+  # process it starts inherits, and so every process the server it starts
+  # does: the server and its pmap workers, and the compiler processes
+  # those spawn. That is how stop_cover/1 finds them (#2917): :cover
+  # spawns them all from funs, so nothing else about them says :cover.
   defp compiled_apart?(beams) do
-    {pid, ref} = spawn_monitor(fn -> exit({:compiled, compile(beams)}) end)
+    leader = probe_leader()
+
+    {pid, ref} =
+      spawn_monitor(fn ->
+        Process.group_leader(self(), leader)
+        _ = chunk_hook(beams)
+        exit({:compiled, compile(beams)})
+      end)
 
     receive do
-      {:DOWN, ^ref, :process, ^pid, reason} -> reason == {:compiled, true}
+      {:DOWN, ^ref, :process, ^pid, {:compiled, true}} ->
+        true
+
+      {:DOWN, ^ref, :process, ^pid, _} ->
+        stop_cover(leader)
+        false
+    end
+  end
+
+  # Clears what a failed call leaves of :cover before the next one (#2917):
+  # the server, if the beam didn't kill it, and the workers it had compiling
+  # in parallel. Those aren't linked to the server, so a beam that kills it
+  # leaves them running into the next try, which halving makes the same
+  # beams: they write to the new server's tables and load over the modules
+  # it compiles, and a good beam fails with them. So kill every process
+  # under the probe's group leader, and the server by name, wait until each
+  # has gone, and look again until none is left: a live server spawns a
+  # new worker as each one ends.
+  defp stop_cover(leader) do
+    case leftovers(leader) do
+      [] ->
+        :ok
+
+      pids ->
+        refs = for pid <- pids, do: {pid, Process.monitor(pid)}
+        Enum.each(pids, &Process.exit(&1, :kill))
+
+        for {pid, ref} <- refs do
+          receive do
+            {:DOWN, ^ref, :process, ^pid, _} -> :ok
+          end
+        end
+
+        stop_cover(leader)
+    end
+  end
+
+  # The processes a failed chunk can have left behind: every one under the
+  # probe's group leader, and the :cover server whoever started it.
+  defp leftovers(leader) do
+    under = for pid <- Process.list(), pid != self(), led_by?(pid, leader), do: pid
+
+    case Process.whereis(:cover_server) do
+      nil -> under
+      server -> Enum.uniq([server | under])
+    end
+  end
+
+  defp led_by?(pid, leader),
+    do: match?({:group_leader, ^leader}, Process.info(pid, :group_leader))
+
+  # The group leader the chunks run under: it passes their output on to
+  # the node's own, and lives as long as the node, since a server started
+  # by a chunk that compiled keeps it after the probe. One for the node.
+  defp probe_leader do
+    case Process.whereis(Slipdock.Coverage.ProbeLeader) do
+      nil ->
+        gl = Process.group_leader()
+        pid = spawn(fn -> forward(gl) end)
+        Process.register(pid, Slipdock.Coverage.ProbeLeader)
+        pid
+
+      pid ->
+        pid
+    end
+  end
+
+  defp forward(gl) do
+    receive do
+      message -> send(gl, message)
+    end
+
+    forward(gl)
+  end
+
+  # A test's way into a chunk (#2917): a 1-arity fun under
+  # `{Slipdock.Coverage, :chunk_hook}` in `:persistent_term` is called
+  # with the chunk's beams in its process, before it compiles them.
+  defp chunk_hook(beams) do
+    case :persistent_term.get({__MODULE__, :chunk_hook}, nil) do
+      nil -> :ok
+      hook -> hook.(beams)
     end
   end
 
