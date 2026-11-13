@@ -8,6 +8,7 @@ way in: what it is, the pictures, and how to get it running.
 The manual is in parts, one page each. Every section and what it covers:
 
 - [Features](manual/features.md)
+  - [Who clears a flag](manual/features.md#who-clears-a-flag)
 - [Every feature in brief](manual/every-feature-in-brief.md)
   - [Run an agent against a board](manual/every-feature-in-brief.md#run-an-agent-against-a-board)
   - [Tools](manual/every-feature-in-brief.md#tools)
