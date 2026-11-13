@@ -26,7 +26,7 @@ defmodule SlipdockWeb.BoardLive.ArchiveComponent do
 
   # Sent by the board when something on it changed.
   @impl true
-  def update(%{refresh: true}, socket), do: {:ok, socket |> assign_access() |> list_archived()}
+  def update(%{refresh: true}, socket), do: {:ok, list_archived(socket)}
 
   def update(%{board: board, current_user: user} = assigns, socket) do
     # The query a link arrived with is taken once, when the panel opens;
