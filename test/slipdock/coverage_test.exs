@@ -511,10 +511,21 @@ defmodule Slipdock.CoverageTest do
   # server it finds, and every other process under its group leader. A
   # chunk that will fail also leaves a straggler as :cover's pmap workers
   # are: spawned from a fun by the chunk, so `initial_call` says nothing of
-  # :cover, and still running when the chunk dies. `before` runs first.
-  defp probe_chunks(ctx, before \\ "") do
+  # :cover, and still running when the chunk dies. Each chunk also reports
+  # the group leader it runs under.
+  #
+  # Options: `before:`, code run first; `respawn: true`, a failing chunk
+  # also leaves a spawner the way a live :cover server is one (#2917): off
+  # the chunk's group leader, so stop_cover/1 doesn't list it, and linked
+  # to 1000 stragglers under it. When the first of those is killed, it
+  # starts one more process under the leader, which only a second look
+  # finds: it runs at high priority, so it does so while stop_cover/1 is
+  # still killing and waiting on the rest. Each respawned process is reported, and whether it lives on.
+  defp probe_chunks(ctx, opts \\ []) do
     run(ctx.tmp_dir, """
     me = self()
+    {:group_leader, outer} = Process.info(self(), :group_leader)
+    respawn? = #{inspect(Keyword.get(opts, :respawn, false))}
 
     :persistent_term.put({Slipdock.Coverage, :chunk_hook}, fn beams ->
       {:group_leader, gl} = Process.info(self(), :group_leader)
@@ -526,21 +537,50 @@ defmodule Slipdock.CoverageTest do
       bad = Enum.any?(beams, &(&1 =~ ~r/CoverageBad|CoverageWorse/))
       straggler = if bad, do: spawn(fn -> receive do: (:never -> :ok) end)
       born = straggler && Process.info(straggler, :initial_call)
-      send(me, {:chunk, bad, Process.whereis(:cover_server), left, {straggler, born}})
+      registered = Process.whereis(Slipdock.Coverage.ProbeLeader)
+      send(me, {:chunk, bad, Process.whereis(:cover_server), left, {straggler, born}, {gl, registered}})
+
+      if bad and respawn? do
+        chunk = self()
+
+        spawn(fn ->
+          Process.flag(:trap_exit, true)
+          Process.flag(:priority, :high)
+          for _ <- 1..1000, do: spawn_link(fn -> receive do: (:never -> :ok) end)
+          Process.group_leader(self(), outer)
+          send(chunk, :spawner_ready)
+
+          receive do
+            {:EXIT, _, _} ->
+              r = spawn(fn -> receive do: (:never -> :ok) end)
+              Process.group_leader(r, gl)
+              send(me, {:respawned, r})
+          end
+        end)
+
+        receive do: (:spawner_ready -> :ok)
+      end
     end)
 
-    #{before}
+    #{Keyword.get(opts, :before, "")}
     Slipdock.Coverage.start(#{inspect(ctx.ebin)}, export: "x", output: #{inspect(ctx.out)})
 
-    chunks = Stream.repeatedly(fn -> receive do: (c -> c), after: (0 -> nil) end)
+    respawned = Stream.repeatedly(fn -> receive do: ({:respawned, r} -> r), after: (0 -> nil) end)
+    respawned = Enum.take_while(respawned, & &1)
+    IO.puts("respawned: \#{length(respawned)}, alive \#{Enum.count(respawned, &Process.alive?/1)}")
+
+    chunks = Stream.repeatedly(fn -> receive do: ({:chunk, _, _, _, _, _} = c -> c), after: (0 -> nil) end)
     chunks = Enum.take_while(chunks, & &1)
     IO.puts("chunks: \#{length(chunks)}")
 
-    for [{:chunk, true, _, _, _}, {:chunk, _, server, left, _}] <- Enum.chunk_every(chunks, 2, 1, :discard) do
+    leaders = chunks |> Enum.map(&elem(&1, 5)) |> Enum.uniq()
+    IO.puts("leaders: \#{length(leaders)}, all registered \#{Enum.all?(leaders, fn {gl, reg} -> gl == reg end)}")
+
+    for [{:chunk, true, _, _, _, _}, {:chunk, _, server, left, _, _}] <- Enum.chunk_every(chunks, 2, 1, :discard) do
       IO.puts("after a failed chunk: server \#{inspect(server)}, left \#{length(left)}")
     end
 
-    for {:chunk, true, _, _, {s, born}} <- chunks do
+    for {:chunk, true, _, _, {s, born}, _} <- chunks do
       IO.puts("straggler \#{inspect(born)}, alive \#{Process.alive?(s)}")
     end
 
@@ -564,6 +604,11 @@ defmodule Slipdock.CoverageTest do
     # no worker, no straggler.
     assert Enum.all?(failed, &match?([_, "nil", "0"], &1))
 
+    # Every chunk ran under the one registered probe leader, so what a
+    # chunk that compiled left (the server it started keeps that chunk's
+    # leader, and so do its workers) is found when a later one fails.
+    assert output =~ ~r/^leaders: 1, all registered true$/m
+
     # Each straggler was spawned from a fun, as :cover's are, and is gone.
     stragglers = Regex.scan(~r/^straggler (.*)$/m, output, capture: :all_but_first)
     assert length(stragglers) > length(failed)
@@ -574,6 +619,24 @@ defmodule Slipdock.CoverageTest do
     assert length(compiled) == 41
     assert "CoverageSample" in compiled
     refute Enum.any?(compiled, &String.starts_with?(&1, "CoverageBad"))
+  end
+
+  test "a failed chunk looks again for what was started while it stopped :cover", ctx do
+    write_fillers(ctx, 40)
+    write_bad_beams(ctx.ebin)
+
+    # A spawner off the leader starts a process under it as the first of
+    # its 1000 stragglers is killed: only a second look at the leader's
+    # processes finds that one, as it finds a worker a live server starts.
+    {output, 0} = probe_chunks(ctx, respawn: true)
+
+    [_, respawned, alive] = Regex.run(~r/^respawned: (\d+), alive (\d+)$/m, output)
+    assert String.to_integer(respawned) >= 3
+    assert alive == "0"
+
+    failed = Regex.scan(~r/^after a failed chunk: server (.*), left (\d+)$/m, output)
+    assert length(failed) >= 3
+    assert Enum.all?(failed, &match?([_, "nil", "0"], &1))
   end
 
   test "a straggler of :cover's looks like any process: spawned from a fun", ctx do
@@ -595,10 +658,12 @@ defmodule Slipdock.CoverageTest do
     # CoverageBadB alone: :cover refuses it and the server lives on. Started
     # here, the server isn't under the probe's group leader: it goes by name.
     {output, 0} =
-      probe_chunks(ctx, """
-      {:ok, first} = :cover.start()
-      Process.put(:first_server, first)
-      """)
+      probe_chunks(ctx,
+        before: """
+        {:ok, first} = :cover.start()
+        Process.put(:first_server, first)
+        """
+      )
 
     assert output =~ "first server alive: false"
 
