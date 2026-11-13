@@ -61,6 +61,27 @@ defmodule SlipdockWeb.BoardLive.State do
     end
   end
 
+  @doc """
+  Reads the reader's level on the board again, before an event that is gated
+  on it (#2981). The board's own row and one permission lookup while nothing
+  has changed (the row, because who owns the board and the card it hangs
+  from are on it); a level that has moved redraws the board as
+  `board_changed` would, so a lowering the board was never told of (a
+  group's membership, a grant on the card a sub-board hangs from) is taken
+  in before the guard. A reader with no access left is sent away: check
+  `socket.redirected` before going on.
+  """
+  def refresh_access(socket) do
+    %{board: board, current_user: user, perm: was} = socket.assigns
+
+    if Access.board_permission(user, Boards.reload_board!(board)) == was do
+      socket
+    else
+      socket = reload_board(socket)
+      if socket.redirected, do: socket, else: refresh_swimlanes(socket)
+    end
+  end
+
   # Whether the open card is the reader's to see; when it isn't, the panel
   # closes. What they may do with it is `BoardLive.CardComponent`'s to decide.
   def assign_card_access(%{assigns: %{card: %Card{} = card}} = socket) do
