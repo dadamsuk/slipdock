@@ -319,6 +319,29 @@ defmodule SlipdockWeb.BoardGrantLoweredLiveTest do
     assert [%Card{title: "Q3 plan"}] = cards(ctx.board)
   end
 
+  test "a document sent in two halves is stored once, when the second lands", ctx do
+    [first | _] = columns(ctx.board)
+    {:ok, view, _} = live(as(ctx.writer), ~p"/boards/#{ctx.board}")
+    render_click(view, "aim_document", %{"id" => first.id})
+
+    input =
+      file_input(view, "#list-document-form", :list_document, [
+        %{name: "Q3 plan.pdf", content: "%PDF-1.4 sent in two halves.", type: "application/pdf"}
+      ])
+
+    # Half of it: the progress callback runs with the entry not yet done,
+    # and neither re-reads access nor stores (the entry can't be consumed).
+    render_upload(input, "Q3 plan.pdf", 50)
+
+    assert Process.alive?(view.pid)
+    assert cards(ctx.board) == []
+
+    # The rest: now it is stored, once.
+    render_upload(input, "Q3 plan.pdf", 50)
+
+    assert [%Card{title: "Q3 plan"}] = cards(ctx.board)
+  end
+
   test "a writer whose grant is unchanged still renames the list", ctx do
     [first | _] = columns(ctx.board)
     {:ok, view, _} = live(as(ctx.writer), ~p"/boards/#{ctx.board}")
