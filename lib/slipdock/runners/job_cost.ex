@@ -99,8 +99,22 @@ defmodule Slipdock.Runners.JobCost do
   def total_tokens(_), do: nil
 
   @doc """
-  A cost in a few words: `"model 12m · tools 40m · 1.2M tokens"`, with the
-  tokens left out when they aren't known (never shown as 0). Nil for nil.
+  The tokens a cost's jobs spent new (#3003): input, output and cache
+  write, leaving out the cache reads (the same context read again on each
+  model turn, billed at a fraction of the input rate). Nil when the tokens
+  aren't known.
+  """
+  def fresh_tokens(%{tokens: %{} = t}),
+    do: Map.get(t, :input, 0) + Map.get(t, :output, 0) + Map.get(t, :cache_write, 0)
+
+  def fresh_tokens(_), do: nil
+
+  @doc """
+  A cost in a few words: `"model 12m · tools 40m · 5.8M tokens (180.0k
+  new)"`, the new ones (`fresh_tokens/1`) beside the total whenever cache
+  reads make them differ, so a job that mostly re-read its context doesn't
+  read as ten times the cost. The tokens are left out when they aren't
+  known (never shown as 0). Nil for nil.
   """
   def text(nil), do: nil
 
@@ -108,11 +122,15 @@ defmodule Slipdock.Runners.JobCost do
     [
       "model #{duration(cost.model_seconds)}",
       "tools #{duration(cost.tool_seconds)}",
-      (n = total_tokens(cost)) && "#{tokens_text(n)} tokens"
+      tokens_phrase(total_tokens(cost), fresh_tokens(cost))
     ]
     |> Enum.reject(&is_nil/1)
     |> Enum.join(" · ")
   end
+
+  defp tokens_phrase(nil, _), do: nil
+  defp tokens_phrase(n, n), do: "#{tokens_text(n)} tokens"
+  defp tokens_phrase(n, fresh), do: "#{tokens_text(n)} tokens (#{tokens_text(fresh)} new)"
 
   @doc "A token count, short: `950`, `12.3k`, `1.2M`."
   def tokens_text(n) when n < 1000, do: to_string(n)
@@ -125,7 +143,8 @@ defmodule Slipdock.Runners.JobCost do
 
   @doc """
   A cost as JSON: `model_seconds`, `tool_seconds`, `jobs`, and `tokens`
-  (with `total`) only when they are known. Nil for nil.
+  (the four counts, with `total` and `fresh`, `fresh_tokens/1`) only when
+  they are known. Nil for nil.
   """
   def json(nil), do: nil
 
@@ -133,8 +152,12 @@ defmodule Slipdock.Runners.JobCost do
     base = Map.take(cost, [:model_seconds, :tool_seconds, :jobs])
 
     case cost.tokens do
-      nil -> base
-      t -> Map.put(base, :tokens, Map.put(t, :total, total_tokens(cost)))
+      nil ->
+        base
+
+      t ->
+        tokens = Map.merge(t, %{total: total_tokens(cost), fresh: fresh_tokens(cost)})
+        Map.put(base, :tokens, tokens)
     end
   end
 

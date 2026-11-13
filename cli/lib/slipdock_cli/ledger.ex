@@ -117,14 +117,23 @@ defmodule SlipdockCLI.Ledger do
 
   @doc """
   What a card's jobs spent (#1954), after its lead time: `" · spent model
-  12m, tools 40m, 1.2M tokens"`, the tokens left out when they aren't
-  known, and nothing at all with no cost.
+  12m, tools 40m, 5.8M tokens (180.0k new)"`: the new tokens (`fresh`:
+  input, output and cache write) beside the total when cache reads make
+  them differ (#3003), the total alone from a server that doesn't send
+  `fresh`, the tokens left out when they aren't known, and nothing at all
+  with no cost.
   """
   def spent(%{"model_seconds" => m, "tool_seconds" => t} = cost) do
     tokens =
       case cost["tokens"] do
-        %{"total" => n} -> ", #{tokens_text(n)} tokens"
-        _ -> ""
+        %{"total" => n, "fresh" => f} when f != n ->
+          ", #{tokens_text(n)} tokens (#{tokens_text(f)} new)"
+
+        %{"total" => n} ->
+          ", #{tokens_text(n)} tokens"
+
+        _ ->
+          ""
       end
 
     " · spent model #{duration(m)}, tools #{duration(t)}#{tokens}"

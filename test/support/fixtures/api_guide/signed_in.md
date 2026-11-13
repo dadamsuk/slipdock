@@ -1319,8 +1319,9 @@ an epic (any other card leaves it out). It has `seconds` and `ends` (`deployed`,
 and `cost`, which is what its jobs spent, from their logs. `cost` has a
 `total` and the `phases` the jobs ran in (build, rework, verify, merge).
 Each gives `model_seconds`, `tool_seconds`, `jobs`, and `tokens`
-(`input`, `output`, `cache_read`, `cache_write`, `total`) only when a
-log carried `usage`. `cost` is null when no job sent a log. On an epic,
+(`input`, `output`, `cache_read`, `cache_write`, `total`, and `fresh`:
+input, output and cache write, what the jobs spent new rather than read
+again from the cache) only when a log carried `usage`. `cost` is null when no job sent a log. On an epic,
 `rollup` adds its subcards: `subcards`, their `seconds` added up, and
 the `cost` of theirs and the epic's own jobs together. No prices: what
 tokens cost is yours to work out. CLI: `slipdock card` (`Lead time:`).

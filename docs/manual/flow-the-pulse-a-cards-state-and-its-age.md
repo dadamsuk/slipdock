@@ -101,7 +101,12 @@ and what its jobs spent. That comes from their logs:
   waiting for its answer, else to the model);
 - **tokens**: input, output, cache read and cache write, summed once per
   message from the `usage` the Claude Code log carries. A log with no
-  `usage` has no tokens. They are left out, never shown as 0.
+  `usage` has no tokens. They are left out, never shown as 0. When some of
+  them are cache reads (the same context read again on each model turn,
+  billed at a fraction of the input rate), the line gives the **new** ones
+  beside the total, as in `5.8M tokens (180.0k new)`: input, output and
+  cache write. That is the figure to compare jobs by, since a long job's
+  total is mostly its context read over and over.
 
 There are no prices and no currency. Tokens and seconds are facts, and what
 they cost is your own arithmetic. Each job's cost goes to the phase its run

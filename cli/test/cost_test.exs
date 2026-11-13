@@ -42,6 +42,20 @@ defmodule SlipdockCLI.CostTest do
     assert Ledger.spent(Map.delete(@cost, "tokens")) == " · spent model 12m, tools 40m"
   end
 
+  test "the new tokens beside the total when cache reads make them differ (#3003)" do
+    read = %{"total" => 5_759_134, "fresh" => 179_134, "cache_read" => 5_580_000}
+    cost = %{@cost | "tokens" => read}
+
+    assert Ledger.spent(cost) ==
+             " · spent model 12m, tools 40m, 5.8M tokens (179.1k new)"
+
+    assert Render.lead_time_text(put_in(@lead, ["cost", "total"], cost)) =~
+             ~r/5\.8M tokens \(179\.1k new\)$/
+
+    no_reads = put_in(@cost, ["tokens", "fresh"], 1_200_000)
+    assert Ledger.spent(no_reads) == " · spent model 12m, tools 40m, 1.2M tokens"
+  end
+
   test "an epic's rollup" do
     rollup = %{"subcards" => 3, "seconds" => 90_000, "cost" => %{"total" => @cost}}
 

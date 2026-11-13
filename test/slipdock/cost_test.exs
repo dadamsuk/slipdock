@@ -259,7 +259,35 @@ defmodule Slipdock.CostTest do
 
       assert JobCost.json(unknown) == %{model_seconds: 750, tool_seconds: 4000, jobs: 2}
       assert JobCost.json(known).tokens.total == 1_200_000
+      assert JobCost.json(known).tokens.fresh == 1_200_000
       assert JobCost.json(nil) == nil
+    end
+
+    test "cache reads: the new tokens beside the total, the four counts kept in json (#3003)" do
+      cost = %{
+        model_seconds: 750,
+        tool_seconds: 4000,
+        tokens: %{input: 134, output: 25_000, cache_read: 5_580_000, cache_write: 154_000},
+        jobs: 1
+      }
+
+      assert JobCost.fresh_tokens(cost) == 179_134
+      assert JobCost.total_tokens(cost) == 5_759_134
+      assert JobCost.text(cost) == "model 12m · tools 1h 6m · 5.8M tokens (179.1k new)"
+
+      assert JobCost.json(cost).tokens == %{
+               input: 134,
+               output: 25_000,
+               cache_read: 5_580_000,
+               cache_write: 154_000,
+               total: 5_759_134,
+               fresh: 179_134
+             }
+
+      only_reads = %{cost | tokens: %{input: 0, output: 0, cache_read: 900, cache_write: 0}}
+      assert JobCost.text(only_reads) == "model 12m · tools 1h 6m · 900 tokens (0 new)"
+      assert JobCost.fresh_tokens(%{cost | tokens: nil}) == nil
+      assert JobCost.fresh_tokens(nil) == nil
     end
   end
 
@@ -398,9 +426,9 @@ defmodule Slipdock.CostTest do
       text = CardRecord.call(owner, Repo.get!(Card, card.id), "card_lead_time", %{})
 
       assert text =~
-               "Spent by its jobs (from their logs): model 1m · tools 2m · 3.5k tokens (2 jobs)."
+               "Spent by its jobs (from their logs): model 1m · tools 2m · 3.5k tokens (478 new) (2 jobs)."
 
-      assert text =~ "- build: model 40s · tools 1m · 3.5k tokens (1 job)"
+      assert text =~ "- build: model 40s · tools 1m · 3.5k tokens (478 new) (1 job)"
       assert text =~ "- verify: model 40s · tools 1m (1 job)"
 
       bare = card_fixture(todo, %{"title" => "No logs"})
