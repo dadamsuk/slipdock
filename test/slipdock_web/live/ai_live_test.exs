@@ -165,6 +165,51 @@ defmodule SlipdockWeb.AILiveTest do
     refute has_element?(view, "#page-ai button[phx-value-mode=edit]")
   end
 
+  test "the chat lists only the wiki pages its reader may read", %{conn: conn, board: board} do
+    owner = user_fixture()
+    page_fixture(board, %{"title" => "Board-wide notes", "status" => "published"})
+    granted = page_fixture(board, %{"title" => "Granted notes", "status" => "published"})
+
+    # A saved view granted, and nothing else on the board, is :view.
+    viewer = user_fixture("viewer@example.com")
+    {:ok, saved} = Boards.SavedViews.create_saved_view(board, %{"name" => "Due soon"})
+    {:ok, _} = Slipdock.Access.grant(saved, viewer, "read", owner)
+    assert Slipdock.Access.board_permission(viewer, board) == :view
+
+    # They reach the board only through the view.
+    view_path = ~p"/boards/#{board}/swimlanes?view=#{saved.id}"
+
+    assert ask_board_chat(log_in_user(conn, viewer), view_path) =~
+             "## Wiki pages on this board (0)"
+
+    # A page granted to them is theirs to read, and so to be told of.
+    {:ok, _} = Slipdock.Access.grant(granted, viewer, "read", owner)
+    system = ask_board_chat(log_in_user(conn, viewer), view_path)
+    assert system =~ "## Wiki pages on this board (1)"
+    assert system =~ "Granted notes"
+    refute system =~ "Board-wide notes"
+
+    # Read on the board reaches every page.
+    reader = user_fixture("reader@example.com")
+    {:ok, _} = Slipdock.Access.grant(board, reader, "read", owner)
+    system = ask_board_chat(log_in_user(conn, reader), ~p"/boards/#{board}")
+    assert system =~ "Board-wide notes"
+    assert system =~ "Granted notes"
+  end
+
+  defp ask_board_chat(conn, path) do
+    Slipdock.AIStub.reply_with("Noted.")
+    {:ok, view, _} = live(conn, path)
+    view |> element("#board-chat") |> render_click()
+    view |> form("#page-ai-form-0", %{"message" => "Which pages are there?"}) |> render_submit()
+    render_async(view)
+
+    assert_receive {:ai_request,
+                    %{"messages" => [%{"role" => "system", "content" => system} | _]}}
+
+    system
+  end
+
   test "the open card gets its own inline assistant", %{conn: conn, board: board, card: card} do
     Slipdock.AIStub.reply_with("It has no due date.")
     {:ok, view, html} = live(conn, ~p"/boards/#{board}/cards/#{card.id}")

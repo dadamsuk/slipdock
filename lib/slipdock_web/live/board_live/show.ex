@@ -607,24 +607,30 @@ defmodule SlipdockWeb.BoardLive.Show do
   # The page as the assistant sees it: the cards the current view shows (the
   # board's own cards, filtered as the mode filters them) and the open card,
   # its dependencies seen as the reader may see them.
-  defp ai_source(mode, board, columns, config, card, users, can_write, user) do
+  defp ai_source(mode, board, columns, config, card, users, perm, user) do
     %{
       kind: :board,
       board: board,
       cards: ai_cards(mode, board, columns, config),
       # The board's wiki, so a request about documents is answered with
       # documents rather than with cards whose titles contain the word.
-      pages: ai_pages(board, can_write),
+      pages: ai_pages(board, perm, user),
       mode: mode,
       card: card && Access.hide_unreadable_dependencies(user, card),
       users: users
     }
   end
 
-  # Drafts are only listed for someone who could have written them, exactly
-  # as the wiki itself lists them.
-  defp ai_pages(board, can_write) do
-    Wiki.list_pages(board, if(can_write, do: [], else: [status: "published"]))
+  # The pages the reader may read, as the wiki itself lists them: drafts only
+  # for someone who could have written them. Read on the board reaches every
+  # page; below it, each page is held to its own permission.
+  defp ai_pages(board, perm, user) do
+    pages =
+      Wiki.list_pages(board, if(Access.can_write?(perm), do: [], else: [status: "published"]))
+
+    if Access.can_read?(perm),
+      do: pages,
+      else: Enum.filter(pages, &Access.can_read?(Access.page_permission(user, &1)))
   end
 
   defp ai_cards(:board, _board, columns, _config), do: Enum.flat_map(columns, & &1.cards)
@@ -1635,7 +1641,7 @@ defmodule SlipdockWeb.BoardLive.Show do
         id="page-ai"
         layout="drawer"
         title={"Chat about #{@board.name}"}
-        source={ai_source(@mode, @board, @columns, @swim, @card, @users, @can_write, @current_user)}
+        source={ai_source(@mode, @board, @columns, @swim, @card, @users, @perm, @current_user)}
         current_user={@current_user}
         can_write={@can_write}
       />
