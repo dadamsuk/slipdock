@@ -28,7 +28,7 @@ primary, Sora page titles, JetBrains Mono*). The side-by-side comparison is
 ## Type
 
 - **Sora 600**, −0.02em tracking, for page titles only: the `page-title`
-  class, 24px (28px from `sm`), on every page's `h1` and in `<.header>`.
+  class, 24px (28px from `sm`), on every page's `h1` and in `<.page_header>`.
 - **Inter** for everything else, with `cv11` (the single-storey *a*) off.
   Headings inside a page or a modal are `section-title`, 18px semibold.
 - **JetBrains Mono** for code (`font-mono`, `field-mono`, `code`): the
