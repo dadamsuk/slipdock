@@ -653,8 +653,19 @@ defmodule Slipdock.Work do
   # Cards whose answered wait is held until a job a runner has closes
   # (`Slipdock.Runners.Requeue`, `pending`): nothing there waits on a
   # person. The card whose job asked has that job open, so only the card
-  # the question was on needs saying.
-  defp answer_held, do: from(w in Wait, where: w.requeue_state == "pending", select: w.card_id)
+  # the question was on needs saying. Only a drain for the asking job's
+  # rule sends it, so one whose rule is off or deleted is going nowhere
+  # (#2962): that card is a person's again.
+  defp answer_held do
+    from(w in Wait,
+      join: j in Job,
+      on: j.id == w.job_id,
+      join: r in "automation_rules",
+      on: r.id == j.rule_id and r.enabled == true,
+      where: w.requeue_state == "pending",
+      select: w.card_id
+    )
+  end
 
   # Drops the subcards an epic's job is working inside itself (#2899: its
   # step names them): somebody is on those.
