@@ -403,7 +403,7 @@ and MCP) and a link to the page that covers it.
   too: [a Trello board's JSON export](moving-boards-between-servers.md#from-trello) imports as
   it is, lists, cards, labels, checklists and comments.
 - **A JSON API and a CLI** — [everything the UI can do](json-api.md),
-  [from the shell](cli.md) (on Windows, `irm <server>/cli/install.ps1 | iex`
+  [from the shell](cli.md) (on Linux and macOS, `curl -fsSL <server>/cli/install.sh | sh`; on Windows, `irm <server>/cli/install.ps1 | iex`
   installs the CLI from your own server), plus
   [agent skills](skills.md) the server ships (for ChatGPT too,
   as zips that use the MCP connector instead of the CLI) and a
