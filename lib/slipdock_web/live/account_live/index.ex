@@ -21,6 +21,9 @@ defmodule SlipdockWeb.AccountLive.Index do
     # so a section pays only for its own queries — the one-page version ran
     # all of them to show you a fifth of the result. The component does its
     # own loading when it first renders.
+    if socket.assigns.live_action == :machines and connected?(socket),
+      do: follow_machines(socket.assigns.current_user)
+
     {:ok,
      assign(socket,
        page_title: page_title(socket.assigns.live_action),
@@ -38,6 +41,28 @@ defmodule SlipdockWeb.AccountLive.Index do
 
   def handle_info({:current_user, user}, socket),
     do: {:noreply, assign(socket, current_user: user)}
+
+  # A machine listed on Machines changed elsewhere: renamed over the API or
+  # the CLI, say (#2764). The list reads itself again; the daemon's own
+  # reports, which come often and change nothing it shows, are let by.
+  def handle_info({:config_changed, _machine_id}, socket) do
+    send_update(AccountLive.MachinesComponent, id: "account-machines", reload: true)
+    {:noreply, socket}
+  end
+
+  def handle_info({event, _machine_id}, socket)
+      when event in [:config_reported, :probe_changed],
+      do: {:noreply, socket}
+
+  # The machines the Machines section lists, yours and those serving a
+  # board you're on, followed on each one's topic. One enrolled after the
+  # page opened shows on the next visit.
+  defp follow_machines(user) do
+    for machine <-
+          Slipdock.Machines.list_machines(user) ++
+            Slipdock.Machines.list_shared_machines(user),
+        do: Slipdock.Runners.MachineRunners.subscribe(machine)
+  end
 
   # Every section, in the nav's order: {live action, path, icon, label}. The
   # label is the nav entry, the section's heading and the browser title, so

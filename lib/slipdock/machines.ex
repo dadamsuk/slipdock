@@ -419,6 +419,10 @@ defmodule Slipdock.Machines do
   Control characters are dropped and the name is trimmed to
   #{@machine_name_max} characters; a blank one is refused. A revoked
   machine can be renamed too: its row is the record of what it was.
+
+  Whichever door it came in by (the page, the API, the CLI), the rename
+  goes out on the machine's topic (`MachineRunners.changed/1`, #2764), so
+  an open machine page and Account › Machines show the new name at once.
   """
   def rename_machine(%Machine{} = machine, name) do
     case clean(name, @machine_name_max) do
@@ -426,7 +430,10 @@ defmodule Slipdock.Machines do
         {:error, :invalid, "give the machine a name"}
 
       name ->
-        machine |> Ecto.Changeset.change(name: name) |> Repo.update()
+        with {:ok, renamed} <- machine |> Ecto.Changeset.change(name: name) |> Repo.update() do
+          Slipdock.Runners.MachineRunners.changed(renamed)
+          {:ok, renamed}
+        end
     end
   end
 

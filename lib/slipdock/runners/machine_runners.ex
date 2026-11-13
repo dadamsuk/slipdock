@@ -41,6 +41,15 @@ defmodule Slipdock.Runners.MachineRunners do
   @doc "Subscribes to a machine's config changes and reports (the Machines page)."
   def subscribe(machine), do: Phoenix.PubSub.subscribe(@pubsub, topic(machine))
 
+  @doc """
+  Tells whoever follows the machine (its page, Account › Machines, the
+  daemon's long-poll) that something about it changed outside its runners'
+  config: a rename (#2764). It goes out as `:config_changed`, which the
+  pages reload on; the daemon's long-poll looks at `config_version`, which
+  this doesn't bump, and goes on waiting.
+  """
+  def changed(%Machine{} = machine), do: broadcast(machine, :config_changed)
+
   ## The owner's side --------------------------------------------------------------
 
   @doc "`machine`'s runners, oldest first."

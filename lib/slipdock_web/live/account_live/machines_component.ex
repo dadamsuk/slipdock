@@ -16,12 +16,22 @@ defmodule SlipdockWeb.AccountLive.MachinesComponent do
 
   @impl true
   def update(assigns, socket) do
+    {reload?, assigns} = Map.pop(assigns, :reload, false)
     socket = assign(socket, assigns)
 
-    # Loaded once, so a later update can't drop a key waiting to be copied.
-    if Map.has_key?(socket.assigns, :machines),
-      do: {:ok, socket},
-      else: {:ok, socket |> assign(new_key: nil, key_error: nil, form_key: 0) |> load()}
+    # Loaded once, so a later update can't drop a key waiting to be copied;
+    # `reload: true` (a machine changed elsewhere, #2764) reads the lists
+    # again and leaves the key alone.
+    cond do
+      not Map.has_key?(socket.assigns, :machines) ->
+        {:ok, socket |> assign(new_key: nil, key_error: nil, form_key: 0) |> load()}
+
+      reload? ->
+        {:ok, load(socket)}
+
+      true ->
+        {:ok, socket}
+    end
   end
 
   defp load(socket) do
