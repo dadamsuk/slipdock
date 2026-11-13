@@ -5,7 +5,7 @@ defmodule SlipdockWeb.AccountLive.MachineApprove do
   and the machine's fingerprint, and this page, looked up by the code, shows
   the hostname, OS, architecture and the same fingerprint, so the person
   can see it is the machine in front of them before it is bound to their
-  account. They choose the boards it may serve, from those they can reach.
+  account. They choose the boards it may serve, from those they can write to.
 
   As on `/activate`: opening the link only fills the code in, never decides;
   approving is a deliberate event, and code lookups are rate limited per
@@ -13,7 +13,7 @@ defmodule SlipdockWeb.AccountLive.MachineApprove do
   """
   use SlipdockWeb, :live_view
 
-  alias Slipdock.{Access, Machines, RateLimit}
+  alias Slipdock.{Machines, RateLimit}
   alias Slipdock.Machines.Enrolment
 
   @lookups_per_hour 30
@@ -23,7 +23,7 @@ defmodule SlipdockWeb.AccountLive.MachineApprove do
     {:ok,
      assign(socket,
        page_title: "Approve a machine",
-       boards: Access.list_boards(socket.assigns.current_user),
+       boards: Machines.servable_boards(socket.assigns.current_user),
        user_code: nil,
        enrolment: nil,
        error: nil

@@ -129,7 +129,8 @@ refused, even on this machine, unless you pass `--allow-http` (a development
 server). It also prints the
 machine's **fingerprint**: check the approval page shows the same one before
 you approve, so you know it is this machine you are letting in. On the page
-you choose the boards the machine may serve.
+you choose the boards the machine may serve, from the boards you own or can
+write to.
 
 When you approve, the daemon receives the machine's key and keeps it in its
 directory, readable only by you. The key lets the machine claim and report

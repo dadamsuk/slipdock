@@ -375,7 +375,7 @@ defmodule SlipdockWeb.API.MachineControllerTest do
 
       theirs = board_fixture(%{}, owner: user_fixture("stranger@example.com"))
 
-      assert %{"error" => "not a top-level board you're a member of" <> _} =
+      assert %{"error" => "not a top-level board you can write to" <> _} =
                ctx.conn
                |> post(~p"/api/machines/enrolment-keys", %{boards: [theirs.id]})
                |> json_response(422)

@@ -76,7 +76,7 @@ defmodule SlipdockWeb.MachinesLive.Show do
         |> MachineRunners.reports()
         |> Enum.filter(&(socket.assigns.role == :owner or Enum.member?(runner_ids, &1.runner_id))),
       board_names: Map.new(reachable, &{&1.id, &1.name}),
-      boards: Enum.filter(reachable, &Enum.member?(machine.board_ids, &1.id)),
+      boards: serving(machine, socket.assigns.current_user),
       setup_prompt: setup_prompt(socket, machine)
     )
   end
@@ -86,6 +86,14 @@ defmodule SlipdockWeb.MachinesLive.Show do
     do: MachineSetup.prompt(machine, SlipdockWeb.BaseURL.from_socket(socket))
 
   defp setup_prompt(_socket, _machine), do: nil
+
+  # The machine's boards a runner can be added for: those its owner may
+  # still have a machine serve.
+  defp serving(machine, user) do
+    user
+    |> Machines.servable_boards(archived: :all)
+    |> Enum.filter(&Enum.member?(machine.board_ids, &1.id))
+  end
 
   defp visible(runners, :owner, _board_ids), do: runners
 

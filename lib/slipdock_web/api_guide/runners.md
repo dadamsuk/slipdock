@@ -323,7 +323,8 @@ running `slipdock-runner` enrols once and gets a **machine key**
 `POST /api/machines/enrol` with `hostname`, `os`, `arch` and
 `fingerprint` answers a `user_code` and a `device_code`; a person
 approves at `/account/machines/approve`, seeing the hostname, system and
-fingerprint and choosing the boards it may serve (or over the API:
+fingerprint and choosing the boards it may serve, from the top-level
+boards they own or can write to (or over the API:
 `GET /api/machines/enrolment?user_code=…` shows the machine, `POST
 /api/machines/enrolment/approve` with `user_code` and `boards`, or
 `…/refuse`); `POST
