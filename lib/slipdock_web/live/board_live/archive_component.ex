@@ -8,7 +8,8 @@ defmodule SlipdockWeb.BoardLive.ArchiveComponent do
 
   Anyone who can read the board can look and search; restoring and deleting need write
   access, which the component works out for itself from the board it is
-  given. A card named by id is only ever an archived card of that board.
+  given. Below read on the board it lists nothing and searches nothing.
+  A card named by id is only ever an archived card of that board.
   """
   use SlipdockWeb, :live_component
 
@@ -35,16 +36,21 @@ defmodule SlipdockWeb.BoardLive.ArchiveComponent do
         do: socket.assigns.query,
         else: assigns[:query] || ""
 
+    perm = Access.board_permission(user, board)
+
     {:ok,
      socket
      |> assign(
        board: board,
        close_path: assigns.close_path,
-       can_write: Access.can_write?(Access.board_permission(user, board)),
+       reader?: Access.can_read?(perm),
+       can_write: Access.can_write?(perm),
        query: query
      )
      |> list_archived()}
   end
+
+  defp list_archived(%{assigns: %{reader?: false}} = socket), do: assign(socket, archived: [])
 
   defp list_archived(socket),
     do:
@@ -55,6 +61,9 @@ defmodule SlipdockWeb.BoardLive.ArchiveComponent do
   @impl true
   def handle_event(event, _params, socket) when event not in @events,
     do: {:noreply, flash(socket, :error, "That isn't something this page can do.")}
+
+  def handle_event(_event, _params, %{assigns: %{reader?: false}} = socket),
+    do: {:noreply, flash(socket, :error, "You don't have access to this board's archive.")}
 
   # Looking is reading, so searching is open to read-only access too.
   def handle_event("filter_archived", %{"q" => q}, socket),
