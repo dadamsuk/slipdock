@@ -604,6 +604,16 @@ defmodule Slipdock.CiWorkflowTest do
       tag = [{"EVENT_NAME", "push"}, {"REF", "refs/tags/v1.2.3"}, {"RELEASE", "true"}]
       assert changes(dir, tag) == runs(true, false, true, true, @all_os)
 
+      # And so does release.yml dispatched on a tag: the tag wins over the
+      # release, whatever the event.
+      tag_dispatch = [
+        {"EVENT_NAME", "workflow_dispatch"},
+        {"REF", "refs/tags/v1.2.3"},
+        {"RELEASE", "true"}
+      ]
+
+      assert changes(dir, tag_dispatch) == runs(true, false, true, true, @all_os)
+
       # ci.yml dispatched by hand (no input: RELEASE empty or false) still runs them all.
       for value <- ["", "false"] do
         dispatch = [
