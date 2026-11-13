@@ -14,7 +14,7 @@ defmodule Slipdock.RulePromptLimitDocsTest do
   @root Path.expand("../..", __DIR__)
 
   defp read(path),
-    do: @root |> Path.join(path) |> File.read!() |> String.replace(~r/\s+/, " ")
+    do: @root |> Path.join(path) |> Slipdock.DocsText.read!() |> String.replace(~r/\s+/, " ")
 
   defp with_commas(n) do
     n

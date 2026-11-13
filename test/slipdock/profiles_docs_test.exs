@@ -85,7 +85,7 @@ defmodule Slipdock.ProfilesDocsTest do
   test "nothing lists spike's tier as before_merge" do
     files =
       Enum.flat_map(
-        ["lib/**/*.ex", "docs/**/*.md", "priv/skills/**/*.md"],
+        ["lib/**/*.ex", "lib/**/*.md", "docs/**/*.md", "priv/skills/**/*.md"],
         &Path.wildcard(Path.join(@root, &1))
       ) ++
         Enum.map(["README.md", "cli/help.txt"], &Path.join(@root, &1))

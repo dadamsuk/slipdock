@@ -26,7 +26,7 @@ defmodule SlipdockWeb.AuditMissesDocsTest do
   end
 
   test "docs/agents.md, the API guide and the loop skill say it" do
-    read = fn path -> @root |> Path.join(path) |> File.read!() |> flat() end
+    read = fn path -> @root |> Path.join(path) |> Slipdock.DocsText.read!() |> flat() end
 
     agents = read.("docs/agents.md")
     assert_states(agents, "the verify prompt carries *What audits on this board caught recently*")

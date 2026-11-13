@@ -10,7 +10,7 @@ defmodule Slipdock.HousekeepingDocsTest do
 
   @root Path.expand("../..", __DIR__)
 
-  defp read(path), do: File.read!(Path.join(@root, path))
+  defp read(path), do: Slipdock.DocsText.read!(Path.join(@root, path))
 
   test "each place names the list and says it comes after the ready list" do
     for {path, words} <- [

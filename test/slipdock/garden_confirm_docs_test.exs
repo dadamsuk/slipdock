@@ -34,7 +34,7 @@ defmodule Slipdock.GardenConfirmDocsTest do
   # Elixir comments in the CLI's source are notes for its readers, not
   # instructions a person sees.
   defp text(file) do
-    text = File.read!(Path.join(@root, file))
+    text = Slipdock.DocsText.read!(Path.join(@root, file))
 
     if String.starts_with?(file, "cli/lib/"),
       do: text |> String.split("\n") |> Enum.reject(&(&1 =~ ~r/^\s*#/)) |> Enum.join("\n"),

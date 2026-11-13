@@ -10,7 +10,7 @@ defmodule Slipdock.OriginDocsTest do
 
   @root Path.expand("../..", __DIR__)
 
-  defp read(path), do: File.read!(Path.join(@root, path))
+  defp read(path), do: Slipdock.DocsText.read!(Path.join(@root, path))
 
   test "each place says where a card came from, and that a job may name only a generator" do
     for {path, words} <- [
