@@ -4,6 +4,8 @@ defmodule SlipdockCLI.CardsFiltersTest do
   server, and each card's line shows its state, who drives it and how long
   it has sat in its list — with nothing added for a card that has none.
   """
+  # Sync: sets HOME and the SLIPDOCK_* variables, which are one environment
+  # for the whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

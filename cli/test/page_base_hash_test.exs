@@ -8,6 +8,8 @@ defmodule SlipdockCLI.PageBaseHashTest do
   `Slipdock.Wiki.check_base_hash/2` does: the whole hash, trimmed and
   lowercased, or a 409 carrying the page as it now is.
   """
+  # Sync: sets HOME and the SLIPDOCK_* variables, which are one environment
+  # for the whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

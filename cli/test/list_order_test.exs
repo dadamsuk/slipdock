@@ -3,6 +3,8 @@ defmodule SlipdockCLI.ListOrderTest do
   `set-column` / `new-column` `--sort` and `--group`: how the web app draws a
   list. What they send, and how `columns` shows it back.
   """
+  # Sync: sets HOME and the SLIPDOCK_* variables, which are one environment
+  # for the whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

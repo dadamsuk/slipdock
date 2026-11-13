@@ -5,6 +5,8 @@ defmodule SlipdockCLI.ProfilesTierTest do
   security set to none, a held card in `slipdock card` and a list's line,
   and a held card's ledger line saying who it waits for.
   """
+  # Sync: sets HOME and the SLIPDOCK_* variables, which are one environment
+  # for the whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

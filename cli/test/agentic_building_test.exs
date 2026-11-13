@@ -5,6 +5,8 @@ defmodule SlipdockCLI.AgenticBuildingTest do
   is printed. A word that is neither ends in `System.halt/1` (`on_off!`, as
   `--profiles`), so it is not run here.
   """
+  # Sync: sets HOME and the SLIPDOCK_* variables, which are one environment
+  # for the whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

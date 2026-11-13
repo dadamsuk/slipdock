@@ -1,5 +1,7 @@
 defmodule SlipdockCLI.PasskeysTest do
   @moduledoc "`slipdock passkeys`: listing and removing your own passkeys (#828)."
+  # Sync: sets HOME and the SLIPDOCK_* variables, which are one environment
+  # for the whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

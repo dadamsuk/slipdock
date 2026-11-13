@@ -3,6 +3,8 @@ defmodule SlipdockCLI.ShipViaTest do
   Ship by PR 1 (#1654) on the CLI: `set-board --ship-via`, `done --pr` and
   the pull request in `card`'s Evidence block.
   """
+  # Sync: sets HOME and the SLIPDOCK_* variables, which are one environment
+  # for the whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

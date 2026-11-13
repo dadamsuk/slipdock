@@ -1,5 +1,7 @@
 defmodule SlipdockCLI.ActivityTest do
   @moduledoc "`slipdock activity`: the board's log, or with `--card` one card's."
+  # Sync: sets HOME and the SLIPDOCK_* variables, which are one environment
+  # for the whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

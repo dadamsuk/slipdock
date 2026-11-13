@@ -7,6 +7,8 @@ defmodule SlipdockCLI.StdinSwitchesTest do
   value is still the text itself. Empty stdin ends in `System.halt/1`, so
   its message is checked on `Util.stdin_text/2`, which decides it.
   """
+  # Sync: sets HOME and the SLIPDOCK_* variables, which are one environment
+  # for the whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

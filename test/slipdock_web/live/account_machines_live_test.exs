@@ -144,12 +144,37 @@ defmodule SlipdockWeb.AccountMachinesLiveTest do
       assert has_element?(view, "#machines-empty")
     end
 
+    test "the enrolment key form is built from the form components (COMP-1)", ctx do
+      {:ok, view, _} = live(ctx.conn, ~p"/account/machines")
+
+      # `<.input>` wraps its field in a `.fieldset` and labels it by id; the
+      # name stays `label`, which is what `create_key` reads.
+      assert has_element?(
+               view,
+               "#enrolment-key-form-0 .fieldset label[for=enrolment-key-label-0] " <>
+                 "input#enrolment-key-label-0.field[type=text][name=label][autocomplete=off]"
+             )
+
+      assert has_element?(
+               view,
+               "#enrolment-key-label-0[aria-label^='The name the machine enrols under']"
+             )
+
+      assert has_element?(view, "#enrolment-key-form-0 input[type=checkbox][name='boards[]']")
+
+      # It opens empty: no name is typed in for the user.
+      assert has_element?(view, "#enrolment-key-label-0")
+      refute has_element?(view, "#enrolment-key-label-0[value]:not([value=''])")
+    end
+
     test "an enrolment key is shown once, with the init line, and needs a board", ctx do
       {:ok, view, _} = live(ctx.conn, ~p"/account/machines")
 
       html = view |> form("form[phx-submit=create_key]", %{"label" => "ci"}) |> render_submit()
       assert html =~ "choose at least one board"
       refute has_element?(view, "#new-enrolment-key")
+      # A refusal keeps the name that was typed.
+      assert has_element?(view, "form[phx-submit=create_key] input[name=label][value=ci]")
 
       view
       |> form("form[phx-submit=create_key]", %{"boards" => ["#{ctx.board.id}"], "label" => "ci"})
@@ -159,7 +184,13 @@ defmodule SlipdockWeb.AccountMachinesLiveTest do
                "slipdock-runner init --key sde_"
 
       assert render(view) =~ "Unused: ci"
-      assert has_element?(view, "input[name=label][placeholder*='Machine name']")
+      # The form is made again, empty, for the next key.
+      assert has_element?(
+               view,
+               "#enrolment-key-form-1 input[name=label][placeholder*='Machine name']"
+             )
+
+      refute has_element?(view, "input[name=label][value=ci]")
 
       # The name given is the name the machine enrols under (#2666).
       [key] = Regex.run(~r/sde_[A-Za-z0-9_-]+/, render(view))

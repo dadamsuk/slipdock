@@ -1,5 +1,7 @@
 defmodule SlipdockCLI.PageSwitchTest do
   @moduledoc "`slipdock page switch`: the quick switcher from a shell (W-103 R11.4)."
+  # Sync: sets HOME and the SLIPDOCK_* variables, which are one environment
+  # for the whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

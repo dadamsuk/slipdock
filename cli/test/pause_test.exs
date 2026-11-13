@@ -7,6 +7,8 @@ defmodule SlipdockCLI.PauseTest do
   as the values the command halts on; the server's side is in
   `test/slipdock_web/pause_api_test.exs`.
   """
+  # Sync: sets HOME and the SLIPDOCK_* variables, which are one environment
+  # for the whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

@@ -1,5 +1,7 @@
 defmodule SlipdockCLI.FindingsTest do
   @moduledoc "`slipdock findings` and `slipdock finding`: what they send and show (W-2310)."
+  # Sync: sets HOME and the SLIPDOCK_* variables, which are one environment
+  # for the whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

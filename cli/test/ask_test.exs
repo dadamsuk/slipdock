@@ -1,5 +1,7 @@
 defmodule SlipdockCLI.AskTest do
   @moduledoc "`slipdock ask`: what it sends the server, `--board` included, and what it prints."
+  # Sync: sets the SLIPDOCK_* variables, which are one environment for the
+  # whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

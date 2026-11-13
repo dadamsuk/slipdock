@@ -3,6 +3,8 @@ defmodule SlipdockCLI.OverseerTest do
   `slipdock overseer` (#2068): what it sends and what it shows, its
   alerts first in `whoami`, and a condition's what-to-do in `work`.
   """
+  # Sync: sets HOME and the SLIPDOCK_* variables, which are one environment
+  # for the whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

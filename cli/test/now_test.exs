@@ -8,6 +8,8 @@ defmodule SlipdockCLI.NowTest do
   `System.halt/1` through the shared `out/3`, so it is not run here; the
   server's side of it is in `test/slipdock_web/now_test.exs`.
   """
+  # Sync: sets HOME and the SLIPDOCK_* variables, which are one environment
+  # for the whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

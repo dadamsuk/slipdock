@@ -4,6 +4,8 @@ defmodule SlipdockCLI.AgentHeaderTest do
   `x-slipdock-job` under a runner job), so the server files the agent's card
   moves as an agent's rather than as the person's whose token it uses.
   """
+  # Sync: sets HOME and the SLIPDOCK_* variables, which are one environment
+  # for the whole VM.
   use ExUnit.Case, async: false
 
   alias SlipdockCLI.{FakeServer, HTTP}

@@ -4,6 +4,8 @@ defmodule SlipdockCLI.ProfilesTest do
   `edit --profile` (and `--no-profile`), and the profile shown by `card`
   and in a list's card line.
   """
+  # Sync: sets HOME and the SLIPDOCK_* variables, which are one environment
+  # for the whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

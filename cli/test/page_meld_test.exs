@@ -6,6 +6,8 @@ defmodule SlipdockCLI.PageMeldTest do
   Refusals end in `System.halt/1`, so they are covered as the values the
   command halts on.
   """
+  # Sync: sets HOME and the SLIPDOCK_* variables, which are one environment
+  # for the whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

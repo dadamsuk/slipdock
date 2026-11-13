@@ -5,6 +5,8 @@ defmodule SlipdockCLI.JobsTest do
   with `--on` read as the person, and `claim-job` prints the answered
   question and the handoff a job carries on from.
   """
+  # Sync: sets HOME and the SLIPDOCK_* variables, which are one environment
+  # for the whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

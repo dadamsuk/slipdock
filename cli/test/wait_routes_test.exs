@@ -4,6 +4,8 @@ defmodule SlipdockCLI.WaitRoutesTest do
   `wait_routes`, `wait --kind` sends the question's kind, and `slipdock card`
   shows a wait's kind.
   """
+  # Sync: sets HOME and the SLIPDOCK_* variables, which are one environment
+  # for the whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

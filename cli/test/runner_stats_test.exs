@@ -1,5 +1,7 @@
 defmodule SlipdockCLI.RunnerStatsTest do
   @moduledoc "`slipdock runner-stats <board>` (#1187): what it asks for and how it prints."
+  # Sync: sets HOME and the SLIPDOCK_* variables, which are one environment
+  # for the whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

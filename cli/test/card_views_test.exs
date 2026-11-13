@@ -5,6 +5,8 @@ defmodule SlipdockCLI.CardViewsTest do
   the usage errors are checked on `plan/3`, which decides them, and the
   refusals on `send_request/1`, which hands back what `out/3` would print.
   """
+  # Sync: sets the SLIPDOCK_* variables, which are one environment for the
+  # whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

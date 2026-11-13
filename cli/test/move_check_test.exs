@@ -1,5 +1,7 @@
 defmodule SlipdockCLI.MoveCheckTest do
   @moduledoc "`slipdock move-check` (#1752): what it sends, and the order it prints back."
+  # Sync: sets HOME and the SLIPDOCK_* variables, which are one environment
+  # for the whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

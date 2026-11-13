@@ -1,5 +1,7 @@
 defmodule SlipdockCLI.ToolsTest do
   @moduledoc "`slipdock tools`: publishing a folder as a package, and reading Tools back."
+  # Sync: sets HOME and the SLIPDOCK_* variables, which are one environment
+  # for the whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

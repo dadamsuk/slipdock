@@ -4,6 +4,8 @@ defmodule SlipdockCLI.SavedMultiboardsTest do
   `multiboard <saved>`, `save-multiboard`, `set-multiboard` and
   `delete-multiboard`, each against `/api/multiboards`.
   """
+  # Sync: sets HOME and the SLIPDOCK_* variables, which are one environment
+  # for the whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

@@ -5,6 +5,8 @@ defmodule SlipdockCLI.WaitTest do
   withdrawing it, answering in words or by choice, `--on` read as the
   person only for `wait`, and `card` showing the open wait.
   """
+  # Sync: sets HOME and the SLIPDOCK_* variables, which are one environment
+  # for the whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

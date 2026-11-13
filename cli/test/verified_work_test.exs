@@ -6,6 +6,8 @@ defmodule SlipdockCLI.VerifiedWorkTest do
   server's own (a rejection with no reason) are in
   `SlipdockWeb.VerifiedVerifyWebTest`.
   """
+  # Sync: sets HOME and the SLIPDOCK_* variables, which are one environment
+  # for the whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

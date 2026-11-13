@@ -5,6 +5,8 @@ defmodule SlipdockCLI.WorkTest do
   choices, then the assigned cards by section; `--json` hands the answer on
   untouched. `whoami` says how many things are waiting.
   """
+  # Sync: sets HOME and the SLIPDOCK_* variables, which are one environment
+  # for the whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

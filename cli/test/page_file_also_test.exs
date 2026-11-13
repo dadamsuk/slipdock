@@ -1,5 +1,7 @@
 defmodule SlipdockCLI.PageFileAlsoTest do
   @moduledoc "`slipdock page file --also/--not-in`: one page filed in several folders."
+  # Sync: sets HOME and the SLIPDOCK_* variables, which are one environment
+  # for the whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

@@ -1,5 +1,7 @@
 defmodule SlipdockCLI.PageNoteTagsTest do
   @moduledoc "`slipdock page tags` and `page ls --note-tag`."
+  # Sync: sets HOME and the SLIPDOCK_* variables, which are one environment
+  # for the whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

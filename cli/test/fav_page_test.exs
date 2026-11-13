@@ -4,6 +4,8 @@ defmodule SlipdockCLI.FavPageTest do
   the server doesn't find ends in `System.halt/1`, so it is not run here; the
   server's own refusals are in SlipdockWeb.API.FavouritesTest.
   """
+  # Sync: sets the SLIPDOCK_* variables, which are one environment for the
+  # whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

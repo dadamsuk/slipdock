@@ -4,6 +4,8 @@ defmodule SlipdockCLI.WikiFilesTest do
   not pages, listed and fetched by path; and `slipdock tools file`, one file
   of a Tool's package by its path.
   """
+  # Sync: sets HOME and the SLIPDOCK_* variables and changes the working
+  # directory, each of which is one for the whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

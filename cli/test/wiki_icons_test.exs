@@ -1,5 +1,7 @@
 defmodule SlipdockCLI.WikiIconsTest do
   @moduledoc "`--icon` and `--color` on wiki folders and pages from the command line (#792)."
+  # Sync: sets HOME and the SLIPDOCK_* variables, which are one environment
+  # for the whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

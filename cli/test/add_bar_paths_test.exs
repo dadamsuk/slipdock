@@ -6,6 +6,8 @@ defmodule SlipdockCLI.AddBarPathsTest do
   it isn't asked for. The refusals themselves are the server's
   (`SlipdockWeb.API.CardControllerTest`).
   """
+  # Sync: sets HOME and the SLIPDOCK_* variables, which are one environment
+  # for the whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

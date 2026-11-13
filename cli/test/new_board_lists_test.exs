@@ -1,5 +1,7 @@
 defmodule SlipdockCLI.NewBoardListsTest do
   @moduledoc "`new-board --list ... --save-template NAME`: what it sends."
+  # Sync: sets HOME and the SLIPDOCK_* variables, which are one environment
+  # for the whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

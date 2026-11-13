@@ -4,6 +4,8 @@ defmodule SlipdockCLI.MultiboardTest do
   top N and layout given, prints each section and its cards, and hands the
   answer on untouched with `--json`.
   """
+  # Sync: sets HOME and the SLIPDOCK_* variables, which are one environment
+  # for the whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

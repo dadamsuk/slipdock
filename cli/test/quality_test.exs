@@ -5,6 +5,8 @@ defmodule SlipdockCLI.QualityTest do
   outcomes per 100 and health; an empty window says so rather than printing
   zero rates.
   """
+  # Sync: sets HOME and the SLIPDOCK_* variables, which are one environment
+  # for the whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

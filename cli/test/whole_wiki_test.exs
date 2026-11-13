@@ -4,6 +4,8 @@ defmodule SlipdockCLI.WholeWikiTest do
   sends, to `/api/wiki/...` with no wiki named, and how its answer reads; and
   `slipdock vault`, which says where it went.
   """
+  # Sync: sets HOME and the SLIPDOCK_* variables, which are one environment
+  # for the whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

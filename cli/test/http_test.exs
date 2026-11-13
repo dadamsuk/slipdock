@@ -4,6 +4,8 @@ defmodule SlipdockCLI.HTTPTest do
   put in, JSON null both ways, and the device-flow poll that waits as long
   as the server asks it to.
   """
+  # Sync: sets HOME and the SLIPDOCK_* variables, which are one environment
+  # for the whole VM.
   use ExUnit.Case, async: false
 
   alias SlipdockCLI.{FakeServer, HTTP}

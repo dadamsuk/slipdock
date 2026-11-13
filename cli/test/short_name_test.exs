@@ -1,5 +1,7 @@
 defmodule SlipdockCLI.ShortNameTest do
   @moduledoc "`--short-name` on add and edit (#1590), and `page new --card` (#1591)."
+  # Sync: sets HOME and the SLIPDOCK_* variables, which are one environment
+  # for the whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

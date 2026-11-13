@@ -5,6 +5,8 @@ defmodule SlipdockCLI.ProfilesRecheckTest do
   from `git diff --numstat` (REF...the evidence commit, else HEAD), and the
   flags given by hand win over the count.
   """
+  # Sync: sets HOME and the SLIPDOCK_* variables and changes the working
+  # directory, each of which is one for the whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

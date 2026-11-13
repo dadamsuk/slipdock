@@ -1,5 +1,7 @@
 defmodule SlipdockCLI.RepeatTest do
   @moduledoc "`slipdock repeat` and `slipdock recurring`: what they send, and what they show."
+  # Sync: sets HOME and the SLIPDOCK_* variables, which are one environment
+  # for the whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

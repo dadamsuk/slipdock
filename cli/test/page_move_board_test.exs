@@ -1,5 +1,7 @@
 defmodule SlipdockCLI.PageMoveBoardTest do
   @moduledoc "`slipdock page mv --board` and `folder mv --sort` (W-103 R11.8, R11.9)."
+  # Sync: sets HOME and the SLIPDOCK_* variables, which are one environment
+  # for the whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

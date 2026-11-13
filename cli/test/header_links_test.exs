@@ -4,6 +4,8 @@ defmodule SlipdockCLI.HeaderLinksTest do
   The usage refusals end in `System.halt/1`, so they are not run here; the
   server's own refusals are in SlipdockWeb.API.HeaderLinksTest.
   """
+  # Sync: sets the SLIPDOCK_* variables, which are one environment for the
+  # whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

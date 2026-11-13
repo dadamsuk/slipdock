@@ -4,6 +4,8 @@ defmodule SlipdockCLI.LanesTest do
   the paths `card` shows. The refusal itself is the server's
   (`Slipdock.LanesTest`); here a refused move's message reaches the user.
   """
+  # Sync: sets HOME and the SLIPDOCK_* variables, which are one environment
+  # for the whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

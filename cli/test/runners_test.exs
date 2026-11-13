@@ -1,5 +1,7 @@
 defmodule SlipdockCLI.RunnersTest do
   @moduledoc "`slipdock runner`, `jobs`, `job` and `cancel-job`: what each asks the server, and what it prints."
+  # Sync: sets HOME and the SLIPDOCK_* variables, which are one environment
+  # for the whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO
