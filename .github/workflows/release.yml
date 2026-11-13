@@ -535,8 +535,16 @@ jobs:
   # approval, so neither a stray run nor a pull request can sign. The
   # signature is checked against the committed public key before anything
   # is published, so a secret that isn't its other half fails here.
+  #
+  # It also needs the test job (#2989), as the image's merge job does: the
+  # build runs beside the suite, but nothing is signed or published until
+  # the tag's suite has passed, ci.yml's daemon job (go test -race) with it.
+  # On a v* tag the gate always runs the suite. With no if: of its own the
+  # job runs only when both have succeeded, so a red or cancelled suite
+  # publishes nothing, and the environment's approval is asked for only
+  # once the suite is green.
   daemon-release:
-    needs: daemon-build
+    needs: [daemon-build, test]
     runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     environment: daemon-release
     permissions:

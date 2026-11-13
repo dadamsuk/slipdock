@@ -24,7 +24,18 @@ defmodule Slipdock.DaemonReleaseWorkflowTest do
     assert job("daemon-build")["if"] ==
              "${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') }}"
 
-    assert job("daemon-release")["needs"] == "daemon-build"
+    assert "daemon-build" in List.wrap(job("daemon-release")["needs"])
+  end
+
+  # #2989: as the image's merge job needs test, the signed daemon release
+  # waits for the tag's suite (with ci.yml's daemon job, go test -race), and
+  # has no if: that would let it run when the suite failed or was cancelled.
+  test "the daemon release publishes only after the tag's suite has passed" do
+    release = job("daemon-release")
+    assert Enum.sort(List.wrap(release["needs"])) == ["daemon-build", "test"]
+    refute Map.has_key?(release, "if")
+    assert job("test")["uses"] == "./.github/workflows/ci.yml"
+    assert job("merge")["needs"] |> List.wrap() |> Enum.member?("test")
   end
 
   # cli-sign signs the CLI the image serves with the same key (#2669), in
