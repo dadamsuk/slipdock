@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"net/http/httptrace"
+	"sync"
 	"testing"
 	"time"
 
@@ -29,15 +31,27 @@ func hold(c *holeConn, r *http.Request) {
 
 func TestAConnectionThatDiesMidBodyIsDroppedAndTheRetryIsOnANewOne(t *testing.T) {
 	// The first claim's headers arrive, then its connection goes silent
-	// before the body: the claim fails reading it, at its deadline.
+	// before the body: the claim fails reading it, at its deadline. The
+	// server silences the connection only once the client has the headers
+	// (#2909): silenced as soon as it flushed them, the frame could still
+	// be in its write buffer and be swallowed too, so the claim failed in
+	// Do and the body read went untested.
 	old := PollSlack
 	PollSlack = 300 * time.Millisecond
 	t.Cleanup(func() { PollSlack = old })
+	gotHeaders := make(chan struct{})
 	s := newHoleServer(t, func(n int, c *holeConn, w http.ResponseWriter, r *http.Request) {
 		if n == 1 {
 			w.Header().Set("X-Job-Id", "41")
 			w.WriteHeader(http.StatusOK)
 			w.(http.Flusher).Flush()
+			select {
+			case <-gotHeaders:
+			case <-r.Context().Done():
+				return
+			case <-c.quit:
+				return
+			}
 			c.silent.Store(true)
 			hold(c, r)
 			return
@@ -46,8 +60,17 @@ func TestAConnectionThatDiesMidBodyIsDroppedAndTheRetryIsOnANewOne(t *testing.T)
 	})
 	client, l := linkClient(t, s)
 
-	if _, _, err := client.Claim(context.Background(), 11, nil, 1); err == nil {
+	var once sync.Once
+	ctx := httptrace.WithClientTrace(context.Background(), &httptrace.ClientTrace{
+		GotFirstResponseByte: func() { once.Do(func() { close(gotHeaders) }) },
+	})
+	if _, _, err := client.Claim(ctx, 11, nil, 1); err == nil {
 		t.Fatal("a claim whose body never came succeeded")
+	}
+	select {
+	case <-gotHeaders:
+	default:
+		t.Fatal("the claim failed before its headers arrived: the test isn't testing a body read")
 	}
 	if l.Gen() != 1 {
 		t.Fatalf("the link's generation is %d after a body read failed, want 1: the connection wasn't dropped", l.Gen())
