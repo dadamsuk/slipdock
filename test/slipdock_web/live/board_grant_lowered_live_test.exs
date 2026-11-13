@@ -305,7 +305,9 @@ defmodule SlipdockWeb.BoardGrantLoweredLiveTest do
       :exit, _ -> :ok
     end
 
-    assert_redirect(view, ~p"/")
+    # The upload is stored by a callback after its own channel round trip,
+    # so the redirect can land later than an event's would.
+    assert_redirect(view, ~p"/", 2000)
     assert cards(ctx.board) == []
   end
 
