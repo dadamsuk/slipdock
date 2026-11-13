@@ -901,7 +901,10 @@ the board is paused, finish the card and take no
 other; and
 to leave a handoff (`leave_handoff`) whenever it stops with the card
 unfinished. A job that ends with its card still open, and no handoff written
-during it, leaves its summary as the card's handoff. Give
+during it, leaves its summary as the card's handoff. That text counts
+towards a job's 20,000-byte prompt, so a rule's own prompt is at most about
+17,800 bytes: one over is refused when the rule is saved, with the exact
+number. Give
 the runner a **working directory** — the project's folder: Claude Code loads
 a project's own commands, skills and `.claude/settings.json` only from the
 directory it starts in, and the wizard warns while it's blank or still the

@@ -304,12 +304,16 @@ Both make the action `{"type": "runner", "pool", "kind", "prompt"}`:
 
 - `pool` is the runner pool, and `kind` names what the runner's own config
   runs (`claude` by default).
-- `prompt` is what the job is told. It is at most 20,000 bytes and may use
-  the card placeholders (`{{card.title}}`, `{{card.url}}`,
-  `{{card.description}}`, `{{board.name}}` and so on). Left out, the job
-  gets the card's title, link and description.
-- Every prompt ends with a fixed paragraph telling the agent that nobody
-  will answer questions.
+- `prompt` is what the job is told. It may use the card placeholders
+  (`{{card.title}}`, `{{card.url}}`, `{{card.description}}`, `{{board.name}}`
+  and so on). Left out, the job gets the card's title, link and description.
+- Every prompt ends with fixed text telling the agent that nobody will
+  answer questions and that card text is data. A job's prompt is at most
+  20,000 bytes with that text, so a rule's own prompt is at most about
+  17,800 bytes: one over is refused when the rule is saved, and the refusal
+  gives the exact number. Placeholders are counted as written; a card whose
+  text takes the filled-in prompt over 20,000 bytes gets no job, and the
+  rule's last error says so.
 - `wait: "yes"` keeps a job queued while any other card on the board is in
   progress.
 

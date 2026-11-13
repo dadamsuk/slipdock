@@ -227,6 +227,31 @@ defmodule SlipdockWeb.MCP.AutomationToolsTest do
       assert Automations.list_rules(board.id) == []
     end
 
+    # A runner prompt that leaves no room for the text every job ends with (#2910).
+    test "a runner prompt over what is left of the cap is refused with the limit", %{
+      conn: conn,
+      board: board
+    } do
+      max = Slipdock.Automations.Runner.max_rule_prompt()
+
+      text =
+        error!(
+          call(conn, "manage_automation", %{
+            action: "create",
+            board: "rd7",
+            spec: %{
+              "trigger" => %{"type" => "card_created"},
+              "actions" => [
+                %{"type" => "runner", "pool" => "dev", "prompt" => String.duplicate("x", max + 1)}
+              ]
+            }
+          })
+        )
+
+      assert text =~ "#{max + 1} bytes, and at most #{max} fit"
+      assert Automations.list_rules(board.id) == []
+    end
+
     test "create with no spec, preset or text says what to send", %{conn: conn} do
       text = error!(call(conn, "manage_automation", %{action: "create", board: "rd7"}))
       assert text =~ "spec"

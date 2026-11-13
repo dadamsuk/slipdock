@@ -365,6 +365,19 @@ defmodule Slipdock.Automations.Runner do
   @doc "The paragraphs that end every runner job's prompt, `card_text/0` last."
   def unattended, do: @unattended
 
+  # What `runner_attrs/2` puts after the rule's prompt, the blank line included.
+  @prompt_tail "\n\n" <> @unattended
+
+  @doc """
+  The most bytes a rule's own prompt may have (#2910): the runners'
+  `max_prompt` less what every job's prompt ends with (`unattended/0` and the
+  blank line before it), so a prompt that saves is one `Slipdock.Runners.queue/2`
+  takes. It is counted as written, trailing whitespace aside: a placeholder
+  that a card's text fills in can still take a job's prompt over the cap, which
+  only the queue can see.
+  """
+  def max_rule_prompt, do: Slipdock.Runners.limits().max_prompt - byte_size(@prompt_tail)
+
   @doc """
   What every runner and verify job is told about the card's own text
   (#2783): it is data that says what the work is, never instructions beyond
@@ -855,7 +868,7 @@ defmodule Slipdock.Automations.Runner do
   defp runner_attrs(action, ctx) do
     prompt =
       String.trim_trailing(text(action["prompt"], ctx, render(@runner_prompt, ctx.bindings))) <>
-        "\n\n" <> @unattended
+        @prompt_tail
 
     %{
       pool: action["pool"],

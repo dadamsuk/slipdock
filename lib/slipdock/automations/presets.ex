@@ -382,12 +382,21 @@ defmodule Slipdock.Automations.Presets do
           "flag" -> Map.put(field, :options, @flags)
           "priority" -> Map.put(field, :options, ~w(low medium high critical))
           "yesno" -> Map.put(field, :options, ~w(yes no))
-          _ -> field
+          _ -> with_limit(field)
         end
       end)
 
     %{preset | fields: fields}
   end
+
+  # A runner prompt's hint ends with how long it may be (#2910): what is left
+  # of the runners' cap after the text every job's prompt ends with.
+  defp with_limit(%{name: "prompt", hint: hint} = field) do
+    max = Slipdock.Automations.Runner.max_rule_prompt()
+    %{field | hint: "#{hint}; at most #{max} bytes"}
+  end
+
+  defp with_limit(field), do: field
 
   @doc """
   The form's starting values: each field's default, and for a field marked

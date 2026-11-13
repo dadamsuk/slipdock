@@ -472,8 +472,8 @@ defmodule Slipdock.Automations.Spec do
       not Regex.match?(format, action["kind"]) ->
         {:error, "action “runner” kind must be lower case letters, digits, - or _"}
 
-      byte_size(to_string(action["prompt"])) > Slipdock.Runners.limits().max_prompt ->
-        {:error, "action “runner” prompt is too long"}
+      prompt_bytes(action) > Slipdock.Automations.Runner.max_rule_prompt() ->
+        {:error, prompt_too_long(action)}
 
       true ->
         {:ok, action}
@@ -537,6 +537,20 @@ defmodule Slipdock.Automations.Spec do
   end
 
   defp check_action(action), do: {:ok, action}
+
+  # A runner prompt is counted as the job gets it: without trailing whitespace,
+  # and before the fixed text every job's prompt ends with, which the limit
+  # leaves room for (#2910).
+  defp prompt_bytes(action),
+    do: action["prompt"] |> to_string() |> String.trim_trailing() |> byte_size()
+
+  defp prompt_too_long(action) do
+    max = Slipdock.Automations.Runner.max_rule_prompt()
+
+    "action “runner” prompt is too long: #{prompt_bytes(action)} bytes, and at most #{max} fit " <>
+      "(a job's prompt is at most #{Slipdock.Runners.limits().max_prompt}, and every job's " <>
+      "ends with fixed text)"
+  end
 
   defp split_globs(value),
     do: value |> to_string() |> String.split(~r/[\s,]+/, trim: true)

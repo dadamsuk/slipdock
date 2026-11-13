@@ -1438,7 +1438,9 @@ defmodule SlipdockWeb.HelpLive.Agents do
       <ul class="list-disc space-y-1 pl-5">
         <li>
           <strong>Send cards to a runner</strong>: when a card arrives in a list, queue it
-          for a pool, with the card itself as the prompt or one you write.
+          for a pool, with the card itself as the prompt or one you write. Your own is at
+          most about 17,800 bytes, since every job's prompt ends with the same closing
+          text; a longer one is refused when the rule is saved, with the exact number.
         </li>
         <li>
           <strong>Work a list with a runner</strong>: take the top card, one at a time, and
