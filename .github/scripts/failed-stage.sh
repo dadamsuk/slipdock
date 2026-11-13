@@ -6,9 +6,13 @@
 #
 #   CLI_BUILD, CLI_SIGN, BUILD, TEST, MERGE, DEPLOY  each job's result
 #   DEPLOY_STAGE  the deploy job's own word on it: deploy or health
+#
+# A cancelled job failed too (#3009): the runner was never acquired, or the
+# job ran out of time. The record-failure job doesn't run when a person
+# cancelled the run.
 set -eu
 
-failed() { [ "${1:-}" = failure ]; }
+failed() { [ "${1:-}" = failure ] || [ "${1:-}" = cancelled ]; }
 
 if [ "${DEPLOY:-}" = success ]; then
   exit 0

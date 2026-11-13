@@ -72,7 +72,9 @@ none), that record is the one marked failed at the stage, not a second. A
 failure at `build`, `test` or `merge` never reached the environment, so it
 isn't a deploy to the numbers below; a `deploy` or `health` failure is a failed
 change. Slipdock's own `release.yml` does it in a last job, `record-failure`,
-which runs on a failure of any job on the way to production, works the stage
+which runs on a failure of any job on the way to production (a job cancelled
+under the run, such as one GitHub never found a runner for, counts as failed;
+a run a person cancels doesn't), works the stage
 out with `.github/scripts/failed-stage.sh` and may fail without failing
 anything else; the GitHub Actions example
 ([`/deploy/examples/github-actions.yml`](../../priv/deploy/examples/github-actions.yml))

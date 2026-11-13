@@ -74,8 +74,9 @@ defmodule Slipdock.ReleaseWorkflowTest do
       assert Enum.sort(roots) == ~w(cli-build daemon-build suite)
     end
 
-    test "a failed dispatched release is recorded as a push's is" do
-      assert jobs()["record-failure"]["if"] == "${{ failure() && #{@released} }}"
+    test "a failed dispatched release is recorded as a push's is, a cancelled job counting as failed (#3009)" do
+      assert jobs()["record-failure"]["if"] ==
+               "${{ !cancelled() && (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')) && #{@released} }}"
     end
 
     test "a batched push has a group of its own, so it never replaces a waiting release" do

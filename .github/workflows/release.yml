@@ -608,9 +608,15 @@ jobs:
   # .github/scripts/failed-stage.sh works the stage out from the results
   # and prints nothing when nothing on the path failed (only a job off it,
   # such as the daemon release).
+  #
+  # A job cancelled under the run counts as failed (#3009): a runner GitHub
+  # never acquired (its macOS, at capacity) cancels the job, and failure()
+  # is false then, so the release went unrecorded and the board showed it
+  # running until its timeout. A run a person cancels (cancelled()) records
+  # nothing.
   record-failure:
     needs: [suite, test, cli-build, cli-sign, build, merge, deploy]
-    if: ${{ failure() && ((github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))) || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')) }}
+    if: ${{ !cancelled() && (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')) && ((github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))) || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')) }}
     runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     # For the record's secret and variable, as the deploy job has them.
     environment: production
