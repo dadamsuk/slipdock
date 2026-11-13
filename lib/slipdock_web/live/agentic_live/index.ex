@@ -40,6 +40,8 @@ defmodule SlipdockWeb.AgenticLive.Index do
            page_title: "Agentic Building · #{board.name}",
            page_jumps: []
          )
+         # The level is read again before every event (#2998).
+         |> SlipdockWeb.LiveAccess.refresh_on_event(&assign(&1, can_manage: &2 == :owner))
          |> reset_form(board)
          |> load_hub()}
       else

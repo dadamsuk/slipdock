@@ -15,6 +15,8 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
   """
   use SlipdockWeb, :live_component
 
+  alias SlipdockWeb.LiveAccess
+
   import SlipdockWeb.SlipdockComponents, only: [relative_time: 1]
   import SlipdockWeb.ItemComponents, only: [panel_notice: 1]
   import SlipdockWeb.BoardLive.Helpers, only: [notice: 3, clear_notice: 1]
@@ -92,7 +94,10 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
   ## Events ------------------------------------------------------------------
 
   @impl true
-  def handle_event(event, params, socket), do: event(event, params, clear_notice(socket))
+  # Who owns the board is read again before the guard (#2998): `update/2`
+  # runs only when the board hands the panel something new.
+  def handle_event(event, params, socket),
+    do: event(event, params, socket |> clear_notice() |> LiveAccess.refresh_owner())
 
   defp event(event, _params, socket) when event not in @events,
     do: {:noreply, notice(socket, :error, "That isn't something this page can do.")}

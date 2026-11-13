@@ -12,6 +12,8 @@ defmodule SlipdockWeb.BoardLive.OverseerComponent do
   """
   use SlipdockWeb, :live_component
 
+  alias SlipdockWeb.LiveAccess
+
   import SlipdockWeb.SlipdockComponents, only: [timestamp: 1]
 
   alias Slipdock.{Access, Overseer}
@@ -49,12 +51,17 @@ defmodule SlipdockWeb.BoardLive.OverseerComponent do
   end
 
   @impl true
-  def handle_event(_event, _params, %{assigns: %{can_manage: false}} = socket),
+  # Who owns the board is read again before the guard (#2998): `update/2`
+  # runs only when the board hands the panel something new.
+  def handle_event(event, params, socket),
+    do: event(event, params, LiveAccess.refresh_owner(socket))
+
+  defp event(_event, _params, %{assigns: %{can_manage: false}} = socket),
     do:
       {:noreply,
        assign(socket, notice: {:error, "Only the board's owner can change the overseer."})}
 
-  def handle_event("validate", %{"overseer" => params}, socket) do
+  defp event("validate", %{"overseer" => params}, socket) do
     form =
       socket.assigns.state.settings
       |> Settings.changeset(params)
@@ -64,7 +71,7 @@ defmodule SlipdockWeb.BoardLive.OverseerComponent do
     {:noreply, assign(socket, form: form)}
   end
 
-  def handle_event("save", %{"overseer" => params}, socket) do
+  defp event("save", %{"overseer" => params}, socket) do
     case Overseer.put_settings(socket.assigns.board, params) do
       {:ok, settings} ->
         message = if settings.enabled, do: "The overseer is on.", else: "The overseer is off."

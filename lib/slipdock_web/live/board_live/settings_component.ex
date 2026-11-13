@@ -14,6 +14,8 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
   """
   use SlipdockWeb, :live_component
 
+  alias SlipdockWeb.LiveAccess
+
   import SlipdockWeb.SlipdockComponents
   import SlipdockWeb.SprintPlanComponents, only: [parse_sources: 2]
   import SlipdockWeb.BoardLive.Helpers
@@ -118,10 +120,15 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
   def handle_event(event, _params, socket) when event not in @events,
     do: {:noreply, flash(socket, :error, "That isn't something this page can do.")}
 
-  def handle_event(_event, _params, %{assigns: %{can_manage: false}} = socket),
+  # Who owns the board is read again before the guard (#2998): `update/2`
+  # runs only when the board hands the panel something new.
+  def handle_event(event, params, socket),
+    do: guarded(event, params, LiveAccess.refresh_owner(socket))
+
+  defp guarded(_event, _params, %{assigns: %{can_manage: false}} = socket),
     do: {:noreply, flash(socket, :error, "Only the board's owner can do that.")}
 
-  def handle_event(event, params, socket), do: event(event, params, socket)
+  defp guarded(event, params, socket), do: event(event, params, socket)
 
   # Sharing the board. Who it is shared with decides who can be put on its
   # cards, so the board is told to look again.

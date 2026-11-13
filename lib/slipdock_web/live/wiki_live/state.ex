@@ -44,6 +44,39 @@ defmodule SlipdockWeb.WikiLive.State do
   # How many pages the tree's Recent view lists (#738).
   @tree_recent 100
 
+  @doc """
+  The gates of an open wiki, set again from the level just read (#2998):
+  the event hook `WikiLive.Index` attaches at mount calls this before every
+  event, so a guard on `can_write` asks what the database says now, not
+  what mount found. Unchanged, nothing is assigned. An open page is asked
+  for its own level again, since a share on it can keep its reader
+  commenting. Only the gates the events read are set: the tree and the
+  menus are drawn for the new level when the wiki next loads.
+  """
+  def assign_access(%{assigns: %{perm: perm}} = socket, perm), do: socket
+
+  def assign_access(socket, perm) do
+    for_page =
+      case socket.assigns.page do
+        %Page{} = page -> Access.page_permission(socket.assigns.current_user, page)
+        _ -> perm
+      end
+
+    assign(socket,
+      perm: perm,
+      can_write: Access.can_write?(perm),
+      can_comment: Access.can_comment?(for_page),
+      can_manage: perm == :owner
+    )
+  end
+
+  @doc """
+  `assign_access/2` for what isn't an event and so passes no hook: an
+  upload's progress. The level is read here.
+  """
+  def refresh_access(socket),
+    do: assign_access(socket, SlipdockWeb.LiveAccess.board_level(socket))
+
   # Everything a view of one board's wiki starts from. Mount sets it all;
   # opening a page of another board from the tree sets it again in
   # `switch_board/3`, apart from what the reader chose about the view itself.

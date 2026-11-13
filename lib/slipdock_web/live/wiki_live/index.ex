@@ -111,6 +111,8 @@ defmodule SlipdockWeb.WikiLive.Index do
       {:ok,
        socket
        |> assign(board_assigns(socket, board, perm))
+       # The level is read again before every event (#2998).
+       |> SlipdockWeb.LiveAccess.refresh_on_event(&assign_access/2)
        |> allow_upload(:page_image,
          accept: ~w(.png .jpg .jpeg .gif .webp image/png image/jpeg image/gif image/webp),
          max_entries: 5,

@@ -146,13 +146,15 @@ defmodule SlipdockWeb.WikiLive.Drafts do
   # the hook drops a placeholder at the cursor, the file goes up, and the
   # server sends back the Markdown to put in its place.
 
+  def handle_upload(_name, %{done?: false}, socket), do: {:noreply, socket}
+
   def handle_upload(name, entry, socket) do
+    # An upload's progress is no event, so the level is read again here
+    # before the file is kept (#2998).
+    socket = SlipdockWeb.WikiLive.State.refresh_access(socket)
     page = socket.assigns.page
 
     cond do
-      not entry.done? ->
-        {:noreply, socket}
-
       not socket.assigns.can_write ->
         {:noreply,
          socket

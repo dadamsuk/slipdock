@@ -29,6 +29,8 @@ defmodule SlipdockWeb.HealthLive.Index do
          page_title: "Health · #{board.name}",
          page_jumps: []
        )
+       # The level is read again before every event (#2998).
+       |> SlipdockWeb.LiveAccess.refresh_on_event(&assign_access/2)
        |> load()}
     else
       _ ->
@@ -38,6 +40,8 @@ defmodule SlipdockWeb.HealthLive.Index do
          |> push_navigate(to: "/")}
     end
   end
+
+  defp assign_access(socket, perm), do: assign(socket, can_write: Access.can_write?(perm))
 
   defp load(socket) do
     board = socket.assigns.board

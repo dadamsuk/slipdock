@@ -77,6 +77,20 @@ defmodule Slipdock.Access do
     end
   end
 
+  @doc """
+  `board_permission/2` with the board's own row read again first. Who owns
+  a board and the card it hangs from are on that row, so the struct an open
+  page has kept since it mounted can say an ex-owner still owns it (#2981,
+  #2998). A board deleted since is `:none`.
+  """
+  @spec board_permission_now(User.t() | nil, Board.t()) :: level
+  def board_permission_now(user, %Board{} = board) do
+    case Repo.reload(board) do
+      nil -> :none
+      %Board{} = fresh -> board_permission(user, fresh)
+    end
+  end
+
   @doc "The user's permission on a card: the board's, raised by any direct card grant."
   @spec card_permission(User.t() | nil, Card.t()) :: level
   def card_permission(nil, _card), do: :none

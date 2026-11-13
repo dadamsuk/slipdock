@@ -38,13 +38,16 @@ defmodule SlipdockWeb.FindingsLive.Index do
          perm = Access.board_permission(user, root),
          true <- Access.can_read?(perm) do
       {:ok,
-       assign(socket,
+       socket
+       |> assign(
          board: board,
          root: root,
          can_write: Access.can_write?(perm),
          page_title: "Findings · #{board.name}",
          page_jumps: []
-       )}
+       )
+       # The level is read again before every event (#2998).
+       |> SlipdockWeb.LiveAccess.refresh_on_event(&assign_access/2, &level/1)}
     else
       _ ->
         {:ok,
@@ -53,6 +56,16 @@ defmodule SlipdockWeb.FindingsLive.Index do
          |> push_navigate(to: "/")}
     end
   end
+
+  # As mount asks: read on the board the page was opened from, and the
+  # level on its tree's root, whose findings these are.
+  defp level(%{assigns: %{board: board, root: root, current_user: user}}) do
+    if Access.can_read?(Access.board_permission_now(user, board)),
+      do: Access.board_permission_now(user, root),
+      else: :none
+  end
+
+  defp assign_access(socket, perm), do: assign(socket, can_write: Access.can_write?(perm))
 
   @impl true
   def handle_params(params, _uri, socket) do
