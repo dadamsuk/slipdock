@@ -223,6 +223,38 @@ defmodule Slipdock.SprintsTest do
       assert Sprints.sources(sprints, user) == []
     end
 
+    test "only someone who can write to the sprint board changes its sources", %{
+      sprints: sprints,
+      work: work
+    } do
+      owner = user_fixture()
+      {:ok, sprints} = Sprints.put_sources(sprints, owner, [{work, []}])
+      {:ok, sprint} = Sprints.create_sprint(sprints)
+      before = Slipdock.Repo.reload!(sprints).sprint_sources
+
+      # A writer on one sprint card only, with a board of their own to offer.
+      card_writer = user_fixture("card-writer@example.com")
+      theirs = board_fixture(%{"name" => "Theirs"}, owner: card_writer)
+      {:ok, _} = Slipdock.Access.grant(sprint, card_writer, "write", owner)
+
+      reader = user_fixture("reader@example.com")
+      {:ok, _} = Slipdock.Access.grant(sprints, reader, "comment", owner)
+      {:ok, _} = Slipdock.Access.grant(theirs, reader, "write", card_writer)
+
+      for user <- [card_writer, reader], wanted <- [[{theirs, []}], []] do
+        assert {:error, "You can only change where Sprints plans from" <> _} =
+                 Sprints.put_sources(sprints, user, wanted)
+      end
+
+      assert Slipdock.Repo.reload!(sprints).sprint_sources == before
+
+      # A board writer still can.
+      writer = user_fixture("writer@example.com")
+      {:ok, _} = Slipdock.Access.grant(sprints, writer, "write", owner)
+      {:ok, _} = Slipdock.Access.grant(theirs, writer, "write", card_writer)
+      assert {:ok, _} = Sprints.put_sources(sprints, writer, [{theirs, []}])
+    end
+
     test "the choices are the writable boards other than sprint boards", %{
       sprints: sprints,
       work: work

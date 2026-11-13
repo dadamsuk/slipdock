@@ -24,7 +24,8 @@ them once: when making a board from the Sprint planning template, **Plan
 sprints from** lists the boards you can write to; tick a board, then, if you
 want only some of its lists, tick those (none ticked means every list that
 is not done or dropped). The same choice is under **Plan sprints from** in
-the board's settings, and behind **Sources** in the picker. Over the API it is
+the board's settings, and behind **Sources** in the picker; changing it takes
+write access to the sprint board itself. Over the API it is
 `PUT /api/boards/:board/sprints/sources`; on the command line `slipdock
 sprint-sources <board> work:"To Do",Backlog home`.
 

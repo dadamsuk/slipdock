@@ -231,6 +231,38 @@ defmodule SlipdockWeb.SprintsLiveTest do
       assert home_id == home.id
     end
 
+    test "a writer on the sprint card alone can't change the board's sources from the plan", %{
+      conn: conn,
+      sprints: sprints,
+      work: work,
+      todo: todo
+    } do
+      owner = user_fixture()
+      {:ok, sprints} = Sprints.put_sources(sprints, owner, [{work, ["To Do"]}])
+      {:ok, sprint} = Sprints.create_sprint(sprints)
+      before = Boards.get_board!(sprints.id).sprint_sources
+
+      card_writer = user_fixture("card-writer@example.com")
+      theirs = board_fixture(%{"name" => "Theirs"}, owner: card_writer)
+      {:ok, _} = Slipdock.Access.grant(sprint, card_writer, "write", owner)
+
+      {:ok, view, _} =
+        live(log_in_user(conn, card_writer), ~p"/boards/#{sprints}/cards/#{sprint.id}")
+
+      view |> element("#card-sprint-add-cards") |> render_click()
+      assert has_element?(view, "#sprint-picker")
+      view |> element("#plan-sources-button") |> render_click()
+
+      view
+      |> form("#plan-sources-form", %{"sources" => %{to_string(theirs.id) => %{"on" => "true"}}})
+      |> render_submit()
+
+      assert render(view) =~ "You can only change where Sprints plans from"
+      assert Boards.get_board!(sprints.id).sprint_sources == before
+      assert [%{"column_ids" => [col]}] = before
+      assert col == todo.id
+    end
+
     test "a new sprint board takes its sources from the new-board form", %{
       conn: conn,
       work: work
