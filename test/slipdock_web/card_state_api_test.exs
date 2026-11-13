@@ -125,7 +125,7 @@ defmodule SlipdockWeb.CardStateAPITest do
     [line] = mcp_json(conn, "list_cards", %{"board" => ctx.board.code})["cards"]
 
     for c <- [listed, alone, line] do
-      assert c["state"] == "Running · runner-2 · 7m"
+      assert c["state"] == "Building · runner-2 · 7m"
       assert c["driver"] == "agent"
       assert is_integer(c["age"])
     end

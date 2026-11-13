@@ -7,7 +7,8 @@ defmodule Slipdock.CardState do
       nothing to say. The first that applies: an open wait ("Waiting on
       Dana · 41m"), a queued job held back ("Held · paused by David: bad
       deploy"), a queued job ("Queued · dev · 3m"), a job being worked
-      ("Running · runner-2 · 7m"), the newest job failing ("Failed ·
+      ("Building · runner-2 · 7m"; a verify or merge job reads "Running · …",
+      #3039), the newest job failing ("Failed ·
       runner-2 · 2h ago"). With an open handoff, its next step follows
       (" · Next: …"). A card with no job and no wait has no line, so a board
       that never uses either looks as it always has;
@@ -456,7 +457,11 @@ defmodule Slipdock.CardState do
   defp base(_card, nil, %Job{status: "running"} = job, _held, now),
     do:
       {"running",
-       join(["Running", job.runner_name, since(job.started_at || job.claimed_at, now)])}
+       join([
+         running_word(job.kind),
+         job.runner_name,
+         since(job.started_at || job.claimed_at, now)
+       ])}
 
   defp base(%Card{completed: false}, nil, %Job{status: status} = job, _held, now)
        when status in ~w(failed timeout),
@@ -469,6 +474,12 @@ defmodule Slipdock.CardState do
           ])}
 
   defp base(_card, _wait, _job, _held, _now), do: nil
+
+  # What a running job's line opens with (#3039): a build job is "Building";
+  # a verify or merge job builds nothing, and stays "Running".
+  defp running_word(kind) do
+    if loop_kind(kind) == "build", do: "Building", else: "Running"
+  end
 
   defp join(parts), do: parts |> Enum.reject(&Enum.member?([nil, ""], &1)) |> Enum.join(" · ")
 

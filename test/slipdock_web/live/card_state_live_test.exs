@@ -60,7 +60,7 @@ defmodule SlipdockWeb.CardStateLiveTest do
     listed = Enum.find(Boards.Cards.list_cards(ctx.board), &(&1.id == card.id))
     golden = SlipdockWeb.MCP.Tools.card_line(listed).state
 
-    assert golden == "Running · runner-2 · 7m · Next: Ship it"
+    assert golden == "Building · runner-2 · 7m · Next: Ship it"
     assert tile_line(html, card) == golden
     assert has_element?(view, "#card-#{card.id} [data-role=driver-mark][data-driver=agent]")
   end
@@ -294,7 +294,7 @@ defmodule SlipdockWeb.CardStateLiveTest do
     job = Runners.claim(ctx.runner)
     {:ok, :ok} = Runners.heartbeat(ctx.runner, job.id)
 
-    assert render(view) =~ "Running · runner-2"
+    assert render(view) =~ "Building · runner-2"
     assert has_element?(view, "#card-#{card.id} [data-role=driver-mark][data-driver=agent]")
 
     {:ok, _} = Runners.finish(ctx.runner, job.id, %{status: "done"})

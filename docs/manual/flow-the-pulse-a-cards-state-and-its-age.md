@@ -18,9 +18,11 @@ lists; click the line to open the board's Visualise view, or, with
 Off by default.
 
 **A card's state.** A card with a job or a wait on it shows one line on its
-front — *Running · runner-2 · 7m*, *Queued · dev · 3m*, *Held · paused by
+front — *Building · runner-2 · 7m*, *Queued · dev · 3m*, *Held · paused by
 David: bad deploy*, *Waiting on Dana · 41m*, *Failed · runner-2 · 2h ago* —
-with its handoff's next step after it when there is one. A card with
+with its handoff's next step after it when there is one. A running job that
+builds the card reads *Building*; one that verifies or merges it reads
+*Running*. A card with
 neither shows nothing. On a board tree with runner rules, a small mark says
 whether an agent or a person holds it.
 

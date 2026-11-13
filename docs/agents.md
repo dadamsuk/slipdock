@@ -353,7 +353,7 @@ stay is theirs), and while a runner job holds it
 (claimed or running) its `loop`: `{runner, kind, job_id}`, the kind `build`,
 `verify` or `merge`. A subcard with no open job of its own that an epic's
 build job above it is working (the job's current step names it, `#2835 CI
-running`) carries that job's `loop`, and its `state` reads `Running · … ·
+running`) carries that job's `loop`, and its `state` reads `Building · … ·
 in #<epic>`: so name the subcard in each step. The card shows the loop
 beside its assignees, and it goes when the job ends; it is never an assignee, so `--assignee me`,
 `--no-assignee` and `assignee=none` still mean people, and a runner's agent

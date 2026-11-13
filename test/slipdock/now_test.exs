@@ -156,7 +156,7 @@ defmodule Slipdock.NowTest do
     assert holds["Blocked"].holds == "blocked"
     assert holds["Worked"].holds == nil
     assert %{runner: "Mac Studio", kind: "build"} = holds["Worked"].loop
-    assert holds["Worked"].state =~ "Running"
+    assert holds["Worked"].state =~ "Building"
     assert Enum.all?([waiting, verifying, merging, blocked], &match?(%Card{}, &1))
   end
 
