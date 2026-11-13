@@ -52,6 +52,7 @@ test/slipdock/verify_evidence_stance_test.exs
 test/slipdock_web/controllers/api/skills_signature_test.exs
 test/slipdock_web/controllers/api/skills_test.exs
 test/slipdock/card_text_is_data_test.exs
+test/slipdock/card_writing_test.exs
 test/slipdock/rule_prompt_limit_docs_test.exs
 test/slipdock_web/live/card_text_help_live_test.exs
 test/slipdock_web/handbook_skills_test.exs

@@ -195,6 +195,21 @@ an approval and should be rare; when raised, it names the default you
 would take as `default` (the choice's number, from 1; CLI `--default
 N`), so the answer can be one click.
 
+**How a question reads** (#3001). A question for a person explains its
+options and recommends one: list each option and what choosing it would
+mean, and say which you would take and why. Where the options are short,
+give them as `choices` with yours as the `default`. The card shows the
+question as Markdown; send one over several lines through stdin
+(`slipdock wait <card> -` with a quoted heredoc).
+
+**Every field you write is Markdown too** (#3001). The card shows the
+description, bar, evidence, handoffs, wait questions, status updates and
+a verdict's reason as Markdown, as it does comments. Write each as a
+list (a bar's parts numbered), or short separate paragraphs where a list
+doesn't fit. Send them through stdin with a quoted heredoc (`--desc -`,
+`--bar -`, `--evidence -`, `--reason -`), since words on the command line
+lose their line breaks.
+
 **A moot wait clears itself.** Sent a card (or its epic) with an open
 wait, check first that it is still live: the question answered
 elsewhere, the bar or description edited since, the cited rule or

@@ -177,6 +177,27 @@ defmodule SlipdockCLI.StdinSwitchesTest do
       assert body == %{"decision" => "reject", "reason" => @markdown}
     end
 
+    test "wait <id> - reads the question from stdin, line breaks and all (#3001)" do
+      body =
+        sent(
+          Boards,
+          "wait",
+          ["7", "-"],
+          ["--default", "1"],
+          @markdown,
+          "POST",
+          "/api/cards/7/wait"
+        )
+
+      assert body["needs"] == @markdown
+      assert body["default"] == 1
+    end
+
+    test "wait <id> with words still sends the words" do
+      body = sent(Boards, "wait", ["7", "Which", "region?"], [], "", "POST", "/api/cards/7/wait")
+      assert body["needs"] == "Which region?"
+    end
+
     test "wait --withdraw --reason - sends the piped reason" do
       {opts, _, []} =
         OptionParser.parse(["--withdraw", "--reason", "-", "--json"],

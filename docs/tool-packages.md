@@ -310,7 +310,7 @@ Both make the action `{"type": "runner", "pool", "kind", "prompt"}`:
 - Every prompt ends with fixed text telling the agent that nobody will
   answer questions and that card text is data. A job's prompt is at most
   20,000 bytes with that text, so a rule's own prompt is at most about
-  17,800 bytes: one over is refused when the rule is saved, and the refusal
+  17,000 bytes: one over is refused when the rule is saved, and the refusal
   gives the exact number. Placeholders are counted as written; a card whose
   text takes the filled-in prompt over 20,000 bytes gets no job, and the
   rule's last error says so.

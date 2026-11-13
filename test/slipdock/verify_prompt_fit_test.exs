@@ -16,8 +16,10 @@ defmodule Slipdock.VerifyPromptFitTest do
 
   @cut "cut short to fit the prompt: the rest is on the card"
   # The prompts' last sentences: a cut of the prompt itself would take them.
-  @verify_end "so say exactly what to fix.\n"
-  @audit_end "or when it failed a part that holds.\n"
+  # How to write on the card (#3001) ends both.
+  @writing Slipdock.Automations.Runner.writing()
+  @verify_end "so say exactly what to fix.\n\n" <> @writing <> "\n"
+  @audit_end "or when it failed a part that holds.\n\n" <> @writing <> "\n"
 
   setup do
     owner = user_fixture()

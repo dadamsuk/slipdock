@@ -298,6 +298,23 @@ raised, it names the default you would take (`default`, the choice's
 number; `slipdock wait <id> "…" --choice A --choice B --default 1`), so the
 answer can be one click.
 
+**How a question reads** (#3001). Every wait asking a person to choose sets
+out each option and what choosing it would mean, as a Markdown list, and
+recommends one with the reason; the recommended one is the `default` when
+the options are choices. The card shows the question as Markdown. Send one
+over several lines from stdin (`slipdock wait <id> - --choice … --default N`
+with a quoted heredoc), so its list keeps its line breaks.
+
+**Everything an agent writes on a card is Markdown** (#3001). The card
+shows the description, bar, evidence, comments, handoffs, wait questions,
+status updates and a verdict's reason as Markdown, and a person skims them.
+So each opens with a bold line saying what it is, then a list, one fact per
+item (a bar's parts numbered), or short separate paragraphs where a list
+doesn't fit; never one dense paragraph. Every runner, verify and audit
+job's prompt says so (`Slipdock.Automations.Runner.writing/0`), as do the
+`slipdock-work` and `slipdock-loop` skills. The job logs are the agent's
+own and are shown as they are.
+
 **A moot wait clears itself.** Sent a card (or its epic) with an open wait,
 an agent first checks it is still live: the question answered elsewhere,
 the bar or description edited since, the cited rule or decision now in
@@ -918,7 +935,7 @@ to leave a handoff (`leave_handoff`) whenever it stops with the card
 unfinished. A job that ends with its card still open, and no handoff written
 during it, leaves its summary as the card's handoff. That text counts
 towards a job's 20,000-byte prompt, so a rule's own prompt is at most about
-17,800 bytes: one over is refused when the rule is saved, with the exact
+17,000 bytes: one over is refused when the rule is saved, with the exact
 number. Give
 the runner a **working directory** — the project's folder: Claude Code loads
 a project's own commands, skills and `.claude/settings.json` only from the

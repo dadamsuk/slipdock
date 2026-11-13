@@ -57,6 +57,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent.Modal do
   attr :share_key, :integer, required: true
   attr :uploads, :map, required: true
   attr :editing_description, :boolean, required: true
+  attr :editing_bar, :boolean, default: false, doc: "the bar's box is open (#3001)"
   attr :handoff_history, :list, default: [], doc: "every handoff written, newest first"
   attr :shipped, :list, default: [], doc: "`Slipdock.Deployments.shipped/1`: where it has shipped"
   attr :release, :map, default: nil, doc: "`Slipdock.Releases.state/1`: its batched release"
@@ -295,6 +296,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent.Modal do
                 card={@card}
                 current_user={@current_user}
                 editing_description={@editing_description}
+                editing_bar={@editing_bar}
                 form={@form}
                 mention_people={@mention_people}
                 tags_path={@tags_path}
@@ -436,6 +438,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent.Modal do
   attr :card, Card, required: true
   attr :current_user, :any, default: nil
   attr :editing_description, :boolean, required: true
+  attr :editing_bar, :boolean, default: false
   attr :form, :any, required: true
   attr :mention_people, :string, default: nil
   attr :tags_path, :string, required: true
@@ -505,7 +508,11 @@ defmodule SlipdockWeb.BoardLive.CardComponent.Modal do
 
     <.bar_section
       :if={(@board.bar_required || @card.bar) && on?(@panel, "open.bar")}
+      board={@board}
+      can_write={@can_write}
       card={@card}
+      current_user={@current_user}
+      editing={@editing_bar}
       form={@form}
       target={@target}
     />

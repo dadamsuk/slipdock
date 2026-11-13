@@ -429,7 +429,11 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
   def profile_source_text(source) when source in ~w(person agent rule), do: "set by #{source}"
   def profile_source_text(_source), do: nil
 
+  attr :board, :any, default: nil
+  attr :can_write, :boolean, default: true
   attr :card, Card, required: true
+  attr :current_user, :any, default: nil
+  attr :editing, :boolean, default: false, doc: "its box is open (#3001)"
   attr :form, :any, required: true
   attr :target, :any, required: true
 
@@ -437,8 +441,15 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
   What done means for the card (#1631): on a board that asks for a bar, or a
   card that has one. It locks for agents when work starts; a person can
   still change it, so the field stays editable here.
+
+  A bar that is written shows as Markdown (#3001), as the description does:
+  its parts are usually a numbered list. Clicking it, or Edit, opens the box;
+  Done (or Escape) closes it. An empty bar shows the box straight away.
   """
   def bar_section(assigns) do
+    assigns =
+      assign(assigns, :written?, String.trim(assigns.card.bar || "") != "")
+
     ~H"""
     <.form
       phx-target={@target}
@@ -448,24 +459,61 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
       phx-submit="card_change"
       class="space-y-1.5 px-1"
     >
-      <p class="flex items-center gap-1.5 section-label">
-        <.icon name="hero-trophy" class="size-3.5" />
-        <span>Bar</span>
-        <span
-          :if={@card.bar_locked_at}
-          id="card-bar-locked"
-          class="badge badge-ghost badge-xs gap-1 normal-case"
-          title="Locked when work started: agents can't change it"
+      <div class="flex items-center gap-1.5">
+        <p class="flex items-center gap-1.5 section-label">
+          <.icon name="hero-trophy" class="size-3.5" />
+          <span>Bar</span>
+          <span
+            :if={@card.bar_locked_at}
+            id="card-bar-locked"
+            class="badge badge-ghost badge-xs gap-1 normal-case"
+            title="Locked when work started: agents can't change it"
+          >
+            <.icon name="hero-lock-closed" class="size-3" /> locked
+          </span>
+        </p>
+        <button
+          :if={@can_write and @written? and not @editing}
+          id="card-bar-edit"
+          phx-target={@target}
+          type="button"
+          class="btn btn-ghost btn-xs ml-auto"
+          phx-click="edit_bar"
         >
-          <.icon name="hero-lock-closed" class="size-3" /> locked
-        </span>
-      </p>
+          <.icon name="hero-pencil" class="size-3.5" /> Edit
+        </button>
+        <button
+          :if={@written? and @editing}
+          id="card-bar-done"
+          phx-target={@target}
+          type="button"
+          class="btn btn-ghost btn-xs ml-auto"
+          phx-click="stop_editing_bar"
+        >
+          <.icon name="hero-check" class="size-3.5" /> Done
+        </button>
+      </div>
+      <div
+        :if={@written? and not @editing}
+        phx-target={@target}
+        id="card-bar-view"
+        class={[
+          "card-prose rounded-lg px-1 py-1 text-sm leading-relaxed break-words",
+          @can_write && "cursor-text hover:bg-base-200/60"
+        ]}
+        phx-click={@can_write && "edit_bar"}
+        phx-no-format
+      >{RichText.markdown(@card.bar, board: @board, as: @current_user)}</div>
       <textarea
+        :if={@editing or not @written?}
         name={@form[:bar].name}
         id="card-bar"
         rows="2"
         phx-debounce="800"
         phx-hook="AutoGrow"
+        phx-keydown={@written? && "stop_editing_bar"}
+        phx-key={@written? && "Escape"}
+        phx-target={@target}
         maxlength={Card.bar_length()}
         placeholder="What done means for this card, written before work starts"
         class="textarea field w-full"

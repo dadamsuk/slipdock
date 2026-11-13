@@ -37,7 +37,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
 
   @own_events ~w(card_change toggle_flag toggle_tag create_tag set_cover set_border duplicate_card archive_card delete_card
     add_dependency remove_dependency create_sub_board remove_assignee delete_sub_board
-    quick_add_subcard toggle_subcard edit_description stop_editing_description
+    quick_add_subcard toggle_subcard edit_description stop_editing_description edit_bar stop_editing_bar
     validate_attachments cancel_upload delete_attachment hide_on_card transcribe read_text add_link remove_link write_up
     toggle_pin_doc doc_search doc_focus attach_doc detach_doc card_timer accept_profile log_time dep_direction
     dep_search link_search pick_template comment_change share revoke_grant cancel_job
@@ -49,7 +49,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
   @events @own_events ++ ItemEvents.events()
   # What a reader who can't change the card may still do: nothing stored
   # changes, only what the panel is showing.
-  @read_events ~w(stop_editing_description dep_direction dep_search link_search pick_template
+  @read_events ~w(stop_editing_description stop_editing_bar dep_direction dep_search link_search pick_template
     reveal_sections)
   # What a commenter (#863) may do besides: join the discussion, and nothing
   # that changes the card itself. Deleting a comment is only their own
@@ -108,6 +108,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
        link_results: [],
        picking_template: false,
        editing_description: false,
+       editing_bar: false,
        handoff_history: [],
        editing_handoff: false,
        handoff_form: nil,
@@ -349,6 +350,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
         share_key={@share_key}
         uploads={@uploads}
         editing_description={@editing_description}
+        editing_bar={@editing_bar}
         handoff_history={@handoff_history}
         shipped={assigns[:card_shipped] || []}
         deploy_failed={assigns[:card_deploy_failed] || []}

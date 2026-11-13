@@ -631,7 +631,7 @@ wrong, so don't rewrite it.
 The `runner` action sends the card to a coding agent on the user's own machine:
 `{"type": "runner", "pool": "default", "kind": "claude"}` (an optional `prompt`, with
 placeholders; by default the card's number, title, link and description; at most about
-17,800 bytes, what is left of a job's 20,000 after the text every job's prompt ends with,
+17,000 bytes, what is left of a job's 20,000 after the text every job's prompt ends with,
 and one over is refused when the rule is saved, with the exact number). It queues a job
 that a runner of that pool takes. A card has at most one open job from any rule (jobs no rule
 queued, such as verify, merge and overseer, aside), and answering a wait sends the card as one

@@ -611,6 +611,35 @@ Left alone: the MCP `Left off:` text — the skills key on it.
 EOF
 ```
 
+**Every other field reads the same.** The description, the bar, the evidence,
+a handoff's body, a wait's question, a status update and a verdict's reason
+are all shown on the card as Markdown, and skimmed like a comment:
+
+- a list rather than one dense paragraph, and where a list doesn't fit, short
+  separate paragraphs;
+- a bar's parts as a numbered list, one part each;
+- each of them sent through stdin with a quoted heredoc: `--desc -`,
+  `--bar -`, `--evidence -`, `--no-code -`, `--reason -`, `handoff --body -`,
+  `status --body -` and `slipdock wait <id> -`.
+
+**A question explains its options and recommends one.** Anything that asks a
+person to choose (a wait, a decision in a comment) sets out each option and
+what choosing it would mean, then says which you would take and why. Where
+the options are short, make them choices with yours as the default, so the
+answer can be one click:
+
+```sh
+slipdock wait <id> - --kind ux --choice "A dialog" --choice "Inline" --default 2 <<'EOF'
+**Where should the confirm step go?**
+
+- **A dialog:** one more click, but hard to miss.
+- **Inline, under the button:** no extra click, and it keeps the reader's place.
+
+I recommend **Inline**: the action can be undone, so a dialog costs more
+than it saves.
+EOF
+```
+
 ## 7. Close it out
 
 Skip what the invocation rules out (see **What the invocation says wins**):

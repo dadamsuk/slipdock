@@ -984,7 +984,8 @@ WRITE
                                       goes to the person the board routes that kind to,
                                       else the owner (on anyone without --on or a kind).
                                       --default N names the choice you propose: the
-                                      one-click answer
+                                      one-click answer. "-" reads the question from
+                                      stdin: set out each option and recommend one
   wait <id> ["intro"] --question Q --question Q ...
                                       ask several questions at once: numbered, each
                                       answered on its own (use this, not one block)
