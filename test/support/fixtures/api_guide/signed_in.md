@@ -3851,10 +3851,8 @@ rejection's comment. `SPEC-10` is checked by enumeration, not judged:
 for a card whose paths fall in its scope the prompt adds a docs-places
 step. List the names the change introduces or alters from the diff
 (commands, flags, MCP tools, API fields, settings, page and section
-names), grep them across the seven places (`README.md`, the manual,
-`HelpLive.Guides`, `HelpLive.Agents` and `HelpLive.Flow` with
-`cli/help.txt`, `docs/agents.md`, this guide, `priv/skills/`) and give
-each place one result: updated, deferred to #N (only when card #N's
+names), grep them across the seven places (the README: `README.md`; the manual: `docs/manual.md docs/manual/`; the app's in-app help (`HelpLive.Guides`): `lib/slipdock_web/live/help_live/guides.ex lib/slipdock_web/live/help_live/guides/`; the agents' and runners' in-app help (`HelpLive.Agents`, `HelpLive.Flow`, and the CLI reference's `cli/help.txt`): `lib/slipdock_web/live/help_live/agents.ex lib/slipdock_web/live/help_live/agents/ lib/slipdock_web/live/help_live/flow.ex lib/slipdock_web/live/help_live/flow/ cli/help.txt`; the agents page: `docs/agents.md`; the API guide: `lib/slipdock_web/api_guide.ex lib/slipdock_web/api_guide/`; the skills: `priv/skills/`)
+and give each place one result: updated, deferred to #N (only when card #N's
 bar names that place), n/a with why, or missing. One missing is
 `rule:SPEC-10=broken:<file>:<name>`. The builder does the same before
 submitting: a place its lane can't reach goes on the deferral card's
