@@ -339,6 +339,8 @@ defmodule SlipdockWeb.PlanSkillDocsTest do
       planning = agents |> section("## Planning an idea: the `slipdock-plan` skill") |> flat()
       [_, unattended] = String.split(planning, "Run unattended, it ", parts: 2)
 
+      assert String.starts_with?(unattended, "answers from the board what the board answers")
+
       assert_states(
         unattended,
         "answers from the board what the board answers (the card, the handbook, a Decision)"
