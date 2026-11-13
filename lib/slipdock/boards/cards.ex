@@ -243,6 +243,16 @@ defmodule Slipdock.Boards.Cards do
   or with `"none"` those made before origins were kept.
   """
   def list_cards(%Board{} = board, filters \\ %{}) do
+    board
+    |> cards_query(filters)
+    |> Repo.all()
+    |> Repo.preload(card_preloads())
+    |> CardState.put(board)
+    |> filter_loaded(board, filters)
+  end
+
+  # The filters the database applies.
+  defp cards_query(board, filters) do
     from(c in Card,
       where: c.board_id == ^board.id,
       join: col in assoc(c, :column),
@@ -256,9 +266,12 @@ defmodule Slipdock.Boards.Cards do
     |> origin_filter(filters["origin"])
     |> completed_filter(filters["completed"])
     |> text_filter(filters["q"])
-    |> Repo.all()
-    |> Repo.preload(card_preloads())
-    |> CardState.put(board)
+  end
+
+  # The filters that read what was loaded: the card's state, flags, tags,
+  # dates, dependencies, people and kind.
+  defp filter_loaded(cards, board, filters) do
+    cards
     |> Enum.filter(
       &CardState.matches?(&1, Enum.member?([true, "true"], filters["stuck"]), filters["driver"])
     )
@@ -666,38 +679,52 @@ defmodule Slipdock.Boards.Cards do
     named? = titled? or Map.has_key?(changeset.changes, :short_name)
     save = fn -> save_with_assignees(changeset, &Repo.update/1, assignees) end
 
-    saved = %{changeset: changeset, before: before, assignees: assignees, opts: opts}
+    saved = %{
+      changeset: changeset,
+      before: before,
+      assignees: assignees,
+      opts: opts,
+      raised: raised,
+      titled?: titled?,
+      named?: named?
+    }
 
     if(named?, do: CardFolders.tracking(card, save), else: save.())
-    |> Boards.Shared.tap_ok(fn updated ->
-      (describe_card_changes(card, changeset) ++ describe_assignees(card, before, assignees))
-      |> Enum.each(&Boards.ActivityLog.log(Repo, updated.board_id, updated.id, "card", &1))
+    |> Boards.Shared.tap_ok(&card_saved(card, &1, saved))
+  end
 
-      log_raise(updated, raised)
-      renamed(updated, titled?, named?)
+  # Everything that follows a card's save: its log, the broadcast, search and
+  # the hooks the changed fields set off.
+  defp card_saved(card, updated, saved) do
+    %{changeset: changeset, before: before, assignees: assignees, opts: opts} = saved
 
-      Boards.PubSub.broadcast(updated.board_id)
-      Indexer.enqueue(updated)
-      if ShortNames.stale?(card, updated), do: ShortNames.refine_later(updated)
+    (describe_card_changes(card, changeset) ++ describe_assignees(card, before, assignees))
+    |> Enum.each(&Boards.ActivityLog.log(Repo, updated.board_id, updated.id, "card", &1))
 
-      changed_hooks(card, updated, saved)
-      assigned_hooks(updated, saved)
+    log_raise(updated, saved.raised)
+    renamed(updated, saved.titled?, saved.named?)
 
-      # The epic's comments and % complete (#1881).
-      Slipdock.EpicLog.saved(card, updated)
+    Boards.PubSub.broadcast(updated.board_id)
+    Indexer.enqueue(updated)
+    if ShortNames.stale?(card, updated), do: ShortNames.refine_later(updated)
 
-      # The step it is at, as a status update (#2022).
-      Slipdock.StepStatus.saved(card, updated, Slipdock.Actor.resolve(opts))
+    changed_hooks(card, updated, saved)
+    assigned_hooks(updated, saved)
 
-      Boards.CardEvents.automate_card_changes(
-        card,
-        updated,
-        changeset,
-        {before, assignees || before}
-      )
+    # The epic's comments and % complete (#1881).
+    Slipdock.EpicLog.saved(card, updated)
 
-      wait_hooks(card, updated, changeset, opts)
-    end)
+    # The step it is at, as a status update (#2022).
+    Slipdock.StepStatus.saved(card, updated, Slipdock.Actor.resolve(opts))
+
+    Boards.CardEvents.automate_card_changes(
+      card,
+      updated,
+      changeset,
+      {before, assignees || before}
+    )
+
+    wait_hooks(card, updated, changeset, opts)
   end
 
   defp renamed(updated, titled?, named?) do

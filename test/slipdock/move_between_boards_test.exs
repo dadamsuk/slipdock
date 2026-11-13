@@ -219,4 +219,97 @@ defmodule Slipdock.MoveBetweenBoardsTest do
              &(&1.message =~ "moved “Goes” in from Plan")
            )
   end
+
+  test "each board's row names the other board and its list", %{
+    from: from,
+    from_todo: from_todo,
+    to: to,
+    to_backlog: to_backlog
+  } do
+    # Lists named apart, so a row naming the wrong one shows.
+    refute from_todo.name == to_backlog.name
+    card = card_fixture(from_todo, %{"title" => "Goes"})
+    {:ok, _} = Boards.Moves.move_card_to_board(card, to_backlog)
+
+    messages = fn board ->
+      Enum.map(Boards.ActivityLog.list_activities(board.id), & &1.message)
+    end
+
+    assert "moved “Goes” to Errands › #{to_backlog.name}" in messages.(from)
+    assert "moved “Goes” in from Plan › #{from_todo.name}" in messages.(to)
+  end
+
+  test "moved back to its board, the card takes a stand-in's slot below other cards" do
+    {:ok, template} = Boards.Templates.find_template(nil, "Sprint planning")
+    sprints = board_fixture(%{"name" => "Sprints"}, template: template)
+    work = board_fixture(%{"name" => "Work"})
+    [_backlog, todo | _] = work.columns
+    {:ok, sprint} = Slipdock.Sprints.create_sprint(sprints)
+
+    _a = card_fixture(todo, %{"title" => "A"})
+    _b = card_fixture(todo, %{"title" => "B"})
+    c = card_fixture(todo, %{"title" => "C"})
+    {:ok, %{added: [moved]}} = Slipdock.Sprints.add_cards(sprint, [c])
+    [stand_in] = Boards.Cards.stand_ins_for(c.id)
+    assert stand_in.position == 2
+
+    assert {:ok, %{card: back}} = Boards.Moves.move_card_to_board(moved, List.last(work.columns))
+    assert back.column_id == todo.id
+    assert back.position == 2
+    assert Boards.Cards.stand_ins_for(c.id) == []
+  end
+
+  test "moving inside one tree keeps a pinned milestone pinned", %{
+    from: from,
+    from_todo: from_todo,
+    from_backlog: from_backlog
+  } do
+    epic = card_fixture(from_backlog, %{"title" => "Epic"})
+    {:ok, sub} = sub_board(epic, hd(Boards.Templates.list_templates(nil)))
+    subcard = card_fixture(hd(Boards.get_board!(sub.id).columns), %{"title" => "Step one"})
+
+    {:ok, milestone} =
+      Boards.Milestones.create_milestone(from, %{
+        "name" => "Launch",
+        "date" => Date.utc_today(),
+        "card_id" => subcard.id
+      })
+
+    # The tree's roadmap is the same on either board, so nothing is carried.
+    assert {:ok, %{milestones_unpinned: 0}} = Boards.Moves.move_card_to_board(subcard, from_todo)
+    assert Boards.Milestones.get_milestone!(milestone.id).card_id == subcard.id
+  end
+
+  test "both boards are told", %{from: from, from_todo: from_todo, to: to, to_backlog: to_backlog} do
+    card = card_fixture(from_todo, %{"title" => "Goes"})
+    Boards.PubSub.subscribe(from.id)
+    Boards.PubSub.subscribe(to.id)
+
+    {:ok, _} = Boards.Moves.move_card_to_board(card, to_backlog)
+
+    from_id = from.id
+    to_id = to.id
+    assert_received {:board_changed, ^from_id}
+    assert_received {:board_changed, ^to_id}
+  end
+
+  test "the destination board's card_moved rules run", %{
+    from_todo: from_todo,
+    to: to,
+    to_backlog: to_backlog
+  } do
+    rule_fixture(to, %{
+      "trigger" => %{"type" => "card_moved", "to" => to_backlog.name},
+      "actions" => [
+        %{"type" => "alert", "title" => "{{card.title}} came in", "severity" => "info"}
+      ]
+    })
+
+    card = card_fixture(from_todo, %{"title" => "Goes"})
+    {:ok, _} = Boards.Moves.move_card_to_board(card, to_backlog)
+
+    assert [alert] = Slipdock.Automations.list_alerts(user_fixture())
+    assert alert.title == "Goes came in"
+    assert alert.card_id == card.id
+  end
 end
