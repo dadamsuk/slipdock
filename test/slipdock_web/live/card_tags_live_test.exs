@@ -238,6 +238,25 @@ defmodule SlipdockWeb.CardTagsLiveTest do
       assert [%{id: ^id}] = Boards.Tags.list_tags(ctx.board.id)
       assert [%{id: ^id}] = Boards.Cards.get_card!(ctx.card.id).tags
     end
+
+    # #2934: a board grant below write, raised to write on this one card, is
+    # still refused a new board tag; asking can_read? or can_comment? lets it.
+    for level <- ["read", "comment"] do
+      test "with a board grant of #{level} too, New tag of a new name is refused", ctx do
+        user = user_fixture("tags.card.writer.#{unquote(level)}@example.com")
+        {:ok, _} = Access.grant(ctx.board, user, unquote(level), ctx.owner)
+        {:ok, _} = Access.grant(ctx.card, user, "write", ctx.owner)
+        {:ok, view, _} = open(log_in_user(build_conn(), user), ctx)
+
+        view |> form("#card-tag-search", %{"name" => "Brand new"}) |> render_submit()
+
+        assert Boards.Tags.list_tags(ctx.board.id) == []
+        assert Boards.Cards.get_card!(ctx.card.id).tags == []
+
+        assert view |> element("#card-modal #panel-notice[data-callout=error]") |> render() =~
+                 "only someone who can edit the board makes a new tag"
+      end
+    end
   end
 
   test "a reader with nothing applied sees None", ctx do
