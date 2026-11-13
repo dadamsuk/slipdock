@@ -20,9 +20,11 @@ flows** (`/help/agents/flow`).
 The prompt may use the same `{{card.*}}` placeholders as any action. It is at
 most about 17,800 bytes: a job's prompt is at most 20,000 bytes with the text
 every job's ends with, and a rule's own has what is left. One over is refused
-when the rule is saved, with the exact number; placeholders are counted as
-written, so a card whose text takes the filled-in prompt over 20,000 bytes gets
-no job, and the rule's last error says so. Every
+when the rule is saved, with the exact number. Placeholders are counted as
+written, so a card's own text can take the filled-in prompt over 20,000 bytes:
+then its description is cut short first, then its bar, each ending in a pointer
+to `slipdock card <id>` for the whole text, and the card still gets its job.
+Every
 job's prompt, a rule's own included, ends with a paragraph saying it runs
 unattended: nobody will answer questions, so choose inputs from the card and
 say what was chosen, or open a [wait](waiting-on-a-person-waits.md) saying what is

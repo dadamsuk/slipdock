@@ -372,9 +372,10 @@ defmodule Slipdock.Automations.Runner do
   The most bytes a rule's own prompt may have (#2910): the runners'
   `max_prompt` less what every job's prompt ends with (`unattended/0` and the
   blank line before it), so a prompt that saves is one `Slipdock.Runners.queue/2`
-  takes. It is counted as written, trailing whitespace aside: a placeholder
-  that a card's text fills in can still take a job's prompt over the cap, which
-  only the queue can see.
+  takes. It is counted as written, trailing whitespace aside. A placeholder a
+  card's text fills in can take it over once rendered: the rendered prompt is
+  cut back to this (#2923), the description and bar first, each with a
+  pointer to `slipdock card` for the whole text.
   """
   def max_rule_prompt, do: Slipdock.Runners.limits().max_prompt - byte_size(@prompt_tail)
 
@@ -866,9 +867,7 @@ defmodule Slipdock.Automations.Runner do
   ## Action helpers -----------------------------------------------------------
 
   defp runner_attrs(action, ctx) do
-    prompt =
-      String.trim_trailing(text(action["prompt"], ctx, render(@runner_prompt, ctx.bindings))) <>
-        @prompt_tail
+    prompt = fit_rule_prompt(action["prompt"], ctx) <> @prompt_tail
 
     %{
       pool: action["pool"],
@@ -878,6 +877,37 @@ defmodule Slipdock.Automations.Runner do
       wait_while_doing: action["wait_while_doing"] == true
     }
   end
+
+  # The rule's prompt (or the default one) as the card fills it in, cut to
+  # `max_rule_prompt/0` so the job's prompt is never over `max_prompt` (#2923):
+  # a card whose own text is long still gets its job, rather than a refusal
+  # only the rule's `last_error` shows. The description goes first, then the
+  # bar, each ending in a pointer to `slipdock card` for the whole text, as
+  # the verify prompts do (`Slipdock.Verified.fit_prompt/4`, #2705); if that
+  # is still not enough, the end of the rule's text goes, never the
+  # paragraphs after it (`unattended/0`).
+  defp fit_rule_prompt(template, %{card: %Card{} = card} = ctx) do
+    Slipdock.Verified.fit_prompt(
+      card,
+      [:description, :bar],
+      fn cuts ->
+        bindings =
+          ctx.bindings
+          |> cut_binding("card.description", cuts[:description], card)
+          |> cut_binding("card.bar", cuts[:bar], card)
+
+        String.trim_trailing(
+          text(template, %{ctx | bindings: bindings}, render(@runner_prompt, bindings))
+        )
+      end,
+      max_rule_prompt()
+    )
+  end
+
+  defp cut_binding(bindings, _key, nil, _card), do: bindings
+
+  defp cut_binding(bindings, key, remove, card),
+    do: Map.update!(bindings, key, &Slipdock.Verified.cut(&1, remove, card))
 
   @doc """
   What `rule`'s runner action would queue for `card` now, for
