@@ -323,10 +323,13 @@ start: the top of Housekeeping then, by the same rules as above.
 card is small and already decided. If it turns out to need a design choice
 (anything that changes how the product or a process behaves), or is growing
 into feature work (a new surface, a data-model change, more than one
-sitting), stop before building: move it to Triage (`slipdock move <id>
-Triage`), leave a `product` wait saying what grew and the choice it needs
-(`slipdock wait <id> "…" --kind product`), and finish without code. No
-runner takes it from Triage; a person moves it out once it is decided.
+sitting), stop before building: move it to the board's Triage list
+(category `triage`) by the name the job's prompt gives it (`slipdock move
+<id> "<its name>"`), leave a `product` wait saying what grew and the choice
+it needs (`slipdock wait <id> "…" --kind product`), and finish without code.
+No runner takes it from Triage; a person moves it out once it is decided.
+On a board with no Triage list, don't move it: leave it where it is, and
+the wait holds it for a person until it is answered.
 
 Read the whole card before touching it: `slipdock card <id>` for the description,
 checklist, comments, dependencies, links and whether it has subcards. The

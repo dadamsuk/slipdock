@@ -99,10 +99,31 @@ defmodule Slipdock.HousekeepingEscalationTest do
                ~s[move it to the Needs a person list (`slipdock move #{chore.id} "Needs a person"`)]
 
       assert prompt =~ "A person moves it out of Needs a person"
+    end
 
-      # With no Triage list at all, it says Triage.
+    # #2905: a board with no triage-category list gets no move to a list
+    # that isn't there, even one called Triage without the category.
+    test "with no Triage list, it says to leave the card where it is, held by its wait", ctx do
       {:ok, _} = Boards.Columns.update_column(ctx.triage, %{"category" => ""})
-      assert Runners.housekeeping_note(chore.id) =~ "`slipdock move #{chore.id} Triage`"
+      chore = card_fixture(ctx.housekeeping, %{"title" => "Chore"})
+      prompt = Runners.claimed_prompt(Runners.claim(ctx.runner))
+
+      assert prompt =~ "This is a Housekeeping card"
+      refute prompt =~ "slipdock move #{chore.id}"
+      refute prompt =~ "move it to the"
+      assert prompt =~ "this board has no Triage list, so leave the card where it is"
+      assert prompt =~ ~s(`slipdock wait #{chore.id} "…" --kind product`)
+      assert prompt =~ "the wait holds it for a person"
+      assert prompt =~ "finish without code"
+    end
+
+    test "on a sub-board whose root has no Triage list either, it says so too", ctx do
+      {:ok, _} = Boards.Columns.update_column(ctx.triage, %{"category" => ""})
+      chore = sub_board_chore(ctx)
+      note = Runners.housekeeping_note(chore.id)
+
+      assert note =~ "this board has no Triage list"
+      refute note =~ "slipdock move"
     end
 
     test "on a sub-board with no Triage list, the move names its root board's", ctx do

@@ -503,8 +503,10 @@ only when the ready list has nothing it could start. `list_boards` names it
 as `housekeeping`. A Housekeeping card that grows (it needs a design choice,
 or is turning into feature work: a new surface, a data-model change, more
 than one sitting) goes back to a person: stop before building, move it to
-Triage, leave a `product` wait saying what grew, and finish without code.
-Its job's prompt says so too.
+the board's Triage list (category `triage`, by the name its job's prompt
+gives), leave a `product` wait saying what grew, and finish without code. On
+a board with no Triage list, leave it where it is: the wait holds it for a
+person until it is answered. Its job's prompt says so too.
 
 Agents propose handbook edits rather than make them, where a rule or a
 decision is concerned: `POST /api/boards/:board/garden/proposals` (`slipdock
