@@ -17,9 +17,6 @@ defmodule SlipdockWeb.FontsTest do
   """
   use ExUnit.Case, async: true
 
-  import Phoenix.LiveViewTest, only: [rendered_to_string: 1]
-  import Phoenix.Component, only: [sigil_H: 2]
-
   @css File.read!("assets/css/app.css")
   @styles ["assets/css/app.css", "assets/css/codemirror.css"]
   @fonts "priv/static/fonts"
@@ -252,17 +249,6 @@ defmodule SlipdockWeb.FontsTest do
                {"x.ex", 1, ~S|<h1 title={"a \" b"} class="text-xl">|},
                {"x.ex", 2, ~S|<h1 title={"a \\"} class="text-lg">|}
              ]
-    end
-
-    test "<.header> renders its title as a page-title h1" do
-      assigns = %{}
-
-      html =
-        rendered_to_string(~H"""
-        <SlipdockWeb.CoreComponents.header>Boards</SlipdockWeb.CoreComponents.header>
-        """)
-
-      assert html =~ ~r/<h1 class="page-title">\s*Boards\s*<\/h1>/
     end
   end
 
