@@ -27,6 +27,13 @@ higher, so replacing `## Rollback` takes its `### …` subsections with it.
 That is what "edit the rollback section" means to a person, so it is what it
 means here.
 
+An append is the other way round: it lands at the end of the section's own
+text, before its first subsection. A line appended to `## Local setup` goes
+under Local setup's own paragraphs, not at the end of its last `### …`; to
+add to a subsection, name it (`"Local setup/A runner machine"`). Text that
+brings a heading of its own goes after the subsections, so it can't take
+them over.
+
 ## Conventions that make this work
 
 - **One `## Log` section per page** for dated, append-only notes, newest

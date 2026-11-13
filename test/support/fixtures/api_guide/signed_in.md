@@ -3142,6 +3142,11 @@ ending in a table extend the table. The answer's `note` says which
 (`heading kept`, `heading replaced`, `table extended`, `list extended`,
 `appended`).
 
+An append lands at the end of the section's **own text**, before its first
+subsection: a line appended to `## Local setup` goes under Local setup's own
+paragraphs, not at the end of its last `### …`. Text that opens a heading
+of its own goes after the subsections instead, so it can't take them over.
+
 Two writers touching different sections never collide, and an **append
 cannot clobber anything at all** — so it takes no `base_hash` and never
 refuses. An agent keeping a running record should append to `## Log` and

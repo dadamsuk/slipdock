@@ -99,6 +99,18 @@ defmodule SlipdockWeb.API.PageSectionsTest do
       assert replaced["body"] =~ "How we ship."
     end
 
+    test "an append to a section with subsections lands before them (#2768)", %{
+      conn: conn,
+      page: page
+    } do
+      assert %{"note" => "appended", "page" => saved} =
+               conn
+               |> post("/api/pages/#{page["id"]}/section/Deploy", %{body: "Fridays too."})
+               |> json_response(200)
+
+      assert saved["body"] =~ "How we ship.\n\nFridays too.\n\n## Log\n\n- 2026-09-01 first\n"
+    end
+
     test "appending cannot conflict, even with a stale hash", %{conn: conn, page: page} do
       assert %{"page" => _} =
                conn

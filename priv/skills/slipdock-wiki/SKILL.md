@@ -84,7 +84,8 @@ the difference between an agent that collaborates on a document and one that
 quietly deletes a colleague's paragraph.
 
 ```sh
-# Append to one section. Cannot conflict; needs no hash.
+# Append to one section. Cannot conflict; needs no hash. Lands at the end of
+# the section's own text, before its first subsection.
 slipdock page section <page> Log --append "- 2026-09-29 rolled back at 14:05"
 
 # Replace one section, heading and all.

@@ -1014,6 +1014,29 @@ defmodule SlipdockWeb.MCP.WriteToolsTest do
       refute Map.has_key?(plain, "note")
     end
 
+    test "append_section to a section with subsections lands before them (#2768)", ctx do
+      page =
+        page_fixture(ctx.board, %{
+          "title" => "Setup",
+          "body" => "# Local setup\n\nClone it.\n\n## A runner machine\n\nGo 1.22.\n"
+        })
+
+      appended =
+        ctx.conn
+        |> call("write_page", %{
+          mode: "append_section",
+          page: page.code,
+          section: "Local setup",
+          body: "Then mix setup."
+        })
+        |> ok!()
+
+      assert appended["note"] == "appended"
+
+      assert Wiki.get_page!(page.id).body ==
+               "# Local setup\n\nClone it.\n\nThen mix setup.\n\n## A runner machine\n\nGo 1.22.\n"
+    end
+
     test "REST section writes keep the heading, extend tables and say so (#1756)", ctx do
       page =
         page_fixture(ctx.board, %{

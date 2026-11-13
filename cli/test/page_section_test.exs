@@ -93,4 +93,11 @@ defmodule SlipdockCLI.PageSectionTest do
       assert :json.decode(body)["body"] == "Piped keys."
     end
   end
+
+  test "the help says where an append to a section with subsections lands (#2768)" do
+    help = File.read!(Path.expand("../help.txt", __DIR__)) |> String.replace(~r/\s+/, " ")
+
+    assert help =~
+             "An append lands at the end of the section's own text, before its first subsection"
+  end
 end
