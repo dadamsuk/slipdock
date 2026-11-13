@@ -401,10 +401,11 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
   end
 
   defp uploaded(socket, name, {:error, changeset}) do
-    {field, {msg, _}} = List.first(changeset.errors) || {:file, {"could not be stored", []}}
+    reason =
+      if changeset.errors == [], do: "file could not be stored", else: field_errors(changeset)
 
     socket
-    |> notice(:error, "Upload failed: #{field} #{msg}.")
+    |> notice(:error, "Upload failed: #{reason}.")
     |> image_failed(name)
   end
 

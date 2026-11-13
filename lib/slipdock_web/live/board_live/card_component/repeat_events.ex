@@ -139,10 +139,5 @@ defmodule SlipdockWeb.BoardLive.CardComponent.RepeatEvents do
 
   defp repeat_error(message) when is_binary(message), do: message
 
-  defp repeat_error(%Ecto.Changeset{} = cs) do
-    Ecto.Changeset.traverse_errors(cs, fn {msg, opts} ->
-      Enum.reduce(opts, msg, fn {k, v}, acc -> String.replace(acc, "%{#{k}}", to_string(v)) end)
-    end)
-    |> Enum.map_join("; ", fn {field, msgs} -> "#{field} #{Enum.join(msgs, ", ")}" end)
-  end
+  defp repeat_error(%Ecto.Changeset{} = cs), do: field_errors(cs)
 end
