@@ -521,6 +521,29 @@ defmodule Slipdock.HandbookTest do
       refute "Triage findings (updated: procedure)" in third.report.added["cards"]
     end
 
+    # 1.9.2 (#2767): a finding an open proposal names waits on the person,
+    # so the procedure says triage leaves it.
+    test "installing over 1.9.1 tells triage a finding waiting on a proposal isn't its",
+         %{user: user, board: board} do
+      {:ok, _} = Handbook.install(user, board)
+      triage = Repo.get_by!(Slipdock.Boards.Card, board_id: board.id, title: "Triage findings")
+      current = triage.description
+      assert current =~ "it is waiting on the person deciding the proposal (`--status waiting`)"
+      assert current =~ "A finding waiting on a proposal is none of these"
+
+      as_1_9_1 =
+        current
+        |> String.replace(~r/ A finding an open proposal names is not in that list:[^\n]*/, "")
+        |> String.replace(~r/ A finding waiting on a proposal is none of these[^\n]*/, "")
+
+      refute as_1_9_1 =~ "waiting"
+      {:ok, _} = Boards.Cards.update_card(triage, %{"description" => as_1_9_1})
+
+      {:ok, again} = Handbook.install(user, board)
+      assert "Triage findings (updated: procedure)" in again.report.added["cards"]
+      assert Repo.reload!(triage).description == current
+    end
+
     test "a done triage card is left alone", %{user: user, board: board} do
       {:ok, _} = Handbook.install(user, board)
       triage = Repo.get_by!(Slipdock.Boards.Card, board_id: board.id, title: "Triage findings")

@@ -62,6 +62,8 @@ defmodule SlipdockWeb.FindingsLiveTest do
       p = proposal(ctx.board, [f.id], explanation: "Seen 3 times: screens must not flash")
       proposal(ctx.board, [f.id], state: "dismissed")
       proposal(ctx.board, [])
+      # f waits on p (#2767), so the reference list holds this one.
+      finding(ctx.board, ctx.card, text: "another lesson")
 
       {:ok, view, html} = live(ctx.conn, ~p"/boards/#{ctx.board}/findings")
 
@@ -214,6 +216,31 @@ defmodule SlipdockWeb.FindingsLiveTest do
       assert has_element?(view, "#finding-#{ctx.gone.id} [data-role=note]", "UX-9")
     end
 
+    # #2767: open, but a proposal names it, so it waits on the person.
+    test "status: a finding a proposal names is waiting, not open", ctx do
+      p = proposal(ctx.board, [ctx.old.id])
+
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/findings")
+      refute shown(view, ctx.old)
+      assert shown(view, ctx.new)
+
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/findings?status=waiting")
+      assert shown(view, ctx.old)
+      refute shown(view, ctx.new)
+
+      assert has_element?(
+               view,
+               "#finding-#{ctx.old.id} [data-role=waiting]",
+               "waiting on proposal ##{p.id}"
+             )
+
+      assert has_element?(view, "option[value=waiting]", "Waiting on a person")
+
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/findings?status=all")
+      assert has_element?(view, "#finding-#{ctx.old.id} [data-role=waiting]")
+      refute has_element?(view, "#finding-#{ctx.new.id} [data-role=waiting]")
+    end
+
     test "kind", ctx do
       {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/findings?kind=rule")
       assert shown(view, ctx.old)
@@ -322,7 +349,11 @@ defmodule SlipdockWeb.FindingsLiveTest do
     test "merge into another finding picked from the list, which takes its count", ctx do
       f = finding(ctx.board, ctx.card, text: "the CLI lacks --paths", count: 2)
       into = finding(ctx.board, ctx.other, text: "the installed CLI lacks --paths", count: 3)
+      # One waiting on a proposal (#2767) can still take a repeat.
+      waiting = finding(ctx.board, ctx.other, text: "proposed already")
+      proposal(ctx.board, [waiting.id])
       {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/findings?triage=#{f.id}")
+      assert has_element?(view, "#finding-merge-into option[value='#{waiting.id}']")
 
       assert has_element?(view, "#finding-merge-into option[value='#{into.id}']")
       refute has_element?(view, "#finding-merge-into option[value='#{f.id}']")

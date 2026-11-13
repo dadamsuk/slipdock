@@ -23,7 +23,7 @@ defmodule SlipdockCLI.Findings do
 
   def run("findings", _args, _o) do
     fail(
-      "usage: slipdock findings <board> [--status open|promoted|dismissed|merged|all] [--kind K] [--source S] [--card ID] [--days N] [--scope board|runner|all]"
+      "usage: slipdock findings <board> [--status open|waiting|promoted|dismissed|merged|all] [--kind K] [--source S] [--card ID] [--days N] [--scope board|runner|all]"
     )
   end
 
@@ -115,6 +115,7 @@ defmodule SlipdockCLI.Findings do
     note = if blank?(f["note"]), do: "", else: " — #{f["note"]}"
     into = if f["merged_into_id"], do: " → ##{f["merged_into_id"]}", else: ""
     proposal = proposal(f)
+    status = if f["waiting"], do: " [waiting on proposal ##{f["waiting"]}]", else: status
 
     "##{f["id"]}#{found}#{status} #{f["kind"]}#{runner} (#{f["source"]}#{card}#{also})#{count}: #{f["text"]}#{into}#{proposal}#{note}"
   end

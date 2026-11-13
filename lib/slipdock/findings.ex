@@ -26,7 +26,7 @@ defmodule Slipdock.Findings do
 
   alias Slipdock.Accounts.User
   alias Slipdock.Boards.{Board, Card, Comment}
-  alias Slipdock.Findings.{Block, Finding, Group, Lesson, Promote}
+  alias Slipdock.Findings.{Awaiting, Block, Finding, Group, Lesson, Promote}
   alias Slipdock.Repo
   alias Slipdock.Runners.Job
 
@@ -410,8 +410,11 @@ defmodule Slipdock.Findings do
 
   @doc """
   The tree's findings, newest first, each with `cards`: its own and those of
-  the findings merged into it. `filters`: `status` (default `open`; `all` for
-  every one), `kind`, `source`, `card` (an id), `since` (a `DateTime`, or ISO
+  the findings merged into it, and `waiting` (the proposal's id) on an open
+  one an open proposal names (`Slipdock.Findings.Awaiting.waiting/1`).
+  `filters`: `status` (default `open`, which leaves out the waiting ones, as
+  triage has nothing to decide on them (#2767); `waiting` for just those;
+  `all` for every one), `kind`, `source`, `card` (an id), `since` (a `DateTime`, or ISO
   8601 text, or a whole number of days back) and `scope` (default `board`;
   `runner` for the tooling kept with a runner, `all` for both).
   """
@@ -419,10 +422,11 @@ defmodule Slipdock.Findings do
     with {:ok, since} <- since(filters["since"] || filters[:since]),
          {:ok, scope} <- scope(filters["scope"] || filters[:scope]) do
       status = filters["status"] || filters[:status] || "open"
+      waiting = Awaiting.waiting(board)
 
       Finding
       |> where([f], f.board_id == ^Board.root_id(board))
-      |> by_value(:status, if(status == "all", do: nil, else: status))
+      |> by_status(status, Map.keys(waiting))
       |> by_value(:kind, filters["kind"] || filters[:kind])
       |> by_value(:source, filters["source"] || filters[:source])
       |> by_value(:card_id, filters["card"] || filters[:card])
@@ -433,9 +437,22 @@ defmodule Slipdock.Findings do
       |> preload([:card, :runner])
       |> Repo.all()
       |> with_cards()
+      |> Enum.map(&%{&1 | waiting: if(&1.status == "open", do: waiting[&1.id])})
       |> then(&{:ok, &1})
     end
   end
+
+  # `open` is what triage decides; `waiting` is open but named by a proposal
+  # a person decides (#2767).
+  defp by_status(q, "all", _waiting), do: q
+
+  defp by_status(q, "open", waiting),
+    do: where(q, [f], f.status == "open" and f.id not in ^waiting)
+
+  defp by_status(q, "waiting", waiting),
+    do: where(q, [f], f.status == "open" and f.id in ^waiting)
+
+  defp by_status(q, status, _waiting), do: by_value(q, :status, status)
 
   defp scope(v) when v in [nil, ""], do: {:ok, "board"}
   defp scope("all"), do: {:ok, nil}

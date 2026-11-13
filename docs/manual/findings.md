@@ -125,6 +125,15 @@ a proposal for a person to apply or dismiss:
   a note naming why (`finding #14 promoted: W-1950 §Tests`), so the Tidy-up
   page keeps only what still needs a person. Reopening the finding reopens
   its proposal. A proposal filed by hand that names the finding stays open.
+- **Waiting on a person.** While an open proposal names a finding, the
+  finding is *waiting*, not open: deciding it would close the proposal,
+  which is the person's call, so triage has nothing to do on it. The open
+  list (`slipdock findings`, the API's default, the Findings page and its
+  tile's count) leaves it out; `--status waiting` (`status=waiting`, the
+  page's *Waiting on a person* filter) lists those, each marked
+  `[waiting on proposal #id]` with `waiting` set to the proposal's id in the
+  API. Once the person decides the proposal, the finding is promoted (it was
+  applied) or open again (it was dismissed).
 - **What is proposed.** Only the project's findings, not a runner's tooling,
   and only lessons: what an agent wrote, a verifier's rejection or rule hit,
   or an audit. Events the system records (health incidents, failed merges,
@@ -180,8 +189,8 @@ proposal", with "N findings being handled" under it), not the open findings,
 and `slipdock findings` prints "N proposals await you" first. Below them, as
 reference, it shows the open
 findings, newest first, each with its kind, source, count, card, who recorded
-it, when it was found ("2 h ago", the exact time on hover) and its text, and filters them as the API does: status (open, promoted,
-dismissed, merged, any), kind, source, card and since (days back or a date),
+it, when it was found ("2 h ago", the exact time on hover) and its text, and filters them as the API does: status (open, waiting on a person,
+promoted, dismissed, merged, any), kind, source, card and since (days back or a date),
 kept in the URL so a filtered list can be shared. With write access each open
 finding has **Promote or merge…** (a panel: promote with a note saying what it
 became, or merge it into another open finding picked from a list) and
@@ -192,6 +201,7 @@ became, or merge it into another open finding picked from a list) and
 slipdock findings slipdock                       # proposals awaiting you, then the open ones, newest first; each line dated
                                                  # (#438 today 17:30 gotcha …, or #437 2026-11-07 …, UTC)
 slipdock findings slipdock --kind rule --days 7  # also --status all, --source timeout, --card 12
+slipdock findings slipdock --status waiting      # open ones a proposal names: a person's, not triage's
 slipdock findings slipdock --source incident     # what each incident's check missed
 slipdock findings slipdock --scope runner        # tooling kept with a runner; --scope all for both
 slipdock finding 41 promote --note "W-1950 §Tests TEST-9"
@@ -200,7 +210,7 @@ slipdock finding 43 dismiss
 ```
 
 ```
-GET   /api/boards/:board/findings?status=&kind=&source=&card=&since=&scope=   (since: a date, a time or days; scope: board, runner or all)
+GET   /api/boards/:board/findings?status=&kind=&source=&card=&since=&scope=   (status: open, waiting, promoted, dismissed, merged or all; since: a date, a time or days; scope: board, runner or all)
 PATCH /api/findings/:id {action: dismiss|promote|merge|reopen, note?, into?}
 ```
 

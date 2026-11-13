@@ -326,9 +326,13 @@ defmodule Slipdock.FindingsPromoteTest do
       assert %{proposal_id: ^again, proposed_at_count: 6} = Repo.get!(Finding, ctx.finding.id)
     end
 
-    test "Findings shows the proposal on the finding", ctx do
-      {:ok, [listed]} = Findings.list(ctx.board)
+    # While its proposal is open the finding waits on the person, out of
+    # the open list triage works from (#2767).
+    test "Findings shows the proposal on the finding, waiting on it", ctx do
+      assert {:ok, []} = Findings.list(ctx.board)
+      {:ok, [listed]} = Findings.list(ctx.board, %{"status" => "waiting"})
       assert listed.proposal_id == ctx.suggestion.id and listed.proposed_rule == "UX-4"
+      assert listed.waiting == ctx.suggestion.id
     end
   end
 

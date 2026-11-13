@@ -518,7 +518,8 @@ anybody reads later:
    The board keeps each
    one (`slipdock findings <board>`), where the daily triage and the server
    promote it into the handbook, merge or dismiss it (a person decides only
-   the rules drafted from them), and records rejections, timeouts, requeues
+   the rules drafted from them, and a finding one names waits on that
+   decision, out of the open list), and records rejections, timeouts, requeues
    and failed merges by itself, so don't write those up again.
    What you learn about the project goes here or in the handbook, never only
    in your own agent memory, which nobody else reads: that keeps only facts

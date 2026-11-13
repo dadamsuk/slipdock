@@ -159,6 +159,18 @@ defmodule SlipdockCLI.FindingsTest do
     assert Findings.line(Map.put(@open, "proposal_id", 78)) =~ "[proposal #78]"
   end
 
+  # #2767: open, but a proposal names it, so it waits on the person.
+  test "a finding waiting on a proposal says so in place of its status" do
+    line = Findings.line(Map.put(@open, "waiting", 77))
+    assert line =~ "[waiting on proposal #77] gotcha"
+    refute Findings.line(Map.put(@open, "waiting", nil)) =~ "waiting"
+  end
+
+  test "--status waiting goes in the query, and the usage names it" do
+    assert Findings.query(status: "waiting")[:status] == "waiting"
+    assert File.read!(Path.expand("../help.txt", __DIR__)) =~ "open|waiting|promoted"
+  end
+
   # #2114: when it was found, so this morning's read apart from the last hour's.
   test "the line says when it was found: the time for today's, else the date" do
     now = ~U[2026-11-08 18:00:00Z]

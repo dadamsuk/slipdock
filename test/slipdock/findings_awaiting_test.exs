@@ -51,4 +51,17 @@ defmodule Slipdock.FindingsAwaitingTest do
     assert Awaiting.findings(%Suggestion{subject: %{"findings" => "x"}}) == []
     assert Awaiting.count(board_fixture(%{"name" => "Empty"}, owner: owner)) == 0
   end
+
+  # #2767: what triage leaves to the person, with the oldest proposal naming it.
+  test "waiting/1 maps each finding an open proposal names to that proposal" do
+    owner = user_fixture()
+    board = board_fixture(%{"name" => "Root"}, owner: owner)
+
+    first = proposal(board, %{"findings" => [1, 2]})
+    second = proposal(board, %{"findings" => [2, 3]})
+    proposal(board, %{"findings" => [4]}, state: "dismissed")
+
+    assert Awaiting.waiting(board) == %{1 => first.id, 2 => first.id, 3 => second.id}
+    assert Awaiting.waiting(board_fixture(%{"name" => "Empty"}, owner: owner)) == %{}
+  end
 end

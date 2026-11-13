@@ -16,6 +16,9 @@ defmodule SlipdockWeb.FindingsLive.Index do
   drafted from findings (`Slipdock.Findings.Awaiting`), each linking the
   Tidy-up page where it is applied or dismissed. Triage and the server
   handle the findings themselves, so their list comes after, as reference.
+  A finding such a proposal names is *waiting* (#2767): it is out of the
+  open list, under the *Waiting on a person* filter, badged with the
+  proposal's id, since deciding it would close the person's proposal.
   """
   use SlipdockWeb, :live_view
 
@@ -111,9 +114,12 @@ defmodule SlipdockWeb.FindingsLive.Index do
     end
   end
 
-  # What a finding can merge into: the tree's other open findings.
+  # What a finding can merge into: the tree's other open findings, those
+  # waiting on a proposal (#2767) among them.
   defp merge_options(root, finding) do
     {:ok, open} = Findings.list(root, %{"status" => "open", "scope" => "all"})
+    {:ok, waiting} = Findings.list(root, %{"status" => "waiting", "scope" => "all"})
+    open = Enum.sort_by(open ++ waiting, &{&1.updated_at, &1.id}, :desc)
 
     for f <- open, f.id != finding.id do
       {"##{f.id} #{f.kind}: #{String.slice(f.text, 0, 80)}", f.id}
@@ -193,8 +199,8 @@ defmodule SlipdockWeb.FindingsLive.Index do
 
   defp status_options,
     do:
-      [{"Open", "open"}, {"Promoted", "promoted"}, {"Dismissed", "dismissed"}] ++
-        [{"Merged", "merged"}, {"Any status", "all"}]
+      [{"Open", "open"}, {"Waiting on a person", "waiting"}, {"Promoted", "promoted"}] ++
+        [{"Dismissed", "dismissed"}, {"Merged", "merged"}, {"Any status", "all"}]
 
   # A runner's tooling (#1941) is about one machine, so it is out of the
   # board's list unless asked for.
@@ -228,6 +234,16 @@ defmodule SlipdockWeb.FindingsLive.Index do
         >
           {@finding.status}{if @finding.merged_into_id, do: " into ##{@finding.merged_into_id}"}
         </span>
+        <%!-- Open, but a proposal naming it waits on a person (#2767): not triage's. --%>
+        <.link
+          :if={@finding.waiting}
+          navigate={~p"/boards/#{@finding.board_id}/tidy"}
+          class="badge badge-sm badge-warning"
+          data-role="waiting"
+          title="Waits on a person deciding this proposal on the Tidy-up page, not on triage"
+        >
+          waiting on proposal #{@finding.waiting}
+        </.link>
         <span class="text-base-content/50">#{@finding.id}</span>
         <%!-- When it was found (#2114): "2 h ago", the exact time on hover. --%>
         <.timestamp
