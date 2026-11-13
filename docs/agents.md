@@ -856,9 +856,13 @@ and before/after hooks: for a `/loop` or a routine written into the prompt it
 generates, and for a machine's runner set on the machine's page, the hooks by
 name from the machine's own file.
 
-Runners also report **drift**: on every claim the SHA-256 of each installed
-slipdock skill's `SKILL.md` and of the `slipdock` CLI, which the server
-compares with what it serves. `slipdock runners` (SKILLS · CLI), the Runners
+Runners also report **drift**: on every claim one SHA-256 for each installed
+slipdock skill and that of the `slipdock` CLI, which the server
+compares with what it serves. A skill's hash covers every file of it (its
+`SKILL.md` and each file in `references/`, by path and contents), so a
+reference file that is changed, missing or extra is drift too; an older
+daemon's hash, of the `SKILL.md` alone, reads as current while that file
+matches. `slipdock runners` (SKILLS · CLI), the Runners
 panel and the runner's `drift` in the API say current, drifted (naming the
 skills), old, unsigned or unknown, and a drifted runner raises one alert until it is
 current again. The server never changes the machine; its daemon does,

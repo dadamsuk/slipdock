@@ -67,9 +67,10 @@ func TestClaudeJobRunsWithTheRunnersSettings(t *testing.T) {
 	if got := h.Get("X-Runner-Version"); got != "daemon test" {
 		t.Errorf("X-Runner-Version = %q", got)
 	}
-	sum := sha256.Sum256([]byte("a skill\n"))
+	file := sha256.Sum256([]byte("a skill\n"))
+	sum := sha256.Sum256([]byte("SKILL.md\x00" + hex.EncodeToString(file[:]) + "\n"))
 	if got := h.Get("X-Runner-Skills"); got != "slipdock-loop="+hex.EncodeToString(sum[:]) {
-		t.Errorf("X-Runner-Skills = %q: want the SKILL.md's sha256 without carriage returns", got)
+		t.Errorf("X-Runner-Skills = %q: want the sum of the skill's files, without carriage returns", got)
 	}
 	if got := h.Get("X-Runner-Cli"); got != "none" {
 		t.Errorf("X-Runner-CLI = %q", got)

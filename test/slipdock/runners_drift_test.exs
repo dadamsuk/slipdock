@@ -69,7 +69,17 @@ defmodule Slipdock.RunnersDriftTest do
 
   defp sha(bytes), do: :crypto.hash(:sha256, bytes) |> Base.encode16(case: :lower)
 
-  defp served(name), do: Drift.served_skills() |> Map.fetch!(name)
+  # What a runner with the server's own copy of a skill says: the sum of
+  # every file of it, and (a daemon from before #3006) of its SKILL.md alone.
+  defp served(name), do: Drift.served_skills() |> Map.fetch!(name) |> hd()
+  defp served_md(name), do: Drift.served_skills() |> Map.fetch!(name) |> List.last()
+
+  # The files the server serves for a skill, as {path, contents}.
+  defp served_files(name) do
+    for file <- Slipdock.Skills.get(name).files do
+      {file, Slipdock.DocsText.read!(Path.join([Slipdock.Skills.dir(), name, file]))}
+    end
+  end
 
   defp claim(ctx, headers) do
     headers
@@ -82,14 +92,63 @@ defmodule Slipdock.RunnersDriftTest do
     do: Repo.all(from(a in Alert, where: a.board_id == ^board.id, order_by: a.id))
 
   describe "what the server serves" do
-    test "each packaged skill's SKILL.md, by SHA-256" do
+    test "each packaged skill: the sum of every file of it, then its SKILL.md's alone (#3006)" do
       skills = Drift.served_skills()
-
-      text =
-        Slipdock.DocsText.read!(Path.join([Slipdock.Skills.dir(), "slipdock-loop", "SKILL.md"]))
-
-      assert skills["slipdock-loop"] == sha(text)
       assert Map.has_key?(skills, "slipdock")
+
+      # A skill with reference files: each is in the sum, by path.
+      files = served_files("slipdock-wiki")
+      assert Enum.any?(files, fn {path, _} -> String.starts_with?(path, "references/") end)
+      {"SKILL.md", text} = List.keyfind(files, "SKILL.md", 0)
+
+      lines =
+        for {path, body} <- Enum.sort(files), do: path <> <<0>> <> sha(body) <> "\n"
+
+      assert skills["slipdock-wiki"] == [sha(Enum.join(lines)), sha(text)]
+      assert served("slipdock-wiki") != served_md("slipdock-wiki")
+
+      for {_name, sums} <- skills do
+        assert [sum, md] = sums
+        assert sum =~ ~r/\A[0-9a-f]{64}\z/ and md =~ ~r/\A[0-9a-f]{64}\z/
+      end
+    end
+
+    test "a skill's sum is the daemon's: the same files give the same sum" do
+      # The sums `daemon/internal/runner/drift_test.go` pins for these files.
+      whole = [
+        {"SKILL.md", "a skill\n"},
+        {"references/api.md", "the api\n"},
+        {"references/markup.md", "the markup\n"}
+      ]
+
+      sum = "7b8e3adc347d9f4ebe788382b9924ff5b882e9705e89cd1fb3e20d40433d7ab7"
+      assert Drift.skill_sum(whole) == sum
+
+      assert Drift.skill_sum([{"SKILL.md", "a skill\n"}]) ==
+               "9a6d16f5221aff4e3b9730271e8ec803c48f8ce699256b2e332010dee8ede178"
+
+      # In any order, and whatever the line endings.
+      assert Drift.skill_sum(Enum.reverse(whole)) == sum
+
+      assert Drift.skill_sum(
+               Enum.map(whole, fn {p, t} -> {p, String.replace(t, "\n", "\r\n")} end)
+             ) == sum
+
+      # A dot file (an editor's, a desktop's) isn't the skill's, as in the daemon.
+      assert Drift.skill_sum(whole ++ [{".DS_Store", "x"}, {"references/.api.md.swp", "x"}]) ==
+               sum
+
+      # A file's text, its name, one fewer or one more: each is another sum.
+      assert Drift.skill_sum(
+               List.keyreplace(whole, "references/api.md", 0, {"references/api.md", "old\n"})
+             ) != sum
+
+      assert Drift.skill_sum(
+               List.keyreplace(whole, "references/api.md", 0, {"references/apis.md", "the api\n"})
+             ) != sum
+
+      assert Drift.skill_sum(List.keydelete(whole, "references/markup.md", 0)) != sum
+      assert Drift.skill_sum(whole ++ [{"references/old.md", ""}]) != sum
     end
 
     test "the CLI escript's SHA-256, as /cli/SHA256SUMS publishes it; nil without one", ctx do
@@ -141,6 +200,26 @@ defmodule Slipdock.RunnersDriftTest do
                %Runner{skills: %{"slipdock" => @old, "slipdock-loop" => @old}},
                served
              ) == {:drifted, ["slipdock-loop"]}
+    end
+
+    test "skills: any of the sums the server reads as current for a skill is current (#3006)" do
+      md = String.duplicate("c", 64)
+      served = %{"slipdock" => [@old, md], "slipdock-loop" => [String.duplicate("b", 64), md]}
+
+      # Every file's sum, or (a daemon from before #3006) the SKILL.md's.
+      assert Drift.skills_state(%Runner{skills: %{"slipdock" => @old}}, served) == :current
+      assert Drift.skills_state(%Runner{skills: %{"slipdock" => md}}, served) == :current
+
+      assert Drift.skills_state(
+               %Runner{skills: %{"slipdock" => md, "slipdock-loop" => @old}},
+               served
+             ) == {:drifted, ["slipdock-loop"]}
+
+      assert Drift.skills_state(
+               %Runner{skills: %{"slipdock" => String.duplicate("d", 64)}},
+               served,
+               false
+             ) == {:unsigned, ["slipdock"]}
     end
 
     test "cli: current, old, none, or unknown" do
@@ -215,6 +294,73 @@ defmodule Slipdock.RunnersDriftTest do
                %{skills: "unknown", drifted_skills: [], cli: "unknown"}
 
       assert alerts(ctx.board) == []
+    end
+
+    test "a reference file changed, missing or extra is drift, its SKILL.md current (#3006)",
+         ctx do
+      files = served_files("slipdock-wiki")
+      {reference, text} = Enum.find(files, fn {path, _} -> path =~ ~r{\Areferences/} end)
+
+      for {what, installed} <- [
+            {"changed", List.keyreplace(files, reference, 0, {reference, text <> "older\n"})},
+            {"missing", List.keydelete(files, reference, 0)},
+            {"extra", files ++ [{"references/left-behind.md", "from an older release\n"}]}
+          ] do
+        # What the daemon says of that copy: the SKILL.md in it is the server's.
+        assert List.keyfind(installed, "SKILL.md", 0) == List.keyfind(files, "SKILL.md", 0)
+        sum = Drift.skill_sum(installed)
+
+        assert claim(ctx, [{"x-runner-skills", "slipdock-wiki=#{sum}"}]).status == 204
+        runner = Repo.get!(Runner, ctx.runner.id)
+
+        assert SlipdockWeb.API.JSON.runner(runner).drift ==
+                 %{skills: "drifted", drifted_skills: ["slipdock-wiki"], cli: "unknown"},
+               "a reference #{what} should read as drifted"
+
+        assert [alert] = alerts(ctx.board)
+        assert alert.title =~ "skills drifted (slipdock-wiki)"
+
+        # Every file as the server's again: current, and the alert goes.
+        whole = "slipdock-wiki=#{Drift.skill_sum(files)}"
+        assert claim(ctx, [{"x-runner-skills", whole}]).status == 204
+        runner = Repo.get!(Runner, ctx.runner.id)
+        assert SlipdockWeb.API.JSON.runner(runner).drift.skills == "current"
+        assert alerts(ctx.board) == []
+      end
+    end
+
+    test "a daemon from before #3006 (its sum is the SKILL.md's alone) isn't drifted by that",
+         ctx do
+      # Every skill it has, as that daemon sends them: none is a false alarm.
+      header =
+        Enum.map_join(Drift.served_skills(), ",", fn {name, _} -> "#{name}=#{served_md(name)}" end)
+
+      assert served_md("slipdock-wiki") ==
+               sha(List.keyfind(served_files("slipdock-wiki"), "SKILL.md", 0) |> elem(1))
+
+      assert claim(ctx, [{"x-runner-skills", header}]).status == 204
+      runner = Repo.get!(Runner, ctx.runner.id)
+
+      assert SlipdockWeb.API.JSON.runner(runner).drift ==
+               %{skills: "current", drifted_skills: [], cli: "unknown"}
+
+      assert alerts(ctx.board) == []
+      assert runner.drift_alert_id == nil
+
+      # Its SKILL.md another than the server's is still drift, as it was.
+      old =
+        String.replace(
+          header,
+          "slipdock-wiki=#{served_md("slipdock-wiki")}",
+          "slipdock-wiki=#{@old}"
+        )
+
+      assert claim(ctx, [{"x-runner-skills", old}]).status == 204
+
+      assert SlipdockWeb.API.JSON.runner(Repo.get!(Runner, ctx.runner.id)).drift ==
+               %{skills: "drifted", drifted_skills: ["slipdock-wiki"], cli: "unknown"}
+
+      assert [_alert] = alerts(ctx.board)
     end
 
     test "drift raises one alert, kept while it lasts, cleared when current again", ctx do
