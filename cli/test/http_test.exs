@@ -77,6 +77,14 @@ defmodule SlipdockCLI.HTTPTest do
       assert File.read!(dest) == "data"
     end
 
+    test "the last 2xx is still written from its body", %{home: home} do
+      serve([{299, "edge"}])
+      dest = Path.join(home, "edge.bin")
+
+      assert :ok = HTTP.download("/attachments/9", dest)
+      assert File.read!(dest) == "edge"
+    end
+
     test "a status just outside 2xx is an error", %{home: home} do
       serve([{300, "{}"}])
       dest = Path.join(home, "moved.bin")
