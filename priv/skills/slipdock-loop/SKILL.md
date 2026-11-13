@@ -499,8 +499,13 @@ Subcards can be built side by side by subagents, one each. **Wait for every
 subagent you started before your turn ends.** In print mode (`claude -p`, as
 a runner runs it) the run ends when the turn does, and its subagents are
 stopped with their builds half done. Don't end the turn to be told they have
-finished: wait for them in it. When they are done, each subcard is finished
-and closed, or handed back (below) with a handoff saying where its build got to.
+finished: wait for them in it. The same goes for each subagent's own work, so
+**every subagent's brief tells it to run everything in the foreground**: its
+tests, `mix pre_push` or the project's checks, and its CI watch. A subagent
+that starts a background run and ends its turn to wait for it never wakes in
+a runner's job, and its subcard is left half built. When they are done, each
+subcard is finished and closed, or handed back (below) with a handoff saying
+where its build got to.
 
 The parent closes last, when its rollup shows every child done and the build
 of the last push is green (step 7.4: it waits for that build), with a comment

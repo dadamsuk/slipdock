@@ -5,7 +5,9 @@ defmodule SlipdockWeb.SubagentWaitDocsTest do
   the loop skill has a pass wait for the subagents it started and never leave
   a subcard it moved in sitting in progress with nothing working on it, and
   the manual's runner section says so, with the variable a Claude runner's
-  config exports. The skill is read from `priv/skills/` only: that is its one
+  config exports. Each subagent's brief tells it to run everything in the
+  foreground too (#2974): a subagent's own background run never wakes it in a
+  runner's job. The skill is read from `priv/skills/` only: that is its one
   source (#2048).
   """
   use ExUnit.Case, async: true
@@ -43,6 +45,33 @@ defmodule SlipdockWeb.SubagentWaitDocsTest do
     [_, section] = String.split(loop, "## 5. Subcards before the parent", parts: 2)
     [section | _] = String.split(section, "\n## ", parts: 2)
     assert_states(section, "Wait for every\nsubagent you started")
+  end
+
+  test "each subagent's brief says to run everything in the foreground (#2974)" do
+    loop = read("priv/skills/slipdock-loop/SKILL.md")
+    [_, section] = String.split(loop, "## 5. Subcards before the parent", parts: 2)
+    [section | _] = String.split(section, "\n## ", parts: 2)
+    section = flat(section)
+
+    for part <- [
+          "**every subagent's brief tells it to run everything in the foreground**",
+          "its tests, `mix pre_push` or the project's checks, and its CI watch",
+          "A subagent that starts a background run and ends its turn to wait for it " <>
+            "never wakes in a runner's job"
+        ],
+        do: assert_states(section, part, part)
+
+    # Each part that carries the meaning is a fact here (a short quotation),
+    # so a claim can't pass on the rest of its key words: turning "foreground"
+    # into "background", dropping "never" or the CI watch fails (#2974).
+    for part <- [
+          ~s{the brief says "run everything" "in the foreground"},
+          ~s{"in the foreground": its tests, its pre-push checks and "its CI watch"},
+          ~s{a subagent's "background run" "never wakes" in a runner's job}
+        ],
+        do: assert_states(section, part, part)
+
+    refute section =~ "in the background", "§5 must not tell a subagent to run in the background"
   end
 
   test "the manual's runner section says why, and what a Claude runner exports" do
