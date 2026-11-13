@@ -170,7 +170,9 @@ MCP, `get_card` shows it and `update_card` takes `recurrence` (an object, or
 
 **Duplicate.** The same copy, made by hand: **Duplicate** in the card's
 **⋯** menu (top right, beside the heart) puts a copy straight after it and opens it (`slipdock copy 12`,
-`POST /api/cards/:id/copy`, with `board`, `column`, `title` or `at: top`).
+`POST /api/cards/:id/copy`, with `board`, `column`, `title` or `at: top`). The
+copy is a new card on the board, so it needs write access to the board itself,
+not only to the card: someone the card alone is shared with doesn't see it.
 
 ---
 

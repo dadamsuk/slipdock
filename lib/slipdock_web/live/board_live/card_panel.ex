@@ -43,6 +43,11 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
 
   attr :board, :any, required: true
   attr :can_write, :boolean, required: true
+
+  attr :can_add, :boolean,
+    default: false,
+    doc: "offer Duplicate: it adds a card to the board, so needs write on the board"
+
   attr :card, Card, required: true
 
   attr :handoff_link, :boolean,
@@ -131,7 +136,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
         class="pop-menu"
       >
         <ul class="menu w-48 rounded-xl bg-base-100 p-1 text-sm shadow-xl ring-1 ring-base-content/10">
-          <li>
+          <li :if={@can_add}>
             <button
               id="duplicate-card"
               type="button"

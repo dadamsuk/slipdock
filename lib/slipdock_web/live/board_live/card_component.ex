@@ -82,6 +82,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
        card_form: nil,
        panel_notice: nil,
        notice_for: nil,
+       can_add: false,
        narrow?: false,
        # The sections the reader's card view hides, shown on this card
        # anyway after the hint's Show them (#2031).
@@ -331,6 +332,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
         picking_template={@picking_template}
         close_navigate={@close_navigate}
         can_write={@can_write}
+        can_add={@can_add}
         can_comment={@can_comment}
         can_share={@can_share}
         grants={@card_grants}

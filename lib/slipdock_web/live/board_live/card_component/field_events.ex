@@ -191,6 +191,10 @@ defmodule SlipdockWeb.BoardLive.CardComponent.FieldEvents do
   end
 
   # A copy as the card is now, straight after it, and opened (W-1802).
+  def handle_event("duplicate_card", _, socket) when socket.assigns.can_add != true do
+    {:noreply, notice(socket, :error, "Duplicating needs write access to the board.")}
+  end
+
   def handle_event("duplicate_card", _, socket) do
     %{card: card, current_user: user} = socket.assigns
 

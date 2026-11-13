@@ -51,6 +51,56 @@ defmodule SlipdockWeb.DuplicateCardLiveTest do
     assert length(Boards.Columns.active_items(ctx.column.id)) == 2
   end
 
+  describe "write on the card alone" do
+    for board_level <- [nil, "read", "comment"] do
+      @board_level board_level
+      test "a card writer with #{board_level || "no"} board access is refused, and no card is made",
+           ctx do
+        writer = user_fixture("card-writer@example.com")
+
+        grant_board(ctx, writer, @board_level)
+
+        {:ok, _} = Access.grant(ctx.card, writer, "write", ctx.user)
+        conn = log_in_user(build_conn(), writer)
+        {:ok, view, _} = live(conn, ~p"/boards/#{ctx.board}/cards/#{ctx.card.id}")
+
+        # They may edit the card, but Duplicate adds one to the board: it
+        # isn't offered, and the event sent anyway is refused.
+        assert has_element?(view, "#card-more")
+        refute has_element?(view, "#duplicate-card")
+
+        before = Boards.Columns.active_items(ctx.column.id)
+        view |> with_target("#board-card") |> render_click("duplicate_card", %{})
+        view |> with_target("#board-card") |> render_click("duplicate_card", %{})
+
+        assert view |> element("#card-modal #panel-notice[data-callout=error]") |> render() =~
+                 "needs write access to the board"
+
+        assert Boards.Columns.active_items(ctx.column.id) == before
+        assert length(before) == 2
+      end
+    end
+  end
+
+  test "board write lowered while the card is open is asked again, and no card is made", ctx do
+    writer = user_fixture("was-writer@example.com")
+    {:ok, _} = Access.grant(ctx.board, writer, "write", ctx.user)
+    {:ok, _} = Access.grant(ctx.card, writer, "write", ctx.user)
+    conn = log_in_user(build_conn(), writer)
+    {:ok, view, _} = live(conn, ~p"/boards/#{ctx.board}/cards/#{ctx.card.id}")
+    assert has_element?(view, "#duplicate-card")
+
+    {:ok, _} = Access.grant(ctx.board, writer, "read", ctx.user)
+
+    before = Boards.Columns.active_items(ctx.column.id)
+    view |> with_target("#board-card") |> render_click("duplicate_card", %{})
+
+    assert view |> element("#card-modal #panel-notice[data-callout=error]") |> render() =~
+             "needs write access to the board"
+
+    assert Boards.Columns.active_items(ctx.column.id) == before
+  end
+
   test "the card limit is said, not crashed on", ctx do
     {:ok, _} =
       Settings.complete_setup(%{"admin_email" => "admin@example.com", "free_card_limit" => 2})
@@ -62,5 +112,12 @@ defmodule SlipdockWeb.DuplicateCardLiveTest do
 
     assert view |> element("#card-modal #panel-notice[data-callout=error]") |> render() =~
              "has used all 2 of their cards"
+  end
+
+  defp grant_board(_ctx, _user, nil), do: :ok
+
+  defp grant_board(ctx, user, level) do
+    {:ok, _} = Access.grant(ctx.board, user, level, ctx.user)
+    :ok
   end
 end
