@@ -117,7 +117,7 @@ defmodule Slipdock.SpikesTest do
 
       assert [wait] = waits(ctx.epic)
       assert wait.needs =~ "Spikes answered (##{one.id}): resume planning"
-      refute wait.needs =~ "##{dropped.id}"
+      refute wait.needs =~ ~r/##{dropped.id}\b/
     end
 
     test "cards that aren't spikes don't hold it back", ctx do
@@ -202,6 +202,6 @@ defmodule Slipdock.SpikesTest do
     s = spike(ctx.column, "Unverified")
     {:ok, _} = Boards.Cards.update_card(fresh(s), %{"completed" => true})
     assert [wait] = waits(ctx.epic)
-    assert wait.needs =~ "##{s.id}"
+    assert wait.needs =~ ~r/##{s.id}\b/
   end
 end

@@ -78,7 +78,7 @@ defmodule Slipdock.LanesSiblingsTest do
       assert %Card{id: id} = Lanes.conflict(second)
       assert id == first.id
       assert {:error, :unprocessable_entity, message} = move(second, ctx.sub_doing, ctx)
-      assert message =~ "##{first.id}"
+      assert message =~ ~r/##{first.id}\b/
       assert Repo.reload!(second).column_id == ctx.sub_todo.id
     end
 
@@ -117,7 +117,7 @@ defmodule Slipdock.LanesSiblingsTest do
 
       changeset = Lanes.check_create(changeset, ctx.sub_doing, ctx.agent)
       assert {message, _} = changeset.errors[:paths]
-      assert message =~ "##{first.id}"
+      assert message =~ ~r/##{first.id}\b/
     end
 
     test "siblings whose paths don't overlap, or overlap only on shared paths, both start",
@@ -165,7 +165,7 @@ defmodule Slipdock.LanesSiblingsTest do
       other = card(ctx.todo, "Other", "lib/slipdock/verified.ex")
 
       assert {:error, :unprocessable_entity, message} = move(other, ctx.doing, ctx)
-      assert message =~ "##{child.id}"
+      assert message =~ ~r/##{child.id}\b/
     end
 
     test "a queued job on a card overlapping it is held", ctx do
