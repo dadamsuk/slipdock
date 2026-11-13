@@ -31,7 +31,7 @@ defmodule Slipdock.Handbook do
   alias Slipdock.Wiki.{Folders, FrontMatter, Page}
 
   @name "handbook"
-  @version "1.9.0"
+  @version "1.9.1"
   @folder "Handbook"
   @decisions "Handbook/Decisions"
 
@@ -446,12 +446,12 @@ defmodule Slipdock.Handbook do
 
   1. Find where the last reconcile stopped: the last line of the Index's `## Log` (a commit range, `<from>..<to>`). None yet: start from the commit that seeded the handbook. A `<to>` that is no longer in the default branch's history (it was rewritten): find its equivalent by its subject.
   2. `git fetch`, then `git log --oneline --reverse <to>..origin/<default branch>`. Nothing new: close the card with `Handbook: no change (nothing landed)`, and leave the Log alone.
-  3. Take at most 20 of those commits, oldest first: the range is `<to>..<the 20th>`. The rest wait for the next night.
+  3. Take about 20 of those commits, oldest first, ending the range on a commit of the default branch's own line (its first-parent history). Only there does `<to>..<end>` hold exactly the commits read: with merges in the history, the 20th line of that list isn't a descendant of every line before it, so a range ending on it leaves some out and the next night lists them again. `git rev-list --first-parent --reverse <to>..origin/<default branch> | while read c; do [ -n "$seen" ] && [ "$(git rev-list --count <to>.."$c")" -gt 20 ] && break; seen=1; echo "$c"; done | tail -1` gives `<end>`: the last such commit whose range holds at most 20, or the first one when a single merge brings in more (a merge is never split). The range is `<to>..<end>`, the commits read are `git log --oneline --reverse <to>..<end>`, and `git rev-list --count <to>..<end>` is how many. The rest wait for the next night.
   4. Find what the range touches: `git log --name-only --format= <range> | sort -u | slipdock handbook <board> --paths-from -`. It lists the pages whose `covers:` match those paths, and the rules the paths fall under. Read only those pages, by section (`slipdock page section`), against the range's diffs.
   5. For each change, check those pages and the checklist: user-visible behaviour → Specification; structure or boundaries → Architecture / Data model; a choice between alternatives → a new page in `Handbook/Decisions`; something reusable → Shared modules / Components; a UI pattern → UX & UI; how to test, build or deploy → Testing & tooling / Operations. A changed path that no page covers but one should: add it to that page's `covers:`.
   6. A range that touches CI config (`.github/workflows/**`, `.gitlab-ci.yml`, `.circleci/**`, `Jenkinsfile`, and the like): read Testing & tooling's `## Before you push` against the workflows as they now are, and fix the drift there. Every check CI runs on a pull request runs through its one command or is named as having no local equivalent, with why. A new check the command doesn't run: say so in the section, and propose the change to the command in the closing comment rather than making it unasked.
   7. Update what drifted, by section, with `--message "#<this card> reconcile <range>"`. Facts, links and splits are yours to fix. A rule (`## Rules`) or a decision that looks wrong is a person's call: don't rewrite it, say so as a finding (`handbook-wrong:` or `rule:`) in the closing comment.
-  8. Append the range to the Index's `## Log`: `- <date>: <from>..<to> (<n> commits), updated <codes>` (or `nothing drifted`).
+  8. Append the range to the Index's `## Log`: `- <date>: <from>..<to> (<n> commits), updated <codes>` (or `nothing drifted`), where `<from>..<to>` is step 3's range, `<n>` its count and `<to>` its `<end>`, never a commit off the default branch's own line.
   9. Close the card with a `Handbook:` line. The next one comes by itself tomorrow.
   """
 
@@ -929,6 +929,9 @@ defmodule Slipdock.Handbook do
   # procedure: its description, and a series' rule when it is on another.
   # Nothing else on the card or the series changes, and a card already
   # current is left alone. Reported as "<title> (updated: nightly)".
+  # Any later change to the procedure reaches an installed card the same
+  # way: 1.9.1 (#2911) ends the range on a first-parent commit, so that it
+  # holds exactly the commits read on a history with merges.
   defp upgrade_reconcile(root, user, report) do
     with false <- Enum.member?(report.added["cards"], @reconcile_title),
          {card, series} <- reconcile_card(root),
