@@ -73,6 +73,11 @@ defmodule SlipdockWeb.ReleaseNowTest do
     {result["isError"] == true, text}
   end
 
+  # How many times `text` appears in the element `selector` renders.
+  defp occurrences(view, selector, text) do
+    view |> element(selector) |> render() |> String.split(text) |> length() |> Kernel.-(1)
+  end
+
   defp merged!(todo, title) do
     card = card_fixture(todo, %{"title" => title})
 
@@ -249,11 +254,14 @@ defmodule SlipdockWeb.ReleaseNowTest do
 
       refute has_element?(view, "#release-awaiting-card-#{open.id}")
       refute has_element?(view, "#release-banner-line", "·")
+      # The count is said once, as the toggle, not in the line as well.
+      assert occurrences(view, "#release-banner-line", "2 merged, awaiting release") == 1
 
-      # A release running takes them: no count, no list.
+      # A release running takes them: no count, no list, no separator.
       {:ok, :started, _} = Releases.release_now(ctx.board, "Eli")
       assert has_element?(view, "#release-banner-line", "A release is running (2 cards)")
       refute has_element?(view, "#release-awaiting")
+      refute has_element?(view, "#release-banner-line span", "·")
     end
 
     test "no banner with nothing to say, or on a board that releases on merge", ctx do
@@ -326,6 +334,15 @@ defmodule SlipdockWeb.ReleaseNowTest do
              )
 
       refute has_element?(view, "#board-release-line", "Nothing merged is awaiting release.")
+      # Said once, as the toggle; with nothing else to say, no separator.
+      assert occurrences(view, "#board-release-line", "1 merged, awaiting release") == 1
+      refute has_element?(view, "#board-release-line", "·")
+
+      # A release running lists nothing, and leaves no separator behind.
+      {:ok, :started, _} = Releases.release_now(ctx.board, "Eli")
+      assert has_element?(view, "#board-release-line", "A release is running")
+      refute has_element?(view, "#board-release-awaiting")
+      refute has_element?(view, "#board-release-line span", "·")
     end
 
     test "a release asked for elsewhere shows without a reload", ctx do
@@ -480,8 +497,12 @@ defmodule SlipdockWeb.ReleaseNowTest do
     end
 
     test "the Agentic Building page shows it with the run and lifts it", ctx do
+      merged!(ctx.todo, "Waiting")
       {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/agentic")
       assert has_element?(view, "#board-release-line", "Releases held")
+      # Held, the count still opens the list, after the hold (#3038).
+      assert has_element?(view, "#board-release-line span", "·")
+      assert has_element?(view, "#board-release-awaiting-toggle", "1 merged, awaiting release")
 
       assert has_element?(
                view,
