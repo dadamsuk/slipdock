@@ -197,6 +197,41 @@ defmodule SlipdockWeb.AILiveTest do
     assert system =~ "Granted notes"
   end
 
+  test "the chat lists a draft page only to someone who could write it", %{
+    conn: conn,
+    board: board
+  } do
+    owner = user_fixture()
+    page_fixture(board, %{"title" => "Published notes", "status" => "published"})
+    draft = page_fixture(board, %{"title" => "Draft notes", "status" => "draft"})
+
+    # Read on the board: published pages, no drafts.
+    reader = user_fixture("reader@example.com")
+    {:ok, _} = Slipdock.Access.grant(board, reader, "read", owner)
+    system = ask_board_chat(log_in_user(conn, reader), ~p"/boards/#{board}")
+    assert system =~ "Published notes"
+    refute system =~ "Draft notes"
+
+    # A view-only user with read on the draft itself is still not told of it.
+    viewer = user_fixture("viewer@example.com")
+    {:ok, saved} = Boards.SavedViews.create_saved_view(board, %{"name" => "Due soon"})
+    {:ok, _} = Slipdock.Access.grant(saved, viewer, "read", owner)
+    {:ok, _} = Slipdock.Access.grant(draft, viewer, "read", owner)
+
+    system =
+      ask_board_chat(log_in_user(conn, viewer), ~p"/boards/#{board}/swimlanes?view=#{saved.id}")
+
+    assert system =~ "## Wiki pages on this board (0)"
+    refute system =~ "Draft notes"
+
+    # Write on the board: the draft too.
+    writer = user_fixture("writer@example.com")
+    {:ok, _} = Slipdock.Access.grant(board, writer, "write", owner)
+    system = ask_board_chat(log_in_user(conn, writer), ~p"/boards/#{board}")
+    assert system =~ "Published notes"
+    assert system =~ "Draft notes"
+  end
+
   defp ask_board_chat(conn, path) do
     Slipdock.AIStub.reply_with("Noted.")
     {:ok, view, _} = live(conn, path)
