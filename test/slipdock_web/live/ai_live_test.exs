@@ -54,8 +54,13 @@ defmodule SlipdockWeb.AILiveTest do
     blocker = card_fixture(hd(other.columns), %{"title" => "Hush project"})
     {:ok, _} = Boards.Dependencies.add_dependency(card, blocker)
 
+    shared = board_fixture(%{"name" => "Shared"})
+    readable = card_fixture(hd(shared.columns), %{"title" => "Open plan"})
+    {:ok, _} = Boards.Dependencies.add_dependency(card, readable)
+
     reader = user_fixture("reader-#{System.unique_integer([:positive])}@example.com")
     share_fixture(board, reader, "read")
+    share_fixture(shared, reader, "read")
     conn = log_in_user(Phoenix.ConnTest.build_conn(), reader)
 
     Slipdock.AIStub.reply_with("Something you can't see.")
@@ -67,7 +72,9 @@ defmodule SlipdockWeb.AILiveTest do
     assert_receive {:ai_request,
                     %{"messages" => [%{"role" => "system", "content" => system} | _]}}
 
-    assert system =~ "Blocked by: ##{blocker.id} A card you can't see"
+    [blocked_by] = Regex.run(~r/^Blocked by: .*$/m, system)
+    assert blocked_by =~ "##{blocker.id} A card you can't see"
+    assert blocked_by =~ "##{readable.id} Open plan"
     refute system =~ "Hush project"
   end
 
