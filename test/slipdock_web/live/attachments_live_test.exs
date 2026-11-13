@@ -66,6 +66,41 @@ defmodule SlipdockWeb.AttachmentsLiveTest do
     refute has_element?(view, "#attachment-#{a.id}")
   end
 
+  test "a file part-way up is not stored until its last chunk lands", %{
+    conn: conn,
+    board: board,
+    card: card
+  } do
+    {:ok, view, _html} =
+      Slipdock.CardViewHelpers.live_showing(
+        conn,
+        Slipdock.Fixtures.user_fixture(),
+        board,
+        ~p"/boards/#{board}/cards/#{card.id}",
+        ~w(attachments)
+      )
+
+    input =
+      file_input(view, "#attach-form", :attachment, [
+        %{name: "half.pdf", content: "%PDF-1.4 sent in two halves.", type: "application/pdf"}
+      ])
+
+    # Half of it: the progress callback runs, with the entry not yet done.
+    render_upload(input, "half.pdf", 50)
+
+    assert Process.alive?(view.pid)
+    assert Boards.Cards.get_card!(card.id).attachments == []
+    refute has_element?(view, "[id^='attachment-']")
+
+    # The rest: now it is stored, once.
+    render_upload(input, "half.pdf", 50)
+
+    assert [a] = Boards.Cards.get_card!(card.id).attachments
+    assert a.filename == "half.pdf"
+    assert File.read!(Boards.Attachments.attachment_path(a)) == "%PDF-1.4 sent in two halves."
+    assert has_element?(view, "#attachment-#{a.id}", "half.pdf")
+  end
+
   test "a file that is too large is refused with a message", %{
     conn: conn,
     board: board,

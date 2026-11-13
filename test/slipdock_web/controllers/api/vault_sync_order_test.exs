@@ -363,6 +363,30 @@ defmodule SlipdockWeb.API.VaultSyncOrderTest do
       end
     end
 
+    test "placements at one position with one title come by the page's id", ctx do
+      # Two boards, so the titles can be the same: one board holds one slug.
+      other = board_fixture(%{"name" => "Twinned", "code" => "or87"}, owner: ctx.user)
+      {:ok, older} = Wiki.create_page(ctx.board, %{"title" => "Twin"})
+      {:ok, newer} = Wiki.create_page(other, %{"title" => "twin"})
+      assert older.id < newer.id
+
+      # The newer page's placement is written first and the older's last, so
+      # the table holds them in the opposite order to their ids: without the
+      # id to settle the tie, the read would give them in that order.
+      {:ok, _} = Placements.add(newer, ctx.shelf, ctx.user)
+      {:ok, _} = Placements.add(older, ctx.shelf, ctx.user)
+
+      for page <- [ctx.first, ctx.second, newer.id, older.id] do
+        from(pl in Slipdock.Wiki.Placement, where: pl.page_id == ^page)
+        |> Repo.update_all(set: [position: 0])
+      end
+
+      for _ <- 1..3 do
+        assert listing(ctx.conn)["folder_details"]["Ordered/Shelf"]["also_pages"] ==
+                 [ctx.second, older.id, newer.id, ctx.first]
+      end
+    end
+
     test "comes after the pages at home, under every sort", %{conn: conn, board: board} = ctx do
       for sort <- ~w(manual name modified created) do
         {:ok, _} = Folders.update(ctx.shelf, %{"sort" => sort})
