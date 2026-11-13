@@ -57,11 +57,14 @@ CI, which a chat can't.
   `Handbook/Decisions` and principles onto the Principles page (as a garden
   proposal unless the person agreed them). The spec becomes a page on the
   epic, and the subcards go on in build order. It proposes the person's
-  `defaults:` page and asks, never imposes. Run unattended, it puts its
-  questions in a wait. A question only building can answer (and whose late
-  "no" would cost more than finding out now) becomes a `spike` subcard,
-  once you confirm it: planning stops there, and resumes at Spec from the
-  spikes' answer pages when the server's "Spikes answered" wait says so.
+  `defaults:` page and asks, never imposes. Run unattended, it answers from
+  the board what the board answers and marks each such answer *(assumed)*;
+  it opens one wait, as a numbered round, only for decisions that are
+  yours, and never answers those itself. A question only building can
+  answer (and whose late "no" would cost more than finding out now) becomes
+  a `spike` subcard, once you confirm it: planning stops there, and resumes
+  at Spec from the spikes' answer pages when the server's "Spikes answered"
+  wait says so.
 - **`slipdock-loop`** — working the ready list unattended: one pass, one card,
   its subcards included, claimed before the work and closed out with a
   wrap-up comment and the commit id. Where the work lands in a GitHub repo it
