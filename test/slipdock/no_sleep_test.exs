@@ -34,7 +34,6 @@ defmodule Slipdock.NoSleepTest do
     "test/slipdock/runners/probe_test.exs" => {1, @before},
     "test/slipdock/runners_test.exs" => {1, @before},
     "test/slipdock/sandbox_queue_test.exs" => {1, @before},
-    "test/slipdock/signups_test.exs" => {1, @before},
     "test/slipdock/wiki/drawing_session_test.exs" => {1, @before},
     "test/slipdock_web/live/drawing_live_test.exs" => {1, @before},
     "test/slipdock_web/live/wiki_big_vault_test.exs" => {7, @before}

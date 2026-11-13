@@ -298,8 +298,13 @@ defmodule SlipdockWeb.API.InboundControllerTest do
   end
 
   describe "rate limits" do
+    # The clock is pinned half an hour into one: on the real clock a burst that
+    # crosses the hour's edge starts the count again, and the refusal never
+    # comes (#2944, TEST-13). Each refusal then says 31 minutes (1801 seconds,
+    # rounded up), so a test that loses its `now:` fails on that, not once in a
+    # blue moon.
     setup do
-      TestConfig.put(:rate_limit, enabled: true)
+      TestConfig.put(:rate_limit, enabled: true, now: 500 * 3_600_000 + 1_800_000)
       :ok
     end
 
@@ -308,7 +313,7 @@ defmodule SlipdockWeb.API.InboundControllerTest do
       to = "card-#{token}@#{@domain}"
       for _ <- 1..30, do: Slipdock.RateLimit.hit("inbound:token:#{token}", 30, :timer.hours(1))
 
-      assert %{"reject" => "Too much mail" <> _} =
+      assert %{"reject" => "Too much mail to this address. Try again in 31 minutes."} =
                conn |> post_mail(raw(), to: to) |> json_response(429)
 
       assert rows(to) == []
@@ -318,7 +323,8 @@ defmodule SlipdockWeb.API.InboundControllerTest do
       sender = "flood#{System.unique_integer([:positive])}@example.com"
       for _ <- 1..60, do: Slipdock.RateLimit.hit("inbound:sender:#{sender}", 60, :timer.hours(1))
 
-      assert conn |> post_mail(raw(from: sender)) |> json_response(429)
+      assert %{"reject" => "Too much mail to this address. Try again in 31 minutes."} =
+               conn |> post_mail(raw(from: sender)) |> json_response(429)
     end
   end
 end

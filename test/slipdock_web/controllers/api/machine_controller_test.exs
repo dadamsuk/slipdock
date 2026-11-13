@@ -25,9 +25,14 @@ defmodule SlipdockWeb.API.MachineControllerTest do
     %{board: board_fixture(%{"name" => "Served"}, owner: user)}
   end
 
+  # The rate-limit tests pin the clock mid-hour and mid-minute: on the real
+  # clock a burst that crosses a window's edge starts the count again, and the
+  # refusal never comes (#2944, TEST-13).
+  @mid_window 500 * 3_600_000 + 1_830_000
+
   defp rate_limited do
     previous = Application.get_env(:slipdock, :rate_limit)
-    Application.put_env(:slipdock, :rate_limit, enabled: true)
+    Application.put_env(:slipdock, :rate_limit, enabled: true, now: @mid_window)
     Slipdock.RateLimit.reset()
     on_exit(fn -> Application.put_env(:slipdock, :rate_limit, previous) end)
   end

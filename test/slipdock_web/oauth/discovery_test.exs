@@ -219,8 +219,12 @@ defmodule SlipdockWeb.OAuth.DiscoveryTest do
     end
 
     test "is rate limited per address", %{conn: conn} do
+      # The clock is pinned half a minute into one: on the real clock a burst
+      # that crosses the minute's edge starts the count again, and the refusal
+      # never comes (#2944, TEST-13). Retry-After then says 31 seconds, so a
+      # test that loses its `now:` fails on that, not once in a blue moon.
       previous = Application.get_env(:slipdock, :rate_limit)
-      Application.put_env(:slipdock, :rate_limit, enabled: true)
+      Application.put_env(:slipdock, :rate_limit, enabled: true, now: 500 * 60_000 + 30_000)
       Slipdock.RateLimit.reset()
 
       on_exit(fn ->
@@ -234,7 +238,7 @@ defmodule SlipdockWeb.OAuth.DiscoveryTest do
       resp = register(conn, params)
       assert %{"error" => "slow_down"} = json_response(resp, 429)
       assert [retry] = get_resp_header(resp, "retry-after")
-      assert String.to_integer(retry) in 1..60
+      assert retry == "31"
       assert Slipdock.Repo.aggregate(Client, :count) == 30
     end
   end

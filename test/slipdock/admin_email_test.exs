@@ -69,8 +69,11 @@ defmodule Slipdock.AdminEmailTest do
   end
 
   test "guessing at the code stops after a handful of tries", %{admin: admin} do
+    # The clock is pinned mid-hour: on the real clock the guesses could cross
+    # the hour's edge, start the count again, and never be refused (#2944,
+    # TEST-13).
     previous = Application.get_env(:slipdock, :rate_limit)
-    Application.put_env(:slipdock, :rate_limit, enabled: true)
+    Application.put_env(:slipdock, :rate_limit, enabled: true, now: 500 * 3_600_000 + 1_800_000)
     Slipdock.RateLimit.reset()
     on_exit(fn -> Application.put_env(:slipdock, :rate_limit, previous) end)
 
