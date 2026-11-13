@@ -567,9 +567,8 @@ defmodule Slipdock.Portable.Import do
     |> Enum.reduce(%{}, fn {list, index}, acc ->
       column =
         insert(
-          %Column{},
+          %Column{board_id: board.id},
           %{
-            board_id: board.id,
             name: list[:name] || "List #{index + 1}",
             position: list[:position] || index,
             wip_limit: list[:wip_limit],
