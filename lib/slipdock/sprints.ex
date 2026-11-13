@@ -395,14 +395,17 @@ defmodule Slipdock.Sprints do
   @doc """
   Sets where `board`'s sprints are planned from. `sources` is a list of
   `{board, lists}`: a board (or its id) and the lists on it to show, by id
-  or name, `[]` meaning every list that is not done or dropped. Each board
-  has to be one `user` can write to, and not the sprint board or anything
-  inside it; each list has to be on its board. `[]` clears them.
+  or name, `[]` meaning every list that is not done or dropped. `user` has
+  to be able to write to `board` itself, whichever door the change comes
+  through. Each source has to be a board `user` can write to, and not the
+  sprint board or anything inside it; each list has to be on its board. `[]`
+  clears them.
 
   Returns `{:ok, board}` or `{:error, message}`.
   """
   def put_sources(%Board{} = board, user, sources) when is_list(sources) do
     with :ok <- check_sprint_board(board),
+         :ok <- check_board_write(board, user),
          {:ok, stored} <- resolve_sources(board, user, sources) do
       board
       |> Ecto.Changeset.change(sprint_sources: stored)
@@ -416,6 +419,12 @@ defmodule Slipdock.Sprints do
           {:error, error_message(changeset)}
       end
     end
+  end
+
+  defp check_board_write(board, user) do
+    if Access.can_write?(Access.board_permission(user, board)),
+      do: :ok,
+      else: {:error, "You can only change where #{board.name} plans from if you can write to it."}
   end
 
   defp resolve_sources(board, user, sources) do
