@@ -33,6 +33,9 @@ defmodule Slipdock.AI.Actions do
   A tag name the board doesn't have, in `add_tags`, `tags`, a `tag`'s `add` or a `create`,
   makes that tag on the board's tree when the step is applied; the step's
   label says so, so nothing is created that the user didn't see first.
+  Making one asks write on the card's board, as `create_tag` does everywhere
+  else: a user who writes the card by a grant alone gets a refused step, and
+  can still add or remove the tags the board has.
   """
 
   alias Slipdock.{Access, Boards}
@@ -41,6 +44,7 @@ defmodule Slipdock.AI.Actions do
 
   @edges ~w(border_top border_right border_bottom border_left)
   @colour_keys ~w(cover color colour border borders) ++ @edges
+  @new_tag_refusal "only someone who can edit the board makes a new tag; pick one it has"
 
   @type step :: %{
           label: String.t(),
@@ -133,7 +137,7 @@ defmodule Slipdock.AI.Actions do
           [
             step(label, fn ->
               with {:ok, card} <- Boards.Cards.create_card(column, attrs),
-                   {:ok, tags} <- ensure_tags(tags, card.board_id) do
+                   {:ok, tags} <- ensure_tags(tags, card.board_id, scope) do
                 if tags != [], do: Boards.Cards.set_card_tags(card, tags)
                 :ok
               end
@@ -321,10 +325,10 @@ defmodule Slipdock.AI.Actions do
           if cards == [],
             do: [],
             else:
-              Enum.map(add, &bulk_tag_step(&1, true, cards, scope)) ++
-                Enum.map(remove, &bulk_tag_step(&1, false, cards, scope))
+              Enum.flat_map(add, &List.wrap(bulk_tag_step(&1, true, cards, scope))) ++
+                Enum.flat_map(remove, &List.wrap(bulk_tag_step(&1, false, cards, scope)))
 
-        Enum.map(refused, &elem(&1, 1)) ++ Enum.reject(tag_steps, &is_nil/1)
+        Enum.map(refused, &elem(&1, 1)) ++ tag_steps
     end
   end
 
@@ -649,55 +653,12 @@ defmodule Slipdock.AI.Actions do
 
   defp update_step({key, names}, card, scope) when key in ["add_tags", "remove_tags"] do
     adding? = key == "add_tags"
-    current = if is_list(card.tags), do: card.tags, else: []
+    tags = scope_tags(scope, card)
 
-    for name <- list(names) do
-      case find_tag(name, %{tags: scope_tags(scope, card)}) do
-        {:error, _} when adding? ->
-          case new_tag_name(name) do
-            {:ok, name} ->
-              step("Create tag “#{name}” and add it to “#{card.title}”", fn ->
-                with {:ok, fresh} <- fresh(card, scope),
-                     {:ok, [tag]} <- ensure_tags([{:new, name}], fresh.board_id) do
-                  still_has = Enum.any?(fresh.tags, &(&1.id == tag.id))
-                  unless still_has, do: Boards.Tags.toggle_card_tag(fresh, tag)
-                  :ok
-                end
-                |> normalize_result()
-              end)
-
-            {:error, msg} ->
-              failed("Add tag “#{name}”", msg)
-          end
-
-        {:ok, %Tag{} = tag} ->
-          has = Enum.any?(current, &(&1.id == tag.id))
-
-          cond do
-            adding? and has ->
-              nil
-
-            not adding? and not has ->
-              nil
-
-            true ->
-              step(
-                "#{if adding?, do: "Add tag", else: "Remove tag"} “#{tag.name}” #{if adding?, do: "to", else: "from"} “#{card.title}”",
-                fn ->
-                  with {:ok, fresh} <- fresh(card, scope) do
-                    still_has = Enum.any?(fresh.tags, &(&1.id == tag.id))
-                    if still_has != adding?, do: Boards.Tags.toggle_card_tag(fresh, tag)
-                    :ok
-                  end
-                end
-              )
-          end
-
-        {:error, msg} ->
-          failed("#{if adding?, do: "Add tag", else: "Remove tag"} “#{name}”", msg)
-      end
-    end
-    |> Enum.reject(&is_nil/1)
+    for name <- list(names),
+        step = tag_step(find_tag(name, %{tags: tags}), name, adding?, card, scope),
+        step != nil,
+        do: step
   end
 
   defp update_step({key, flags}, card, scope) when key in ["add_flags", "remove_flags"] do
@@ -777,6 +738,30 @@ defmodule Slipdock.AI.Actions do
   defp update_step({key, _}, card, _scope),
     do: [failed("Change #{key} of “#{card.title}”", "unknown field")]
 
+  # One name of `add_tags` or `remove_tags`, as the card's tree resolved it:
+  # nil when the card is already as asked.
+  defp tag_step({:ok, %Tag{} = tag}, _name, adding?, card, scope) do
+    if has_tag?(card, tag) != adding? do
+      verb = if adding?, do: "Add tag “#{tag.name}” to", else: "Remove tag “#{tag.name}” from"
+      step("#{verb} “#{card.title}”", fn -> tag_one(card, tag, adding?, scope) end)
+    end
+  end
+
+  # A name the tree doesn't have: adding makes the tag, on Apply.
+  defp tag_step({:error, _}, name, true, card, scope) do
+    with {:ok, name} <- new_tag_name(name),
+         :ok <- may_make_tag(card.board_id, scope) do
+      step("Create tag “#{name}” and add it to “#{card.title}”", fn ->
+        tag_one(card, {:new, name}, true, scope)
+      end)
+    else
+      {:error, msg} -> failed("Add tag “#{name |> to_s() |> String.trim()}”", msg)
+    end
+  end
+
+  defp tag_step({:error, msg}, name, false, _card, _scope),
+    do: failed("Remove tag “#{name}”", msg)
+
   # A step that sets fields through Boards.Cards.update_card on a fresh copy of the card.
   defp field_step(card, scope, label, attrs) do
     step(label, fn ->
@@ -806,16 +791,8 @@ defmodule Slipdock.AI.Actions do
 
       new? ->
         case new_tag_name(name) do
-          {:ok, name} ->
-            bulk_tag_run(
-              "Create tag “#{name}” and add it to",
-              Enum.map(cards, &{&1, {:new, name}}),
-              true,
-              scope
-            )
-
-          {:error, msg} ->
-            failed("Add tag “#{name}”", msg)
+          {:ok, name} -> bulk_new_tag_steps(name, cards, scope)
+          {:error, msg} -> failed("Add tag “#{name}”", msg)
         end
 
       true ->
@@ -826,6 +803,26 @@ defmodule Slipdock.AI.Actions do
         verb = if adding?, do: "Add tag “#{tag_name}” to", else: "Remove tag “#{tag_name}” from"
         if targets != [], do: bulk_tag_run(verb, targets, adding?, scope)
     end
+  end
+
+  # A tag no card's tree has: made on Apply for the cards whose board the user
+  # may write, and refused, by name, for the cards they reach by a grant alone.
+  defp bulk_new_tag_steps(name, cards, scope) do
+    {allowed, refused} = Enum.split_with(cards, &(may_make_tag(&1.board_id, scope) == :ok))
+
+    run =
+      if allowed != [] do
+        targets = Enum.map(allowed, &{&1, {:new, name}})
+        bulk_tag_run("Create tag “#{name}” and add it to", targets, true, scope)
+      end
+
+    refusals =
+      if refused != [] do
+        titles = Enum.map_join(refused, ", ", &"“#{&1.title}”")
+        failed("Create tag “#{name}” and add it to #{titles}", @new_tag_refusal)
+      end
+
+    Enum.reject([run, refusals], &is_nil/1)
   end
 
   defp bulk_tag_run(verb, targets, adding?, scope) do
@@ -845,7 +842,7 @@ defmodule Slipdock.AI.Actions do
 
   defp tag_one(card, ref, adding?, scope) do
     with {:ok, fresh} <- fresh(card, scope),
-         {:ok, [tag]} <- ensure_tags([ref], fresh.board_id) do
+         {:ok, [tag]} <- ensure_tags([ref], fresh.board_id, scope) do
       if has_tag?(fresh, tag) != adding?, do: Boards.Tags.toggle_card_tag(fresh, tag)
       :ok
     end
@@ -989,10 +986,28 @@ defmodule Slipdock.AI.Actions do
     end
   end
 
+  # Making a tag changes the board's tag list, so it asks write on the card's
+  # board, the level the card panel, the API and the MCP `create_tag` ask
+  # (#2751): someone who writes the card by a grant alone applies the tags the
+  # board has, and makes none.
+  defp may_make_tag(board_id, scope) do
+    board =
+      case scope do
+        %{board: %Board{id: ^board_id} = board} -> board
+        _ -> Boards.get_board!(board_id)
+      end
+
+    if Access.can_write?(Access.board_permission(scope[:user], board)),
+      do: :ok,
+      else: {:error, @new_tag_refusal}
+  end
+
   # Turns `{:new, name}` into a tag on the board's tree, at the moment of
   # applying: one made in the meantime (by a person, or an earlier step of the
-  # same proposal) is used rather than doubled.
-  defp ensure_tags(tags, board_id) do
+  # same proposal) is used rather than doubled. Only a name the tree still
+  # lacks is checked against the board (`may_make_tag/2`), again, since the
+  # user's access can change between Prepare and Apply.
+  defp ensure_tags(tags, board_id, scope) do
     Enum.reduce_while(tags, {:ok, []}, fn
       %Tag{} = tag, {:ok, acc} ->
         {:cont, {:ok, acc ++ [tag]}}
@@ -1005,12 +1020,17 @@ defmodule Slipdock.AI.Actions do
             {:cont, {:ok, acc ++ [tag]}}
 
           {:error, _} ->
-            case Boards.Tags.create_tag(Boards.get_board!(board_id), %{"name" => name}) do
+            case make_tag(name, board_id, scope) do
               {:ok, tag} -> {:cont, {:ok, acc ++ [tag]}}
               {:error, _} = error -> {:halt, error}
             end
         end
     end)
+  end
+
+  defp make_tag(name, board_id, scope) do
+    with :ok <- may_make_tag(board_id, scope),
+         do: Boards.Tags.create_tag(Boards.get_board!(board_id), %{"name" => name})
   end
 
   # The tags the card may carry: the board's when it is on it, else its own root's.

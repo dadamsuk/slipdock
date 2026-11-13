@@ -889,6 +889,163 @@ defmodule Slipdock.AITest do
       refute "new" in Enum.map(Boards.Tags.list_tags(ctx.board.id), & &1.name)
     end
 
+    # The door #2751 closed in the card panel (#2973): making a tag changes the
+    # board's tag list, so it asks write on the board, not just on the card.
+    defp card_writer(ctx, cards) do
+      writer = user_fixture("card-writer@example.com")
+      for card <- cards, do: {:ok, _} = Slipdock.Access.grant(card, writer, "write", ctx.user)
+      writer
+    end
+
+    defp tag_names(board), do: Enum.map(Boards.Tags.list_tags(board.id), & &1.name)
+
+    @new_tag_refusal "only someone who can edit the board makes a new tag; pick one it has"
+
+    test "add_tags makes no new tag for a card-grant writer, who still adds one the board has",
+         ctx do
+      writer = card_writer(ctx, [ctx.card])
+      scope = Map.put(scope_for(ctx), :user, writer)
+      before = tag_names(ctx.board)
+
+      assert [new, known] =
+               Actions.prepare(
+                 [
+                   %{
+                     "type" => "update",
+                     "card_id" => ctx.card.id,
+                     "changes" => %{"add_tags" => [" Release 2 ", "ops"]}
+                   }
+                 ],
+                 scope
+               )
+
+      assert new.label == "Add tag “Release 2”"
+      assert new.error == @new_tag_refusal
+      assert new.run == nil
+      assert known.error == nil
+
+      assert [%{result: {:error, @new_tag_refusal}}, %{result: :ok}] = Actions.apply([new, known])
+      assert tag_names(ctx.board) == before
+      assert Enum.map(Boards.Cards.get_card!(ctx.card.id).tags, & &1.name) == ["ops"]
+
+      # `tags` (the set) goes the same way.
+      assert [%{error: @new_tag_refusal}] =
+               Actions.prepare(
+                 [
+                   %{
+                     "type" => "update",
+                     "card_id" => ctx.card.id,
+                     "changes" => %{"tags" => ["ops", "perf"]}
+                   }
+                 ],
+                 %{scope | cards: [Boards.Cards.get_card!(ctx.card.id)]}
+               )
+    end
+
+    test "a tag action makes no new tag for a card-grant writer, who still adds one the board has",
+         ctx do
+      beta =
+        card_fixture(ctx.backlog, %{"title" => "Beta"}) |> then(&Boards.Cards.get_card!(&1.id))
+
+      writer = card_writer(ctx, [ctx.card, beta])
+      scope = %{scope_for(ctx) | cards: [ctx.card, beta], user: writer}
+      before = tag_names(ctx.board)
+
+      assert [new, known] =
+               Actions.prepare(
+                 [
+                   %{
+                     "type" => "tag",
+                     "card_ids" => [ctx.card.id, beta.id],
+                     "add" => ["Urgent", "ux"]
+                   }
+                 ],
+                 scope
+               )
+
+      assert new.label == "Create tag “Urgent” and add it to “Alpha”, “Beta”"
+      assert new.error == @new_tag_refusal
+      assert new.run == nil
+      assert known.label == "Add tag “ux” to 2 cards: “Alpha”, “Beta”"
+
+      assert [%{result: {:error, @new_tag_refusal}}, %{result: :ok}] = Actions.apply([new, known])
+      assert tag_names(ctx.board) == before
+
+      for card <- [ctx.card, beta],
+          do: assert(Enum.map(Boards.Cards.get_card!(card.id).tags, & &1.name) == ["ux"])
+    end
+
+    test "a tag action makes the new tag only for the cards whose board the user may write",
+         ctx do
+      other = board_fixture(%{"name" => "Theirs"}, owner: user_fixture("other-owner@example.com"))
+
+      theirs =
+        card_fixture(hd(other.columns), %{"title" => "Theirs"})
+        |> then(&Boards.Cards.get_card!(&1.id))
+
+      {:ok, _} =
+        Slipdock.Access.grant(theirs, ctx.user, "write", user_fixture("other-owner@example.com"))
+
+      assert [mine, refused] =
+               Actions.prepare(
+                 [
+                   %{
+                     "type" => "tag",
+                     "card_ids" => [ctx.card.id, theirs.id],
+                     "add" => ["Urgent"]
+                   }
+                 ],
+                 %{scope_for(ctx) | cards: [ctx.card, theirs]}
+               )
+
+      assert mine.label == "Create tag “Urgent” and add it to “Alpha”"
+      assert mine.error == nil
+      assert refused.label == "Create tag “Urgent” and add it to “Theirs”"
+      assert refused.error == @new_tag_refusal
+
+      Actions.apply([mine, refused])
+      assert "Urgent" in tag_names(ctx.board)
+      refute "Urgent" in tag_names(other)
+      assert Boards.Cards.get_card!(theirs.id).tags == []
+    end
+
+    test "board write lost between Prepare and Apply makes no tag", ctx do
+      editor = user_fixture("editor@example.com")
+      {:ok, board_grant} = Slipdock.Access.grant(ctx.board, editor, "write", ctx.user)
+      {:ok, _} = Slipdock.Access.grant(ctx.card, editor, "write", ctx.user)
+      scope = Map.put(scope_for(ctx), :user, editor)
+
+      beta =
+        card_fixture(ctx.backlog, %{"title" => "Beta"}) |> then(&Boards.Cards.get_card!(&1.id))
+
+      {:ok, _} = Slipdock.Access.grant(beta, editor, "write", ctx.user)
+
+      steps =
+        Actions.prepare(
+          [
+            %{
+              "type" => "update",
+              "card_id" => ctx.card.id,
+              "changes" => %{"add_tags" => ["late"]}
+            },
+            %{"type" => "tag", "card_ids" => [beta.id], "add" => ["later"]}
+          ],
+          %{scope | cards: [ctx.card, beta]}
+        )
+
+      assert [%{error: nil}, %{error: nil}] = steps
+      Slipdock.Access.revoke(board_grant)
+      refute Slipdock.Access.can_write?(Slipdock.Access.board_permission(editor, ctx.board))
+
+      assert [%{result: {:error, @new_tag_refusal}}, %{result: {:error, bulk}}] =
+               Actions.apply(steps)
+
+      assert bulk == "“Beta”: " <> @new_tag_refusal
+      refute "late" in tag_names(ctx.board)
+      refute "later" in tag_names(ctx.board)
+      assert Boards.Cards.get_card!(ctx.card.id).tags == []
+    end
+
     test "a tag action tags several cards in one step, leaving out those that have it", ctx do
       ops = Enum.find(ctx.board.tags, &(&1.name == "ops"))
 
