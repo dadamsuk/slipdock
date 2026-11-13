@@ -298,6 +298,7 @@ defmodule SlipdockWeb.BoardGrantLoweredLiveTest do
     {:ok, view, _} = live(as(ctx.writer), ~p"/boards/#{ctx.board}")
 
     remove(:untold, ctx)
+    monitor = Process.monitor(view.pid)
 
     try do
       drop_document(view, first)
@@ -305,9 +306,20 @@ defmodule SlipdockWeb.BoardGrantLoweredLiveTest do
       :exit, _ -> :ok
     end
 
-    # The upload is stored by a callback after its own channel round trip,
-    # so the redirect can land later than an event's would.
-    assert_redirect(view, ~p"/", 2000)
+    # Sent away is read from how the LiveView stopped, not `assert_redirect/3`
+    # (#3013). A redirect from an upload's progress callback leaves the
+    # channel by a message to itself, and the test client's sync after the
+    # upload can take the channel's `:DOWN` ahead of the redirect still in
+    # its mailbox: the client then stops without telling the test where the
+    # page went, and `assert_redirect/3` sees none. The exit reason always
+    # says.
+    assert_receive {:DOWN, ^monitor, :process, _, {:shutdown, {kind, %{to: "/"} = opts}}}, 2000
+    assert kind in [:redirect, :live_redirect]
+
+    assert Phoenix.LiveView.Utils.verify_flash(SlipdockWeb.Endpoint, opts[:flash]) == %{
+             "error" => "Your access to that board was removed."
+           }
+
     assert cards(ctx.board) == []
   end
 
