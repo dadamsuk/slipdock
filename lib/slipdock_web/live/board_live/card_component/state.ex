@@ -65,6 +65,9 @@ defmodule SlipdockWeb.BoardLive.CardComponent.State do
         card: Access.hide_unreadable_dependencies(user, given),
         card_form: to_form(Boards.Cards.change_card(given)),
         can_write: writable,
+        # Adding a card to the board (a duplicate) needs write on the board
+        # itself, not only on this card.
+        can_add: Access.can_write?(perm),
         can_comment: Access.can_comment?(level),
         can_share: perm == :owner or writable
       )
@@ -75,6 +78,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent.State do
         card: nil,
         card_form: nil,
         can_write: false,
+        can_add: false,
         can_comment: false,
         can_share: false
       )
@@ -108,6 +112,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent.State do
 
         assign(socket,
           can_write: writable,
+          can_add: Access.can_write?(perm),
           can_comment: Access.can_comment?(level),
           can_share: perm == :owner or writable
         )
@@ -117,6 +122,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent.State do
           card: nil,
           card_form: nil,
           can_write: false,
+          can_add: false,
           can_comment: false,
           can_share: false
         )

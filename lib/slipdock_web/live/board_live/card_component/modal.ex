@@ -40,6 +40,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent.Modal do
   attr :picking_template, :boolean, required: true
   attr :mention_people, :string, default: nil
   attr :can_write, :boolean, required: true
+  attr :can_add, :boolean, default: false, doc: "may add a card to the board (Duplicate)"
   attr :can_comment, :boolean, default: false, doc: "may join the discussion (#863)"
   attr :can_share, :boolean, required: true
   attr :grants, :list, required: true
@@ -162,6 +163,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent.Modal do
         <.card_toolbar
           board={@board}
           can_write={@can_write}
+          can_add={@can_add}
           card={@card}
           handoff_link={@can_comment and is_nil(current_handoff(@card)) and not @editing_handoff}
           ask_link={@can_write and is_nil(Card.open_wait(@card)) and is_nil(@asking)}
