@@ -47,8 +47,12 @@ what recurs or shows the handbook wrong, a rule or a decision as a proposal
 for a person, logging each run on the Index's `## Triage`). A finding it left
 open one night is decided the next, as a card, a proposal, a promotion or a
 dismissal with its reason: nothing is left open twice, and the log line counts
-the leftovers it decided. Each night's reconcile takes at most 20
-commits from where the Index's `## Log` stopped, pipes their paths to
+the leftovers it decided. Each night's reconcile takes about 20
+commits from where the Index's `## Log` stopped, ending its range on a
+commit of the default branch's own line (first-parent) so that the range
+holds exactly the commits it read when the history has merges (1.9.1; a
+merge is never split, so one that brings in more than 20 is taken
+whole), pipes their paths to
 `slipdock handbook <board> --paths-from -`, and reads only the pages that
 lists; with nothing new on the default branch it closes with `Handbook: no
 change (nothing landed)`. Installing again adds only what is missing: a
@@ -61,7 +65,8 @@ older handbook adds the Triage findings card and appends `## Triage` to the
 Index. Installing 1.9.0 gives an open Triage findings card the current
 procedure: a leftover finding that becomes a card goes to Housekeeping when
 it is a fix (the backlog on a board without one) and to Triage when it is a
-design question.
+design question. Installing 1.9.1 gives the reconcile card its range
+that ends on a first-parent commit.
 
 **Before you push** (1.4.0): every check CI enforces on a pull request
 should run locally through one command, and builders are told which. The

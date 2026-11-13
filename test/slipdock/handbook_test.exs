@@ -137,7 +137,7 @@ defmodule Slipdock.HandbookTest do
       assert series
       assert series.rule == "FREQ=DAILY"
       # The nightly procedure (#1787): a small range, only the pages it touches.
-      assert rec.description =~ "at most 20 of those commits"
+      assert rec.description =~ "about 20 of those commits"
       assert rec.description =~ "--paths-from -"
       assert rec.description =~ "Handbook: no change (nothing landed)"
       assert rec.description =~ "tomorrow"
@@ -565,7 +565,7 @@ defmodule Slipdock.HandbookTest do
       assert "Reconcile the handbook (updated: nightly)" in again.report.added["cards"]
 
       after_rec = Repo.reload!(rec)
-      assert after_rec.description =~ "at most 20 of those commits"
+      assert after_rec.description =~ "about 20 of those commits"
       assert after_rec.title == rec.title
       assert after_rec.priority == "high"
       assert after_rec.column_id == rec.column_id
@@ -583,6 +583,41 @@ defmodule Slipdock.HandbookTest do
       refute Enum.any?(third.report.added["cards"], &(&1 =~ "updated"))
     end
 
+    test "installing over 1.9.0 ends the reconcile's range on a first-parent commit (#2911)",
+         %{user: user, board: board} do
+      {:ok, _} = Handbook.install(user, board)
+      rec = card_titled(board, "Reconcile the handbook")
+      current = rec.description
+      before = Slipdock.Recurrence.for_card(rec)
+
+      # As 1.9.0 wrote step 3: a range that ends on the list's 20th line.
+      [step3] = Regex.run(~r/^3\. .*$/m, current)
+
+      old =
+        String.replace(
+          current,
+          step3,
+          "3. Take at most 20 of those commits, oldest first: the range is `<to>..<the 20th>`. The rest wait for the next night."
+        )
+
+      {:ok, rec} = Boards.Cards.update_card(rec, %{"description" => old, "priority" => "high"})
+      assert rec.description =~ "<the 20th>"
+
+      {:ok, again} = Handbook.install(user, board)
+      assert again.upgraded
+      assert "Reconcile the handbook (updated: nightly)" in again.report.added["cards"]
+
+      after_rec = Repo.reload!(rec)
+      assert after_rec.description == current
+      refute after_rec.description =~ "<the 20th>"
+      assert after_rec.description =~ "git rev-list --first-parent --reverse <to>..origin/"
+      assert after_rec.priority == "high"
+      assert Slipdock.Recurrence.for_card(after_rec).rule == before.rule
+
+      {:ok, third} = Handbook.install(user, board)
+      refute third.upgraded
+    end
+
     test "the series' current card is the one changed, not an older copy",
          %{user: user, board: board} do
       rec = weekly_reconcile(user, board)
@@ -592,7 +627,7 @@ defmodule Slipdock.HandbookTest do
       {:ok, old} = Boards.Cards.update_card(old, %{"description" => "an old week"})
 
       {:ok, _} = Handbook.install(user, board)
-      assert Repo.reload!(rec).description =~ "at most 20 of those commits"
+      assert Repo.reload!(rec).description =~ "about 20 of those commits"
       assert Repo.reload!(old).description == "an old week"
     end
 
@@ -603,7 +638,7 @@ defmodule Slipdock.HandbookTest do
 
       {:ok, again} = Handbook.install(user, board)
       assert again.upgraded
-      assert Repo.reload!(rec).description =~ "at most 20 of those commits"
+      assert Repo.reload!(rec).description =~ "about 20 of those commits"
       assert Slipdock.Recurrence.for_card(rec) == nil
     end
 
