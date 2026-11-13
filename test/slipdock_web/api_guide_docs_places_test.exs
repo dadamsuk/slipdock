@@ -29,8 +29,7 @@ defmodule SlipdockWeb.APIGuideDocsPlacesTest do
 
     [_, count] = Regex.run(~r/grep them across the (\w+) places \(/, guide)
 
-    assert count ==
-             Enum.at(~w(no one two three four five six seven eight nine ten), length(places))
+    assert count == Integer.to_string(length(places))
   end
 
   test "a reader with no verifying board isn't shown the places" do
