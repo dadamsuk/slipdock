@@ -519,8 +519,8 @@ defmodule Slipdock.CoverageTest do
   # the chunk's group leader, so stop_cover/1 doesn't list it, and linked
   # to 1000 stragglers under it. When the first of those is killed, it
   # starts one more process under the leader, which only a second look
-  # finds: it runs at high priority, so it does so while stop_cover/1 is
-  # still killing and waiting on the rest. Each respawned process is reported, and whether it lives on.
+  # finds: stop_cover/1's `:stop_hook` waits for it before that look
+  # (#3012). Each respawned process is reported, and whether it lives on.
   defp probe_chunks(ctx, opts \\ []) do
     run(ctx.tmp_dir, """
     me = self()
@@ -543,7 +543,7 @@ defmodule Slipdock.CoverageTest do
       if bad and respawn? do
         chunk = self()
 
-        spawn(fn ->
+        spawner = spawn(fn ->
           Process.flag(:trap_exit, true)
           Process.flag(:priority, :high)
           for _ <- 1..1000, do: spawn_link(fn -> receive do: (:never -> :ok) end)
@@ -554,13 +554,34 @@ defmodule Slipdock.CoverageTest do
             {:EXIT, _, _} ->
               r = spawn(fn -> receive do: (:never -> :ok) end)
               Process.group_leader(r, gl)
-              send(me, {:respawned, r})
+              send(me, {:respawned_by, self(), r})
           end
         end)
 
         receive do: (:spawner_ready -> :ok)
+        send(me, {:spawner, spawner})
       end
     end)
+
+    # stop_cover/1 runs here, in the probe's caller. Once the first round
+    # of a failed chunk's kills has gone, wait for its spawner to have
+    # started its process under the leader (#3012): left to the
+    # scheduler, it can do so after the second look, or between its spawn
+    # and its group_leader call, and the next chunk finds it.
+    if respawn? do
+      :persistent_term.put({Slipdock.Coverage, :stop_hook}, fn ->
+        receive do
+          {:spawner, s} ->
+            receive do
+              {:respawned_by, ^s, r} -> send(me, {:respawned, r})
+            after
+              5000 -> :ok
+            end
+        after
+          0 -> :ok
+        end
+      end)
+    end
 
     #{Keyword.get(opts, :before, "")}
     Slipdock.Coverage.start(#{inspect(ctx.ebin)}, export: "x", output: #{inspect(ctx.out)})

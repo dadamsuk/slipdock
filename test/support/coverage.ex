@@ -205,7 +205,7 @@ defmodule Slipdock.Coverage do
     {pid, ref} =
       spawn_monitor(fn ->
         Process.group_leader(self(), leader)
-        _ = chunk_hook(beams)
+        _ = hook(:chunk_hook, [beams])
         exit({:compiled, compile(beams)})
       end)
 
@@ -243,6 +243,7 @@ defmodule Slipdock.Coverage do
           end
         end
 
+        _ = hook(:stop_hook, [])
         stop_cover(leader)
     end
   end
@@ -285,13 +286,15 @@ defmodule Slipdock.Coverage do
     forward(gl)
   end
 
-  # A test's way into a chunk (#2917): a 1-arity fun under
-  # `{Slipdock.Coverage, :chunk_hook}` in `:persistent_term` is called
-  # with the chunk's beams in its process, before it compiles them.
-  defp chunk_hook(beams) do
-    case :persistent_term.get({__MODULE__, :chunk_hook}, nil) do
+  # A test's ways in (#2917, #3012): a fun under `{Slipdock.Coverage,
+  # name}` in `:persistent_term` is called with `args`. `:chunk_hook` (1
+  # arity) is called with the chunk's beams in its process, before it
+  # compiles them; `:stop_hook` (0 arity) by stop_cover/1 once what it
+  # killed has gone, before it looks again.
+  defp hook(name, args) do
+    case :persistent_term.get({__MODULE__, name}, nil) do
       nil -> :ok
-      hook -> hook.(beams)
+      hook -> apply(hook, args)
     end
   end
 
