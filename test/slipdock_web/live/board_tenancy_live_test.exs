@@ -373,7 +373,7 @@ defmodule SlipdockWeb.BoardTenancyLiveTest do
   defp handled_events(file) do
     handled =
       ~r/defp? (?:handle_)?event\(\s*"([a-z_]+)",/
-      |> Regex.scan(File.read!("lib/slipdock_web/live/board_live/" <> file),
+      |> Regex.scan(source(file),
         capture: :all_but_first
       )
       |> List.flatten()
@@ -381,6 +381,14 @@ defmodule SlipdockWeb.BoardTenancyLiveTest do
 
     assert handled != []
     handled
+  end
+
+  # One file, or several named with spaces between: the card panel's event
+  # clauses are in the modules beside it.
+  defp source(files) do
+    files
+    |> String.split()
+    |> Enum.map_join("\n", &File.read!("lib/slipdock_web/live/board_live/" <> &1))
   end
 
   describe "board settings" do
@@ -493,7 +501,9 @@ defmodule SlipdockWeb.BoardTenancyLiveTest do
           {"tags_component.ex", SlipdockWeb.BoardLive.TagsComponent},
           {"settings_component.ex", SlipdockWeb.BoardLive.SettingsComponent},
           {"archive_component.ex", SlipdockWeb.BoardLive.ArchiveComponent},
-          {"card_component.ex", SlipdockWeb.BoardLive.CardComponent},
+          {"card_component/field_events.ex card_component/handoff_events.ex " <>
+             "card_component/link_events.ex card_component/repeat_events.ex " <>
+             "card_component/wait_events.ex", SlipdockWeb.BoardLive.CardComponent},
           {"page_component.ex", SlipdockWeb.BoardLive.PageComponent}
         ] do
       test "every handle_event clause in #{file} is in its event list" do

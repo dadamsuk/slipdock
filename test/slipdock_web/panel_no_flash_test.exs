@@ -12,8 +12,21 @@ defmodule SlipdockWeb.PanelNoFlashTest do
 
   @panel_files ~w(
     lib/slipdock_web/live/board_live/card_component.ex
+    lib/slipdock_web/live/board_live/card_component/field_events.ex
+    lib/slipdock_web/live/board_live/card_component/glance.ex
+    lib/slipdock_web/live/board_live/card_component/handoff_events.ex
+    lib/slipdock_web/live/board_live/card_component/link_events.ex
+    lib/slipdock_web/live/board_live/card_component/modal.ex
+    lib/slipdock_web/live/board_live/card_component/repeat_events.ex
+    lib/slipdock_web/live/board_live/card_component/state.ex
+    lib/slipdock_web/live/board_live/card_component/wait_events.ex
     lib/slipdock_web/live/board_live/card_sections.ex
     lib/slipdock_web/live/board_live/card_panel.ex
+    lib/slipdock_web/live/board_live/card_panel/attachments.ex
+    lib/slipdock_web/live/board_live/card_panel/chips.ex
+    lib/slipdock_web/live/board_live/card_panel/properties.ex
+    lib/slipdock_web/live/board_live/card_panel/schedule.ex
+    lib/slipdock_web/live/board_live/card_panel/verify.ex
     lib/slipdock_web/live/board_live/wait_components.ex
     lib/slipdock_web/live/board_live/item_events.ex
     lib/slipdock_web/live/board_live/page_component.ex
@@ -23,7 +36,8 @@ defmodule SlipdockWeb.PanelNoFlashTest do
   # {file, the text on the line, why it is a flash}. The panel is gone when
   # each of these shows, so there is no modal for the toast to close.
   @exceptions [
-    {"lib/slipdock_web/live/board_live/card_component.ex", ~s|put_flash(:info, "Started|,
+    {"lib/slipdock_web/live/board_live/card_component/link_events.ex",
+     ~s|put_flash(:info, "Started|,
      "Write it up navigates to the new page's editor, leaving the board"}
   ]
 

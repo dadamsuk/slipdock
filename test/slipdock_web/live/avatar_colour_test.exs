@@ -60,10 +60,12 @@ defmodule SlipdockWeb.AvatarColourTest do
     end
 
     test "no avatar code has a pixel-size literal" do
-      source = File.read!("lib/slipdock_web/components/slipdock_components.ex")
+      source = File.read!("lib/slipdock_web/components/slipdock_components/marks.ex")
 
-      [chips] =
-        Regex.run(~r/## Assignees.*?## Due dates/s, source)
+      # The assignees are the last section of the file.
+      [chips] = Regex.run(~r/## Assignees.*/s, source)
+      assert chips =~ "def avatar(assigns)"
+      assert chips =~ "def assignee_chips("
 
       refute chips =~ ~r/text-\[\d+px\]/
     end
