@@ -297,17 +297,30 @@ defmodule SlipdockWeb.BoardLive.Show do
   # A file dropped at the foot of a list becomes a card of its own: named
   # after the file, with the file attached. "Add a document" is a shortcut to
   # adding a card, not a fourth kind of thing on the board.
+  defp handle_upload(:list_document, %{done?: false}, socket), do: {:noreply, socket}
+
+  # A finished upload is a write that never passes `access_hook/3` (it is
+  # the upload's progress callback, not an event), so it reads the reader's
+  # level again itself before the `can_write` guard (#3000).
   defp handle_upload(:list_document, entry, socket) do
+    socket = refresh_access(socket)
+    if socket.redirected, do: {:noreply, socket}, else: store_document(entry, socket)
+  end
+
+  defp store_document(entry, socket) do
     column =
       Enum.find(socket.assigns.board.columns, &(&1.id == socket.assigns.document_column))
 
     cond do
-      not entry.done? ->
-        {:noreply, socket}
-
       # Never fail quietly here: a file that vanishes without a word is
       # indistinguishable from a button that does nothing.
-      is_nil(column) or not socket.assigns.can_write ->
+      not socket.assigns.can_write ->
+        {:noreply,
+         socket
+         |> cancel_upload(:list_document, entry.ref)
+         |> put_flash(:error, "You have read-only access to this board.")}
+
+      is_nil(column) ->
         {:noreply,
          socket
          |> cancel_upload(:list_document, entry.ref)
