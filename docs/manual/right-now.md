@@ -27,7 +27,7 @@ runners take work from all of it), read again every few seconds:
   still shows, marked *Not in a doing list* (`in_doing: false` in the API and
   MCP, *(not a doing list)* after its list in `slipdock now`). Longest there
   first, with where it sits (the board and list, and the epic
-  whose sub-board holds it), its state line (*Running · Mac Studio · 7m*,
+  whose sub-board holds it), its state line (*Building · Mac Studio · 7m*,
   *Waiting on Dana*), the runner loop holding it, and what holds it: waiting
   on a person, verifying, merging, blocked, in review or stuck (red: the
   health monitor's flag, an incident for a person). A card held by none of

@@ -117,7 +117,7 @@
   goes when the job ends; the loop is never an assignee, so assignee filters
   and My work still mean people. An epic's job builds its subcards inside
   itself: the subcard its current step names ("#2835 CI running") shows
-  that job's chip, and its state line reads `Running · … · in #<epic>`, so it is
+  that job's chip, and its state line reads `Building · … · in #<epic>`, so it is
   never "nobody on it" on the epic's line while the job is on it
 - **Multiboard** (`/multiboard`, from the home page's toolbar): pick lists
   from any of your boards under **Lists** and see the top N cards of each

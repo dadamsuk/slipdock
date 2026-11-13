@@ -64,7 +64,7 @@ defmodule Slipdock.CardStateTest do
   defp mcp, do: %{Actor.unknown() | kind: "agent", via: "mcp", agent: "claude"}
 
   describe "the state line" do
-    test "a running job: Running, the runner, and how long; an agent drives it", ctx do
+    test "a running build job: Building, the runner, and how long; an agent drives it", ctx do
       card = card_fixture(ctx.doing, %{"title" => "Build"})
       {:ok, _} = queue(card)
       job = Runners.claim(ctx.runner)
@@ -72,9 +72,40 @@ defmodule Slipdock.CardStateTest do
       set_job(job, started_at: ago(7 * 60 + 5))
 
       state = state_of(ctx, card)
-      assert state.line == "Running · runner-2 · 7m"
+      assert state.line == "Building · runner-2 · 7m"
       assert state.kind == "running"
       assert state.driver == "agent"
+    end
+
+    # #3039: the word follows what the job does. `kind` stays "running" for
+    # all of them, so the tile's colour and the filters don't move.
+    test "a running job of a runner's own kind builds too: Building", ctx do
+      card = card_fixture(ctx.doing, %{"title" => "Build"})
+      {:ok, _} = Runners.queue(card, %{pool: "dev", kind: "codex", prompt: "go"})
+      job = Runners.claim(ctx.runner)
+      {:ok, :ok} = Runners.heartbeat(ctx.runner, job.id)
+      set_job(job, started_at: ago(7 * 60 + 5))
+
+      state = state_of(ctx, card)
+      assert state.line == "Building · runner-2 · 7m"
+      assert state.kind == "running"
+      assert state.loop.kind == "build"
+    end
+
+    for kind <- ~w(verify merge) do
+      test "a running #{kind} job builds nothing: it still says Running", ctx do
+        card = card_fixture(ctx.doing, %{"title" => "Check"})
+        {:ok, _} = queue(card)
+        job = Runners.claim(ctx.runner)
+        {:ok, :ok} = Runners.heartbeat(ctx.runner, job.id)
+        set_job(job, started_at: ago(7 * 60 + 5), kind: unquote(kind))
+
+        state = state_of(ctx, card)
+        assert state.line == "Running · runner-2 · 7m"
+        assert state.kind == "running"
+        assert state.loop.kind == unquote(kind)
+        assert state.driver == "agent"
+      end
     end
 
     test "a claimed job not yet started says Claimed", ctx do

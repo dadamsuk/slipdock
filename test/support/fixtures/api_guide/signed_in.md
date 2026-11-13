@@ -1276,7 +1276,8 @@ set, take nothing and stop; resuming is a person's (see Runners).
 
 **A card's state**, worked out from what is already recorded and left
 out when there is nothing to say: `state` (one line: "Waiting on Dana ·
-41m", "Held · paused by David: bad deploy", "Running · runner-2 · 7m"),
+41m", "Held · paused by David: bad deploy", "Building · runner-2 · 7m",
+or "Running · …" for a verify or merge job),
 `held` (why its queued job waits), `loop` (`{runner, kind, job_id}`
 while a runner job holds it: shown beside the assignees, never one, so
 a runner's agent doesn't assign the card; a subcard an epic's build job

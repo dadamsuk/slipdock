@@ -63,7 +63,7 @@ defmodule SlipdockCLI.CardsFiltersTest do
   test "a stuck card's line: its state, driver and how far over usual" do
     card =
       Map.merge(@card, %{
-        "state" => "Running · runner-2 · 7m",
+        "state" => "Building · runner-2 · 7m",
         "driver" => "agent",
         "age" => 3 * 3600 + 30,
         "over_usual" => 3600,
@@ -74,7 +74,7 @@ defmodule SlipdockCLI.CardsFiltersTest do
     assert out =~ "#7"
     assert out =~ "🤖agent"
     assert out =~ "⏳3h (1h over usual, stuck)"
-    assert out =~ "▸ Running · runner-2 · 7m"
+    assert out =~ "▸ Building · runner-2 · 7m"
   end
 
   test "a card with no state shows its age alone" do

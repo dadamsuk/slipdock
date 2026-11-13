@@ -100,7 +100,7 @@ defmodule Slipdock.CardStateEpicJobTest do
       state = state_of(ctx.sub, ctx.named)
       assert state.loop == %{runner: "dedev", kind: "build", job_id: job.id}
       assert state.kind == "running"
-      assert state.line =~ ~r/^Running · dedev · .* · in ##{ctx.epic.id}$/
+      assert state.line =~ ~r/^Building · dedev · .* · in ##{ctx.epic.id}$/
       assert state.driver == "agent"
     end
 
@@ -181,7 +181,7 @@ defmodule Slipdock.CardStateEpicJobTest do
       assert state.kind == "waiting"
       assert state.line =~ ~r/^Waiting on /
       refute state.line =~ " · in #"
-      refute state.line =~ "Running"
+      refute state.line =~ "Building"
       # The job is still on it: the chip stays while the person is asked.
       assert state.loop.job_id == job.id
     end
@@ -236,7 +236,7 @@ defmodule Slipdock.CardStateEpicJobTest do
       # Running wins over claimed, though the claimed one is newer.
       assert CardState.epic_jobs([leaf.id])[leaf.id].id == older.id
       assert CardState.loops([leaf.id])[leaf.id].job_id == older.id
-      assert state_of(deeper, leaf).line =~ ~r/^Running · dedev · (.* · )?in ##{ctx.epic.id}$/
+      assert state_of(deeper, leaf).line =~ ~r/^Building · dedev · (.* · )?in ##{ctx.epic.id}$/
 
       # ...and the other way round, the running one being the newer.
       set_job(older, status: "claimed")
