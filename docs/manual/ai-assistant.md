@@ -76,7 +76,11 @@ is ever sent to a model unless you ask.
   *archive the done cards* is a step per card). Ask for a tag the board
   doesn't have yet and it makes it: the step reads *Create tag “x” and add
   it to …*, and the tag (in the default colour, on the top board so its
-  sub-boards share it) is only made when you apply. Ask for a tag on several
+  sub-boards share it) is only made when you apply. A new tag needs write
+  on the board: someone who writes the card by a grant alone can still add
+  or remove the tags the board has, but a tag it lacks comes back struck
+  through, *only someone who can edit the board makes a new tag; pick one
+  it has*. Ask for a tag on several
   cards at once (*tag everything in Doing as urgent*) and it is one step per
   tag naming every card it touches — *Add tag “urgent” to 3 cards: …* —
   leaving out any that already have it. It can also **archive a
