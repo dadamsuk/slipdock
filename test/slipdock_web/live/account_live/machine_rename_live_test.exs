@@ -19,6 +19,7 @@ defmodule SlipdockWeb.AccountLive.MachineRenameLiveTest do
     board = board_fixture(%{"name" => "Served board", "code" => unique_code()}, owner: user)
     {:ok, key, _} = Machines.create_enrolment_key(user, [board.id])
     {:ok, {_machine_key, machine}} = Machines.enrol_with_key(key, @about)
+    :ok = MachineRunners.subscribe(machine)
     %{board: board, machine: machine}
   end
 
@@ -29,23 +30,30 @@ defmodule SlipdockWeb.AccountLive.MachineRenameLiveTest do
     |> patch(~p"/api/machines/#{ctx.machine.id}", %{name: name})
   end
 
-  # The list hears a rename as `:config_changed` and reloads its section with
-  # `send_update`, which is a message the LiveView sends itself. A single
-  # round trip (the ping behind `has_element?`) can sit in the mailbox ahead
-  # of that message and see the old list (#2961). Waiting until the LiveView
-  # has handled the broadcast puts the update ahead of the next ping.
-  defp settle(view), do: _ = :sys.get_state(view.pid)
-
   defp api_token(user) do
     {token, _} = Accounts.create_api_token(user, "rename")
     token
   end
 
-  # Account › Machines reloads its list by a `send_update` to itself when it
-  # hears the rename, a message it queues behind any already waiting. The one
-  # ping `has_element?` makes can be ahead of it and see the list from before;
-  # a render first is a round trip that lets the update through (#2953).
+  # Waits for the rename's broadcast to be heard (#2978). The test follows
+  # the machine's topic, so `assert_receive` is the broadcast gone out (the
+  # API request runs in this process and sends it). A `:sys.get_state/1`
+  # call to the view then comes from the same sender as that broadcast, so
+  # Erlang delivers it after it: when it returns, the view has handled the
+  # message. Account › Machines reloads its list by a `send_update` to
+  # itself, queued by then, and the render that follows is behind it
+  # (#2953, #2961).
+  defp heard(view, ctx, message) do
+    assert_receive {^message, machine_id} when machine_id == ctx.machine.id
+    _ = :sys.get_state(view.pid)
+    _ = render(view)
+    view
+  end
+
+  # Nothing went out on the topic, and the view has handled whatever was
+  # sent to it before this.
   defp settled(view) do
+    _ = :sys.get_state(view.pid)
     _ = render(view)
     view
   end
@@ -61,7 +69,7 @@ defmodule SlipdockWeb.AccountLive.MachineRenameLiveTest do
 
     # The page heard it on the machine's topic: the heading and the rename
     # form both carry the new name, and the hostname is shown beside it.
-    html = render(view)
+    html = view |> heard(ctx, :config_changed) |> render()
     assert html =~ "Silverbox"
     assert has_element?(view, "#machine-rename input#machine-rename-name[value=Silverbox]")
     assert has_element?(view, "#machine-rename", "hostname build-box")
@@ -76,9 +84,13 @@ defmodule SlipdockWeb.AccountLive.MachineRenameLiveTest do
     assert has_element?(view, "#machine-#{ctx.machine.id}", "build-box")
 
     ctx |> rename_over_api("Silverbox") |> json_response(200)
-    settle(view)
 
-    assert has_element?(settled(view), "#machine-#{ctx.machine.id}", "Silverbox")
+    assert has_element?(
+             heard(view, ctx, :config_changed),
+             "#machine-#{ctx.machine.id}",
+             "Silverbox"
+           )
+
     refute has_element?(view, "#machine-#{ctx.machine.id}", "build-box")
   end
 
@@ -89,9 +101,12 @@ defmodule SlipdockWeb.AccountLive.MachineRenameLiveTest do
     assert has_element?(view, "#shared-machine-#{ctx.machine.id}", "build-box")
 
     ctx |> rename_over_api("Silverbox") |> json_response(200)
-    settle(view)
 
-    assert has_element?(settled(view), "#shared-machine-#{ctx.machine.id}", "Silverbox")
+    assert has_element?(
+             heard(view, ctx, :config_changed),
+             "#shared-machine-#{ctx.machine.id}",
+             "Silverbox"
+           )
   end
 
   test "a refused rename changes nothing on the open page or the list", ctx do
@@ -101,9 +116,13 @@ defmodule SlipdockWeb.AccountLive.MachineRenameLiveTest do
     assert %{"error" => "give the machine a name"} =
              ctx |> rename_over_api("   ") |> json_response(422)
 
-    settle(list)
+    refute_received {:config_changed, _}
 
-    assert has_element?(page, "#machine-rename input#machine-rename-name[value=build-box]")
+    assert has_element?(
+             settled(page),
+             "#machine-rename input#machine-rename-name[value=build-box]"
+           )
+
     assert page_title(page) =~ "build-box"
     assert has_element?(settled(list), "#machine-#{ctx.machine.id}", "build-box")
   end
@@ -117,9 +136,13 @@ defmodule SlipdockWeb.AccountLive.MachineRenameLiveTest do
     Slipdock.Repo.update!(Ecto.Changeset.change(ctx.machine, name: "Quietly"))
     Phoenix.PubSub.broadcast(Slipdock.PubSub, topic, {:config_reported, ctx.machine.id})
     Phoenix.PubSub.broadcast(Slipdock.PubSub, topic, {:probe_changed, 1})
-    settle(view)
 
-    assert has_element?(settled(view), "#machine-#{ctx.machine.id}", "build-box")
+    assert has_element?(
+             heard(view, ctx, :config_reported),
+             "#machine-#{ctx.machine.id}",
+             "build-box"
+           )
+
     assert Process.alive?(view.pid)
   end
 end
