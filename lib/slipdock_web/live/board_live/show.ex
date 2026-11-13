@@ -49,6 +49,10 @@ defmodule SlipdockWeb.BoardLive.Show do
 
   @empty_filters Slipdock.Filters.empty()
 
+  # The panels that show the whole board, rather than what a view or a card
+  # selects.
+  @board_panels [:archive, :tags, :activity]
+
   ## Lifecycle ---------------------------------------------------------------
 
   # Every event is in one of the lists below, and one that is in none of them
@@ -434,6 +438,21 @@ defmodule SlipdockWeb.BoardLive.Show do
   defp apply_panel(%{assigns: %{card_only: true}} = socket, nil, _),
     do: push_navigate(socket, to: ~p"/")
 
+  # The archive, tags and activity panels are the whole board's, so they are
+  # for its readers: access through one card or one saved view doesn't open
+  # them.
+  defp apply_panel(%{assigns: %{card_only: true}} = socket, panel, _)
+       when panel in @board_panels,
+       do: socket |> assign(panel: nil, card: nil) |> push_navigate(to: ~p"/")
+
+  defp apply_panel(%{assigns: %{view_only: true}} = socket, panel, _)
+       when panel in @board_panels do
+    socket
+    |> assign(panel: nil, card: nil)
+    |> put_flash(:error, "That isn't part of the view shared with you.")
+    |> push_patch(to: socket.assigns.paths.close)
+  end
+
   defp apply_panel(socket, nil, _),
     do: assign(socket, card: nil)
 
@@ -473,9 +492,9 @@ defmodule SlipdockWeb.BoardLive.Show do
   # A card that isn't live on this board: an archived one is shown where it
   # can be restored, to a reader of the board; anything else has gone.
   defp missing_card(socket, card_id) do
-    %{board: board, card_only: card_only, paths: paths} = socket.assigns
+    %{board: board, card_only: card_only, view_only: view_only, paths: paths} = socket.assigns
 
-    case !card_only && Boards.Cards.get_archived_card(board.id, card_id) do
+    case !card_only && !view_only && Boards.Cards.get_archived_card(board.id, card_id) do
       %Card{id: id} ->
         socket
         |> put_flash(:info, "That card is archived.")
