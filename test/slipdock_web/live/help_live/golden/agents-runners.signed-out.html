@@ -1,0 +1,931 @@
+<div phx-r="" id="help" class="kanban-scroll h-full overflow-y-auto">
+<div phx-r="" data-page-width="standard" class="mx-auto w-full px-4 py-6 sm:px-6 sm:py-10 max-w-5xl space-y-8">
+<nav phx-r="" id="help-sections-nav" aria-label="Help sections" class="flex gap-1 overflow-x-auto rounded-2xl bg-base-100 p-1 text-sm shadow-sm ring-1 ring-base-content/10">
+<a phx-r="" href="/help" data-phx-link="patch" data-phx-link-state="push" class="flex items-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+<span phx-r="" class="hero-arrow-left size-4">
+</span>
+ Help
+  </a>
+<a phx-r="" href="/help/boards" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+  Boards
+</a>
+<a phx-r="" href="/help/wiki" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+  Wiki
+</a>
+<a phx-r="" href="/help/sharing" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+  Sharing
+</a>
+<a phx-r="" href="/help/email" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+  Email
+</a>
+<a phx-r="" href="/help/automations" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+  Automations
+</a>
+<a phx-r="" href="/help/tools" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+  Tools
+</a>
+<a phx-r="" href="/help/ai" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+  AI
+</a>
+<a phx-r="" href="/help/agents" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium bg-primary/10 text-primary" aria-current="page">
+
+  Agents
+</a>
+</nav>
+<nav phx-r="" id="help-topics" aria-label="Help topics" class="flex gap-1 overflow-x-auto rounded-2xl bg-base-100 p-1 text-sm shadow-sm ring-1 ring-base-content/10">
+<a phx-r="" href="/help/agents" data-phx-link="patch" data-phx-link-state="push" class="flex items-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+<span phx-r="" class="hero-arrow-left size-4">
+</span>
+ All ways in
+  </a>
+<a phx-r="" href="/help/agents/flow" data-phx-link="patch" data-phx-link-state="push" id="help-topics-flow" class="flex items-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+    How work flows
+  </a>
+<a phx-r="" href="/help/agents/guide" data-phx-link="patch" data-phx-link-state="push" class="flex items-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+    Guide &amp; API
+  </a>
+<a phx-r="" href="/help/agents/mcp" data-phx-link="patch" data-phx-link-state="push" class="flex items-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+    MCP
+  </a>
+<a phx-r="" href="/help/agents/cli" data-phx-link="patch" data-phx-link-state="push" class="flex items-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+    CLI
+  </a>
+<a phx-r="" href="/help/agents/skills" data-phx-link="patch" data-phx-link-state="push" class="flex items-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+    Skills
+  </a>
+<a phx-r="" href="/help/agents/runners" data-phx-link="patch" data-phx-link-state="push" class="flex items-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-2 font-medium bg-primary/10 text-primary" aria-current="page">
+
+    Runners
+  </a>
+<a phx-r="" href="/help/agents/webhooks" data-phx-link="patch" data-phx-link-state="push" class="flex items-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+    Webhooks
+  </a>
+</nav>
+<article phx-r="" id="help-topic-runners" class="space-y-6">
+<header class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+<header phx-r="" id="page-header" data-role="page-header" class="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-3 ">
+<div class="min-w-0">
+<h1 class="page-title">
+<span class="mr-2 inline-flex align-middle">
+<span phx-r="" class="hero-cpu-chip size-6 text-primary">
+</span>
+</span>
+Runners
+    </h1>
+<p data-role="page-subtitle" class="mt-1 max-w-2xl text-sm text-base-content/60">
+
+      Reverses the direction: the board sends cards to an agent on a machine of yours when something happens, such as a card arriving in a list. The agent works the card and reports back.
+    </p>
+</div>
+</header>
+<p class="mt-2 text-sm">
+<span class="font-medium">
+Use it when</span>
+<span class="text-base-content/70">
+you want work to start without anyone opening a session, such as a list that agents empty on their own, or a queue several machines share.</span>
+</p>
+</header>
+<section phx-r="" class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+<h2 class="section-title">
+How they work</h2>
+<div class="help-prose mt-2 space-y-3 text-sm text-base-content/70">
+<p phx-r="">
+
+    With the other options, you start an agent and it reads the board. A runner works the
+    other way round. An automation rule queues a <strong>
+job</strong>
+
+    for a <strong>
+pool</strong>
+, for example whenever a card arrives in a list. A runner
+    in that pool, on a machine of yours, takes the job, runs the agent on the card, and
+    reports how it went.
+  </p>
+<p phx-r="">
+
+    Runners <strong>
+pull</strong>
+: they connect out to ask for work, and the server never
+    connects to them, so there are no ports to open or tunnels to set up. The server sends
+    only the card and a prompt. What actually runs is decided by the runner&#39;s own config on
+    your machine, and a kind of job it doesn&#39;t define is refused. A runner&#39;s token can
+    only take and report on its own pool&#39;s jobs.
+  </p>
+<p phx-r="" id="help-runners-profile">
+
+    On a board with profiles on, a claimed job also carries the card&#39;s <strong>
+profile</strong>
+: one word for what kind of change it is, <code>
+security</code>
+, <code>
+schema</code>
+, <code>
+feature</code>
+, <code>
+fix</code>
+,
+    <code>
+docs</code>
+
+    or <code>
+spike</code>
+. It is the card&#39;s own, else the one its paths and tags infer:
+    a security path makes it <code>
+security</code>
+, a migration <code>
+schema</code>
+, a
+    <code>
+bug</code>
+
+    tag <code>
+fix</code>
+, only docs paths <code>
+docs</code>
+, a <code>
+spike</code>
+
+    tag <code>
+spike</code>
+, anything else <code>
+feature</code>
+. It is <code>
+profile</code>
+
+    in <code>
+claim_job</code>
+&#39;s answer and the session claim&#39;s job, <code>
+profile:</code>
+
+    in <code>
+slipdock claim-job</code>
+, and <code>
+SLIPDOCK_PROFILE</code>
+
+    in a runner&#39;s job, where the runner&#39;s config can pick a model for it
+    (<code>
+MODEL_feature</code>
+). The profile decides how the work is checked: a <code>
+docs</code>
+
+    card gets no verifier, a <code>
+schema</code>
+
+    or <code>
+security</code>
+
+    one a defect review and, on a board that ships by pull request, waits by default for a
+    person before it merges, and a <code>
+spike</code>
+
+    merges nothing. A <code>
+fix</code>
+, <code>
+feature</code>
+, <code>
+schema</code>
+
+    or <code>
+security</code>
+
+    card&#39;s verifier mutates the change: 3 to 5 of its most consequential lines and every
+    guard or branch it adds, each named with its line, and it checks each claim in the
+    builder&#39;s evidence rather than carry it. An agent may raise a card&#39;s profile once work has started, never lower
+    it, and the change it completes with can raise it too (<code>
+slipdock done 12 --diff-base origin/main</code>
+). With profiles off, no profile is sent.
+  </p>
+<p phx-r="">
+
+    What happens to the card after that, from the claim through building, CI and a second
+    agent&#39;s check to the deploy, and where it waits for you: <a phx-r="" href="/help/agents/flow" data-phx-link="patch" data-phx-link-state="push" id="help-runners-flow" class="link font-medium">
+
+      How work flows
+    </a>
+.
+  </p>
+</div>
+</section>
+<section phx-r="" id="help-runners-setup" class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+<h2 class="section-title">
+Set one up</h2>
+<div class="help-prose mt-2 space-y-3 text-sm text-base-content/70">
+<p phx-r="">
+
+    On the board, open <strong>
+Automations → Connect a runner</strong>
+. It asks where the
+    work should happen and gives you exactly what to paste:
+  </p>
+<div phx-r="" class="overflow-x-auto">
+<table class="table table-sm">
+<thead>
+<tr>
+<th>
+Where</th>
+<th>
+What it is</th>
+<th>
+Cost while idle</th>
+</tr>
+</thead>
+<tbody>
+<tr id="help-scenario-daemon">
+<td>
+A machine with the daemon</td>
+<td>
+<code>
+slipdock-runner init</code>
+
+            with a one-time enrolment key made for the board, then its runners set on the machine&#39;s page
+          </td>
+<td>
+Nothing</td>
+</tr>
+<tr>
+<td>
+Claude Code</td>
+<td>
+A <code>
+/loop</code>
+ that takes jobs from the pool&#39;s queue</td>
+<td>
+A Claude turn per check</td>
+</tr>
+<tr>
+<td>
+Claude, scheduled</td>
+<td>
+A Claude Desktop or cloud routine with the Slipdock connector</td>
+<td>
+A Claude turn per run</td>
+</tr>
+<tr>
+<td>
+ChatGPT</td>
+<td>
+A chat or scheduled task that claims one job and works it in the conversation</td>
+<td>
+A ChatGPT turn per check</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p phx-r="" id="help-scripts-retired">
+
+    The shell and PowerShell runners the daemon replaced were retired: this server no
+    longer serves them. One still running keeps working with its token until it is moved:
+    <strong>
+Move to a machine</strong>
+
+    on it in the Runners panel gives the steps.
+  </p>
+<p phx-r="" id="help-machines">
+
+    A machine running the runner daemon enrols once: <code>
+slipdock-runner init</code>
+
+    shows a code and the machine&#39;s fingerprint, and you approve it under <span phx-r="" class="font-medium text-base-content">
+Account → Machines</span>
+, checking the hostname, system and fingerprint and
+    choosing the boards it may serve. It gets a machine key of its own, which is not an API
+    token, and revoking the machine there stops the key at once. For a machine with nobody
+    at its screen, make a one-time enrolment key on the same page: the name you give it is
+    the name the machine enrols under, or its hostname without one.
+  </p>
+<p phx-r="" id="help-machine-connection">
+
+    The daemon looks after its own connection to this server, so a laptop that sleeps or
+    changes networks runs jobs as well as a machine that is always on. It pings a
+    connection that has been quiet for 15 seconds and replaces it if no answer comes
+    within 10, never retries a failed request on the connection it failed on, and when
+    the clock jumps (the machine woke from sleep) drops its connections and asks for work
+    again at once. Meanwhile the machine shows offline after about 4½ minutes unheard
+    from, and a job it held goes back in the queue once its 90-second lease runs out.
+    If no other runner has taken that job when the machine wakes, its runner takes it
+    back with its next heartbeat and the agent carries on where it was; if one has, the
+    woken runner stops its copy.
+  </p>
+<p phx-r="" id="help-machine-page">
+
+    Each machine has a page of its own, opened from that list: whether it is online, the
+    ceiling and executors it reported, its runners and what each is working on, and the
+    log of settings it accepted or refused. There you add, change, pause and remove its
+    runners, rename the machine (its hostname stays), ask it to update now, and revoke it.
+    A setting outside the machine&#39;s ceiling
+    is marked with the limit; if you save it anyway the machine refuses it, and the page
+    shows the refusal with its reason and the limit. People who share a board with the
+    machine see its page but can&#39;t change it.
+  </p>
+<p phx-r="" id="help-machine-probe">
+<strong>
+Probe</strong>
+
+    a runner from that page, or with <code>
+slipdock machine probe</code>
+, to check it is ready to work without a shell on
+    the machine. The runner checks its directory is a git repository with an origin, its
+    agent answers <code>
+--version</code>
+, <code>
+gh</code>
+
+    is signed in, the slipdock skills
+    and CLI are this server&#39;s, and its executor runs a command, then runs its probe hook
+    if it has one. The page shows the probe green with when it passed, or red with its
+    log. A probe is a job with no card, sent only to that runner.
+  </p>
+<p phx-r="" id="help-machine-keeps-current">
+
+    After a deploy there is nothing to do on the machine: before each agent job (not a
+    merge or a probe) the daemon puts this server&#39;s slipdock skills in place and, when
+    <code>
+/cli/SHA256SUMS</code>
+
+    differs from its <code>
+slipdock</code>
+
+    CLI, fetches this server&#39;s CLI, checks its SHA-256 and puts it in the daemon&#39;s own
+    folder, first on the job&#39;s PATH, never over a copy installed elsewhere unless the
+    machine&#39;s <code>
+local.json</code>
+
+    names it as <code>
+cli</code>
+. The CLI is installed only when its signature verifies
+    against the release key built into the daemon: the release job signs each <code>
+v*</code>
+
+    tag&#39;s, and a server built from source, or a deploy it didn&#39;t sign, serves none, so the
+    machine keeps its own CLI unless <code>
+local.json</code>
+
+    sets <code>
+cli_checksum_only</code>
+. Until the next tag is deployed, its runner shows
+    <em>
+CLI unsigned on server</em>
+
+    rather than <em>
+old CLI</em>
+: the cause is the server&#39;s, not the machine&#39;s. A failed fetch or a wrong sum keeps the CLI it had, and
+    the job runs. The skills are installed the same way, only when their archive&#39;s
+    signature verifies against that key, and a server that serves none leaves the
+    installed skills in place unless <code>
+local.json</code>
+
+    sets <code>
+skills_unsigned</code>
+; its runner then shows <em>
+skills unsigned on server</em>
+
+    rather than <em>
+skills drifted</em>
+
+    until the next tag is deployed, with no alert. The runner reports the current CLI at its next claim, and its probe goes
+    green. <code>
+no_cli_update</code>
+
+    (and <code>
+no_skills_update</code>
+) in <code>
+local.json</code>
+
+    turns it off.
+  </p>
+<p phx-r="" id="help-machine-release">
+
+    On a board with batched releases the daemon also fires the release, as it merges: a
+    <code>
+release</code>
+
+    job has no agent and no card. It runs
+    <code>
+gh workflow run &lt;workflow&gt; --ref &lt;branch&gt;</code>
+
+    itself and logs the run it started. Any other release command a board sets runs only
+    when the machine&#39;s <code>
+local.json</code>
+
+    lists it, word for word, under <code>
+release_commands</code>
+; the daemon refuses the
+    rest, since it never runs what the server sends. <code>
+no_release: true</code>
+
+    there turns the kind off. A card on such a board is done when it merges: an agent
+    neither waits for its release nor fires one, <em>
+Release now</em>
+
+    is how a person ships, and a card&#39;s <em>
+Not shipped</em>
+
+    line counts from its release, not its merge.
+  </p>
+<p phx-r="" id="help-machine-setup">
+<strong>
+Set up this machine with Claude</strong>
+, on the machine&#39;s page and at the end of
+    <code>
+slipdock-runner init</code>
+
+    (or <code>
+slipdock-runner setup</code>
+
+    later), starts
+    Claude Code on the machine, as the account its jobs run as, with a prompt that reads each
+    board&#39;s machine-setup page (the handbook&#39;s Testing &amp; tooling, Local setup). It checks
+    what the machine has, installs what&#39;s missing, proves it by cloning the repository and
+    running its suite, and corrects the page where it was wrong, so the next machine is set up
+    from the page alone.
+  </p>
+</div>
+</section>
+<section phx-r="" id="help-trust-contract" class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+<h2 class="section-title">
+What the server can and cannot do</h2>
+<div class="help-prose mt-2 space-y-3 text-sm text-base-content/70">
+<p phx-r="">
+
+    A machine with the runner daemon takes data from this server, never a command. This
+    is the trust contract: the same text is on each machine&#39;s page, and on the machine
+    <code>
+slipdock-runner show</code>
+
+    prints it after that machine&#39;s own limits.
+  </p>
+<div phx-r="" class="card-prose " data-role="trust-contract">
+<p>
+A Slipdock server queues work for the machines that run its runners. This
+is what it can and cannot make such a machine do, and what none of this
+protects you from. Read it before you install the runner daemon on a
+machine. On the machine, <code>
+slipdock-runner show</code>
+ prints it with that
+machine&#39;s own limits.</p>
+<h4>
+What the server can do</h4>
+<ul>
+<li>
+Queue jobs for the pools this machine&#39;s runners joined. Each job comes
+with a prompt: the card, and what the board&#39;s members wrote for the
+agent to do.</li>
+<li>
+Set each runner&#39;s settings: its pool, agent, working directory,
+permission mode, timeout, model, worktree, verbosity, standing
+instructions, executor, and the names of its hooks. These are data, not
+code, and they apply only inside the machine&#39;s ceiling. A setting
+outside the ceiling is refused on the machine, and the runner keeps the
+settings it last accepted.</li>
+<li>
+Start a release. On a board that releases in batches, a <code>
+release</code>
+ job
+has a runner here run <code>
+gh workflow run &lt;workflow&gt; --ref &lt;branch&gt;</code>
+ in its
+repository, as the account <code>
+gh</code>
+ is signed in as. The board names the
+workflow file and the branch (by default the repository&#39;s default
+branch), and the daemon checks both as plain names before it uses them.
+<code>
+no_release: true</code>
+ in <code>
+local.json</code>
+ turns this off.</li>
+<li>
+Name a newer version of the daemon.</li>
+</ul>
+<h4>
+What the server cannot do</h4>
+<ul>
+<li>
+Run a command on this machine. The daemon never runs anything the
+server sends. The agents, custom commands and hooks it can run are
+defined in files on the machine, and the server can only pick one of
+them by name. A board&#39;s release command is no exception: one that isn&#39;t
+the <code>
+gh workflow run</code>
+ above runs only when <code>
+local.json</code>
+ lists it, word
+for word, under <code>
+release_commands</code>
+; any other is refused and nothing
+runs.</li>
+<li>
+Change a hook or a command, or add one.</li>
+<li>
+Change the ceiling. It is a file on the machine (<code>
+ceiling.json</code>
+) that
+the server never reads or writes; only someone at the machine edits it.</li>
+<li>
+Set a working directory outside the ceiling&#39;s roots, an agent it
+doesn&#39;t list, a permission mode above its highest, a timeout above its
+longest, a board it doesn&#39;t serve, or an executor it doesn&#39;t allow.</li>
+<li>
+Read files on this machine. What reaches the server is what the daemon
+sends: each job&#39;s log and the agent&#39;s transcript, which hold whatever
+the agent read or printed while it worked.</li>
+<li>
+Install an update that isn&#39;t signed with the project&#39;s release key,
+which is built into the daemon. Whoever serves an update, the daemon
+checks the signature and refuses one that doesn&#39;t verify.</li>
+<li>
+Give the agent a <code>
+slipdock</code>
+ CLI the project didn&#39;t sign. Before each
+agent job the daemon puts the server&#39;s CLI in its own folder, first on
+the job&#39;s PATH (or over the one <code>
+local.json</code>
+ names as <code>
+cli</code>
+), only when
+its signature verifies against the same release key. A server that
+serves no signature (one built from source, or a deploy the release job
+didn&#39;t sign) leaves the machine&#39;s own CLI in place, unless <code>
+local.json</code>
+
+sets <code>
+cli_checksum_only</code>
+.</li>
+<li>
+Give the agent slipdock skills the project didn&#39;t sign. Before each
+agent job the daemon puts the server&#39;s slipdock skills in place, and
+they are instructions the agent follows, so it installs them only when
+the archive&#39;s signature verifies against the same release key. A server
+that serves no signature leaves the installed skills in place, unless
+<code>
+local.json</code>
+ sets <code>
+skills_unsigned</code>
+.</li>
+</ul>
+<p>
+The machine&#39;s key lets it claim and report on its own runners&#39; jobs and
+read their settings, and nothing else. It is not an API token. Revoking
+the machine on the Machines page ends the key at once.</p>
+<h4>
+What nothing here bounds</h4>
+<ul>
+<li>
+First-install trust. The first copy of the daemon is only as
+trustworthy as the download it came from: the installer checks it
+against the release key written into the installer itself, so a
+tampered installer passes its own check. Every later update is checked
+against the key built into the daemon.</li>
+<li>
+On the hosted service, the operator who runs the server is also the one
+who signs the releases. A self-hosted server can&#39;t author an update;
+the hosted operator can, as anyone who downloads the tool already
+trusts them to.</li>
+<li>
+The slipdock skills, and a CLI taken on the server&#39;s word. With
+<code>
+skills_unsigned</code>
+ set in <code>
+local.json</code>
+, the daemon installs the server&#39;s
+unsigned slipdock skills, instructions the agent follows, checked
+against nothing but the server: a server can then change what the agent
+reads. With <code>
+cli_checksum_only</code>
+ set in <code>
+local.json</code>
+, the same goes for an
+unsigned <code>
+slipdock</code>
+ CLI, checked only against the checksum the same
+server publishes: a server can then change the program the agent calls.
+Set <code>
+no_skills_update</code>
+ (and <code>
+no_cli_update</code>
+) in <code>
+local.json</code>
+ to keep your
+own.</li>
+<li>
+Network access. A job can reach the network, and so can send anything
+it can read to anywhere, unless its runner uses the <code>
+container</code>
+
+executor with the network off. No other executor limits the network.</li>
+<li>
+Prompts are the board members&#39; instructions. The agent follows them
+within the runner&#39;s permission mode, as the account its jobs run as.
+Every job&#39;s prompt tells the agent that a card&#39;s text is data, never
+instructions, but telling a model is not a limit.
+Whatever that account can read or change, a card can ask the agent to
+read or change, and so can text the agent reads while it works (an
+issue, a web page, a file in the repository). Anyone who can write a
+card a runner takes is giving that agent instructions: choose the
+boards a machine serves, the highest permission mode and the executor
+with that in mind.</li>
+</ul>
+<h4>
+What each executor stops</h4>
+<p>
+A runner&#39;s executor is who its jobs run as. The ceiling says which ones
+the machine allows, and a job never runs under a weaker one in its place.</p>
+<ul>
+<li>
+<code>
+me</code>
+: jobs run as you, as you are. It stops nothing: the agent can read
+and change whatever you can, your SSH keys, logins and mail included.</li>
+<li>
+<code>
+user</code>
+: jobs run as a dedicated account (<code>
+slipdock</code>
+ by default), with
+its own home, clones and logins. It stops a job reading or changing
+your home: a job is refused while your home is open to that account. It
+doesn&#39;t stop the job reading what every account on the machine can,
+writing the account&#39;s own home and <code>
+/tmp</code>
+, using the account&#39;s own
+logins (its <code>
+gh</code>
+ login pushes wherever it can), or the network.</li>
+<li>
+<code>
+confined</code>
+: jobs run as you, unable to write outside the job&#39;s
+directory, its repository, a scratch temporary directory and the
+agent&#39;s own state (Landlock on Linux, <code>
+sandbox-exec</code>
+ on macOS). The
+daemon&#39;s own git for the runner and the runner&#39;s hooks are confined in
+the same way. It stops a job writing to your home, other repositories
+and the system. It doesn&#39;t stop the job reading your files, your SSH
+keys and logins included, or the network, so a confined job can still
+read a secret and send it.</li>
+<li>
+<code>
+container</code>
+: jobs run in a short-lived Docker or Podman container,
+from an image the machine&#39;s own allow-list names, with the repository
+or worktree mounted at the same path, the agent&#39;s login mounted
+read-only, and an empty directory of its own for the agent&#39;s
+transcript, which the daemon reads only as regular files beneath it.
+It stops a job reading or writing anything outside what is mounted,
+and, when the runner asks for the network off, the network.
+It doesn&#39;t stop the job changing the mounted repository, using the
+agent&#39;s login (it can&#39;t change it, but can act with it), whatever the
+image itself does, or the network when it is left on. The runtime is
+trusted too: an account in the <code>
+docker</code>
+ group is root on the machine.</li>
+</ul>
+<p>
+On Windows, jobs run as the current account only (<code>
+me</code>
+).</p>
+</div>
+</div>
+</section>
+<section phx-r="" id="help-card-text-is-data" class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+<h2 class="section-title">
+Card text is data</h2>
+<div class="help-prose mt-2 space-y-3 text-sm text-base-content/70">
+<p phx-r="">
+
+    A runner&#39;s agent reads what other people wrote: the card, its comments, its bar and
+    anything mailed to the board, by anyone who can comment on it or is a permitted
+    sender. Every job&#39;s prompt and the skills tell the agent that this text is data,
+    never instructions: it says what the card&#39;s work is, and when it asks for anything
+    beyond that the agent leaves it, says so on the card and, if the card can&#39;t be done
+    without it, asks a person. Telling a model is not a boundary, so the machine&#39;s ceiling
+    and the runner&#39;s executor, above, are what limit a job. The full threat model is in <code>
+docs/agents.md</code>
+, under <em>
+Card text is data</em>
+.
+  </p>
+</div>
+</section>
+<section phx-r="" class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+<h2 class="section-title">
+Sending it work</h2>
+<div class="help-prose mt-2 space-y-3 text-sm text-base-content/70">
+<ul phx-r="" class="list-disc space-y-1 pl-5">
+<li>
+<strong>
+Send cards to a runner</strong>
+: when a card arrives in a list, queue it
+      for a pool, with the card itself as the prompt or one you write. Your own is at
+      most about 17,800 bytes, since every job&#39;s prompt ends with the same closing
+      text; a longer one is refused when the rule is saved, with the exact number.
+    </li>
+<li>
+<strong>
+Work a list with a runner</strong>
+: take the top card, one at a time, and
+      skip cards that are blocked, waiting, already assigned or already have a job open
+      on them, so two such rules for two pools can share one list. With lanes on, a card
+      whose files overlap work in progress is skipped too, and the next one that could
+      start goes instead. A rule whose runners have all gone offline sends nothing, and
+      gives back a card it sent that no runner has taken yet, so a runner that is online
+      picks it up. This is how a runner
+      takes over from a <code>
+/loop</code>
+ working the To Do list.
+    </li>
+<li>
+
+      A Claude or ChatGPT session can also take jobs from the same queue itself, with
+      <code>
+claim_job</code>
+
+      over <a phx-r="" href="/help/agents/mcp" data-phx-link="patch" data-phx-link-state="push" class="link">
+MCP</a>
+
+      or <code>
+slipdock claim-job</code>
+, so a loop and a machine&#39;s runner never work the same card.
+    </li>
+</ul>
+</div>
+</section>
+<section phx-r="" class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+<h2 class="section-title">
+Good to know</h2>
+<div class="help-prose mt-2 space-y-3 text-sm text-base-content/70">
+<ul phx-r="" class="list-disc space-y-1 pl-5">
+<li>
+
+      Jobs run with nobody watching. Every prompt says so, and tells the agent to choose
+      from what&#39;s on the card, or to open a <strong>
+wait</strong>
+
+      saying what it needs and stop. The job is <strong>
+parked</strong>
+, the card goes back on top of its list
+      so the next one runs, and answering the wait (on the card, in My work&#39;s <strong>
+Waiting on you</strong>
+, or <code>
+slipdock answer</code>
+) sends the card to the rule again
+      with the answer at the top of the prompt, for any free runner of the pool: it isn&#39;t held for the runner that asked.
+    </li>
+<li>
+
+      A job that ends with its card still open leaves its summary as the card&#39;s <strong>
+handoff</strong>
+, the note the next person or agent reads first, unless the agent
+      left one itself with <code>
+leave_handoff</code>
+ or <code>
+slipdock handoff</code>
+.
+    </li>
+<li>
+
+      Give the runner the project&#39;s folder as its working directory. Claude Code only loads
+      a project&#39;s own commands and settings from the folder it starts in.
+    </li>
+<li>
+<strong>
+Pause</strong>
+
+      in the Runners panel holds the whole board tree, or one pool,
+      with a reason: nothing is taken and no list sends a card until you resume it. Agents
+      can pause (<code>
+manage_automation</code>
+, <code>
+slipdock pause</code>
+) but only a
+      person can resume, and an agent that sees <code>
+paused</code>
+
+      takes nothing and stops.
+      Held jobs say why: paused, WIP full (with <strong>
+WIP limits hold automated work</strong>
+
+      on, on the board&#39;s Agentic Building page), waiting on a card in progress, or no runner online.
+    </li>
+<li>
+<strong>
+State line and age.</strong>
+
+      A card with a job or a wait on it says so in one
+      line (<code>
+state</code>
+
+      in REST, <code>
+list_cards</code>
+
+      and <code>
+slipdock cards</code>
+), with <code>
+driver</code>
+
+      (agent or human) on trees with
+      runner rules and its <code>
+age</code>
+
+      in the list. <code>
+stuck</code>
+
+      marks a card past
+      its list&#39;s usual stay (never an epic with open subcards, whose stay is
+      theirs); filter on it with <code>
+stuck: true</code>
+
+      or <code>
+--stuck</code>
+, and on <code>
+driver</code>
+.
+    </li>
+<li>
+<strong>
+Where a card came from.</strong>
+
+      Every card records its <code>
+origin</code>
+
+      (a person, the sweep, findings, the health monitor, the overseer, verification, a
+      rule, an import, or an agent with its job). Filter on it with <code>
+--origin</code>
+
+      or <code>
+origin</code>
+; inside a job, name the generator you run with <code>
+slipdock add … --origin sweep</code>
+. Nobody can claim to be a person.
+    </li>
+<li>
+<strong>
+The loop on a card.</strong>
+
+      While a runner&#39;s job holds a card (claimed or running), its Assignees show the
+      runner and the job&#39;s kind, build or verify, linked to the job: <code>
+loop</code>
+
+      in REST, <code>
+get_card</code>
+
+      and <code>
+list_cards</code>
+, a <code>
+Loop:</code>
+
+      line in <code>
+slipdock card</code>
+. It goes when the job ends. It is not an
+      assignee: a runner&#39;s agent signs in with a person&#39;s token, so it leaves the
+      assignees alone, and every assignee filter still means people.
+    </li>
+<li>
+<strong>
+Timeline.</strong>
+
+      How long a card sat in each list, who moved it, and its waits
+      and jobs: <code>
+get_card</code>
+
+      with <code>
+timeline: true</code>
+, <code>
+GET /api/cards/:id/timeline</code>
+
+      or <code>
+slipdock timeline &lt;id&gt;</code>
+.
+    </li>
+<li>
+
+      With <strong>
+Work a list with a runner</strong>
+, a card its job leaves in progress
+      goes back to the top of the list for another try, then gets flagged as blocked.
+    </li>
+<li>
+
+      ChatGPT has no shell or repository, so give it its own pool of cards it can finish
+      in conversation, such as writing, research or planning.
+    </li>
+</ul>
+</div>
+</section>
+</article>
+</div>
+</div>

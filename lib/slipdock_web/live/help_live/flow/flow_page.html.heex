@@ -1,0 +1,107 @@
+<Agents.topic_nav topics={@topics} current="flow" />
+
+<article id="help-flow" class="space-y-6">
+  <header class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+    <.page_header
+      title="How work flows"
+      subtitle="What happens to a card on a board that runners work, from the moment you write it to the deploy: who acts at each stage, what the board checks, and where it waits for you."
+      class=""
+    >
+      <:leading>
+        <.icon name="hero-arrow-path-rounded-square" class="size-6 text-primary" />
+      </:leading>
+    </.page_header>
+    <p class="mt-2 text-sm text-base-content/70">
+      The other help pages say how to connect an agent. This one says what it does once
+      connected. Each check below is a board setting, off until you turn it on; with them
+      all off, an agent's <em>done</em> is simply done.
+    </p>
+    <p id="flow-step-statuses" class="mt-2 text-sm text-base-content/70">
+      At each stage the board posts the card's <strong>step status</strong>
+      itself, as an <em>On track</em>
+      status update by Slipdock: it shows at the top of the card and in its Status updates, and,
+      being routine, tells nobody following the card. Agents needn't post these; a person's own
+      update (at risk, off track) still tells them. A finished card shows its outcome there
+      instead of a next step: done when, accepted by whom, merged and shipped.
+    </p>
+  </header>
+
+  <.diagram stages={@stages} />
+
+  <.part :for={s <- @stages} id={"flow-#{s.id}"} title={stage_heading(s, @stages)}>
+    <.actors actors={s.actors} />
+    <.steps id={s.id} steps={s.steps} />
+    <.stage id={s.id} />
+  </.part>
+
+  <.part id="flow-settings" title="The settings, in one place">
+    <p>
+      Each is on the board's <strong>Agentic Building</strong>
+      page: turn on Agentic Building in Board settings, Features, then open it from the board menu. From a terminal,
+      <code>slipdock set-board</code>
+      sets each. A card's subcards take their parent board's choices.
+    </p>
+    <dl class="divide-y divide-base-content/10">
+      <div :for={{label, cli, what} <- @settings} class="py-2">
+        <dt class="font-medium text-base-content">{label}</dt>
+        <dd class="mt-0.5">{what}</dd>
+        <dd class="mt-1"><code class="break-words">{cli}</code></dd>
+      </div>
+    </dl>
+  </.part>
+
+  <.part id="flow-overseer" title="The overseer: when to look">
+    <p>
+      The board's owner can turn on an eye on outcomes, in the board's Automations panel
+      under <strong>Overseer</strong>, or with <code>slipdock overseer B --on</code>.
+      Every minute the server checks the tree for work going round (a second rejection, a
+      third runner pass), something waiting on you while nothing runs, a card past the
+      board's P85 or a job on one step for 30 minutes, idle runners beside a full ready
+      list or jobs queued behind one lane, and an epic whose open subcards are all blocked.
+    </p>
+    <p>
+      One check needs no switch: on a board with delivery metrics on, a card merged more
+      than 20 minutes ago (the board's <em>Not shipped after</em>, <code>slipdock set-board B --not-shipped-minutes N</code>)
+      that no succeeded deploy names raises an alert whether or not the overseer is on.
+      On a board with batched releases the minutes count from the card's release, not its
+      merge.
+    </p>
+    <p>
+      Each fires once: an alert, an email, and the top of My work's <em>Waiting on you</em>,
+      saying why and what to do. It clears itself when the condition ends. A cheap model on
+      one of your runners (a <code>job_overseer</code>
+      in its config) reads only those and the pulse, never a card or a log, and writes a
+      digest on the board's <em>Overseer</em>
+      card: every 10 minutes while cards are active, longer when little or nothing is in
+      flight. It flags; it never acts.
+    </p>
+  </.part>
+
+  <.part id="flow-more" title="More detail">
+    <ul class="list-disc space-y-1 pl-5">
+      <li>
+        <.link patch={~p"/help/agents/runners"} class="link">Runners</.link>: connecting one,
+        and the rules that send it work.
+      </li>
+      <li>
+        <a href={~p"/api/guide"} class="link">The agent guide</a>
+        (its <em>Verified work</em>, <em>Lanes</em>
+        and <em>Shipping by pull request</em>
+        parts):
+        exactly what agents are told.
+      </li>
+      <li>
+        <.link patch={~p"/help/agents/cli/reference"} class="link">Every CLI command</.link>,
+        with each option.
+      </li>
+      <li>
+        The manual (<code>docs/manual.md</code>
+        in the source): <em>Verified work</em>, <em>Lanes</em>, <em>Waiting on a person</em>, <em>Tidying up</em>,
+        <em>The overseer</em>
+        and <em>Findings</em>,
+        and <code>docs/agents.md</code>
+        on the handbook's rules and runners.
+      </li>
+    </ul>
+  </.part>
+</article>

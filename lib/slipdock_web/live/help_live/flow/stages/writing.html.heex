@@ -1,0 +1,40 @@
+<p>
+  The card's description is <strong>the ask</strong>: what you want and why. Its
+  <strong>bar</strong>
+  says what done means, one line per part, and is what the work is judged against. On a
+  board with <em>A bar before work starts</em>
+  on, an agent can't start a card without one (<code>slipdock edit 12 --bar "…"</code>).
+</p>
+<.person_note>
+  <strong>Write a bar that can be met.</strong>
+  An agent may not take a step that is yours: changing a handbook rule, merging, deploying to
+  production, applying a proposal. Phrase those as what an agent can do: "proposed as a garden
+  proposal (rule id, wording)" rather than "W-12 has rule Y", and "pull request open, its CI
+  green" rather than "merged". A bar asking for a person's step is caught at pickup and comes
+  back to you as a wait.
+</.person_note>
+<p>
+  On a board with <em>Lanes</em>
+  on, give the card its <strong>paths</strong>: the files its work will touch, as globs
+  (<code>slipdock edit 12 --paths "lib/billing/**,docs/manual.md"</code>). Two agents can't
+  work cards whose paths overlap at once; the second waits. Set lanes to <em>Advise</em>
+  (<code>slipdock set-board B --lane-mode advise</code>) and the second starts anyway, its job's
+  prompt naming the card already in those files. Files nearly every card edits,
+  such as the manual, go in the board's <strong>shared paths</strong>
+  (<code>slipdock set-board B --shared-paths docs/manual.md,README.md</code>): cards can
+  declare them without holding each other, and their edits are left to merge.
+</p>
+<p>
+  An epic planned with the plan skill can start with <strong>spikes</strong>: a question only
+  building can answer, which you confirm, becomes a card with the <code>spike</code>
+  profile (<code>slipdock add 12 "Spike: does the API page?" --profile spike</code>), its
+  bar the question. A spike needs no paths and holds no lane, and its code is never merged:
+  its answer is a page pinned to the epic. Planning waits until the last is accepted, then
+  a product wait on the epic asks you to resume, and the Spec is written from the answers.
+</p>
+<p>
+  On a board with a <strong>handbook</strong>
+  (its <code>Handbook/</code>
+  wiki pages), the card lists the sections the builder should read first, and the rules
+  that cover its paths (<code>slipdock card 12</code>).
+</p>

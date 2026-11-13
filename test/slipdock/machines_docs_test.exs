@@ -13,7 +13,7 @@ defmodule Slipdock.MachinesDocsTest do
   import Slipdock.DocsFacts, only: [assert_states: 2, assert_states: 3]
 
   @root Path.expand("../..", __DIR__)
-  defp read(path), do: File.read!(Path.join(@root, path))
+  defp read(path), do: Slipdock.DocsText.read!(Path.join(@root, path))
 
   test "the guide and docs/agents.md describe enrolment the same way" do
     for text <- [SlipdockWeb.APIGuide.markdown(), read("docs/agents.md")] do
@@ -64,7 +64,7 @@ defmodule Slipdock.MachinesDocsTest do
 
     help = read("lib/slipdock_web/live/help_live/agents.ex")
     assert help =~ ~s(id="help-machines")
-    assert help =~ "which is not an API\n        token"
+    assert help =~ ~r/which is not an API\s+token/
   end
 
   test "the manual's account page lists Machines and the approval page" do

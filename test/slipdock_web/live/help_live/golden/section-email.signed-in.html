@@ -1,0 +1,377 @@
+<div phx-r="" id="help" class="kanban-scroll h-full overflow-y-auto">
+<div phx-r="" data-page-width="standard" class="mx-auto w-full px-4 py-6 sm:px-6 sm:py-10 max-w-5xl space-y-8">
+<nav phx-r="" id="help-sections-nav" aria-label="Help sections" class="flex gap-1 overflow-x-auto rounded-2xl bg-base-100 p-1 text-sm shadow-sm ring-1 ring-base-content/10">
+<a phx-r="" href="/help" data-phx-link="patch" data-phx-link-state="push" class="flex items-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+<span phx-r="" class="hero-arrow-left size-4">
+</span>
+ Help
+  </a>
+<a phx-r="" href="/help/boards" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+  Boards
+</a>
+<a phx-r="" href="/help/wiki" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+  Wiki
+</a>
+<a phx-r="" href="/help/sharing" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+  Sharing
+</a>
+<a phx-r="" href="/help/email" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium bg-primary/10 text-primary" aria-current="page">
+
+  Email
+</a>
+<a phx-r="" href="/help/automations" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+  Automations
+</a>
+<a phx-r="" href="/help/tools" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+  Tools
+</a>
+<a phx-r="" href="/help/ai" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+  AI
+</a>
+<a phx-r="" href="/help/agents" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+  Agents
+</a>
+</nav>
+<article phx-r="" id="help-section-email" class="space-y-6">
+<header class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+<header phx-r="" id="page-header" data-role="page-header" class="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-3 ">
+<div class="min-w-0">
+<h1 class="page-title">
+<span class="mr-2 inline-flex align-middle">
+<span phx-r="" class="hero-envelope size-6 text-primary">
+</span>
+</span>
+Email
+    </h1>
+<p data-role="page-subtitle" class="mt-1 max-w-2xl text-sm text-base-content/60">
+
+      Send cards and wiki pages in from your mail client, and reply to Slipdock&#39;s emails to comment on a card or answer what it&#39;s waiting for.
+    </p>
+</div>
+</header>
+<ul class="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm">
+<li>
+<a href="#email-addresses" class="link">
+Your addresses</a>
+</li>
+<li>
+<a href="#email-cards" class="link">
+Emailing a card in</a>
+</li>
+<li>
+<a href="#email-pages" class="link">
+Emailing a wiki page</a>
+</li>
+<li>
+<a href="#email-replies" class="link">
+Replying to an email</a>
+</li>
+<li>
+<a href="#email-bounces" class="link">
+When mail bounces</a>
+</li>
+<li>
+<a href="#email-more" class="link">
+Checking and automating</a>
+</li>
+</ul>
+</header>
+<section phx-r="" id="email-addresses" class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+<h2 class="section-title">
+Your addresses</h2>
+<div class="help-prose mt-2 space-y-3 text-sm text-base-content/70">
+<p phx-r="">
+
+    When your server receives mail, you have addresses of your own to send things in from
+    any mail client. Each one only takes mail <em>
+from</em>
+
+    your account&#39;s own address, so it&#39;s no use to anybody else.
+  </p>
+<ul phx-r="" class="list-disc space-y-1 pl-5">
+<li>
+<strong>
+A board&#39;s card and page addresses</strong>
+
+      (<code>
+card-…</code>
+
+      and <code>
+page-…</code>
+): the board&#39;s <strong>
+…</strong>
+
+      menu › <strong>
+Email to this board</strong>
+, on the board or in its wiki. You
+      have them for every board you can edit.
+    </li>
+<li>
+<strong>
+A wiki folder&#39;s address</strong>
+ (<code>
+page-…</code>
+): right-click the folder
+      in the wiki tree › <strong>
+Email this folder…</strong>
+</li>
+<li>
+<strong>
+Your personal address</strong>
+
+      (<code>
+add-…</code>
+): on your
+      <a phx-r="" href="/account" data-phx-link="redirect" data-phx-link-state="push" class="link">
+Account</a>
+
+      page, under <strong>
+Email a card in</strong>
+. It reaches any board.
+    </li>
+</ul>
+<p phx-r="">
+
+    Every address has a Copy button and <strong>
+New address</strong>
+. If one leaks,
+    make a new one: mail to the old address bounces from then on. From the CLI, <code>
+slipdock inbound &lt;board&gt;</code>
+,
+    <code>
+--folder &lt;path&gt;</code>
+
+    or <code>
+slipdock inbound me</code>
+
+    shows the same addresses.
+  </p>
+<p phx-r="" id="email-permitted-senders">
+<strong>
+Permitted senders.</strong>
+
+    A board&#39;s owner can let other people mail its card address too: Board settings › Features › <strong>
+Permitted senders</strong>
+, one address per line. Their mail still has to
+    pass DMARC or DKIM. It is added as you and says who sent it. It never answers a
+    wait, and the page addresses stay yours alone.
+  </p>
+</div>
+</section>
+<section phx-r="" id="email-cards" class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+<h2 class="section-title">
+Emailing a card in</h2>
+<div class="help-prose mt-2 space-y-3 text-sm text-base-content/70">
+<p phx-r="">
+
+    Mail to a board&#39;s card address is a new card on its ready list, added by you. Forward
+    an invoice, a bug report or a note to yourself:
+  </p>
+<ul phx-r="" class="list-disc space-y-1 pl-5">
+<li>
+
+      the <strong>
+subject</strong>
+
+      is the title, with <code>
+Re:</code>
+
+      and <code>
+Fwd:</code>
+
+      taken off;
+    </li>
+<li>
+
+      the <strong>
+body</strong>
+ is the description, with quoted replies and your signature
+      trimmed;
+    </li>
+<li>
+<strong>
+attachments</strong>
+ go on the card, and images in the message show where
+      they were.
+    </li>
+</ul>
+<p phx-r="">
+
+    Your <strong>
+personal address</strong>
+
+    reads the subject the way Quick add does, so it can set the board, list, priority and
+    due date: <code>
+[Website] Renew the cert due: friday #high</code>
+. With no board
+    named, the card goes to your Quick add default board.
+  </p>
+<p phx-r="">
+
+    To add to a card that already exists, start the subject with its number:
+    <code>
+[#42] Hinge replaced</code>
+
+    to the board&#39;s card address is a comment on card 42, with any attachments on the card,
+    rather than a new card. It works for cards on the board&#39;s sub-boards too. Replying to an
+    email about the card does the same.
+  </p>
+</div>
+</section>
+<section phx-r="" id="email-pages" class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+<h2 class="section-title">
+Emailing a wiki page</h2>
+<div class="help-prose mt-2 space-y-3 text-sm text-base-content/70">
+<p phx-r="">
+
+    Mail to a board&#39;s page address is a new wiki page. The subject is its title, the body
+    the page, and attachments are the page&#39;s files. Send meeting notes, a write-up or a
+    day&#39;s journal.
+  </p>
+<ul phx-r="" class="list-disc space-y-1 pl-5">
+<li>
+It goes in the <code>
+Inbox</code>
+ folder, made the first time it&#39;s needed.</li>
+<li>
+<code>
+[Design/Decisions] Use Postgres</code>
+
+      files it in that folder instead, making any folder along the path that&#39;s missing.
+    </li>
+<li>
+<code>
++ Journal</code>
+
+      adds the message to the existing page called Journal, under a heading with today&#39;s
+      date and your name, instead of making a new page. It suits a running log.
+    </li>
+<li>
+
+      Mail to a <strong>
+folder&#39;s address</strong>
+
+      goes in that folder without a <code>
+[Folder]</code>
+
+      in the subject. <code>
+[Sub] Title</code>
+
+      files it in a folder beneath that one.
+    </li>
+</ul>
+</div>
+</section>
+<section phx-r="" id="email-replies" class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+<h2 class="section-title">
+Replying to an email</h2>
+<div class="help-prose mt-2 space-y-3 text-sm text-base-content/70">
+<p phx-r="">
+
+    Emails about a card, such as a mention, an automation&#39;s email or something waiting on
+    you, can be answered from your mail client. Reply as you would to anyone:
+  </p>
+<ul phx-r="" class="list-disc space-y-1 pl-5">
+<li>
+
+      what you wrote is a <strong>
+comment</strong>
+
+      on the card, by you, with the quoted history and your signature taken off;
+    </li>
+<li>
+attachments go on the card, and <code>
+@name</code>
+ tells that person;</li>
+<li>
+
+      if the card is <strong>
+waiting on you</strong>
+, your reply answers it. Start with a
+      choice&#39;s number or text to pick it, and give each question its own paragraph.
+    </li>
+</ul>
+<p phx-r="">
+Emails about one card thread together in your mail client.</p>
+</div>
+</section>
+<section phx-r="" id="email-bounces" class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+<h2 class="section-title">
+When mail bounces</h2>
+<div class="help-prose mt-2 space-y-3 text-sm text-base-content/70">
+<p phx-r="">
+The bounce says why. The usual reasons:</p>
+<ul phx-r="" class="list-disc space-y-1 pl-5">
+<li>
+it wasn&#39;t sent from your account&#39;s address, or couldn&#39;t be shown to be;</li>
+<li>
+the address has been replaced with a new one;</li>
+<li>
+you can no longer edit that board, or it&#39;s archived;</li>
+<li>
+a <code>
++ Title</code>
+ names no page on the board (the bounce suggests close titles);</li>
+<li>
+a reply had nothing in it once the quoted message was taken off.</li>
+</ul>
+<p phx-r="">
+
+    Auto-replies and list mail are dropped without a bounce, so two systems can&#39;t answer
+    each other forever.
+  </p>
+</div>
+</section>
+<section phx-r="" id="email-more" class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+<h2 class="section-title">
+Checking and automating</h2>
+<div class="help-prose mt-2 space-y-3 text-sm text-base-content/70">
+<ul phx-r="" class="list-disc space-y-1 pl-5">
+<li>
+<strong>
+Did it arrive?</strong>
+<a phx-r="" href="/account/email-log" data-phx-link="redirect" data-phx-link-state="push" class="link">
+Account › Email log</a>
+
+      lists your last 50 messages: what each made, or why it bounced. From the CLI, <code>
+slipdock inbound log</code>
+.
+    </li>
+<li>
+<strong>
+A link back.</strong>
+
+      Tick <strong>
+Email me back a link to each card my mail makes</strong>
+
+      on the Account page for a short reply with the new card&#39;s link.
+    </li>
+<li>
+<strong>
+Rules for what mail brings in.</strong>
+
+      The <code>
+card_emailed</code>
+
+      and <code>
+page_emailed</code>
+
+      triggers let an
+      automation act on it as it arrives, such as flagging every emailed card for review
+      (see <a phx-r="" href="/help/automations" data-phx-link="patch" data-phx-link-state="push" class="link">
+Automations</a>
+).
+    </li>
+</ul>
+</div>
+</section>
+</article>
+</div>
+</div>

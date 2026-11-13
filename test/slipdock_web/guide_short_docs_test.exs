@@ -29,7 +29,7 @@ defmodule SlipdockWeb.GuideShortDocsTest do
     lib/slipdock_web/live/help_live/agents.ex
   )
 
-  defp read(path), do: File.read!(Path.join(@root, path))
+  defp read(path), do: Slipdock.DocsText.read!(Path.join(@root, path))
 
   # Where a text fetches the guide without a section, or with `all`: a `curl`
   # of it, or "Read <url>/api/guide" (the paste-prompt's form, which a

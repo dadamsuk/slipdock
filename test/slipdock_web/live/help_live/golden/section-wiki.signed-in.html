@@ -1,0 +1,233 @@
+<div phx-r="" id="help" class="kanban-scroll h-full overflow-y-auto">
+<div phx-r="" data-page-width="standard" class="mx-auto w-full px-4 py-6 sm:px-6 sm:py-10 max-w-5xl space-y-8">
+<nav phx-r="" id="help-sections-nav" aria-label="Help sections" class="flex gap-1 overflow-x-auto rounded-2xl bg-base-100 p-1 text-sm shadow-sm ring-1 ring-base-content/10">
+<a phx-r="" href="/help" data-phx-link="patch" data-phx-link-state="push" class="flex items-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+<span phx-r="" class="hero-arrow-left size-4">
+</span>
+ Help
+  </a>
+<a phx-r="" href="/help/boards" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+  Boards
+</a>
+<a phx-r="" href="/help/wiki" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium bg-primary/10 text-primary" aria-current="page">
+
+  Wiki
+</a>
+<a phx-r="" href="/help/sharing" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+  Sharing
+</a>
+<a phx-r="" href="/help/email" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+  Email
+</a>
+<a phx-r="" href="/help/automations" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+  Automations
+</a>
+<a phx-r="" href="/help/tools" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+  Tools
+</a>
+<a phx-r="" href="/help/ai" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+  AI
+</a>
+<a phx-r="" href="/help/agents" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+  Agents
+</a>
+</nav>
+<article phx-r="" id="help-section-wiki" class="space-y-6">
+<header class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+<header phx-r="" id="page-header" data-role="page-header" class="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-3 ">
+<div class="min-w-0">
+<h1 class="page-title">
+<span class="mr-2 inline-flex align-middle">
+<span phx-r="" class="hero-book-open size-6 text-primary">
+</span>
+</span>
+Wiki
+    </h1>
+<p data-role="page-subtitle" class="mt-1 max-w-2xl text-sm text-base-content/60">
+
+      Every board has a wiki of Markdown pages for how things work and what was decided and why. It uses the board&#39;s own permissions.
+    </p>
+</div>
+</header>
+<ul class="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm">
+<li>
+<a href="#wiki-why" class="link">
+What it&#39;s for</a>
+</li>
+<li>
+<a href="#wiki-writing" class="link">
+Writing</a>
+</li>
+<li>
+<a href="#wiki-linking" class="link">
+Linking and live queries</a>
+</li>
+<li>
+<a href="#wiki-organising" class="link">
+Organising</a>
+</li>
+<li>
+<a href="#wiki-history" class="link">
+History</a>
+</li>
+<li>
+<a href="#wiki-vaults" class="link">
+Your wiki and your own folder</a>
+</li>
+<li>
+<a href="#wiki-publishing" class="link">
+Publishing</a>
+</li>
+</ul>
+</header>
+<section phx-r="" id="wiki-why" class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+<h2 class="section-title">
+What it&#39;s for</h2>
+<div class="help-prose mt-2 space-y-3 text-sm text-base-content/70">
+<p phx-r="">
+
+    The board shows what you&#39;re doing. The wiki holds the things a card is a poor home
+    for: how something works, what was decided and why, and runbooks and specs. Each
+    board has one, from the view menu. It follows the board&#39;s permissions and is
+    covered by the same API, so an agent can write documentation the same way a person does.
+    <a phx-r="" href="/wiki" data-phx-link="redirect" data-phx-link-state="push" class="link">
+Wiki</a>
+
+    shows every board&#39;s wiki at once, each as a top-level folder.
+  </p>
+</div>
+</section>
+<section phx-r="" id="wiki-writing" class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+<h2 class="section-title">
+Writing</h2>
+<div class="help-prose mt-2 space-y-3 text-sm text-base-content/70">
+<p phx-r="">
+
+    Pages are Markdown, edited with a live preview, as in Obsidian: each line shows
+    formatted until your cursor is on it. Paste or drop an image to attach it. What&#39;s
+    saved is exactly the Markdown you typed.
+  </p>
+<p phx-r="">
+
+    Every page has a <strong>
+code</strong>
+, such as <code>
+W-31</code>
+, that never changes
+    even when the page is renamed. That makes it the right thing to use in a commit
+    message or a link.
+  </p>
+</div>
+</section>
+<section phx-r="" id="wiki-linking" class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+<h2 class="section-title">
+Linking and live queries</h2>
+<div class="help-prose mt-2 space-y-3 text-sm text-base-content/70">
+<ul phx-r="" class="list-disc space-y-1 pl-5">
+<li>
+<code>
+[[Page title]]</code>
+ links to a page. Each page lists the pages that link to it.
+    </li>
+<li>
+A card reference shows as a live chip with the card&#39;s current state.</li>
+<li>
+
+      A <code>
+```slipdock</code>
+
+      block is a live query, such as &quot;open cards tagged docs&quot;. It&#39;s answered each time
+      the page is read, using the reader&#39;s own permissions.
+    </li>
+<li>
+<strong>
+Wanted pages</strong>
+ lists links to pages nobody has written yet.</li>
+<li>
+A page can be pinned to a card, as the page about that card.</li>
+</ul>
+</div>
+</section>
+<section phx-r="" id="wiki-organising" class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+<h2 class="section-title">
+Organising</h2>
+<div class="help-prose mt-2 space-y-3 text-sm text-base-content/70">
+<p phx-r="">
+
+    A page has two independent places. Its <strong>
+parent page</strong>
+
+    says what it is part of, such as the rollback section of a runbook. Its
+    <strong>
+folder</strong>
+
+    says where it is kept, such as Design, Contracts or Meetings. You don&#39;t have to
+    invent a page just to hold others.
+  </p>
+<p phx-r="">
+
+    Folders and pages can have an icon and a colour. Pages can start from a template, and
+    stay drafts until they&#39;re ready.
+  </p>
+</div>
+</section>
+<section phx-r="" id="wiki-history" class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+<h2 class="section-title">
+History</h2>
+<div class="help-prose mt-2 space-y-3 text-sm text-base-content/70">
+<p phx-r="">
+
+    Every save is kept as a revision, recording who made it, how (the web, the CLI or
+    an agent) and why. You can compare any two revisions, or put a page back to an
+    earlier one. The revert is itself a new revision, so nothing is lost.
+  </p>
+</div>
+</section>
+<section phx-r="" id="wiki-vaults" class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+<h2 class="section-title">
+Your wiki and your own folder</h2>
+<div class="help-prose mt-2 space-y-3 text-sm text-base-content/70">
+<p phx-r="">
+
+    Your <strong>
+wiki</strong>
+
+    is one folder tree: your Knowledge Base first, then a folder for every board you have,
+    a sub-board in its epic&#39;s folder. An archived board is left out; restore it to have its
+    wiki back. <code>
+slipdock sync</code>
+
+    mirrors your wiki to a folder on your computer and keeps the two in step, so you can
+    write in Obsidian or any editor that works on a folder of Markdown. An existing
+    Obsidian vault can be imported. See <a phx-r="" href="/help/agents/cli" data-phx-link="patch" data-phx-link-state="push" class="link">
+the CLI</a>
+.
+  </p>
+</div>
+</section>
+<section phx-r="" id="wiki-publishing" class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+<h2 class="section-title">
+Publishing</h2>
+<div class="help-prose mt-2 space-y-3 text-sm text-base-content/70">
+<p phx-r="">
+
+    A page can be published at a public, read-only link that needs no account. Its live
+    queries are answered at the moment you publish, and its links become plain text,
+    since an anonymous reader has no permissions to follow them. The images it embeds
+    (<code>
+![[photo.png]]</code>
+) are shown, through the page&#39;s link; other embedded files
+    stay as their names. Publishing again refreshes it, and you can withdraw it at any time.
+  </p>
+</div>
+</section>
+</article>
+</div>
+</div>

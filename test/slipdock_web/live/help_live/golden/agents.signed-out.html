@@ -1,0 +1,2582 @@
+<div phx-r="" id="help" class="kanban-scroll h-full overflow-y-auto">
+<div phx-r="" data-page-width="standard" class="mx-auto w-full px-4 py-6 sm:px-6 sm:py-10 max-w-5xl space-y-8">
+<nav phx-r="" id="help-sections-nav" aria-label="Help sections" class="flex gap-1 overflow-x-auto rounded-2xl bg-base-100 p-1 text-sm shadow-sm ring-1 ring-base-content/10">
+<a phx-r="" href="/help" data-phx-link="patch" data-phx-link-state="push" class="flex items-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+<span phx-r="" class="hero-arrow-left size-4">
+</span>
+ Help
+  </a>
+<a phx-r="" href="/help/boards" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+  Boards
+</a>
+<a phx-r="" href="/help/wiki" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+  Wiki
+</a>
+<a phx-r="" href="/help/sharing" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+  Sharing
+</a>
+<a phx-r="" href="/help/email" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+  Email
+</a>
+<a phx-r="" href="/help/automations" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+  Automations
+</a>
+<a phx-r="" href="/help/tools" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+  Tools
+</a>
+<a phx-r="" href="/help/ai" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+  AI
+</a>
+<a phx-r="" href="/help/agents" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium bg-primary/10 text-primary" aria-current="page">
+
+  Agents
+</a>
+</nav>
+<section phx-r="" class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+<header phx-r="" id="page-header" data-role="page-header" class="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-3 ">
+<div class="min-w-0">
+<h1 class="page-title">
+
+      Working with an AI agent
+    </h1>
+<p data-role="page-subtitle" class="mt-1 max-w-2xl text-sm text-base-content/60">
+
+      Claude, ChatGPT, Codex, Cursor, or a script you wrote can all read and work these boards. The agent runs wherever you already use it (your laptop, a cloud session, a phone app) and talks to this server over the web, as your browser does. It never runs on the server, and you don&#39;t need access to the machine the server runs on.
+    </p>
+</div>
+</header>
+<p class="mt-2 text-sm text-base-content/70">
+
+    There are several ways to connect, depending on where the agent runs and who starts
+    the work. Most people need only one or two. Each one is introduced briefly below,
+    followed by a table comparing them; every way has its own page with more detail.
+  </p>
+<p class="mt-3 text-sm">
+<a phx-r="" href="/login" data-phx-link="redirect" data-phx-link-state="push" class="link font-medium">
+
+      Sign in to set one up →
+    </a>
+</p>
+</section>
+<section phx-r="" id="help-flow-intro" class="flex items-start gap-3 rounded-2xl bg-base-100 p-5 shadow-sm ring-1 ring-base-content/10">
+<span phx-r="" class="hero-arrow-path-rounded-square mt-0.5 size-6 shrink-0 text-primary">
+</span>
+<div class="text-sm">
+<h2 class="font-semibold">
+What the ways in are for</h2>
+<p class="mt-1 text-base-content/70">
+
+      Each way in below connects an agent. What it then does to a card, from the card being
+      written through building, CI and a second agent&#39;s check to the deploy, and where the
+      card waits for you, is one page.
+    </p>
+<a phx-r="" href="/help/agents/flow" data-phx-link="patch" data-phx-link-state="push" id="help-flow-link" class="link mt-2 inline-block font-medium">
+
+      How work flows →
+    </a>
+</div>
+</section>
+<section phx-r="" id="help-ways" aria-labelledby="help-ways-title">
+<h2 id="help-ways-title" class="mb-3 section-title">
+The ways in</h2>
+<div class="grid gap-4 sm:grid-cols-2">
+<article id="help-way-guide" class="flex flex-col rounded-2xl bg-base-100 p-5 shadow-sm ring-1 ring-base-content/10">
+<h3 class="flex items-center gap-2 font-semibold">
+<span phx-r="" class="hero-document-text size-5 text-primary">
+</span>
+ The agent guide &amp; HTTP API
+      </h3>
+<p class="mt-2 text-sm text-base-content/70">
+Paste one prompt that points the agent at this server&#39;s guide. The guide explains the boards and gives a curl line for every call, so any agent that can run a shell command can start straight away.</p>
+<p class="mt-2 text-sm">
+<span class="font-medium">
+Use it when</span>
+<span class="text-base-content/70">
+you want the quickest start, or the agent can make HTTP requests but you can&#39;t or won&#39;t install anything.</span>
+</p>
+<a phx-r="" href="/help/agents/guide" data-phx-link="patch" data-phx-link-state="push" class="link mt-auto pt-3 text-sm font-medium">
+
+        More about Guide &amp; API →
+      </a>
+</article>
+<article id="help-way-mcp" class="flex flex-col rounded-2xl bg-base-100 p-5 shadow-sm ring-1 ring-base-content/10">
+<h3 class="flex items-center gap-2 font-semibold">
+<span phx-r="" class="hero-puzzle-piece size-5 text-primary">
+</span>
+ MCP server
+      </h3>
+<p class="mt-2 text-sm text-base-content/70">
+This server is also an MCP server. Add it as a connector and the agent gets tools to read and write boards, cards and wiki pages, with no shell needed.</p>
+<p class="mt-2 text-sm">
+<span class="font-medium">
+Use it when</span>
+<span class="text-base-content/70">
+you use claude.ai, the Claude desktop or mobile apps, ChatGPT, or any other client that speaks MCP. It&#39;s also a tidy option for Claude Code.</span>
+</p>
+<a phx-r="" href="/help/agents/mcp" data-phx-link="patch" data-phx-link-state="push" class="link mt-auto pt-3 text-sm font-medium">
+
+        More about MCP →
+      </a>
+</article>
+<article id="help-way-cli" class="flex flex-col rounded-2xl bg-base-100 p-5 shadow-sm ring-1 ring-base-content/10">
+<h3 class="flex items-center gap-2 font-semibold">
+<span phx-r="" class="hero-command-line size-5 text-primary">
+</span>
+ The slipdock CLI
+      </h3>
+<p class="mt-2 text-sm text-base-content/70">
+A command-line client that wraps the whole API. It keeps the token for you, reads better in a transcript than raw curl, and does a few things nothing else does.</p>
+<p class="mt-2 text-sm">
+<span class="font-medium">
+Use it when</span>
+<span class="text-base-content/70">
+the agent works in a terminal on your machine, or you want what only the CLI has: syncing your wiki to a folder, files over 10 MB, imports and exports.</span>
+</p>
+<a phx-r="" href="/help/agents/cli" data-phx-link="patch" data-phx-link-state="push" class="link mt-auto pt-3 text-sm font-medium">
+
+        More about CLI →
+      </a>
+<a phx-r="" href="/help/agents/cli/reference" data-phx-link="patch" data-phx-link-state="push" id="help-way-cli-reference" class="link pt-1 text-sm font-medium">
+
+        Every CLI command →
+      </a>
+</article>
+<article id="help-way-skills" class="flex flex-col rounded-2xl bg-base-100 p-5 shadow-sm ring-1 ring-base-content/10">
+<h3 class="flex items-center gap-2 font-semibold">
+<span phx-r="" class="hero-academic-cap size-5 text-primary">
+</span>
+ Skills
+      </h3>
+<p class="mt-2 text-sm text-base-content/70">
+Longer instructions installed where the agent looks for them. They cover judgement more than syntax: what to pick up next, what belongs on the wiki, and how to work a backlog unattended.</p>
+<p class="mt-2 text-sm">
+<span class="font-medium">
+Use it when</span>
+<span class="text-base-content/70">
+you&#39;ll work with an agent here regularly and want it to follow the board&#39;s conventions without being told. Use them alongside the CLI or MCP.</span>
+</p>
+<a phx-r="" href="/help/agents/skills" data-phx-link="patch" data-phx-link-state="push" class="link mt-auto pt-3 text-sm font-medium">
+
+        More about Skills →
+      </a>
+</article>
+<article id="help-way-runners" class="flex flex-col rounded-2xl bg-base-100 p-5 shadow-sm ring-1 ring-base-content/10">
+<h3 class="flex items-center gap-2 font-semibold">
+<span phx-r="" class="hero-cpu-chip size-5 text-primary">
+</span>
+ Runners
+      </h3>
+<p class="mt-2 text-sm text-base-content/70">
+Reverses the direction: the board sends cards to an agent on a machine of yours when something happens, such as a card arriving in a list. The agent works the card and reports back.</p>
+<p class="mt-2 text-sm">
+<span class="font-medium">
+Use it when</span>
+<span class="text-base-content/70">
+you want work to start without anyone opening a session, such as a list that agents empty on their own, or a queue several machines share.</span>
+</p>
+<a phx-r="" href="/help/agents/runners" data-phx-link="patch" data-phx-link-state="push" class="link mt-auto pt-3 text-sm font-medium">
+
+        More about Runners →
+      </a>
+</article>
+<article id="help-way-webhooks" class="flex flex-col rounded-2xl bg-base-100 p-5 shadow-sm ring-1 ring-base-content/10">
+<h3 class="flex items-center gap-2 font-semibold">
+<span phx-r="" class="hero-bolt size-5 text-primary">
+</span>
+ Webhooks
+      </h3>
+<p class="mt-2 text-sm text-base-content/70">
+An automation can call a URL of yours when something happens on a board. The request carries the card&#39;s details, so your own service can react to it.</p>
+<p class="mt-2 text-sm">
+<span class="font-medium">
+Use it when</span>
+<span class="text-base-content/70">
+you have your own service or workflow tool (n8n, Zapier, an agent behind an HTTP endpoint) and it only needs to know when something happened.</span>
+</p>
+<a phx-r="" href="/help/agents/webhooks" data-phx-link="patch" data-phx-link-state="push" class="link mt-auto pt-3 text-sm font-medium">
+
+        More about Webhooks →
+      </a>
+</article>
+</div>
+</section>
+<section phx-r="" id="help-compare" aria-labelledby="help-compare-title" class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+<h2 id="help-compare-title" class="section-title">
+Side by side</h2>
+<p class="mt-1 text-sm text-base-content/60">
+
+    Skills and runners aren&#39;t separate connections. Skills teach an agent that uses
+    the CLI or MCP, and a runner&#39;s agent reads and writes through one of them too. They
+    are listed here because they are what you choose between.
+  </p>
+<div class="mt-4 overflow-x-auto">
+<table id="help-compare-table" class="table table-sm min-w-[44rem]">
+<thead>
+<tr>
+<th class="w-48">
+</th>
+<th scope="col" class="align-bottom">
+<a phx-r="" href="/help/agents/guide" data-phx-link="patch" data-phx-link-state="push" class="link">
+Guide &amp; API</a>
+</th>
+<th scope="col" class="align-bottom">
+<a phx-r="" href="/help/agents/mcp" data-phx-link="patch" data-phx-link-state="push" class="link">
+MCP</a>
+</th>
+<th scope="col" class="align-bottom">
+<a phx-r="" href="/help/agents/cli" data-phx-link="patch" data-phx-link-state="push" class="link">
+CLI</a>
+</th>
+<th scope="col" class="align-bottom">
+<a phx-r="" href="/help/agents/skills" data-phx-link="patch" data-phx-link-state="push" class="link">
+Skills</a>
+</th>
+<th scope="col" class="align-bottom">
+<a phx-r="" href="/help/agents/runners" data-phx-link="patch" data-phx-link-state="push" class="link">
+Runners</a>
+</th>
+<th scope="col" class="align-bottom">
+<a phx-r="" href="/help/agents/webhooks" data-phx-link="patch" data-phx-link-state="push" class="link">
+Webhooks</a>
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<th scope="row" class="font-medium">
+Install something on the agent&#39;s machine</th>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="no">
+<span phx-r="" class="hero-x-circle mt-0.5 size-4 shrink-0 text-base-content/30">
+</span>
+<span class="sr-only">
+No</span>
+<span class="text-xs text-base-content/60">
+curl is enough</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="no">
+<span phx-r="" class="hero-x-circle mt-0.5 size-4 shrink-0 text-base-content/30">
+</span>
+<span class="sr-only">
+No</span>
+<span class="text-xs text-base-content/60">
+add the address</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+an escript (Erlang)</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="some">
+<span phx-r="" class="hero-minus-circle mt-0.5 size-4 shrink-0 text-warning">
+</span>
+<span class="sr-only">
+Partly</span>
+<span class="text-xs text-base-content/60">
+optional files</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+a small service</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="no">
+<span phx-r="" class="hero-x-circle mt-0.5 size-4 shrink-0 text-base-content/30">
+</span>
+<span class="sr-only">
+No</span>
+<span class="text-xs text-base-content/60">
+nothing</span>
+</span>
+</td>
+</tr>
+<tr>
+<th scope="row" class="font-medium">
+Works from claude.ai, ChatGPT and the phone apps</th>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="no">
+<span phx-r="" class="hero-x-circle mt-0.5 size-4 shrink-0 text-base-content/30">
+</span>
+<span class="sr-only">
+No</span>
+<span class="text-xs text-base-content/60">
+needs a shell</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+as a connector</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="no">
+<span phx-r="" class="hero-x-circle mt-0.5 size-4 shrink-0 text-base-content/30">
+</span>
+<span class="sr-only">
+No</span>
+<span class="text-xs text-base-content/60">
+needs a shell</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="some">
+<span phx-r="" class="hero-minus-circle mt-0.5 size-4 shrink-0 text-warning">
+</span>
+<span class="sr-only">
+Partly</span>
+<span class="text-xs text-base-content/60">
+ChatGPT zips</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="some">
+<span phx-r="" class="hero-minus-circle mt-0.5 size-4 shrink-0 text-warning">
+</span>
+<span class="sr-only">
+Partly</span>
+<span class="text-xs text-base-content/60">
+scheduled Claude, ChatGPT</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="no">
+<span phx-r="" class="hero-x-circle mt-0.5 size-4 shrink-0 text-base-content/30">
+</span>
+<span class="sr-only">
+No</span>
+<span class="text-xs text-base-content/60">
+—</span>
+</span>
+</td>
+</tr>
+<tr>
+<th scope="row" class="font-medium">
+Read boards and cards, and search</th>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+through the CLI or MCP</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="some">
+<span phx-r="" class="hero-minus-circle mt-0.5 size-4 shrink-0 text-warning">
+</span>
+<span class="sr-only">
+Partly</span>
+<span class="text-xs text-base-content/60">
+the card it was sent</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="some">
+<span phx-r="" class="hero-minus-circle mt-0.5 size-4 shrink-0 text-warning">
+</span>
+<span class="sr-only">
+Partly</span>
+<span class="text-xs text-base-content/60">
+the card&#39;s fields</span>
+</span>
+</td>
+</tr>
+<tr>
+<th scope="row" class="font-medium">
+Change cards: move, comment, complete</th>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+through the CLI or MCP</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+reports back on its card</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="no">
+<span phx-r="" class="hero-x-circle mt-0.5 size-4 shrink-0 text-base-content/30">
+</span>
+<span class="sr-only">
+No</span>
+<span class="text-xs text-base-content/60">
+one way only</span>
+</span>
+</td>
+</tr>
+<tr>
+<th scope="row" class="font-medium">
+Leave and read a card&#39;s handoff (where it was left)</th>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+get_card shows it first</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+read on claim, written on stopping</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+its summary, when it stops short</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="no">
+<span phx-r="" class="hero-x-circle mt-0.5 size-4 shrink-0 text-base-content/30">
+</span>
+<span class="sr-only">
+No</span>
+</span>
+</td>
+</tr>
+<tr>
+<th scope="row" class="font-medium">
+Make a card recurring, skip or stop one</th>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+PUT /api/cards/:id/recurrence</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+update_card&#39;s recurrence</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+slipdock repeat</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+through the CLI or MCP</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+through the CLI or MCP</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="no">
+<span phx-r="" class="hero-x-circle mt-0.5 size-4 shrink-0 text-base-content/30">
+</span>
+<span class="sr-only">
+No</span>
+<span class="text-xs text-base-content/60">
+one way only</span>
+</span>
+</td>
+</tr>
+<tr>
+<th scope="row" class="font-medium">
+Snooze a card until a day, or wake it</th>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+POST /api/cards/:id/snooze</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+update_card&#39;s snoozed_until</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+slipdock snooze, slipdock wake</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+through the CLI or MCP</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+through the CLI or MCP</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="no">
+<span phx-r="" class="hero-x-circle mt-0.5 size-4 shrink-0 text-base-content/30">
+</span>
+<span class="sr-only">
+No</span>
+<span class="text-xs text-base-content/60">
+one way only</span>
+</span>
+</td>
+</tr>
+<tr>
+<th scope="row" class="font-medium">
+Colour a card&#39;s cover and each edge</th>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+color, border_top, border_right, … on PATCH /api/cards/:id</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+update_card&#39;s color, border_top, border_right, …</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+slipdock edit --color, --border, --border-top, …</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+through the CLI or MCP</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+through the CLI or MCP</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="no">
+<span phx-r="" class="hero-x-circle mt-0.5 size-4 shrink-0 text-base-content/30">
+</span>
+<span class="sr-only">
+No</span>
+<span class="text-xs text-base-content/60">
+one way only</span>
+</span>
+</td>
+</tr>
+<tr>
+<th scope="row" class="font-medium">
+Release a batched board&#39;s merged work now, see where its releases stand, and lift a red release&#39;s hold</th>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+POST and GET /api/boards/:id/release, DELETE …/release/hold</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+release_now (check: true to read, lift_hold: true)</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+slipdock release [--lift-hold], slipdock releases</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+only when asked: a card is done on merge</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+a runner&#39;s release job fires it</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="no">
+<span phx-r="" class="hero-x-circle mt-0.5 size-4 shrink-0 text-base-content/30">
+</span>
+<span class="sr-only">
+No</span>
+<span class="text-xs text-base-content/60">
+one way only</span>
+</span>
+</td>
+</tr>
+<tr>
+<th scope="row" class="font-medium">
+Read and change what a person sees of a card (their card views)</th>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+/api/card-views</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+card_views</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+slipdock card-view</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+through the CLI or MCP, when asked</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+through the CLI or MCP, when asked</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="no">
+<span phx-r="" class="hero-x-circle mt-0.5 size-4 shrink-0 text-base-content/30">
+</span>
+<span class="sr-only">
+No</span>
+<span class="text-xs text-base-content/60">
+one way only</span>
+</span>
+</td>
+</tr>
+<tr>
+<th scope="row" class="font-medium">
+Add a skill source, read a skill, enable it on a board pinned</th>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+/api/skill-sources, /api/skill-entries, /api/boards/:board/skills</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+skill_registry</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+slipdock registry</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+through the CLI or MCP, when asked</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+through the CLI or MCP, when asked</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="no">
+<span phx-r="" class="hero-x-circle mt-0.5 size-4 shrink-0 text-base-content/30">
+</span>
+<span class="sr-only">
+No</span>
+<span class="text-xs text-base-content/60">
+one way only</span>
+</span>
+</td>
+</tr>
+<tr>
+<th scope="row" class="font-medium">
+Get the skills enabled on a board, each with its pinned text</th>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+GET /api/boards/:board/skills</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+get_guide&#39;s board</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+slipdock skills board</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+through the CLI or MCP, when planning</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+through the CLI or MCP, when planning</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="no">
+<span phx-r="" class="hero-x-circle mt-0.5 size-4 shrink-0 text-base-content/30">
+</span>
+<span class="sr-only">
+No</span>
+<span class="text-xs text-base-content/60">
+one way only</span>
+</span>
+</td>
+</tr>
+<tr>
+<th scope="row" class="font-medium">
+Wait on a person, and answer a wait</th>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+POST /api/cards/:id/wait</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+update_card&#39;s wait, answer_wait</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+slipdock wait, slipdock answer</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+open a wait and stop</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+parks the job; the answer sends it again</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="no">
+<span phx-r="" class="hero-x-circle mt-0.5 size-4 shrink-0 text-base-content/30">
+</span>
+<span class="sr-only">
+No</span>
+<span class="text-xs text-base-content/60">
+one way only</span>
+</span>
+</td>
+</tr>
+<tr>
+<th scope="row" class="font-medium">
+See what is waiting on you, and a board&#39;s pulse</th>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+GET /api/work, /api/boards/:id/pulse</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+whoami, get_board&#39;s pulse</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+slipdock work, slipdock pulse</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+through the CLI or MCP</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+through the CLI or MCP</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="no">
+<span phx-r="" class="hero-x-circle mt-0.5 size-4 shrink-0 text-base-content/30">
+</span>
+<span class="sr-only">
+No</span>
+<span class="text-xs text-base-content/60">
+one way only</span>
+</span>
+</td>
+</tr>
+<tr>
+<th scope="row" class="font-medium">
+See what in an epic&#39;s tree is waiting on you</th>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+GET /api/cards/:id, /api/boards/:board: waiting_on_me</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+get_card, get_board: waiting_on_me</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+slipdock card, slipdock board: Waiting on you:</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+through the CLI or MCP</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+through the CLI or MCP</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="no">
+<span phx-r="" class="hero-x-circle mt-0.5 size-4 shrink-0 text-base-content/30">
+</span>
+<span class="sr-only">
+No</span>
+<span class="text-xs text-base-content/60">
+one way only</span>
+</span>
+</td>
+</tr>
+<tr>
+<th scope="row" class="font-medium">
+Dismiss an item, or mute a board, on your Waiting on you</th>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+POST /api/work/dismissed, POST /api/work/muted</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+update_card&#39;s and update_board&#39;s waiting_list</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+slipdock work --dismiss, --mute</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+through the CLI or MCP, when asked</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+through the CLI or MCP, when asked</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="no">
+<span phx-r="" class="hero-x-circle mt-0.5 size-4 shrink-0 text-base-content/30">
+</span>
+<span class="sr-only">
+No</span>
+<span class="text-xs text-base-content/60">
+one way only</span>
+</span>
+</td>
+</tr>
+<tr>
+<th scope="row" class="font-medium">
+Turn the overseer on, set its pace, and read its alerts</th>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+GET/PATCH /api/boards/:id/overseer</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+get_board&#39;s overseer, update_board&#39;s overseer</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+slipdock overseer</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+through the CLI or MCP</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+a runner with job_overseer runs its passes</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="no">
+<span phx-r="" class="hero-x-circle mt-0.5 size-4 shrink-0 text-base-content/30">
+</span>
+<span class="sr-only">
+No</span>
+<span class="text-xs text-base-content/60">
+one way only</span>
+</span>
+</td>
+</tr>
+<tr>
+<th scope="row" class="font-medium">
+See the top cards of lists from several boards (Multiboard)</th>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+GET /api/multiboard</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="no">
+<span phx-r="" class="hero-x-circle mt-0.5 size-4 shrink-0 text-base-content/30">
+</span>
+<span class="sr-only">
+No</span>
+<span class="text-xs text-base-content/60">
+not a tool: use the API or the CLI</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+slipdock multiboard</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+through the CLI</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="no">
+<span phx-r="" class="hero-x-circle mt-0.5 size-4 shrink-0 text-base-content/30">
+</span>
+<span class="sr-only">
+No</span>
+<span class="text-xs text-base-content/60">
+one way only</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="no">
+<span phx-r="" class="hero-x-circle mt-0.5 size-4 shrink-0 text-base-content/30">
+</span>
+<span class="sr-only">
+No</span>
+<span class="text-xs text-base-content/60">
+one way only</span>
+</span>
+</td>
+</tr>
+<tr>
+<th scope="row" class="font-medium">
+Save a multiboard view by name, for the home page</th>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+/api/multiboards</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="no">
+<span phx-r="" class="hero-x-circle mt-0.5 size-4 shrink-0 text-base-content/30">
+</span>
+<span class="sr-only">
+No</span>
+<span class="text-xs text-base-content/60">
+not a tool: use the API or the CLI</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+slipdock save-multiboard, multiboards</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+through the CLI</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="no">
+<span phx-r="" class="hero-x-circle mt-0.5 size-4 shrink-0 text-base-content/30">
+</span>
+<span class="sr-only">
+No</span>
+<span class="text-xs text-base-content/60">
+one way only</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="no">
+<span phx-r="" class="hero-x-circle mt-0.5 size-4 shrink-0 text-base-content/30">
+</span>
+<span class="sr-only">
+No</span>
+<span class="text-xs text-base-content/60">
+one way only</span>
+</span>
+</td>
+</tr>
+<tr>
+<th scope="row" class="font-medium">
+Get your addresses for emailing cards and wiki pages onto a board, or rotate them</th>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+GET /api/boards/:id/inbound, /api/me/inbound (?folder= for a wiki folder&#39;s)</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="no">
+<span phx-r="" class="hero-x-circle mt-0.5 size-4 shrink-0 text-base-content/30">
+</span>
+<span class="sr-only">
+No</span>
+<span class="text-xs text-base-content/60">
+not a tool: the address is for a person&#39;s mail client</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+slipdock inbound &lt;board&gt;, inbound me, inbound &lt;board&gt; --folder F</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+through the CLI</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+through the CLI</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="no">
+<span phx-r="" class="hero-x-circle mt-0.5 size-4 shrink-0 text-base-content/30">
+</span>
+<span class="sr-only">
+No</span>
+<span class="text-xs text-base-content/60">
+one way only</span>
+</span>
+</td>
+</tr>
+<tr>
+<th scope="row" class="font-medium">
+Let other addresses mail a board&#39;s card address (permitted senders)</th>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+PATCH /api/boards/:id inbound_senders</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="no">
+<span phx-r="" class="hero-x-circle mt-0.5 size-4 shrink-0 text-base-content/30">
+</span>
+<span class="sr-only">
+No</span>
+<span class="text-xs text-base-content/60">
+not a tool: the board&#39;s owner decides who may mail it</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+slipdock set-board &lt;board&gt; --inbound-senders LIST</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+through the CLI</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+through the CLI</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="no">
+<span phx-r="" class="hero-x-circle mt-0.5 size-4 shrink-0 text-base-content/30">
+</span>
+<span class="sr-only">
+No</span>
+<span class="text-xs text-base-content/60">
+one way only</span>
+</span>
+</td>
+</tr>
+<tr>
+<th scope="row" class="font-medium">
+See the email you sent in, and why any bounced</th>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+GET /api/inbound/log</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="no">
+<span phx-r="" class="hero-x-circle mt-0.5 size-4 shrink-0 text-base-content/30">
+</span>
+<span class="sr-only">
+No</span>
+<span class="text-xs text-base-content/60">
+not a tool yet</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+slipdock inbound log</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+through the CLI</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+through the CLI</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="no">
+<span phx-r="" class="hero-x-circle mt-0.5 size-4 shrink-0 text-base-content/30">
+</span>
+<span class="sr-only">
+No</span>
+<span class="text-xs text-base-content/60">
+one way only</span>
+</span>
+</td>
+</tr>
+<tr>
+<th scope="row" class="font-medium">
+Read a board&#39;s flow day by day, and how its runners are doing</th>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+GET /api/boards/:id/flow, /api/boards/:id/runner_stats</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+get_board&#39;s history, runners</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+slipdock flow, slipdock runner-stats</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+through the CLI or MCP</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+through the CLI or MCP</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="no">
+<span phx-r="" class="hero-x-circle mt-0.5 size-4 shrink-0 text-base-content/30">
+</span>
+<span class="sr-only">
+No</span>
+<span class="text-xs text-base-content/60">
+one way only</span>
+</span>
+</td>
+</tr>
+<tr>
+<th scope="row" class="font-medium">
+See what is happening right now: which runners are doing what, the cards in progress</th>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+GET /api/boards/:id/now</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+get_board&#39;s now</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+slipdock now</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+through the CLI or MCP</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+through the CLI or MCP</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="no">
+<span phx-r="" class="hero-x-circle mt-0.5 size-4 shrink-0 text-base-content/30">
+</span>
+<span class="sr-only">
+No</span>
+<span class="text-xs text-base-content/60">
+one way only</span>
+</span>
+</td>
+</tr>
+<tr>
+<th scope="row" class="font-medium">
+Record deploys, and read the delivery (DORA) numbers</th>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+POST /api/deployments, GET /api/boards/:id/dora</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+get_board&#39;s dora</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+slipdock deploy run, slipdock dora</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+through the CLI or MCP</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+through the CLI or MCP</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="no">
+<span phx-r="" class="hero-x-circle mt-0.5 size-4 shrink-0 text-base-content/30">
+</span>
+<span class="sr-only">
+No</span>
+<span class="text-xs text-base-content/60">
+one way only</span>
+</span>
+</td>
+</tr>
+<tr>
+<th scope="row" class="font-medium">
+Pause runner work, and see that it is paused</th>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+POST /api/boards/:id/pause</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+manage_automation&#39;s pause</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+slipdock pause, slipdock resume</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+stop when paused</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+nothing is claimed while paused</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="no">
+<span phx-r="" class="hero-x-circle mt-0.5 size-4 shrink-0 text-base-content/30">
+</span>
+<span class="sr-only">
+No</span>
+<span class="text-xs text-base-content/60">
+one way only</span>
+</span>
+</td>
+</tr>
+<tr>
+<th scope="row" class="font-medium">
+Tidy a board up: see what the gardener found, apply or dismiss</th>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+GET/POST /api/boards/:board/garden</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+garden, garden_decide</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+slipdock garden</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+through the CLI or MCP</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+through the CLI or MCP</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="no">
+<span phx-r="" class="hero-x-circle mt-0.5 size-4 shrink-0 text-base-content/30">
+</span>
+<span class="sr-only">
+No</span>
+<span class="text-xs text-base-content/60">
+one way only</span>
+</span>
+</td>
+</tr>
+<tr>
+<th scope="row" class="font-medium">
+Read and write wiki pages</th>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+and when to</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="some">
+<span phx-r="" class="hero-minus-circle mt-0.5 size-4 shrink-0 text-warning">
+</span>
+<span class="sr-only">
+Partly</span>
+<span class="text-xs text-base-content/60">
+through the CLI or MCP</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="no">
+<span phx-r="" class="hero-x-circle mt-0.5 size-4 shrink-0 text-base-content/30">
+</span>
+<span class="sr-only">
+No</span>
+</span>
+</td>
+</tr>
+<tr>
+<th scope="row" class="font-medium">
+Attach a board, card or page to a chat yourself</th>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="no">
+<span phx-r="" class="hero-x-circle mt-0.5 size-4 shrink-0 text-base-content/30">
+</span>
+<span class="sr-only">
+No</span>
+<span class="text-xs text-base-content/60">
+the agent fetches it</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+as a resource, from the + menu</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="no">
+<span phx-r="" class="hero-x-circle mt-0.5 size-4 shrink-0 text-base-content/30">
+</span>
+<span class="sr-only">
+No</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="no">
+<span phx-r="" class="hero-x-circle mt-0.5 size-4 shrink-0 text-base-content/30">
+</span>
+<span class="sr-only">
+No</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="no">
+<span phx-r="" class="hero-x-circle mt-0.5 size-4 shrink-0 text-base-content/30">
+</span>
+<span class="sr-only">
+No</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="no">
+<span phx-r="" class="hero-x-circle mt-0.5 size-4 shrink-0 text-base-content/30">
+</span>
+<span class="sr-only">
+No</span>
+</span>
+</td>
+</tr>
+<tr>
+<th scope="row" class="font-medium">
+Attach and download files</th>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+up to 10 MB each</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+up to 250 MB, recordings too</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+through the CLI or MCP</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="no">
+<span phx-r="" class="hero-x-circle mt-0.5 size-4 shrink-0 text-base-content/30">
+</span>
+<span class="sr-only">
+No</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="no">
+<span phx-r="" class="hero-x-circle mt-0.5 size-4 shrink-0 text-base-content/30">
+</span>
+<span class="sr-only">
+No</span>
+</span>
+</td>
+</tr>
+<tr>
+<th scope="row" class="font-medium">
+List and change a board&#39;s automations</th>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+the board&#39;s owner</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+through the CLI or MCP</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="no">
+<span phx-r="" class="hero-x-circle mt-0.5 size-4 shrink-0 text-base-content/30">
+</span>
+<span class="sr-only">
+No</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="no">
+<span phx-r="" class="hero-x-circle mt-0.5 size-4 shrink-0 text-base-content/30">
+</span>
+<span class="sr-only">
+No</span>
+</span>
+</td>
+</tr>
+<tr>
+<th scope="row" class="font-medium">
+Connect runners</th>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="no">
+<span phx-r="" class="hero-x-circle mt-0.5 size-4 shrink-0 text-base-content/30">
+</span>
+<span class="sr-only">
+No</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="some">
+<span phx-r="" class="hero-minus-circle mt-0.5 size-4 shrink-0 text-warning">
+</span>
+<span class="sr-only">
+Partly</span>
+<span class="text-xs text-base-content/60">
+through the CLI</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="some">
+<span phx-r="" class="hero-minus-circle mt-0.5 size-4 shrink-0 text-warning">
+</span>
+<span class="sr-only">
+Partly</span>
+<span class="text-xs text-base-content/60">
+from the board</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="no">
+<span phx-r="" class="hero-x-circle mt-0.5 size-4 shrink-0 text-base-content/30">
+</span>
+<span class="sr-only">
+No</span>
+</span>
+</td>
+</tr>
+<tr>
+<th scope="row" class="font-medium">
+Mirror your wiki to a local folder</th>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="no">
+<span phx-r="" class="hero-x-circle mt-0.5 size-4 shrink-0 text-base-content/30">
+</span>
+<span class="sr-only">
+No</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="no">
+<span phx-r="" class="hero-x-circle mt-0.5 size-4 shrink-0 text-base-content/30">
+</span>
+<span class="sr-only">
+No</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+slipdock sync</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="no">
+<span phx-r="" class="hero-x-circle mt-0.5 size-4 shrink-0 text-base-content/30">
+</span>
+<span class="sr-only">
+No</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="no">
+<span phx-r="" class="hero-x-circle mt-0.5 size-4 shrink-0 text-base-content/30">
+</span>
+<span class="sr-only">
+No</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="no">
+<span phx-r="" class="hero-x-circle mt-0.5 size-4 shrink-0 text-base-content/30">
+</span>
+<span class="sr-only">
+No</span>
+</span>
+</td>
+</tr>
+<tr>
+<th scope="row" class="font-medium">
+The board starts the work</th>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="no">
+<span phx-r="" class="hero-x-circle mt-0.5 size-4 shrink-0 text-base-content/30">
+</span>
+<span class="sr-only">
+No</span>
+<span class="text-xs text-base-content/60">
+you start it</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="some">
+<span phx-r="" class="hero-minus-circle mt-0.5 size-4 shrink-0 text-warning">
+</span>
+<span class="sr-only">
+Partly</span>
+<span class="text-xs text-base-content/60">
+claim_job in a loop</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="some">
+<span phx-r="" class="hero-minus-circle mt-0.5 size-4 shrink-0 text-warning">
+</span>
+<span class="sr-only">
+Partly</span>
+<span class="text-xs text-base-content/60">
+claim-job in a loop</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="some">
+<span phx-r="" class="hero-minus-circle mt-0.5 size-4 shrink-0 text-warning">
+</span>
+<span class="sr-only">
+Partly</span>
+<span class="text-xs text-base-content/60">
+slipdock-loop</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+pushed from a rule</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+on any rule</span>
+</span>
+</td>
+</tr>
+<tr>
+<th scope="row" class="font-medium">
+Runs with nobody watching</th>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="some">
+<span phx-r="" class="hero-minus-circle mt-0.5 size-4 shrink-0 text-warning">
+</span>
+<span class="sr-only">
+Partly</span>
+<span class="text-xs text-base-content/60">
+if you schedule it</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="some">
+<span phx-r="" class="hero-minus-circle mt-0.5 size-4 shrink-0 text-warning">
+</span>
+<span class="sr-only">
+Partly</span>
+<span class="text-xs text-base-content/60">
+if you schedule it</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="some">
+<span phx-r="" class="hero-minus-circle mt-0.5 size-4 shrink-0 text-warning">
+</span>
+<span class="sr-only">
+Partly</span>
+<span class="text-xs text-base-content/60">
+if you schedule it</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+slipdock-loop</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+</span>
+</td>
+</tr>
+<tr>
+<th scope="row" class="font-medium">
+Can be limited to read-only</th>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+read-only token</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+approve read-only</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+read-only token</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="yes">
+<span phx-r="" class="hero-check-circle mt-0.5 size-4 shrink-0 text-success">
+</span>
+<span class="sr-only">
+Yes</span>
+<span class="text-xs text-base-content/60">
+follows the token</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="some">
+<span phx-r="" class="hero-minus-circle mt-0.5 size-4 shrink-0 text-warning">
+</span>
+<span class="sr-only">
+Partly</span>
+<span class="text-xs text-base-content/60">
+its token takes jobs only</span>
+</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="flex items-start gap-1" data-mark="no">
+<span phx-r="" class="hero-x-circle mt-0.5 size-4 shrink-0 text-base-content/30">
+</span>
+<span class="sr-only">
+No</span>
+<span class="text-xs text-base-content/60">
+—</span>
+</span>
+</td>
+</tr>
+<tr>
+<th scope="row" class="font-medium">
+Signs in with</th>
+<td class="align-top">
+<span phx-r="" class="text-xs">
+approve a code, or a token</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="text-xs">
+the browser (OAuth), or a token</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="text-xs">
+slipdock auth</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="text-xs">
+whatever the agent uses</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="text-xs">
+a runner token</span>
+</td>
+<td class="align-top">
+<span phx-r="" class="text-xs">
+nothing: it calls out</span>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p class="mt-3 text-xs text-base-content/50">
+<span phx-r="" class="hero-check-circle size-3.5 text-success">
+</span>
+ yes ·
+    <span phx-r="" class="hero-minus-circle size-3.5 text-warning">
+</span>
+ partly ·
+    <span phx-r="" class="hero-x-circle size-3.5 text-base-content/30">
+</span>
+ no
+  </p>
+</section>
+<section phx-r="" id="help-choose" class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+<h2 class="section-title">
+If you&#39;re not sure</h2>
+<ul class="mt-3 space-y-2 text-sm text-base-content/70">
+<li>
+<span class="font-medium text-base-content">
+Using claude.ai, ChatGPT or a phone?</span>
+
+      Add the <a phx-r="" href="/help/agents/mcp" data-phx-link="patch" data-phx-link-state="push" class="link">
+MCP connector</a>
+.
+    </li>
+<li>
+<span class="font-medium text-base-content">
+
+        Claude Code, Codex or another terminal agent?
+      </span>
+
+      Start with <a phx-r="" href="/help/agents/guide" data-phx-link="patch" data-phx-link-state="push" class="link">
+the guide</a>
+, then add
+      the <a phx-r="" href="/help/agents/skills" data-phx-link="patch" data-phx-link-state="push" class="link">
+skills</a>
+
+      and either <a phx-r="" href="/help/agents/mcp" data-phx-link="patch" data-phx-link-state="push" class="link">
+MCP</a>
+
+      or the <a phx-r="" href="/help/agents/cli" data-phx-link="patch" data-phx-link-state="push" class="link">
+CLI</a>
+
+      once you use it often.
+    </li>
+<li>
+<span class="font-medium text-base-content">
+Want cards worked without you there?</span>
+
+      Connect a <a phx-r="" href="/help/agents/runners" data-phx-link="patch" data-phx-link-state="push" class="link">
+runner</a>
+.
+    </li>
+<li>
+<span class="font-medium text-base-content">
+
+        Only need to tell another system something happened?
+      </span>
+
+      Use a <a phx-r="" href="/help/agents/webhooks" data-phx-link="patch" data-phx-link-state="push" class="link">
+webhook</a>
+.
+    </li>
+</ul>
+</section>
+</div>
+</div>

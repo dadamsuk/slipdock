@@ -239,7 +239,7 @@ defmodule SlipdockWeb.AgenticHubTest do
     for file <- ~w(guides flow) do
       text =
         "lib/slipdock_web/live/help_live/#{file}.ex"
-        |> File.read!()
+        |> Slipdock.DocsText.read!()
         |> String.replace(~r/\s+/, " ")
 
       refute text =~ "beside <em>Health</em>", file

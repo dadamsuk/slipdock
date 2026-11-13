@@ -1,0 +1,384 @@
+<div phx-r="" id="help" class="kanban-scroll h-full overflow-y-auto">
+<div phx-r="" data-page-width="standard" class="mx-auto w-full px-4 py-6 sm:px-6 sm:py-10 max-w-5xl space-y-8">
+<nav phx-r="" id="help-sections-nav" aria-label="Help sections" class="flex gap-1 overflow-x-auto rounded-2xl bg-base-100 p-1 text-sm shadow-sm ring-1 ring-base-content/10">
+<a phx-r="" href="/help" data-phx-link="patch" data-phx-link-state="push" class="flex items-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+<span phx-r="" class="hero-arrow-left size-4">
+</span>
+ Help
+  </a>
+<a phx-r="" href="/help/boards" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+  Boards
+</a>
+<a phx-r="" href="/help/wiki" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+  Wiki
+</a>
+<a phx-r="" href="/help/sharing" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+  Sharing
+</a>
+<a phx-r="" href="/help/email" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+  Email
+</a>
+<a phx-r="" href="/help/automations" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+  Automations
+</a>
+<a phx-r="" href="/help/tools" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+  Tools
+</a>
+<a phx-r="" href="/help/ai" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+  AI
+</a>
+<a phx-r="" href="/help/agents" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium bg-primary/10 text-primary" aria-current="page">
+
+  Agents
+</a>
+</nav>
+<nav phx-r="" id="help-topics" aria-label="Help topics" class="flex gap-1 overflow-x-auto rounded-2xl bg-base-100 p-1 text-sm shadow-sm ring-1 ring-base-content/10">
+<a phx-r="" href="/help/agents" data-phx-link="patch" data-phx-link-state="push" class="flex items-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+<span phx-r="" class="hero-arrow-left size-4">
+</span>
+ All ways in
+  </a>
+<a phx-r="" href="/help/agents/flow" data-phx-link="patch" data-phx-link-state="push" id="help-topics-flow" class="flex items-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+    How work flows
+  </a>
+<a phx-r="" href="/help/agents/guide" data-phx-link="patch" data-phx-link-state="push" class="flex items-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+    Guide &amp; API
+  </a>
+<a phx-r="" href="/help/agents/mcp" data-phx-link="patch" data-phx-link-state="push" class="flex items-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-2 font-medium bg-primary/10 text-primary" aria-current="page">
+
+    MCP
+  </a>
+<a phx-r="" href="/help/agents/cli" data-phx-link="patch" data-phx-link-state="push" class="flex items-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+    CLI
+  </a>
+<a phx-r="" href="/help/agents/skills" data-phx-link="patch" data-phx-link-state="push" class="flex items-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+    Skills
+  </a>
+<a phx-r="" href="/help/agents/runners" data-phx-link="patch" data-phx-link-state="push" class="flex items-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+    Runners
+  </a>
+<a phx-r="" href="/help/agents/webhooks" data-phx-link="patch" data-phx-link-state="push" class="flex items-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+    Webhooks
+  </a>
+</nav>
+<article phx-r="" id="help-topic-mcp" class="space-y-6">
+<header class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+<header phx-r="" id="page-header" data-role="page-header" class="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-3 ">
+<div class="min-w-0">
+<h1 class="page-title">
+<span class="mr-2 inline-flex align-middle">
+<span phx-r="" class="hero-puzzle-piece size-6 text-primary">
+</span>
+</span>
+MCP server
+    </h1>
+<p data-role="page-subtitle" class="mt-1 max-w-2xl text-sm text-base-content/60">
+
+      This server is also an MCP server. Add it as a connector and the agent gets tools to read and write boards, cards and wiki pages, with no shell needed.
+    </p>
+</div>
+</header>
+<p class="mt-2 text-sm">
+<span class="font-medium">
+Use it when</span>
+<span class="text-base-content/70">
+you use claude.ai, the Claude desktop or mobile apps, ChatGPT, or any other client that speaks MCP. It&#39;s also a tidy option for Claude Code.</span>
+</p>
+</header>
+<section phx-r="" class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+<h2 class="section-title">
+How it works</h2>
+<div class="help-prose mt-2 space-y-3 text-sm text-base-content/70">
+<p phx-r="">
+
+    This server is also an MCP server at <code>
+http://www.example.com/mcp</code>
+. A client that
+    connects gets a small set of tools that each do a whole step of the work: reading boards,
+    cards, the guide and wiki pages; searching and asking; creating, updating, moving,
+    commenting on, completing, archiving and deleting cards; making a card repeat
+    (<code>
+update_card</code>
+&#39;s <code>
+recurrence</code>
+) or sleep until a day
+    (its <code>
+snoozed_until</code>
+); leaving a card&#39;s handoff
+    (<code>
+leave_handoff</code>
+: where it was left, which <code>
+get_card</code>
+
+    shows first, or <code>
+delete: true</code>
+
+    to delete one left by mistake); opening and answering a wait on a person (<code>
+update_card</code>
+&#39;s
+    <code>
+wait</code>
+
+    and <code>
+answer_wait</code>
+: several questions go as <code>
+questions</code>
+, one each,
+    answered one by one with <code>
+answers</code>
+, or skipped with <code>
+skip</code>
+; <code>
+get_card</code>
+&#39;s
+    <code>
+waits: true</code>
+
+    lists the ones asked before); uploading and downloading the
+    files on cards and pages (with a shell, <code>
+link: true</code>
+
+    on <code>
+upload_file</code>
+
+    or <code>
+download_file</code>
+
+    gives a single-use URL, good for
+    ten minutes, to curl, so neither the bytes nor a long-lived token pass through the
+    model); lists, tags and boards;
+    writing, sharing and reverting pages; listing, adding, changing and deleting a board&#39;s
+    automations, for its owner; finding and installing
+    <a phx-r="" href="/help/tools" data-phx-link="redirect" data-phx-link-state="push" class="link">
+Tools</a>
+
+    (<code>
+list_tools</code>
+, <code>
+install_tool</code>
+); the board&#39;s tidy-up suggestions
+    (<code>
+garden</code>
+, and <code>
+garden_decide</code>
+
+    for the ones the person approves; a proposed handbook edit is decided only on
+    the board&#39;s Tidy-up page, signed in, and <code>
+garden_decide</code>
+
+    and the CLI are refused with its link); a board&#39;s pulse and whether it is paused
+    (<code>
+get_board</code>
+); and taking runner jobs. The tools go through the same
+    permission checks as the API, so a connection can&#39;t do anything its token couldn&#39;t.
+  </p>
+<p phx-r="">
+
+    Read-only tools are marked as such, so a client can run them without asking each
+    time. Deletes are marked destructive and need a confirmation in the call.
+  </p>
+</div>
+</section>
+<section phx-r="" id="help-mcp-claude" class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+<h2 class="section-title">
+From claude.ai and the Claude apps</h2>
+<div class="help-prose mt-2 space-y-3 text-sm text-base-content/70">
+<ol phx-r="" class="list-decimal space-y-1 pl-5">
+<li>
+In claude.ai, open <strong>
+Settings → Connectors → Add custom connector</strong>
+.</li>
+<li>
+Give it a name, and this address:</li>
+</ol>
+<div phx-r="">
+<code id="help-mcp-url" class="block select-all whitespace-pre-wrap break-words rounded-xl bg-base-200 px-3 py-2 font-mono text-xs leading-relaxed text-base-content">
+http://www.example.com/mcp</code>
+<button type="button" id="help-mcp-url-copy" class="btn btn-ghost btn-xs mt-1 gap-1" phx-hook="CopyText" data-target="help-mcp-url">
+<span phx-r="" class="hero-clipboard size-3.5">
+</span>
+<span data-label="">
+Copy</span>
+</button>
+</div>
+<p phx-r="">
+
+    Press <strong>
+Connect</strong>
+. You&#39;re sent here to sign in and approve the
+    connection, or lower it to read-only first. A connector added once also works in the
+    desktop and mobile apps. Each connection appears as a <em>
+connected app</em>
+
+    under <span phx-r="" class="font-medium text-base-content">
+Account → API tokens</span>
+, and deleting it there disconnects it.
+  </p>
+<p phx-r="">
+
+    claude.ai connects from Anthropic&#39;s servers, not from your browser, so this server
+    has to be reachable from the internet over https.
+  </p>
+</div>
+</section>
+<section phx-r="" id="help-mcp-claude-code" class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+<h2 class="section-title">
+From Claude Code</h2>
+<div class="help-prose mt-2 space-y-3 text-sm text-base-content/70">
+<p phx-r="">
+Add the server, then run <code>
+/mcp</code>
+ in a session to sign in through the browser:</p>
+<div phx-r="">
+<code id="help-mcp-claude-code-cmd" class="block select-all whitespace-pre-wrap break-words rounded-xl bg-base-200 px-3 py-2 font-mono text-xs leading-relaxed text-base-content">
+claude mcp add --transport http slipdock http://www.example.com/mcp</code>
+<button type="button" id="help-mcp-claude-code-cmd-copy" class="btn btn-ghost btn-xs mt-1 gap-1" phx-hook="CopyText" data-target="help-mcp-claude-code-cmd">
+<span phx-r="" class="hero-clipboard size-3.5">
+</span>
+<span data-label="">
+Copy</span>
+</button>
+</div>
+<p phx-r="">
+Or pass a token from Account → API tokens instead of signing in:</p>
+<div phx-r="">
+<code id="help-mcp-token-cmd" class="block select-all whitespace-pre-wrap break-words rounded-xl bg-base-200 px-3 py-2 font-mono text-xs leading-relaxed text-base-content">
+claude mcp add --transport http slipdock http://www.example.com/mcp --header &quot;Authorization: Bearer &lt;token&gt;&quot;</code>
+<button type="button" id="help-mcp-token-cmd-copy" class="btn btn-ghost btn-xs mt-1 gap-1" phx-hook="CopyText" data-target="help-mcp-token-cmd">
+<span phx-r="" class="hero-clipboard size-3.5">
+</span>
+<span data-label="">
+Copy</span>
+</button>
+</div>
+<p phx-r="">
+
+    Claude Code connects from your own machine, so a server on your LAN or tailnet works
+    as long as that machine can reach it.
+  </p>
+</div>
+</section>
+<section phx-r="" id="help-mcp-prompts" class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+<h2 class="section-title">
+Ready-made workflows</h2>
+<div class="help-prose mt-2 space-y-3 text-sm text-base-content/70">
+<p phx-r="">
+
+    The server also offers prompts: workflows your client lists in its own menu, already
+    holding the live board data they need. In Claude Desktop and claude.ai they are under
+    the <strong>
++</strong>
+
+    menu; in Claude Code they are slash commands such as <code>
+/mcp__slipdock__plan-my-day</code>
+.
+  </p>
+<ul phx-r="" class="list-disc space-y-1 pl-5">
+<li>
+<code>
+plan-my-day</code>
+: my overdue, due-today and in-progress cards, and a plan for today.
+    </li>
+<li>
+<code>
+weekly-review</code>
+: the last 7 days, what slipped and what is stale.</li>
+<li>
+<code>
+triage</code>
+: a board&#39;s Backlog or Inbox, card by card.</li>
+<li>
+<code>
+resume</code>
+
+      and <code>
+leave-handoff</code>
+: pick a card up where it was left, or leave it for the next person.
+    </li>
+<li>
+<code>
+tidy-board</code>
+: walk the gardener&#39;s tidy-up suggestions.</li>
+</ul>
+<p phx-r="">
+
+    A connector remembers the list it was given, so after an upgrade that adds one,
+    disconnect and connect it again. ChatGPT&#39;s connectors use tools only, so prompts
+    don&#39;t show there.
+  </p>
+</div>
+</section>
+<section phx-r="" id="help-mcp-resources" class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+<h2 class="section-title">
+Attach a board, card or page</h2>
+<div class="help-prose mt-2 space-y-3 text-sm text-base-content/70">
+<p phx-r="">
+
+    You can also attach something to a conversation yourself, so the model starts with it:
+    a board, a card, a wiki page, a saved view or My work. In Claude Desktop and claude.ai
+    they are under the <strong>
++</strong>
+
+    menu; in Claude Code mention one, as in <code>
+@slipdock:slipdock://card/42</code>
+.
+    The menu lists My work, your favourites and the pages pinned to your favourite boards,
+    so favourite whatever you want to attach.
+  </p>
+</div>
+</section>
+<section phx-r="" class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+<h2 class="section-title">
+From ChatGPT and other clients</h2>
+<div class="help-prose mt-2 space-y-3 text-sm text-base-content/70">
+<p phx-r="">
+
+    Any client that supports MCP&#39;s OAuth sign-in connects with just the address. Clients
+    that take a URL and a header can use an API token instead, as above. In ChatGPT, add
+    it as a connector, then upload the ChatGPT versions of the
+    <a phx-r="" href="/help/agents/skills" data-phx-link="patch" data-phx-link-state="push" class="link">
+skills</a>
+
+    so it knows which tool to use for what.
+  </p>
+</div>
+</section>
+<section phx-r="" class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+<h2 class="section-title">
+What it can&#39;t do</h2>
+<div class="help-prose mt-2 space-y-3 text-sm text-base-content/70">
+<ul phx-r="" class="list-disc space-y-1 pl-5">
+<li>
+
+      Upload a file over 10 MB, such as most recordings, or transcribe one. Use the
+      <a phx-r="" href="/help/agents/cli" data-phx-link="patch" data-phx-link-state="push" class="link">
+CLI</a>
+
+      or the API.
+    </li>
+<li>
+
+      Set up runners, or run an automation now and read its callbacks. Do that on the
+      board, or with the CLI.
+    </li>
+<li>
+Mirror your wiki to a folder on disk. Only the CLI does that.</li>
+</ul>
+</div>
+</section>
+</article>
+</div>
+</div>

@@ -1,0 +1,254 @@
+<div phx-r="" id="help" class="kanban-scroll h-full overflow-y-auto">
+<div phx-r="" data-page-width="standard" class="mx-auto w-full px-4 py-6 sm:px-6 sm:py-10 max-w-5xl space-y-8">
+<nav phx-r="" id="help-sections-nav" aria-label="Help sections" class="flex gap-1 overflow-x-auto rounded-2xl bg-base-100 p-1 text-sm shadow-sm ring-1 ring-base-content/10">
+<a phx-r="" href="/help" data-phx-link="patch" data-phx-link-state="push" class="flex items-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+<span phx-r="" class="hero-arrow-left size-4">
+</span>
+ Help
+  </a>
+<a phx-r="" href="/help/boards" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+  Boards
+</a>
+<a phx-r="" href="/help/wiki" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+  Wiki
+</a>
+<a phx-r="" href="/help/sharing" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+  Sharing
+</a>
+<a phx-r="" href="/help/email" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+  Email
+</a>
+<a phx-r="" href="/help/automations" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium bg-primary/10 text-primary" aria-current="page">
+
+  Automations
+</a>
+<a phx-r="" href="/help/tools" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+  Tools
+</a>
+<a phx-r="" href="/help/ai" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+  AI
+</a>
+<a phx-r="" href="/help/agents" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+  Agents
+</a>
+</nav>
+<article phx-r="" id="help-section-automations" class="space-y-6">
+<header class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+<header phx-r="" id="page-header" data-role="page-header" class="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-3 ">
+<div class="min-w-0">
+<h1 class="page-title">
+<span class="mr-2 inline-flex align-middle">
+<span phx-r="" class="hero-arrow-path-rounded-square size-6 text-primary">
+</span>
+</span>
+Automations
+    </h1>
+<p data-role="page-subtitle" class="mt-1 max-w-2xl text-sm text-base-content/60">
+
+      Rules that act on a board for you: email someone, raise an alert, move or tag a card, call a URL, or send the card to an agent.
+    </p>
+</div>
+</header>
+<ul class="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm">
+<li>
+<a href="#automations-presets" class="link">
+Ready-made rules</a>
+</li>
+<li>
+<a href="#automations-words" class="link">
+Rules in your own words</a>
+</li>
+<li>
+<a href="#automations-parts" class="link">
+Triggers, conditions and actions</a>
+</li>
+<li>
+<a href="#automations-agents" class="link">
+From an agent</a>
+</li>
+<li>
+<a href="#automations-alerts" class="link">
+Alerts</a>
+</li>
+<li>
+<a href="#automations-limits" class="link">
+Safety rails</a>
+</li>
+</ul>
+</header>
+<section phx-r="" id="automations-presets" class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+<h2 class="section-title">
+Ready-made rules</h2>
+<div class="help-prose mt-2 space-y-3 text-sm text-base-content/70">
+<p phx-r="">
+
+    Every board has an <strong>
+Automations</strong>
+
+    panel, in the board&#39;s menu, for its owner. It opens with a gallery of the rules most
+    boards want, each set up with a short form. These need no AI model:
+  </p>
+<ul phx-r="" class="list-disc space-y-1 pl-5">
+<li>
+<strong>
+Follow</strong>
+: new cards, a list, one card, comments, a field changing, cards assigned to you.
+    </li>
+<li>
+<strong>
+Remind</strong>
+: due soon, overdue, or untouched for a number of days.</li>
+<li>
+<strong>
+Tidy</strong>
+: complete cards that reach Done, archive old ones, let a tag set the
+      priority, and a <em>
+Weekly tidy-up</em>
+
+      that looks the board over and alerts you to what <em>
+Tidy up…</em>
+
+      found, changing nothing.
+    </li>
+<li>
+<strong>
+Connect</strong>
+: call a URL on every change (a <a phx-r="" href="/help/agents/webhooks" data-phx-link="patch" data-phx-link-state="push" class="link">
+webhook</a>
+).
+    </li>
+</ul>
+</div>
+</section>
+<section phx-r="" id="automations-words" class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+<h2 class="section-title">
+Rules in your own words</h2>
+<div class="help-prose mt-2 space-y-3 text-sm text-base-content/70">
+<p phx-r="">
+Or describe a rule in a sentence:</p>
+<div phx-r="">
+<code id="help-automations-example" class="block select-all whitespace-pre-wrap break-words rounded-xl bg-base-200 px-3 py-2 font-mono text-xs leading-relaxed text-base-content">
+automatically move cards in In Progress to Backlog if they&#39;ve not been touched for 7 days</code>
+<button type="button" id="help-automations-example-copy" class="btn btn-ghost btn-xs mt-1 gap-1" phx-hook="CopyText" data-target="help-automations-example">
+<span phx-r="" class="hero-clipboard size-3.5">
+</span>
+<span data-label="">
+Copy</span>
+</button>
+</div>
+<p phx-r="">
+
+    A model turns the sentence into a rule once, and the app runs that rule from then on.
+    The panel reads the rule back to you as a sentence, so you can check it says what you
+    meant. Anything the model makes up that the app doesn&#39;t support is rejected before the
+    rule is saved.
+  </p>
+</div>
+</section>
+<section phx-r="" id="automations-parts" class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+<h2 class="section-title">
+Triggers, conditions and actions</h2>
+<div class="help-prose mt-2 space-y-3 text-sm text-base-content/70">
+<ul phx-r="" class="list-disc space-y-1 pl-5">
+<li>
+<strong>
+Triggers</strong>
+: a card is created, arrives in a list, moves, changes, is
+      completed, assigned, tagged, flagged or commented on; or, on a clock, it&#39;s
+      untouched, due soon, overdue, starting soon, or it&#39;s a time of day.
+    </li>
+<li>
+<strong>
+Conditions</strong>
+: the list, priority, tag, assignee, flag, dates, health,
+      age, a card&#39;s bar, paths, profile and verification, and more.
+    </li>
+<li>
+<strong>
+Actions</strong>
+: send an email, raise an alert, move, set priority, tag,
+      flag, assign, comment, set dates, complete or archive, add checklist items, set the
+      card&#39;s bar, paths or profile, create a card, start a wiki page, call a URL, or send
+      the card to a <a phx-r="" href="/help/agents/runners" data-phx-link="patch" data-phx-link-state="push" class="link">
+runner</a>
+
+      for an AI agent to work.
+    </li>
+</ul>
+<p phx-r="">
+
+    Text in an action can include details of the card, such as <code>
+{{card.title}}</code>
+
+    or <code>
+{{card.url}}</code>
+.
+  </p>
+<p phx-r="">
+
+    The checks on agents&#39; work don&#39;t hold a rule: like you, it can change a card&#39;s bar after
+    work has started, or lower its profile.
+  </p>
+</div>
+</section>
+<section phx-r="" id="automations-agents" class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+<h2 class="section-title">
+From an agent</h2>
+<div class="help-prose mt-2 space-y-3 text-sm text-base-content/70">
+<p phx-r="">
+
+    The board&#39;s owner can also have an AI agent list, add, change, switch off and delete
+    rules, over <a phx-r="" href="/help/agents/mcp" data-phx-link="patch" data-phx-link-state="push" class="link">
+MCP</a>
+
+    or with the <a phx-r="" href="/help/agents/cli" data-phx-link="patch" data-phx-link-state="push" class="link">
+CLI</a>
+. An agent can
+    write a rule exactly, start from a ready-made one, or describe it in a sentence as you would.
+  </p>
+</div>
+</section>
+<section phx-r="" id="automations-alerts" class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+<h2 class="section-title">
+Alerts</h2>
+<div class="help-prose mt-2 space-y-3 text-sm text-base-content/70">
+<p phx-r="">
+
+    An alert is the quiet option: no email, just a line in the header of every page,
+    with a count and how urgent it is. Each person dismisses their own alerts, and you
+    only see alerts from boards you can read.
+  </p>
+</div>
+</section>
+<section phx-r="" id="automations-limits" class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+<h2 class="section-title">
+Safety rails</h2>
+<div class="help-prose mt-2 space-y-3 text-sm text-base-content/70">
+<ul phx-r="" class="list-disc space-y-1 pl-5">
+<li>
+Automation email only goes to people who can read the board.</li>
+<li>
+
+      One rule&#39;s changes can set off another, but the chain stops after three steps, so
+      two rules can&#39;t bounce a card back and forth forever.
+    </li>
+<li>
+
+      Each rule shows how often it has run and what went wrong last time. Rules can be
+      switched off, reworded or run by hand.
+    </li>
+<li>
+Recent callbacks lists what each call to a URL got back.</li>
+</ul>
+</div>
+</section>
+</article>
+</div>
+</div>

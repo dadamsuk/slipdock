@@ -1,0 +1,54 @@
+<p>
+  Your CI deploys what reaches the default branch. With delivery metrics on, it records the
+  deploy (<code>slipdock deploy run --env production -- ./deploy.sh</code>), and the cards
+  it names get a <em>Shipped</em>
+  line. A merged card no deploy names after 20 minutes
+  (the board's <em>Not shipped after</em>) shows an amber
+  <em>Merged 1a634c6 · not shipped after 45m</em>
+  instead and raises a warning alert, overseer on or off, until a deploy names it:
+  <code>not_shipped</code>
+  in the card's JSON and <code>get_card</code>, <em>Not shipped</em>
+  in <code>slipdock card</code>. On a board with batched releases a merge deploys nothing:
+  the card is done, shows <em>merged, awaiting release</em>, and the 20 minutes count from
+  its release (<code>release_requested_at</code>
+  in <code>not_shipped</code>), not from its merge.
+</p>
+<p>
+  The <strong>handbook improves from use</strong>. The nightly <em>Reconcile the handbook</em>
+  card brings its pages up to date with what landed, and <em>Triage findings</em>
+  merges repeated findings and promotes what recurs, filing a new rule or decision as a
+  proposal for you.
+</p>
+<.person_note>
+  <strong>The proposals are yours to apply.</strong>
+  <ul class="mt-1 list-disc space-y-1 pl-5">
+    <li>
+      A rule is a person's call. An agent proposes one
+      (<code>slipdock garden propose B proposal.json</code>), and you apply or dismiss it on the
+      board's <strong>Tidy-up page</strong>
+      (<strong>Tidy up…</strong>
+      in the board's menu, or <code>slipdock garden B</code>). A rule an agent edited itself
+      shows there too, for you to keep or put back.
+    </li>
+    <li>
+      Findings are handled by the daily triage and the server. A finding seen three times
+      (the board's setting) is drafted as a rule on the Tidy-up page, and those proposals
+      are what wait for you: the board's <strong>Findings page</strong>
+      (a tile on the board's <em>Agentic Building</em>
+      page, counting them; a card with open findings links to it) and
+      <code>slipdock findings B</code>
+      lead with them. The findings below are reference, to promote, merge or dismiss
+      by hand when you want (<code>slipdock finding 41 promote --note "…"</code>).
+    </li>
+    <li>
+      What shipped is on the board's <strong>Ledger page</strong>
+      (a tile on <em>Agentic Building</em>), or <code>slipdock ledger B [--since 7]</code>: since 07:00
+      yesterday, each card with who accepted it, its evidence, the <em>should</em>
+      rules it missed, where its time went and what its jobs spent (the model's and
+      the tools' time, and tokens where the logs carried them). Skim it each morning,
+      and open any card's chat from it. A card a runner worked shows the same
+      under <em>Lead time</em>
+      in its panel, phase by phase.
+    </li>
+  </ul>
+</.person_note>

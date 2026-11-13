@@ -1,0 +1,124 @@
+<.part title="Before you start" id="ai-model">
+  <p>
+    The AI features need a model to talk to. Each person brings their own, under <.app_link
+      current_user={@current_user}
+      to={~p"/account/settings"}
+    >Account → Preferences → AI model</.app_link>:
+    either an OpenRouter key, billed to your OpenRouter account, or an OpenAI-compatible
+    endpoint of your own (LM Studio, Ollama and the like), which keeps everything on your network.
+  </p>
+  <p>
+    Without one, those features stay hidden. Nothing is sent to a model unless you ask,
+    and every answer is limited to what you're allowed to read.
+  </p>
+</.part>
+
+<.part title="Ask about this board" id="ai-board">
+  <p>
+    The <strong>Chat</strong>
+    button in the header of every board page, and of My work, opens a conversation about
+    what's on screen (or press <kbd class="kbd kbd-xs">a</kbd>). The model is given the
+    board, its lists, tags and people, the cards the current view shows, the board's wiki
+    pages, and the open card in full. An open card also has
+    <strong>Ask AI about this card</strong>
+    at the bottom.
+  </p>
+  <p>
+    Switch on <strong>Edit</strong>
+    and a request such as "set this due next Tuesday and pick a suitable priority" becomes
+    a list of changes. Nothing happens until you press <strong>Apply</strong>, and each
+    change is checked against your permissions first.
+  </p>
+</.part>
+
+<.part title="Search anywhere" id="ai-search">
+  <p>
+    <.app_link current_user={@current_user} to={~p"/search"}>Search</.app_link>
+    covers every board at once and matches by <em>meaning</em>, not exact words. "The
+    thing that was blocked on legal" finds the card whose comment said "waiting on the
+    contract review". It searches cards, comments, status updates, recording transcripts
+    and wiki pages.
+  </p>
+  <p>
+    Each result shows the passage that matched, linked straight to that comment or
+    section. Results update as you type. Star a query to save it, and filter to one board
+    or include archived cards. The server keeps the search index, so you don't need your
+    own model for this.
+  </p>
+</.part>
+
+<.part title="Ask about anywhere" id="ai-ask">
+  <p>
+    <.app_link current_user={@current_user} to={~p"/ask"}>Ask</.app_link>
+    answers a question in plain language, using every board you can read. Unlike chat,
+    it isn't given a page. Instead it uses tools to find what it needs: searching by
+    meaning, counting a board's cards list by list, describing a board, listing one
+    person's work, reading the activity log ("what changed this week?"), and reading your alerts.
+  </p>
+  <p>
+    It shows which searches it ran and links every card it read, so you can check its
+    answer. It only reads; it never changes anything.
+  </p>
+</.part>
+
+<.part title="Which one to use" id="ai-which">
+  <div class="overflow-x-auto">
+    <table class="table table-sm">
+      <thead>
+        <tr>
+          <th></th>
+          <th>Looks at</th>
+          <th>Gives you</th>
+          <th>Can change things</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th scope="row">Ask about this board</th>
+          <td>The page you're on</td>
+          <td>A conversation</td>
+          <td>Yes, in Edit mode, after you approve</td>
+        </tr>
+        <tr>
+          <th scope="row">Search anywhere</th>
+          <td>Every board you can read</td>
+          <td>Cards and pages, best match first</td>
+          <td>No</td>
+        </tr>
+        <tr>
+          <th scope="row">Ask about anywhere</th>
+          <td>Every board you can read</td>
+          <td>An answer, with its sources</td>
+          <td>No</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <p>
+    The toggle at the top of Search and Ask carries what you typed across, so going from
+    "I searched" to "now ask the same thing" takes one click.
+  </p>
+</.part>
+
+<.part title="Elsewhere in the app" id="ai-more">
+  <ul class="list-disc space-y-1 pl-5">
+    <li>
+      <strong>Narrative</strong>: Generate narrative writes up a date range, from a one-liner to a stakeholder update.
+    </li>
+    <li>
+      <strong>Quick add</strong>: reads a line of plain English into a card with dates, priority and tags.
+    </li>
+    <li>
+      <strong>Automations</strong>: describe a rule in a sentence (see <.link
+        patch={~p"/help/automations"}
+        class="link"
+      >Automations</.link>).
+    </li>
+    <li>
+      To use an AI agent of your own, such as Claude or ChatGPT, see <.link
+        patch={~p"/help/agents"}
+        class="link"
+      >Agents</.link>.
+    </li>
+  </ul>
+</.part>

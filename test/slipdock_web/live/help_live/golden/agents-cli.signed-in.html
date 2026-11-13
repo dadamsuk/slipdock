@@ -1,0 +1,384 @@
+<div phx-r="" id="help" class="kanban-scroll h-full overflow-y-auto">
+<div phx-r="" data-page-width="standard" class="mx-auto w-full px-4 py-6 sm:px-6 sm:py-10 max-w-5xl space-y-8">
+<nav phx-r="" id="help-sections-nav" aria-label="Help sections" class="flex gap-1 overflow-x-auto rounded-2xl bg-base-100 p-1 text-sm shadow-sm ring-1 ring-base-content/10">
+<a phx-r="" href="/help" data-phx-link="patch" data-phx-link-state="push" class="flex items-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+<span phx-r="" class="hero-arrow-left size-4">
+</span>
+ Help
+  </a>
+<a phx-r="" href="/help/boards" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+  Boards
+</a>
+<a phx-r="" href="/help/wiki" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+  Wiki
+</a>
+<a phx-r="" href="/help/sharing" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+  Sharing
+</a>
+<a phx-r="" href="/help/email" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+  Email
+</a>
+<a phx-r="" href="/help/automations" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+  Automations
+</a>
+<a phx-r="" href="/help/tools" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+  Tools
+</a>
+<a phx-r="" href="/help/ai" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+  AI
+</a>
+<a phx-r="" href="/help/agents" data-phx-link="patch" data-phx-link-state="push" class="flex items-center whitespace-nowrap rounded-xl px-3 py-2 font-medium bg-primary/10 text-primary" aria-current="page">
+
+  Agents
+</a>
+</nav>
+<nav phx-r="" id="help-topics" aria-label="Help topics" class="flex gap-1 overflow-x-auto rounded-2xl bg-base-100 p-1 text-sm shadow-sm ring-1 ring-base-content/10">
+<a phx-r="" href="/help/agents" data-phx-link="patch" data-phx-link-state="push" class="flex items-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+<span phx-r="" class="hero-arrow-left size-4">
+</span>
+ All ways in
+  </a>
+<a phx-r="" href="/help/agents/flow" data-phx-link="patch" data-phx-link-state="push" id="help-topics-flow" class="flex items-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+    How work flows
+  </a>
+<a phx-r="" href="/help/agents/guide" data-phx-link="patch" data-phx-link-state="push" class="flex items-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+    Guide &amp; API
+  </a>
+<a phx-r="" href="/help/agents/mcp" data-phx-link="patch" data-phx-link-state="push" class="flex items-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+    MCP
+  </a>
+<a phx-r="" href="/help/agents/cli" data-phx-link="patch" data-phx-link-state="push" class="flex items-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-2 font-medium bg-primary/10 text-primary" aria-current="page">
+
+    CLI
+  </a>
+<a phx-r="" href="/help/agents/skills" data-phx-link="patch" data-phx-link-state="push" class="flex items-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+    Skills
+  </a>
+<a phx-r="" href="/help/agents/runners" data-phx-link="patch" data-phx-link-state="push" class="flex items-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+    Runners
+  </a>
+<a phx-r="" href="/help/agents/webhooks" data-phx-link="patch" data-phx-link-state="push" class="flex items-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content">
+
+    Webhooks
+  </a>
+</nav>
+<article phx-r="" id="help-topic-cli" class="space-y-6">
+<header class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+<header phx-r="" id="page-header" data-role="page-header" class="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-3 ">
+<div class="min-w-0">
+<h1 class="page-title">
+<span class="mr-2 inline-flex align-middle">
+<span phx-r="" class="hero-command-line size-6 text-primary">
+</span>
+</span>
+The slipdock CLI
+    </h1>
+<p data-role="page-subtitle" class="mt-1 max-w-2xl text-sm text-base-content/60">
+
+      A command-line client that wraps the whole API. It keeps the token for you, reads better in a transcript than raw curl, and does a few things nothing else does.
+    </p>
+</div>
+</header>
+<p class="mt-2 text-sm">
+<span class="font-medium">
+Use it when</span>
+<span class="text-base-content/70">
+the agent works in a terminal on your machine, or you want what only the CLI has: syncing your wiki to a folder, files over 10 MB, imports and exports.</span>
+</p>
+</header>
+<section phx-r="" class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+<h2 class="section-title">
+How it works</h2>
+<div class="help-prose mt-2 space-y-3 text-sm text-base-content/70">
+<p phx-r="">
+<code>
+slipdock</code>
+
+    is a command-line client for everything the API does: boards, cards, comments,
+    the wiki, files (<code>
+slipdock attach</code>
+
+    and <code>
+slipdock download</code>
+), search,
+    automations and runners. It saves the server&#39;s
+    address and your token, so neither you nor the agent has to repeat them, and its
+    output is easier to read in a transcript than raw JSON.
+  </p>
+<p phx-r="">
+
+    It&#39;s an Elixir escript, so the machine that runs it needs Erlang/OTP. That&#39;s why
+    nothing else on this page depends on it.
+  </p>
+</div>
+</section>
+<section phx-r="" id="help-cli-commands" class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+<h2 class="section-title">
+Every command</h2>
+<div class="help-prose mt-2 space-y-3 text-sm text-base-content/70">
+<p phx-r="">
+
+    The
+    <a phx-r="" href="/help/agents/cli/reference" data-phx-link="patch" data-phx-link-state="push" id="help-cli-reference-link" class="link font-medium">
+command reference</a>
+
+    lists every command by group, with a filter to find one by name. It is made from the
+    same text <code>
+slipdock help</code>
+
+    prints, so it never falls behind the CLI, and is easier to search than a terminal.
+  </p>
+</div>
+</section>
+<section phx-r="" id="help-cli-install" class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+<h2 class="section-title">
+Install it</h2>
+<div class="help-prose mt-2 space-y-3 text-sm text-base-content/70">
+<p phx-r="">
+
+    On Linux and macOS, into <code>
+~/.local/bin/slipdock</code>
+. It needs Erlang/OTP 27 or later,
+    and if there is none it says what to install (<code>
+brew install erlang</code>
+
+    on a Mac) rather than running anything as root. It checks the download against
+    <code>
+/cli/SHA256SUMS</code>
+
+    first, and against the release key&#39;s signature when there is one:
+  </p>
+<div phx-r="">
+<code id="help-cli-unix" class="block select-all whitespace-pre-wrap break-words rounded-xl bg-base-200 px-3 py-2 font-mono text-xs leading-relaxed text-base-content">
+curl -fsSL http://www.example.com/cli/install.sh | sh
+slipdock auth</code>
+<button type="button" id="help-cli-unix-copy" class="btn btn-ghost btn-xs mt-1 gap-1" phx-hook="CopyText" data-target="help-cli-unix">
+<span phx-r="" class="hero-clipboard size-3.5">
+</span>
+<span data-label="">
+Copy</span>
+</button>
+</div>
+<p phx-r="">
+
+    That is <code>
+/cli/install.sh</code>
+, the CLI; <code>
+/install.sh</code>
+
+    without <code>
+/cli/</code>
+
+    installs the skills.
+  </p>
+<p phx-r="">
+On Windows, in PowerShell. This installs Erlang through winget if it isn&#39;t already there:</p>
+<div phx-r="">
+<code id="help-cli-windows" class="block select-all whitespace-pre-wrap break-words rounded-xl bg-base-200 px-3 py-2 font-mono text-xs leading-relaxed text-base-content">
+irm http://www.example.com/cli/install.ps1 | iex
+slipdock auth</code>
+<button type="button" id="help-cli-windows-copy" class="btn btn-ghost btn-xs mt-1 gap-1" phx-hook="CopyText" data-target="help-cli-windows">
+<span phx-r="" class="hero-clipboard size-3.5">
+</span>
+<span data-label="">
+Copy</span>
+</button>
+</div>
+<p phx-r="">
+From a checkout, build it from the repository (Elixir 1.19 or later):</p>
+<div phx-r="">
+<code id="help-cli-build" class="block select-all whitespace-pre-wrap break-words rounded-xl bg-base-200 px-3 py-2 font-mono text-xs leading-relaxed text-base-content">
+cd cli &amp;&amp; mix escript.build &amp;&amp; cp slipdock ~/.local/bin/
+slipdock url http://www.example.com
+slipdock auth</code>
+<button type="button" id="help-cli-build-copy" class="btn btn-ghost btn-xs mt-1 gap-1" phx-hook="CopyText" data-target="help-cli-build">
+<span phx-r="" class="hero-clipboard size-3.5">
+</span>
+<span data-label="">
+Copy</span>
+</button>
+</div>
+<p phx-r="">
+<code>
+slipdock auth</code>
+
+    uses the same sign-in as <a phx-r="" href="/help/agents/guide" data-phx-link="patch" data-phx-link-state="push" class="link">
+the guide</a>
+: it prints a code and you approve it in the browser.
+    <code>
+slipdock url</code>
+
+    with no argument shows which server it&#39;s pointing at, which is the first thing to
+    check when it can&#39;t connect.
+  </p>
+</div>
+</section>
+<section phx-r="" class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+<h2 class="section-title">
+What it has that MCP doesn&#39;t</h2>
+<div class="help-prose mt-2 space-y-3 text-sm text-base-content/70">
+<ul phx-r="" class="list-disc space-y-1 pl-5">
+<li>
+<code>
+slipdock sync</code>
+
+      mirrors your wiki to a local folder and keeps the two in step, so you can edit pages
+      in Obsidian or any other editor; <code>
+slipdock sync from-server</code>
+
+      and <code>
+slipdock sync to-server</code>
+
+      run a pass one way only.
+    </li>
+<li>
+<code>
+slipdock attach</code>
+
+      uploads files up to 250 MB, recordings included, where MCP takes up to 10 MB.
+    </li>
+<li>
+Importing and exporting boards and pages, including from Trello.</li>
+<li>
+<code>
+slipdock skills install</code>
+
+      and <code>
+slipdock skills check</code>
+
+      keep the skills up to date, and <code>
+slipdock tools install</code>
+
+      and <code>
+slipdock tools check</code>
+
+      do the same for a Tool&#39;s skills.
+    </li>
+<li>
+<code>
+slipdock tools publish</code>
+ packs a folder and publishes it as a Tool.
+    </li>
+</ul>
+</div>
+</section>
+<section phx-r="" class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+<h2 class="section-title">
+Good to know</h2>
+<div class="help-prose mt-2 space-y-3 text-sm text-base-content/70">
+<ul phx-r="" class="list-disc space-y-1 pl-5">
+<li>
+<code>
+$SLIPDOCK_URL</code>
+
+      and <code>
+$SLIPDOCK_TOKEN</code>
+
+      override the saved address and token for a single command, such as one run against
+      another server.
+    </li>
+<li>
+<code>
+slipdock guide</code>
+
+      prints the short agent guide, which ends with the names of its other sections;
+      <code>
+slipdock guide wiki</code>
+
+      prints one of them, and <code>
+slipdock guide all</code>
+
+      the whole guide, which is long.
+    </li>
+<li>
+<code>
+slipdock work</code>
+
+      lists what is waiting on you, and <code>
+slipdock card</code>
+
+      on an epic and <code>
+slipdock board</code>
+
+      print a <code>
+Waiting on you:</code>
+
+      line for what in the tree is on you (<code>
+waiting_on_me</code>
+
+      on <code>
+get_card</code>
+
+      and <code>
+get_board</code>
+: <code>
+count</code>
+, <code>
+cards</code>
+
+      with their reasons, <code>
+on_others</code>
+
+      and <code>
+line</code>
+); an epic whose tree is all waiting on a person has nothing workable;
+      <code>
+slipdock wait</code>
+
+      and <code>
+slipdock answer</code>
+
+      open and answer a wait on a person (<code>
+--question</code>
+
+      once per question, <code>
+--answer</code>
+
+      once per answer, <code>
+--skip</code>
+
+      to move on without them, <code>
+--kind</code>
+
+      the kind of question, which the board routes to its person; <code>
+slipdock waits</code>
+
+      lists the ones asked before); <code>
+slipdock pulse</code>
+
+      gives a board&#39;s flow numbers; <code>
+slipdock pause</code>
+
+      and <code>
+slipdock resume</code>
+
+      hold and release its runner work.
+    </li>
+<li>
+
+      The <a phx-r="" href="/help/agents/skills" data-phx-link="patch" data-phx-link-state="push" class="link">
+skills</a>
+
+      use the CLI where it&#39;s installed and fall back to <code>
+curl</code>
+
+      where it isn&#39;t.
+    </li>
+</ul>
+</div>
+</section>
+</article>
+</div>
+</div>

@@ -1,0 +1,118 @@
+<p>
+  With <em>A second agent verifies</em>
+  on, the completion is a <strong>submission</strong>: the card stays in progress, awaiting
+  verification. With <em>Runner pool for verify jobs</em>
+  set, a <strong>verifier</strong>
+  in that pool, never the runner that built it, judges in order: does the bar cover the ask;
+  is each part of the bar met; did the suite pass (on a pull request board, the pull
+  request's checks); are the rules kept (<code>must</code>
+  and <code>should</code>; a rule broken only in code the change didn't touch is reported as
+  pre-existing and kept as a finding, never a rejection); and is the Handbook line honest. A
+  rejection names every instance found: once a rule is broken, the verifier looks for every
+  other instance of the same break (the same list, the same string, the same door) and lists
+  them all under that one rule, each with its file and line, so one round fixes them all. The
+  rule that a change is written up everywhere a reader would look (<code>SPEC-10</code>)
+  is checked by enumeration: for a card in its scope the verifier greps the names the diff
+  introduces or alters across the seven places and gives each one updated, deferred to a card
+  whose bar names that place, not applicable with why, or missing, and one missing is the rule
+  broken. With
+  profiles on, a <code>docs</code>
+  card gets no verifier (the server accepts it on its suite), and a <code>schema</code>
+  or <code>security</code>
+  card's verifier also reviews the diff for defects, rejecting on an Important one. On a <code>fix</code>, <code>feature</code>,
+  <code>schema</code>
+  or <code>security</code>
+  card the verifier also mutates the change: it breaks 3 to 5 of the lines the change added
+  or changed and, on top of those, every guard or branch the change adds (a new condition,
+  clause, pattern match or early return), each named with its line, one at a time, runs only the card's tests and restores each line. A break no
+  test catches (a surviving mutant) is a rejection naming the mutation and the test to
+  write; on a fix, one break undoes the fix, which the regression test must catch. A
+  survivor in lines the change didn't touch is kept as a finding. The builder runs the
+  mutation review before submitting, on its own change, and names the mutants it tried in
+  the evidence, one line each (<code>mutant:killed=lib/foo.ex:42:flip &gt; to &gt;=</code>):
+  that list is a map, not a verdict: the verifier carries a killed one only when it broke
+  it again or a test the builder names plainly covers that line, and checks every other
+  claim in the evidence too (a named test is read and run, a docs place is opened). The
+  profile is checked against the change the agent completes with
+  (<code>slipdock done 12 --diff-base origin/main</code>): a migration makes it <code>schema</code>, a security path <code>security</code>, and over 400 changed lines a
+  <code>fix</code>
+  or <code>docs</code>
+  card a <code>feature</code>, never lower. Then <code>slipdock verify 12 accept</code>
+  or <code>slipdock verify 12 reject --reason -</code>, the reason on stdin as lines, its
+  parts in <code>--check</code>:
+</p>
+<pre
+  class="whitespace-pre-wrap break-words rounded-xl bg-base-200 px-3 py-2 font-mono text-xs leading-relaxed"
+  data-role="reason-example"
+  phx-no-format
+>{reason_example()}</pre>
+<p>
+  <strong>On a bug, the ask is the reported symptom</strong>: the check is would the reporter
+  now see it fixed, not does the work meet the bar. The builder reproduces the reported symptom
+  on the reporter's scenario and posts the repro as its own comment; a clean repro that doesn't
+  show it opens a wait saying what was seen and asking for a screenshot or steps (which screen,
+  which control), never conditions built until something fails. The verifier rejects (<code>the ask: …</code>) a bug card whose card or evidence says the reported symptom or its cause
+  was never seen, however good the tests.
+</p>
+<ul class="list-disc space-y-1 pl-5">
+  <li>
+    <strong>Accepted</strong>
+    by push: the card is done. By pull request: a runner merges it, and the merge completes the
+    card. A failed merge comes back as a rejection, unless the pull request was already merged:
+    at the accepted commit the card completes with that merge, at another head it stays merging
+    and says which head, and neither counts as a rejection.
+  </li>
+  <li>
+    <strong>Rejected</strong>: the card goes back to the top of its list, and the reason is the
+    next pass's brief. Submitted again, it is judged on what failed and what the new commits
+    touch; a part that passed before and nothing since touches is carried, shown as
+    <em>carried from</em>
+    the commit it passed at.
+  </li>
+  <li>
+    <strong>Audits check the checker</strong>: with <em>Audit 1 in N accepted cards</em>
+    set, another runner rechecks about one accepted card in N. The acceptance stands; a
+    disagreement files the rework as a card in the ready list, titled from the audit's
+    reason, with what failed and a link to the audit, caused by the accepted card (high
+    priority for a surviving mutant or a broken <em>must</em>
+    rule). The alert names it and clears itself once that card is accepted or completed,
+    and a second disagreement comments on it rather than filing another. The verify
+    prompt then lists the board's last five audit misses of the last 30 days, each its
+    rework's title and the parts it failed, for the verifier to check first; the audit
+    prompt never does.
+  </li>
+</ul>
+<.person_note>
+  <strong>You decide when no verifier can.</strong>
+  <ul class="mt-1 list-disc space-y-1 pl-5">
+    <li>
+      With no verify pool, or no runner in it other than the builder's, the card waits for you:
+      <strong>Accept</strong>
+      or <strong>Reject</strong>
+      on the card, or <code>slipdock accept 12</code>. It is in My work's <em>Waiting on you</em>.
+    </li>
+    <li>
+      A second rejection, or one for a rule an earlier rejection named, says the card is
+      going round in circles: it stays flagged <strong>review</strong>
+      until it is accepted, a comment lists the rounds and what failed in each, an alert goes up
+      and you are emailed, and it heads My work's <em>Waiting on you</em>. The runners still
+      rework it; look at whether it needs a different approach or a reworded bar.
+    </li>
+    <li>
+      After <em>Rejections before a person decides</em>
+      (2 by default), the next rejection opens a wait on the board's owner: rework it as
+      rejected, or accept it as is. It lists what failed each time, and asks whether the
+      approach, not the fix, is wrong. You can reword the bar first.
+    </li>
+    <li>
+      When no runner can merge, merge the pull request yourself and press
+      <strong>Merged it myself</strong>
+      (<code>slipdock verify 12 merged</code>).
+    </li>
+    <li>
+      An audit that disagrees has already filed its rework card: read the alert, and reword
+      or reprioritise the card if the audit was wrong about what matters. The alert goes
+      by itself when the rework is accepted or completed.
+    </li>
+  </ul>
+</.person_note>
