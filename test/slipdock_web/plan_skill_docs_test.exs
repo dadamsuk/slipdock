@@ -230,7 +230,7 @@ defmodule SlipdockWeb.PlanSkillDocsTest do
 
       assert_states(
         stage,
-        "Nobody there: a round goes into one wait, a `--question` each with its recommended answer, never a wait per question"
+        "a round goes into one wait, a `--question` each with its recommended answer, never a wait per question"
       )
 
       assert_states(stage, "The answers settle the next round's prerequisites.")
@@ -252,7 +252,7 @@ defmodule SlipdockWeb.PlanSkillDocsTest do
       assert_states(step, "Put a grill round's or decide's questions, or the spike candidates,")
 
       assert step =~
-               ~s{as one wait (`slipdock wait <epic> "intro" --question Q --question Q --kind product`}
+               ~s{a numbered round (`slipdock wait <epic> "intro" --question Q --question Q --kind product`}
 
       assert_states(step, "a grill question's recommended answer in its text")
       assert_states(step, "the answer starts the next pass, and the grill's next round")
@@ -278,6 +278,91 @@ defmodule SlipdockWeb.PlanSkillDocsTest do
         assert_states(flat(seed), said, said)
         assert_states(stage, said, said)
       end
+    end
+  end
+
+  describe "unattended: assume what the board answers, wait for the person's (#2067)" do
+    # The skill's *Nobody there* bullet of step 3, flattened.
+    defp nobody_there do
+      step = skill() |> section("## 3. Run the stages") |> flat()
+      [_, rest] = String.split(step, "- **Nobody there** (a runner job, a loop): ", parts: 2)
+      [nobody, _] = String.split(rest, "- **Spikes stop the plan.**", parts: 2)
+      nobody
+    end
+
+    test "step 3 answers from the board and marks each such answer (assumed)" do
+      nobody = nobody_there()
+
+      assert_states(
+        nobody,
+        "answer from the board what it answers (the card, the handbook, a Decision)"
+      )
+
+      assert_states(nobody, "mark each such answer *(assumed)* where you write it")
+      assert nobody =~ "such answer *(assumed)*"
+      assert String.starts_with?(nobody, "answer from the board")
+    end
+
+    test "step 3 never answers the person's decisions: one wait, a numbered round, and stop" do
+      nobody = nobody_there()
+      assert_states(nobody, "A decision that is the person's you never answer yourself.")
+      assert nobody =~ "never answer yourself"
+      assert nobody =~ "one wait, a numbered round (`slipdock wait <epic>"
+      assert nobody =~ "--question Q --question Q --kind product"
+      assert nobody =~ "and stop;"
+
+      # The assumption comes before the wait: only what is left is asked.
+      {assumed, _} = :binary.match(nobody, "*(assumed)*")
+      {wait, _} = :binary.match(nobody, "as one wait")
+      assert assumed < wait
+
+      # The old rule, every question into a wait, is gone.
+      refute nobody =~ "don't answer your own questions"
+    end
+
+    test "the Grill stage text says the same, in the one round" do
+      stage = skill() |> section("### Grill") |> flat()
+      [_, nobody] = String.split(stage, "Nobody there: ", parts: 2)
+      assert String.starts_with?(nobody, "answer what the board answers, marked *(assumed)*;")
+      assert nobody =~ "the person's decisions wait:"
+      assert_states(nobody, "the person's decisions wait: a round goes into one wait")
+      assert nobody =~ "never a wait per question"
+    end
+
+    test "the skill still never decides for the person" do
+      never = skill() |> section("## What this never does") |> flat()
+      assert never =~ "or decide for the person."
+    end
+
+    test "docs/agents.md's planning section says the same line" do
+      agents = Slipdock.DocsText.read!(Path.join(@root, "docs/agents.md"))
+      planning = agents |> section("## Planning an idea: the `slipdock-plan` skill") |> flat()
+      [_, unattended] = String.split(planning, "Run unattended, it ", parts: 2)
+
+      assert_states(
+        unattended,
+        "answers from the board what the board answers (the card, the handbook, a Decision)"
+      )
+
+      assert unattended =~ "marks each such answer *(assumed)*."
+      assert unattended =~ "It opens one wait, as"
+      assert unattended =~ "numbered round, only for decisions"
+      assert unattended =~ "decisions that are the person's"
+      assert unattended =~ "never answers those itself."
+      refute planning =~ "it puts its questions in a wait"
+    end
+
+    test "the manual's skills page says it too" do
+      manual = flat(Slipdock.DocsText.read!(Path.join(@root, "docs/manual/skills.md")))
+      [_, unattended] = String.split(manual, "Run unattended, it ", parts: 2)
+      [unattended, _] = String.split(unattended, "A question only building", parts: 2)
+      assert_states(unattended, "answers from the board what the board answers")
+      assert unattended =~ "marks each such answer *(assumed)*;"
+      assert unattended =~ "it opens one wait, as"
+      assert unattended =~ "numbered round, only for decisions"
+      assert unattended =~ "decisions that are yours"
+      assert unattended =~ "never answers those itself."
+      refute manual =~ "it puts its questions in a wait"
     end
   end
 

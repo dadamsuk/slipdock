@@ -73,13 +73,15 @@ and where it **writes to**. Then:
   Say so, and name what was there.
 - **One stage at a time.** Show the person what the stage produced before
   writing it, and fold in what they change.
-- **Nobody there** (a runner job, a loop): don't answer your own questions.
-  Put a grill round's or decide's questions, or the spike candidates, to
-  the person as one wait (`slipdock wait <epic> "intro" --question Q
-  --question Q --kind product`, MCP `update_card` `wait`), a grill
-  question's recommended answer in its text, and stop; the answer starts
-  the next pass, and the grill's next round. Write only what doesn't need
-  them.
+- **Nobody there** (a runner job, a loop): answer from the board what it
+  answers (the card, the handbook, a Decision), and mark each such answer
+  *(assumed)* where you write it. A decision that is the person's you
+  never answer yourself. Put those (a grill round's or decide's questions,
+  or the spike candidates) to the person as one wait, a numbered round
+  (`slipdock wait <epic> "intro" --question Q --question Q --kind
+  product`, MCP `update_card` `wait`), a grill question's recommended
+  answer in its text, and stop; the answer starts the next pass, and the
+  grill's next round. Write only what doesn't need them.
 - **Spikes stop the plan.** With spike cards made, stop: leave a handoff
   on the epic, `slipdock handoff <epic> --next "Planning resumes at Spec
   once spikes #… are answered"`. Accepting the last opens a `product` wait
@@ -149,7 +151,8 @@ Ask in numbered rounds. A round is every question whose prerequisites are
 settled, the most important first, numbered, each with the answer you
 recommend, so a yes is enough. Don't ask what the handbook or a Decision
 already answers, what you can look up yourself, or what the person plainly
-doesn't care about. Nobody there: a round goes into one wait, a
+doesn't care about. Nobody there: answer what the board answers, marked
+*(assumed)*; the person's decisions wait: a round goes into one wait, a
 `--question` each with its recommended answer, never a wait per question.
 The answers settle the next round's prerequisites. Stop when the next
 answer wouldn't change the plan: you can say back what is built, for whom,

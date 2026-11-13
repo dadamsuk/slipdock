@@ -726,8 +726,10 @@ card…".
 
 The skill adds no tools of its own: it uses the CLI or the MCP tools
 (`read_page`, `write_page`, `create_card`). It never asks the server to plan.
-Run unattended, it puts its questions in a wait instead of answering them
-itself.
+Run unattended, it answers from the board what the board answers (the card,
+the handbook, a Decision) and marks each such answer *(assumed)*. It opens
+one wait, as a numbered round, only for decisions that are the person's, and
+never answers those itself.
 
 ## The handbook's rules
 
