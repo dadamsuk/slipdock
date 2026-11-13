@@ -28,11 +28,13 @@ holds the detail behind each rule.
    `~/.claude/skills`) are overwritten from the server, so an edit there is
    lost.
 4. **Run `mix pre_push` before you push**, and say on the card that it
-   passed. It runs the static checks, the format and compile checks and the
-   repo's own rule tests; a pull request's CI doesn't run the static checks,
-   so this is where a change meets them first. It takes a few minutes, so
-   start it beside the tests you changed. Its options and its workings are in
-   `CONTRIBUTING.md` §More about `mix pre_push`.
+   passed. It runs the static checks, the format and compile checks, the
+   daemon's `go vet` and `go test -race`, and the repo's own rule tests; a
+   pull request's CI doesn't run the static checks, so this is where a change
+   meets them first. It takes about 4 minutes, so start it beside the few
+   test files you changed, not a whole directory (beside a directory's run it
+   can time out). Its options and its workings are in `CONTRIBUTING.md`
+   §More about `mix pre_push`.
 5. **Ship the way the card's board says.** Commit with the card's id in the
    message (`#123`). By push (the default), push to `main`, which deploys. By
    pull request, push the branch `card-<id>`, open a PR and give its URL when
