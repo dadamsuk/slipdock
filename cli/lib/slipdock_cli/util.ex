@@ -108,6 +108,9 @@ defmodule SlipdockCLI.Util do
           :io.setopts(:standard_io, encoding: was)
 
         error ->
+          # `out/3` halts the VM, so the `after` below never runs on this
+          # branch: a download cut off mid-body has left bytes in `tmp`.
+          File.rm(tmp)
           out(error, o, & &1)
       end
     after
