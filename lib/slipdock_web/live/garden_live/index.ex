@@ -2,7 +2,7 @@ defmodule SlipdockWeb.GardenLive.Index do
   @moduledoc """
   A board's Tidy-up page (W-1807): what the gardener found, grouped by
   check, each with its evidence, the cards and pages it is about and the
-  steps applying it would take. Apply, dismiss or apply a whole group; a
+  steps applying it would take. Apply, dismiss, or apply or dismiss a whole group; a
   duplicate is shown side by side, to keep one; what was applied can be
   undone. A step that edits a page's section (a proposed handbook edit,
   #1788) shows the change as a diff against the section as it is now.
@@ -199,6 +199,29 @@ defmodule SlipdockWeb.GardenLive.Index do
     {:noreply, load(socket)}
   end
 
+  # Every suggestion of one check, dismissed each on its own (#3048). One
+  # only a person decides (a handbook edit) is left to be decided by itself,
+  # and said.
+  def handle_event("dismiss_group", %{"check" => check}, socket) do
+    user = socket.assigns.current_user
+
+    {kept, mine} =
+      socket.assigns.board
+      |> Gardener.list_open(check: check)
+      |> Enum.split_with(&Gardener.person_only?/1)
+
+    results = Enum.map(mine, &Gardener.dismiss(&1, user, actor: in_person(socket)))
+    left = length(kept) + Enum.count(results, &(not match?({:ok, _}, &1)))
+    done = length(mine) + length(kept) - left
+
+    socket =
+      if left == 0,
+        do: put_flash(socket, :info, "Dismissed #{done}."),
+        else: put_flash(socket, :error, "Dismissed #{done}; #{left} left to decide one by one.")
+
+    {:noreply, load(socket)}
+  end
+
   def handle_event(_event, _params, socket), do: {:noreply, socket}
 
   defp with_suggestion(socket, id, fun) do
@@ -386,20 +409,32 @@ defmodule SlipdockWeb.GardenLive.Index do
               <h2 class="section-title">
                 {label(first.check)} <span class="badge badge-ghost badge-sm">{length(group)}</span>
               </h2>
-              <button
-                :if={
-                  @can_write and length(group) > 1 and not Steps.needs_pick?(first.proposal) and
-                    not Gardener.person_only?(first)
-                }
-                id={"garden-apply-all-#{first.check}"}
-                type="button"
-                class="btn btn-ghost btn-xs"
-                phx-click="apply_group"
-                phx-value-check={first.check}
-                data-confirm={"Apply all #{length(group)}?"}
+              <div
+                :if={@can_write and length(group) > 1 and not Gardener.person_only?(first)}
+                class="flex items-center gap-1"
               >
-                Apply all in this group
-              </button>
+                <button
+                  :if={not Steps.needs_pick?(first.proposal)}
+                  id={"garden-apply-all-#{first.check}"}
+                  type="button"
+                  class="btn btn-ghost btn-xs"
+                  phx-click="apply_group"
+                  phx-value-check={first.check}
+                  data-confirm={"Apply all #{length(group)}?"}
+                >
+                  Apply all in this group
+                </button>
+                <button
+                  id={"garden-dismiss-all-#{first.check}"}
+                  type="button"
+                  class="btn btn-ghost btn-xs"
+                  phx-click="dismiss_group"
+                  phx-value-check={first.check}
+                  data-confirm={"Dismiss all #{length(group)}? A dismissal can't be undone here."}
+                >
+                  Dismiss all in this group
+                </button>
+              </div>
             </div>
 
             <ul class="space-y-2">

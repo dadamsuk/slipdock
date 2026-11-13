@@ -1,7 +1,7 @@
 defmodule SlipdockWeb.GardenLiveTest do
   @moduledoc """
   The Tidy-up page and the Gardening settings (W-1807): suggestions grouped
-  with their evidence, apply, dismiss, alternatives, apply all, duplicates
+  with their evidence, apply, dismiss, alternatives, apply all, dismiss all, duplicates
   side by side, undo, read-only access, and per-check settings.
   """
   use SlipdockWeb.ConnCase, async: true
@@ -23,6 +23,40 @@ defmodule SlipdockWeb.GardenLiveTest do
   defp stray(ctx, title), do: card_fixture(ctx.doing, %{"title" => title, "completed" => true})
 
   defp tidy(conn, ctx), do: live(conn, ~p"/boards/#{ctx.board}/tidy")
+
+  # A stored search vector for `card`, at cosine `x` to the unit vector.
+  defp embed(card, x) do
+    Repo.delete_all(from(e in Embedding, where: e.card_id == ^card.id))
+
+    Repo.insert!(%Embedding{
+      kind: "card",
+      source_id: card.id,
+      section: "",
+      body: card.title,
+      content_hash: "stub",
+      model: Slipdock.AI.Embeddings.model(),
+      dimensions: 2,
+      vector: Vector.pack([x, :math.sqrt(1 - x * x)]),
+      card_id: card.id,
+      board_id: card.board_id
+    })
+  end
+
+  # A second proposed handbook edit, so the proposals are a group of two.
+  defp another_proposal(ctx) do
+    {:ok, _, :new} =
+      Gardener.propose(ctx.board, ctx.owner, %{
+        "explanation" => "Another",
+        "steps" => [
+          %{
+            "op" => "edit_section",
+            "page" => ctx.page.id,
+            "section" => "UX & UI/Patterns",
+            "body" => "Lists stream, always."
+          }
+        ]
+      })
+  end
 
   test "empty until looked over; Look the board over finds things", ctx do
     stray(ctx, "Finished thing")
@@ -145,21 +179,23 @@ defmodule SlipdockWeb.GardenLiveTest do
     end
 
     test "proposals have no Apply all", ctx do
-      {:ok, _, :new} =
-        Gardener.propose(ctx.board, ctx.owner, %{
-          "explanation" => "Another",
-          "steps" => [
-            %{
-              "op" => "edit_section",
-              "page" => ctx.page.id,
-              "section" => "UX & UI/Patterns",
-              "body" => "Lists stream, always."
-            }
-          ]
-        })
+      another_proposal(ctx)
 
       {:ok, view, _} = tidy(ctx.conn, ctx)
       refute has_element?(view, "#garden-apply-all-proposal")
+    end
+
+    # #3048: a handbook edit is one decision each, by a person.
+    test "proposals have no Dismiss all, and the event leaves them open", ctx do
+      another_proposal(ctx)
+
+      {:ok, view, _} = tidy(ctx.conn, ctx)
+      assert has_element?(view, "#garden-proposal")
+      refute has_element?(view, "#garden-dismiss-all-proposal")
+
+      render_hook(view, "dismiss_group", %{"check" => "proposal"})
+      assert render(view) =~ "Dismissed 0; 2 left to decide one by one."
+      assert length(Gardener.list_open(ctx.board, check: "proposal")) == 2
     end
   end
 
@@ -203,25 +239,100 @@ defmodule SlipdockWeb.GardenLiveTest do
     assert render(view) =~ "Applied 2."
   end
 
+  describe "Dismiss all in this group (#3048)" do
+    test "dismisses each in the group, as the person, and leaves other groups alone", ctx do
+      a = stray(ctx, "One")
+      b = stray(ctx, "Two")
+      other = card_fixture(ctx.done, %{"title" => "Never completed"})
+      {:ok, _} = Gardener.run(ctx.board)
+      open = Gardener.list_open(ctx.board)
+      mine = Enum.filter(open, &(&1.check == "completed_not_done"))
+      rest = open -- mine
+      assert length(mine) == 2
+      assert rest != []
+
+      {:ok, view, _} = tidy(ctx.conn, ctx)
+
+      assert has_element?(
+               view,
+               "#garden-dismiss-all-completed_not_done[data-confirm^='Dismiss all 2?']",
+               "Dismiss all in this group"
+             )
+
+      view |> element("#garden-dismiss-all-completed_not_done") |> render_click()
+
+      for s <- mine do
+        s = Gardener.get_suggestion(s.id)
+        assert s.state == "dismissed"
+        assert s.decided_by_id == ctx.owner.id
+      end
+
+      for s <- rest, do: assert(Gardener.get_suggestion(s.id).state == "open")
+
+      # Nothing was applied: the cards stay where they were.
+      assert Boards.Cards.get_card!(a.id).column_id == ctx.doing.id
+      assert Boards.Cards.get_card!(b.id).column_id == ctx.doing.id
+      assert Boards.Cards.get_card!(other.id).column_id == ctx.done.id
+
+      refute has_element?(view, "#garden-completed_not_done")
+      assert render(view) =~ "Dismissed 2."
+      assert Gardener.list_applied(ctx.board) == []
+    end
+
+    test "a group of one has no button", ctx do
+      stray(ctx, "Only")
+      {:ok, _} = Gardener.run(ctx.board)
+      {:ok, view, _} = tidy(ctx.conn, ctx)
+
+      assert has_element?(view, "#garden-completed_not_done")
+      refute has_element?(view, "#garden-dismiss-all-completed_not_done")
+    end
+
+    test "somebody who can only read has no button, and the event is refused", ctx do
+      stray(ctx, "One")
+      stray(ctx, "Two")
+      {:ok, _} = Gardener.run(ctx.board)
+      reader = user_fixture("tidy-dismiss-reader@example.com")
+      {:ok, _} = Access.grant(ctx.board, reader, "read", ctx.owner)
+
+      {:ok, view, _} = tidy(conn_as(reader), ctx)
+      refute has_element?(view, "#garden-dismiss-all-completed_not_done")
+
+      render_hook(view, "dismiss_group", %{"check" => "completed_not_done"})
+      assert render(view) =~ "read-only access"
+      assert Enum.all?(Gardener.list_open(ctx.board), &(&1.state == "open"))
+      assert length(Gardener.list_open(ctx.board)) == 2
+    end
+
+    test "duplicates, which have no Apply all, can be dismissed together", ctx do
+      cards =
+        for {title, x} <- [{"Fix login", 1.0}, {"Login broken", 0.999}, {"Login fails", 0.998}] do
+          card = card_fixture(ctx.todo, %{"title" => title})
+          embed(card, x)
+
+          card
+        end
+
+      {:ok, _} = Gardener.run(ctx.board, only: ["duplicate_cards"])
+      open = Gardener.list_open(ctx.board)
+      assert length(open) > 1
+
+      {:ok, view, _} = tidy(ctx.conn, ctx)
+      refute has_element?(view, "#garden-apply-all-duplicate_cards")
+      view |> element("#garden-dismiss-all-duplicate_cards") |> render_click()
+
+      assert Gardener.list_open(ctx.board) == []
+      assert render(view) =~ "Dismissed #{length(open)}."
+      for card <- cards, do: refute(Repo.reload!(card).archived_at)
+    end
+  end
+
   test "a duplicate is shown side by side; Keep this one archives the other", ctx do
     a = card_fixture(ctx.todo, %{"title" => "Fix login", "description" => "It breaks"})
     b = card_fixture(ctx.todo, %{"title" => "Login broken"})
 
     for {card, x} <- [{a, 1.0}, {b, 0.999}] do
-      Repo.delete_all(from(e in Embedding, where: e.card_id == ^card.id))
-
-      Repo.insert!(%Embedding{
-        kind: "card",
-        source_id: card.id,
-        section: "",
-        body: card.title,
-        content_hash: "stub",
-        model: Slipdock.AI.Embeddings.model(),
-        dimensions: 2,
-        vector: Vector.pack([x, :math.sqrt(1 - x * x)]),
-        card_id: card.id,
-        board_id: card.board_id
-      })
+      embed(card, x)
     end
 
     {:ok, _} = Gardener.run(ctx.board, only: ["duplicate_cards"])

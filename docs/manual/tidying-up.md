@@ -55,7 +55,10 @@ comment by Sam"), links to the cards and pages, and spells out the steps
 applying it would take. **Apply** takes them; a button per alternative takes
 that instead (**Snooze**, **Ask**, **Archive**, **File into Notes**);
 **Dismiss** says no. **Apply all in this group** applies each in turn and says
-which couldn't be. A possible duplicate shows the two cards side by side, with
+which couldn't be. **Dismiss all in this group**, beside it, says no to every
+suggestion in the group at once, after asking: a dismissal can't be undone on
+the page. Proposed handbook edits and rules an agent changed have neither
+button, and are decided one at a time. A possible duplicate shows the two cards side by side, with
 **Keep this one** under each. **Recently applied** lists what was applied, by
 whom, with **Undo**.
 
