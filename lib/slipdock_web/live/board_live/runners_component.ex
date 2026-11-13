@@ -7,11 +7,17 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
 
   Like the rest of the panel it is the board owner's alone, and checks that
   for itself on every event.
+
+  What an action says (a refusal, a result: a runner gone, a new token, a
+  pause refused) is a `#panel-notice` callout, never a flash (UX-29, #1978):
+  at the top of the runner dialog while it is open (a new token is made from
+  it), else at the top of this section. The next action takes it away.
   """
   use SlipdockWeb, :live_component
 
   import SlipdockWeb.SlipdockComponents, only: [relative_time: 1]
-  import SlipdockWeb.BoardLive.Helpers, only: [flash: 3]
+  import SlipdockWeb.ItemComponents, only: [panel_notice: 1]
+  import SlipdockWeb.BoardLive.Helpers, only: [notice: 3, clear_notice: 1]
 
   alias Slipdock.{Access, Automations, Runners}
   alias Slipdock.Automations.Spec
@@ -40,7 +46,8 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
        # The pause form (#1116): nil, :tree, or the pool it would hold.
        pausing: nil,
        pause_reason: "",
-       pauses: []
+       pauses: [],
+       panel_notice: nil
      )}
   end
 
@@ -85,13 +92,15 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
   ## Events ------------------------------------------------------------------
 
   @impl true
-  def handle_event(event, _params, socket) when event not in @events,
-    do: {:noreply, flash(socket, :error, "That isn't something this page can do.")}
+  def handle_event(event, params, socket), do: event(event, params, clear_notice(socket))
 
-  def handle_event(_event, _params, %{assigns: %{can_manage: false}} = socket),
-    do: {:noreply, flash(socket, :error, "Only the board's owner can do that.")}
+  defp event(event, _params, socket) when event not in @events,
+    do: {:noreply, notice(socket, :error, "That isn't something this page can do.")}
 
-  def handle_event("open_wizard", params, socket) do
+  defp event(_event, _params, %{assigns: %{can_manage: false}} = socket),
+    do: {:noreply, notice(socket, :error, "Only the board's owner can do that.")}
+
+  defp event("open_wizard", params, socket) do
     # The daemon is offered first (#2572).
     scenario = params["scenario"] || "daemon"
 
@@ -101,15 +110,15 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
     {:noreply, assign(socket, wizard: wizard(answers), wizard_error: nil, setup: nil, token: nil)}
   end
 
-  def handle_event("close_wizard", _params, socket),
+  defp event("close_wizard", _params, socket),
     do: {:noreply, assign(socket, wizard: nil, wizard_error: nil)}
 
-  def handle_event("wizard_change", %{"wizard" => params}, socket) do
+  defp event("wizard_change", %{"wizard" => params}, socket) do
     params = push_needs_commit(params)
     {:noreply, assign(socket, wizard: wizard(params), wizard_error: nil)}
   end
 
-  def handle_event("connect", %{"wizard" => params}, socket) do
+  defp event("connect", %{"wizard" => params}, socket) do
     %{board: board, current_user: user, base_url: base_url} = socket.assigns
 
     case Setup.connect(board, sends(params), user, base_url) do
@@ -125,17 +134,19 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
     end
   end
 
-  def handle_event("regenerate", %{"id" => id}, socket) do
-    with {:ok, runner} <- Runners.find_runner(socket.assigns.board, id) do
-      setup = Setup.regenerate(runner, socket.assigns.board, socket.assigns.base_url)
+  defp event("regenerate", %{"id" => id}, socket) do
+    case Runners.find_runner(socket.assigns.board, id) do
+      {:ok, runner} ->
+        setup = Setup.regenerate(runner, socket.assigns.board, socket.assigns.base_url)
 
-      {:noreply, assign(socket, wizard: nil, setup: setup, setup_runner: runner, token: nil)}
-    else
-      _ -> {:noreply, flash(socket, :error, "That runner is gone.")}
+        {:noreply, assign(socket, wizard: nil, setup: setup, setup_runner: runner, token: nil)}
+
+      _ ->
+        {:noreply, notice(socket, :error, "That runner is gone.")}
     end
   end
 
-  def handle_event("rotate_token", %{"id" => id}, socket) do
+  defp event("rotate_token", %{"id" => id}, socket) do
     with {:ok, runner} <- Runners.find_runner(socket.assigns.board, id),
          {:ok, runner, token} <- Runners.rotate_token(runner) do
       setup = Setup.regenerate(runner, socket.assigns.board, socket.assigns.base_url, token)
@@ -143,13 +154,13 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
       {:noreply,
        socket
        |> assign(setup: setup, setup_runner: runner, token: token)
-       |> flash(:info, "New token made: the old one no longer works.")}
+       |> notice(:info, "New token made: the old one no longer works.")}
     else
-      _ -> {:noreply, flash(socket, :error, "That runner is gone.")}
+      _ -> {:noreply, notice(socket, :error, "That runner is gone.")}
     end
   end
 
-  def handle_event("revoke_runner", %{"id" => id}, socket) do
+  defp event("revoke_runner", %{"id" => id}, socket) do
     with {:ok, runner} <- Runners.find_runner(socket.assigns.board, id),
          {:ok, _} <- Runners.delete_runner(runner) do
       setup? =
@@ -161,28 +172,28 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
        |> assign_runners()
        |> refresh_automations(runner)
        |> then(&if(setup?, do: assign(&1, setup: nil, setup_runner: nil, token: nil), else: &1))
-       |> flash(:info, "Runner “#{runner.name}” revoked: its token no longer works.")}
+       |> notice(:info, "Runner “#{runner.name}” revoked: its token no longer works.")}
     else
-      _ -> {:noreply, flash(socket, :error, "That runner is gone.")}
+      _ -> {:noreply, notice(socket, :error, "That runner is gone.")}
     end
   end
 
   # Clicking a runner opens what is known about it under its row; clicking it
   # again closes it.
   # Pausing (#1116): a reason first, always; the button waits for one.
-  def handle_event("open_pause", params, socket) do
+  defp event("open_pause", params, socket) do
     pausing = if Enum.member?([nil, ""], params["pool"]), do: :tree, else: params["pool"]
     {:noreply, assign(socket, pausing: pausing, pause_reason: "")}
   end
 
-  def handle_event("pause_change", %{"reason" => reason}, socket),
+  defp event("pause_change", %{"reason" => reason}, socket),
     do: {:noreply, assign(socket, pause_reason: reason)}
 
-  def handle_event("cancel_pause", _params, socket),
+  defp event("cancel_pause", _params, socket),
     do: {:noreply, assign(socket, pausing: nil, pause_reason: "")}
 
-  def handle_event("pause", %{"reason" => reason}, %{assigns: %{pausing: pausing}} = socket)
-      when not is_nil(pausing) do
+  defp event("pause", %{"reason" => reason}, %{assigns: %{pausing: pausing}} = socket)
+       when not is_nil(pausing) do
     %{board: board, current_user: user} = socket.assigns
     pool = if pausing == :tree, do: nil, else: pausing
 
@@ -198,19 +209,19 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
         {:noreply,
          socket
          |> assign(pausing: nil, pause_reason: "", pauses: Runners.pauses(board))
-         |> flash(:info, "Paused #{Runners.Pause.scope(pause)}.")}
+         |> notice(:info, "Paused #{Runners.Pause.scope(pause)}.")}
 
       {:error, %Ecto.Changeset{} = changeset} ->
-        {:noreply, flash(socket, :error, "Not paused: #{inspect_errors(changeset)}")}
+        {:noreply, notice(socket, :error, "Not paused: #{inspect_errors(changeset)}")}
 
       {:error, message} ->
-        {:noreply, flash(socket, :error, message)}
+        {:noreply, notice(socket, :error, message)}
     end
   end
 
-  def handle_event("pause", _params, socket), do: {:noreply, socket}
+  defp event("pause", _params, socket), do: {:noreply, socket}
 
-  def handle_event("resume", params, socket) do
+  defp event("resume", params, socket) do
     %{board: board, current_user: user} = socket.assigns
 
     case Runners.resume(board, params["pool"], user, Slipdock.Actor.web(user)) do
@@ -220,14 +231,14 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
         {:noreply,
          socket
          |> assign(pauses: Runners.pauses(board))
-         |> flash(:info, "Resumed #{Runners.Pause.scope(pause)}.")}
+         |> notice(:info, "Resumed #{Runners.Pause.scope(pause)}.")}
 
       {:error, message} ->
-        {:noreply, socket |> assign(pauses: Runners.pauses(board)) |> flash(:error, message)}
+        {:noreply, socket |> assign(pauses: Runners.pauses(board)) |> notice(:error, message)}
     end
   end
 
-  def handle_event("show_runner", %{"id" => id}, socket) do
+  defp event("show_runner", %{"id" => id}, socket) do
     case Runners.find_runner(socket.assigns.board, id) do
       {:ok, %Runner{id: id}} when id == socket.assigns.shown ->
         {:noreply, assign(socket, shown: nil, details: nil)}
@@ -236,16 +247,16 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
         {:noreply, assign(socket, shown: runner.id, details: Runners.runner_details(runner))}
 
       _ ->
-        {:noreply, flash(socket, :error, "That runner is gone.")}
+        {:noreply, notice(socket, :error, "That runner is gone.")}
     end
   end
 
-  def handle_event("close_setup", _params, socket),
+  defp event("close_setup", _params, socket),
     do: {:noreply, assign(socket, setup: nil, setup_runner: nil, token: nil)}
 
   # The dialog closed itself (Escape, or a click outside): the wizard or the
   # steps, whichever it held, go too.
-  def handle_event("close_dialog", _params, socket),
+  defp event("close_dialog", _params, socket),
     do:
       {:noreply,
        assign(socket, wizard: nil, wizard_error: nil, setup: nil, setup_runner: nil, token: nil)}
@@ -365,6 +376,8 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
           </button>
         </div>
       </div>
+
+      <.panel_notice :if={is_nil(@wizard) and is_nil(@setup)} notice={@panel_notice} />
 
       <p :if={@tree_pause} id="runners-tree-paused" class="text-xs text-warning">
         The whole tree is {Runners.Pause.line(@tree_pause)}
@@ -554,6 +567,7 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
         aria-label={if @wizard, do: "Connect a runner", else: "Set up the runner"}
       >
         <div class="modal-box max-w-2xl p-5">
+          <.panel_notice notice={@panel_notice} class="mb-3" />
           <.wizard_form
             :if={@wizard}
             wizard={@wizard}

@@ -10,10 +10,15 @@ defmodule SlipdockWeb.BoardLive.ArchiveComponent do
   access, which the component works out for itself from the board it is
   given. Below read on the board it lists nothing and searches nothing.
   A card named by id is only ever an archived card of that board.
+
+  What an action says (a refusal) is a `#panel-notice` callout at the
+  modal's top (`notice/3`), never a flash (UX-29, #1978); the next action
+  takes it away.
   """
   use SlipdockWeb, :live_component
 
   import SlipdockWeb.SlipdockComponents
+  import SlipdockWeb.ItemComponents, only: [panel_notice: 1]
   import SlipdockWeb.BoardLive.Helpers
 
   alias Slipdock.{Access, Boards}
@@ -23,6 +28,9 @@ defmodule SlipdockWeb.BoardLive.ArchiveComponent do
   @doc false
   # For the test that every `handle_event/3` clause is in the list.
   def events, do: @events
+
+  @impl true
+  def mount(socket), do: {:ok, assign(socket, panel_notice: nil)}
 
   # Sent by the board when something on it changed.
   @impl true
@@ -61,27 +69,28 @@ defmodule SlipdockWeb.BoardLive.ArchiveComponent do
       )
 
   @impl true
-  def handle_event(event, _params, socket) when event not in @events,
-    do: {:noreply, flash(socket, :error, "That isn't something this page can do.")}
+  def handle_event(event, params, socket),
+    do: dispatch(event, params, socket |> clear_notice() |> assign_access())
 
-  def handle_event(event, params, socket), do: guarded(event, params, assign_access(socket))
+  defp dispatch(event, _params, socket) when event not in @events,
+    do: {:noreply, notice(socket, :error, "That isn't something this page can do.")}
 
   # A reader who has lost the board since the panel opened keeps no list.
-  defp guarded(_event, _params, %{assigns: %{reader?: false}} = socket) do
+  defp dispatch(_event, _params, %{assigns: %{reader?: false}} = socket) do
     {:noreply,
      socket
      |> list_archived()
-     |> flash(:error, "You don't have access to this board's archive.")}
+     |> notice(:error, "You don't have access to this board's archive.")}
   end
 
   # Looking is reading, so searching is open to read-only access too.
-  defp guarded("filter_archived", %{"q" => q}, socket),
+  defp dispatch("filter_archived", %{"q" => q}, socket),
     do: {:noreply, socket |> assign(query: q) |> list_archived()}
 
-  defp guarded(_event, _params, %{assigns: %{can_write: false}} = socket),
-    do: {:noreply, flash(socket, :error, "You have read-only access to this board.")}
+  defp dispatch(_event, _params, %{assigns: %{can_write: false}} = socket),
+    do: {:noreply, notice(socket, :error, "You have read-only access to this board.")}
 
-  defp guarded(event, params, socket), do: event(event, params, socket)
+  defp dispatch(event, params, socket), do: event(event, params, socket)
 
   defp event("restore_card", %{"id" => id}, socket) do
     case Boards.Cards.get_archived_card(socket.assigns.board.id, id) do
@@ -94,7 +103,7 @@ defmodule SlipdockWeb.BoardLive.ArchiveComponent do
             {:noreply, socket}
 
           {:error, refused} ->
-            {:noreply, flash(socket, :error, Slipdock.Quota.refusal_message(refused))}
+            {:noreply, notice(socket, :error, Slipdock.Quota.refusal_message(refused))}
         end
     end
   end
@@ -115,6 +124,7 @@ defmodule SlipdockWeb.BoardLive.ArchiveComponent do
         archived={@archived}
         query={@query}
         close_path={@close_path}
+        notice={@panel_notice}
         target={@myself}
       />
     </div>
@@ -125,6 +135,7 @@ defmodule SlipdockWeb.BoardLive.ArchiveComponent do
   attr :archived, :list, required: true
   attr :query, :string, required: true
   attr :close_path, :string, required: true
+  attr :notice, :any, default: nil
   attr :target, :any, required: true
 
   defp archive_modal(assigns) do
@@ -134,6 +145,7 @@ defmodule SlipdockWeb.BoardLive.ArchiveComponent do
         <h2 class="flex items-center gap-2 section-title">
           <.icon name="hero-archive-box" class="size-5" /> Archived cards
         </h2>
+        <.panel_notice notice={@notice} />
         <form
           id="archive-search"
           phx-change="filter_archived"

@@ -14,11 +14,19 @@ defmodule SlipdockWeb.BoardLive.MoveBoardComponent do
   Opened from a card's move menu, which targets this component
   (`#board-move`). Every card and board named by id is checked against what
   the reader may write; nothing is taken from the parent but who is asking.
+
+  A refusal while the picker is open is a `#panel-notice` callout at its top
+  (`notice/3`, UX-29, #1978), and the picker stays open. Two things still
+  say so with a flash, because no picker is left for a callout: the read-only
+  refusal of `open_move_board` (the picker never opens) and the move done
+  (the picker closes, and follows the card to its new board when it was
+  open).
   """
   use SlipdockWeb, :live_component
 
   import SlipdockWeb.SlipdockComponents
-  import SlipdockWeb.BoardLive.Helpers, only: [flash: 3]
+  import SlipdockWeb.ItemComponents, only: [panel_notice: 1]
+  import SlipdockWeb.BoardLive.Helpers, only: [flash: 3, notice: 3, clear_notice: 1]
 
   alias Slipdock.{Access, Boards, Palette}
   alias Slipdock.Boards.Board
@@ -32,7 +40,7 @@ defmodule SlipdockWeb.BoardLive.MoveBoardComponent do
   def events, do: @events
 
   @impl true
-  def mount(socket), do: {:ok, assign(socket, move_board: nil, moving: false)}
+  def mount(socket), do: {:ok, assign(socket, move_board: nil, moving: false, panel_notice: nil)}
 
   @impl true
   def update(assigns, socket) do
@@ -46,12 +54,12 @@ defmodule SlipdockWeb.BoardLive.MoveBoardComponent do
 
   @impl true
   def handle_event(event, params, socket) when event in @events do
-    {:noreply, socket} = event(event, params, socket)
+    {:noreply, socket} = event(event, params, clear_notice(socket))
     {:noreply, tell_moving(socket)}
   end
 
   def handle_event(_event, _params, socket),
-    do: {:noreply, flash(socket, :error, "That isn't something this page can do.")}
+    do: {:noreply, notice(socket, :error, "That isn't something this page can do.")}
 
   # The card panel stands aside while the picker is open, so the board is
   # told when it opens and closes.
@@ -129,7 +137,7 @@ defmodule SlipdockWeb.BoardLive.MoveBoardComponent do
         {:noreply, socket}
 
       not Access.can_write?(Access.board_permission(user, target)) ->
-        {:noreply, flash(socket, :error, "You have read-only access to that board.")}
+        {:noreply, notice(socket, :error, "You have read-only access to that board.")}
 
       true ->
         case Boards.Moves.move_card_to_board(card, column, actor: Slipdock.Actor.web(user)) do
@@ -139,14 +147,13 @@ defmodule SlipdockWeb.BoardLive.MoveBoardComponent do
              |> assign(move_board: nil)
              |> after_move(card, summary, moved_message(card, target, column, summary))}
 
+          # Refused: the picker stays open, saying why, to pick another
+          # list or close.
           {:error, %Ecto.Changeset{} = refused} ->
-            {:noreply,
-             socket
-             |> assign(move_board: nil)
-             |> flash(:error, Slipdock.Quota.refusal_message(refused))}
+            {:noreply, notice(socket, :error, Slipdock.Quota.refusal_message(refused))}
 
           {:error, message} ->
-            {:noreply, socket |> assign(move_board: nil) |> flash(:error, message)}
+            {:noreply, notice(socket, :error, message)}
         end
     end
   end
@@ -179,7 +186,12 @@ defmodule SlipdockWeb.BoardLive.MoveBoardComponent do
   def render(assigns) do
     ~H"""
     <div id="board-move">
-      <.move_board_modal :if={@move_board} move={@move_board} target={@myself} />
+      <.move_board_modal
+        :if={@move_board}
+        move={@move_board}
+        notice={@panel_notice}
+        target={@myself}
+      />
     </div>
     """
   end
@@ -216,6 +228,7 @@ defmodule SlipdockWeb.BoardLive.MoveBoardComponent do
   end
 
   attr :move, :map, required: true
+  attr :notice, :any, default: nil
   attr :target, :any, required: true
 
   @doc false
@@ -237,6 +250,7 @@ defmodule SlipdockWeb.BoardLive.MoveBoardComponent do
           <h2 class="pr-8 section-title">Move to another board</h2>
           <p class="mt-0.5 truncate text-sm text-base-content/60">{@move.card.title}</p>
         </div>
+        <.panel_notice notice={@notice} />
 
         <p :if={@move.boards == []} class="text-sm text-base-content/60">
           There is no other board you can write to.
