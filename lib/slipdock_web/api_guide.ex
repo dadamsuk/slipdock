@@ -767,8 +767,15 @@ defmodule SlipdockWeb.APIGuide do
     md(:verified_evidence, %{})
   end
 
+  # The docs places (SPEC-10) come from `Slipdock.Verified.docs_places/0`
+  # (#2763), so a place added there is in the guide too.
   defp verified_step(:verify) do
-    md(:verified_verify, %{})
+    places = Slipdock.Verified.docs_places()
+
+    md(:verified_verify, %{
+      docs_places_count: length(places),
+      docs_places: Enum.map_join(places, "; ", fn {name, files} -> "#{name}: `#{files}`" end)
+    })
   end
 
   # A board somebody else owns, said on the line that names it: an agent
