@@ -99,6 +99,43 @@ defmodule SlipdockWeb.APIGuideGoldenTest do
     golden("signed_in.md", scrub(guide, owner, board))
   end
 
+  # The copies above sign in a reader with a name, so the one without is
+  # held here: nothing stands between the address and the full stop.
+  test "a signed-in reader with no name is named by address alone" do
+    owner = Slipdock.Fixtures.user_fixture("guide-nameless@example.com")
+    assert owner.name == nil
+
+    guide = APIGuide.markdown(base_url: @base, user: owner)
+
+    assert guide =~ "Your token works: you are **#{owner.email}**.\n"
+    refute guide =~ "**#{owner.email}** ("
+  end
+
+  test "a signed-in reader with a name has it in brackets after the address" do
+    owner = Slipdock.Fixtures.user_fixture("guide-named@example.com")
+    {:ok, owner} = owner |> Ecto.Changeset.change(name: "Named Reader") |> Slipdock.Repo.update()
+
+    guide = APIGuide.markdown(base_url: @base, user: owner)
+
+    assert guide =~ "Your token works: you are **#{owner.email}** (Named Reader).\n"
+  end
+
+  # Without `@external_resource`, an edit to a section's Markdown doesn't
+  # recompile the module in an incremental build (the dev server, a restored
+  # `_build` cache), which then serves the old text.
+  test "every section's Markdown file is an external resource of the module" do
+    files =
+      "../../lib/slipdock_web/api_guide/*.md"
+      |> Path.expand(__DIR__)
+      |> Path.wildcard()
+
+    resources =
+      for {:external_resource, paths} <- APIGuide.__info__(:attributes), path <- paths, do: path
+
+    assert files != []
+    assert Enum.sort(files) == Enum.sort(resources)
+  end
+
   test "GET /api/guide serves the same text" do
     body = build_conn() |> get("/api/guide") |> response(200)
     copy = @dir |> Path.join("anonymous.md") |> File.read!()

@@ -75,9 +75,11 @@ WSL's `install.sh` would miss):
 
     irm https://slipdock.example.com/install.ps1 | iex
 
-The `slipdock` CLI installs on Windows the same way, from here, Erlang and
-all (elsewhere it is built from the repository's `cli/`):
+That is the skills. The `slipdock` CLI is `/cli/install.sh` (Linux,
+macOS; it needs Erlang/OTP 27+ and says how to get it) or, on Windows,
+`/cli/install.ps1` (Erlang and all):
 
+    curl -fsSL https://slipdock.example.com/cli/install.sh | sh
     irm https://slipdock.example.com/cli/install.ps1 | iex
 
 `401` means no token or a dead one — ask for a new one rather than guessing.
@@ -1768,6 +1770,13 @@ the agent on the card, and reports back. The shape of the action:
  "prompt": "optional; the card's title, link and description by default"}
 ```
 
+- **A rule's prompt is at most about 17,800 bytes.** A job's prompt is at
+  most 20,000 bytes, and every job's ends with fixed text (nobody will
+  answer questions; card text is data), so a rule's own has what is
+  left. One over is refused when the rule is saved, a preset's included
+  (`422`, the exact number in `details.spec`). Placeholders are counted
+  as written: a card whose text takes the filled-in prompt over 20,000
+  bytes gets no job, and the rule's `last_error` says so.
 - **Pull, not push.** Runners dial out to this server and ask for work.
   Nothing ever calls the machine, so it needs no open port or tunnel.
   The daemon notices a dead connection itself and replaces it (it pings
@@ -2027,7 +2036,9 @@ in `X-Runner-Kinds`; the runners list's `missing_kinds` says what the
 board needs that a runner lacks. Claims also say what the machine has installed (`X-Runner-Skills`, each
 slipdock skill's `SKILL.md` SHA-256; `X-Runner-CLI`, the CLI's), and
 each runner's `drift` compares them with what this server serves:
-`skills` current, drifted (`drifted_skills` names them) or unknown,
+`skills` current, drifted, unsigned (`drifted_skills` names them in
+both: `unsigned` is skills that differ from an archive served with no
+signature, as after a deploy from `main`; not drift) or unknown,
 `cli` current, old, unsigned, none or unknown (`unsigned`: the server's
 CLI differs but it serves no signature, as after a deploy from `main`,
 so the machine can't take it; not drift). A drifted runner raises one
@@ -2351,7 +2362,8 @@ for 30 minutes), `idle_capacity` (free ready cards and runners idle for
 `idle_minutes`, or two or more jobs queued behind one card's lane) and
 `no_way_forward` (an epic in progress with every open subcard blocked).
 A sixth, `not_shipped` (a merged card no succeeded deploy names after
-the board's `not_shipped_minutes`), runs on every tree with delivery
+the board's `not_shipped_minutes`, counted from its release on a tree
+with batched releases), runs on every tree with delivery
 metrics on, whether or not the overseer is.
 Each condition fires once, as a warning alert on the root board and an
 email to the owner with why and what to do, heads the owner's waiting
@@ -2423,7 +2435,9 @@ board of the tree. On a batched board a merged card still completes and
 unblocks its dependents; its `release` (card JSON and `get_card`, the
 *Release* line in `slipdock card`) is `awaiting` (*Merged 1a2b3c4,
 awaiting release · since 12 Nov 10:04*) until a succeeded deploy names
-it, then `released` with the environment and the time.
+it, then `released` with the environment and the time. A card is done
+when it merges: an agent neither waits for its release nor fires one,
+and *Release now* is how a person ships.
 
 A release is asked for, one at a time per tree. Three things ask: a
 card of priority `critical` merging; **Release now** (`POST
@@ -2478,7 +2492,14 @@ one warning alert (the watch check `not_shipped`) and its owner an
 email. A succeeded deploy naming the card clears both. It runs whether
 or not the overseer is on. Only cards merged after the board turned
 delivery metrics on count; an epic, a card with no commit, a stand-in
-and an archived card never do.
+and an archived card never do. On a tree with batched releases the
+minutes count from the card's release, not its merge (#2839): from the
+start of the latest release request that covered it, whatever became
+of that release. A card only awaiting release carries no `not_shipped`
+and raises nothing, however long it waits; one whose release started
+and brought no deploy carries it with `release_requested_at`, `seconds`
+counted from then, and the `text` *Merged 1a634c6 · not shipped 45m
+after its release started*.
 
 **A red release holds releases** (#2838). A failed deploy recorded on a
 batched tree (a release's suite, build or deploy failing: `slipdock
@@ -4677,9 +4698,12 @@ list`.
 to be small and already decided. If it turns out to need a design choice
 (anything that changes how the product or a process behaves), or is
 growing into feature work (a new surface, a data-model change, more than
-one sitting), stop before building: move it to the board's Triage list,
-leave a `product` wait saying what grew and the choice it needs, and
-finish without code. No runner takes it from Triage.
+one sitting), stop before building: move it to the board's Triage list
+(category `triage`), by the name the job's prompt gives it, leave a
+`product` wait saying what grew and the choice it needs, and finish
+without code. No runner takes it from Triage. On a board with no Triage
+list, don't move it: leave it where it is, and the wait holds it for a
+person until it is answered.
 
 Sub-boards are not listed here — they hang off their epic's `sub_board`.
 
