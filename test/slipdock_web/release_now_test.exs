@@ -231,6 +231,31 @@ defmodule SlipdockWeb.ReleaseNowTest do
       assert has_element?(view, "#release-banner-line", "A release is running (1 cards)")
     end
 
+    test "the awaiting count opens the list of the cards the release takes (#3038)", ctx do
+      first = merged!(ctx.todo, "First feature")
+      second = merged!(ctx.todo, "Second feature")
+      open = card_fixture(ctx.todo, %{"title" => "Still open"})
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}")
+
+      assert has_element?(view, "#release-awaiting-toggle", "2 merged, awaiting release")
+
+      for card <- [first, second] do
+        assert has_element?(
+                 view,
+                 ~s(#release-awaiting-card-#{card.id} a[href="/boards/#{ctx.board.id}/cards/#{card.id}"]),
+                 "##{card.id} #{card.title}"
+               )
+      end
+
+      refute has_element?(view, "#release-awaiting-card-#{open.id}")
+      refute has_element?(view, "#release-banner-line", "·")
+
+      # A release running takes them: no count, no list.
+      {:ok, :started, _} = Releases.release_now(ctx.board, "Eli")
+      assert has_element?(view, "#release-banner-line", "A release is running (2 cards)")
+      refute has_element?(view, "#release-awaiting")
+    end
+
     test "no banner with nothing to say, or on a board that releases on merge", ctx do
       {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}")
       refute has_element?(view, "#release-banner")
@@ -286,6 +311,21 @@ defmodule SlipdockWeb.ReleaseNowTest do
       assert [%Request{status: "running"} = request] = Repo.all(Request)
       assert Repo.get!(Job, request.job_id).prompt == "make release"
       assert has_element?(view, "#board-release-line", "A release is running")
+    end
+
+    test "the awaiting count there lists the cards too (#3038)", ctx do
+      card = merged!(ctx.todo, "Feature")
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/agentic")
+
+      assert has_element?(view, "#board-release-awaiting-toggle", "1 merged, awaiting release")
+
+      assert has_element?(
+               view,
+               ~s(#board-release-awaiting-card-#{card.id} a[href="/boards/#{ctx.board.id}/cards/#{card.id}"]),
+               "##{card.id} Feature"
+             )
+
+      refute has_element?(view, "#board-release-line", "Nothing merged is awaiting release.")
     end
 
     test "a release asked for elsewhere shows without a reload", ctx do
@@ -407,6 +447,9 @@ defmodule SlipdockWeb.ReleaseNowTest do
              )
 
       assert has_element?(view, "#release-banner-line", "fix card ##{ctx.hold["fix_card_id"]}")
+      # Held, the count still opens the list, after the hold (#3038).
+      assert has_element?(view, "#release-banner-line span", "·")
+      assert has_element?(view, "#release-awaiting-toggle", "1 merged, awaiting release")
 
       assert has_element?(
                view,

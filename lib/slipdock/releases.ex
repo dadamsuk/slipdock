@@ -263,11 +263,14 @@ defmodule Slipdock.Releases do
   the release running, the follow-up queued and the cards awaiting. Nil
   when nothing is running, queued or awaiting.
   """
-  def line(%{running: nil, queued: nil, awaiting: []} = status)
-      when not is_map_key(status, :hold) or is_nil(status.hold),
-      do: nil
+  def line(status), do: line(status, awaiting: true)
 
-  def line(%{running: running, queued: queued, awaiting: awaiting} = status) do
+  @doc """
+  As `line/1`; with `awaiting: false` it leaves out the awaiting count,
+  for a view that shows it as a list of the cards (#3038,
+  `awaiting_text/1`). Nil when nothing is left to say.
+  """
+  def line(%{running: running, queued: queued} = status, opts) do
     hold = Map.get(status, :hold)
 
     [
@@ -275,11 +278,23 @@ defmodule Slipdock.Releases do
       hold && hold["fix_card_id"] && "fix card ##{hold["fix_card_id"]}",
       running && "A release is running (#{length(running.card_ids)} cards)",
       queued && "another is queued",
-      awaiting != [] && is_nil(running) && "#{length(awaiting)} merged, awaiting release"
+      Keyword.get(opts, :awaiting, true) && awaiting_text(status)
     ]
     |> Enum.filter(& &1)
-    |> Enum.join(" · ")
+    |> case do
+      [] -> nil
+      parts -> Enum.join(parts, " · ")
+    end
   end
+
+  @doc """
+  How many merged cards await release, in words (`"2 merged, awaiting
+  release"`), or nil when none do or a release is running (it takes them).
+  """
+  def awaiting_text(%{running: nil, awaiting: [_ | _] = awaiting}),
+    do: "#{length(awaiting)} merged, awaiting release"
+
+  def awaiting_text(_status), do: nil
 
   @doc """
   A card has merged (#2835): on a batched tree, one of priority `critical`

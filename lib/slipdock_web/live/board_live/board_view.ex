@@ -698,17 +698,21 @@ defmodule SlipdockWeb.BoardLive.BoardView do
   held) for the owner. Nothing while there is nothing to say.
   """
   def release_banner(assigns) do
-    assigns = assign(assigns, line: assigns.release && Slipdock.Releases.line(assigns.release))
+    assigns =
+      assign(assigns,
+        line: assigns.release && Slipdock.Releases.line(assigns.release, awaiting: false),
+        awaiting: assigns.release && Slipdock.Releases.awaiting_text(assigns.release)
+      )
 
     ~H"""
     <div
-      :if={@line}
+      :if={@line || @awaiting}
       id="release-banner"
       role="status"
       class="flex flex-wrap items-center gap-2 border-b border-info/40 bg-info/10 px-4 py-1.5 text-sm"
     >
       <.icon name="hero-rocket-launch" class="size-4 shrink-0 text-info" />
-      <span id="release-banner-line" class="min-w-0 flex-1">
+      <div id="release-banner-line" class="min-w-0 flex-1">
         {@line}
         <.link
           :if={@release.hold && @release.hold["run_url"]}
@@ -720,7 +724,9 @@ defmodule SlipdockWeb.BoardLive.BoardView do
         >
           the failing run
         </.link>
-      </span>
+        <span :if={@line && @awaiting}>·</span>
+        <.release_awaiting release={@release} id="release-awaiting" />
+      </div>
       <button
         :if={@can_manage}
         type="button"
@@ -742,6 +748,33 @@ defmodule SlipdockWeb.BoardLive.BoardView do
         Lift hold
       </button>
     </div>
+    """
+  end
+
+  attr :release, :any, required: true, doc: "`Slipdock.Releases.status/1`"
+  attr :id, :string, required: true
+
+  @doc """
+  The merged cards awaiting release (#3038): their count, which opens
+  the list of them, each a link to its card, so a person sees what the
+  next release takes. Nothing while none await or a release is running.
+  """
+  def release_awaiting(assigns) do
+    assigns = assign(assigns, text: Slipdock.Releases.awaiting_text(assigns.release))
+
+    ~H"""
+    <details :if={@text} id={@id} class="inline-block align-top">
+      <summary id={"#{@id}-toggle"} class="link cursor-pointer" title="Show the cards">
+        {@text}
+      </summary>
+      <ul id={"#{@id}-cards"} class="mt-1 mb-1 list-disc pl-5">
+        <li :for={card <- @release.awaiting} id={"#{@id}-card-#{card.id}"}>
+          <.link navigate={~p"/boards/#{card.board_id}/cards/#{card.id}"} class="link">
+            #{card.id} {card.title}
+          </.link>
+        </li>
+      </ul>
+    </details>
     """
   end
 
