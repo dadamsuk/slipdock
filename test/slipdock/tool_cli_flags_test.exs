@@ -261,6 +261,17 @@ defmodule Slipdock.ToolCliFlagsTest do
       assert message =~ "--orign"
     end
 
+    test "a flag help.txt names but the CLI doesn't parse is caught", %{known: known} do
+      # help.txt can run ahead of (or behind) @switches: a flag an entry
+      # names is still refused unless the CLI parses it too.
+      help = %{["add"] => MapSet.new(~w(column made-up))}
+      refute MapSet.member?(known, "made-up")
+      assert problems("T", "`slipdock add B \"x\" --column C`", help, known) == []
+
+      assert [message] = problems("T", "`slipdock add B \"x\" --made-up y`", help, known)
+      assert message =~ "--made-up"
+    end
+
     test "a subcommand and its alternatives are told apart", %{help: help} do
       assert command(~w(finding dismiss), help) == ~w(finding dismiss)
       assert command(~w(finding promote), help) == ~w(finding promote)
@@ -292,15 +303,32 @@ defmodule Slipdock.ToolCliFlagsTest do
       help = """
         finding <id> dismiss|promote [--note TEXT]
         finding <id> merge --into ID      fold a repeat
-        page section <page> <path>        print one section
-        page section <page> <path> --append TEXT [--message M]
+        page section <page> <path> --append TEXT
+        page section <page> <path> --body -  [--message M]
       """
 
       flags = help_flags(help)
       assert flags[["finding", "dismiss"]] == MapSet.new(~w(note))
       assert flags[["finding", "promote"]] == MapSet.new(~w(note))
       assert flags[["finding", "merge"]] == MapSet.new(~w(into))
-      assert flags[["page", "section"]] == MapSet.new(~w(append message))
+      # Each entry brings its own flags; the command reads them all.
+      assert flags[["page", "section"]] == MapSet.new(~w(append body message))
+    end
+
+    test "a line that is neither entry nor continuation ends the entry" do
+      for gap <- ["", "WRITE"] do
+        help =
+          "  add <board> <title>   create a card\n      --column C\n#{gap}\n      --stray X\n"
+
+        assert help_flags(help)[["add"]] == MapSet.new(~w(column)), "gap #{inspect(gap)}"
+      end
+    end
+
+    test "a flag line at indent 2 is not a continuation" do
+      # cli/help.txt lists shared flags (`--view`, `--group`, `--json`) at
+      # indent 2 under a section; they belong to no entry before them.
+      help = "  cards <board> [opts]   list cards\n      --column C\n  --view V   one view\n"
+      assert help_flags(help)[["cards"]] == MapSet.new(~w(column))
     end
   end
 end
