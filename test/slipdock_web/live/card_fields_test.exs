@@ -57,6 +57,7 @@ defmodule SlipdockWeb.CardFieldsTest do
 
     # Open what stays closed until asked for.
     view |> element("#card-description-view") |> render_click()
+    view |> element("#card-bar-view") |> render_click()
     view |> element("#repeat-edit") |> render_click()
     if has_element?(view, "#wait-ask"), do: view |> element("#wait-ask") |> render_click()
     if has_element?(view, "#handoff-edit"), do: view |> element("#handoff-edit") |> render_click()

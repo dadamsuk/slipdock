@@ -451,7 +451,12 @@ defmodule SlipdockWeb.ItemComponents do
               <.icon name="hero-x-mark" class="size-3" />
             </button>
           </div>
-          <p :if={u.body} class="mt-1 whitespace-pre-wrap text-base-content/80">{u.body}</p>
+          <div
+            :if={u.body}
+            id={"status-update-#{u.id}-body"}
+            class="card-prose mt-1 break-words text-base-content/80"
+            phx-no-format
+          >{RichText.markdown(u.body)}</div>
         </li>
       </ul>
     </div>

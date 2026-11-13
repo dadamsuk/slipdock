@@ -32,12 +32,14 @@ defmodule SlipdockWeb.BoardLive.WaitComponents do
 
     ~H"""
     <section id="card-wait" class="ml-1 space-y-2 border-l-2 border-warning/60 pl-3">
-      <p class="flex items-start gap-1.5 text-sm">
+      <div class="flex items-start gap-1.5 text-sm">
         <.icon name="hero-hand-raised" class="mt-0.5 size-3.5 shrink-0 text-warning" />
-        <span>
-          <span class="text-base-content/60">Waiting on {Wait.on_name(@wait)}:</span>
-          <span class="font-medium" id="wait-needs">{@wait.needs}</span>
-        </span>
+        <div class="min-w-0 flex-1">
+          <p class="text-base-content/60">Waiting on {Wait.on_name(@wait)}:</p>
+          <%!-- Markdown (#3001): a question that sets out its options
+                reads as a list, not one run-on line. --%>
+          <div class="card-prose break-words font-medium" id="wait-needs" phx-no-format>{SlipdockWeb.RichText.markdown(@wait.needs)}</div>
+        </div>
         <%!-- The kind of question (#1949), which picked who it went to. --%>
         <span
           :if={@wait.question}
@@ -47,7 +49,7 @@ defmodule SlipdockWeb.BoardLive.WaitComponents do
         >
           {@wait.question}
         </span>
-      </p>
+      </div>
       <p class="text-2xs text-base-content/50" id="wait-byline">
         {wait_byline(@wait)} · {relative_time(@wait.inserted_at)}
         <span :if={@count > 1}>
@@ -71,7 +73,7 @@ defmodule SlipdockWeb.BoardLive.WaitComponents do
       <ol :if={!@can_write and Wait.series?(@wait)} id="wait-questions" class="space-y-1 text-sm">
         <li :for={{question, n} <- Enum.with_index(@questions, 1)} class="flex gap-1.5">
           <span class="font-semibold text-base-content/60">{n}.</span>
-          <span class="whitespace-pre-line">{question}</span>
+          <div class="card-prose min-w-0 flex-1 break-words" phx-no-format>{SlipdockWeb.RichText.markdown(question)}</div>
         </li>
       </ol>
       <form
@@ -90,7 +92,7 @@ defmodule SlipdockWeb.BoardLive.WaitComponents do
           >
             <p :if={Wait.series?(@wait)} class="flex gap-1.5 text-sm">
               <span class="font-semibold text-base-content/60">{n}.</span>
-              <span class="whitespace-pre-line">{question}</span>
+              <div class="card-prose min-w-0 flex-1 break-words" phx-no-format>{SlipdockWeb.RichText.markdown(question)}</div>
             </p>
             <div class="flex items-start gap-1.5">
               <textarea
@@ -283,24 +285,26 @@ defmodule SlipdockWeb.BoardLive.WaitComponents do
           id={"wait-history-#{w.id}"}
           class="space-y-1 border-l-2 border-base-content/15 pl-3"
         >
-          <p class="font-medium">{w.needs}</p>
+          <div class="card-prose break-words font-medium" phx-no-format>{SlipdockWeb.RichText.markdown(w.needs)}</div>
           <p class="text-2xs text-base-content/50">
             {wait_byline(w)} · {relative_time(w.inserted_at)} · {ended(w)}
           </p>
           <ol :if={Wait.series?(w)} class="space-y-1">
             <li :for={{q, i} <- Enum.with_index(w.questions)} class="space-y-0.5">
-              <p class="whitespace-pre-line">{i + 1}. {q}</p>
-              <p class="whitespace-pre-line pl-4 text-base-content/70">
-                → {answer_at(w, i)}
-              </p>
+              <div class="flex gap-1.5">
+                <span class="font-semibold text-base-content/60">{i + 1}.</span>
+                <div class="card-prose min-w-0 flex-1 break-words" phx-no-format>{SlipdockWeb.RichText.markdown(q)}</div>
+              </div>
+              <div class="flex gap-1.5 pl-4 text-base-content/70">
+                <span>→</span>
+                <div class="card-prose min-w-0 flex-1 break-words" phx-no-format>{SlipdockWeb.RichText.markdown(answer_at(w, i))}</div>
+              </div>
             </li>
           </ol>
-          <p
-            :if={whole(w) != ""}
-            class="whitespace-pre-line text-base-content/70"
-          >
-            → {whole(w)}
-          </p>
+          <div :if={whole(w) != ""} class="flex gap-1.5 text-base-content/70">
+            <span>→</span>
+            <div class="card-prose min-w-0 flex-1 break-words" phx-no-format>{SlipdockWeb.RichText.markdown(whole(w))}</div>
+          </div>
         </li>
       </ol>
     </details>

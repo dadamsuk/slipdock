@@ -62,6 +62,8 @@ defmodule Slipdock.Verified.Prompts do
        - `slipdock verify #{card.id} agree --reason "what you checked" --check ask=ok --check bar:1=ok …`
        - `slipdock verify #{card.id} disagree --reason "where the verdict is wrong, specifically" --check bar:2=fail:"why" …`
     Give your own verdict in parts, one `--check` each (MCP `verify_card` `checks`): `ask=ok|misses`, `bar:<n>=ok|fail`, `suite=<passed>:<failed>`#{if handbook, do: ", `rule:<id>=ok|broken|n/a|pre-existing:<file>:<line>`, `handbook_line=ok|disputed`", else: ""}#{if defect_review?(card, board), do: ", `defect:important|nit|pre-existing=<file>:<line>`", else: ""}#{if mutation_review?(card, board), do: ", `mutant:killed|survived|pre-existing=<file>:<line>:<mutation>`, `mutants=n/a:<why>`", else: ""}. Disagree when any part fails that the verdict passed (a missed `should` rule included), or when it failed a part that holds.
+
+    #{Slipdock.Automations.Runner.writing()}
     """
   end
 
@@ -128,6 +130,8 @@ defmodule Slipdock.Verified.Prompts do
        - `slipdock verify #{card.id} reject#{at} --reason "<the check it fails>: what falls short, specifically" --check bar:2=fail:"why" …`
     Give the verdict in parts, one `--check` each (MCP `verify_card` `checks`): `ask=ok|misses`, `bar:<n>=ok|fail`, `suite=<passed>:<failed>`#{if handbook, do: ", `rule:<id>=ok|broken|n/a|pre-existing:<file>:<line>`, `handbook_line=ok|disputed`", else: ""}#{if defect_review?(card, board), do: ", `defect:important|nit|pre-existing=<file>:<line>`", else: ""}#{if mutation_review?(card, board), do: ", `mutant:killed|survived|pre-existing=<file>:<line>:<mutation>`, `mutants=n/a:<why>`", else: ""}, each with `:<why>` after it if it needs one. A rejection names at least one failing part; an acceptance can't carry one, but for a missed `should` rule.
     A rejection cites what it fails: #{cite_list(handbook)}. It goes back to whoever takes the card next, so say exactly what to fix.
+
+    #{Slipdock.Automations.Runner.writing()}
     """
   end
 

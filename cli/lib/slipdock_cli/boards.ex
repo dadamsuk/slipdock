@@ -1965,11 +1965,12 @@ defmodule SlipdockCLI.Boards do
   end
 
   # Opens a wait (#1114): words as `needs`, `--question` once per question
-  # (#1220).
+  # (#1220). A lone `-` reads it from stdin (#3001), so a question that sets
+  # out its options as a Markdown list keeps its line breaks.
   defp open_wait(id, words, o) do
     body =
       compact(%{
-        "needs" => nonempty(Enum.join(words, " ")),
+        "needs" => words |> Enum.join(" ") |> stdin_arg("the question") |> nonempty(),
         "questions" => nonempty(Keyword.get_values(o, :question)),
         "on" => o[:wait_on],
         "choices" => nonempty(Keyword.get_values(o, :choice)),

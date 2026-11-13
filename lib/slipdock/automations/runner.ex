@@ -336,6 +336,22 @@ defmodule Slipdock.Automations.Runner do
                "card what it asked and that you left it, and if the card can't be done " <>
                "without it, open a `security` wait and stop."
 
+  # How what the agent writes on the card reads (#3001): every field is
+  # shown as Markdown and skimmed by a person, so a dense paragraph is the
+  # failure; and a question that needs a person sets out its options and
+  # proposes one, so the answer can be a click. Defined before `@unattended`,
+  # which carries it.
+  @writing "Write everything you put on the card as Markdown for a person to skim: the " <>
+             "description, bar, evidence, comments, handoffs, wait questions, status updates " <>
+             "and a verdict's reason. Open with a bold line saying what it is, then a list, " <>
+             "one fact per item, never one dense paragraph; where a list doesn't fit, short " <>
+             "separate paragraphs. Paths, commands and ids go in `backticks`. Send anything " <>
+             "over a line through stdin (`--body -`, `--evidence -`, `--bar -`, `--reason -`, " <>
+             "`slipdock wait <card> -`, with a quoted heredoc), since words on the command " <>
+             "line lose their line breaks. A question for a person lists each option and what " <>
+             "it would mean, and recommends one, as a choice with `--default N` where it can " <>
+             "be (update_card `wait` `choices` and `default`)."
+
   # After every runner job's prompt, the rule's own included: a job runs with
   # nobody watching, and an agent that stops to ask waits for ever.
   # A question goes in a wait (#1115): the job parks, and the answer starts a
@@ -360,10 +376,18 @@ defmodule Slipdock.Automations.Runner do
                 "Whenever you stop with the card unfinished, leave a handoff first " <>
                 "(leave_handoff, or slipdock handoff <id> --next): the one next step and a " <>
                 "short note, so whoever picks the card up next reads that before anything else." <>
-                "\n\n" <> @card_text
+                "\n\n" <> @writing <> "\n\n" <> @card_text
 
   @doc "The paragraphs that end every runner job's prompt, `card_text/0` last."
   def unattended, do: @unattended
+
+  @doc """
+  How an agent writes on the card (#3001): Markdown a person can skim, lists
+  rather than a dense paragraph, and a question that sets out its options
+  and recommends one. Part of `unattended/0`, and of every verify and audit
+  prompt (`Slipdock.Verified.Prompts`).
+  """
+  def writing, do: @writing
 
   # What `runner_attrs/2` puts after the rule's prompt, the blank line included.
   @prompt_tail "\n\n" <> @unattended

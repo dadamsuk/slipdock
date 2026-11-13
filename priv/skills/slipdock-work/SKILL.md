@@ -289,12 +289,23 @@ whole card before touching it.
   a card in progress with nothing newer than the move on it reads as abandoned.
   An epic running across several sittings gets the same treatment, one line as
   each subcard closes.
-- **Comments are Markdown, and are skimmed.** Open with a bold line saying what
-  it is (`**Picked up.**`, `**Built.**`, `**Decision:** …`), then short bullets,
-  one fact each, with paths, commands and commit ids in backticks; never one
-  dense paragraph of clauses. Send anything over a line with `slipdock comment
-  <id> --body - <<'EOF'` … `EOF` (quoted, so backticks survive); words on the
-  command line lose their line breaks.
+- **Everything you write on a card is Markdown, and is skimmed.** That is the
+  description, bar, evidence, comments, handoffs, wait questions, status
+  updates and a verdict's reason, and the card shows each of them as Markdown.
+  - Open with a bold line saying what it is (`**Picked up.**`, `**Built.**`,
+    `**Decision:** …`).
+  - Then short bullets, one fact each, never one dense paragraph of clauses.
+    Where a list doesn't fit, use short separate paragraphs.
+  - Paths, commands and commit ids go in backticks.
+  - Send anything over a line through stdin with a quoted heredoc, so
+    backticks survive: `slipdock comment <id> --body - <<'EOF'` … `EOF`, and
+    the same with `--desc -`, `--bar -`, `--evidence -`, `--reason -` and
+    `slipdock wait <id> -`. Words on the command line lose their line breaks.
+- **A question for a person explains its options and recommends one.** List
+  each option and what choosing it would mean, then say which you would take
+  and why. Where the options are short, give them as choices with the one you
+  recommend as the default (`--choice A --choice B --default 1`), so the
+  answer can be one click.
 - **Commit, and link it.** When the project is a git repository, commit the
   card's work once it is complete — before closing the card — with the card id
   (`#42`) in the commit message. The closing comment links to the commit, or to

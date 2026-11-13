@@ -50,7 +50,12 @@ defmodule SlipdockWeb.BoardLive.CardPanel.Verify do
           rejected {@card.verify_rejections}×
         </span>
       </p>
-      <p :if={@card.verify_note} class="whitespace-pre-wrap text-sm">{@card.verify_note}</p>
+      <div
+        :if={@card.verify_note}
+        id="card-verify-note"
+        class="card-prose break-words text-sm"
+        phx-no-format
+      >{SlipdockWeb.RichText.markdown(@card.verify_note)}</div>
       <ul
         :if={@card.verify_state != "pending" && @checks != []}
         id="card-verify-checks"
@@ -284,7 +289,12 @@ defmodule SlipdockWeb.BoardLive.CardPanel.Verify do
           on <code class="font-mono">{@card.evidence_branch}</code>
         </span>
       </p>
-      <p :if={@card.evidence} class="whitespace-pre-wrap text-sm">{@card.evidence}</p>
+      <div
+        :if={@card.evidence}
+        id="card-evidence-text"
+        class="card-prose break-words text-sm"
+        phx-no-format
+      >{SlipdockWeb.RichText.markdown(@card.evidence)}</div>
       <p :if={@card.evidence_pr} id="card-evidence-pr" class="text-sm">
         Pull request
         <a
@@ -296,10 +306,10 @@ defmodule SlipdockWeb.BoardLive.CardPanel.Verify do
           {@card.evidence_pr}
         </a>
       </p>
-      <p :if={@card.evidence_no_code} id="card-evidence-no-code" class="text-sm">
-        <span class="font-medium">No code:</span>
-        <span class="whitespace-pre-wrap">{@card.evidence_no_code}</span>
-      </p>
+      <div :if={@card.evidence_no_code} id="card-evidence-no-code" class="text-sm">
+        <p class="font-medium">No code:</p>
+        <div class="card-prose break-words" phx-no-format>{SlipdockWeb.RichText.markdown(@card.evidence_no_code)}</div>
+      </div>
       <p
         :if={@card.evidence_suite}
         id="card-evidence-suite"

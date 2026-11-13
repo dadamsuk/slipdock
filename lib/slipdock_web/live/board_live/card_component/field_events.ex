@@ -73,10 +73,13 @@ defmodule SlipdockWeb.BoardLive.CardComponent.FieldEvents do
                by: socket.assigns.current_user
              ) do
           {:ok, card} ->
-            {:noreply, assign(socket, card: State.fresh(socket, card.id))}
+            {:noreply,
+             socket
+             |> assign(card: State.fresh(socket, card.id))
+             |> keep_bar_open(params)}
 
           {:error, cs} ->
-            {:noreply, assign(socket, card_form: to_form(cs))}
+            {:noreply, socket |> assign(card_form: to_form(cs)) |> keep_bar_open(params)}
         end
 
       :error ->
@@ -234,6 +237,14 @@ defmodule SlipdockWeb.BoardLive.CardComponent.FieldEvents do
   def handle_event("stop_editing_description", _, socket),
     do: {:noreply, assign(socket, editing_description: false)}
 
+  # The bar shows as Markdown (#3001); Edit swaps in its box, Done puts the
+  # rendered view back.
+  def handle_event("edit_bar", _, socket),
+    do: {:noreply, assign(socket, editing_bar: true)}
+
+  def handle_event("stop_editing_bar", _, socket),
+    do: {:noreply, assign(socket, editing_bar: false)}
+
   def handle_event("validate_attachments", _, socket),
     do: {:noreply, drop_invalid_uploads(socket, :attachment)}
 
@@ -355,4 +366,9 @@ defmodule SlipdockWeb.BoardLive.CardComponent.FieldEvents do
     do: [String.to_existing_atom("border_" <> edge)]
 
   defp border_fields(_), do: []
+
+  # A bar typed into its box keeps the box open (#3001): the first keys into
+  # an empty bar would otherwise swap the box for the rendered view.
+  defp keep_bar_open(socket, %{"bar" => _}), do: assign(socket, editing_bar: true)
+  defp keep_bar_open(socket, _params), do: socket
 end

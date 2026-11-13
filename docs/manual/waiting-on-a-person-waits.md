@@ -14,6 +14,14 @@ While one is open it sits beneath the card's title — *Waiting on Dana:* and
 the question, who asked it and how long ago — with a button for each choice,
 a box for an answer in words, **Answer**, **Skip** and **Withdraw**.
 
+The question is shown as Markdown (#3001), as comments are, and so are the
+questions and answers under **Questions asked before**. A question that asks
+you to choose should set out each option as a list item and what choosing it
+would mean, and recommend one: the agents are told to, and the one they
+recommend is the choice marked *(proposed)*. An agent sends a question over
+several lines from stdin, `slipdock wait 12 - --choice … --default 2` with a
+heredoc, so its list keeps its line breaks.
+
 A wait can ask **several questions** at once. They are shown numbered, each
 with its own answer box, and **Send answers** sends them together; a box left
 empty is kept as unanswered. With an AI model set (Account → AI model), the

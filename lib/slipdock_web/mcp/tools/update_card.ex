@@ -139,7 +139,9 @@ defmodule SlipdockWeb.MCP.Tools.UpdateCard do
           properties: %{
             needs: %{
               type: "string",
-              description: "What you need, as one question; or the line before questions."
+              description:
+                "What you need, as one question in Markdown: each option and what it means, " <>
+                  "and the one you recommend; or the line before questions."
             },
             questions:
               Map.put(

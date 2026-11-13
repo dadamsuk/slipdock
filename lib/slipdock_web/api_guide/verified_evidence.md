@@ -28,7 +28,8 @@ it, so the next completion brings its own.
 that stands alone, a blank line, then one short line per point; the
 parts go in their fields (`--check`, or the evidence's `--evidence-commit`,
 `--branch`, `--tests`, `--suite`, `--pr`), not repeated in the text.
-Words on the command line lose their line breaks, so send it on stdin
+The card shows the evidence and the reason as Markdown, as it does the
+bar, so a list reads as one. Words on the command line lose their line breaks, so send it on stdin
 with a quoted heredoc (`--evidence -`, `--reason -`):
 
 ```sh

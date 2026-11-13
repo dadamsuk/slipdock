@@ -44,6 +44,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent.State do
             picking_template: false,
             reveal_sections: false,
             editing_description: false,
+            editing_bar: false,
             editing_handoff: false,
             handoff_form: nil,
             handoff_draft: nil,

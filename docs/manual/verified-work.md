@@ -56,6 +56,9 @@ card that has one), `slipdock edit 12 --bar "…"`, `PATCH /api/cards/:id
 - Moving the card back to a ready list leaves the bar locked: work started
   once, and the bar is what it was measured against.
 - Turn the switch off and a locked bar is anybody's to change again.
+- A written bar is shown as Markdown (#3001), usually a numbered list of its
+  parts. Click it, or **Edit**, to change it; **Done** or Escape shows it
+  again. An empty bar shows its box straight away.
 - **Checked at pickup.** The job's prompt (and the guide and the skills)
   tells the builder to read each part of the bar before building, and to
   ask with a wait when one needs a person (a handbook rule added, reworded
@@ -82,8 +85,10 @@ stdin), MCP `complete_card`'s `evidence` and `commit`, or `PATCH
 stands alone, a blank line, then one short line per point; the parts go in
 their fields (the evidence's `--evidence-commit`, `--branch`, `--tests`,
 `--suite` and `--pr`, a verdict's `--check`), not repeated in the text.
-Comments keep a single line break, so the shape survives as written, but
-words on the command line lose their breaks: send it on stdin with a quoted
+The card panel shows the evidence, its *No code* reason and a verdict's
+reason as Markdown (#3001), so a list reads as a list. Comments keep a
+single line break, so the shape survives as written, but words on the
+command line lose their breaks: send it on stdin with a quoted
 heredoc, `--evidence -` or `--reason -`:
 
 ```sh
