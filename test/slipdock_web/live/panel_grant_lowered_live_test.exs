@@ -169,6 +169,27 @@ defmodule SlipdockWeb.PanelGrantLoweredLiveTest do
         assert Wiki.tags(after_) == []
       end
 
+      # A share on the page keeps the reader a writer of the page, so only
+      # their write on the board decides whether it may come off it.
+      test "the page panel takes no page off the board that its own share still lets them write",
+           ctx do
+        page = page_fixture(ctx.board, %{"title" => "Shared page"}, user: ctx.owner)
+        {:ok, _} = Wiki.place(page, ctx.column)
+        {:ok, _} = Access.grant(page, ctx.writer, "write", ctx.owner)
+
+        {:ok, view, _} = live(as(ctx.writer), ~p"/boards/#{ctx.board}?#{[page: page.id]}")
+        assert has_element?(view, "#page-panel", "Shared page")
+
+        lower(unquote(how), ctx)
+        assert Access.page_permission(ctx.writer, Wiki.get_page!(page.id)) == :write
+
+        view
+        |> with_target("#board-page")
+        |> render_hook("unplace_page", %{"id" => "#{page.id}"})
+
+        assert Wiki.get_page!(page.id).column_id == ctx.column.id
+      end
+
       test "the card panel changes nothing on the card", ctx do
         card = card_fixture(ctx.column, %{"title" => "Open card"})
         {:ok, view, _} = live(as(ctx.writer), ~p"/boards/#{ctx.board}/cards/#{card}")
