@@ -203,26 +203,6 @@ defmodule SlipdockWeb.UserAuth do
     end
   end
 
-  @doc """
-  Plug: refuses anyone who is not an admin. 404 rather than 403, so an admin
-  area is not advertised to people who have no business knowing it is there.
-  """
-  def require_admin(conn, _opts) do
-    if Accounts.admin?(conn.assigns[:current_user]) do
-      conn
-    else
-      conn
-      |> put_status(:not_found)
-      |> put_view(html: SlipdockWeb.ErrorHTML)
-      |> render(:"404")
-      |> halt()
-    end
-  end
-
-  def redirect_if_user_is_authenticated(conn, _opts) do
-    if conn.assigns[:current_user], do: conn |> redirect(to: ~p"/") |> halt(), else: conn
-  end
-
   ## LiveView hooks
 
   def on_mount(:mount_current_user, _params, session, socket) do
@@ -244,8 +224,8 @@ defmodule SlipdockWeb.UserAuth do
 
   @doc """
   LiveView hook: admins only. Anyone else is sent to the board index with
-  nothing said, matching `require_admin/2` — the admin area does not announce
-  itself to people who cannot use it.
+  nothing said, so the admin area does not announce itself to people who
+  cannot use it.
   """
   def on_mount(:ensure_admin, _params, session, socket) do
     socket = mount_current_user(socket, session)
