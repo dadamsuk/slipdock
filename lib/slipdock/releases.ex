@@ -506,8 +506,9 @@ defmodule Slipdock.Releases do
         request = request |> Ecto.Changeset.change(run_url: url) |> Repo.update!()
         log(root, "Release fired by job ##{job.id}" <> if(url, do: ": #{url}", else: "."))
 
+        # An open board's banner links the run as soon as it is known (#3005).
         if records_deploys?(root.id),
-          do: {:ok, request},
+          do: broadcast_ok(root, request),
           else:
             finish(request, "released", "the release command ran; this board records no deploys")
 
@@ -824,6 +825,11 @@ defmodule Slipdock.Releases do
 
   defp broadcast(root),
     do: Phoenix.PubSub.broadcast(@pubsub, topic(root.id), {:release_changed, root.id})
+
+  defp broadcast_ok(root, request) do
+    broadcast(root)
+    {:ok, request}
+  end
 
   # One card of priority critical, on top of the root's ready list, naming
   # the batch and linking the run.

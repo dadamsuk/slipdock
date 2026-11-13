@@ -506,7 +506,8 @@ and MCP) and a link to the page that covers it.
     owner's), one at a time: a runner's `release` job runs the board's
     release command (`--release-command`, by default `gh workflow run
     release.yml --ref {default_branch}`), and `slipdock releases <board>`
-    shows where they stand.
+    shows where they stand. While one runs, the banner links its build
+    (*follow the build*) once the job has fired it.
   - The runner daemon runs the default form itself;
     any other command runs only if the machine's own `local.json` lists it,
     word for word, under `release_commands`, and is refused otherwise

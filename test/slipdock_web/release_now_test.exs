@@ -32,7 +32,7 @@ defmodule SlipdockWeb.ReleaseNowTest do
     {:ok, runner, runner_token} =
       Runners.create_runner(board, %{"name" => "box", "pool" => "dev"})
 
-    Runners.report_kinds(runner, "merge,release")
+    runner = Runners.report_kinds(runner, "merge,release")
 
     [_backlog, todo | _] = board.columns
 
@@ -41,6 +41,7 @@ defmodule SlipdockWeb.ReleaseNowTest do
       board: board,
       todo: todo,
       agent: with_token(user, "bot"),
+      runner: runner,
       runner_token: runner_token
     }
   end
@@ -223,7 +224,68 @@ defmodule SlipdockWeb.ReleaseNowTest do
     end
   end
 
+  @run "https://github.com/example/app/actions/runs/77"
+
+  # The runner fires the release request's job, ending it with `output`.
+  defp fire!(runner, request, output) do
+    %Job{id: id} = Runners.claim(runner)
+    assert id == request.job_id
+    {:ok, _} = Runners.finish(runner, id, %{exit: "0", status: "done", output: output})
+    :ok
+  end
+
   describe "the board page" do
+    test "a running release links its build once its job fires it, without a reload (#3005)",
+         ctx do
+      merged!(ctx.todo, "Feature")
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}")
+      {:ok, :started, request} = Releases.release_now(ctx.board, "Dana")
+
+      assert has_element?(view, "#release-banner-line", "A release is running")
+      refute has_element?(view, "#release-running-run")
+
+      fire!(ctx.runner, request, "release: run #{@run}\n")
+
+      assert has_element?(
+               view,
+               ~s(#release-running-run[href="#{@run}"][target="_blank"][rel="noopener noreferrer"]),
+               "follow the build"
+             )
+
+      assert has_element?(view, "#release-banner-line", "A release is running")
+    end
+
+    test "a fired release that named no run links nothing, and an ended one drops the link",
+         ctx do
+      merged!(ctx.todo, "Feature")
+      {:ok, :started, request} = Releases.release_now(ctx.board, "Dana")
+      fire!(ctx.runner, request, "ok, nothing to link\n")
+
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}")
+      assert has_element?(view, "#release-banner-line", "A release is running")
+      refute has_element?(view, "#release-running-run")
+
+      request =
+        Repo.get!(Request, request.id) |> Ecto.Changeset.change(run_url: @run) |> Repo.update!()
+
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}")
+      assert has_element?(view, "#release-running-run")
+
+      {:ok, _} = Releases.finish(request, "failed", "the deploy failed")
+      refute has_element?(view, "#release-running-run")
+    end
+
+    test "someone it is shared with follows the build too, with no button", ctx do
+      editor = user_fixture("editor#{System.unique_integer([:positive])}@example.com")
+      share_fixture(ctx.board, [editor], "write")
+      {:ok, :started, request} = Releases.release_now(ctx.board, "Dana")
+      fire!(ctx.runner, request, "release: run #{@run}\n")
+
+      {:ok, view, _} = live(log_in_user(build_conn(), editor), ~p"/boards/#{ctx.board}")
+      assert has_element?(view, ~s(#release-running-run[href="#{@run}"]))
+      refute has_element?(view, "#release-now")
+    end
+
     test "a batched board with merged work shows the banner, and Release now starts one", ctx do
       merged!(ctx.todo, "Feature")
       {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}")
@@ -304,6 +366,22 @@ defmodule SlipdockWeb.ReleaseNowTest do
   end
 
   describe "the Agentic Building page" do
+    test "a running release links its build once its job fires it (#3005)", ctx do
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/agentic")
+      {:ok, :started, request} = Releases.release_now(ctx.board, "Dana")
+
+      assert has_element?(view, "#board-release-line", "A release is running")
+      refute has_element?(view, "#board-release-running-run")
+
+      fire!(ctx.runner, request, "release: run #{@run}\n")
+
+      assert has_element?(
+               view,
+               ~s(#board-release-running-run[href="#{@run}"][target="_blank"]),
+               "follow the build"
+             )
+    end
+
     test "saves the release command and releases now", ctx do
       {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/agentic")
       assert has_element?(view, "#board-release-line", "Nothing merged is awaiting release.")
@@ -603,6 +681,7 @@ defmodule SlipdockWeb.ReleaseNowTest do
       {:ok, _view, html} = live(conn, ~p"/help/boards")
       assert html =~ "Release now"
       assert html =~ "one follow-up"
+      assert html =~ "follow the build"
 
       {:ok, _view, html} = live(conn, ~p"/help/agents")
       assert html =~ "Release a batched board&#39;s merged work now"

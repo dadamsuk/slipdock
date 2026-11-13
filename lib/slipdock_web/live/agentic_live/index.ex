@@ -644,6 +644,16 @@ defmodule SlipdockWeb.AgenticLive.Index do
                       >
                         the failing run
                       </.link>
+                      <.link
+                        :if={@release.running && @release.running.run_url}
+                        id="board-release-running-run"
+                        href={@release.running.run_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="link"
+                      >
+                        follow the build
+                      </.link>
                       <span :if={
                         Slipdock.Releases.line(@release, awaiting: false) &&
                           Slipdock.Releases.awaiting_text(@release)
