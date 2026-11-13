@@ -37,7 +37,7 @@ defmodule SlipdockWeb.HandbookDocsTest do
     # The bullet is in the manual's digest; the README keeps a line (#2792).
     assert_states(
       read("docs/manual/every-feature-in-brief.md"),
-      "**The handbook.** One Tool is built in"
+      "One Tool is built in: `handbook` puts a `Handbook/` folder"
     )
 
     assert_states(read("README.md"), "One Tool is built in")
