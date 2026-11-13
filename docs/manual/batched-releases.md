@@ -86,6 +86,13 @@ suite once on the tip, builds the image and deploys it, and a failed one
 is recorded as a push's would be. Unset the variable to go back to a
 release with each merge.
 
+**Following it.** Once the job has fired the release, the request keeps
+the run it started (the run the daemon names, else the first link in the
+job's output). While the release runs, the board's release banner and the
+Agentic Building page link it, *follow the build*, so its progress is one
+click away; `slipdock releases <board>`, `GET /api/boards/:board/release`
+and MCP `release_now` with `check` give it as `run_url`.
+
 **How it ends.** The request is `released` when a succeeded deploy of the
 tree is recorded, `failed` when the job or the deploy fails, and
 `timed_out` when nothing is heard for 3 hours; then the follow-up starts.

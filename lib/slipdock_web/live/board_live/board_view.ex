@@ -693,9 +693,10 @@ defmodule SlipdockWeb.BoardLive.BoardView do
 
   @doc """
   A batched tree's releases (#2835), on every board of it: a hold after a
-  red release (#2838), the release running, the follow-up queued and how
-  many merged cards await one, with Release now (and Lift hold, while
-  held) for the owner. Nothing while there is nothing to say.
+  red release (#2838), the release running (with a link to its build once
+  its job has fired it, #3005), the follow-up queued and how many merged
+  cards await one, with Release now (and Lift hold, while held) for the
+  owner. Nothing while there is nothing to say.
   """
   def release_banner(assigns) do
     assigns =
@@ -723,6 +724,16 @@ defmodule SlipdockWeb.BoardLive.BoardView do
           class="link"
         >
           the failing run
+        </.link>
+        <.link
+          :if={@release.running && @release.running.run_url}
+          id="release-running-run"
+          href={@release.running.run_url}
+          target="_blank"
+          rel="noopener noreferrer"
+          class="link"
+        >
+          follow the build
         </.link>
         <span :if={@line && @awaiting}>·</span>
         <.release_awaiting release={@release} id="release-awaiting" />

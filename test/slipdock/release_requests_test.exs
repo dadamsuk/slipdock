@@ -437,6 +437,26 @@ defmodule Slipdock.ReleaseRequestsTest do
       assert List.last(activity(ctx.board)) =~ "Release fired by job ##{request.job_id}: https://"
     end
 
+    test "keeping the run's link tells an open board, so its banner links it (#3005)", ctx do
+      {:ok, :started, request} = Releases.request(ctx.board, "manual", "Dana")
+      Releases.subscribe(ctx.board)
+      root_id = ctx.board.id
+
+      fire!(ctx.runner, request, %{
+        exit: "0",
+        status: "done",
+        output: "release: run https://github.com/example/app/actions/runs/42\n"
+      })
+
+      assert_receive {:release_changed, ^root_id}
+
+      assert %Request{
+               status: "running",
+               run_url: "https://github.com/example/app/actions/runs/42"
+             } =
+               Repo.get!(Request, request.id)
+    end
+
     test "the run the daemon names wins over any other link in the log (#2836)", ctx do
       {:ok, :started, request} = Releases.request(ctx.board, "manual", "Dana")
 
