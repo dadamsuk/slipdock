@@ -40,21 +40,41 @@ func openLane(ctx context.Context, run execFunc, isDir func(string) bool, dir st
 		on, _ := run(ctx, path, "git", "rev-parse", "--abbrev-ref", "HEAD")
 		note(fmt.Sprintf("slipdock-runner: worktree %s (kept from before) on %s", path, strings.TrimSpace(on)))
 	} else {
-		// A card branch already there (a rejected card's earlier attempt)
-		// is checked out as it is; a new one starts from the origin's
-		// default branch.
-		args, from := []string{"worktree", "add", path, branch}, ""
-		if _, err := run(ctx, top, "git", "show-ref", "--verify", "--quiet", "refs/heads/"+branch); err != nil {
-			from = laneBase(ctx, run, top, note)
+		// Every new worktree starts at the origin's default branch as
+		// fetched now (#3002). A card branch already there with nothing
+		// of its own is moved up to it; one with commits of its own (a
+		// rejected card's earlier attempt, here or only on the origin) is
+		// rebased onto it in the new worktree.
+		from := laneBase(ctx, run, top, note)
+		args, rebase := []string{"worktree", "add", path, branch}, ""
+		switch {
+		case hasRef(ctx, run, top, "refs/heads/"+branch):
+			if from != "HEAD" && isAncestor(ctx, run, top, branch, from) {
+				args = []string{"worktree", "add", "--no-track", "-B", branch, path, from}
+				note(fmt.Sprintf("slipdock-runner: branch %s had nothing of its own, so it starts again from %s", branch, from))
+			} else if from != "HEAD" {
+				rebase = branch
+			}
+		case from != "HEAD" && hasRef(ctx, run, top, "refs/remotes/origin/"+branch):
+			args = []string{"worktree", "add", "--no-track", "-b", branch, path, "origin/" + branch}
+			rebase = "origin/" + branch
+		default:
 			args = []string{"worktree", "add", "--no-track", "-b", branch, path, from}
 		}
 		if out, err := run(ctx, top, "git", args...); err != nil {
 			note(out)
 			return nil, fmt.Errorf("could not make worktree %s, so the job was not run", path)
 		}
-		if from == "" {
+		switch {
+		case rebase != "" && rebase != branch:
+			note(fmt.Sprintf("slipdock-runner: worktree %s on branch %s, from %s", path, branch, rebase))
+			rebaseLane(ctx, run, path, branch, from, note)
+		case len(args) == 4:
 			note(fmt.Sprintf("slipdock-runner: worktree %s on branch %s", path, branch))
-		} else {
+			if rebase != "" {
+				rebaseLane(ctx, run, path, branch, from, note)
+			}
+		default:
 			note(fmt.Sprintf("slipdock-runner: worktree %s on branch %s, from %s", path, branch, from))
 		}
 	}
@@ -86,6 +106,34 @@ func laneBase(ctx context.Context, run execFunc, top string, note func(string)) 
 	}
 	note("slipdock-runner: origin has no default branch here, so the worktree starts from HEAD")
 	return "HEAD"
+}
+
+// rebaseLane puts the card branch's own commits on top of base, so the
+// job starts from what the origin has now. A rebase that stops (a
+// conflict, a dirty tree) is aborted, the branch left as it was, and the
+// log says how far behind base it is, for the agent to rebase.
+func rebaseLane(ctx context.Context, run execFunc, path, branch, base string, note func(string)) {
+	if isAncestor(ctx, run, path, base, "HEAD") {
+		return
+	}
+	if _, err := run(ctx, path, "git", "rebase", "--quiet", base); err == nil {
+		note(fmt.Sprintf("slipdock-runner: branch %s rebased onto %s", branch, base))
+		return
+	}
+	run(ctx, path, "git", "rebase", "--abort")
+	behind, _ := run(ctx, path, "git", "rev-list", "--count", "HEAD.."+base)
+	note(fmt.Sprintf("slipdock-runner: branch %s didn't rebase cleanly onto %s, so it is left as it was, %s commits behind: rebase it before building on it", branch, base, strings.TrimSpace(behind)))
+}
+
+func hasRef(ctx context.Context, run execFunc, dir, ref string) bool {
+	_, err := run(ctx, dir, "git", "show-ref", "--verify", "--quiet", ref)
+	return err == nil
+}
+
+// isAncestor says whether a is already in b's history.
+func isAncestor(ctx context.Context, run execFunc, dir, a, b string) bool {
+	_, err := run(ctx, dir, "git", "merge-base", "--is-ancestor", a, b)
+	return err == nil
 }
 
 // close removes a clean worktree, and its branch if it is merged (git

@@ -523,8 +523,10 @@ func TestAWorktreePerJob(t *testing.T) {
 }
 
 // A new card branch starts from the origin's default branch, fetched
-// first, never from the shared checkout's HEAD on another card's branch;
-// a card branch already there is checked out as it is (#2758).
+// first, never from the shared checkout's HEAD on another card's branch
+// (#2758). A card branch already there starts from it too: moved up to it
+// with nothing of its own, rebased onto it with commits of its own, here
+// or only on the origin, and left as it was when that conflicts (#3002).
 func TestAWorktreeStartsFromTheOriginsDefaultBranch(t *testing.T) {
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("no git")
@@ -549,6 +551,10 @@ func TestAWorktreeStartsFromTheOriginsDefaultBranch(t *testing.T) {
 	git(other, "commit", "-q", "--allow-empty", "-m", "first")
 	git(other, "push", "-q", "origin", "HEAD:main")
 	git(r.dir, "clone", "-q", origin, ".")
+	// The daemon's own rebase commits as the checkout's user: the job's
+	// HOME has no git identity (and CI's Linux has none to guess).
+	git(r.dir, "config", "user.name", "t")
+	git(r.dir, "config", "user.email", "t@example.com")
 	git(other, "commit", "-q", "--allow-empty", "-m", "newer")
 	git(other, "push", "-q", "origin", "HEAD:main")
 	newer := git(other, "rev-parse", "HEAD")
@@ -574,11 +580,82 @@ func TestAWorktreeStartsFromTheOriginsDefaultBranch(t *testing.T) {
 		t.Fatalf("the shared checkout was switched to %s", got)
 	}
 
-	// A card branch already there is used as it is, not moved.
+	// A card branch already there, made before main moved on and with
+	// nothing of its own (#2994's lane): moved up to origin/main as
+	// fetched now, not checked out where it was.
+	git(r.dir, "branch", "card-64", "origin/main~1")
+	git(other, "commit", "-q", "--allow-empty", "-m", "newest")
+	git(other, "push", "-q", "origin", "HEAD:main")
+	newer = git(other, "rev-parse", "HEAD")
+	f = r.runJob(fakeJob{id: 154, kind: "claude", card: 64, prompt: "x"})
+	if !strings.Contains(f.body, "branch card-64 had nothing of its own, so it starts again from origin/main") ||
+		!strings.Contains(f.body, "on branch card-64, from origin/main") {
+		t.Fatalf("log: %s", f.body)
+	}
+	if got := git(r.dir, "rev-parse", "card-64"); got != newer {
+		t.Fatalf("card-64 starts at %s, want origin/main as fetched now (%s)", got, newer)
+	}
+
+	// A card branch already there with a commit of its own (a rejected
+	// card's): that commit, rebased onto origin/main as fetched now.
 	git(r.dir, "branch", "card-61", theirs)
 	f = r.runJob(fakeJob{id: 151, kind: "claude", card: 61, prompt: "x"})
-	if !strings.Contains(f.body, "on branch card-61") || strings.Contains(f.body, "card-61, from") {
+	if !strings.Contains(f.body, "on branch card-61\n") || !strings.Contains(f.body, "branch card-61 rebased onto origin/main") {
 		t.Fatalf("log: %s", f.body)
+	}
+	if got := git(r.dir, "rev-parse", "card-61~1"); got != newer {
+		t.Fatalf("card-61's own commit sits on %s, want origin/main (%s)", got, newer)
+	}
+	if got := git(r.dir, "log", "-1", "--format=%s", "card-61"); got != "card 9's work" {
+		t.Fatalf("card-61's own commit is %q", got)
+	}
+
+	// A card branch only on the origin (pushed from elsewhere, its local
+	// branch gone): taken from there and rebased, not started afresh.
+	git(other, "switch", "-q", "-c", "card-65", "HEAD~1")
+	git(other, "commit", "-q", "--allow-empty", "-m", "card 65's work")
+	git(other, "push", "-q", "origin", "card-65")
+	git(other, "switch", "-q", "-")
+	f = r.runJob(fakeJob{id: 155, kind: "claude", card: 65, prompt: "x"})
+	if !strings.Contains(f.body, "on branch card-65, from origin/card-65") || !strings.Contains(f.body, "branch card-65 rebased onto origin/main") {
+		t.Fatalf("log: %s", f.body)
+	}
+	if got := git(r.dir, "rev-parse", "card-65~1"); got != newer {
+		t.Fatalf("card-65's own commit sits on %s, want origin/main (%s)", got, newer)
+	}
+	if got := git(r.dir, "log", "-1", "--format=%s", "card-65"); got != "card 65's work" {
+		t.Fatalf("card-65's own commit is %q", got)
+	}
+
+	// A rebase that conflicts is aborted: the branch as it was, and the
+	// log says how far behind it is.
+	if err := os.WriteFile(filepath.Join(other, "f.txt"), []byte("main's\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	git(other, "add", "f.txt")
+	git(other, "commit", "-q", "-m", "main's f")
+	git(other, "push", "-q", "origin", "HEAD:main")
+	newer = git(other, "rev-parse", "HEAD")
+	git(r.dir, "branch", "card-66", "origin/main")
+	git(r.dir, "worktree", "add", "-q", filepath.Join(t.TempDir(), "w66"), "card-66")
+	w66 := git(r.dir, "worktree", "list", "--porcelain")
+	w66 = strings.TrimPrefix(strings.Split(w66[strings.LastIndex(w66, "worktree "):], "\n")[0], "worktree ")
+	if err := os.WriteFile(filepath.Join(w66, "f.txt"), []byte("card 66's\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	git(w66, "add", "f.txt")
+	git(w66, "commit", "-q", "-m", "card 66's f")
+	git(r.dir, "worktree", "remove", w66)
+	mine := git(r.dir, "rev-parse", "card-66")
+	f = r.runJob(fakeJob{id: 156, kind: "claude", card: 66, prompt: "x"})
+	if f.exit != 0 || !strings.Contains(f.body, "branch card-66 didn't rebase cleanly onto origin/main, so it is left as it was, 1 commits behind") {
+		t.Fatalf("finish = %+v", f)
+	}
+	if got := git(r.dir, "rev-parse", "card-66"); got != mine {
+		t.Fatalf("card-66 is at %s after a failed rebase, want %s as it was", got, mine)
+	}
+	if _, err := os.Stat(filepath.Join(git(r.dir, "rev-parse", "--show-toplevel")+"-lanes", "card-66")); !os.IsNotExist(err) {
+		t.Fatalf("card-66's worktree was kept (left mid-rebase?): %v", err)
 	}
 
 	// With an origin that can't be reached, the branch starts from

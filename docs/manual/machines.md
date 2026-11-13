@@ -460,9 +460,14 @@ transcript about once a minute, with this machine's keys and tokens taken
 out. Cancelling the job on the board, or its timeout, stops it and every
 process it started. With `worktree` on (or `auto`, when two runners share a
 directory) each job gets a git worktree of its own, on the branch
-`card-<id>`: a new branch starts from the origin's default branch, fetched
-first, never from whatever the runner's checkout has out, and a branch
-already there (a rejected card's) is used as it is. A runner alone in its
+`card-<id>`: it starts from the origin's default branch, fetched first,
+never from whatever the runner's checkout has out. A card branch already
+there catches up with it: one with nothing of its own is moved up to it,
+and one with commits of its own (a rejected card's, here or only on the
+origin) has them rebased onto it. If that rebase conflicts, it is undone,
+the branch is left as it was, and the job's log says how far behind it is.
+A worktree kept from an earlier job (it had uncommitted changes) is used
+as it is. A runner alone in its
 directory gets none under `auto`, so set `on` for a checkout people or
 other tools also use. A merge job merges the card's pull request only if it is in the
 runner's repository, still open, and at the accepted commit. A runner that

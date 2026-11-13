@@ -32,7 +32,7 @@ covers, and leave the others unread: each is only for the pass it names.
 |---|---|
 | The pass was not given its card: it works a board's list, or the invocation names a pool to take a job from | `references/picking.md`: steps 1 to 2b and the pick (which board, resume before you claim, the CI check, a pool's job, the top card) |
 | The card has subcards (an epic) | `references/subcards.md`: step 5, subcards before the parent |
-| The card reports a bug | `references/bugs.md`: reproduce what was reported, before any fix |
+| The card reports a bug or a flaky test | `references/bugs.md`: check for a later fix, then reproduce what was reported, before any fix |
 | The card is a spike | `references/spikes.md` |
 | The board ships by pull request, and the prompt doesn't give the steps; or the card is an epic, changes no code, is tagged `security`, is held, or its merge failed | `references/pull-requests.md` |
 | The job is of kind `verify`, or you are asked to verify or audit a card | `references/verifying.md` |
@@ -249,7 +249,10 @@ On a board with lanes on, write the card's paths before the move (see
 
 **A bug card** is reproduced before any fix is built: the reported symptom,
 on the reporter's scenario, posted as its own comment. `references/bugs.md`
-says how, and what to do when it doesn't reproduce.
+says how, and what to do when it doesn't reproduce. A flaky-test card
+is a bug card, and either checks first whether the default branch has
+changed the named file or path since the reported failure, reading that
+change before reproducing.
 
 ## 5. Subcards before the parent
 
