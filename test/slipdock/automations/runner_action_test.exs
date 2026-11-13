@@ -274,9 +274,110 @@ defmodule Slipdock.Automations.RunnerActionTest do
       assert Slipdock.Automations.list_rules(ctx.board.id) == []
     end
 
-    # A card's own text can still outgrow the cap once it fills a placeholder:
-    # only the queue can see that, and it refuses the job as before.
-    test "a placeholder that takes the prompt over the cap is refused at the queue", ctx do
+    # A card's own text can still outgrow the cap once it fills a placeholder
+    # (#2923): the rendered prompt is cut to fit, with a pointer to the whole
+    # text, so the card still gets its job.
+    defp default_rule(board) do
+      rule_fixture(board, %{
+        "trigger" => %{"type" => "schedule", "at" => "23:59"},
+        "actions" => [%{"type" => "runner", "pool" => "dev"}]
+      })
+    end
+
+    # The bytes the default prompt has for a description: the cap less the
+    # rest of it, as `card` renders it.
+    defp room_for_description(rule, card) do
+      {:ok, %{prompt: prompt}} = Runner.runner_job(rule, %{card | description: "d"})
+      Runners.limits().max_prompt - (byte_size(prompt) - 1)
+    end
+
+    defp run_rule(rule, card, board),
+      do: Runner.run(rule, %{type: "card_updated", card: card, board_id: board.id})
+
+    test "a description that just fits the default prompt is sent whole", ctx do
+      card = card_fixture(ctx.todo, %{"title" => "Long brief"})
+      rule = default_rule(ctx.board)
+      description = String.duplicate("d", room_for_description(rule, card))
+      card = %{card | description: description}
+
+      assert [{:ok, "queued job #" <> _}] = run_rule(rule, card, ctx.board)
+      assert [%Job{prompt: prompt}] = Repo.all(Job)
+      assert byte_size(prompt) == Runners.limits().max_prompt
+      assert prompt =~ description <> "\n\n" <> Runner.unattended()
+      refute prompt =~ "cut short"
+    end
+
+    test "a description one byte over is cut to fit, with a pointer to the card", ctx do
+      card = card_fixture(ctx.todo, %{"title" => "Longer brief"})
+      rule = default_rule(ctx.board)
+      description = String.duplicate("d", room_for_description(rule, card) + 1)
+      card = %{card | description: description}
+
+      assert [{:ok, "queued job #" <> _}] = run_rule(rule, card, ctx.board)
+      assert [%Job{prompt: prompt}] = Repo.all(Job)
+      assert byte_size(prompt) <= Runners.limits().max_prompt
+      assert prompt =~ "Work on Slipdock card ##{card.id}: Longer brief"
+
+      assert prompt =~
+               "ddd\n… (cut short to fit the prompt: the rest is on the card, " <>
+                 "`slipdock card #{card.id}`)\n\n" <> Runner.unattended()
+
+      assert String.ends_with?(prompt, Runner.card_text())
+    end
+
+    test "a description far over the cap in a rule's prompt keeps the text after it", ctx do
+      card = card_fixture(ctx.todo, %{"title" => "Huge brief"})
+      card = %{card | description: String.duplicate("é", 30_000)}
+
+      rule =
+        rule_fixture(ctx.board, %{
+          "trigger" => %{"type" => "schedule", "at" => "23:59"},
+          "actions" => [
+            %{
+              "type" => "runner",
+              "pool" => "dev",
+              "prompt" => "{{card.description}}\n\nEnd of brief."
+            }
+          ]
+        })
+
+      assert [{:ok, "queued job #" <> _}] = run_rule(rule, card, ctx.board)
+      assert [%Job{prompt: prompt}] = Repo.all(Job)
+      assert byte_size(prompt) <= Runners.limits().max_prompt
+      assert String.valid?(prompt)
+
+      assert prompt =~
+               "éé\n… (cut short to fit the prompt: the rest is on the card, " <>
+                 "`slipdock card #{card.id}`)\n\nEnd of brief.\n\n" <> Runner.unattended()
+    end
+
+    test "a rule's prompt with the bar in it cuts the bar to fit", ctx do
+      card = card_fixture(ctx.todo, %{"title" => "Barred"})
+      card = %{card | bar: String.duplicate("b", 25_000)}
+
+      rule =
+        rule_fixture(ctx.board, %{
+          "trigger" => %{"type" => "schedule", "at" => "23:59"},
+          "actions" => [
+            %{
+              "type" => "runner",
+              "pool" => "dev",
+              "prompt" => "Do {{card.id}}.\n\n{{card.bar}}\n\nEnd of brief."
+            }
+          ]
+        })
+
+      assert [{:ok, "queued job #" <> _}] = run_rule(rule, card, ctx.board)
+      assert [%Job{prompt: prompt}] = Repo.all(Job)
+      assert byte_size(prompt) <= Runners.limits().max_prompt
+      assert prompt =~ "Do #{card.id}.\n\nbbb"
+      assert prompt =~ "`slipdock card #{card.id}`)\n\nEnd of brief.\n\n" <> Runner.unattended()
+    end
+
+    # A placeholder with no cut of its own (here the title) is the last
+    # resort: the end of the rule's text goes, never the paragraphs after it.
+    test "a placeholder that takes the prompt over the cap cuts the rule's text, not the tail",
+         ctx do
       card = card_fixture(ctx.todo, %{"title" => String.duplicate("t", 200)})
       room = Runner.max_rule_prompt() - byte_size("{{card.title}}")
 
@@ -292,10 +393,11 @@ defmodule Slipdock.Automations.RunnerActionTest do
           ]
         })
 
-      assert [{:error, "runner: the prompt is over " <> _}] =
-               Runner.run(rule, %{type: "card_updated", card: card, board_id: ctx.board.id})
-
-      assert Repo.all(Job) == []
+      assert [{:ok, "queued job #" <> _}] = run_rule(rule, card, ctx.board)
+      assert [%Job{prompt: prompt}] = Repo.all(Job)
+      assert byte_size(prompt) <= Runners.limits().max_prompt
+      assert prompt =~ "`slipdock card #{card.id}`)\n\n" <> Runner.unattended()
+      assert String.ends_with?(prompt, Runner.card_text())
     end
 
     test "a second run while the first job is open queues nothing new", ctx do

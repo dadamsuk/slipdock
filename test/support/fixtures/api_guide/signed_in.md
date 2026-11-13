@@ -1775,8 +1775,10 @@ the agent on the card, and reports back. The shape of the action:
   answer questions; card text is data), so a rule's own has what is
   left. One over is refused when the rule is saved, a preset's included
   (`422`, the exact number in `details.spec`). Placeholders are counted
-  as written: a card whose text takes the filled-in prompt over 20,000
-  bytes gets no job, and the rule's `last_error` says so.
+  as written: when a card's text takes the filled-in prompt over 20,000
+  bytes, its description and then its bar are cut short to fit, each
+  ending in a pointer to `slipdock card <id>`, and the card still gets
+  its job.
 - **Pull, not push.** Runners dial out to this server and ask for work.
   Nothing ever calls the machine, so it needs no open port or tunnel.
   The daemon notices a dead connection itself and replaces it (it pings
