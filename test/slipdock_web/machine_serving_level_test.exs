@@ -208,6 +208,19 @@ defmodule SlipdockWeb.MachineServingLevelTest do
                |> json_response(201)
     end
 
+    test "a board they can write to that the machine doesn't serve is not offered on its form",
+         ctx do
+      {:ok, key, _} = Machines.create_enrolment_key(ctx.user, [ctx.own.id])
+      {:ok, {_, machine}} = Machines.enrol_with_key(key, @about)
+      assert machine.board_ids == [ctx.own.id]
+
+      {:ok, view, _} = live(ctx.conn, ~p"/machines/#{machine.id}")
+      view |> element("button[phx-click=new_runner]") |> render_click()
+      form = "#machine-runner-form"
+      assert has_element?(view, ~s{#{form} option[value="#{ctx.own.id}"]})
+      refute has_element?(view, ~s{#{form} option[value="#{ctx.theirs.id}"]})
+    end
+
     test "an archived board they can write to is still named, not offered on the form", ctx do
       ctx.theirs
       |> Ecto.Changeset.change(archived_at: DateTime.utc_now(:second))
