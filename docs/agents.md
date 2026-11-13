@@ -546,8 +546,11 @@ garden propose <board> <file.json | ->`) files an open suggestion of check
 `proposal`, with an `explanation`, `steps` (`edit_section`, `comment` or
 `file_page` only) and the `findings` and `cards` behind it. An
 `edit_section` step names a `page`, a `section` (its heading path) and the
-new `body`; its `base` is the section as it was, so applying it refuses a
-section edited since. A proposal, and any suggestion with an `edit_section`
+new `body`; its `base` is the section as it was, so applying it after the
+section has been edited (another proposal on it applied first) lays only its
+own changed lines over what is there, and refuses only where both changed
+the same lines. Two proposals on one section can both be applied, in either
+order; a listing names the others in `shares_section_with`. A proposal, and any suggestion with an `edit_section`
 step, is a person's to apply, dismiss or undo: the API refuses an agent.
 The server files one by itself when a finding's count reaches the board's
 `findings_propose_at` (3 by default, 0 off): a rule on the `## Rules` of

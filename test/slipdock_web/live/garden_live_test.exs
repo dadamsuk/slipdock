@@ -155,7 +155,8 @@ defmodule SlipdockWeb.GardenLiveTest do
       assert Repo.get!(Slipdock.Wiki.Page, ctx.page.id).body == ctx.page.body
     end
 
-    test "a section edited since says so, and Apply is refused with the reason", ctx do
+    test "a section edited since in the same lines says so, and Apply is refused with the reason",
+         ctx do
       s = ctx.proposal
 
       {:ok, _} =
@@ -170,12 +171,65 @@ defmodule SlipdockWeb.GardenLiveTest do
       assert has_element?(
                view,
                "#suggestion-#{s.id}-diff-0",
-               "The section has changed since this was proposed."
+               "Applying it would be refused: “UX & UI” §UX & UI/Rules has changed since this was proposed, in lines it changes too"
              )
 
       html = view |> element("#suggestion-#{s.id} button", "Apply") |> render_click()
       assert html =~ "has changed since this was proposed"
       assert Gardener.get_suggestion(s.id).state == "open"
+    end
+
+    # #2772: two proposals on one section, applied one after the other.
+    test "proposals sharing a section say so, and both apply one after the other", ctx do
+      body =
+        "- **UX-1** must · judgement · Tokens only.\n- **UX-2** should · judgement · Say why."
+
+      {:ok, wider, :new} =
+        Gardener.propose(ctx.board, ctx.owner, %{
+          "explanation" => "Add UX-2",
+          "steps" => [
+            %{
+              "op" => "edit_section",
+              "page" => ctx.page.code,
+              "section" => "UX & UI/Rules",
+              "body" => body
+            }
+          ]
+        })
+
+      s = ctx.proposal
+      {:ok, view, _} = tidy(ctx.conn, ctx)
+
+      shared = "is edited by ##{wider.id} too. Apply them one after another"
+      assert has_element?(view, "#suggestion-#{s.id}-shared-0", "“UX & UI” §UX & UI/Rules")
+      assert has_element?(view, "#suggestion-#{s.id}-shared-0", shared)
+      assert has_element?(view, "#suggestion-#{wider.id}-shared-0", "is edited by ##{s.id} too.")
+
+      view |> element("#suggestion-#{s.id} button", "Apply") |> render_click()
+      refute has_element?(view, "#suggestion-#{wider.id}-shared-0")
+
+      # The other now shows only its own lines, merged into what the first left.
+      diff = "#suggestion-#{wider.id}-diff-0"
+      assert has_element?(view, diff, "Applying it now changes only its own lines")
+
+      assert has_element?(
+               view,
+               "#{diff} [data-op=ins]",
+               "+ - **UX-2** should · judgement · Say why."
+             )
+
+      refute has_element?(view, "#{diff} [data-op=del]")
+
+      view |> element("#suggestion-#{wider.id} button", "Apply") |> render_click()
+      page = Repo.get!(Slipdock.Wiki.Page, ctx.page.id).body
+      assert page =~ "- **UX-1** must · judgement · Design tokens only.\n- **UX-2** should"
+      assert Gardener.get_suggestion(wider.id).state == "applied"
+    end
+
+    test "a proposal on another section shares nothing", ctx do
+      another_proposal(ctx)
+      {:ok, view, _} = tidy(ctx.conn, ctx)
+      refute has_element?(view, "#suggestion-#{ctx.proposal.id}-shared-0")
     end
 
     test "proposals have no Apply all", ctx do

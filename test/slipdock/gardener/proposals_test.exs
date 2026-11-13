@@ -115,6 +115,160 @@ defmodule Slipdock.Gardener.ProposalsTest do
     end
   end
 
+  describe "two proposals on one section (#2772)" do
+    @three """
+    # Shipping
+
+    ## Rules
+
+    - **SHIP-1** must · judgement · Push to main.
+    - **SHIP-2** must · judgement · Run the checks.
+    - **SHIP-3** should · judgement · Say it passed.
+    """
+
+    @first "- **SHIP-1** must · judgement · Push to the card's branch.\n" <>
+             "- **SHIP-2** must · judgement · Run the checks.\n" <>
+             "- **SHIP-3** should · judgement · Say it passed."
+
+    @third "- **SHIP-1** must · judgement · Push to main.\n" <>
+             "- **SHIP-2** must · judgement · Run the checks.\n" <>
+             "- **SHIP-3** must · judgement · Say on the card that it passed."
+
+    defp two_proposals(ctx, first, second) do
+      {:ok, page} = Wiki.create_page(ctx.board, %{"title" => "Shipping", "body" => @three})
+
+      edit =
+        &%{
+          "op" => "edit_section",
+          "page" => page.code,
+          "section" => "Shipping/Rules",
+          "body" => &1
+        }
+
+      {:ok, a, :new} = propose(ctx, [edit.(first)], %{"explanation" => "First"})
+      {:ok, b, :new} = propose(ctx, [edit.(second)], %{"explanation" => "Second"})
+      {page, a, b}
+    end
+
+    defp web_apply(s, ctx), do: Gardener.apply(s, ctx.user, actor: Actor.web(ctx.user))
+
+    test "two that edit different rules both apply, in either order", ctx do
+      for order <- [:first_then_third, :third_then_first] do
+        {page, a, b} = two_proposals(ctx, @first, @third)
+        {one, two} = if order == :first_then_third, do: {a, b}, else: {b, a}
+
+        assert {:ok, %{state: "applied"}} = web_apply(one, ctx)
+        assert {:ok, %{state: "applied"}} = web_apply(two, ctx), "#{order}"
+
+        body = Repo.get!(Page, page.id).body
+        assert body =~ "- **SHIP-1** must · judgement · Push to the card's branch.\n"
+        assert body =~ "- **SHIP-2** must · judgement · Run the checks.\n"
+        assert body =~ "- **SHIP-3** must · judgement · Say on the card that it passed."
+        refute body =~ "Push to main."
+        refute body =~ "Say it passed."
+        assert body =~ "# Shipping\n\n## Rules\n\n- **SHIP-1**"
+      end
+    end
+
+    test "undoing the merged one puts back what the first left", ctx do
+      {page, a, b} = two_proposals(ctx, @first, @third)
+      {:ok, _} = web_apply(a, ctx)
+      after_first = Repo.get!(Page, page.id).body
+      {:ok, applied} = web_apply(b, ctx)
+
+      assert {:ok, %{state: "open"}} =
+               Gardener.undo(applied, ctx.user, actor: Actor.web(ctx.user))
+
+      assert Repo.get!(Page, page.id).body == after_first
+    end
+
+    test "two that change the same rule: the second is refused, naming it", ctx do
+      other = String.replace(@first, "Push to the card's branch.", "Push by pull request.")
+      {page, a, b} = two_proposals(ctx, @first, other)
+      {:ok, _} = web_apply(a, ctx)
+      before = Repo.get!(Page, page.id).body
+
+      assert {:error, message} = web_apply(b, ctx)
+
+      assert message =~
+               "§Shipping/Rules has changed since this was proposed, in lines it changes too"
+
+      assert message =~ "SHIP-1"
+      assert Repo.get!(Page, page.id).body == before
+      assert Gardener.get_suggestion(b.id).state == "open"
+    end
+
+    test "two that each add a rule at the end keep both, the one applied first first", ctx do
+      add =
+        &(String.trim_trailing(@three |> String.split("## Rules\n\n") |> List.last()) <>
+            "\n" <> &1)
+
+      {page, a, b} =
+        two_proposals(
+          ctx,
+          add.("- **SHIP-4** should · judgement · A."),
+          add.("- **SHIP-5** should · judgement · B.")
+        )
+
+      {:ok, _} = web_apply(b, ctx)
+      {:ok, _} = web_apply(a, ctx)
+
+      assert Repo.get!(Page, page.id).body =~
+               "Say it passed.\n- **SHIP-5** should · judgement · B.\n- **SHIP-4** should · judgement · A."
+    end
+
+    test "a proposal filed before base_text was kept merges against the page's history", ctx do
+      {page, a, b} = two_proposals(ctx, @first, @third)
+      old = Enum.map(b.proposal, &Map.delete(&1, "base_text"))
+      b = b |> Ecto.Changeset.change(proposal: old) |> Repo.update!()
+
+      {:ok, _} = web_apply(a, ctx)
+      assert {:ok, %{state: "applied"}} = web_apply(b, ctx)
+      assert Repo.get!(Page, page.id).body =~ "Push to the card's branch."
+      assert Repo.get!(Page, page.id).body =~ "Say on the card that it passed."
+    end
+
+    test "with no base to be found, a stale one is refused as before", ctx do
+      {_page, a, b} = two_proposals(ctx, @first, @third)
+
+      old =
+        Enum.map(
+          b.proposal,
+          &(&1 |> Map.delete("base_text") |> Map.put("base", "0000000000000000"))
+        )
+
+      b = b |> Ecto.Changeset.change(proposal: old) |> Repo.update!()
+      {:ok, _} = web_apply(a, ctx)
+
+      assert {:error, message} = web_apply(b, ctx)
+      assert message =~ "has changed since this was proposed: read it again"
+    end
+
+    test "propose keeps the section it saw as base_text", ctx do
+      {_page, a, _b} = two_proposals(ctx, @first, @third)
+      assert [%{"base_text" => text, "base" => base}] = a.proposal
+      assert text =~ "## Rules\n\n- **SHIP-1** must · judgement · Push to main."
+      assert Steps.section_hash(text) == base
+    end
+
+    test "shared_sections/1 names the open proposals that share a section", ctx do
+      {page, a, b} = two_proposals(ctx, @first, @third)
+      {:ok, c, :new} = propose(ctx, [rules_edit(ctx.page)])
+
+      shared = Gardener.shared_sections([a, b, c])
+      assert shared[a.id] == [%{page: page.id, section: "Shipping/Rules", with: [b.id]}]
+      assert shared[b.id] == [%{page: page.id, section: "Shipping/Rules", with: [a.id]}]
+      refute Map.has_key?(shared, c.id)
+      assert Gardener.shared_sections([a, c]) == %{}
+    end
+
+    test "one proposal with two steps on a section shares it with nobody", ctx do
+      {_page, a, _b} = two_proposals(ctx, @first, @third)
+      twice = %{a | proposal: a.proposal ++ a.proposal}
+      assert Gardener.shared_sections([twice]) == %{}
+    end
+  end
+
   describe "propose/4" do
     test "files an open proposal, its base filled in and its evidence kept", ctx do
       card = card_fixture(ctx.todo, %{"title" => "Evidence"})

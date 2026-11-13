@@ -171,28 +171,7 @@ defmodule SlipdockCLI.Garden do
     |> Enum.each(fn [first | _] = group ->
       IO.puts("#{first["label"] || first["check"]} (#{length(group)})")
 
-      Enum.each(group, fn s ->
-        IO.puts("  " <> line(s))
-        IO.puts("      → " <> steps(s["proposal"], s["pages"]))
-
-        for {name, alt} <- s["alternatives"] || %{},
-            do: IO.puts("      or --choice #{inspect(name)}: " <> steps(alt, s["pages"]))
-
-        if (s["findings"] || []) != [],
-          do:
-            IO.puts("      evidence: findings " <> Enum.map_join(s["findings"], ", ", &"##{&1}"))
-
-        if s["person_only"],
-          do:
-            IO.puts(
-              "      a person's to decide, on the board's Tidy-up page: " <>
-                tidy_url(s["board_id"])
-            )
-
-        if s["needs_keep"],
-          do:
-            IO.puts("      needs --keep: " <> Enum.map_join(s["cards"], " or ", &"##{&1["id"]}"))
-      end)
+      Enum.each(group, &suggestion_lines/1)
     end)
 
     IO.puts(
@@ -201,6 +180,30 @@ defmodule SlipdockCLI.Garden do
         " Apply: slipdock garden apply <id>; dismiss: slipdock garden dismiss <id>" <>
         proposals_footer(suggestions)
     )
+  end
+
+  # One suggestion: its line, its fixes, and what goes with deciding it.
+  defp suggestion_lines(s) do
+    IO.puts("  " <> line(s))
+    IO.puts("      → " <> steps(s["proposal"], s["pages"]))
+
+    for {name, alt} <- s["alternatives"] || %{},
+        do: IO.puts("      or --choice #{inspect(name)}: " <> steps(alt, s["pages"]))
+
+    if (s["findings"] || []) != [],
+      do: IO.puts("      evidence: findings " <> Enum.map_join(s["findings"], ", ", &"##{&1}"))
+
+    if s["person_only"],
+      do:
+        IO.puts(
+          "      a person's to decide, on the board's Tidy-up page: " <>
+            tidy_url(s["board_id"])
+        )
+
+    if s["needs_keep"],
+      do: IO.puts("      needs --keep: " <> Enum.map_join(s["cards"], " or ", &"##{&1["id"]}"))
+
+    for shared <- s["shares_section_with"] || [], do: IO.puts("      " <> shares(shared))
   end
 
   # A proposal isn't decided with the CLI: its footer names the page that does.
@@ -217,6 +220,16 @@ defmodule SlipdockCLI.Garden do
     do: " Last looked over #{String.slice(at, 0, 16)}."
 
   defp last_run(_), do: ""
+
+  @doc false
+  # An open proposal that edits a section another open one does (#2772).
+  def shares(%{"section" => section, "with" => with} = shared) do
+    page = shared["page_code"] || "page #{shared["page"]}"
+
+    "shares §#{section} of #{page} with " <>
+      Enum.map_join(with, ", ", &"##{&1}") <>
+      ": apply one after another, each merged over what the last left"
+  end
 
   @doc false
   def line(s) do

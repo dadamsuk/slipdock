@@ -65,44 +65,57 @@ defmodule SlipdockWeb.GardenLive.Index do
       last_run: Gardener.last_run(board),
       cards: cards(Enum.flat_map(all, &Suggestion.card_ids/1)),
       pages: pages(Enum.flat_map(all, &Suggestion.page_ids/1)),
-      diffs: Map.new(open, &{&1.id, section_diffs(&1.proposal)})
+      diffs: Map.new(open, &{&1.id, section_diffs(Gardener.mergeable(&1.proposal, &1))}),
+      shared: Gardener.shared_sections(open)
     )
   end
 
   # Each edit_section step against the section as the page has it now: its
-  # lines removed and added, or why it can't be shown.
+  # lines removed and added, or why it can't be shown. One whose section has
+  # changed since shows what applying it would do now: its own lines merged
+  # into the section (#2772), or why it would be refused.
   defp section_diffs(steps) do
-    for %{"op" => "edit_section", "page" => id, "section" => path, "body" => body} <- steps do
-      section_diff(Slipdock.Wiki.get_page(id), id, path, body, step_base(steps, id, path))
+    for %{"op" => "edit_section", "page" => id, "section" => path} = step <- steps do
+      section_diff(Slipdock.Wiki.get_page(id), id, path, step)
     end
   end
 
-  defp section_diff(nil, id, path, _body, _base),
+  defp section_diff(nil, id, path, _step),
     do: %{page: id, section: path, lines: [], note: "The page has been deleted."}
 
-  defp section_diff(page, id, path, body, base) do
-    case Slipdock.Wiki.Section.read(page.body, path) do
-      {:ok, now} ->
-        {:ok, after_body, _} = Slipdock.Wiki.Section.replace(page.body, path, body)
-        stale = not is_nil(base) and base != Steps.section_hash(now)
-
+  defp section_diff(page, id, path, step) do
+    case Steps.section_edit(page, step) do
+      {:ok, after_body, how} ->
         %{
           page: id,
           section: path,
           lines: diff_lines(page.body, after_body),
-          note: if(stale, do: "The section has changed since this was proposed.")
+          note:
+            if(how == :merged,
+              do:
+                "The section has changed since this was proposed. " <>
+                  "Applying it now changes only its own lines, as shown."
+            )
         }
 
-      {:error, :not_found} ->
-        %{page: id, section: path, lines: [], note: "The page has no such section now."}
+      {:error, reason} ->
+        lines =
+          case Slipdock.Wiki.Section.replace(page.body, path, step["body"]) do
+            {:ok, after_body, _} -> diff_lines(page.body, after_body)
+            {:error, :not_found} -> []
+          end
+
+        %{page: id, section: path, lines: lines, note: "Applying it would be refused: " <> reason}
     end
   end
 
-  defp step_base(steps, id, path) do
-    Enum.find_value(steps, fn
-      %{"op" => "edit_section", "page" => ^id, "section" => ^path} = step -> step["base"]
-      _ -> nil
-    end)
+  # The open proposals this one shares a section with, in words.
+  defp shared_words(entry, pages) do
+    others = Enum.map_join(entry.with, ", ", &"##{&1}")
+
+    "#{page_name(entry.page, pages)} §#{entry.section} is edited by #{others} too. " <>
+      "Apply them one after another: each changes only its own lines of what the last left, " <>
+      "and is refused only where they change the same lines."
   end
 
   # The changed lines, with a couple of unchanged ones either side.
@@ -494,6 +507,15 @@ defmodule SlipdockWeb.GardenLive.Index do
                 <p :if={not Steps.needs_pick?(s.proposal)} class="text-xs text-base-content/60">
                   → {steps_text(s.proposal, @cards, @pages)}
                 </p>
+
+                <%!-- Proposals that edit the same section (#2772). --%>
+                <.callout
+                  :for={{entry, i} <- Enum.with_index(@shared[s.id] || [])}
+                  id={"suggestion-#{s.id}-shared-#{i}"}
+                  kind={:info}
+                >
+                  {shared_words(entry, @pages)}
+                </.callout>
 
                 <%!-- A section edit: what it changes, against the page as it is now. --%>
                 <div

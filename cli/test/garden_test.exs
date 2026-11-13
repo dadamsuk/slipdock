@@ -203,6 +203,22 @@ defmodule SlipdockCLI.GardenTest do
     refute out =~ "--confirm"
   end
 
+  # #2772: proposals on one section are applied one after another.
+  test "garden <board> says which open proposals share a section" do
+    shared = [
+      %{"page" => 9, "page_code" => "W-3", "section" => "UX & UI/Rules", "with" => [51, 52]}
+    ]
+
+    serve([{200, listing([Map.put(@proposal, "shares_section_with", shared)])}])
+    out = capture_io(fn -> Garden.run("garden", ["ops"], []) end)
+
+    assert out =~
+             "      shares §UX & UI/Rules of W-3 with #51, #52: apply one after another, each merged over what the last left\n"
+
+    serve([{200, listing([@proposal])}])
+    refute capture_io(fn -> Garden.run("garden", ["ops"], []) end) =~ "shares §"
+  end
+
   test "garden propose <board> <file> posts the JSON and says what was filed" do
     file = Path.join(System.get_env("HOME"), "proposal.json")
     body = %{"explanation" => "UX-4 keeps breaking", "steps" => @proposal["proposal"]}
