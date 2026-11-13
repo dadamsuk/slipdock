@@ -68,6 +68,36 @@ defmodule SlipdockWeb.BoardViewOnlyModeLiveTest do
     refute_hidden(html, view, ctx)
   end
 
+  test "a list's snoozed cards are kept to the view too", ctx do
+    {:ok, _} = Slipdock.Snooze.snooze(ctx.hidden, ctx.owner, "next week")
+
+    {:ok, asleep} =
+      Slipdock.Snooze.snooze(
+        card_fixture(hd(ctx.board.columns), %{"title" => "Alpha asleep"}),
+        ctx.owner,
+        "next week"
+      )
+
+    {conn, saved} = share(ctx, "board")
+    col = hd(ctx.board.columns).id
+    {:ok, view, _} = live(conn, ~p"/boards/#{ctx.board}?view=#{saved.id}")
+
+    %{socket: socket} = :sys.get_state(view.pid)
+
+    assert [["Alpha asleep"]] =
+             for(
+               c <- socket.assigns.columns,
+               c.column.id == col,
+               do: Enum.map(c.snoozed, & &1.title)
+             )
+
+    assert has_element?(view, "#snoozed-#{col}", "1 snoozed")
+    view |> element("#snoozed-#{col}") |> render_click()
+    assert has_element?(view, "#snoozed-cards-#{col} #snoozed-card-#{asleep.id}")
+    refute has_element?(view, "#snoozed-card-#{ctx.hidden.id}")
+    refute render(view) =~ "Beta hidden"
+  end
+
   # The live view at `path`, after any redirect or patch its mount makes.
   defp open(conn, path) do
     case live(conn, path) do
