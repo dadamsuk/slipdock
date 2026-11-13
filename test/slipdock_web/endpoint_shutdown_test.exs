@@ -40,16 +40,20 @@ defmodule SlipdockWeb.EndpointShutdownTest do
   test "a server with an open request stops within the configured timeout" do
     timeout = configured_options()[:shutdown_timeout]
 
-    {:ok, server} =
-      Bandit.start_link(
-        plug: {Hang, self()},
-        ip: {127, 0, 0, 1},
-        port: 0,
-        startup_log: false,
-        thousand_island_options: configured_options()
+    # Under the test supervisor (TEST-16), so a failed assertion still stops it.
+    server =
+      start_supervised!(
+        Supervisor.child_spec(
+          {Bandit,
+           plug: {Hang, self()},
+           ip: {127, 0, 0, 1},
+           port: 0,
+           startup_log: false,
+           thousand_island_options: configured_options()},
+          id: :server
+        )
       )
 
-    Process.unlink(server)
     {:ok, {_ip, port}} = ThousandIsland.listener_info(server)
 
     {:ok, socket} = :gen_tcp.connect(~c"127.0.0.1", port, [:binary, active: false])
@@ -60,11 +64,12 @@ defmodule SlipdockWeb.EndpointShutdownTest do
 
     ref = Process.monitor(server)
     started = System.monotonic_time(:millisecond)
-    stopper = Task.async(fn -> GenServer.stop(server, :shutdown, :infinity) end)
+    # Stopped the way its supervisor stops it on a deploy: a `:shutdown` exit,
+    # waited for (Bandit is a supervisor child, so with no time limit).
+    :ok = stop_supervised!(:server)
 
-    assert_receive {:DOWN, ^ref, :process, ^server, _}, @docker_stop_timeout
+    assert_receive {:DOWN, ^ref, :process, ^server, _}, 0
     elapsed = System.monotonic_time(:millisecond) - started
-    Task.await(stopper)
 
     # It waited for the request rather than dropping it at once...
     assert elapsed >= timeout - 250
