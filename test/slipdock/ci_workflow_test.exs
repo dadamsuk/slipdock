@@ -670,9 +670,11 @@ defmodule Slipdock.CiWorkflowTest do
 
       assert has?(
                test_job,
-               ~S|deps="${{ runner.os }}-mix-${{ steps.beam.outputs.elixir-version }}-| <>
-                 ~S|${{ steps.beam.outputs.otp-version }}-${{ hashFiles('**/mix.lock') }}"|
+               ~S|base="${{ runner.os }}-mix-$ws-${{ steps.beam.outputs.elixir-version }}-| <>
+                 ~S|${{ steps.beam.outputs.otp-version }}"|
              )
+
+      assert has?(test_job, ~S|deps="$base-${{ hashFiles('**/mix.lock') }}"|)
 
       assert has?(test_job, ~S|config="$deps-${{ hashFiles('mix.exs', 'config/**') }}"|)
 
@@ -691,11 +693,67 @@ defmodule Slipdock.CiWorkflowTest do
       assert Enum.take(rest, 3) == [
                "${{ steps.keys.outputs.config }}-",
                "${{ steps.keys.outputs.deps }}-",
-               "${{ runner.os }}-mix-${{ steps.beam.outputs.elixir-version }}-" <>
-                 "${{ steps.beam.outputs.otp-version }}-"
+               "${{ steps.keys.outputs.base }}-"
              ]
 
       assert has?(test_job, "- uses: actions/cache/restore@v4")
+    end
+
+    # Mix's compile manifest keeps the checkout's absolute path, so a build
+    # restored onto a runner that checks out elsewhere recompiles whole
+    # (#2901). Every key and restore key starts with that path's hash.
+    test "every layer of the key starts with a hash of the checkout's path" do
+      test_job = job("test")
+
+      assert has?(test_job, ~S[ws=$(printf '%s' "$GITHUB_WORKSPACE" | sha256sum | cut -c1-8)])
+
+      restores =
+        test_job
+        |> Enum.drop_while(&(&1 != "restore-keys: |"))
+        |> Enum.drop(1)
+        |> Enum.take_while(&String.starts_with?(&1, "${{"))
+
+      assert length(restores) == 3
+      refute Enum.any?(restores, &(&1 =~ "runner.os"))
+      refute Enum.any?(test_job, &(&1 =~ ~r/^(deps|config|code)="\$\{\{ runner\.os/))
+    end
+
+    # The step's own script, run as the runner would (the expressions
+    # filled in), for two checkouts and the same one twice.
+    @tag :tmp_dir
+    test "a runner checking out elsewhere shares no key or restore prefix", %{tmp_dir: dir} do
+      {:ok, yaml} = YamlElixir.read_from_file(Path.join(@root, ".github/workflows/ci.yml"))
+      keys = Enum.find(yaml["jobs"]["test"]["steps"], &(&1["id"] == "keys"))
+      script = String.replace(keys["run"], ~r/\$\{\{[^}]*\}\}/, "X")
+
+      outputs = fn workspace ->
+        out = Path.join(dir, "out-#{System.unique_integer([:positive])}")
+        File.write!(out, "")
+
+        {_, 0} =
+          System.cmd("bash", ["-eo", "pipefail", "-c", script],
+            env: [{"GITHUB_WORKSPACE", workspace}, {"GITHUB_OUTPUT", out}]
+          )
+
+        out
+        |> File.read!()
+        |> String.split("\n", trim: true)
+        |> Map.new(&(&1 |> String.split("=", parts: 2) |> List.to_tuple()))
+      end
+
+      one = outputs.("/srv/runner-1/_work/slipdock/slipdock")
+      two = outputs.("/srv/runner-2/_work/slipdock/slipdock")
+
+      assert Map.keys(one) |> Enum.sort() == ["base", "code", "config", "deps"]
+      assert one == outputs.("/srv/runner-1/_work/slipdock/slipdock")
+      assert one["base"] =~ ~r/^X-mix-[0-9a-f]{8}-X-X$/
+
+      for {_, key} <- one, do: assert(String.starts_with?(key, one["base"]))
+
+      for {_, key} <- two do
+        refute String.starts_with?(key, one["base"] <> "-")
+        refute key == one["base"]
+      end
     end
 
     test "backdates mix.exs and config only when the build came from the same ones" do
