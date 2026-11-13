@@ -127,7 +127,14 @@ defmodule Slipdock.LoopSkillSplitTest do
         ~s{"does not choose one": after the preflight "it starts at step 3"}
     )
 
+    # The step number and the skipped steps are pinned exactly:
+    # assert_states doesn't hold a one-digit number as a fact, and this is
+    # the sentence that keeps a single-card job out of picking.md.
+    assert text =~ "it starts at step 3,"
+    assert text =~ "steps 1 to 2b are not its."
+
     assert skill() =~ "\n## 3. Read the card\n"
+    refute skill() =~ ~r/\n## (1|2|2a|2b)\. /
   end
 
   test "no file of the skill points at a reference that is not there" do
