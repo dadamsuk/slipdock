@@ -36,7 +36,8 @@ defmodule Slipdock.Runners.MachineSetupTest do
     assert prompt =~ ~s(`slipdock page section #{code} "#{path}"`)
     assert path == "Testing & tooling/Local setup"
     assert prompt =~ "You are running as the account those jobs run as"
-    assert prompt =~ "curl -fsSL https://slipdock.example.com/install.sh | sh"
+    assert prompt =~ "curl -fsSL https://slipdock.example.com/cli/install.sh | sh"
+    assert prompt =~ "`https://slipdock.example.com/install.sh` is the skills"
 
     for step <- ["1. **Check.**", "2. **Install**", "3. **Prove it.**", "4. **Write back.**"],
         do: assert(prompt =~ step)

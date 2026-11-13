@@ -74,9 +74,10 @@ fields) is still the CLI or the API.
 Everything below is a wrapper around a JSON API, and the API is the fallback: it needs nothing
 but `curl`. Do not tell the user to install the CLI (it is an escript and wants Erlang) —
 use the API, and mention the CLI only if they ask for something nicer to type, or for wiki
-sync, which only the CLI does. On Windows that is one line in PowerShell, from their own
-server: `irm "$B/cli/install.ps1" | iex`, then `slipdock auth`. Elsewhere it is built from
-the repository's `cli/`.
+sync, which only the CLI does. It is one line from their own server, then `slipdock auth`:
+on Linux and macOS `curl -fsSL "$B/cli/install.sh" | sh` (it needs Erlang/OTP 27+ and says
+how to get it; `$B/install.sh`, without `/cli/`, is the skills), on Windows, in PowerShell,
+`irm "$B/cli/install.ps1" | iex`.
 
 ```sh
 B="${SLIPDOCK_URL:-$(cat ~/.config/slipdock/url 2>/dev/null)}"

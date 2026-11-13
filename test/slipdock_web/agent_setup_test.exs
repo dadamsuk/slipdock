@@ -214,6 +214,8 @@ defmodule SlipdockWeb.AgentSetupTest do
       base = SlipdockWeb.Endpoint.url()
 
       assert has_element?(view, "#agent-cli-windows", "irm #{base}/cli/install.ps1 | iex")
+      assert has_element?(view, "#agent-cli-unix", "curl -fsSL #{base}/cli/install.sh | sh")
+      assert has_element?(view, "#agent-cli-section", "installs the skills")
       assert has_element?(view, "#agent-cli-section", "Erlang too, through winget")
       assert has_element?(view, "#agent-cli", "slipdock url #{base}")
     end

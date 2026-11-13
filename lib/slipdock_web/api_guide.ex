@@ -488,9 +488,11 @@ defmodule SlipdockWeb.APIGuide do
 
         irm #{base}/install.ps1 | iex
 
-    The `slipdock` CLI installs on Windows the same way, from here, Erlang and
-    all (elsewhere it is built from the repository's `cli/`):
+    That is the skills. The `slipdock` CLI is `/cli/install.sh` (Linux,
+    macOS; it needs Erlang/OTP 27+ and says how to get it) or, on Windows,
+    `/cli/install.ps1` (Erlang and all):
 
+        curl -fsSL #{base}/cli/install.sh | sh
         irm #{base}/cli/install.ps1 | iex
 
     `401` means no token or a dead one — ask for a new one rather than guessing.

@@ -653,6 +653,21 @@ defmodule SlipdockWeb.HelpLiveTest do
     end
 
     @tag :anonymous
+    test "the CLI's topic page installs it on Linux and macOS from here, apart from the skills",
+         %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/help/agents/cli")
+
+      assert has_element?(
+               view,
+               "#help-cli-unix",
+               ~r{curl -fsSL http://[^ ]+/cli/install\.sh \| sh}
+             )
+
+      assert has_element?(view, "#help-cli-windows", ~r{irm http://[^ ]+/cli/install\.ps1 \| iex})
+      assert has_element?(view, "#help-cli-install", "installs the skills")
+    end
+
+    @tag :anonymous
     test "the CLI's topic page links to it, and the link lands", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/help/agents/cli")
 

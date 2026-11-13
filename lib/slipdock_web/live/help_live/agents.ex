@@ -961,9 +961,25 @@ defmodule SlipdockWeb.HelpLive.Agents do
     </.part>
 
     <.part title="Install it" id="help-cli-install">
+      <p>
+        On Linux and macOS, into <code>~/.local/bin/slipdock</code>. It needs Erlang/OTP 27 or later,
+        and if there is none it says what to install (<code>brew install erlang</code>
+        on a Mac) rather than running anything as root. It checks the download against
+        <code>/cli/SHA256SUMS</code>
+        first, and against the release key's signature when there is one:
+      </p>
+      <.snippet
+        id="help-cli-unix"
+        text={"curl -fsSL #{@base_url}/cli/install.sh | sh\nslipdock auth"}
+      />
+      <p>
+        That is <code>/cli/install.sh</code>, the CLI; <code>/install.sh</code>
+        without <code>/cli/</code>
+        installs the skills.
+      </p>
       <p>On Windows, in PowerShell. This installs Erlang through winget if it isn't already there:</p>
       <.snippet id="help-cli-windows" text={"irm #{@base_url}/cli/install.ps1 | iex\nslipdock auth"} />
-      <p>Elsewhere, build it from the repository (Elixir 1.19 or later):</p>
+      <p>From a checkout, build it from the repository (Elixir 1.19 or later):</p>
       <.snippet
         id="help-cli-build"
         text={"cd cli && mix escript.build && cp slipdock ~/.local/bin/\nslipdock url #{@base_url}\nslipdock auth"}
@@ -1099,7 +1115,7 @@ defmodule SlipdockWeb.HelpLive.Agents do
     <.part title="Install them for Claude Code" id="help-skills-install">
       <p>
         Into <code>~/.claude/skills</code>, on any machine with <code>curl</code>
-        and <code>tar</code>.
+        and <code>tar</code>. This installs the skills only; the CLI is <code>/cli/install.sh</code>.
         This also saves this server's address in <code>~/.config/slipdock/url</code>. It
         doesn't sign anything in.
       </p>

@@ -372,8 +372,8 @@ account's, and the account unpacks them itself (`sudo -n -u`, fed the
 checked archive, with the same guards); its CLI the daemon doesn't write.
 Under the `container` executor and on Windows only a `cli` the local file
 names is replaced. For a CLI the daemon doesn't write, run the install
-one-liner (`/install.sh`, `/install.ps1` on Windows; `/cli/install.ps1`
-for the CLI on Windows) on the machine again, as the account the jobs run
+one-liner (`/install.sh`, `/install.ps1` on Windows, for the skills;
+`/cli/install.sh`, `/cli/install.ps1` on Windows, for the CLI) on the machine again, as the account the jobs run
 as, rather than keep a hand-edited second copy.
 
 **Runners** belong to a board tree and a pool. The board owner makes them.

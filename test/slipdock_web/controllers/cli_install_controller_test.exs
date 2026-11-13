@@ -25,6 +25,73 @@ defmodule SlipdockWeb.CLIInstallControllerTest do
     %{escript: escript}
   end
 
+  describe "GET /cli/install.sh" do
+    test "is a plain-text shell script that installs the CLI from this server", %{conn: conn} do
+      conn = conn |> Map.put(:host, "boards.example") |> get("/cli/install.sh")
+      body = response(conn, 200)
+
+      assert response_content_type(conn, :text) =~ "text/plain"
+      assert body =~ ~r/\A#!\/bin\/sh\n/
+      assert body =~ "BASE='http://boards.example'"
+      assert body =~ "curl -fsSL http://boards.example/cli/install.sh | sh"
+      refute body =~ "__SLIPDOCK_"
+    end
+
+    test "says it is the CLI, and that /install.sh is the skills", %{conn: conn} do
+      body = conn |> get("/cli/install.sh") |> response(200)
+      assert body =~ "The agent skills are a different script, the server's\n# /install.sh"
+    end
+
+    test "carries the release key from release_key.pub, to check a signature", %{conn: conn} do
+      body = conn |> get("/cli/install.sh") |> response(200)
+      key = SlipdockWeb.CLIInstallController.release_key()
+
+      assert key =~ ~r/\Assh-ed25519 [A-Za-z0-9+\/=]+\z/
+      assert body =~ "RELEASE_KEY='#{key}'"
+
+      committed =
+        File.read!(SlipdockWeb.CLIInstallController.release_key_source())
+        |> String.split("\n")
+        |> Enum.find(&String.starts_with?(&1, "ssh-ed25519 "))
+
+      assert String.starts_with?(committed, key <> " ")
+    end
+
+    test "the image copies the key in before it compiles" do
+      [before_compile, _] =
+        String.split(File.read!("Dockerfile"), "\nRUN mix compile\n", parts: 2)
+
+      source = SlipdockWeb.CLIInstallController.release_key_source()
+      assert before_compile =~ ~r/^COPY #{Regex.escape(source)} #{Path.dirname(source)}\/?$/m
+    end
+
+    test "a Host that is not a plain name gets the configured address instead", %{conn: conn} do
+      body =
+        conn
+        |> Map.put(:host, "evil.example'; rm -rf ~")
+        |> get("/cli/install.sh")
+        |> response(200)
+
+      assert body =~ "BASE='#{SlipdockWeb.Endpoint.url()}'"
+      refute body =~ "evil.example"
+    end
+  end
+
+  describe "sh_single_quoted/1" do
+    test "a quote closes the string, gives a quote and opens it again" do
+      assert SlipdockWeb.CLIInstallController.sh_single_quoted("a'b") == ~S(a'\''b)
+
+      assert SlipdockWeb.CLIInstallController.sh_single_quoted("http://x.example") ==
+               "http://x.example"
+    end
+
+    test "what it gives stays one word to sh" do
+      quoted = SlipdockWeb.CLIInstallController.sh_single_quoted("it's'; rm -rf ~ '")
+      {out, 0} = System.cmd("sh", ["-c", "printf %s '#{quoted}'"])
+      assert out == "it's'; rm -rf ~ '"
+    end
+  end
+
   describe "GET /cli/install.ps1" do
     test "is plain text that installs from this server", %{conn: conn} do
       conn = conn |> Map.put(:host, "boards.example") |> get("/cli/install.ps1")
