@@ -113,18 +113,8 @@ defmodule SlipdockWeb.BoardLive.Helpers do
       else: users ++ List.wrap(Slipdock.Accounts.get_user(id))
   end
 
-  def to_int(nil), do: nil
-
-  def to_int(""), do: nil
-
-  def to_int(i) when is_integer(i), do: i
-
-  def to_int(s) when is_binary(s) do
-    case Integer.parse(s) do
-      {i, _} -> i
-      :error -> nil
-    end
-  end
+  @doc "`value` as an integer, or nil: `SlipdockWeb.Params.int/1`, so `\"12abc\"` is nil."
+  defdelegate to_int(value), to: SlipdockWeb.Params, as: :int
 
   def tag_by_id(board, id), do: Enum.find(board.tags, &(&1.id == id))
 

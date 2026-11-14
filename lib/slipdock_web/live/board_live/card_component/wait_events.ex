@@ -15,6 +15,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent.WaitEvents do
   alias Slipdock.Boards
   alias Slipdock.Boards.Card
   alias SlipdockWeb.BoardLive.CardComponent.State
+  alias SlipdockWeb.Params
 
   # Waiting on a person (#1114): answered by a choice's button or in words,
   # one box per question (#1220), skipped, or withdrawn. All need write, as
@@ -86,7 +87,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent.WaitEvents do
     wait = Card.open_wait(card)
 
     with %Slipdock.Boards.Wait{} <- wait,
-         {n, ""} <- Integer.parse(to_string(n)) do
+         n when is_integer(n) <- Params.id(n) do
       if Slipdock.AI.configured?(user) do
         {:noreply,
          socket
@@ -129,7 +130,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent.WaitEvents do
 
   def handle_event("ask_remove", %{"n" => n}, socket) do
     with %{questions: questions} = asking <- socket.assigns.asking,
-         {n, ""} <- Integer.parse(to_string(n)) do
+         n when is_integer(n) <- Params.id(n) do
       {:noreply, assign(socket, asking: %{asking | questions: List.delete_at(questions, n - 1)})}
     else
       _ -> {:noreply, socket}
@@ -176,9 +177,9 @@ defmodule SlipdockWeb.BoardLive.CardComponent.WaitEvents do
     questions =
       (params["questions"] || %{})
       |> Enum.flat_map(fn {n, text} ->
-        case Integer.parse(to_string(n)) do
-          {n, ""} -> [{n, text}]
-          _ -> []
+        case Params.int(n) do
+          nil -> []
+          n -> [{n, text}]
         end
       end)
       |> Enum.sort()

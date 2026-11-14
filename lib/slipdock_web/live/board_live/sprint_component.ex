@@ -375,7 +375,7 @@ defmodule SlipdockWeb.BoardLive.SprintComponent do
          %{"sprint" => id},
          %{assigns: %{sprint_charts: %{velocity: %{} = v} = charts}} = socket
        ) do
-    with {id, ""} <- Integer.parse(id),
+    with id when is_integer(id) <- Params.id(id),
          true <- Enum.any?(v.sprints, &(&1.id == id)),
          %Card{} = sprint <- Boards.Cards.get_card(id) do
       {:noreply,

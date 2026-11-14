@@ -12,6 +12,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent.HandoffEvents do
   import SlipdockWeb.BoardLive.Helpers
 
   alias Slipdock.Boards
+  alias SlipdockWeb.Params
   alias SlipdockWeb.BoardLive.CardComponent.{Glance, State}
 
   # Where it was left (W-1804): anybody who may comment may write it.
@@ -95,7 +96,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent.HandoffEvents do
   def handle_event("restore_handoff", %{"id" => id}, socket) do
     %{card: card, current_user: user} = socket.assigns
 
-    with {id, ""} <- Integer.parse(to_string(id)),
+    with id when is_integer(id) <- Params.id(id),
          %{next_step: next, body: body} when next not in [nil, ""] <-
            Enum.find(Boards.Handoffs.handoff_history(card), &(&1.id == id)),
          {:ok, _} <-

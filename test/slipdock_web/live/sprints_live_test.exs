@@ -313,6 +313,13 @@ defmodule SlipdockWeb.SprintsLiveTest do
     assert has_element?(view, "#burndown-#{two.id}")
     assert render(view) =~ "1 of 2 cards done"
 
+    # #2875: a sprint id that isn't one leaves the charts as they are.
+    for bad <- ["#{one.id}abc", "x", ""] do
+      view |> element("#chart-sprint-form") |> render_change(%{"sprint" => bad})
+      assert has_element?(view, "#velocity-chart")
+      assert has_element?(view, "#burndown-#{two.id}")
+    end
+
     view |> form("#chart-sprint-form", %{"sprint" => "#{one.id}"}) |> render_change()
     refute has_element?(view, "#burndown-#{two.id}")
     assert render(view) =~ "Nothing in this sprint yet"

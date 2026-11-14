@@ -54,4 +54,15 @@ defmodule SlipdockWeb.BadParamsTest do
     assert Params.int("-2") == -2
     assert Params.int("two") == nil
   end
+
+  # #2875: it took "12abc" as 12, where Params.int/1 refuses it.
+  test "BoardLive.Helpers.to_int/1 reads as Params.int/1 does" do
+    alias SlipdockWeb.BoardLive.Helpers
+    assert Helpers.to_int("12") == 12
+    assert Helpers.to_int(" -3 ") == -3
+    assert Helpers.to_int(5) == 5
+    assert Helpers.to_int("12abc") == nil
+    assert Helpers.to_int("") == nil
+    assert Helpers.to_int(nil) == nil
+  end
 end
