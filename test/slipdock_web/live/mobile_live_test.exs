@@ -340,6 +340,56 @@ defmodule SlipdockWeb.MobileLiveTest do
       assert has_element?(view, "#mobile-fab-alert.group-aria-expanded\\:hidden")
     end
 
+    # The dot and the bell's count take the colour of the worst alert waiting
+    # (#3113): each case names the one tint that shows and refutes the others,
+    # so a swapped order in `alert_tint/1` fails here.
+    for {severities, tint, others} <- [
+          {["info"], "bg-info", ["bg-warning", "bg-error"]},
+          {["info", "warning"], "bg-warning", ["bg-info", "bg-error"]},
+          {["warning", "urgent"], "bg-error", ["bg-info", "bg-warning"]}
+        ] do
+      @severities severities
+      @tint tint
+      @others others
+
+      test "the dot and the bell's count are #{tint} for #{Enum.join(severities, " and ")}", %{
+        conn: conn,
+        board: board
+      } do
+        for severity <- @severities do
+          rule_fixture(board, %{
+            "trigger" => %{"type" => "card_created"},
+            "actions" => [%{"type" => "alert", "title" => "Look", "severity" => severity}]
+          })
+        end
+
+        card_fixture(hd(board.columns), %{"title" => "Raises them"})
+
+        {:ok, view, _} = live(phone(conn), ~p"/boards/#{board}")
+        count = "#mobile-dock button[phx-click=toggle_alerts] span.rounded-full"
+
+        assert has_element?(view, "#mobile-fab-alert.#{@tint}.text-#{tint_content(@tint)}")
+
+        assert has_element?(
+                 view,
+                 "#{count}.#{@tint}.text-#{tint_content(@tint)}",
+                 to_string(length(@severities))
+               )
+
+        for other <- @others do
+          refute has_element?(view, "#mobile-fab-alert.#{other}")
+          refute has_element?(view, "#{count}.#{other}")
+        end
+      end
+    end
+
+    test "the bell carries no count when no alert is waiting", %{conn: conn, board: board} do
+      {:ok, view, _} = live(phone(conn), ~p"/boards/#{board}")
+
+      assert has_element?(view, "#mobile-dock button[phx-click=toggle_alerts]")
+      refute has_element?(view, "#mobile-dock button[phx-click=toggle_alerts] span.rounded-full")
+    end
+
     test "the alerts panel opens above the button, not behind it", %{conn: conn, board: board} do
       {:ok, view, _} = live(phone(conn), ~p"/boards/#{board}")
 
@@ -445,6 +495,9 @@ defmodule SlipdockWeb.MobileLiveTest do
   end
 
   # The JS commands an attribute carries, decoded from the rendered element.
+  # "bg-error" pairs with "text-error-content", and so on.
+  defp tint_content("bg-" <> name), do: name <> "-content"
+
   defp js_ops(html, attr) do
     html
     |> LazyHTML.from_fragment()
