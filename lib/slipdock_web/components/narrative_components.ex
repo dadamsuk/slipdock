@@ -357,7 +357,7 @@ defmodule SlipdockWeb.NarrativeComponents do
   defp event_tone(:status), do: "text-amber-600 dark:text-amber-300"
   defp event_tone(_), do: "text-base-content/40"
 
-  defp fmt(d), do: Slipdock.Dates.medium(d)
+  defp fmt(d), do: Dates.long(d)
   defp fmt_at(%DateTime{} = dt), do: Dates.weekday(dt)
 
   defp range_label(from, to) do

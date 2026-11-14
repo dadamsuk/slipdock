@@ -153,6 +153,17 @@ defmodule SlipdockWeb.TimelineComponentsTest do
              |> Enum.any?(&(&1 =~ "max-width"))
     end
 
+    test "a bar's tooltip writes its dates with weekday and year (#2880)", %{board: board} do
+      titles =
+        board
+        |> render_timeline()
+        |> Floki.find("[title]")
+        |> Floki.attribute("title")
+
+      assert "Wide bar\nTue 1 Jan 2030 → Sun 20 Jan 2030" in titles
+      assert "Ship it\nDue Fri 25 Jan 2030" in titles
+    end
+
     test "a title too long for either side is cut to the roomier side's width" do
       board = board_fixture(%{"name" => "Long", "code" => "tllong"})
       [list | _] = board.columns
