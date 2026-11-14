@@ -12,6 +12,7 @@ defmodule SlipdockWeb.AccountLive.MachineRenameLiveTest do
 
   alias Slipdock.{Access, Accounts, Machines}
   alias Slipdock.Runners.MachineRunners
+  alias SlipdockWeb.LiveSettle
 
   @about %{"hostname" => "build-box", "os" => "linux", "arch" => "amd64"}
 
@@ -45,17 +46,7 @@ defmodule SlipdockWeb.AccountLive.MachineRenameLiveTest do
   # (#2953, #2961).
   defp heard(view, ctx, message) do
     assert_receive {^message, machine_id} when machine_id == ctx.machine.id
-    _ = :sys.get_state(view.pid)
-    _ = render(view)
-    view
-  end
-
-  # Nothing went out on the topic, and the view has handled whatever was
-  # sent to it before this.
-  defp settled(view) do
-    _ = :sys.get_state(view.pid)
-    _ = render(view)
-    view
+    LiveSettle.settled(view)
   end
 
   test "a rename over the API reaches an open machine page", ctx do
@@ -119,12 +110,12 @@ defmodule SlipdockWeb.AccountLive.MachineRenameLiveTest do
     refute_received {:config_changed, _}
 
     assert has_element?(
-             settled(page),
+             LiveSettle.settled(page),
              "#machine-rename input#machine-rename-name[value=build-box]"
            )
 
     assert page_title(page) =~ "build-box"
-    assert has_element?(settled(list), "#machine-#{ctx.machine.id}", "build-box")
+    assert has_element?(LiveSettle.settled(list), "#machine-#{ctx.machine.id}", "build-box")
   end
 
   test "the daemon's reports and probes on the machine's topic leave the list alone", ctx do

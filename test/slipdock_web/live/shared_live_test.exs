@@ -165,7 +165,7 @@ defmodule SlipdockWeb.SharedLiveTest do
       refute body =~ "Hidden folder name"
       refute body =~ "Sibling secret"
       refute body =~ "Confidential card title"
-      refute body =~ c.board.code
+      refute SlipdockWeb.PageText.mentions?(body, c.board.code)
 
       rendered =
         c.sharee_conn

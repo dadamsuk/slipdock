@@ -45,19 +45,33 @@ defmodule Slipdock.NothingPersonalTest do
   # (assets/excalidraw/build.sh): minified numbers read as addresses.
   @allowed_dirs ["priv/static/vendor/"]
 
+  # #3150: this read every file once per pattern and split each into lines,
+  # and timed out at ExUnit's 60 s in a CI partition three times slower than
+  # the rest. Now each file is read once, by a task per scheduler, and only a
+  # body that matches a pattern is split into lines. The deadline is the
+  # flaky-test rule for a test whose work grows with the repository
+  # (W-1950 §Tests, "Slow under load"): measured, not raced.
+  @tag timeout: 180_000
   test "no file in this repository carries anything personal" do
     offences =
-      for path <- tracked_files(),
-          path not in @allowed,
-          not Enum.any?(@allowed_dirs, &String.starts_with?(path, &1)),
-          {what, pattern, instead} <- @forbidden,
-          line_number_and_text <- matches(path, pattern) do
-        {line, text} = line_number_and_text
-        "#{path}:#{line}: #{what} — #{instead}\n    #{String.slice(text, 0, 120)}"
-      end
+      tracked_files()
+      |> Enum.reject(
+        &(&1 in @allowed or Enum.any?(@allowed_dirs, fn dir -> String.starts_with?(&1, dir) end))
+      )
+      |> Task.async_stream(&offences_in/1, ordered: true, timeout: :infinity)
+      |> Enum.flat_map(fn {:ok, found} -> found end)
 
     assert offences == [],
            "Something personal is tracked in this repository:\n\n" <> Enum.join(offences, "\n")
+  end
+
+  defp offences_in(path) do
+    body = read_text(Path.join(root(), path))
+
+    for {what, pattern, instead} <- @forbidden,
+        {line, text} <- lines_in(body, pattern) do
+      "#{path}:#{line}: #{what} — #{instead}\n    #{String.slice(text, 0, 120)}"
+    end
   end
 
   test "a file of bytes is skipped, and a text file still reports its lines" do
@@ -96,22 +110,26 @@ defmodule Slipdock.NothingPersonalTest do
     )
   end
 
-  defp matches(path, pattern), do: lines_matching(Path.join(root(), path), pattern)
-
   # A file that isn't UTF-8 is bytes, not prose (a video, an archive): its
   # "lines" match by coincidence, and printing one crashed ExUnit's formatter
   # and lost the whole run's summary (#833).
-  defp lines_matching(full, pattern) do
-    case File.read(full) do
-      {:ok, body} when is_binary(body) ->
-        if String.valid?(body), do: lines_in(body, pattern), else: []
+  defp lines_matching(full, pattern), do: lines_in(read_text(full), pattern)
 
-      _ ->
-        []
+  # The file's text, or "" for one that is missing or isn't UTF-8.
+  defp read_text(full) do
+    case File.read(full) do
+      {:ok, body} -> if String.valid?(body), do: body, else: ""
+      _ -> ""
     end
   end
 
+  # Most files match no pattern: one pass over the whole body says so
+  # without splitting it into lines.
   defp lines_in(body, pattern) do
+    if Regex.match?(pattern, body), do: numbered_lines(body, pattern), else: []
+  end
+
+  defp numbered_lines(body, pattern) do
     body
     |> String.split("\n")
     |> Enum.with_index(1)

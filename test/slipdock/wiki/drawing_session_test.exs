@@ -266,7 +266,7 @@ defmodule Slipdock.Wiki.DrawingSessionTest do
       {:ok, session, _} = DrawingSession.join({:page, page.id}, owner)
 
       DrawingSession.push(session, [el("box1", 2, %{"x" => 1})])
-      assert_receive {:drawing_session, :saved, _}, 1_000
+      assert_receive {:drawing_session, :saved, _}
       assert element(saved_scene(page), "box1")["x"] == 1
     end
 
@@ -279,7 +279,7 @@ defmodule Slipdock.Wiki.DrawingSessionTest do
         Process.sleep(30)
       end
 
-      assert_receive {:drawing_session, :saved, _}, 1_000
+      assert_receive {:drawing_session, :saved, _}
       assert element(saved_scene(page), "box1")["version"] >= 3
     end
 

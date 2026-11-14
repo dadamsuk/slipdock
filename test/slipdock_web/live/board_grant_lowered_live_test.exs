@@ -313,7 +313,7 @@ defmodule SlipdockWeb.BoardGrantLoweredLiveTest do
     # its mailbox: the client then stops without telling the test where the
     # page went, and `assert_redirect/3` sees none. The exit reason always
     # says.
-    assert_receive {:DOWN, ^monitor, :process, _, {:shutdown, {kind, %{to: "/"} = opts}}}, 2000
+    assert_receive {:DOWN, ^monitor, :process, _, {:shutdown, {kind, %{to: "/"} = opts}}}
     assert kind in [:redirect, :live_redirect]
 
     assert Phoenix.LiveView.Utils.verify_flash(SlipdockWeb.Endpoint, opts[:flash]) == %{
