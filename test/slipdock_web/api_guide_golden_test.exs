@@ -54,8 +54,12 @@ defmodule SlipdockWeb.APIGuideGoldenTest do
     owner = Slipdock.Fixtures.user_fixture("guide-golden@example.com")
     {:ok, owner} = owner |> Ecto.Changeset.change(name: "Golden Reader") |> Slipdock.Repo.update()
 
+    # A code of the module's own (TEST-10); `scrub/3` prints it as `golden`.
     board =
-      Slipdock.Fixtures.board_fixture(%{"name" => "Golden", "code" => "golden"}, owner: owner)
+      Slipdock.Fixtures.board_fixture(
+        %{"name" => "Golden", "code" => Slipdock.Fixtures.unique_code()},
+        owner: owner
+      )
 
     {:ok, board} =
       Slipdock.Boards.update_board(board, %{
@@ -72,8 +76,8 @@ defmodule SlipdockWeb.APIGuideGoldenTest do
     {owner, board}
   end
 
-  # What a fresh database hands out (the ids, the fixture's unique email),
-  # as placeholders. Only in the board's own lines: the guide's examples
+  # What a fresh database hands out (the ids, the board's unique code, the
+  # fixture's unique email), as placeholders. Only in the board's own lines: the guide's examples
   # have ids of their own (`(#57)`), which a list or board given the same
   # number must not take with it (#2925).
   defp scrub(text, owner, board) do
@@ -82,6 +86,7 @@ defmodule SlipdockWeb.APIGuideGoldenTest do
       String.replace(acc, "“#{col.name}” (##{col.id})", "“#{col.name}” (#COLUMN)")
     end)
     |> String.replace("**##{board.id} #{board.name}**", "**#BOARD #{board.name}**")
+    |> String.replace("#{board.name}** (`#{board.code}`)", "#{board.name}** (`golden`)")
     |> String.replace(owner.email, "reader@example.com")
   end
 
@@ -135,7 +140,7 @@ defmodule SlipdockWeb.APIGuideGoldenTest do
     guide = APIGuide.short(base_url: @base, user: owner)
 
     assert guide =~ "## Your boards right now"
-    assert guide =~ "- **##{board.id} Golden** (`golden`)"
+    assert guide =~ "- **##{board.id} Golden** (`#{board.code}`)"
     refute guide =~ "A Housekeeping list comes last"
 
     # The whole guide is where that note is, for the same reader.

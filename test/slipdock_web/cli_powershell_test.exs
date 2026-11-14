@@ -52,11 +52,15 @@ defmodule SlipdockWeb.CLIPowerShellTest do
   end
 
   defp serve(plug) do
-    {:ok, server} =
-      Bandit.start_link(plug: plug, ip: {127, 0, 0, 1}, port: 0, startup_log: false)
+    # Under the test's supervisor (TEST-16), which stops it when the test
+    # ends; the id lets a test start a second one beside setup's.
+    server =
+      start_supervised!(
+        {Bandit, plug: plug, ip: {127, 0, 0, 1}, port: 0, startup_log: false},
+        id: {Bandit, plug}
+      )
 
     {:ok, {_ip, port}} = ThousandIsland.listener_info(server)
-    on_exit(fn -> Process.exit(server, :normal) end)
     "http://127.0.0.1:#{port}"
   end
 
