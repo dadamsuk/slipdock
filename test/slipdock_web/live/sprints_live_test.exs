@@ -102,8 +102,16 @@ defmodule SlipdockWeb.SprintsLiveTest do
   test "the open sprint card offers Add cards…", %{conn: conn, sprints: sprints} do
     {:ok, sprint} = Sprints.create_sprint(sprints)
     {:ok, view, _} = live(conn, ~p"/boards/#{sprints}/cards/#{sprint.id}")
+    assert has_element?(view, "#card-modal")
     view |> element("#card-sprint-add-cards") |> render_click()
     assert has_element?(view, "#sprint-picker")
+
+    # The board is told the picker opened, and the card stands aside for it;
+    # told it closed, and the card comes back (#2893).
+    refute has_element?(view, "#card-modal")
+    view |> with_target("#board-sprints") |> render_hook("close_sprint_picker", %{})
+    refute has_element?(view, "#sprint-picker")
+    assert has_element?(view, "#card-modal")
   end
 
   test "a board is made a sprint board in its settings", %{conn: conn, work: work} do

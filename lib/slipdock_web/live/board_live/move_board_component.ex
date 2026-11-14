@@ -30,6 +30,7 @@ defmodule SlipdockWeb.BoardLive.MoveBoardComponent do
 
   alias Slipdock.{Access, Boards, Palette}
   alias Slipdock.Boards.Board
+  alias SlipdockWeb.BoardLive.PanelGuard
   alias SlipdockWeb.Params
 
   @events ~w(open_move_board close_move_board move_board_filter move_board_first
@@ -52,14 +53,14 @@ defmodule SlipdockWeb.BoardLive.MoveBoardComponent do
      )}
   end
 
-  @impl true
-  def handle_event(event, params, socket) when event in @events do
-    {:noreply, socket} = event(event, params, clear_notice(socket))
-    {:noreply, tell_moving(socket)}
-  end
-
-  def handle_event(_event, _params, socket),
-    do: {:noreply, notice(socket, :error, "That isn't something this page can do.")}
+  # Each event checks the card and board it names itself. The card panel
+  # stands aside while the picker is open, so the board is told when it
+  # opens and closes.
+  use SlipdockWeb.BoardLive.PanelGuard,
+    events: @events,
+    prepare: &clear_notice/1,
+    say: :notice,
+    after: &PanelGuard.tell_board(&1, :move_board, :moving, :moving_board)
 
   # Both ends asked again, of the database (#2999): the picker was opened by a
   # writer of the card, and can sit open while that is taken away; the
@@ -77,14 +78,6 @@ defmodule SlipdockWeb.BoardLive.MoveBoardComponent do
       true ->
         nil
     end
-  end
-
-  # The card panel stands aside while the picker is open, so the board is
-  # told when it opens and closes.
-  defp tell_moving(socket) do
-    moving = not is_nil(socket.assigns.move_board)
-    if moving != socket.assigns.moving, do: send(self(), {:moving_board, moving})
-    assign(socket, moving: moving)
   end
 
   defp event("open_move_board", %{"id" => id}, socket) do

@@ -326,6 +326,18 @@ defmodule SlipdockWeb.OverseerTest do
       refute has_element?(view, "#overseer-form")
       refute has_element?(view, "#overseer-save")
     end
+
+    test "an event the panel doesn't take is refused, and changes nothing (#2893)",
+         %{conn: conn} = ctx do
+      {:ok, view, _} = live(conn, ~p"/boards/#{ctx.board}/automations")
+
+      view
+      |> with_target("#board-overseer")
+      |> render_hook("drop_everything", %{"overseer" => %{"enabled" => "true"}})
+
+      assert has_element?(view, "#overseer-notice", "That isn't something this page can do.")
+      refute Overseer.settings(ctx.board).enabled
+    end
   end
 
   describe "a reader of just a sub-board" do

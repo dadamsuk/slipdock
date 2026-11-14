@@ -24,6 +24,8 @@ defmodule SlipdockWeb.BoardLive.ArchiveComponent do
   alias Slipdock.{Access, Boards}
 
   @events ~w(filter_archived restore_card delete_archived)
+  # Looking is reading, so searching is open to read-only access too.
+  @write_events @events -- ~w(filter_archived)
 
   @doc false
   # For the test that every `handle_event/3` clause is in the list.
@@ -57,7 +59,11 @@ defmodule SlipdockWeb.BoardLive.ArchiveComponent do
   defp assign_access(socket) do
     %{board: board, current_user: user} = socket.assigns
     perm = Access.board_permission(user, board)
-    assign(socket, reader?: Access.can_read?(perm), can_write: Access.can_write?(perm))
+    reader? = Access.can_read?(perm)
+    socket = assign(socket, reader?: reader?, can_write: Access.can_write?(perm))
+
+    # A reader who has lost the board since the panel opened keeps no list.
+    if reader?, do: socket, else: assign(socket, archived: [])
   end
 
   defp list_archived(%{assigns: %{reader?: false}} = socket), do: assign(socket, archived: [])
@@ -68,29 +74,18 @@ defmodule SlipdockWeb.BoardLive.ArchiveComponent do
         archived: Boards.Cards.list_archived_cards(socket.assigns.board.id, socket.assigns.query)
       )
 
-  @impl true
-  def handle_event(event, params, socket),
-    do: dispatch(event, params, socket |> clear_notice() |> assign_access())
+  use SlipdockWeb.BoardLive.PanelGuard,
+    events: @events,
+    access: &assign_access/1,
+    prepare: &clear_notice/1,
+    refusals: [
+      {:reader?, false, :all, "You don't have access to this board's archive."},
+      {:can_write, false, @write_events, :read_only}
+    ],
+    say: :notice
 
-  defp dispatch(event, _params, socket) when event not in @events,
-    do: {:noreply, notice(socket, :error, "That isn't something this page can do.")}
-
-  # A reader who has lost the board since the panel opened keeps no list.
-  defp dispatch(_event, _params, %{assigns: %{reader?: false}} = socket) do
-    {:noreply,
-     socket
-     |> list_archived()
-     |> notice(:error, "You don't have access to this board's archive.")}
-  end
-
-  # Looking is reading, so searching is open to read-only access too.
-  defp dispatch("filter_archived", %{"q" => q}, socket),
+  defp event("filter_archived", %{"q" => q}, socket),
     do: {:noreply, socket |> assign(query: q) |> list_archived()}
-
-  defp dispatch(_event, _params, %{assigns: %{can_write: false}} = socket),
-    do: {:noreply, notice(socket, :error, "You have read-only access to this board.")}
-
-  defp dispatch(event, params, socket), do: event(event, params, socket)
 
   defp event("restore_card", %{"id" => id}, socket) do
     case Boards.Cards.get_archived_card(socket.assigns.board.id, id) do

@@ -24,6 +24,7 @@ defmodule SlipdockWeb.BoardLive.SprintComponent do
 
   alias Slipdock.{Access, Boards, Palette, Sprints}
   alias Slipdock.Boards.{Board, Card}
+  alias SlipdockWeb.BoardLive.PanelGuard
   alias SlipdockWeb.Params
 
   @events ~w(open_new_sprint close_new_sprint create_sprint open_sprint_picker close_sprint_picker
@@ -61,25 +62,14 @@ defmodule SlipdockWeb.BoardLive.SprintComponent do
     )
   end
 
-  @impl true
-  def handle_event(event, params, socket) when event in @events do
-    {:noreply, socket} = event(event, params, assign_access(socket))
-    {:noreply, tell_picking(socket)}
-  end
-
-  def handle_event(_event, _params, socket),
-    do: {:noreply, flash(socket, :error, "That isn't something this page can do.")}
-
-  # The card panel stands aside while the picker is open (see the board's
-  # render), so the board is told when it opens and closes.
-  defp tell_picking(socket) do
-    picking = not is_nil(socket.assigns.sprint_picker)
-
-    if picking != socket.assigns.picking,
-      do: send(self(), {:sprint_picking, picking})
-
-    assign(socket, picking: picking)
-  end
+  # Each event asks for what it needs itself (write on the sprint, read on
+  # the board). The card panel stands aside while the picker is open (see
+  # the board's render), so the board is told when it opens and closes.
+  use SlipdockWeb.BoardLive.PanelGuard,
+    events: @events,
+    access: &assign_access/1,
+    say: :flash,
+    after: &PanelGuard.tell_board(&1, :sprint_picker, :picking, :sprint_picking)
 
   # On a sprint board (`Board.sprints?/1`) New sprint makes the next sprint
   # card, and Add cards… on a sprint opens a picker over the boards the person

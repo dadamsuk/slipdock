@@ -263,13 +263,21 @@ defmodule SlipdockWeb.TagsLiveTest do
       assert has_element?(view, "#board-tags fieldset[disabled] #tag-form")
     end
 
-    test "can't rename, and is told so in the panel", ctx do
+    test "can't rename, is told so in the panel, and the saved name comes back", ctx do
       view = open(ctx.reader_conn, ctx.board)
+      %{proxy: {ref, _topic, _}} = view
 
       render_hook(panel(view), "rename_tag", %{"tag_id" => "#{ctx.urgent.id}", "name" => "mine"})
-      assert_reply(view, %{ok: false})
 
+      # Refused like every panel's read-only write, with no reply (#2893):
+      # the name box's hook reads no reply as a refusal and puts back the
+      # saved name, which the box still holds.
+      refute_received {^ref, {:reply, _}}
       assert has_element?(view, "#tags-error", "read-only")
+      assert has_element?(view, ~s(#tag-row-#{ctx.urgent.id} input[data-name="urgent"]))
+      # The hook is compiled out of the page, so it is read from its source.
+      source = SlipdockWeb.BoardLive.TagsComponent.module_info(:compile)[:source]
+      assert File.read!(source) =~ "reply = reply || {}"
       assert Repo.get!(Tag, ctx.urgent.id).name == "urgent"
     end
 

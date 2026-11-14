@@ -83,19 +83,13 @@ defmodule SlipdockWeb.BoardLive.AutomationsComponent do
 
   ## Events ------------------------------------------------------------------
 
-  @impl true
-  def handle_event(event, _params, socket) when event not in @events do
-    {:noreply, flash(socket, :error, "That isn't something this page can do.")}
-  end
-
   # Who owns the board is read again before the guard (#2998): `update/2`
   # runs only when the board hands the panel something new.
-  def handle_event(event, params, socket),
-    do: event(event, params, LiveAccess.refresh_owner(socket))
-
-  defp event(_event, _params, %{assigns: %{can_manage: false}} = socket) do
-    {:noreply, flash(socket, :error, "Only the board's owner can do that.")}
-  end
+  use SlipdockWeb.BoardLive.PanelGuard,
+    events: @events,
+    access: &LiveAccess.refresh_owner/1,
+    refusals: [{:can_manage, false, :all, :owner}],
+    say: :flash
 
   defp event("rule_change", %{"text" => text}, socket),
     do: {:noreply, assign(socket, rule_text: text)}

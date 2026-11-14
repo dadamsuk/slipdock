@@ -359,6 +359,19 @@ defmodule SlipdockWeb.PanelGrantLoweredLiveTest do
       refute has_element?(view, "#page-panel")
     end
 
+    test "the page panel still closes the page it no longer shows", ctx do
+      page = page_fixture(ctx.board, %{"title" => "Placed page"}, user: ctx.owner)
+      {:ok, _} = Wiki.place(page, ctx.column)
+      {:ok, view, _} = live(as(ctx.writer), ~p"/boards/#{ctx.board}?#{[page: page.id]}")
+
+      Repo.delete_all(from(g in Grant, where: g.user_id == ^ctx.writer.id))
+      view |> with_target("#board-page") |> render_hook("page_change", %{"page" => %{}})
+      refute has_element?(view, "#page-panel")
+
+      view |> with_target("#board-page") |> render_hook("close_page", %{})
+      assert_patch(view, ~p"/boards/#{ctx.board}")
+    end
+
     test "the archive panel searches nothing", ctx do
       {:ok, gone} = Boards.Cards.archive_card(card_fixture(ctx.column, %{"title" => "Gone"}))
       {:ok, view, _} = live(as(ctx.writer), ~p"/boards/#{ctx.board}/archive")
@@ -372,6 +385,71 @@ defmodule SlipdockWeb.PanelGrantLoweredLiveTest do
 
       assert render(view) =~ "You don&#39;t have access to this board&#39;s archive."
       refute has_element?(view, "#archived-#{gone.id}")
+    end
+  end
+
+  # The card panel's gate, given its reader directly: the board never makes
+  # an owner's card unwritable, and a card gone from sight shows no panel to
+  # say anything in.
+  describe "the card panel's gate" do
+    alias SlipdockWeb.BoardLive.CardComponent
+
+    setup ctx do
+      card = card_fixture(ctx.column, %{"title" => "Shared card"})
+      %{card: card}
+    end
+
+    defp card_socket(ctx, assigns) do
+      %Phoenix.LiveView.Socket{
+        assigns:
+          Map.merge(
+            %{
+              __changed__: %{},
+              card: ctx.card,
+              groups: [],
+              current_user: ctx.owner,
+              can_write: false,
+              can_comment: false,
+              can_share: false,
+              panel_notice: nil
+            },
+            Map.new(assigns)
+          )
+      }
+    end
+
+    # Sharing has its own rule (the board's owner, or anybody who can edit
+    # the card), so the read-only refusal leaves a sharer's events alone.
+    test "lets a reader who may share but not change the card share and revoke", ctx do
+      socket = card_socket(ctx, can_share: true)
+
+      {:noreply, s} =
+        CardComponent.handle_event("share", %{"level" => "read", "email" => ""}, socket)
+
+      assert s.assigns.panel_notice == {:error, "Enter an email address or pick a group."}
+
+      other = Repo.get_by!(Grant, user_id: ctx.writer.id)
+      {:noreply, s} = CardComponent.handle_event("revoke_grant", %{"id" => "#{other.id}"}, socket)
+      assert s.assigns.panel_notice == {:error, "Couldn't remove that access."}
+
+      {:noreply, s} =
+        CardComponent.handle_event("card_change", %{"card" => %{"title" => "x"}}, socket)
+
+      assert s.assigns.panel_notice == {:error, "You have read-only access to this card."}
+    end
+
+    test "does nothing and says nothing to an event on a card gone from sight", ctx do
+      socket = card_socket(ctx, card: nil)
+
+      for {event, params} <- [
+            {"card_change", %{"card" => %{"title" => "x"}}},
+            {"share", %{"level" => "read", "email" => ""}},
+            {"add_comment", %{"body" => "x"}},
+            {"dep_search", %{"q" => "x"}}
+          ] do
+        assert {:noreply, s} = CardComponent.handle_event(event, params, socket)
+        assert s.assigns == socket.assigns
+      end
     end
   end
 

@@ -276,7 +276,7 @@ defmodule SlipdockWeb.PagesGrantLoweredLiveTest do
              "Only the board&#39;s owner can do that."},
             {"#board-runners", "open_wizard", %{}, "Only the board&#39;s owner can do that."},
             {"#board-overseer", "save", %{"overseer" => %{"enabled" => "true"}},
-             "Only the board&#39;s owner can change the overseer."}
+             "Only the board&#39;s owner can do that."}
           ] do
         ctx = put_board_back(ctx)
         {:ok, view, _} = live(as(ctx.owner), ~p"/boards/#{ctx.board}/automations")

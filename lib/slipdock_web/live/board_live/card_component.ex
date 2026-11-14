@@ -226,28 +226,19 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
 
   ## Events ------------------------------------------------------------------
 
-  @impl true
-  def handle_event(event, _params, socket) when event not in @events,
-    do: {:noreply, notice(socket, :error, "That isn't something this page can do.")}
-
-  def handle_event(event, params, socket),
-    do: guarded(event, params, State.assign_access(socket))
-
-  defp guarded(_event, _params, %{assigns: %{card: nil}} = socket), do: {:noreply, socket}
-
-  defp guarded(event, _params, %{assigns: %{can_share: false}} = socket)
-       when event in @share_events,
-       do: {:noreply, notice(socket, :error, "You can't share that.")}
-
-  defp guarded(event, params, %{assigns: %{can_comment: true}} = socket)
-       when event in @comment_events,
-       do: dispatch(event, params, clear_notice(socket))
-
-  defp guarded(event, _params, %{assigns: %{can_write: false}} = socket)
-       when event not in @read_events and event not in @share_events,
-       do: {:noreply, notice(socket, :error, read_only_message(socket))}
-
-  defp guarded(event, params, socket), do: dispatch(event, params, clear_notice(socket))
+  # A card gone from the reader's sight takes nothing; a commenter's events
+  # pass before the read-only refusal would stop them.
+  use SlipdockWeb.BoardLive.PanelGuard,
+    events: @events,
+    access: &State.assign_access/1,
+    refusals: [
+      {:card, nil, :all, :quiet},
+      {:can_share, false, @share_events, "You can't share that."},
+      {:can_comment, true, @comment_events, :pass},
+      {:can_write, false, {:except, @read_events ++ @share_events}, &read_only_message/1}
+    ],
+    say: :notice,
+    then: :dispatch
 
   # Auto generate's draft (#1099), into the form if it is still open.
   @impl true
@@ -303,6 +294,8 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
   # One of the panel's own goes to the module that names it; the rest are the
   # shared sections' (`BoardLive.ItemEvents`), which act on the card as `item`.
   defp dispatch(event, params, socket) do
+    socket = clear_notice(socket)
+
     case Enum.find(@event_modules, &Enum.member?(&1.events(), event)) do
       nil -> ItemEvents.handle(event, params, State.with_item(socket), &State.reload/1)
       module -> module.handle_event(event, params, socket)
