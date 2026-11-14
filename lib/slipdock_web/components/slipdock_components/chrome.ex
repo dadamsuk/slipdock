@@ -300,6 +300,55 @@ defmodule SlipdockWeb.SlipdockComponents.Chrome do
     """
   end
 
+  attr :sort, :string, required: true, doc: "the sort key the heading asks for"
+  attr :label, :string, required: true
+
+  attr :config, Slipdock.Swimlanes.Config,
+    required: true,
+    doc: "the view's config: its sort and dir"
+
+  @doc """
+  A column heading that sorts a board view by its column (#2892): the table's
+  and Prioritise's.
+
+  It pushes `table_sort` with its key. The sorted column is marked
+  `text-primary` and carries the arrow of its direction.
+
+  It is a real `<button type="button">`, so it must not sit in a `<fieldset>`
+  disabled for a reader: a reader may still sort. The table disables each
+  cell's controls instead of the whole table.
+  """
+  def sort_header(assigns) do
+    assigns =
+      assign(assigns,
+        sorted: assigns.config.sort == assigns.sort,
+        class: [
+          "inline-flex cursor-pointer items-center gap-1 uppercase hover:text-base-content",
+          assigns.config.sort == assigns.sort && "text-primary"
+        ]
+      )
+
+    ~H"""
+    <button
+      type="button"
+      class={@class}
+      phx-click="table_sort"
+      phx-value-sort={@sort}
+      title={"Sort by #{@label}"}
+    >
+      {@label}<.sort_arrow :if={@sorted} dir={@config.dir} />
+    </button>
+    """
+  end
+
+  attr :dir, :string, required: true
+
+  defp sort_arrow(assigns) do
+    ~H"""
+    <.icon name={if @dir == "asc", do: "hero-arrow-up", else: "hero-arrow-down"} class="size-3" />
+    """
+  end
+
   # The filters hide everything, the board is empty, or (nil) cards are shown
   # and the view's own line says why none is drawn.
   defp view_empty_message(0, hidden) when hidden > 0, do: @view_empty_filtered

@@ -46,6 +46,9 @@ defmodule SlipdockWeb.SlipdockComponents do
   @doc "A priority as signal bars, with a tooltip naming it (\"Priority: High\")."
   defdelegate priority_badge(assigns), to: Marks
 
+  @doc "A card's priority as a select that saves on change: the `table_update` form of Table and Prioritise."
+  defdelegate priority_select(assigns), to: Marks
+
   @doc false
   defdelegate flags(), to: Marks
 
@@ -230,6 +233,9 @@ defmodule SlipdockWeb.SlipdockComponents do
 
   @doc "What a board view shows with nothing to draw: why, and a Clear filters button when a filter is set."
   defdelegate view_empty(assigns), to: Chrome
+
+  @doc "A column heading that sorts a board view by its column (`table_sort`), marked when it is the sorted one."
+  defdelegate sort_header(assigns), to: Chrome
 
   @doc false
   defdelegate view_tabs_list(), to: Chrome

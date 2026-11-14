@@ -393,6 +393,31 @@ defmodule SlipdockWeb.TableViewLiveTest do
       assert Boards.Cards.get_card!(card.id).priority != "critical"
     end
 
+    test "a reader still sorts: the heading is a real button outside every disabled fieldset",
+         %{conn: conn, board: board, card: card} do
+      {:ok, view, _} = live(conn, ~p"/boards/#{board}/table")
+
+      assert has_element?(view, "#card-table thead button[type=button][phx-value-sort=title]")
+      refute has_element?(view, "fieldset[disabled] thead")
+      refute has_element?(view, "thead [role=button]")
+
+      # The cells' controls are still disabled for a reader.
+      assert has_element?(view, "#row-all-#{card.id} td fieldset[disabled]")
+
+      view |> element("thead button[phx-value-sort=title]") |> render_click()
+      assert_patch(view, ~p"/boards/#{board}/table?sort=title")
+      assert has_element?(view, "thead button[phx-value-sort=title].text-primary .hero-arrow-up")
+    end
+
+    test "a writer's cells are not disabled", %{conn: conn} do
+      board = board_fixture(%{"name" => "Mine"})
+      card = card_fixture(hd(board.columns), %{"title" => "Touch me"})
+
+      {:ok, view, _} = live(conn, ~p"/boards/#{board}/table")
+      assert has_element?(view, "#row-all-#{card.id} td fieldset")
+      refute has_element?(view, "fieldset[disabled]")
+    end
+
     test "an empty board offers no add row either", %{conn: conn, user: user} do
       owner = user_fixture("empty-owner@example.com")
       board = board_fixture(%{"name" => "Empty theirs"}, owner: owner)
@@ -429,6 +454,7 @@ defmodule SlipdockWeb.TableViewLiveTest do
       refute has_element?(view, "#card-table button[phx-click=swim_toggle_row]")
       assert has_element?(view, "form#table-add")
 
+      assert has_element?(view, "#prio-#{a.id} select[aria-label=Priority]")
       view |> form("#prio-#{a.id}", %{"value" => "low"}) |> render_change()
       assert Boards.Cards.get_card!(a.id).priority == "low"
     end
@@ -500,7 +526,7 @@ defmodule SlipdockWeb.TableViewLiveTest do
       {:ok, view, _} = live(conn, ~p"/boards/#{board}/table")
 
       thead = render(element(view, "#card-table thead"))
-      label = ~r/<th[^>]*>.*?<span[^>]*>\s*([^<\s][^<]*?)\s*</s
+      label = ~r/<th[^>]*>.*?<(?:span|button)[^>]*>\s*([^<\s][^<]*?)\s*</s
 
       headers =
         Regex.scan(label, thead, capture: :all_but_first)
