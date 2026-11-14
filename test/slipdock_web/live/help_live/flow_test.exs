@@ -32,18 +32,12 @@ defmodule SlipdockWeb.HelpLive.FlowTest do
   # under load (seed 711914 in `mix pre_push`'s repo checks, #2828) the first
   # join here was, though nothing on the page or its hooks redirects. Such a
   # refusal is tried once more; a page that really sends itself to itself is
-  # refused again, and the caller's `{:ok, …}` match fails as before. The
-  # mount is an argument so "mounting it" below can hold that with a stand-in.
+  # refused again, and the caller's `{:ok, …}` match fails as before
+  # (`SlipdockWeb.LiveMount`, shared since #3163). The mount is an argument
+  # so "mounting it" below can hold that with a stand-in.
   defp live_flow(conn, mount \\ &live/2) do
     path = ~p"/help/agents/flow"
-
-    case mount.(conn, path) do
-      {:error, {:redirect, %{to: to}}} = refused ->
-        if URI.parse(to).path == path, do: mount.(conn, path), else: refused
-
-      mounted ->
-        mounted
-    end
+    SlipdockWeb.LiveMount.retry_refused(path, fn -> mount.(conn, path) end)
   end
 
   defp doc(html), do: LazyHTML.from_document(html)

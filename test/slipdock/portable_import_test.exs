@@ -382,7 +382,7 @@ defmodule Slipdock.PortableImportTest do
       refute new_target.code == target.code
       assert overview.body == "See [[#{new_target.code}]] for the detail."
       # And the old code is gone from it, rather than both being present.
-      refute overview.body =~ target.code
+      refute SlipdockWeb.PageText.mentions?(overview.body, target.code)
     end
 
     test "prose that merely contains the letters is left alone" do

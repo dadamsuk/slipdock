@@ -22,6 +22,7 @@ defmodule SlipdockWeb.PanelGrantLoweredLiveTest do
   alias Slipdock.{Access, Boards, Repo, Sprints, Wiki}
   alias Slipdock.Access.Grant
   alias Slipdock.Boards.{Card, Tag}
+  alias SlipdockWeb.LiveSettle
 
   setup %{user: owner} do
     board = board_fixture(%{"name" => "Lowered"}, owner: owner)
@@ -244,7 +245,7 @@ defmodule SlipdockWeb.PanelGrantLoweredLiveTest do
 
     test "go once the grant is lowered to read and the board told", ctx do
       lower(:told, ctx)
-      settle(ctx.view)
+      LiveSettle.settled(ctx.view)
 
       refute has_element?(ctx.view, "#attach-form")
       assert has_element?(ctx.view, "#card-modal", "Open card")
@@ -252,7 +253,7 @@ defmodule SlipdockWeb.PanelGrantLoweredLiveTest do
 
     test "go once the grant is lowered to comment and the board told", ctx do
       lower(:told, ctx, ctx.board, "comment")
-      settle(ctx.view)
+      LiveSettle.settled(ctx.view)
 
       refute has_element?(ctx.view, "#attach-form")
       assert has_element?(ctx.view, "#card-modal", "Open card")
@@ -260,7 +261,7 @@ defmodule SlipdockWeb.PanelGrantLoweredLiveTest do
 
     test "stay while the board hands over the same card to a writer", ctx do
       send(ctx.view.pid, {:board_changed, ctx.board.id})
-      settle(ctx.view)
+      LiveSettle.settled(ctx.view)
 
       assert has_element?(ctx.view, "#attach-form")
     end
@@ -278,7 +279,7 @@ defmodule SlipdockWeb.PanelGrantLoweredLiveTest do
         access_changed: ctx.card.id + 1
       )
 
-      settle(ctx.view)
+      LiveSettle.settled(ctx.view)
 
       assert Process.alive?(ctx.view.pid)
       assert has_element?(ctx.view, "#attach-form")
@@ -506,11 +507,6 @@ defmodule SlipdockWeb.PanelGrantLoweredLiveTest do
       assert [%Tag{name: "allowed"}] = Repo.all(Tag)
     end
   end
-
-  # The board reloads on the news and sends the panel an update, which it
-  # takes after the reload: one render waits out the reload, so the next
-  # look comes after the update.
-  defp settle(view), do: render(view)
 
   defp sprint_board(ctx) do
     {:ok, template} = Boards.Templates.find_template(nil, "Sprint planning")

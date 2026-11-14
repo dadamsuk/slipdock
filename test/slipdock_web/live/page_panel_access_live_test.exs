@@ -9,9 +9,11 @@ defmodule SlipdockWeb.PagePanelAccessLiveTest do
 
   import Phoenix.LiveViewTest
   import Slipdock.Fixtures
+  import SlipdockWeb.LiveMount
 
   alias Slipdock.{Access, Boards, Wiki}
   alias Slipdock.Swimlanes.Config
+  alias SlipdockWeb.PageText
 
   setup %{user: owner} do
     board = board_fixture(%{"name" => "Panelled"}, owner: owner)
@@ -35,14 +37,16 @@ defmodule SlipdockWeb.PagePanelAccessLiveTest do
 
   defp refute_panel(view, page) do
     refute has_element?(view, "#page-panel")
-    refute render(view) =~ page.code
+    # #3146: the page's code in what a person reads, not the whole HTML,
+    # whose session tokens can hold "W-31" by chance.
+    PageText.refute_mentions(view, page.code)
   end
 
   test "the owner sees the panel for a placed page and a draft", ctx do
-    {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}?#{[page: ctx.page.id]}")
+    {:ok, view, _} = mount_live(ctx.conn, ~p"/boards/#{ctx.board}?#{[page: ctx.page.id]}")
     assert has_element?(view, "#page-panel", "Placed page")
 
-    {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}?#{[page: ctx.draft.id]}")
+    {:ok, view, _} = mount_live(ctx.conn, ~p"/boards/#{ctx.board}?#{[page: ctx.draft.id]}")
     assert has_element?(view, "#page-panel", "Draft page")
   end
 
@@ -60,7 +64,10 @@ defmodule SlipdockWeb.PagePanelAccessLiveTest do
     assert Access.page_permission(viewer, ctx.page) == :none
 
     {:ok, view, _} =
-      live(as(viewer), ~p"/boards/#{ctx.board}/table?#{[view: saved.id, page: ctx.page.id]}")
+      mount_live(
+        as(viewer),
+        ~p"/boards/#{ctx.board}/table?#{[view: saved.id, page: ctx.page.id]}"
+      )
 
     refute_panel(view, ctx.page)
 
@@ -75,7 +82,7 @@ defmodule SlipdockWeb.PagePanelAccessLiveTest do
     assert Access.page_permission(guest, ctx.page) == :none
 
     {:ok, view, _} =
-      live(as(guest), ~p"/boards/#{ctx.board}/cards/#{ctx.card}?#{[page: ctx.page.id]}")
+      mount_live(as(guest), ~p"/boards/#{ctx.board}/cards/#{ctx.card}?#{[page: ctx.page.id]}")
 
     assert has_element?(view, "#card-modal", "Shared card")
     refute_panel(view, ctx.page)
@@ -85,11 +92,11 @@ defmodule SlipdockWeb.PagePanelAccessLiveTest do
     reader = user_fixture("reader@example.com")
     {:ok, _} = Access.grant(ctx.board, reader, "read", ctx.owner)
 
-    {:ok, view, _} = live(as(reader), ~p"/boards/#{ctx.board}?#{[page: ctx.page.id]}")
+    {:ok, view, _} = mount_live(as(reader), ~p"/boards/#{ctx.board}?#{[page: ctx.page.id]}")
     assert has_element?(view, "#page-panel", "Placed page")
     assert has_element?(view, "#page-panel", "read-only access")
 
-    {:ok, view, _} = live(as(reader), ~p"/boards/#{ctx.board}?#{[page: ctx.draft.id]}")
+    {:ok, view, _} = mount_live(as(reader), ~p"/boards/#{ctx.board}?#{[page: ctx.draft.id]}")
     refute_panel(view, ctx.draft)
   end
 
@@ -99,7 +106,7 @@ defmodule SlipdockWeb.PagePanelAccessLiveTest do
     reader = user_fixture("reader-comment@example.com")
     {:ok, _} = Access.grant(ctx.board, reader, "read", ctx.owner)
 
-    {:ok, view, _} = live(as(reader), ~p"/boards/#{ctx.board}?#{[page: ctx.page.id]}")
+    {:ok, view, _} = mount_live(as(reader), ~p"/boards/#{ctx.board}?#{[page: ctx.page.id]}")
     assert has_element?(view, "#page-panel", "Placed page")
     view |> with_target("#board-page") |> render_click("add_comment", %{"body" => "hi"})
     assert Slipdock.Repo.preload(Wiki.get_page!(ctx.page.id), :comments).comments == []
@@ -107,7 +114,7 @@ defmodule SlipdockWeb.PagePanelAccessLiveTest do
     commenter = user_fixture("commenter-ok@example.com")
     {:ok, _} = Access.grant(ctx.board, commenter, "comment", ctx.owner)
 
-    {:ok, view, _} = live(as(commenter), ~p"/boards/#{ctx.board}?#{[page: ctx.page.id]}")
+    {:ok, view, _} = mount_live(as(commenter), ~p"/boards/#{ctx.board}?#{[page: ctx.page.id]}")
     view |> with_target("#board-page") |> render_click("add_comment", %{"body" => "hello"})
 
     assert [%{body: "hello"}] =
@@ -118,7 +125,7 @@ defmodule SlipdockWeb.PagePanelAccessLiveTest do
     commenter = user_fixture("commenter@example.com")
     {:ok, _} = Access.grant(ctx.board, commenter, "comment", ctx.owner)
 
-    {:ok, view, _} = live(as(commenter), ~p"/boards/#{ctx.board}?#{[page: ctx.draft.id]}")
+    {:ok, view, _} = mount_live(as(commenter), ~p"/boards/#{ctx.board}?#{[page: ctx.draft.id]}")
     refute_panel(view, ctx.draft)
   end
 
@@ -126,7 +133,7 @@ defmodule SlipdockWeb.PagePanelAccessLiveTest do
     writer = user_fixture("writer@example.com")
     {:ok, _} = Access.grant(ctx.board, writer, "write", ctx.owner)
 
-    {:ok, view, _} = live(as(writer), ~p"/boards/#{ctx.board}?#{[page: ctx.draft.id]}")
+    {:ok, view, _} = mount_live(as(writer), ~p"/boards/#{ctx.board}?#{[page: ctx.draft.id]}")
     assert has_element?(view, "#page-panel", "Draft page")
   end
 
@@ -137,7 +144,7 @@ defmodule SlipdockWeb.PagePanelAccessLiveTest do
     assert Access.board_permission(reader, ctx.board) == :read
     assert Access.page_permission(reader, ctx.draft) == :write
 
-    {:ok, view, _} = live(as(reader), ~p"/boards/#{ctx.board}?#{[page: ctx.draft.id]}")
+    {:ok, view, _} = mount_live(as(reader), ~p"/boards/#{ctx.board}?#{[page: ctx.draft.id]}")
     assert has_element?(view, "#page-panel", "Draft page")
     refute has_element?(view, "#page-panel", "read-only access")
   end
@@ -157,7 +164,10 @@ defmodule SlipdockWeb.PagePanelAccessLiveTest do
     assert Access.page_permission(viewer, ctx.page) == :read
 
     {:ok, view, _} =
-      live(as(viewer), ~p"/boards/#{ctx.board}/table?#{[view: saved.id, page: ctx.page.id]}")
+      mount_live(
+        as(viewer),
+        ~p"/boards/#{ctx.board}/table?#{[view: saved.id, page: ctx.page.id]}"
+      )
 
     assert has_element?(view, "#page-panel", "Placed page")
   end
