@@ -167,6 +167,20 @@ defmodule Slipdock.ReleaseHoldTest do
       assert status.hold["fix_card_id"] == fix.id
       assert Releases.line(status) =~ "Releases held: the release failed at test"
       assert Releases.line(status) =~ "fix card ##{fix.id}"
+
+      # A view that links the run beside the reason takes the two apart (#2995).
+      assert Releases.hold_text(status) == "Releases held: the release failed at test"
+      assert Releases.line(status, hold: false, awaiting: false) == "fix card ##{fix.id}"
+
+      assert Releases.line(status, awaiting: false) ==
+               "Releases held: the release failed at test · fix card ##{fix.id}"
+    end
+
+    test "hold_text is nil while releases aren't held", ctx do
+      status = Releases.status(ctx.board)
+      assert status.hold == nil
+      assert Releases.hold_text(status) == nil
+      assert Releases.line(status, hold: false) == nil
     end
 
     test "a sub-board's status and hold are its root's", ctx do

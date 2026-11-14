@@ -79,6 +79,29 @@ defmodule SlipdockWeb.ReleaseNowTest do
     view |> element(selector) |> render() |> String.split(text) |> length() |> Kernel.-(1)
   end
 
+  # What the element `selector` says, as a person reads it: its text, with
+  # each run of white space as one space.
+  defp text(view, selector) do
+    view
+    |> element(selector)
+    |> render()
+    |> LazyHTML.from_fragment()
+    |> LazyHTML.text()
+    |> String.replace(~r/\s+/, " ")
+    |> String.trim()
+  end
+
+  # The hold as it is with a part taken out: no run named, or no fix card.
+  defp hold_without!(board, keys) do
+    hold = Map.drop(Releases.hold(board), keys)
+
+    Repo.update_all(from(b in Slipdock.Boards.Board, where: b.id == ^board.id),
+      set: [release_hold: hold]
+    )
+
+    hold
+  end
+
   defp merged!(todo, title) do
     card = card_fixture(todo, %{"title" => title})
 
@@ -326,6 +349,23 @@ defmodule SlipdockWeb.ReleaseNowTest do
       refute has_element?(view, "#release-banner-line span", "·")
     end
 
+    test "with no hold, a release running opens the line, with no separator before it (#2995)",
+         ctx do
+      merged!(ctx.todo, "First feature")
+      merged!(ctx.todo, "Second feature")
+      {:ok, :started, _} = Releases.release_now(ctx.board, "Eli")
+
+      for {path, line} <- [
+            {~p"/boards/#{ctx.board}", "#release-banner-line"},
+            {~p"/boards/#{ctx.board}/agentic", "#board-release-line"}
+          ] do
+        {:ok, view, _} = live(ctx.conn, path)
+
+        assert text(view, line) =~ ~r/^A release is running \(2 cards\)/
+        refute text(view, line) =~ ~r/^·/
+      end
+    end
+
     test "no banner with nothing to say, or on a board that releases on merge", ctx do
       {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}")
       refute has_element?(view, "#release-banner")
@@ -560,6 +600,72 @@ defmodule SlipdockWeb.ReleaseNowTest do
       assert has_element?(view, "#release-banner-line", "merged, awaiting release")
       refute has_element?(view, "#release-lift-hold")
       refute has_element?(view, "#release-hold-run")
+    end
+
+    test "the failing run sits with the hold's reason, not after the cards awaiting (#2995)",
+         ctx do
+      merged!(ctx.todo, "Waiting")
+      fix = "fix card ##{ctx.hold["fix_card_id"]}"
+
+      for {path, line} <- [
+            {~p"/boards/#{ctx.board}", "#release-banner-line"},
+            {~p"/boards/#{ctx.board}/agentic", "#board-release-line"}
+          ] do
+        {:ok, view, _} = live(ctx.conn, path)
+
+        assert text(view, line) =~
+                 "Releases held: the release failed at test (the failing run) · #{fix} · 1 merged, awaiting release"
+
+        # Nothing after the count but the list of the cards it opens.
+        refute text(view, line) =~ ~r/awaiting release.*the failing run/
+        assert occurrences(view, line, "the failing run") == 1
+      end
+    end
+
+    test "a hold that names no run says the reason alone, with no brackets (#2995)", ctx do
+      merged!(ctx.todo, "Waiting")
+      hold_without!(ctx.board, ["run_url"])
+      fix = "fix card ##{ctx.hold["fix_card_id"]}"
+
+      for {path, line, run} <- [
+            {~p"/boards/#{ctx.board}", "#release-banner-line", "#release-hold-run"},
+            {~p"/boards/#{ctx.board}/agentic", "#board-release-line", "#board-release-hold-run"}
+          ] do
+        {:ok, view, _} = live(ctx.conn, path)
+
+        assert text(view, line) =~
+                 "Releases held: the release failed at test · #{fix} · 1 merged, awaiting release"
+
+        refute has_element?(view, run)
+        refute text(view, line) =~ "("
+      end
+    end
+
+    test "a hold with no fix card and nothing awaiting ends at its run, with no separator (#2995)",
+         ctx do
+      hold_without!(ctx.board, ["fix_card_id"])
+
+      for {path, line} <- [
+            {~p"/boards/#{ctx.board}", "#release-banner-line"},
+            {~p"/boards/#{ctx.board}/agentic", "#board-release-line"}
+          ] do
+        {:ok, view, _} = live(ctx.conn, path)
+        assert text(view, line) == "Releases held: the release failed at test (the failing run)"
+      end
+
+      # With a card awaiting, the count follows the run, after one separator.
+      # The component's own HTML: a view's rendered element has lost the
+      # white space between two elements, which is all that parts these.
+      merged!(ctx.todo, "Waiting")
+
+      html =
+        render_component(&SlipdockWeb.BoardLive.BoardView.release_line/1,
+          release: Releases.status(ctx.board),
+          id: "release"
+        )
+
+      assert html |> String.replace(~r/<[^>]+>/, "") |> String.replace(~r/\s+/, " ") =~
+               "Releases held: the release failed at test (the failing run) · 1 merged, awaiting release"
     end
 
     test "someone it is shared with sees the hold but no Lift hold", ctx do

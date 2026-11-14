@@ -714,29 +714,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
     >
       <.icon name="hero-rocket-launch" class="size-4 shrink-0 text-info" />
       <div id="release-banner-line" class="min-w-0 flex-1">
-        {@line}
-        <.link
-          :if={@release.hold && @release.hold["run_url"]}
-          id="release-hold-run"
-          href={@release.hold["run_url"]}
-          target="_blank"
-          rel="noopener noreferrer"
-          class="link"
-        >
-          the failing run
-        </.link>
-        <.link
-          :if={@release.running && @release.running.run_url}
-          id="release-running-run"
-          href={@release.running.run_url}
-          target="_blank"
-          rel="noopener noreferrer"
-          class="link"
-        >
-          follow the build
-        </.link>
-        <span :if={@line && @awaiting}>·</span>
-        <.release_awaiting release={@release} id="release-awaiting" />
+        <.release_line release={@release} id="release" />
       </div>
       <button
         :if={@can_manage}
@@ -759,6 +737,57 @@ defmodule SlipdockWeb.BoardLive.BoardView do
         Lift hold
       </button>
     </div>
+    """
+  end
+
+  attr :release, :any, required: true, doc: "`Slipdock.Releases.status/1`"
+  attr :id, :string, required: true, doc: "the prefix of its links' ids"
+  attr :empty, :string, default: nil, doc: "what to say when there is nothing to say"
+
+  @doc """
+  Where a tree's releases stand, in one line, for the board's banner and
+  the Agentic Building page (#2995): the hold and why, with its failing
+  run in brackets beside the reason (the link is the hold's, not the
+  awaiting cards'), then the fix card, the release running with its
+  build, and the cards awaiting (`release_awaiting/1`).
+  """
+  def release_line(assigns) do
+    release = assigns.release
+    hold = Slipdock.Releases.hold_text(release)
+    rest = Slipdock.Releases.line(release, awaiting: false, hold: false)
+    awaiting = Slipdock.Releases.awaiting_text(release)
+
+    assigns =
+      assign(assigns,
+        hold: hold,
+        rest: rest,
+        hold_run: hold && release.hold["run_url"],
+        separator: (hold || rest) && awaiting,
+        empty: if(hold || rest || awaiting, do: nil, else: assigns.empty)
+      )
+
+    ~H"""
+    {@hold}
+    <span :if={@hold_run} id={"#{@id}-hold-run-note"} phx-no-format>(<.link
+        id={"#{@id}-hold-run"}
+        href={@hold_run}
+        target="_blank"
+        rel="noopener noreferrer"
+        class="link"
+      >the failing run</.link>)</span>
+    {if @hold && @rest, do: "· "}{@rest}{@empty}
+    <.link
+      :if={@release.running && @release.running.run_url}
+      id={"#{@id}-running-run"}
+      href={@release.running.run_url}
+      target="_blank"
+      rel="noopener noreferrer"
+      class="link"
+    >
+      follow the build
+    </.link>
+    <span :if={@separator}>·</span>
+    <.release_awaiting release={@release} id={"#{@id}-awaiting"} />
     """
   end
 

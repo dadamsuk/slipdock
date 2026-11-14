@@ -268,13 +268,15 @@ defmodule Slipdock.Releases do
   @doc """
   As `line/1`; with `awaiting: false` it leaves out the awaiting count,
   for a view that shows it as a list of the cards (#3038,
-  `awaiting_text/1`). Nil when nothing is left to say.
+  `awaiting_text/1`), and with `hold: false` the hold's reason, for a view
+  that puts the failing run's link beside it (#2995, `hold_text/1`). Nil
+  when nothing is left to say.
   """
   def line(%{running: running, queued: queued} = status, opts) do
     hold = Map.get(status, :hold)
 
     [
-      hold && "Releases held: #{hold["reason"]}",
+      Keyword.get(opts, :hold, true) && hold_text(status),
       hold && hold["fix_card_id"] && "fix card ##{hold["fix_card_id"]}",
       running && "A release is running (#{length(running.card_ids)} cards)",
       queued && "another is queued",
@@ -286,6 +288,13 @@ defmodule Slipdock.Releases do
       parts -> Enum.join(parts, " · ")
     end
   end
+
+  @doc """
+  That a tree's releases are held and why (`"Releases held: the release
+  failed at deploy"`), the first part of `line/1`; nil while they aren't.
+  """
+  def hold_text(%{hold: %{"reason" => reason}}), do: "Releases held: #{reason}"
+  def hold_text(_status), do: nil
 
   @doc """
   How many merged cards await release, in words (`"2 merged, awaiting
