@@ -588,13 +588,22 @@ defmodule Slipdock.Blueprint do
       else
         attrs = %{"name" => tag["name"], "color" => tag["color"]} |> reject_nil()
 
-        case Boards.Tags.create_tag(board, attrs) do
+        case make_tag(board, attrs) do
           {:ok, _} -> {:ok, note(report, :added, "tags", tag["name"])}
           {:error, cs} -> {:error, "tag “#{tag["name"]}”: #{errors(cs)}"}
         end
       end
     end)
   end
+
+  # A blueprint is applied by its callers' gates (a board's maker, a tool's
+  # installer, the sweep) until `Blueprint` asks `Slipdock.Policy` itself
+  # (#3167, Policy 3).
+  defp make_tag(board, attrs),
+    do:
+      Slipdock.Policy.as_system("a blueprint's tags", fn ->
+        Boards.Tags.create_tag(board, attrs)
+      end)
 
   defp apply_pages(board, pages, folders, report, opts) do
     user = opts[:user]

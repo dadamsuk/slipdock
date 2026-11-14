@@ -25,6 +25,10 @@
 # The boundaries, from `mix xref graph` (W-1945 §Boundaries)
 test/slipdock/boundaries_test.exs
 
+# Every context write asks Slipdock.Policy, or is listed until its context is
+# migrated (W-1945 §Permissions, #3167)
+test/slipdock/unchecked_writes_test.exs
+
 # Source conventions
 test/slipdock_web/fonts_test.exs
 test/slipdock_web/buttons_test.exs

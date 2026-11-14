@@ -140,8 +140,12 @@ defmodule Slipdock.Boards.Copy do
   defp tag_in(root_id, %Tag{name: name, color: color}, make?) do
     case Repo.one(from(t in Tag, where: t.board_id == ^root_id and t.name == ^name)) do
       nil when make? ->
+        # `make?` is `Tags.may_make?/3`'s answer, the carrier's gate until the
+        # carriers ask `Slipdock.Policy` themselves (#3167, Policy 2).
         {:ok, tag} =
-          Boards.Tags.create_tag(Repo.get!(Board, root_id), %{"name" => name, "color" => color})
+          Slipdock.Policy.as_system("a copy's tags, decided by Tags.may_make?/3", fn ->
+            Boards.Tags.create_tag(Repo.get!(Board, root_id), %{"name" => name, "color" => color})
+          end)
 
         tag
 

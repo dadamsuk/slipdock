@@ -36,6 +36,13 @@ defmodule SlipdockWeb.API.FallbackController do
     conn |> put_status(:forbidden) |> json(%{error: code, message: message})
   end
 
+  # The context refused the write itself (`Slipdock.Policy`, #3168): a 403,
+  # its message saying whether the person or the token's scope was short
+  # (ARCH-8).
+  def call(conn, {:error, %Slipdock.Policy.Refused{message: message}}) do
+    conn |> put_status(:forbidden) |> json(%{error: "forbidden: " <> message})
+  end
+
   def call(conn, {:error, :not_found}) do
     conn |> put_status(:not_found) |> json(%{error: "not found"})
   end

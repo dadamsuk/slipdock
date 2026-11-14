@@ -196,7 +196,12 @@ defmodule Slipdock.Inbound.Dispatcher do
   def trust(message, user, target) do
     case Trust.check(message, user, target) do
       :ok ->
-        Slipdock.Actor.put(Slipdock.Actor.email(user), Slipdock.Accounts.User.display_name(user))
+        Slipdock.Actor.put(
+          Slipdock.Actor.email(user),
+          Slipdock.Accounts.User.display_name(user),
+          {user, nil}
+        )
+
         :ok
 
       {:reject, reason} ->

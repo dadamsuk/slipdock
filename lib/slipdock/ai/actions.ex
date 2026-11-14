@@ -1138,6 +1138,7 @@ defmodule Slipdock.AI.Actions do
   end
 
   defp normalize_result({:error, msg}) when is_binary(msg), do: {:error, msg}
+  defp normalize_result({:error, %Slipdock.Policy.Refused{message: msg}}), do: {:error, msg}
   defp normalize_result(other), do: {:error, inspect(other)}
 
   defp parse_date(nil), do: {:ok, nil}
