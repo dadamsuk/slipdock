@@ -169,6 +169,24 @@ defmodule SlipdockWeb.ViewEmptyLiveTest do
     end
   end
 
+  describe "the table stacked on a phone" do
+    test "filters that hide every card say so and clear from the block", %{conn: conn} do
+      board = board_fixture()
+      card_fixture(hd(board.columns), %{"title" => "Hidden by the search"})
+
+      {:ok, view, _} = live(phone(conn), "/boards/#{board.id}/table?q=no-such-card")
+
+      block = "#table-scroll > [data-view-empty=fill]"
+      assert has_element?(view, block, @filtered)
+      refute has_element?(view, block, @none)
+      assert has_element?(view, "#{block} .hero-table-cells.size-10")
+      refute has_element?(view, "form#table-add")
+
+      view |> element("#{block} #{@clear}") |> render_click()
+      assert has_element?(view, "#card-table", "Hidden by the search")
+    end
+  end
+
   describe "the calendar's strip" do
     test "is gone once a card is shown", %{conn: conn} do
       board = board_fixture()

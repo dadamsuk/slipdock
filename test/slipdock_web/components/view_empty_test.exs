@@ -90,8 +90,8 @@ defmodule SlipdockWeb.ViewEmptyTest do
     end
 
     test "is not there with no filter set" do
-      assert Enum.count(button(render_empty(hidden: 0))) == 0
-      assert Enum.count(button(render_empty(hidden: 3))) == 0
+      assert Enum.empty?(button(render_empty(hidden: 0)))
+      assert Enum.empty?(button(render_empty(hidden: 3)))
     end
   end
 
