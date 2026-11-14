@@ -26,7 +26,7 @@ defmodule SlipdockWeb.SearchLinks do
   def path(%WikiFile{} = file, _match), do: Files.open_path(file)
 
   def path(%Page{} = page, match) do
-    base = "/boards/#{page.board_id}/wiki/#{page.slug}"
+    base = SlipdockWeb.Wiki.Renderer.page_path(page)
 
     case match do
       %{kind: "page_document"} ->

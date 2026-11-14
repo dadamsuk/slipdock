@@ -197,7 +197,7 @@ defmodule SlipdockWeb.RichText do
       case Slipdock.Wiki.find_page(board, unescape(target)) do
         {:ok, page} ->
           if visible?(page, reader) do
-            ~s|<a href="/boards/#{page.board_id}/wiki/#{page.slug}" class="link link-primary" onclick="event.stopPropagation()">| <>
+            ~s|<a href="#{SlipdockWeb.Wiki.Renderer.page_path(page)}" class="link link-primary" onclick="event.stopPropagation()">| <>
               (label || target) <> "</a>"
           else
             whole

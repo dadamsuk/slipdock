@@ -313,6 +313,24 @@ defmodule SlipdockWeb.Wiki.RendererTest do
                "No cards match."
     end
 
+    test "a pages: table links each title to its page, and names it on a published page", %{
+      board: board,
+      user: user
+    } do
+      {:ok, folder} = Slipdock.Wiki.Folders.create(board, %{"name" => "Runbooks"})
+
+      {:ok, page} =
+        Wiki.create_page(board, %{"title" => "Deploys", "folder_id" => folder.id}, user: user)
+
+      html = Renderer.to_html(block("pages: Runbooks"), board: board, as: user)
+
+      assert html =~
+               ~s|<td><a href="/boards/#{board.id}/wiki/#{page.slug}" rel="noopener noreferrer">Deploys</a></td>|
+
+      static = Renderer.to_html(block("pages: Runbooks"), board: board, as: user, static: true)
+      assert static =~ "<td>Deploys</td>"
+    end
+
     test "on a published page a card is named rather than linked", %{board: board, user: user} do
       html = Renderer.to_html(block("view: list"), board: board, as: user, static: true)
       assert html =~ "<li>Shipped</li>"

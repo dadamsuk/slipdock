@@ -123,3 +123,27 @@ defmodule SlipdockWeb.RichTextTest do
     end
   end
 end
+
+defmodule SlipdockWeb.RichTextWikiLinksTest do
+  # The `[[Page]]` links need a board and its pages, so they live apart from
+  # the database-free tests above.
+  use Slipdock.DataCase, async: true
+
+  import Slipdock.Fixtures
+
+  alias SlipdockWeb.RichText
+
+  test "a [[wiki link]] goes to the page's path, and an unknown one stays as written" do
+    user = user_fixture()
+    board = board_fixture(%{"name" => "Notes"}, owner: user)
+    {:ok, page} = Slipdock.Wiki.create_page(board, %{"title" => "Retry policy"}, user: user)
+
+    {:safe, html} =
+      RichText.render("see [[Retry policy|the policy]] and [[Nowhere]]", board: board)
+
+    assert html =~
+             ~s|<a href="/boards/#{board.id}/wiki/#{page.slug}" class="link link-primary" onclick="event.stopPropagation()">the policy</a>|
+
+    assert html =~ "[[Nowhere]]"
+  end
+end

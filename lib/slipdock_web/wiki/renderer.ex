@@ -26,6 +26,8 @@ defmodule SlipdockWeb.Wiki.Renderer do
 
   require Logger
 
+  use SlipdockWeb, :verified_routes
+
   alias Slipdock.Boards.{Card, Column}
   alias Slipdock.Wiki
   alias Slipdock.Wiki.{Drawings, Embeds, Excalidraw, Links, Markup, Meld, Page, Query, Section}
@@ -920,7 +922,7 @@ defmodule SlipdockWeb.Wiki.Renderer do
   defp page_link_html(_page, text, %{static: true}), do: escape(text)
 
   defp page_link_html(page, text, _context),
-    do: ~s|<a href="/boards/#{page.board_id}/wiki/#{page.slug}">#{escape(text)}</a>|
+    do: ~s|<a href="#{page_path(page)}">#{escape(text)}</a>|
 
   defp empty_html(%{empty: message}) when is_binary(message) and message != "",
     do: ~s|<p class="wiki-empty">#{escape(message)}</p>|
@@ -966,7 +968,7 @@ defmodule SlipdockWeb.Wiki.Renderer do
   defp column_name(_), do: nil
 
   @doc "Where a page lives, as a path."
-  def page_path(%Page{} = page), do: "/boards/#{page.board_id}/wiki/#{page.slug}"
+  def page_path(%Page{} = page), do: ~p"/boards/#{page.board_id}/wiki/#{page.slug}"
 
   # `[[Note#Heading]]` reads "Note › Heading", as Obsidian shows it.
   defp link_text(page, %{anchor: anchor}) when is_binary(anchor),
