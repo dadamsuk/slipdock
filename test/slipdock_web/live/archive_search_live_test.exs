@@ -8,7 +8,7 @@ defmodule SlipdockWeb.ArchiveSearchLiveTest do
   import Phoenix.LiveViewTest
   import Slipdock.Fixtures
 
-  alias Slipdock.{Access, Boards, Repo}
+  alias Slipdock.{Access, Boards, Quota, Repo, Settings}
   alias Slipdock.Boards.Card
 
   setup %{user: user} do
@@ -121,5 +121,23 @@ defmodule SlipdockWeb.ArchiveSearchLiveTest do
       assert to == ~p"/boards/#{ctx.board}"
       assert flash["error"] == "That card no longer exists."
     end
+  end
+
+  # #3117: the account full, a restore is refused and says why.
+  test "restoring at the account's limit says so and leaves the card archived", ctx do
+    {:ok, _} =
+      Settings.complete_setup(%{
+        "admin_email" => "admin@example.com",
+        "free_card_limit" => Quota.status(ctx.user).used
+      })
+
+    {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/archive")
+    view |> element("#archived-#{ctx.refunds.id} button", "Restore") |> render_click()
+
+    assert view |> element("#panel-notice[data-callout=error]") |> render() =~
+             "has used all #{Quota.status(ctx.user).limit} of their cards, pages and files"
+
+    assert Repo.get!(Card, ctx.refunds.id).archived_at
+    assert listed?(view, ctx.refunds)
   end
 end
