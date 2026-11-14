@@ -408,6 +408,28 @@ defmodule SlipdockWeb.ReleaseNowTest do
       refute has_element?(view, "#release-releasing-card-#{later.id}")
     end
 
+    test "the running list follows the release's own card order, not id order (#3153)", ctx do
+      first = merged!(ctx.todo, "First feature")
+      second = merged!(ctx.todo, "Second feature")
+      third = merged!(ctx.todo, "Third feature")
+      {:ok, :started, _} = Releases.release_now(ctx.board, "Eli")
+
+      # The request's order is neither ascending nor descending by id.
+      order = [second.id, third.id, first.id]
+      running = Releases.status(ctx.board).running
+      {:ok, _} = running |> Ecto.Changeset.change(card_ids: order) |> Repo.update()
+
+      assert Enum.map(Releases.status(ctx.board).releasing, & &1.id) == order
+
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}")
+
+      listed =
+        Regex.scan(~r/id="release-releasing-card-(\d+)"/, render(view), capture: :all_but_first)
+        |> Enum.map(fn [id] -> String.to_integer(id) end)
+
+      assert listed == order
+    end
+
     test "a running release whose cards are all archived says so without a list (#3153)", ctx do
       card = merged!(ctx.todo, "Feature")
       {:ok, :started, _} = Releases.release_now(ctx.board, "Eli")
