@@ -15,7 +15,8 @@ defmodule Slipdock.ToolSeedPinsTest do
   alias Slipdock.Handbook
   alias Slipdock.Sweep
 
-  @file Path.relative_to_cwd(__ENV__.file)
+  # Not `@file`: Elixir keeps that one for itself, and reading it gives nothing.
+  @path Path.relative_to_cwd(__ENV__.file)
 
   # {the Tool's version, the SHA-256 of its seed}.
   @pins %{
@@ -72,13 +73,13 @@ defmodule Slipdock.ToolSeedPinsTest do
     {:error,
      "The #{tool} Tool's seed text changed and its version is still #{version}. " <>
        "Bump @version, so the version says which seed a board holds, then pin " <>
-       ~s(#{inspect(tool)} => {"<the new version>", #{inspect(digest)}} in #{@file}.)}
+       ~s(#{inspect(tool)} => {"<the new version>", #{inspect(digest)}} in #{@path}.)}
   end
 
   def check(tool, {pinned, _}, {version, digest}) do
     {:error,
      "The #{tool} Tool's version went from #{pinned} to #{version}. " <>
-       "Pin #{inspect(tool)} => #{inspect({version, digest})} in #{@file}."}
+       "Pin #{inspect(tool)} => #{inspect({version, digest})} in #{@path}."}
   end
 
   for tool <- ["handbook", "sweep"] do
@@ -107,6 +108,7 @@ defmodule Slipdock.ToolSeedPinsTest do
       assert what =~ "still 1.9.1"
       assert what =~ "Bump @version"
       assert what =~ ~s("bb")
+      assert String.ends_with?(what, " in test/slipdock/tool_seed_pins_test.exs.")
     end
 
     test "a version changed without the pin fails, with the pair to pin" do
@@ -115,6 +117,7 @@ defmodule Slipdock.ToolSeedPinsTest do
         assert what =~ "from 1.2.0 to 1.3.0"
         assert what =~ ~s("sweep" => {"1.3.0", "#{digest}"})
         refute what =~ "Bump"
+        assert String.ends_with?(what, " in test/slipdock/tool_seed_pins_test.exs.")
       end
     end
   end
