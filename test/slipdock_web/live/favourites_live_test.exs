@@ -125,6 +125,54 @@ defmodule SlipdockWeb.FavouritesLiveTest do
         do: assert(has_element?(live_view, "#favourites-#{kind}"))
   end
 
+  # #2877: the row's icon and link come from the view switcher's own list.
+  test "a favourite Prioritise view has its own icon and link", %{
+    conn: conn,
+    user: user,
+    board: board
+  } do
+    {:ok, view} =
+      Boards.SavedViews.create_saved_view(board, %{
+        "name" => "Ranked",
+        "config" => %{"mode" => "prioritise"}
+      })
+
+    {:ok, :added} = Favourites.toggle(user, :view, view.id)
+
+    {:ok, live_view, _} = live(conn, ~p"/favourites")
+
+    link = "#favourites-view a[href='/boards/#{board.id}/prioritise?view=#{view.id}']"
+    assert has_element?(live_view, link, "Ranked")
+    assert has_element?(live_view, "#favourites-view .hero-scale")
+    refute has_element?(live_view, "#favourites-view .hero-squares-2x2")
+  end
+
+  # #2877: a saved view's config is any map (an imported one as the archive
+  # had it), so its stored mode can be something other than a string.
+  test "a favourite view whose stored mode isn't a string opens as swimlanes", %{
+    conn: conn,
+    user: user,
+    board: board
+  } do
+    {:ok, view} =
+      Boards.SavedViews.create_saved_view(board, %{
+        "name" => "Odd",
+        "config" => %{"mode" => %{"a" => 1}}
+      })
+
+    {:ok, :added} = Favourites.toggle(user, :view, view.id)
+
+    {:ok, live_view, _} = live(conn, ~p"/favourites")
+
+    link = "#favourites-view a[href='/boards/#{board.id}/swimlanes?view=#{view.id}']"
+    assert has_element?(live_view, link, "Odd")
+    assert has_element?(live_view, "#favourites-view .hero-squares-2x2")
+
+    # The board's Views menu lists it too, and renders.
+    {:ok, _board_view, html} = live(conn, ~p"/boards/#{board.id}")
+    assert html =~ "/boards/#{board.id}/swimlanes?view=#{view.id}"
+  end
+
   test "a favourite is one person's own", %{conn: conn, board: board, card: card, user: user} do
     other = user_fixture("nosy@example.com")
     {:ok, _} = Slipdock.Access.grant(board, other, "read", user)

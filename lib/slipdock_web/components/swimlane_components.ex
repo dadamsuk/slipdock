@@ -1197,19 +1197,15 @@ defmodule SlipdockWeb.SwimlaneComponents do
   The URL of a view mode (an atom or the string stored in a saved view) with
   a query; with none, the mode at its defaults.
   """
-  def view_mode_path(board, mode, query \\ [])
+  def view_mode_path(board, mode, query \\ []) do
+    {_mode, suffix, _label, _icon, _title, _key} = mode_tab(mode)
 
-  def view_mode_path(board, mode, query) when is_atom(mode),
-    do: view_mode_path(board, Atom.to_string(mode), query)
-
-  def view_mode_path(board, "board", query), do: ~p"/boards/#{board}?#{query}"
-  def view_mode_path(board, "table", query), do: ~p"/boards/#{board}/table?#{query}"
-  def view_mode_path(board, "outline", query), do: ~p"/boards/#{board}/outline?#{query}"
-  def view_mode_path(board, "narrative", query), do: ~p"/boards/#{board}/narrative?#{query}"
-  def view_mode_path(board, "prioritise", query), do: ~p"/boards/#{board}/prioritise?#{query}"
-  def view_mode_path(board, "timeline", query), do: ~p"/boards/#{board}/timeline?#{query}"
-  def view_mode_path(board, "calendar", query), do: ~p"/boards/#{board}/calendar?#{query}"
-  def view_mode_path(board, _, query), do: ~p"/boards/#{board}/swimlanes?#{query}"
+    # The board's own verified route carries the query, so it is encoded as
+    # every other `~p` is (sorted in tests); the view's suffix goes in after
+    # the board.
+    base = ~p"/boards/#{board}"
+    String.replace_prefix(~p"/boards/#{board}?#{query}", base, base <> suffix)
+  end
 
   @doc """
   Where opening `board` lands: the view it is set to open on
@@ -1223,14 +1219,24 @@ defmodule SlipdockWeb.SwimlaneComponents do
   end
 
   @doc "The icon for a view mode (an atom or the string stored in a saved view)."
-  def mode_icon(mode) when is_atom(mode), do: mode |> Atom.to_string() |> mode_icon()
-  def mode_icon("table"), do: "hero-table-cells"
-  def mode_icon("timeline"), do: "hero-chart-bar"
-  def mode_icon("calendar"), do: "hero-calendar-days"
-  def mode_icon("board"), do: "hero-view-columns"
-  def mode_icon("outline"), do: "hero-queue-list"
-  def mode_icon("narrative"), do: "hero-book-open"
-  def mode_icon(_), do: "hero-squares-2x2"
+  def mode_icon(mode) do
+    {_mode, _suffix, _label, icon, _title, _key} = mode_tab(mode)
+    icon
+  end
+
+  # A view mode's entry in the view switcher's list
+  # (`SlipdockComponents.view_tabs_list/0`), the one table of each view's
+  # path and icon (#2877). Only a mode a saved view can hold
+  # (`Config.modes/0`) is looked up; anything else is swimlanes, as an
+  # unknown mode always was. That includes a stored mode that isn't a
+  # string at all (a saved view's `config` is any map, an imported one
+  # as the archive had it), so it is never given to `to_string/1`.
+  defp mode_tab(mode) do
+    name = if is_binary(mode) or is_atom(mode), do: to_string(mode)
+    known = if Enum.member?(Config.modes(), name), do: name, else: "swimlanes"
+
+    Enum.find(view_tabs_list(), fn {tab, _, _, _, _, _} -> Atom.to_string(tab) == known end)
+  end
 
   attr :name, :string, required: true
   attr :label, :string, required: true
