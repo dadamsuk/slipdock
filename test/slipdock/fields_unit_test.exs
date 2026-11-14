@@ -26,4 +26,9 @@ defmodule Slipdock.FieldsUnitTest do
     assert Fields.format(number(""), 3) == "3"
     assert Fields.format(%FieldDefinition{kind: "number", config: %{}}, 3) == "3"
   end
+
+  test "tight_unit?/1 is true only for the signs that sit against a number" do
+    for sign <- ~w(% ‰ ° ′ ″), do: assert(Fields.tight_unit?(sign))
+    for word <- ["people", "", nil, " %", "pts"], do: refute(Fields.tight_unit?(word))
+  end
 end

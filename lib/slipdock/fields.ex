@@ -229,8 +229,13 @@ defmodule Slipdock.Fields do
   # A unit is written after the number with a space ("12 people"), apart
   # from the signs that sit against it: "80%", not "80 %" (#1698).
   defp with_unit(text, unit) when unit in [nil, ""], do: text
-  defp with_unit(text, unit) when unit in ~w(% ‰ ° ′ ″), do: text <> unit
-  defp with_unit(text, unit), do: "#{text} #{unit}"
+  defp with_unit(text, unit), do: if(tight_unit?(unit), do: text <> unit, else: "#{text} #{unit}")
+
+  @doc """
+  Whether `unit` is a sign that sits against its number ("80%", "12°"),
+  rather than a word written after it with a space ("12 people").
+  """
+  def tight_unit?(unit), do: Enum.member?(~w(% ‰ ° ′ ″), unit)
 
   @doc """
   Stores `raw` (from a form or the API) as the card's — or the page's — value
