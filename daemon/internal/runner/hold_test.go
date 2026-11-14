@@ -60,6 +60,16 @@ func TestTheLimitMessageAndItsReset(t *testing.T) {
 	}
 }
 
+// An unknown month is no reset, whatever the date: from mid-December a
+// month read as zero (December of the year before, rolled to this one)
+// would land inside the hold's reach.
+func TestAnUnknownMonthIsNoResetInDecember(t *testing.T) {
+	now := time.Date(2026, 12, 10, 9, 0, 0, 0, time.UTC)
+	if found, _, at := limitIn([]byte("You've hit your weekly limit · resets Foo 15, 6pm"), now); !found || !at.IsZero() {
+		t.Fatalf("found = %v, reset = %v: want the limit with no reset", found, at)
+	}
+}
+
 // A day past the month's last isn't rolled into the next month's.
 func TestNoSuchDayIsNoReset(t *testing.T) {
 	now := time.Date(2026, 11, 28, 9, 0, 0, 0, time.UTC)
@@ -186,20 +196,42 @@ func TestAJobClaimedWhileHeldIsGivenBackUnrun(t *testing.T) {
 	}
 }
 
-// A merge doesn't run the agent, so a hold doesn't stop it.
+// A merge, a release or a probe doesn't run the agent, so a hold doesn't
+// stop it.
 func TestAMergeClaimedWhileHeldStillRuns(t *testing.T) {
 	r := newRig(t, Config{})
 	r.w.Holds = NewHolds()
 	r.w.Holds.Limit("claude", time.Now().Add(time.Hour), time.Now(), "")
 	r.w.defaults()
-	if r.w.giveBack(context.Background(), &Job{ID: 151, Kind: "merge"}) {
-		t.Fatal("a merge was given back")
+	for i, kind := range []string{"merge", ReleaseKind, ProbeKind} {
+		if r.w.giveBack(context.Background(), &Job{ID: int64(160 + i), Kind: kind}) {
+			t.Fatalf("a %s job was given back", kind)
+		}
 	}
 	if !r.w.giveBack(context.Background(), &Job{ID: 152, Kind: "claude"}) {
 		t.Fatal("an agent job was run while held")
 	}
 	if f, _ := r.srv.finish(152); f.status != "requeue" {
 		t.Fatalf("finish = %+v", f)
+	}
+}
+
+// A job given back under a quick-exit hold goes back as that hold's
+// trouble, so the server's one alert for the episode keeps its cause.
+func TestAJobGivenBackUnderABackoffIsAQuickExit(t *testing.T) {
+	r := newRig(t, Config{})
+	r.w.Holds = NewHolds()
+	now := time.Now()
+	r.w.Holds.QuickExit("claude", now, "the agent exited 1 in 2s, before a tool call")
+	r.w.defaults()
+	if !r.w.giveBack(context.Background(), &Job{ID: 155, Kind: "claude"}) {
+		t.Fatal("an agent job was run while backed off")
+	}
+	f, _ := r.srv.finish(155)
+	until := now.Add(firstBackoff).UTC().Format(time.RFC3339)
+	if f.status != "requeue" || f.query.Get("trouble") != "quick_exit" || f.query.Get("until") != until ||
+		f.query.Get("reason") != "the agent exited 1 in 2s, before a tool call" {
+		t.Fatalf("finish = %+v (%v), want quick_exit until %s with the hold's reason", f, f.query, until)
 	}
 }
 
@@ -216,6 +248,22 @@ func TestATimedOutJobIsNotTrouble(t *testing.T) {
 	}
 	if _, held := r.w.Holds.Held("claude", time.Now()); held {
 		t.Fatal("a timeout held the runners")
+	}
+}
+
+// clip never cuts inside a character, and leaves a string of exactly n
+// bytes whole.
+func TestClipKeepsWholeCharacters(t *testing.T) {
+	s := "a" + strings.Repeat("é", 150) // byte 200 is the second byte of an é
+	if got := clip(s, 200); len(got) != 199 || !utf8.ValidString(got) || !strings.HasPrefix(s, got) {
+		t.Fatalf("clip = %d bytes, valid %v: want 199 bytes, whole characters", len(got), utf8.ValidString(got))
+	}
+	exact := strings.Repeat("x", 200)
+	if got := clip(exact, 200); got != exact {
+		t.Fatalf("clip of 200 bytes = %d bytes, want it whole", len(got))
+	}
+	if got := clip("short", 200); got != "short" {
+		t.Fatalf("clip = %q", got)
 	}
 }
 
