@@ -630,39 +630,10 @@ defmodule SlipdockWeb.AgenticLive.Index do
                     class="mt-2 flex flex-wrap items-center gap-2 text-sm"
                   >
                     <div id="board-release-line" class="min-w-0 flex-1">
-                      {Slipdock.Releases.line(@release, awaiting: false) ||
-                        if(!Slipdock.Releases.awaiting_text(@release),
-                          do: "Nothing merged is awaiting release."
-                        )}
-                      <.link
-                        :if={@release.hold && @release.hold["run_url"]}
-                        id="board-release-hold-run"
-                        href={@release.hold["run_url"]}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        class="link"
-                      >
-                        the failing run
-                      </.link>
-                      <.link
-                        :if={@release.running && @release.running.run_url}
-                        id="board-release-running-run"
-                        href={@release.running.run_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        class="link"
-                      >
-                        follow the build
-                      </.link>
-                      <span :if={
-                        Slipdock.Releases.line(@release, awaiting: false) &&
-                          Slipdock.Releases.awaiting_text(@release)
-                      }>
-                        ·
-                      </span>
-                      <SlipdockWeb.BoardLive.BoardView.release_awaiting
+                      <SlipdockWeb.BoardLive.BoardView.release_line
                         release={@release}
-                        id="board-release-awaiting"
+                        id="board-release"
+                        empty="Nothing merged is awaiting release."
                       />
                     </div>
                     <button
