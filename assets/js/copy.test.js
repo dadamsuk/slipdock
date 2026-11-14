@@ -42,6 +42,16 @@ test("a tooltip says Copied too, and is put back", () => withTimers(async () => 
   assert.equal(el.dataset.tip, "Copy the page code")
 }))
 
+test("a button with no tooltip is given none, then or after", () => withTimers(async () => {
+  // A real dataset turns an undefined put back into the string "undefined".
+  const el = button({label: "Copy"})
+  assert.equal(await copyWithFeedback(el, "x", clipboard()), true)
+  assert.equal("tip" in el.dataset, false)
+  mock.timers.tick(COPIED_MS)
+  assert.equal("tip" in el.dataset, false)
+  assert.equal(el.labelEl.textContent, "Copy")
+}))
+
 test("with no clipboard nothing is written and the words are left alone", async () => {
   const el = button()
   assert.equal(await copyWithFeedback(el, "x", null), false)

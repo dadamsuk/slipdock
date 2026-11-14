@@ -922,6 +922,39 @@ test("with no clipboard Copy link just closes the menu", async () => {
   assert.equal(hook.menuEl, null)
 })
 
+test("a copy with no menu item to say Copied on closes the menu at once", () => withMenuTimers(async hook => {
+  Object.defineProperty(globalThis, "navigator", {value: {clipboard: {writeText: () => Promise.resolve()}}, configurable: true})
+  let removed = 0
+  hook.menuEl = {remove() { removed++ }, querySelector: () => null}
+  await hook.menuAction({preventDefault() {}, stopPropagation() {}}, labels(hook.menuItems).indexOf("Copy link"))
+  assert.equal(removed, 1)
+  assert.equal(hook.menuEl, null)
+}))
+
+test("with no clipboard the found item keeps its label and the menu closes at once", () => withMenuTimers(async hook => {
+  Object.defineProperty(globalThis, "navigator", {value: {}, configurable: true})
+  const index = labels(hook.menuItems).indexOf("Copy link")
+  const label = {textContent: "Copy link"}
+  const item = {dataset: {}, querySelector: sel => (sel === "[data-label]" ? label : null)}
+  let removed = 0
+  hook.menuEl = {remove() { removed++ }, querySelector: sel => (sel === `[data-menu-item="${index}"]` ? item : null)}
+  await hook.menuAction({preventDefault() {}, stopPropagation() {}}, index)
+  assert.equal(removed, 1)
+  assert.equal(hook.menuEl, null)
+  assert.equal(label.textContent, "Copy link")
+}))
+
+// The Copy link item mounted on page 7, with fake timers, so a close the
+// confirmation delays would not happen within the test (#2887).
+async function withMenuTimers(fn) {
+  const {hook} = mountHook({replies: [root([page(7, {href: "/boards/1/wiki/p7"})])]})
+  hook.mounted()
+  globalThis.window.location = {href: "https://example.test/boards/1/wiki"}
+  hook.menuItems = menuItems(page(7, {href: "/boards/1/wiki/p7"}), {board: 1, canWrite: true, selected: new Set()})
+  mock.timers.enable({apis: ["setTimeout"]})
+  try { await fn(hook) } finally { mock.timers.reset() }
+}
+
 test("a page also filed in a folder is marked, cannot be dragged, and can be taken out", () => {
   const also = page(7, {also: true, placed_in: 4, href: "/boards/1/wiki/p7"})
   const {rowsEl} = (() => {
