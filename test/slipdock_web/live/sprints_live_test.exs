@@ -1,10 +1,13 @@
 defmodule SlipdockWeb.SprintsLiveTest do
   use SlipdockWeb.ConnCase, async: true
 
+  import Ecto.Query
   import Phoenix.LiveViewTest
   import Slipdock.Fixtures
 
-  alias Slipdock.{Boards, Sprints}
+  alias Slipdock.{Access, Boards, Repo, Sprints}
+  alias Slipdock.Access.Grant
+  alias Slipdock.Boards.Column
 
   setup do
     {:ok, template} = Boards.Templates.find_template(nil, "Sprint planning")
@@ -470,6 +473,65 @@ defmodule SlipdockWeb.SprintsLiveTest do
 
       assert Boards.get_board!(Boards.Cards.get_card!(sprint.id).sub_board.id).columns
              |> Enum.flat_map(& &1.cards) == []
+    end
+
+    test "a sprint board left with no lists says why, and adds nothing", %{
+      conn: conn,
+      sprints: sprints,
+      todo: todo,
+      work: work
+    } do
+      {:ok, sprint} = Sprints.create_sprint(sprints)
+      sub_board_id = Boards.Cards.get_card!(sprint.id).sub_board.id
+      a = card_fixture(todo, %{"title" => "Write the release notes"})
+
+      # Ticked, then the sprint's own board loses every list before Add.
+      view =
+        tick_and_add(conn, sprints, sprint, [a], fn ->
+          assert {n, _} = Repo.delete_all(from c in Column, where: c.board_id == ^sub_board_id)
+          assert n > 0
+        end)
+
+      assert has_element?(view, "#flash-error", "That board has no lists.")
+      refute has_element?(view, "#flash-info")
+      refute render(view) =~ "Added"
+      assert board_of(a) == work.id
+      assert Boards.Cards.get_card!(a.id).column_id == todo.id
+    end
+
+    test "a card its reader may no longer write is dropped without a note", %{
+      sprints: sprints,
+      todo: todo,
+      work: work,
+      user: owner
+    } do
+      {:ok, sprint} = Sprints.create_sprint(sprints)
+      a = card_fixture(todo, %{"title" => "Write the release notes"})
+
+      writer = user_fixture("writer@example.com")
+      {:ok, _} = Access.grant(sprints, writer, "write", owner)
+      {:ok, _} = Access.grant(work, writer, "write", owner)
+
+      # Ticked as a writer on Work; the grant there is lowered to read before
+      # Add, by its row alone, so the open picker is told nothing and still
+      # holds the tick.
+      view =
+        tick_and_add(log_in_user(build_conn(), writer), sprints, sprint, [a], fn ->
+          assert {1, _} =
+                   Repo.update_all(
+                     from(g in Grant, where: g.board_id == ^work.id and g.user_id == ^writer.id),
+                     set: [level: "read"]
+                   )
+
+          assert Access.board_permission(writer, work) == :read
+          assert Access.board_permission(writer, sprints) == :write
+        end)
+
+      assert has_element?(view, "#flash-info", "Nothing added to #{sprint.title}.")
+      refute has_element?(view, "#flash-error")
+      refute render(view) =~ "left out"
+      assert board_of(a) == work.id
+      assert Boards.Cards.get_card!(a.id).column_id == todo.id
     end
   end
 
