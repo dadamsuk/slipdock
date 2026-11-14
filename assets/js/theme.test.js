@@ -70,3 +70,11 @@ test("a theme kept in storage is put back, one chosen is kept, and system forget
   assert.equal(attrs["data-theme"], "dark")
   assert.equal(attrs["data-theme-source"], "system")
 })
+
+test("where reading localStorage throws, choosing a theme still sets it", async () => {
+  const {attrs} = await load({localStorage: {get() { throw new Error("SecurityError") }}, dark: false}, listeners => {
+    assert.doesNotThrow(() => listeners["phx:set-theme"]({target: {dataset: {phxTheme: "dark"}}}))
+  })
+  assert.equal(attrs["data-theme"], "dark")
+  assert.equal(attrs["data-theme-source"], "user")
+})
