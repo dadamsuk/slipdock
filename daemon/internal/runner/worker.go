@@ -80,6 +80,12 @@ type Worker struct {
 	held *daemonstate.Job
 	// Sleep waits between claims that failed; it returns early when ctx ends.
 	Sleep func(context.Context, time.Duration) error
+	// Holds are the daemon's holds on claiming while its agent can't run
+	// (#2920), shared by its runners (default: the worker's own).
+	Holds *Holds
+	// QuickExit is how soon an agent that exits non-zero before a tool
+	// call reads as the machine's trouble (quickExit; < 0 off).
+	QuickExit time.Duration
 }
 
 // Defaults fills what wasn't set.
@@ -137,6 +143,12 @@ func (w *Worker) defaults() {
 	}
 	if w.Now == nil {
 		w.Now = time.Now
+	}
+	if w.Holds == nil {
+		w.Holds = NewHolds()
+	}
+	if w.QuickExit == 0 {
+		w.QuickExit = quickExit
 	}
 }
 
@@ -258,12 +270,21 @@ func levelMarker(level daemonlog.Level) string {
 // runner (a *Refused: the machine revoked, or the runner no longer the
 // machine's). A claim that fails otherwise is tried again, backing off to
 // a minute; the channel to the server waking (the machine woke from sleep,
-// #2807) ends the wait at once and starts the backoff again.
+// #2807) ends the wait at once and starts the backoff again. While the
+// runner's agent can't run (a hold, #2920) it claims nothing.
 func (w *Worker) Run(ctx context.Context) error {
 	w.defaults()
 	backoff := time.Second
 	w.say("taking jobs from %s (pool %s, board #%d)", w.Client.Server, w.Runner.Pool, w.Runner.BoardID)
 	for ctx.Err() == nil {
+		if until := w.Holds.Until(w.Runner.Config.Agent); until.After(w.Now()) {
+			w.say("warn: taking no job until %s: the agent %s can't run on this machine (restart the daemon to try sooner)",
+				until.Format(time.RFC3339), w.Runner.Config.Agent)
+			if w.Sleep(ctx, until.Sub(w.Now())) != nil {
+				return nil
+			}
+			continue
+		}
 		woken := w.Client.woken()
 		headers := claimHeaders(w.Runner.Kinds(w.Local), w.Version, w.drift())
 		job, info, err := w.Client.Claim(ctx, w.Runner.ID, headers, w.Wait)
@@ -292,11 +313,37 @@ func (w *Worker) Run(ctx context.Context) error {
 			}
 		default:
 			backoff = time.Second
+			if w.giveBack(ctx, job) {
+				continue
+			}
 			w.runJob(ctx, job)
 			w.sums = driftSums{} // read the skills and the CLI again
 		}
 	}
 	return nil
+}
+
+// giveBack hands back, unrun, an agent job claimed while the agent is held
+// (#2920): a sibling runner hit the limit while this one waited in its
+// claim. The job goes back to the queue as the hold's trouble, and the
+// backoff isn't touched, since the agent wasn't run. Merges, releases and
+// probes don't run the agent, so they run.
+func (w *Worker) giveBack(ctx context.Context, job *Job) bool {
+	if job.Kind == "merge" || job.Kind == ReleaseKind || job.Kind == ProbeKind {
+		return false
+	}
+	tr, held := w.Holds.Held(w.Runner.Config.Agent, w.Now())
+	if !held {
+		return false
+	}
+	w.say("job #%d: given back unrun: the %s runners take no job until %s", job.ID, w.Runner.Config.Agent, tr.until.Format(time.RFC3339))
+	text := fmt.Sprintf("slipdock-runner: given back unrun, as the agent %s is held on this machine until %s (%s); its card untouched",
+		w.Runner.Config.Agent, tr.until.Format(time.RFC3339), tr.reason)
+	sleep := func(d time.Duration) { _ = w.Sleep(ctx, d) }
+	if err := w.Client.Requeue(ctx, w.Runner.ID, job.ID, 0, tr.kind, tr.until, tr.reason, []byte(text), sleep); err != nil {
+		w.say("warn: job #%d: could not give it back: %v", job.ID, err)
+	}
+	return true
 }
 
 func (w *Worker) skillsDir() string {
@@ -628,6 +675,7 @@ func (w *Worker) runAgent(ctx context.Context, j *jobRun) {
 		p.Transcripts, tx.root, tx.files = dir, dir, executor.Beneath(dir, 0)
 	}
 	cmd, err := w.Executor.Command(p, argv[0], argv[1:]...)
+	started := w.Now()
 	if err == nil {
 		cmd.Stdout, cmd.Stderr = j.log, j.log
 		err = cmd.Start()
@@ -646,7 +694,57 @@ func (w *Worker) runAgent(ctx context.Context, j *jobRun) {
 	}()
 	stop := func() { w.stopTree(cmd, done) }
 	ended, rc := w.watch(ctx, j, done, stop, tx)
+	if ended == "" && rc != 0 {
+		if tr := w.trouble(j, started, rc, tx); tr != nil {
+			w.requeue(ctx, j, rc, tr, tx)
+			return
+		}
+	}
+	if ended == "" {
+		w.Holds.Ran(w.Runner.Config.Agent)
+	}
 	w.end(ctx, j, ended, rc, "", tx)
+}
+
+// trouble is why an agent that exited rc couldn't run on this machine at
+// all (#2920), holding the runners that share its agent, or nil when the
+// job ran and the failure is the card's.
+func (w *Worker) trouble(j *jobRun, started time.Time, rc int, tx *transcript) *trouble {
+	now, agent := w.Now(), w.Runner.Config.Agent
+	if ok, line, at := limitIn(w.tail(j), now); ok {
+		reason := "the agent's limit: " + line
+		return &trouble{kind: "limit", until: w.Holds.Limit(agent, at, now, reason), reason: reason}
+	}
+	took := now.Sub(started)
+	if w.QuickExit > 0 && took < w.QuickExit && !w.toolCalled(tx) {
+		reason := fmt.Sprintf("the agent exited %d after %s, before a tool call", rc, took.Round(time.Second))
+		return &trouble{kind: "quick_exit", until: w.Holds.QuickExit(agent, now, reason), reason: reason}
+	}
+	return nil
+}
+
+// toolCalled is whether the job's transcript, if it has one, shows a tool call.
+func (w *Worker) toolCalled(tx *transcript) bool {
+	if tx == nil || !tx.find() {
+		return false
+	}
+	data, err := tx.fs().ReadFile(tx.path)
+	return err == nil && toolCalled(data)
+}
+
+// requeue ends a job its agent couldn't run: the server puts it back in the
+// queue, its card untouched, and the runner holds off until tr.until.
+func (w *Worker) requeue(ctx context.Context, j *jobRun, rc int, tr *trouble, tx *transcript) {
+	job := j.job
+	w.say("warn: job #%d: %s; it goes back to the queue, and the %s runners take no job until %s",
+		job.ID, tr.reason, w.Runner.Config.Agent, tr.until.Format(time.RFC3339))
+	j.note(fmt.Sprintf("slipdock-runner: %s; the job goes back to the queue, its card untouched", tr.reason))
+	if tx != nil {
+		w.sendTranscript(ctx, j, tx, true)
+	}
+	w.afterHook(ctx, j, rc, "requeued")
+	j.lane.close(ctx, w.Exec, j.note)
+	w.report(ctx, job, j, rc, "requeue", "", "", tr)
 }
 
 func exitCode(cmd *exec.Cmd, err error) int {
@@ -882,8 +980,8 @@ func (w *Worker) hook(ctx context.Context, j *jobRun, h machine.Command, env []s
 }
 
 // afterHook runs the after hook, if the runner names one, however the job
-// ended, with SLIPDOCK_EXIT and SLIPDOCK_STATUS (done, failed, cancelled
-// or timeout).
+// ended, with SLIPDOCK_EXIT and SLIPDOCK_STATUS (done, failed, cancelled,
+// timeout, or requeued when the agent couldn't run, #2920).
 func (w *Worker) afterHook(ctx context.Context, j *jobRun, rc int, status string) {
 	if j.after == nil {
 		return
@@ -951,6 +1049,11 @@ func (w *Worker) tail(j *jobRun) []byte {
 // finish reports the job's end with its log's tail (or text, when there is
 // no log). A finish that can't be reported is logged: the lease runs out.
 func (w *Worker) finish(ctx context.Context, job *Job, j *jobRun, rc int, status, merged, text string) {
+	w.report(ctx, job, j, rc, status, merged, text, nil)
+}
+
+// report is finish, with the trouble that sends a job back (#2920).
+func (w *Worker) report(ctx context.Context, job *Job, j *jobRun, rc int, status, merged, text string, tr *trouble) {
 	body := []byte(text)
 	if j != nil {
 		body = w.tail(j)
@@ -961,7 +1064,13 @@ func (w *Worker) finish(ctx context.Context, job *Job, j *jobRun, rc int, status
 		defer cancel()
 	}
 	sleep := func(d time.Duration) { _ = w.Sleep(ctx, d) }
-	if err := w.Client.Finish(ctx, w.Runner.ID, job.ID, rc, status, merged, body, sleep); err != nil {
+	var err error
+	if tr != nil {
+		err = w.Client.Requeue(ctx, w.Runner.ID, job.ID, rc, tr.kind, tr.until, tr.reason, body, sleep)
+	} else {
+		err = w.Client.Finish(ctx, w.Runner.ID, job.ID, rc, status, merged, body, sleep)
+	}
+	if err != nil {
 		w.say("warn: job #%d: could not report it finished: %v", job.ID, err)
 	}
 	if w.held != nil && w.held.ID == job.ID {
@@ -975,6 +1084,8 @@ func (w *Worker) finish(ctx context.Context, job *Job, j *jobRun, rc int, status
 // from the exit code when none was.
 func endedAs(rc int, status string) string {
 	switch {
+	case status == "requeue":
+		return "requeued"
 	case status != "":
 		return status
 	case rc == 0:

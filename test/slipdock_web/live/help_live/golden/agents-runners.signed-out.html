@@ -319,6 +319,24 @@ Account → Machines</span>
     back with its next heartbeat and the agent carries on where it was; if one has, the
     woken runner stops its copy.
   </p>
+<p phx-r="" id="help-machine-hold">
+
+    When the agent can&#39;t run at all (its account has hit a usage limit, or it can&#39;t sign
+    in) the daemon reads that as the machine&#39;s trouble, not the card&#39;s: the agent&#39;s limit
+    message (<em>
+You&#39;ve hit your weekly limit · resets Nov 15, 6pm</em>
+), or an agent that
+    exits non-zero within a minute before a single tool call. The job goes back in the
+    queue as though it had never been claimed, and its card is left as it was: no
+    failure, no handoff, no blocked flag. Every runner on the machine with that agent
+    then takes no job until the reset the message states (an hour when it states none),
+    or, after a quick exit, for a minute, doubling to 30, until a job runs normally; one
+    already waiting in its claim gives the job it is handed back unrun. The board gets
+    one warning alert for the machine (<em>
+Runners on build-box stopped: …</em>
+), not
+    one a job. Restart the daemon to try sooner, once the account is mended.
+  </p>
 <p phx-r="" id="help-machine-page">
 
     Each machine has a page of its own, opened from that list: whether it is online, the

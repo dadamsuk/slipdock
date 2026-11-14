@@ -1457,18 +1457,42 @@ defmodule Slipdock.Runners do
   A job with an open wait asked from it ends `parked`, whatever it says
   (KTD5): its agent asked a person something and stopped. `status: parked`
   from a job with no such wait is refused, as `{:error, message}`.
+
+  `status: requeue` is a job its agent couldn't run on the runner's machine
+  (a usage limit, a sign-in failure, #2920): it goes back to the queue
+  uncounted, its card untouched (`Slipdock.Runners.Trouble`), unless it
+  was asked to cancel or has an open wait, which win as ever.
   """
   def finish(%Runner{} = runner, job_id, attrs) do
     with {:ok, job} <- held_job(runner, job_id) do
-      if Enum.member?(Job.finished_statuses(), job.status) do
-        {:ok, job}
-      else
-        with {:ok, status} <- end_status(job, attrs) do
-          job = end_job(runner, job, status, attrs)
-          {:ok, after_end(runner, job, status)}
-        end
+      cond do
+        Enum.member?(Job.finished_statuses(), job.status) ->
+          {:ok, job}
+
+        attrs[:status] == "requeue" and is_nil(job.cancel_requested_at) and
+            is_nil(open_linked_wait(job)) ->
+          Slipdock.Runners.Trouble.requeue(runner, job, attrs)
+
+        true ->
+          end_held(runner, job, attrs)
       end
     end
+  end
+
+  defp end_held(runner, job, attrs) do
+    with {:ok, status} <- end_status(job, attrs) do
+      job = end_job(runner, job, status, attrs)
+      {:ok, after_end(runner, job, status)}
+    end
+  end
+
+  @doc false
+  # A job put back in the queue by `Trouble` (#2920): the card's watchers
+  # see it, and the pool's waiting runners are woken for it.
+  def requeued(%Job{} = job) do
+    changed(job)
+    wake_pool(job.root_board_id, job.pool)
+    job
   end
 
   @doc """

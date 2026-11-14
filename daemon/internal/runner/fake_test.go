@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -67,6 +68,9 @@ func helper(mode string, args []string) int {
 		}
 		_ = os.WriteFile(os.Getenv("HELPER_OUT"), []byte(b.String()), 0o600)
 		fmt.Println("hello from the agent")
+		if say := os.Getenv("HELPER_SAY"); say != "" {
+			fmt.Println(say)
+		}
 		if tx := os.Getenv("HELPER_TRANSCRIPT"); tx != "" {
 			_ = os.MkdirAll(filepath.Dir(tx), 0o700)
 			_ = os.WriteFile(tx, []byte(os.Getenv("HELPER_TRANSCRIPT_BODY")), 0o600)
@@ -169,6 +173,7 @@ type finished struct {
 	exit           int
 	status, merged string
 	body           string
+	query          url.Values
 }
 
 // server is a Slipdock server's runner protocol.
@@ -412,7 +417,7 @@ func (s *server) handle(w http.ResponseWriter, r *http.Request) {
 	case strings.HasSuffix(r.URL.Path, "/finish"):
 		id := jobID(r.URL.Path)
 		exit, _ := strconv.Atoi(r.URL.Query().Get("exit"))
-		s.finishes[id] = finished{exit, r.URL.Query().Get("status"), r.URL.Query().Get("merged"), string(body)}
+		s.finishes[id] = finished{exit, r.URL.Query().Get("status"), r.URL.Query().Get("merged"), string(body), r.URL.Query()}
 		fmt.Fprintln(w, "ok done")
 	default:
 		w.WriteHeader(404)
@@ -539,6 +544,9 @@ func newRig(t *testing.T, cfg Config) *rig {
 		Wait: 0, Heartbeat: 30 * time.Millisecond, TranscriptEvery: 30 * time.Millisecond,
 		Grace: 200 * time.Millisecond, Tick: 10 * time.Millisecond,
 		Launcher: os.Args[0],
+		// A test's agent exits at once, before any tool call: the quick
+		// exit read (#2920) is off unless the test turns it on.
+		QuickExit: -1,
 	}
 	pub, priv, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {

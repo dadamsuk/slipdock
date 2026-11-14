@@ -61,6 +61,18 @@ it, the runner that held it takes it back with its next heartbeat,
 the answer is `ok` as if the lease had never lapsed, and it costs no try.
 Once another runner has it, those answer `404`.
 
+A job whose agent couldn't run on the machine at all (a usage limit, a
+failed sign-in, #2920) finishes `status=requeue`, with `trouble=limit` or
+`quick_exit`, `until` (ISO 8601, when the machine's runners take jobs
+again) and a one-line `reason`, and is answered `ok queued`: the job goes
+back in the queue without spending a try, its card untouched (no handoff,
+no `requeue_stuck`, no flag, no `job_finished`), and the board gets one
+warning alert for the machine. The runner daemon sends it on the agent's
+limit message, or on an exit within a minute before any tool call, and
+holds its runners until then. A job asked to cancel, or with an open
+wait, ends cancelled or parked instead; a server without `requeue` reads
+it as failed.
+
 **Taking jobs from a Claude session** (`/loop`, a scheduled task) uses the
 token you already have — over MCP the `claim_job`, `job_progress` and
 `finish_job` tools, over HTTP:
@@ -204,6 +216,7 @@ POST /api/runner/claim?wait=25             204, or 200 with X-Job-Id, X-Job-Kind
                                            X-Card-Ref, X-Card-Url, X-Lease-Seconds; prompt as body
 POST /api/runner/jobs/:id/heartbeat        body = log tail  → ok | cancel
 POST /api/runner/jobs/:id/finish?exit=N&status=S   body = last output → ok
+                                           (status=requeue&trouble=K&until=T&reason=R → ok queued)
 POST /api/runner/jobs/:id/transcript?from=N  body = transcript lines from N → ok L | capped L
 ```
 

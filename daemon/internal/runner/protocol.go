@@ -8,9 +8,11 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/dadamsuk/slipdock/daemon/internal/machine"
 )
@@ -307,17 +309,32 @@ func (c *Client) Transcript(ctx context.Context, runnerID, jobID int64, from int
 // a merge, and the tail of its log. It tries five times, a little apart; a
 // job the server doesn't know (404) is reported.
 func (c *Client) Finish(ctx context.Context, runnerID, jobID int64, exit int, status, merged string, tail []byte, sleep func(time.Duration)) error {
-	q := fmt.Sprintf("exit=%d", exit)
+	q := url.Values{"exit": {strconv.Itoa(exit)}}
 	if status != "" {
-		q += "&status=" + status
+		q.Set("status", status)
 	}
 	if merged != "" && isHex(merged) {
-		q += "&merged=" + merged
+		q.Set("merged", merged)
 	}
+	return c.finish(ctx, runnerID, jobID, q, tail, sleep)
+}
+
+// Requeue reports a job its agent couldn't run on this machine (#2920):
+// status requeue, with the trouble's kind (limit, quick_exit), when the
+// runners hold off until, and why. The server puts the job back in the
+// queue; one older than requeue reads it as failed.
+func (c *Client) Requeue(ctx context.Context, runnerID, jobID int64, exit int, kind string, until time.Time, reason string, tail []byte, sleep func(time.Duration)) error {
+	reason = clip(reason, 200)
+	q := url.Values{"exit": {strconv.Itoa(exit)}, "status": {"requeue"}, "trouble": {kind},
+		"until": {until.UTC().Format(time.RFC3339)}, "reason": {reason}}
+	return c.finish(ctx, runnerID, jobID, q, tail, sleep)
+}
+
+func (c *Client) finish(ctx context.Context, runnerID, jobID int64, q url.Values, tail []byte, sleep func(time.Duration)) error {
 	var last error
 	for try := 1; try <= 5; try++ {
 		rctx, stop := context.WithTimeout(ctx, 30*time.Second)
-		resp, data, err := c.request(rctx, runnerID, http.MethodPost, fmt.Sprintf("/api/runner/jobs/%d/finish?%s", jobID, q), tail, nil)
+		resp, data, err := c.request(rctx, runnerID, http.MethodPost, fmt.Sprintf("/api/runner/jobs/%d/finish?%s", jobID, q.Encode()), tail, nil)
 		stop()
 		switch {
 		case err != nil:
@@ -440,4 +457,15 @@ func firstLine(s string) string {
 		s = s[:200]
 	}
 	return s
+}
+
+// clip cuts s to at most n bytes, never inside a character.
+func clip(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	for n > 0 && !utf8.RuneStart(s[n]) {
+		n--
+	}
+	return s[:n]
 }
