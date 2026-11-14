@@ -38,7 +38,12 @@ defmodule SlipdockWeb.MCP.Tools.WritePage do
           description: "With create: a page for this card, in its folder and pinned to it."
         },
         title: %{type: "string", description: "For create."},
-        body: %{type: "string", description: "Markdown."},
+        body: %{
+          type: "string",
+          description:
+            "Markdown. In create and replace, a --- front matter block at its top " <>
+              "becomes the page's front matter."
+        },
         section: %{
           type: "string",
           description:
@@ -100,7 +105,7 @@ defmodule SlipdockWeb.MCP.Tools.WritePage do
     with {:ok, ref} <- Args.required(args, "board"),
          {:ok, title} <- Args.required(args, "title"),
          {:ok, board} <- Args.refusal(Authorize.fetch_board(auth, ref, :write)) do
-      Args.refusal(Wiki.create_page(board, %{"title" => title, "body" => body}, opts))
+      Args.refusal(Wiki.create_page(board, %{"title" => title, "body" => body}, note(opts)))
     end
   end
 
@@ -121,17 +126,21 @@ defmodule SlipdockWeb.MCP.Tools.WritePage do
 
         "replace" ->
           with {:ok, _} <- Args.required(args, "base_hash"),
-               do: Args.refusal(Wiki.update_page(page, %{"body" => body}, opts))
+               do: Args.refusal(Wiki.update_page(page, %{"body" => body}, note(opts)))
       end
     end
   end
+
+  # In create and replace the body is a whole note, so a front matter block at
+  # its top is the page's front matter (#2992); an append or a section isn't.
+  defp note(opts), do: [split_front_matter: true] ++ opts
 
   # A page for a card lands on the card's board, in its folder, pinned to it.
   defp write_for_card(id, args, body, auth, opts) do
     with {:ok, title} <- Args.required(args, "title"),
          {:ok, card} <- Args.refusal(CardWrites.fetch_card(id)),
          :ok <- Args.refusal(Authorize.card(auth, card, :write)) do
-      Args.refusal(Wiki.create_page_from_card(card, opts ++ [title: title, body: body]))
+      Args.refusal(Wiki.create_page_from_card(card, note(opts) ++ [title: title, body: body]))
     end
   end
 

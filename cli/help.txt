@@ -269,6 +269,8 @@ WIKI  (Markdown pages on a board: how it works, what was decided and why.
                                       names and files it, and says where (--body - reads stdin)
   page new <board> <title...>         write a page
       --body TEXT | --file F | --body -   (- reads the body from stdin)
+                    a --- front matter block at its top is kept as the
+                    page's front matter (see page props), not as text
       --parent P    put it under another page
       --folder F    file it in a folder — a name or a path, made if it is new
       --card N      a page for that card: in its folder, pinned to it
@@ -276,6 +278,8 @@ WIKI  (Markdown pages on a board: how it works, what was decided and why.
       --message M   why, recorded in the page's history
       --draft       only writers can see it
   page edit <page> [--title T] [--summary S] [--body TEXT|--file F|--body -]
+                    a --- front matter block at the top of the new body
+                    replaces the page's front matter; without one it stays
       --message M   why (write one every time)
       --base-hash H the hash you read (see `page read --json`); a save that
                     would land on someone else's is refused, not applied

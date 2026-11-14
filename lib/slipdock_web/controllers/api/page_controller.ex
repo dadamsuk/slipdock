@@ -116,7 +116,7 @@ defmodule SlipdockWeb.API.PageController do
          {:ok, page} <-
            Wiki.create_page_from_card(
              card,
-             write_opts(conn, params) ++
+             note_opts(conn, params) ++
                [title: params["title"], body: params["body"], folder: params["folder"]]
            ) do
       conn |> put_status(:created) |> json(%{page: V.page(with_users(page))})
@@ -127,7 +127,7 @@ defmodule SlipdockWeb.API.PageController do
     with {:ok, board} <- Authorize.fetch_board(conn, ref, :write),
          {:ok, attrs} <- page_attrs(conn, board, params),
          {:ok, attrs} <- front_matter(attrs, params, nil),
-         {:ok, page} <- Wiki.create_page(board, attrs, write_opts(conn, params)) do
+         {:ok, page} <- Wiki.create_page(board, attrs, note_opts(conn, params)) do
       conn |> put_status(:created) |> json(%{page: V.page(with_users(page))})
     end
   end
@@ -174,7 +174,7 @@ defmodule SlipdockWeb.API.PageController do
          {:ok, tags} <- CardWrites.resolve_page_tags(board, params),
          {:ok, attrs} <- page_attrs(conn, board, params),
          {:ok, attrs} <- front_matter(attrs, params, page.front_matter),
-         {:ok, page} <- Wiki.update_page(page, attrs, write_opts(conn, params)),
+         {:ok, page} <- Wiki.update_page(page, attrs, note_opts(conn, params)),
          {:ok, _} <- CardWrites.apply_page_tags(page, tags),
          :ok <- set_fields(board, page, params["fields"]) do
       json(conn, %{page: V.page(with_users(Wiki.get_page!(page.id)))})
@@ -719,7 +719,7 @@ defmodule SlipdockWeb.API.PageController do
          {:ok, page} <-
            Wiki.create_page_from_card(
              card,
-             write_opts(conn, params) ++
+             note_opts(conn, params) ++
                [
                  title: params["title"],
                  template: params["template"],
@@ -1428,7 +1428,7 @@ defmodule SlipdockWeb.API.PageController do
 
     with {:ok, folder, board} <- fetch_folder(conn, Map.take(params, ["id"]), :write),
          attrs = params |> Map.take(@page_fields) |> Map.put("folder_id", folder.id),
-         {:ok, page} <- Wiki.create_page(board, attrs, write_opts(conn, params) ++ [user: user]) do
+         {:ok, page} <- Wiki.create_page(board, attrs, note_opts(conn, params) ++ [user: user]) do
       conn
       |> put_status(:created)
       |> json(%{page: V.page(with_users(Wiki.get_page!(page.id)))})
@@ -1729,6 +1729,11 @@ defmodule SlipdockWeb.API.PageController do
       base_hash: params["base_hash"]
     ]
   end
+
+  # For a write whose `body` is a whole note (a create, a PATCH): a front
+  # matter block at its top is the page's front matter, not text (#2992).
+  # Not for an append or a section write, whose body is a part of one.
+  defp note_opts(conn, params), do: [split_front_matter: true] ++ write_opts(conn, params)
 
   defp via(conn) do
     case get_req_header(conn, "x-slipdock-client") ++ get_req_header(conn, "x-kanban-client") do

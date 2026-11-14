@@ -308,4 +308,25 @@ defmodule Slipdock.WikiFrontMatterTest do
       end
     end
   end
+
+  describe "lift/1 (#2992)" do
+    test "takes a block that sets a key off the top of a body" do
+      assert FrontMatter.lift("---\na: 1\n---\n\nBody") == {"---\na: 1\n---\n\n", "Body"}
+
+      assert FrontMatter.lift("---\r\n\"a b\": [x]\r\n---\r\n") ==
+               {"---\r\n\"a b\": [x]\r\n---\r\n", ""}
+    end
+
+    test "leaves a body whose opening --- lines hold no key" do
+      for body <- [
+            "---\n---\nText",
+            "---\nprose\n---\n",
+            "---\n# note\n- item\n---\n",
+            "Text\n---\na: 1\n---\n",
+            ""
+          ] do
+        assert FrontMatter.lift(body) == {nil, body}
+      end
+    end
+  end
 end
