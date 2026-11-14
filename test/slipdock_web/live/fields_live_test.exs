@@ -41,7 +41,10 @@ defmodule SlipdockWeb.FieldsLiveTest do
     assert render(view) =~ "{size}"
   end
 
-  test "a refused field add says why and adds nothing", %{conn: conn, board: board} do
+  test "a field with a blank name is refused, says why and adds nothing", %{
+    conn: conn,
+    board: board
+  } do
     {:ok, view, _} = live(conn, ~p"/boards/#{board}/settings")
 
     view
@@ -53,8 +56,18 @@ defmodule SlipdockWeb.FieldsLiveTest do
     })
     |> render_submit()
 
-    assert render(view) =~ "Couldn&#39;t add the field"
+    assert render(view) =~ "Couldn&#39;t add the field: name can&#39;t be blank"
     assert Fields.list_fields(board.id) == []
+  end
+
+  # A view of its own: the flash from one refusal stays on the page, so a
+  # second submit in the same view would pass on the first one's message.
+  test "a field with a bad formula is refused, says why and adds nothing", %{
+    conn: conn,
+    board: board
+  } do
+    {:ok, view, html} = live(conn, ~p"/boards/#{board}/settings")
+    refute html =~ "Couldn&#39;t add the field"
 
     view
     |> form("#field-form-0", %{
@@ -65,7 +78,7 @@ defmodule SlipdockWeb.FieldsLiveTest do
     })
     |> render_submit()
 
-    assert render(view) =~ "Couldn&#39;t add the field"
+    assert render(view) =~ "Couldn&#39;t add the field: config formula ends too early"
     assert Fields.list_fields(board.id) == []
   end
 
