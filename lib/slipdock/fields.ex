@@ -81,7 +81,16 @@ defmodule Slipdock.Fields do
     )
   end
 
-  def get_field!(id), do: Repo.get!(FieldDefinition, id)
+  @doc """
+  The field `id` if it is on the tree rooted at `root_id`, or nil: for ids a
+  client sent.
+  """
+  def get_board_field(root_id, id) do
+    case Slipdock.Boards.Shared.to_id(id) do
+      nil -> nil
+      id -> Repo.one(from(f in FieldDefinition, where: f.id == ^id and f.board_id == ^root_id))
+    end
+  end
 
   @doc "Finds a field on the tree by id or key/name (case-insensitive)."
   def find_field(fields, ref) when is_list(fields) do

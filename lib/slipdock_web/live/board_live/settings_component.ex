@@ -320,9 +320,7 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
   end
 
   defp event("delete_field", %{"id" => id}, socket) do
-    field = Fields.get_field!(id)
-
-    if field.board_id == Slipdock.Boards.Board.root_id(socket.assigns.board) do
+    if field = Fields.get_board_field(root_id(socket), id) do
       {:ok, _} = Fields.delete_field(field)
     end
 
@@ -330,9 +328,7 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
   end
 
   defp event("toggle_field_sum", %{"id" => id}, socket) do
-    field = Fields.get_field!(id)
-
-    if field.board_id == Slipdock.Boards.Board.root_id(socket.assigns.board) do
+    if field = Fields.get_board_field(root_id(socket), id) do
       {:ok, _} = Fields.update_field(field, %{"sum" => not field.sum})
     end
 
@@ -363,9 +359,7 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
   end
 
   defp event("delete_milestone", %{"id" => id}, socket) do
-    milestone = Boards.Milestones.get_milestone!(id)
-
-    if milestone.board_id == Slipdock.Boards.Board.root_id(socket.assigns.board) do
+    if milestone = Boards.Milestones.get_board_milestone(root_id(socket), id) do
       {:ok, _} = Boards.Milestones.delete_milestone(milestone)
     end
 
@@ -426,6 +420,10 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
     </div>
     """
   end
+
+  # The tree's root: fields and milestones belong to it, whichever of its
+  # boards the settings are open on.
+  defp root_id(socket), do: Slipdock.Boards.Board.root_id(socket.assigns.board)
 
   defp put_hotkey(user, board, %{"hotkey" => value}) when is_nil(board.parent_card_id),
     do: Hotkeys.put(user, board, value)

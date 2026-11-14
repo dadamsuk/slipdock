@@ -198,6 +198,91 @@ defmodule SlipdockWeb.BoardTenancyLiveTest do
       refute Repo.get(Comment, comment.id)
     end
 
+    # A file that is neither audio nor read for text: pushed at its own
+    # card, `transcribe` and `read_text` each answer with a flash, so no
+    # flash is how a refusal shows.
+    defp attach(card, name) do
+      Slipdock.TestConfig.own_uploads_dir()
+      path = Path.join(System.tmp_dir!(), "tenancy-#{System.unique_integer([:positive])}")
+      File.write!(path, "PK")
+      on_exit(fn -> File.rm(path) end)
+
+      {:ok, a} =
+        Boards.Attachments.add_attachment(
+          card,
+          %{filename: name, content_type: "application/zip"},
+          path
+        )
+
+      a
+    end
+
+    @not_audio "Only audio files can be transcribed."
+    @not_readable "Only PDFs and images are read for text."
+
+    defp push_attachment_events(view, id) do
+      render_hook(card_panel(view), "hide_on_card", %{"id" => id, "hide" => "true"})
+      render_hook(card_panel(view), "transcribe", %{"id" => id})
+      render_hook(card_panel(view), "read_text", %{"id" => id})
+      render_hook(card_panel(view), "delete_attachment", %{"id" => id})
+    end
+
+    test "another card's attachment is left alone", ctx do
+      theirs = attach(ctx.their_card, "theirs.zip")
+      view = card_view(ctx.conn, ctx.mine, ctx.my_card)
+
+      html = push_attachment_events(view, "#{theirs.id}")
+
+      kept = Repo.get(Boards.Attachment, theirs.id)
+      assert kept
+      refute kept.hide_on_card
+      assert File.exists?(Boards.Attachments.attachment_path(kept))
+      refute html =~ @not_audio
+      refute render(view) =~ @not_readable
+    end
+
+    test "an attachment deleted since the panel drew (#2874) leaves it up", ctx do
+      gone = attach(ctx.my_card, "gone.zip")
+      kept = attach(ctx.my_card, "kept.zip")
+      view = card_view(ctx.conn, ctx.mine, ctx.my_card)
+      {:ok, _} = Boards.Attachments.delete_attachment(gone)
+
+      # Each event by itself: one that raised would take the view down.
+      for {event, params} <- [
+            {"hide_on_card", %{"hide" => "true"}},
+            {"transcribe", %{}},
+            {"read_text", %{}},
+            {"delete_attachment", %{}}
+          ],
+          id <- ["#{gone.id}", "not-an-id"] do
+        html = render_hook(card_panel(view), event, Map.put(params, "id", id))
+        refute html =~ @not_audio
+        refute html =~ @not_readable
+      end
+
+      assert Process.alive?(view.pid)
+      assert has_element?(view, "#attachment-#{kept.id}")
+      refute Repo.get!(Boards.Attachment, kept.id).hide_on_card
+    end
+
+    test "the open card's own attachment still answers each event", ctx do
+      mine = attach(ctx.my_card, "mine.zip")
+      view = card_view(ctx.conn, ctx.mine, ctx.my_card)
+      id = "#{mine.id}"
+
+      render_hook(card_panel(view), "hide_on_card", %{"id" => id, "hide" => "true"})
+      assert Repo.get!(Boards.Attachment, mine.id).hide_on_card
+
+      render_hook(card_panel(view), "transcribe", %{"id" => id})
+      assert render(view) =~ "No transcription server is set up"
+
+      render_hook(card_panel(view), "read_text", %{"id" => id})
+      assert render(view) =~ @not_readable
+
+      render_hook(card_panel(view), "delete_attachment", %{"id" => id})
+      refute Repo.get(Boards.Attachment, mine.id)
+    end
+
     test "a subcard can't be added to a stranger's list", ctx do
       {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, _} = Boards.create_sub_board(ctx.my_card, t)
@@ -466,6 +551,70 @@ defmodule SlipdockWeb.BoardTenancyLiveTest do
       assert Repo.get(Slipdock.Boards.Milestone, milestone.id)
       assert Repo.get(Slipdock.Access.Grant, grant.id)
       assert render(view) =~ "Couldn&#39;t remove that access."
+    end
+  end
+
+  describe "board settings, a row deleted in another tab (#2874)" do
+    setup ctx do
+      {:ok, field} =
+        Slipdock.Fields.create_field(ctx.mine, %{"name" => "Points", "kind" => "number"})
+
+      {:ok, milestone} =
+        Boards.Milestones.create_milestone(ctx.mine, %{"name" => "Beta", "date" => "2030-01-01"})
+
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.mine}/settings")
+      %{field: field, milestone: milestone, view: view}
+    end
+
+    test "a field or milestone that is gone leaves the settings up", ctx do
+      {:ok, gone_field} =
+        Slipdock.Fields.create_field(ctx.mine, %{"name" => "Gone", "kind" => "number"})
+
+      {:ok, gone_milestone} =
+        Boards.Milestones.create_milestone(ctx.mine, %{"name" => "Gone", "date" => "2030-02-01"})
+
+      {:ok, _} = Slipdock.Fields.delete_field(gone_field)
+      {:ok, _} = Boards.Milestones.delete_milestone(gone_milestone)
+      settings = with_target(ctx.view, "#board-settings")
+
+      for {event, stale} <- [
+            {"toggle_field_sum", gone_field.id},
+            {"delete_field", gone_field.id},
+            {"delete_milestone", gone_milestone.id}
+          ],
+          id <- ["#{stale}", "not-an-id"] do
+        render_hook(settings, event, %{"id" => id})
+      end
+
+      assert Process.alive?(ctx.view.pid)
+      assert Repo.get!(Slipdock.Boards.FieldDefinition, ctx.field.id).sum == ctx.field.sum
+      assert Repo.get(Slipdock.Boards.Milestone, ctx.milestone.id)
+    end
+
+    test "the board's own still answer", ctx do
+      settings = with_target(ctx.view, "#board-settings")
+
+      render_hook(settings, "toggle_field_sum", %{"id" => "#{ctx.field.id}"})
+      assert Repo.get!(Slipdock.Boards.FieldDefinition, ctx.field.id).sum == not ctx.field.sum
+
+      render_hook(settings, "delete_field", %{"id" => "#{ctx.field.id}"})
+      refute Repo.get(Slipdock.Boards.FieldDefinition, ctx.field.id)
+
+      render_hook(settings, "delete_milestone", %{"id" => "#{ctx.milestone.id}"})
+      refute Repo.get(Slipdock.Boards.Milestone, ctx.milestone.id)
+    end
+
+    test "a sub-board's settings reach the tree's fields and milestones", ctx do
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
+      {:ok, sub} = Boards.create_sub_board(ctx.my_card, t)
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{sub}/settings")
+      settings = with_target(view, "#board-settings")
+
+      render_hook(settings, "delete_field", %{"id" => "#{ctx.field.id}"})
+      refute Repo.get(Slipdock.Boards.FieldDefinition, ctx.field.id)
+
+      render_hook(settings, "delete_milestone", %{"id" => "#{ctx.milestone.id}"})
+      refute Repo.get(Slipdock.Boards.Milestone, ctx.milestone.id)
     end
   end
 
