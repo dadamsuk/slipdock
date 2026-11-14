@@ -242,3 +242,22 @@ test("the toggle hook says denied, and disables itself where unsupported", () =>
     globalThis.Notification = saved
   }
 })
+
+// Where storage is blocked, reading the `localStorage` property itself throws
+// (#2882): runs `fn` with such a getter in place.
+function whileStorageBlocked(fn) {
+  const before = Object.getOwnPropertyDescriptor(globalThis, "localStorage")
+  Object.defineProperty(globalThis, "localStorage", {configurable: true, get() { throw new Error("SecurityError") }})
+  try { return fn() } finally {
+    if (before) Object.defineProperty(globalThis, "localStorage", before)
+    else delete globalThis.localStorage
+  }
+}
+
+test("where reading localStorage throws, the toggle reads off and setting it doesn't throw", () => {
+  whileStorageBlocked(() => {
+    assert.equal(enabled(), false)
+    assert.doesNotThrow(() => setEnabled(true))
+    assert.equal(enabled(), false)
+  })
+})

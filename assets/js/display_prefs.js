@@ -5,25 +5,20 @@
 // something remembered, the hook sends it back; otherwise it remembers what
 // is in use, an empty set included, so a reset to the defaults sticks.
 
-export const PREFIX = "slipdock:"
+import {storage, readJSON, writeJSON} from "./storage.js"
 
-function storage() {
-  try { return globalThis.localStorage || null } catch (_) { return null }
-}
+export const PREFIX = "slipdock:"
 
 // What is remembered for a key, or null: only a plain object of strings.
 export function recall(key, store = storage()) {
-  if (!store) return null
-  let value
-  try { value = JSON.parse(store.getItem(PREFIX + key)) } catch (_) { return null }
+  const value = readJSON(PREFIX + key, store)
   if (!value || typeof value !== "object" || Array.isArray(value)) return null
   const entries = Object.entries(value).filter(([, v]) => typeof v === "string")
   return Object.fromEntries(entries)
 }
 
 export function remember(key, query, store = storage()) {
-  if (!store) return
-  try { store.setItem(PREFIX + key, JSON.stringify(query || {})) } catch (_) { /* full or refused */ }
+  writeJSON(PREFIX + key, query || {}, store)
 }
 
 // What to do with one push: the remembered set to send back, or null after

@@ -92,3 +92,22 @@ test("the hook pushes display_restore only when something is remembered", () => 
     globalThis.localStorage = original
   }
 })
+
+// Where storage is blocked, reading the `localStorage` property itself throws
+// (#2882): runs `fn` with such a getter in place.
+function whileStorageBlocked(fn) {
+  const before = Object.getOwnPropertyDescriptor(globalThis, "localStorage")
+  Object.defineProperty(globalThis, "localStorage", {configurable: true, get() { throw new Error("SecurityError") }})
+  try { return fn() } finally {
+    if (before) Object.defineProperty(globalThis, "localStorage", before)
+    else delete globalThis.localStorage
+  }
+}
+
+test("where reading localStorage throws, a push neither throws nor restores", () => {
+  whileStorageBlocked(() => {
+    assert.equal(recall("display:3:board"), null)
+    assert.doesNotThrow(() => remember("display:3:board", {width: "wide"}))
+    assert.equal(handlePrefs({key: "display:3:board", query: {}, restore: true}), null)
+  })
+})

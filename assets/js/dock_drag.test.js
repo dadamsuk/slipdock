@@ -2,7 +2,7 @@
 // button (#1130); tools/e2e/mobile-dock-drag.sh drags it in a browser.
 import {test} from "node:test"
 import assert from "node:assert/strict"
-import {DRAG_START, MARGIN, STORE_KEY, isDrag, settle, clampTop, placement, save, load} from "./dock_drag.js"
+import {DRAG_START, MARGIN, STORE_KEY, isDrag, settle, clampTop, placement, save, load, DockDrag} from "./dock_drag.js"
 
 const phone = {width: 390, height: 844}
 
@@ -81,4 +81,64 @@ test("nothing saved, or something unreadable, means the default corner", () => {
 
 test("storage that refuses a write is not an error", () => {
   assert.doesNotThrow(() => save({setItem: () => { throw new Error("quota") }}, {side: "left", top: 1}, phone))
+})
+
+// Where storage is blocked, reading the `localStorage` property itself throws
+// (#2882): runs `fn` with such a getter in place.
+function whileStorageBlocked(fn) {
+  const before = Object.getOwnPropertyDescriptor(globalThis, "localStorage")
+  Object.defineProperty(globalThis, "localStorage", {configurable: true, get() { throw new Error("SecurityError") }})
+  try { return fn() } finally {
+    if (before) Object.defineProperty(globalThis, "localStorage", before)
+    else delete globalThis.localStorage
+  }
+}
+
+test("where reading localStorage throws, nothing is loaded and saving doesn't throw", () => {
+  whileStorageBlocked(() => {
+    assert.equal(load(undefined, phone), null)
+    assert.doesNotThrow(() => save(undefined, {side: "left", top: 100}, phone))
+  })
+})
+
+// The hook itself, mounted where storage is blocked (#2882): `window` is
+// faked down to what the hook touches, and its `localStorage` throws too.
+test("where reading localStorage throws, the hook mounts and a drag ends without throwing", () => {
+  const before = globalThis.window
+  const blocked = {configurable: true, get() { throw new Error("SecurityError") }}
+  const win = {innerWidth: phone.width, innerHeight: phone.height, addEventListener() {}, removeEventListener() {}}
+  Object.defineProperty(win, "localStorage", blocked)
+  globalThis.window = win
+  try {
+    whileStorageBlocked(() => {
+      const on = {}
+      const fab = {
+        offsetHeight: 56,
+        addEventListener: (type, fn) => { on[type] = fn },
+        getBoundingClientRect: () => ({left: 12, top: 700}),
+        setPointerCapture() {},
+      }
+      const attrs = {"phx-click-away": "[]"}
+      const el = {
+        dataset: {},
+        querySelector: sel => (sel === "#mobile-fab" ? fab : null),
+        getAttribute: k => attrs[k] ?? null,
+        setAttribute: (k, v) => { attrs[k] = v },
+      }
+      const hook = Object.assign(Object.create(DockDrag), {
+        el,
+        js: () => ({ignoreAttributes() {}, exec() {}}),
+      })
+      assert.doesNotThrow(() => hook.mounted())
+      assert.equal(hook.pos, null)
+
+      on.pointerdown({button: 0, clientX: 40, clientY: 720})
+      on.pointermove({clientX: 300, clientY: 400, preventDefault() {}})
+      assert.doesNotThrow(() => on.pointerup({type: "pointerup", clientX: 300, clientY: 400}))
+      assert.equal(hook.pos.side, "right")
+      assert.equal(el.dataset.side, "right")
+    })
+  } finally {
+    globalThis.window = before
+  }
 })

@@ -3,32 +3,36 @@
 // Content-Security-Policy allows script from this origin only (see
 // SlipdockWeb.Plugs.ContentSecurityPolicy), and because it must run before
 // app.js finishes loading.
-import {restorePane} from "./wiki_pane"
-import {restoreLabelWidth} from "./timeline_labels"
-import {syncThemeColor} from "./theme_color"
+import {restorePane} from "./wiki_pane.js"
+import {restoreLabelWidth} from "./timeline_labels.js"
+import {syncThemeColor} from "./theme_color.js"
+// Where storage is blocked, reading it throws: storage.js guards every touch,
+// so the listeners below are still registered and the theme still follows
+// the system (#2882).
+import {storage, read, write} from "./storage.js"
 
 // The wiki tree's width, and whether it is folded away, for the same reason.
-try { restorePane(document.documentElement, localStorage) } catch (_e) {}
+restorePane(document.documentElement, storage());
 // The timeline's title column width (#1732), likewise.
-try { restoreLabelWidth(document.documentElement, localStorage) } catch (_e) {}
+restoreLabelWidth(document.documentElement, storage());
 
 (() => {
   const systemTheme = () => matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 
   const setTheme = (theme) => {
     if (theme === "system") {
-      localStorage.removeItem("phx:theme");
+      write("phx:theme", null);
       document.documentElement.setAttribute("data-theme", systemTheme());
       document.documentElement.setAttribute("data-theme-source", "system");
     } else {
-      localStorage.setItem("phx:theme", theme);
+      write("phx:theme", theme);
       document.documentElement.setAttribute("data-theme", theme);
       document.documentElement.setAttribute("data-theme-source", "user");
     }
     try { syncThemeColor() } catch (_e) {}
   };
   if (!document.documentElement.hasAttribute("data-theme")) {
-    setTheme(localStorage.getItem("phx:theme") || "system");
+    setTheme(read("phx:theme") || "system");
   } else {
     try { syncThemeColor() } catch (_e) {}
   }

@@ -12,6 +12,8 @@
 // travelled DRAG_START pixels, and the click that ends a drag is swallowed so
 // it does not open the row as well.
 
+import {storage as browserStorage, readJSON, writeJSON} from "./storage.js"
+
 export const DRAG_START = 8
 export const MARGIN = 12
 // The Menu's distance from the row (mt-2).
@@ -48,22 +50,15 @@ export function placement({side, top}, size, viewport) {
 
 // Kept as a fraction of the screen's height, so a phone turned on its side
 // puts the button at the same place along the edge rather than off it.
+// Private browsing, or storage full: it just won't be remembered.
 export function save(storage, {side, top}, viewport) {
-  try {
-    storage.setItem(STORE_KEY, JSON.stringify({side, y: top / viewport.height}))
-  } catch (_) {
-    // Private browsing, or storage full: it just won't be remembered.
-  }
+  writeJSON(STORE_KEY, {side, y: top / viewport.height}, storage)
 }
 
 export function load(storage, viewport) {
-  try {
-    const raw = JSON.parse(storage.getItem(STORE_KEY))
-    if (!raw || !["left", "right"].includes(raw.side) || !Number.isFinite(raw.y)) return null
-    return {side: raw.side, top: raw.y * viewport.height}
-  } catch (_) {
-    return null
-  }
+  const raw = readJSON(STORE_KEY, storage)
+  if (!raw || !["left", "right"].includes(raw.side) || !Number.isFinite(raw.y)) return null
+  return {side: raw.side, top: raw.y * viewport.height}
 }
 
 const viewportNow = () => ({width: window.innerWidth, height: window.innerHeight})
@@ -76,7 +71,7 @@ export const DockDrag = {
     // The server renders none of these, so a patch must not take them away.
     this.js().ignoreAttributes(this.el, ["style", "data-side", "data-edge", "data-dragging"])
 
-    this.pos = load(window.localStorage, viewportNow())
+    this.pos = load(browserStorage(), viewportNow())
     this.apply()
 
     this.onDown = e => this.down(e)
@@ -139,7 +134,7 @@ export const DockDrag = {
     delete this.el.dataset.dragging
     const vp = viewportNow()
     this.pos = settle({x: e.clientX - p.dx, y: e.clientY - p.dy}, this.fab.offsetHeight || 56, vp)
-    save(window.localStorage, this.pos, vp)
+    save(browserStorage(), this.pos, vp)
     this.apply()
     // A drag ends in a click on the button; that click is not a tap.
     this.swallow = e.type === "pointerup"
