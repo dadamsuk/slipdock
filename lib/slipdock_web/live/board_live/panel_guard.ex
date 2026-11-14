@@ -35,9 +35,8 @@ defmodule SlipdockWeb.BoardLive.PanelGuard do
   A refusal is said where the panel says things (`:say`): a flash (`:flash`,
   as `Helpers.flash/3`), the panel's callout (`:notice`, as `Helpers.notice/3`), or
   its `error` assign (`:error`), or a function of the socket and the
-  sentence that says it some other way. With `:reply`, a refusal answers the push
-  with that map, for a panel whose hooks wait on a reply (the tag name box
-  reads `reply.ok`; a push answered `:noreply` leaves `reply` undefined).
+  sentence that says it some other way. A refusal is always `:noreply`, so a
+  hook that waits on a reply (the tag name box) reads no reply as a refusal.
   """
 
   @unknown "That isn't something this page can do."
@@ -59,14 +58,13 @@ defmodule SlipdockWeb.BoardLive.PanelGuard do
     prepare = Keyword.get(opts, :prepare, quote(do: & &1))
     refusals = Keyword.get(opts, :refusals, [])
     say = Keyword.get(opts, :say, :flash)
-    reply = Keyword.get(opts, :reply)
     then = Keyword.get(opts, :then, :event)
     after_fun = Keyword.get(opts, :after)
 
     quote do
       @impl true
       def handle_event(event, _params, socket) when event not in unquote(events),
-        do: SlipdockWeb.BoardLive.PanelGuard.refuse(socket, nil, unquote(say), unquote(reply))
+        do: SlipdockWeb.BoardLive.PanelGuard.refuse(socket, nil, unquote(say))
 
       def handle_event(event, params, socket) do
         socket = socket |> unquote(access).() |> unquote(prepare).()
@@ -82,12 +80,7 @@ defmodule SlipdockWeb.BoardLive.PanelGuard do
             {:noreply, socket}
 
           {:refuse, message} ->
-            SlipdockWeb.BoardLive.PanelGuard.refuse(
-              socket,
-              message,
-              unquote(say),
-              unquote(reply)
-            )
+            SlipdockWeb.BoardLive.PanelGuard.refuse(socket, message, unquote(say))
         end
       end
     end
@@ -118,18 +111,13 @@ defmodule SlipdockWeb.BoardLive.PanelGuard do
 
   @doc false
   # A refusal, said where the panel says things. `nil` is the unknown event's.
-  def refuse(socket, message, say, reply) do
-    socket = say(socket, say, message || @unknown)
-    if reply, do: {:reply, reply, socket}, else: {:noreply, socket}
-  end
+  def refuse(socket, message, say), do: {:noreply, say(socket, say, message || @unknown)}
 
-  # What `Helpers.flash/3` and `Helpers.notice/3` do, written here: a module
-  # every panel `use`s calls nothing in the app, or the panels' compile-time
-  # dependency on it joins their cycles (ARCH-2).
-  defp say(socket, :flash, message) do
-    send(self(), {:put_flash, :error, message})
-    socket
-  end
+  # A flash goes through `ComponentFlash`, which calls nothing in the app;
+  # the notice is written here rather than through `Helpers.notice/3`: a
+  # module every panel `use`s calls nothing that does, or the panels'
+  # compile-time dependency on it joins their cycles (ARCH-2).
+  defp say(socket, :flash, message), do: SlipdockWeb.ComponentFlash.flash(socket, :error, message)
 
   defp say(socket, :notice, message),
     do: Phoenix.Component.assign(socket, panel_notice: {:error, message})

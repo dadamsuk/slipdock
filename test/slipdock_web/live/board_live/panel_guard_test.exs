@@ -30,15 +30,14 @@ defmodule SlipdockWeb.BoardLive.PanelGuardTest do
       do: {:noreply, Phoenix.Component.assign(socket, handled: event)}
   end
 
-  # One that names its handler and runs something on what it returns, and
-  # answers a refusal with a reply.
+  # One that names its handler, runs something on what it returns, and says
+  # a refusal its own way.
   defmodule Replying do
     @behaviour Phoenix.LiveComponent
     use SlipdockWeb.BoardLive.PanelGuard,
       events: ~w(open shut),
       refusals: [{:can_write, false, :all, &__MODULE__.why/1}],
       say: &__MODULE__.said/2,
-      reply: %{ok: false},
       then: :handle,
       after: &Phoenix.Component.assign(&1, after: true)
 
@@ -130,14 +129,13 @@ defmodule SlipdockWeb.BoardLive.PanelGuardTest do
       assert s.assigns.error == "Only the board's owner can do that."
     end
 
-    test "a refusal can reply, and be said by the panel's own function" do
-      {:reply, %{ok: false}, s} =
-        Replying.handle_event("open", %{}, socket(can_write: false, name: "Ann"))
+    test "a refusal is noreply, said by the panel's own function, and skips `after`" do
+      {:noreply, s} = Replying.handle_event("open", %{}, socket(can_write: false, name: "Ann"))
 
       assert s.assigns.said == "No, Ann."
       refute Map.has_key?(s.assigns, :after)
 
-      {:reply, %{ok: false}, s} = Replying.handle_event("nope", %{}, socket(can_write: true))
+      {:noreply, s} = Replying.handle_event("nope", %{}, socket(can_write: true))
       assert s.assigns.said == "That isn't something this page can do."
     end
 

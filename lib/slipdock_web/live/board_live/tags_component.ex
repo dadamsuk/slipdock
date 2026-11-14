@@ -50,14 +50,13 @@ defmodule SlipdockWeb.BoardLive.TagsComponent do
     assign(socket, can_write: Access.can_write?(Access.board_permission(user, board)))
   end
 
-  # A refusal answers the push: the name box's hook reads `reply.ok` to put
-  # the saved name back, and a `:noreply` leaves it no reply to read.
+  # A refusal is `:noreply`, as on every panel: the name box's hook reads
+  # no reply as a refusal and puts the saved name back.
   use SlipdockWeb.BoardLive.PanelGuard,
     events: @events,
     access: &assign_access/1,
     refusals: [{:can_write, false, @write_events, :read_only}],
-    say: :error,
-    reply: %{ok: false}
+    say: :error
 
   defp event("pick_tag_color", %{"color" => color}, socket) do
     color = if Enum.member?(Palette.names(), color), do: color, else: socket.assigns.new_tag_color
@@ -173,7 +172,9 @@ defmodule SlipdockWeb.BoardLive.TagsComponent do
           save() {
             const name = this.el.value
             if (name === this.el.dataset.name) return
+            // A refused push (read-only) is answered with no reply at all.
             this.pushEventTo(this.el, "rename_tag", {tag_id: this.el.dataset.tagId, name}, (reply) => {
+              reply = reply || {}
               if (reply.name !== undefined) this.el.dataset.name = reply.name
               if (!reply.ok) this.el.value = this.el.dataset.name
             })
