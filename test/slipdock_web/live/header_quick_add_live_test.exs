@@ -149,4 +149,84 @@ defmodule SlipdockWeb.HeaderQuickAddLiveTest do
     refute lists =~ ~s(value="#{backlog.id}")
     assert lists =~ ~s(value="#{Enum.find(other.columns, &(&1.name == "Backlog")).id}")
   end
+
+  # #3107: a list that has gone since the form was drawn. The select can't
+  # offer it, so the submit goes past the form, as a stale page's would.
+  test "saving a deleted list is refused: nothing is stored and the form comes back", %{
+    conn: conn,
+    board: board,
+    user: user
+  } do
+    gone = Enum.find(board.columns, &(&1.name == "Backlog"))
+    {:ok, _} = Slipdock.Boards.Columns.delete_column(gone)
+
+    {:ok, view, _} = live(conn, ~p"/account/settings")
+
+    view
+    |> element("#quick-add-form-settings")
+    |> render_submit(%{
+      "user" => %{"quick_add_board_id" => board.id, "quick_add_column_id" => gone.id}
+    })
+
+    html = render(view)
+    refute html =~ "Quick add settings saved."
+    assert has_element?(view, "#quick-add-form-settings")
+
+    lists =
+      view
+      |> element("#quick-add-form-settings select[name='user[quick_add_column_id]']")
+      |> render()
+
+    refute lists =~ ~s(value="#{gone.id}")
+
+    stored = Repo.reload!(user)
+    assert stored.quick_add_board_id == user.quick_add_board_id
+    assert stored.quick_add_column_id == user.quick_add_column_id
+  end
+
+  # #3107: board A with a list from board B, as a hand-made submit could send.
+  # What happens today: the setting is stored as sent (the changeset checks
+  # only that both exist), and the header box ignores the foreign list, so the
+  # card lands on board A's first list, never on board B.
+  test "a board saved with another board's list keeps cards on the chosen board", %{
+    conn: conn,
+    board: board,
+    user: user
+  } do
+    other = board_fixture(%{"name" => "Errands"})
+    foreign = Enum.find(other.columns, &(&1.name == "In Progress"))
+    first = Enum.min_by(board.columns, & &1.position)
+
+    {:ok, view, _} = live(conn, ~p"/account/settings")
+
+    view
+    |> element("#quick-add-form-settings")
+    |> render_submit(%{
+      "user" => %{
+        "quick_add_board_id" => board.id,
+        "quick_add_column_id" => foreign.id,
+        "quick_add_ai" => "false"
+      }
+    })
+
+    assert render(view) =~ "Quick add settings saved."
+
+    stored = Repo.reload!(user)
+    assert stored.quick_add_board_id == board.id
+    assert stored.quick_add_column_id == foreign.id
+
+    view |> element("#quick-add-open") |> render_click()
+
+    view
+    |> form("#quick-add-form-0", %{"text" => "Water the plants"})
+    |> render_submit()
+
+    html = render_async(view)
+    assert html =~ "added to Plan › #{first.name}"
+
+    assert [card] = cards(board)
+    assert card.title == "Water the plants"
+    assert card.column_id == first.id
+    assert [] == other |> reload() |> Map.get(:columns) |> Enum.flat_map(& &1.cards)
+  end
 end
