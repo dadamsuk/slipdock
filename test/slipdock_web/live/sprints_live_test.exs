@@ -385,11 +385,6 @@ defmodule SlipdockWeb.SprintsLiveTest do
       long = card_fixture(inside, %{"title" => "Long task", "time_estimate" => 3})
       short = card_fixture(inside, %{"title" => "Short task", "time_estimate" => 2})
 
-      # A second board to take cards from, so the picker doesn't also open
-      # Work's own lists behind the plan: with those read, opening a card's
-      # subcards in the plan raises (#3119 found it; filed as its own card).
-      board_fixture(%{"name" => "Home"})
-
       {:ok, sprints} = Sprints.put_sources(sprints, user_fixture(), [{work, ["To Do"]}])
       {:ok, sprint} = Sprints.create_sprint(sprints)
 
@@ -500,6 +495,68 @@ defmodule SlipdockWeb.SprintsLiveTest do
       assert totals =~ "in the sprint already: 1 open"
       assert totals =~ ~r/1 open\s*<span[^>]*>\s*·\s*8h/
       refute has_element?(view, "#plan-card-#{slow.id}")
+    end
+
+    # Work is the only other board, so the picker also reads Work's own
+    # lists behind the plan; the chevron still opens the plan's card (#3157).
+    test "the chevron opens a card's subcards with one other board and with several", %{
+      conn: conn,
+      sprints: sprints,
+      sprint: sprint,
+      epic: epic,
+      long: long,
+      short: short
+    } do
+      # A subcard with subcards of its own opens beneath it as well.
+      {:ok, simple} = Boards.Templates.find_template(nil, "Simple")
+      {:ok, long_board} = Boards.create_sub_board(long, simple)
+      step = card_fixture(hd(Boards.get_board!(long_board.id).columns), %{"title" => "A step"})
+
+      for others <- [:one, :several] do
+        if others == :several, do: board_fixture(%{"name" => "Home"})
+
+        view = open_plan(conn, sprints, sprint)
+        expand(view, epic)
+
+        assert has_element?(view, "#plan-card-#{epic.id} button[title='Hide subcards']")
+        assert has_element?(view, "#plan-card-#{long.id}")
+        assert has_element?(view, "#plan-card-#{short.id}")
+
+        expand(view, long)
+        assert has_element?(view, "#plan-card-#{step.id}")
+        expand(view, long)
+
+        # And a second click closes them again.
+        expand(view, epic)
+        refute has_element?(view, "#plan-card-#{long.id}")
+      end
+    end
+
+    test "a click naming a card outside the plan opens nothing and keeps the picker", %{
+      conn: conn,
+      sprints: sprints,
+      sprint: sprint,
+      work: work,
+      epic: epic
+    } do
+      # An epic on Work's Backlog, which the plan doesn't plan from: only the
+      # browse lists behind the plan have it.
+      [backlog | _] = work.columns
+      outside = card_fixture(backlog, %{"title" => "Outside epic"})
+      {:ok, simple} = Boards.Templates.find_template(nil, "Simple")
+      {:ok, outside_board} = Boards.create_sub_board(outside, simple)
+      card_fixture(hd(Boards.get_board!(outside_board.id).columns), %{"title" => "Hidden task"})
+
+      view = open_plan(conn, sprints, sprint)
+
+      view
+      |> with_target("#board-sprints")
+      |> render_click("plan_expand", %{"id" => to_string(outside.id)})
+
+      assert has_element?(view, "#sprint-picker")
+      refute render(view) =~ "Hidden task"
+      expand(view, epic)
+      assert has_element?(view, "#plan-card-#{epic.id} button[title='Hide subcards']")
     end
 
     test "an unknown sort falls back to board order", %{
