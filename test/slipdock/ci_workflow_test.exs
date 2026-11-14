@@ -351,6 +351,9 @@ defmodule Slipdock.CiWorkflowTest do
         refute text =~ "`go test` in `daemon/`", "#{doc} still says go test without -race"
         assert text =~ ~r/about 4 minutes/i, "#{doc} doesn't give mix pre_push's time"
         assert text =~ "not a whole directory", "#{doc} doesn't say to run it beside a few files"
+        # It took none, and was read as taking them (#3132).
+        assert text =~ "takes no test files",
+               "#{doc} doesn't say mix pre_push takes no test files"
       end
     end
 

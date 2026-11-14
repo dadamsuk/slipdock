@@ -70,10 +70,15 @@ run rather than skip.
   `sobelow`, and `credo diff` against where the branch left `origin/main`.
   Its steps are in `mix.exs` (`pre_push_steps/1`), not a task under
   `lib/mix/tasks/`.
+- **It takes no test files.** Its only options are `--prune` and
+  `--from-git-ref <ref>` (below); anything else, a test file's path included,
+  stops it with a line naming those two before it runs a check. Your own
+  tests are a separate command, `mix test <files>`.
 - **How long it takes.** About 4 minutes, over half of it the daemon's tests
-  under the race detector. Start it beside the few test files you changed,
-  not a whole directory: beside a run of all of `test/slipdock_web/live` it
-  has timed out. A timeout there passes when run again by itself.
+  under the race detector. Run `mix test` on the few test files you changed
+  in another terminal while it runs, not a whole directory: with a run of all
+  of `test/slipdock_web/live` going at the same time it has timed out. A
+  timeout there passes when run again by itself.
 - **The repo checks** are the tests that hold the repository's own files,
   docs and skills to a rule, which a change elsewhere can break. A new test of
   that kind goes on `test/repo_checks.txt`, or
