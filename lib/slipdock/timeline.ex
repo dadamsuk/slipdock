@@ -130,7 +130,12 @@ defmodule Slipdock.Timeline do
             idx: idx
           }
 
-    visible = groups |> Enum.flat_map(&flatten_bars(&1.bars)) |> Map.new(&{&1.card.id, &1.card})
+    # Only cards have dependencies, and a page's id could stand in for a card's.
+    visible =
+      groups
+      |> Enum.flat_map(&flatten_bars(&1.bars))
+      |> Enum.reject(&match?(%{card: %Slipdock.Wiki.Page{}}, &1))
+      |> Map.new(&{&1.card.id, &1.card})
 
     links =
       for {_, card} <- visible,
@@ -179,6 +184,11 @@ defmodule Slipdock.Timeline do
   # Hangs the scheduled subcards of a bar's card beneath it, to `depth`
   # levels, and notes when the card has subcards that don't appear there.
   defp nest(bar, nil, _depth, _from, _days), do: bar
+
+  # A placed wiki page has no subcards. Its id is from another id space, so
+  # asking the rollup about it would hang the same-numbered card's subcards
+  # beneath the page too, and draw their rows twice (#3092).
+  defp nest(%{card: %Slipdock.Wiki.Page{}} = bar, _rollup, _depth, _from, _days), do: bar
 
   defp nest(bar, rollup, depth, from, days) do
     children =

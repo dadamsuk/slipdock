@@ -115,11 +115,16 @@ defmodule Slipdock.DoingListOutsideTest do
 
       doing = Repo.get!(Column, doing.id)
       card = card_fixture(todo, %{"title" => "Idea"})
+      # One clock for every timestamp: an `ago/1` each could read the time
+      # either side of a second ticking over, and the bound below has no slack
+      # for that (#3092).
+      t0 = now()
+      ago = &DateTime.add(t0, -&1, :second)
       :ok = Boards.Cards.move_card(card.id, doing.id, nil, actor: Actor.web(ctx.owner))
 
       Repo.update_all(
         from(m in CardMove, where: m.card_id == ^card.id and m.to_column_id == ^doing.id),
-        set: [inserted_at: ago(48 * 3600)]
+        set: [inserted_at: ago.(48 * 3600)]
       )
 
       {:ok, _} =
@@ -127,12 +132,12 @@ defmodule Slipdock.DoingListOutsideTest do
           environment: "production",
           sha: "abc1234def",
           status: "succeeded",
-          started_at: ago(12 * 3600),
-          finished_at: ago(12 * 3600 - 60),
+          started_at: ago.(12 * 3600),
+          finished_at: ago.(12 * 3600 - 60),
           commits: [
             %{
               "sha" => "abc1234",
-              "committed_at" => DateTime.to_iso8601(ago(13 * 3600)),
+              "committed_at" => DateTime.to_iso8601(ago.(13 * 3600)),
               "subject" => "ship ##{card.id}"
             }
           ]
@@ -141,8 +146,8 @@ defmodule Slipdock.DoingListOutsideTest do
       {:ok, report} = Dora.for_board(board)
       assert report.idea_to_production.cards == 1
       assert report.idea_to_production.from_created == 0
-      # 48h in Doing before a deploy 12h ago: some 36h (to the deploy minute).
-      assert abs(report.idea_to_production.p50 - 36 * 3600) <= 60
+      # 48h in Doing before a deploy that finished a minute short of 12h ago.
+      assert report.idea_to_production.p50 == 36 * 3600 + 60
     end
   end
 
