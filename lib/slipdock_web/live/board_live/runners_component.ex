@@ -19,7 +19,7 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
 
   import SlipdockWeb.SlipdockComponents, only: [relative_time: 1]
   import SlipdockWeb.ItemComponents, only: [panel_notice: 1]
-  import SlipdockWeb.BoardLive.Helpers, only: [notice: 3, clear_notice: 1]
+  import SlipdockWeb.BoardLive.Helpers, only: [notice: 3, clear_notice: 1, field_errors: 1]
 
   alias Slipdock.{Access, Automations, Runners}
   alias Slipdock.Automations.Spec
@@ -217,7 +217,7 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
          |> notice(:info, "Paused #{Runners.Pause.scope(pause)}.")}
 
       {:error, %Ecto.Changeset{} = changeset} ->
-        {:noreply, notice(socket, :error, "Not paused: #{inspect_errors(changeset)}")}
+        {:noreply, notice(socket, :error, "Not paused: #{field_errors(changeset)}")}
 
       {:error, message} ->
         {:noreply, notice(socket, :error, message)}
@@ -653,12 +653,6 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
       </div>
     </.form>
     """
-  end
-
-  defp inspect_errors(changeset) do
-    changeset
-    |> SlipdockWeb.API.JSON.errors()
-    |> Enum.map_join("; ", fn {field, messages} -> "#{field} #{Enum.join(messages, ", ")}" end)
   end
 
   # Every pool the tree's runners take from or its rules send to.

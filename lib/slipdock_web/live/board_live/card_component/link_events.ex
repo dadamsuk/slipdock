@@ -257,13 +257,6 @@ defmodule SlipdockWeb.BoardLive.CardComponent.LinkEvents do
     end
   end
 
-  defp incident_error(cs) do
-    Enum.map_join(cs.errors, " ", fn
-      {:missed_by, {message, _}} -> "Missed by " <> message <> "."
-      {_field, {message, _}} -> message
-    end)
-  end
-
   # Pages not already on the card, found the way the `[[` picker and the
   # quick switcher find them (#1302): by title, alias, folder or code, the
   # most recently changed first while nothing is typed, this vault's before

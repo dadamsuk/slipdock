@@ -158,8 +158,10 @@ defmodule SlipdockWeb.CardTagsLiveTest do
 
       assert Boards.Tags.list_tags(ctx.board.id) == []
 
-      assert view |> element("#card-modal #panel-notice[data-callout=error]") |> render() =~
-               "Tag not made"
+      notice = view |> element("#card-modal #panel-notice[data-callout=error]") |> render()
+      # The length limit reads as a number, not as `%{count}` (#2873).
+      assert notice =~ "Tag not made: name should be at most 30 character(s)."
+      refute notice =~ "%{"
     end
 
     test "with nothing typed, the picker's New tag opens the tag manager", ctx do

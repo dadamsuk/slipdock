@@ -183,7 +183,7 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
          flash(
            socket,
            :error,
-           "Couldn't save a template: name #{elem(cs.errors[:name] || {"is invalid", []}, 0)}."
+           "Couldn't save a template: name #{error_text(cs.errors[:name] || {"is invalid", []})}."
          )}
     end
   end

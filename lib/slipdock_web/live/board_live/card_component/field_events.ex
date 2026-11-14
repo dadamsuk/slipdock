@@ -165,8 +165,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent.FieldEvents do
             {:noreply, socket}
 
           {:error, changeset} ->
-            {field, {msg, _}} = hd(changeset.errors)
-            {:noreply, notice(socket, :error, "Tag not made: #{field} #{msg}.")}
+            {:noreply, notice(socket, :error, "Tag not made: #{field_errors(changeset)}.")}
         end
     end
   end

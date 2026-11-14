@@ -41,11 +41,45 @@ defmodule SlipdockWeb.BoardLive.Helpers do
   # never worth keeping if the text is saved before the upload finishes.
   @upload_placeholder "![Uploading image…]()"
 
-  def changeset_message(%Ecto.Changeset{} = changeset) do
+  @doc """
+  One changeset error in words, its placeholders filled from its opts:
+  `{"at most %{count}", count: 10}` reads "at most 10" (#2873). Every
+  panel notice built from a changeset goes through this.
+  """
+  def error_text({msg, opts}) when is_binary(msg),
+    do: SlipdockWeb.CoreComponents.translate_error({msg, opts})
+
+  @doc "A changeset's errors for a person: `Questions at most 10; Needs can't be blank`."
+  def changeset_message(%Ecto.Changeset{} = changeset),
+    do: join_errors(changeset, &Phoenix.Naming.humanize/1)
+
+  @doc "A changeset's errors by field name, as `name has already been taken; key at most 40`."
+  def field_errors(%Ecto.Changeset{} = cs), do: join_errors(cs, &to_string/1)
+
+  @doc """
+  An upload's refusal as the card panel says it: `Upload failed: filename
+  should be at most 255 character(s).`, or that the file could not be
+  stored when the changeset carries no error to name.
+  """
+  def upload_failed(%Ecto.Changeset{errors: []}), do: "Upload failed: file could not be stored."
+  def upload_failed(%Ecto.Changeset{} = cs), do: "Upload failed: #{field_errors(cs)}."
+
+  @doc """
+  An incident's refusal under the card's Incident section: `Missed by …`
+  for the check that missed it, each other error as it reads.
+  """
+  def incident_error(%Ecto.Changeset{} = cs) do
+    Enum.map_join(cs.errors, " ", fn
+      {:missed_by, error} -> "Missed by " <> error_text(error) <> "."
+      {_field, error} -> error_text(error)
+    end)
+  end
+
+  defp join_errors(changeset, name) do
     changeset
-    |> Ecto.Changeset.traverse_errors(fn {msg, _opts} -> msg end)
+    |> Ecto.Changeset.traverse_errors(&error_text/1)
     |> Enum.map_join("; ", fn {field, messages} ->
-      "#{Phoenix.Naming.humanize(field)} #{Enum.join(messages, ", ")}"
+      "#{name.(field)} #{Enum.join(List.wrap(messages), ", ")}"
     end)
   end
 
@@ -88,12 +122,6 @@ defmodule SlipdockWeb.BoardLive.Helpers do
       end
     end)
     |> Enum.reject(&(&1["label"] == ""))
-  end
-
-  def field_errors(%Ecto.Changeset{} = cs) do
-    cs
-    |> Ecto.Changeset.traverse_errors(fn {msg, _} -> msg end)
-    |> Enum.map_join("; ", fn {k, msgs} -> "#{k} #{Enum.join(List.wrap(msgs), ", ")}" end)
   end
 
   def view_error(%Ecto.Changeset{} = cs) do
@@ -220,7 +248,7 @@ defmodule SlipdockWeb.BoardLive.Helpers do
 
   def url_error(changeset) do
     case changeset.errors do
-      [{_field, {message, _}} | _] -> message
+      [{_field, error} | _] -> error_text(error)
       [] -> "could not be added"
     end
   end
