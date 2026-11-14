@@ -187,6 +187,30 @@ defmodule SlipdockWeb.WikiPageToolsLiveTest do
     assert Wiki.get_page!(ctx.page.id).body == "Ring the printers."
   end
 
+  # The free card limit refuses the card: the page used the owner's one item.
+  test "a card that is refused says so, makes no card and leaves the page alone" do
+    {:ok, _} =
+      Slipdock.Settings.complete_setup(%{
+        "admin_email" => "admin@example.com",
+        "free_card_limit" => 1
+      })
+
+    owner = user_fixture("full-pt@example.com")
+    board = board_fixture(%{"name" => "Full PT"}, owner: owner)
+    {:ok, page} = Wiki.create_page(board, %{"title" => "Launch", "body" => "Ring the printers."})
+
+    AIStub.reply_with(%{"actions" => ["Book the hall"]})
+    {:ok, view, _html} = live(conn_as(owner), ~p"/boards/#{board}/wiki/#{page.slug}")
+    open(view)
+    run(view, "actions")
+
+    view |> element("#page-tools-card-0") |> render_click()
+    assert has_element?(view, "#page-tools-error", "That card couldn't be made.")
+    assert has_element?(view, "#page-tools-card-0")
+    assert Slipdock.Repo.aggregate(Boards.Card, :count) == 0
+    assert Wiki.get_page!(page.id).body == "Ring the printers."
+  end
+
   test "a tool run that crashes says so, and the tools can run again", ctx do
     Req.Test.stub(Slipdock.AI, fn _conn -> raise "the model's connection fell over" end)
     {:ok, view, _html} = live(ctx.conn, ~p"/boards/#{ctx.board}/wiki/#{ctx.page.slug}")
