@@ -175,8 +175,9 @@ defmodule Slipdock.OverseerWatchTest do
       )
     end
 
+    # Whole seconds, so each one's time to done is exactly `seconds`.
     defp history(ctx, n, seconds) do
-      now = DateTime.utc_now()
+      now = DateTime.utc_now(:second)
 
       for _ <- 1..n do
         card = card_fixture(ctx.doing)
@@ -191,11 +192,15 @@ defmodule Slipdock.OverseerWatchTest do
     test "a card in flight past the board's P85 fires, and clears when it leaves", ctx do
       history(ctx, 8, 3600)
       card = card_fixture(ctx.doing, %{"title" => "Taking a while"})
-      started(card, DateTime.add(DateTime.utc_now(), -3 * 3600))
+      # The watch's clock pinned, and the start 30s off the minute (#3086):
+      # with two clocks the age read 2h 59m or 3h by which side of a second
+      # the watch's truncated "now" fell.
+      now = DateTime.utc_now(:second)
+      started(card, DateTime.add(now, -3 * 3600 + 30))
 
-      assert [fired] = fired(watch(ctx), "slow")
+      assert [fired] = fired(watch(ctx, now), "slow")
       assert fired.subject == "card:#{card.id}:slow"
-      assert fired.title =~ "is slow: in flight 2h 59m"
+      assert fired.title == "##{card.id} is slow: in flight 2h 59m, P85 1h"
       assert fired.why =~ "P85 of 8"
 
       :ok = Boards.Cards.move_card(card.id, ctx.todo.id)
