@@ -194,7 +194,7 @@ defmodule Slipdock.Wiki.Excalidraw.SVG do
       fill = if closed?, do: fill, else: ~s| fill="none"|
 
       [
-        ~s|<path d="#{d}" stroke-linecap="round" stroke-linejoin="round"#{fill}#{stroke(el)}/>|,
+        ~s|<path d="#{d}" stroke-linejoin="round"#{fill}#{stroke(el, "round")}/>|,
         if(type == "arrow", do: arrowheads(el, pts), else: "")
       ]
     end
@@ -346,7 +346,7 @@ defmodule Slipdock.Wiki.Excalidraw.SVG do
         ~s|<path d="M#{pair({ax, ay})} L#{pair({bx, by})}" fill="none"#{stroke(el)}/>|
 
       _ ->
-        ~s|<path d="M#{pair(at.(size, 0.45))} L#{pair(tip)} L#{pair(at.(size, -0.45))}" fill="none" stroke-linecap="round" stroke-linejoin="round"#{stroke(el)}/>|
+        ~s|<path d="M#{pair(at.(size, 0.45))} L#{pair(tip)} L#{pair(at.(size, -0.45))}" fill="none" stroke-linejoin="round"#{stroke(el, "round")}/>|
     end
   end
 
@@ -410,22 +410,28 @@ defmodule Slipdock.Wiki.Excalidraw.SVG do
 
   ## Colours, fills and strokes -----------------------------------------------
 
-  defp stroke(el) do
+  # The stroke's attributes, `stroke-linecap` among them: the caller gives
+  # the cap its element wants (nil for none) rather than writing its own, as
+  # a dotted stroke needs round caps and an attribute written twice makes
+  # the whole SVG invalid (#2991).
+  defp stroke(el, linecap \\ nil) do
     width = number(el["strokeWidth"], 1)
 
-    dash =
+    {dash, linecap} =
       case el["strokeStyle"] do
         "dashed" ->
-          ~s| stroke-dasharray="#{num(width * 4)} #{num(width * 4 + 4)}"|
+          {~s| stroke-dasharray="#{num(width * 4)} #{num(width * 4 + 4)}"|, linecap}
 
         "dotted" ->
-          ~s| stroke-dasharray="#{num(width * 0.1)} #{num(width * 3 + 3)}" stroke-linecap="round"|
+          {~s| stroke-dasharray="#{num(width * 0.1)} #{num(width * 3 + 3)}"|, "round"}
 
         _ ->
-          ""
+          {"", linecap}
       end
 
-    ~s| stroke="#{stroke_color(el)}" stroke-width="#{num(width)}"#{dash}|
+    cap = if linecap, do: ~s| stroke-linecap="#{linecap}"|, else: ""
+
+    ~s| stroke="#{stroke_color(el)}" stroke-width="#{num(width)}"#{dash}#{cap}|
   end
 
   defp stroke_color(el), do: color(el["strokeColor"], "#1e1e1e")

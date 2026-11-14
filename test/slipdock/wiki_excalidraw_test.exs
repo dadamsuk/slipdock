@@ -291,6 +291,47 @@ defmodule Slipdock.WikiExcalidrawTest do
       assert SVG.render(%{"elements" => []}) =~ ~s(viewBox="-10 -10 120 120")
       assert SVG.render(%{}) =~ "<svg"
     end
+
+    test "every stroke style renders valid XML, each attribute once (#2991)" do
+      elements =
+        for style <- ["solid", "dashed", "dotted"],
+            type <- ["line", "arrow", "rectangle", "ellipse", "diamond"] do
+          %{
+            "type" => type,
+            "x" => 0,
+            "y" => 0,
+            "width" => 40,
+            "height" => 30,
+            "strokeStyle" => style,
+            "strokeWidth" => 2,
+            "points" => [[0, 0], [40, 30]],
+            "startArrowhead" => "dot",
+            "endArrowhead" => "arrow"
+          }
+        end
+
+      svg = SVG.render(%{"elements" => elements})
+
+      # xmerl refuses an attribute given twice, as a browser does.
+      assert {{:xmlElement, :svg, _, _, _, _, _, _, _, _, _, _}, ~c""} =
+               svg |> :erlang.binary_to_list() |> :xmerl_scan.string(quiet: true)
+
+      paths = Regex.scan(~r/<path [^>]*>/, svg) |> List.flatten()
+      dotted = Enum.filter(paths, &(&1 =~ ~s(stroke-dasharray="0.2 9")))
+      assert length(dotted) == 3, "a dotted line, an arrow and its open head"
+
+      for tag <- dotted do
+        assert length(Regex.scan(~r/stroke-linecap=/, tag)) == 1, tag
+        assert tag =~ ~s(stroke-linecap="round")
+      end
+
+      # Solid and dashed lines keep their round caps; a shape has one only dotted.
+      for tag <- paths, not (tag =~ "0.2 9"), do: assert(tag =~ ~s(stroke-linecap="round"), tag)
+
+      for [tag] <- Regex.scan(~r/<(?:rect|ellipse|polygon) [^>]*stroke-width[^>]*>/, svg) do
+        assert tag =~ "stroke-linecap" == (tag =~ "0.2 9"), tag
+      end
+    end
   end
 
   describe "finding the drawing an embed names" do
