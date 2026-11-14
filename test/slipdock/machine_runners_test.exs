@@ -222,6 +222,39 @@ defmodule Slipdock.MachineRunnersTest do
       assert %{version: 2, runners: [r]} = Task.await(task)
       assert r.id == runner.id
     end
+
+    test "a wake without a version bump (a rename) leaves it waiting (#3127)", ctx do
+      runner = add(ctx)
+
+      task = Task.async(fn -> MachineRunners.wait_for_config(ctx.machine, 1, 10_000) end)
+      await_subscribed(MachineRunners.topic(ctx.machine), task.pid)
+
+      # :config_changed reaches the long-poll, but config_version is still 1,
+      # which the daemon already has: answering would hand it the same config.
+      MachineRunners.changed(ctx.machine)
+      assert version(ctx.machine) == 1
+      assert Task.yield(task, 100) == nil
+
+      {:ok, _} = MachineRunners.set_runner(runner, %{"config" => %{"model" => "sonnet"}})
+      assert %{version: 2} = Task.await(task)
+    end
+  end
+
+  describe "the machine's topic (#3127)" do
+    test "each machine has its own, so one's changes don't reach another's followers", ctx do
+      {:ok, key, _} = Machines.create_enrolment_key(ctx.user, [ctx.board.id])
+      {:ok, {_, other}} = Machines.enrol_with_key(key, @about)
+
+      assert MachineRunners.topic(ctx.machine) != MachineRunners.topic(other)
+
+      MachineRunners.subscribe(ctx.machine)
+      MachineRunners.changed(other)
+      refute_receive {:config_changed, _}, 50
+
+      MachineRunners.changed(ctx.machine)
+      machine_id = ctx.machine.id
+      assert_receive {:config_changed, ^machine_id}
+    end
   end
 
   describe "reports and the ceiling" do
