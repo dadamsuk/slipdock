@@ -2,7 +2,7 @@ defmodule Slipdock.SweepTest do
   @moduledoc """
   The built-in Sweep Tool (#1793, W-2310 §Sweeps and static checks):
   installing it gives a board's root a `Sweeps` rotation page, a `Triage`
-  list and a daily *Sweep the code* card; and nothing feeds the loop from
+  list and a weekly *Sweep the code* card (#3181); and nothing feeds the loop from
   the Triage list.
   """
   use Slipdock.DataCase, async: true
@@ -32,7 +32,7 @@ defmodule Slipdock.SweepTest do
     do: Repo.all(from(p in Page, where: p.board_id == ^board.id and p.title == "Sweeps"))
 
   describe "install/3" do
-    test "makes the page, the Triage list and the daily card", %{user: user, board: board} do
+    test "makes the page, the Triage list and the weekly card", %{user: user, board: board} do
       assert Sweep.find(board) == nil
       assert {:ok, result} = Sweep.install(user, board)
       assert result.created
@@ -81,6 +81,21 @@ defmodule Slipdock.SweepTest do
                "is not a card: list it in the closing comment's `Findings:` block"
 
       refute card.description =~ "File each issue as its own card"
+      # At most five cards a run, security first, the rest Findings lines (#3181).
+      assert Sweep.cap() == 5
+      assert card.description =~ "It comes every Monday."
+      assert card.description =~ "**Three limits.**"
+      assert card.description =~ "At most 5 cards filed per run: `security` issues first"
+
+      assert card.description =~
+               "everything past the 5th is a line in the closing comment's `Findings:` block"
+
+      assert card.description =~ "no more than 5 cards a run"
+      assert card.description =~ "next week."
+      refute card.description =~ "every day"
+      refute card.description =~ "tomorrow"
+      assert page.body =~ "card each week. A run files at most 5 cards, `security` ones first"
+
       {_, gaps} = List.keyfind(Sweep.lenses(), "test gaps", 0)
       assert gaps =~ "in security, data-loss and money code"
 
@@ -89,10 +104,47 @@ defmodule Slipdock.SweepTest do
       assert found.card.id == card.id
     end
 
-    test "the card repeats every day", %{user: user, board: board} do
+    test "the card repeats every Monday (#3181)", %{user: user, board: board} do
       {:ok, _} = Sweep.install(user, board)
       [card] = sweep_cards(board)
-      assert Slipdock.Recurrence.for_card(card).rule == "FREQ=DAILY"
+      assert Sweep.repeat() == "every mon"
+      assert Slipdock.Recurrence.for_card(card).rule == "FREQ=WEEKLY;BYDAY=MO"
+    end
+
+    test "installing 1.4.0 over a daily sweep makes its series weekly, open or done (#3181)",
+         %{user: user} do
+      for completed <- [false, true] do
+        board = board_fixture(%{"name" => "Daily #{completed}"}, owner: user)
+        {:ok, _} = Sweep.install(user, board)
+        [card] = sweep_cards(board)
+        {:ok, _} = Slipdock.Recurrence.set(card, %{"rule" => "every day"}, user)
+        assert Slipdock.Recurrence.for_card(card).rule == "FREQ=DAILY"
+
+        if completed,
+          do: {:ok, _} = Boards.Cards.update_card(card, %{"completed" => true}, by: user)
+
+        assert {:ok, again} = Sweep.install(user, board)
+        assert again.upgraded
+        assert again.report.added["cards"] == ["Sweep the code (updated: weekly)"]
+        series = Slipdock.Recurrence.for_card(card)
+        assert series.rule == "FREQ=WEEKLY;BYDAY=MO"
+        assert Date.day_of_week(series.next_on) == 1
+
+        # Once weekly, installing again leaves it be.
+        assert {:ok, third} = Sweep.install(user, board)
+        refute third.upgraded
+        assert third.report.added["cards"] == []
+      end
+    end
+
+    test "a schedule somebody set by hand is kept at reinstall", %{user: user, board: board} do
+      {:ok, _} = Sweep.install(user, board)
+      [card] = sweep_cards(board)
+      {:ok, _} = Slipdock.Recurrence.set(card, %{"rule" => "every fri"}, user)
+
+      assert {:ok, again} = Sweep.install(user, board)
+      refute again.upgraded
+      assert Slipdock.Recurrence.for_card(card).rule == "FREQ=WEEKLY;BYDAY=FR"
     end
 
     test "installing again adds only what is missing", %{user: user, board: board} do
@@ -253,10 +305,13 @@ defmodule Slipdock.SweepTest do
   end
 
   describe "the card's bar (#2611)" do
-    # `days` on from now: far enough that the series' next occurrence has come.
-    defp next_instance(card, days \\ 3) do
+    defp due(series), do: DateTime.add(series.next_at, 60, :second)
+
+    # Ticks a minute after the series' next occurrence is due, whatever the
+    # schedule (the sweep's is weekly, #3181; another chore's daily).
+    defp next_instance(card) do
       series = Slipdock.Recurrence.for_card(card)
-      assert Slipdock.Recurrence.tick(DateTime.add(DateTime.utc_now(), days, :day)) == 1
+      assert Slipdock.Recurrence.tick(due(series)) == 1
       Boards.Cards.get_card!(Repo.get!(Slipdock.Recurrence.Series, series.id).card_id)
     end
 
@@ -267,6 +322,8 @@ defmodule Slipdock.SweepTest do
 
       assert card.bar == Sweep.card_bar(page.code)
       assert card.bar =~ "the stalest cell of #{page.code}'s Rotation table"
+      assert card.bar =~ "At most 5 cards filed, `security` ones first"
+      assert card.bar =~ "what was found past the 5th a Findings line with no card"
       assert is_nil(card.bar_locked_at)
 
       for {lens, _} <- Sweep.lenses(), do: refute(card.bar =~ lens)
@@ -290,8 +347,8 @@ defmodule Slipdock.SweepTest do
       refute new.bar =~ "test gaps"
       assert is_nil(new.bar_locked_at)
 
-      # And the day after, from a run that named another cell.
-      newer = new |> run_done("Swept Accounts × dead code at def5678") |> next_instance(6)
+      # And the week after, from a run that named another cell.
+      newer = new |> run_done("Swept Accounts × dead code at def5678") |> next_instance()
       assert newer.bar == Sweep.card_bar(page.code)
       refute newer.bar =~ "Accounts"
     end
@@ -350,7 +407,8 @@ defmodule Slipdock.SweepTest do
       {:ok, series} = Slipdock.Recurrence.set(lookalike, %{"rule" => "every day"}, user)
       run_done(lookalike, "Sub's own, reworded")
       # The root's own Sweep the code series is due too: two instances.
-      assert Slipdock.Recurrence.tick(DateTime.add(DateTime.utc_now(), 3, :day)) == 2
+      root_series = Slipdock.Recurrence.for_card(hd(sweep_cards(board)))
+      assert Slipdock.Recurrence.tick(due(root_series)) == 2
       new = Boards.Cards.get_card!(Repo.get!(Slipdock.Recurrence.Series, series.id).card_id)
       refute new.id == lookalike.id
       assert new.board_id == sub.id

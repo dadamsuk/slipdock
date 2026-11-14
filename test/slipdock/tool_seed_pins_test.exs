@@ -21,7 +21,7 @@ defmodule Slipdock.ToolSeedPinsTest do
   # {the Tool's version, the SHA-256 of its seed}.
   @pins %{
     "handbook" => {"1.10.0", "76a3ee534d35609b8d8e46317f038f83f55f4a13ba21aa9d612aab7e3a57d19e"},
-    "sweep" => {"1.3.0", "6d4a517c0dd08408b637cdcbebdafd174c1ca06e8101e2af876d9b9d66f780cf"}
+    "sweep" => {"1.4.0", "9a44f2ff84879a76054792c6ce2bf3bdb9038d42c51f729f791bb2b3946e50da"}
   }
 
   # What an install puts on a board. The Handbook's blueprint holds every

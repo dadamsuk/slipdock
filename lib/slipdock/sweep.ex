@@ -17,15 +17,19 @@ defmodule Slipdock.Sweep do
   - a **`Triage` list**, in the `triage` category: the guide's ready list,
     a `list_top` feed and a rule's runner action never take from it, so
     what a sweep files waits for a person instead of going to the loop;
-  - a **recurring card, *Sweep the code***, every day, whose description is
-    the procedure and whose bar (`card_bar/1`) names the page but no cell
-    of it, so it holds on any day. Each run's builder may reword its own
+  - a **recurring card, *Sweep the code***, every Monday (weekly since
+    1.4.0, #3181: nightly runs filed more cards than they were worth),
+    whose description is the procedure and whose bar (`card_bar/1`) names
+    the page but no cell of it, so it holds on any week. A run files at
+    most `cap/0` cards, `security` ones first; the rest of what it finds
+    are lines in its closing comment's `Findings:` block. Each run's builder may reword its own
     instance's bar for the cell it took; the next instance starts again
     from the template (`template_bar/1`, which `Slipdock.Recurrence` asks
-    for), never from yesterday's cell (#2611).
+    for), never from the last run's cell (#2611).
 
   Installing again adds only what is missing, and never touches a page that
-  is there. A list already called `Triage` with no category is given the
+  is there. It does bring an older install's card up to date: its
+  procedure, and its series' schedule when that is still daily. A list already called `Triage` with no category is given the
   `triage` one.
   """
 
@@ -40,11 +44,12 @@ defmodule Slipdock.Sweep do
   alias Slipdock.Wiki.{FrontMatter, Page}
 
   @name "sweep"
-  @version "1.3.0"
+  @version "1.4.0"
   @page_title "Sweeps"
   @triage_list "Triage"
   @card_title "Sweep the code"
-  @repeat "every day"
+  @repeat "every mon"
+  @cap 5
 
   @lenses [
     {"authorization",
@@ -65,6 +70,12 @@ defmodule Slipdock.Sweep do
   def triage_list, do: @triage_list
   def card_title, do: @card_title
 
+  @doc "How often the *#{@card_title}* card comes: a `Slipdock.Recurrence` phrase (#3181)."
+  def repeat, do: @repeat
+
+  @doc "The most cards one sweep run files (#3181); the rest are Findings lines."
+  def cap, do: @cap
+
   @doc "The lenses, in rotation order: `[{name, what it looks for}]`."
   def lenses, do: @lenses
 
@@ -75,17 +86,17 @@ defmodule Slipdock.Sweep do
   ## The Tool --------------------------------------------------------------------
 
   @card_description """
-  Read one area of the code through one lens, and file what you find: fixes and investigations for the runners, design questions for a person. It comes every day. Spec: W-2310 §Sweeps and static checks.
+  Read one area of the code through one lens, and file what you find: fixes and investigations for the runners, design questions for a person. It comes every Monday. Spec: W-2310 §Sweeps and static checks.
 
-  **Two limits.** One area and one lens per run, never more. Security issues get the `security` tag and stay vague anywhere public (commit messages, PR titles and bodies, the log): the detail goes on the card.
+  **Three limits.** One area and one lens per run, never more. At most #{@cap} cards filed per run: `security` issues first, then the rest by how much they bite, and everything past the #{@cap}th is a line in the closing comment's `Findings:` block instead. Security issues get the `security` tag and stay vague anywhere public (commit messages, PR titles and bodies, the log): the detail goes on the card.
 
   1. Pick: open the `Sweeps` page and take the stalest cell of its Rotation table, a `—` first, else the oldest date; ties go to the area higher in the table. With no areas yet, add a row per area first: the handbook's pages and their `covers:` (`slipdock handbook <board>`), else the top-level contexts (`lib/<app>/*`, one row each), and say so in the closing comment.
   2. Check out the default branch's head in a clean tree, so nothing uncommitted counts: `git fetch origin && git worktree add /tmp/sweep-<this card> origin/<default>`. Note the short sha.
   3. Read the area's paths through the lens (the page's Lenses section says what each looks for). Read; don't change code on this card.
-  4. File what bites, never in the ready list: a bug a person would meet, a security issue, or a kind of problem seen more than once (then one card that removes the kind: a shared mechanism and a check that fails CI if it comes back, naming every instance found). A missing test, a duplicate or a stale comment in code that isn't security, data or money is not a card: list it in the closing comment's `Findings:` block, one line each (tests are tiered by risk, W-1950 §Tests). A **fix or investigation** (something already decided is broken, missing, untested or unexplained) goes to the `Housekeeping` list, which runners work after the ready list: `slipdock add <board> "<what is wrong, where>" --column Housekeeping --origin sweep --desc - <<'EOF'` with the description on the lines after it and `EOF` to end it (`--desc -` reads it from stdin, so a heredoc keeps its lines), saying where (file and function), why it matters and the fix. A **design question** (the answer would change how the product or a process behaves) goes to `Triage` for a person instead (`--column Triage --origin sweep`). On a board with no Housekeeping list, everything goes to Triage. Security issues get `--tag security`. One issue or one kind a card; nothing found is a normal result. The same mechanical fix in many files (a rule's old sites, a rename) is one issue, never a card per file, module or area: one card for the whole sweep, or a few split by lane when one would hold too much at once, each built as one commit with its tests (the Playbook's Sweeps section, where the board has one, says more).
+  4. File what bites, never in the ready list: a bug a person would meet, a security issue, or a kind of problem seen more than once (then one card that removes the kind: a shared mechanism and a check that fails CI if it comes back, naming every instance found). A missing test, a duplicate or a stale comment in code that isn't security, data or money is not a card: list it in the closing comment's `Findings:` block, one line each (tests are tiered by risk, W-1950 §Tests). A **fix or investigation** (something already decided is broken, missing, untested or unexplained) goes to the `Housekeeping` list, which runners work after the ready list: `slipdock add <board> "<what is wrong, where>" --column Housekeeping --origin sweep --desc - <<'EOF'` with the description on the lines after it and `EOF` to end it (`--desc -` reads it from stdin, so a heredoc keeps its lines), saying where (file and function), why it matters and the fix. A **design question** (the answer would change how the product or a process behaves) goes to `Triage` for a person instead (`--column Triage --origin sweep`). On a board with no Housekeeping list, everything goes to Triage. Security issues get `--tag security`. One issue or one kind a card, and no more than #{@cap} cards a run (decide what to file before filing any: `security` ones first, then the ones that bite hardest; what is left over goes in the `Findings:` block, one line each, without a card); nothing found is a normal result. The same mechanical fix in many files (a rule's old sites, a rename) is one issue, never a card per file, module or area: one card for the whole sweep, or a few split by lane when one would hold too much at once, each built as one commit with its tests (the Playbook's Sweeps section, where the board has one, says more).
   5. Name each card you filed in the closing comment's `Findings:` block with the arrow, `- gotcha: <what is wrong> → #<card>` (or `- rule: …`), so it is kept promoted rather than left open: only what bites is a card, and the card is where it gets done. Only what is uncertain or cuts across cards, and isn't a card, is a plain finding.
   6. Update the page by section, with `--message "#<this card> sweep <area> × <lens>"`: the cell gets `<sha> <date>`, and the Log gets a line `- <date>: <area> × <lens> at <sha>, filed <card ids or nothing>`.
-  7. Remove the worktree, and close the card with what was swept (area, lens, sha) and the cards filed. The next one comes by itself tomorrow.
+  7. Remove the worktree, and close the card with what was swept (area, lens, sha) and the cards filed. The next one comes by itself next week.
   """
 
   @doc """
@@ -97,7 +108,7 @@ defmodule Slipdock.Sweep do
   def card_bar(code) do
     """
     Swept the stalest cell of #{code}'s Rotation table (a `—` first, else the oldest date; ties to the area higher in the table): one area through one lens, at the default branch's head
-    Each issue found filed as its own card: fixes and investigations in the Housekeeping list (Triage on a board without one), design questions in Triage (security ones tagged `security`), and named in the closing comment's Findings block, or none found said so
+    At most #{@cap} cards filed, `security` ones first, each issue its own card: fixes and investigations in the Housekeeping list (Triage on a board without one), design questions in Triage (security ones tagged `security`), each named in the closing comment's Findings block; what was found past the #{@cap}th a Findings line with no card, or none found said so
     #{code}'s Rotation cell for that area and lens, and its Log, updated with the sha and date; the closing comment names the area, the lens and the sha
     """
     |> String.trim_trailing()
@@ -154,7 +165,7 @@ defmodule Slipdock.Sweep do
     """
     # Sweeps
 
-    The code read one area and one lens at a time, by the *#{@card_title}* card each day. It files fixes and investigations in the `Housekeeping` list, which runners work after the ready list, and design questions in the `#{@triage_list}` list, for a person to triage: nothing in Triage goes to the loop by itself. On a board with no Housekeeping list, everything goes to Triage.
+    The code read one area and one lens at a time, by the *#{@card_title}* card each week. A run files at most #{@cap} cards, `security` ones first; the rest of what it finds are Findings lines in its closing comment. It files fixes and investigations in the `Housekeeping` list, which runners work after the ready list, and design questions in the `#{@triage_list}` list, for a person to triage: nothing in Triage goes to the loop by itself. On a board with no Housekeeping list, everything goes to Triage.
 
     ## Lenses
 
@@ -243,12 +254,13 @@ defmodule Slipdock.Sweep do
           report = categorise_triage(root, report)
           :ok = put_bar(root, user)
           {report, upgraded} = refresh_card(root, user, report)
+          {report, rescheduled} = refresh_series(root, user, report)
 
           {:ok,
            %{
              board: Boards.get_board!(root.id),
              created: created,
-             upgraded: upgraded,
+             upgraded: upgraded or rescheduled,
              version: %{version: @version},
              install: %{version: @version},
              report: report
@@ -309,6 +321,34 @@ defmodule Slipdock.Sweep do
     else
       _ -> {report, false}
     end
+  end
+
+  # 1.4.0 (#3181) runs the sweep weekly, not daily. Installing over an older
+  # sweep moves its series to the current schedule, whether its current
+  # instance is open or done; a series already current, or one somebody set
+  # to anything but the old daily one, is left alone. Reported as
+  # "Sweep the code (updated: weekly)".
+  defp refresh_series(root, user, report) do
+    with %Card{} = card <- series_card(root),
+         %{rule: "FREQ=DAILY"} <- Slipdock.Recurrence.for_card(card),
+         {:ok, _} <- Slipdock.Recurrence.set(card, %{"rule" => @repeat}, user) do
+      name = "#{@card_title} (updated: weekly)"
+      {update_in(report, [:added, "cards"], &(&1 ++ [name])), true}
+    else
+      _ -> {report, false}
+    end
+  end
+
+  # The current instance of the root's *Sweep the code* series, open or not.
+  defp series_card(root) do
+    from(c in Card,
+      join: s in Slipdock.Recurrence.Series,
+      on: s.card_id == c.id,
+      where: c.board_id == ^root.id and c.title == @card_title,
+      order_by: [desc: c.id],
+      limit: 1
+    )
+    |> Repo.one()
   end
 
   defp can_write(user, board) do
