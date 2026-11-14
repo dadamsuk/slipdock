@@ -1,7 +1,7 @@
 // node --test assets/js
 import {test} from "node:test"
 import assert from "node:assert/strict"
-import {linkQuery, applyLink} from "./page_link.js"
+import {linkQuery, applyLink, suggestPages} from "./page_link.js"
 
 const at = text => linkQuery(text, text.length)
 
@@ -40,4 +40,19 @@ test("taking a page writes the link over [[word, caret after it", () => {
 test("brackets the editor closed already are taken in, not doubled", () => {
   assert.deepEqual(applyLink("See [[ret]] now", 4, 9, "[[W-31]]"), {value: "See [[W-31]] now", caret: 12})
   assert.deepEqual(applyLink("See [[ret] now", 4, 9, "[[W-31]]"), {value: "See [[W-31]] now", caret: 12})
+})
+
+test("the pages are asked of the server with the word, the board and fresh", async () => {
+  const sent = []
+  const hook = {
+    el: {dataset: {board: "3"}},
+    pushEvent: (name, payload, reply) => { sent.push({name, payload}); reply({pages: [{code: "W-1"}]}) },
+  }
+  assert.deepEqual(await suggestPages(hook, {text: "Ret"}, {fresh: true}), [{code: "W-1"}])
+  assert.deepEqual(sent, [{name: "page_link_suggest", payload: {q: "Ret", board: "3", fresh: true}}])
+})
+
+test("no board and no reply still ask and answer: with no pages", async () => {
+  const hook = {el: {dataset: {}}, pushEvent: (_n, payload, reply) => { assert.equal(payload.board, ""); reply(null) }}
+  assert.deepEqual(await suggestPages(hook, {text: ""}, {fresh: false}), [])
 })

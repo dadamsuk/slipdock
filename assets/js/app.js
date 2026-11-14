@@ -40,6 +40,8 @@ import {MeldEditor} from "./meld_editor"
 import {ExcalidrawEditor} from "./excalidraw_editor"
 import {MarkdownEditor} from "./markdown_editor"
 import {PageLink} from "./page_link"
+import {Mention} from "./mention"
+import {writeAt} from "./caret_menu"
 import {TranscriptPlayer} from "./transcript_player"
 import {typing} from "./typing"
 import {PasskeyLogin, PasskeyRegister} from "./passkey"
@@ -63,6 +65,7 @@ Hooks.Tabs = Tabs
 Hooks.ExcalidrawEditor = ExcalidrawEditor
 Hooks.MarkdownEditor = MarkdownEditor
 Hooks.PageLink = PageLink
+Hooks.Mention = Mention
 Hooks.PasskeyLogin = PasskeyLogin
 Hooks.PasskeyRegister = PasskeyRegister
 Hooks.DockDrag = DockDrag
@@ -604,9 +607,7 @@ Hooks.PasteImage = {
     const end = ta.selectionEnd ?? start
     const before = ta.value.slice(0, start)
     const pad = before.length > 0 && !before.endsWith("\n") ? "\n" : ""
-    ta.value = before + pad + text + ta.value.slice(end)
-    ta.selectionStart = ta.selectionEnd = start + pad.length + text.length
-    this.changed()
+    writeAt(ta, before + pad + text + ta.value.slice(end), start + pad.length + text.length)
   },
   replacePlaceholder(markdown) {
     const ta = this.textarea
@@ -634,98 +635,6 @@ Hooks.PasteImage = {
       return new File([f], `pasted-${stamp}.${ext}`, {type: f.type})
     })
     this.uploadTo(this.el, this.upload, named)
-  },
-}
-
-// Typing @ in a card's description or a comment offers the board's members
-// (data-people, from SlipdockWeb.Mention). Arrow keys pick, Enter or Tab
-// takes, Escape closes. The list lives on <body> so a LiveView patch of the
-// form cannot take it away mid-word.
-Hooks.Mention = {
-  mounted() {
-    this.textarea = this.el.querySelector("textarea")
-    if (!this.textarea) return
-    this.menu = document.createElement("ul")
-    this.menu.className = "menu menu-sm fixed z-[100] hidden w-64 rounded-box border border-base-300 bg-base-100 p-1 shadow-lg"
-    document.body.appendChild(this.menu)
-    this.matches = []
-    // Clicks and focus on the wrapper, so they are heard from the Markdown
-    // editor over the textarea too; its edits arrive as the textarea's input.
-    this.textarea.addEventListener("input", () => this.refresh())
-    this.el.addEventListener("click", () => this.refresh())
-    this.el.addEventListener("focusout", () => setTimeout(() => this.close(), 150))
-    // On the wrapper, so a key the list uses never reaches the textarea's
-    // own bindings (Escape there stops editing the description).
-    this.el.addEventListener("keydown", e => this.key(e), true)
-  },
-  destroyed() { this.menu && this.menu.remove() },
-  people() {
-    try { return JSON.parse(this.el.dataset.people || "[]") } catch (_) { return [] }
-  },
-  // The "@word" the caret is at the end of, if any.
-  query() {
-    const ta = this.textarea
-    const upto = ta.value.slice(0, ta.selectionStart)
-    const m = upto.match(/(^|[^\w@\/])@([\w.\-]{0,62})$/)
-    return m ? {start: upto.length - m[2].length - 1, text: m[2].toLowerCase()} : null
-  },
-  refresh() {
-    const q = this.query()
-    if (!q) return this.close()
-    this.at = q
-    this.matches = this.people().filter(p =>
-      [p.handle, p.email, ...(p.name || "").split(/\s+/)].some(w => w && w.toLowerCase().startsWith(q.text))
-    ).slice(0, 8)
-    if (this.matches.length === 0) return this.close()
-    this.selected = 0
-    this.render()
-  },
-  render() {
-    this.menu.replaceChildren(...this.matches.map((p, i) => {
-      const li = document.createElement("li")
-      const a = document.createElement("a")
-      if (i === this.selected) a.classList.add("menu-active")
-      const name = document.createElement("span")
-      name.textContent = p.name || p.email
-      const handle = document.createElement("span")
-      handle.className = "text-base-content/60"
-      handle.textContent = "@" + p.handle
-      a.append(name, handle)
-      a.addEventListener("mousedown", e => { e.preventDefault(); this.take(p) })
-      li.appendChild(a)
-      return li
-    }))
-    const r = this.textarea.markdownEditor?.caretRect() || this.textarea.getBoundingClientRect()
-    this.menu.style.left = Math.min(r.left, window.innerWidth - 264) + "px"
-    this.menu.style.top = Math.min(r.bottom + 4, window.innerHeight - 280) + "px"
-    this.menu.classList.remove("hidden")
-  },
-  close() { this.matches = []; this.menu && this.menu.classList.add("hidden") },
-  key(e) {
-    if (this.matches.length === 0) return
-    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-      const n = this.matches.length
-      this.selected = (this.selected + (e.key === "ArrowDown" ? 1 : n - 1)) % n
-      this.render()
-    } else if (e.key === "Enter" || e.key === "Tab") {
-      this.take(this.matches[this.selected])
-    } else if (e.key === "Escape") {
-      this.close()
-    } else {
-      return
-    }
-    e.preventDefault()
-    e.stopPropagation()
-  },
-  take(person) {
-    const ta = this.textarea
-    const end = ta.selectionStart
-    const insert = "@" + person.handle + " "
-    ta.value = ta.value.slice(0, this.at.start) + insert + ta.value.slice(end)
-    ta.selectionStart = ta.selectionEnd = this.at.start + insert.length
-    ta.dispatchEvent(new Event("input", {bubbles: true}))
-    this.close()
-    ta.focus()
   },
 }
 
