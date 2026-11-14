@@ -9,6 +9,7 @@ defmodule Slipdock.Boards.Tags do
   alias Slipdock.Boards.Board
   alias Slipdock.Boards.Card
   alias Slipdock.Boards.Tag
+  alias Slipdock.Policy
   alias Slipdock.Repo
 
   ## Tags
@@ -17,14 +18,21 @@ defmodule Slipdock.Boards.Tags do
     Repo.all(from(t in Tag, where: t.board_id == ^root_id, order_by: [asc: t.name]))
   end
 
-  # Tags belong to the root of the board tree so sub-boards share them.
+  @doc """
+  Makes a tag on `board`'s tree. Tags belong to the root of the tree, so
+  sub-boards share them, and making one asks write on the root
+  (`Slipdock.Policy`, `:create_tag`): `{:error, %Slipdock.Policy.Refused{}}`
+  otherwise.
+  """
   def create_tag(%Board{} = board, attrs) do
-    root_id = Board.root_id(board)
+    with :ok <- Policy.authorize(:create_tag, board) do
+      root_id = Board.root_id(board)
 
-    %Tag{board_id: root_id}
-    |> Tag.changeset(Map.put(attrs, "board_id", root_id))
-    |> Repo.insert()
-    |> Boards.Shared.tap_ok(&Boards.PubSub.broadcast_tree(&1.board_id))
+      %Tag{board_id: root_id}
+      |> Tag.changeset(Map.put(attrs, "board_id", root_id))
+      |> Repo.insert()
+      |> Boards.Shared.tap_ok(&Boards.PubSub.broadcast_tree(&1.board_id))
+    end
   end
 
   @doc """
@@ -45,20 +53,31 @@ defmodule Slipdock.Boards.Tags do
     end
   end
 
+  @doc "Renames or recolours a tag: write on the tree's root (`:update_tag`)."
   def update_tag(%Tag{} = tag, attrs) do
-    tag
-    |> Tag.changeset(attrs)
-    |> Repo.update()
-    |> Boards.Shared.tap_ok(&Boards.PubSub.broadcast_tree(&1.board_id))
+    with :ok <- Policy.authorize(:update_tag, tag) do
+      tag
+      |> Tag.changeset(attrs)
+      |> Repo.update()
+      |> Boards.Shared.tap_ok(&Boards.PubSub.broadcast_tree(&1.board_id))
+    end
   end
 
+  @doc "Deletes a tag from the tree: write on the tree's root (`:delete_tag`)."
   def delete_tag(%Tag{} = tag) do
-    Repo.delete(tag) |> Boards.Shared.tap_ok(&Boards.PubSub.broadcast_tree(&1.board_id))
+    with :ok <- Policy.authorize(:delete_tag, tag) do
+      Repo.delete(tag) |> Boards.Shared.tap_ok(&Boards.PubSub.broadcast_tree(&1.board_id))
+    end
   end
 
   def get_tag!(id), do: Repo.get!(Tag, id)
 
+  @doc "Puts `tag` on `card`, or takes it off: write on the card (`:toggle_card_tag`)."
   def toggle_card_tag(%Card{} = card, %Tag{} = tag) do
+    with :ok <- Policy.authorize(:toggle_card_tag, card), do: toggle(card, tag)
+  end
+
+  defp toggle(card, tag) do
     card = Repo.preload(card, :tags)
 
     tags =

@@ -39,7 +39,12 @@ defmodule Slipdock.Demo do
   end
 
   @doc "Builds the workspace whether or not one is there already."
-  def build!(_opts \\ []) do
+  def build!(opts \\ []) do
+    # The demo workspace is the server's own setup, with nobody acting (#3168).
+    Slipdock.Policy.as_system("the demo workspace", fn -> build_workspace(opts) end)
+  end
+
+  defp build_workspace(_opts) do
     people = Enum.map(@people, &person/1)
     [sam, ash, ren] = people
     today = Date.utc_today()

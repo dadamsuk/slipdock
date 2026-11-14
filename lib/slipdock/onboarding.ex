@@ -111,9 +111,13 @@ defmodule Slipdock.Onboarding do
   def build(%User{} = user) do
     with :ok <- Quota.check(user, :boards),
          :ok <- Quota.check(user, :items, @tour_items) do
-      Repo.transaction(fn -> build_tour(user) end)
+      Slipdock.Policy.as_system("the getting-started board", fn -> build_in_one(user) end)
     end
   end
+
+  # The server builds the tour for its new owner, whichever door asked (or
+  # none): its tags and their cards are its own writes (#3168).
+  defp build_in_one(user), do: Repo.transaction(fn -> build_tour(user) end)
 
   @doc "`build/1`, raising when there is no room."
   @spec build!(User.t()) :: Board.t()

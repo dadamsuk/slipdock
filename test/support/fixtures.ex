@@ -164,7 +164,11 @@ defmodule Slipdock.Fixtures do
   end
 
   def tag_fixture(board, name, color \\ "sky") do
-    {:ok, tag} = Boards.Tags.create_tag(board, %{"name" => name, "color" => color})
+    {:ok, tag} =
+      Slipdock.Policy.as_system("a test fixture", fn ->
+        Boards.Tags.create_tag(board, %{"name" => name, "color" => color})
+      end)
+
     tag
   end
 

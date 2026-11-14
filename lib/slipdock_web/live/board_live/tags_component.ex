@@ -23,6 +23,7 @@ defmodule SlipdockWeb.BoardLive.TagsComponent do
 
   alias Slipdock.{Access, Boards, Palette}
   alias Slipdock.Boards.Tag
+  alias Slipdock.Policy.Refused
 
   @events ~w(pick_tag_color create_tag set_tag_color rename_tag delete_tag)
   # Picking the new tag's colour changes nothing stored.
@@ -85,6 +86,7 @@ defmodule SlipdockWeb.BoardLive.TagsComponent do
 
     case Boards.Tags.create_tag(socket.assigns.board, params) do
       {:ok, _} -> {:noreply, assign(socket, tag_form: new_tag_form(), error: nil)}
+      {:error, %Refused{message: message}} -> {:noreply, assign(socket, error: message)}
       {:error, cs} -> {:noreply, assign(socket, tag_form: to_form(cs, action: :insert))}
     end
   end
@@ -94,6 +96,7 @@ defmodule SlipdockWeb.BoardLive.TagsComponent do
          {:ok, _} <- Boards.Tags.update_tag(tag, %{"color" => color}) do
       {:noreply, assign(socket, error: nil)}
     else
+      {:error, %Refused{message: message}} -> {:noreply, assign(socket, error: message)}
       _ -> {:noreply, assign(socket, error: "That colour couldn't be set.")}
     end
   end
@@ -113,6 +116,9 @@ defmodule SlipdockWeb.BoardLive.TagsComponent do
           {:ok, tag} ->
             {:reply, %{ok: true, name: tag.name}, assign(socket, error: nil)}
 
+          {:error, %Refused{message: message}} ->
+            {:reply, %{ok: false, name: tag.name}, assign(socket, error: message)}
+
           {:error, cs} ->
             {:reply, %{ok: false, name: tag.name},
              assign(socket, error: rename_error(cs, tag.name))}
@@ -121,8 +127,12 @@ defmodule SlipdockWeb.BoardLive.TagsComponent do
   end
 
   defp event("delete_tag", %{"id" => id}, socket) do
-    if tag = tag_by_id(socket.assigns.board, id), do: {:ok, _} = Boards.Tags.delete_tag(tag)
-    {:noreply, assign(socket, error: nil)}
+    with %Tag{} = tag <- tag_by_id(socket.assigns.board, id),
+         {:error, %Refused{message: message}} <- Boards.Tags.delete_tag(tag) do
+      {:noreply, assign(socket, error: message)}
+    else
+      _ -> {:noreply, assign(socket, error: nil)}
+    end
   end
 
   defp rename_error(cs, old) do

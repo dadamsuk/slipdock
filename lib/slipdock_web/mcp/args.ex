@@ -174,6 +174,10 @@ defmodule SlipdockWeb.MCP.Args do
   # the code first, so an agent can match on it and stop.
   def refusal({:error, :shared, code, message}), do: {:error, "#{code}: #{message}"}
 
+  # The context refused the write itself (`Slipdock.Policy`, #3168).
+  def refusal({:error, %Slipdock.Policy.Refused{message: message}}),
+    do: {:error, "forbidden: " <> message}
+
   def refusal({:error, :not_found, what}), do: {:error, "no #{what} you can see matches that"}
   def refusal({:error, _status, message}) when is_binary(message), do: {:error, message}
   def refusal({:error, message}) when is_binary(message), do: {:error, message}

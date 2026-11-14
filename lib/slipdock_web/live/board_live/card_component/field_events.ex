@@ -15,6 +15,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent.FieldEvents do
   import SlipdockWeb.BoardLive.Items
 
   alias Slipdock.{Access, Boards, Palette, Runners}
+  alias Slipdock.Policy.Refused
   alias SlipdockWeb.BoardLive.CardComponent.State
   alias SlipdockWeb.BoardLive.{Paths, Sharing}
   alias SlipdockWeb.Params
@@ -123,10 +124,13 @@ defmodule SlipdockWeb.BoardLive.CardComponent.FieldEvents do
   end
 
   def handle_event("toggle_tag", %{"id" => id}, socket) do
-    if tag = tag_by_id(socket.assigns.board, id),
-      do: {:ok, _} = Boards.Tags.toggle_card_tag(socket.assigns.card, tag)
-
-    {:noreply, socket}
+    with %{} = tag <- tag_by_id(socket.assigns.board, id),
+         {:error, %Refused{message: message}} <-
+           Boards.Tags.toggle_card_tag(socket.assigns.card, tag) do
+      {:noreply, notice(socket, :error, "Tag not changed: #{message}")}
+    else
+      _ -> {:noreply, socket}
+    end
   end
 
   # "New tag" from the card's tag picker (#1727): a tag of that name on the
@@ -145,8 +149,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent.FieldEvents do
         {:noreply, socket}
 
       tag = Enum.find(board.tags, &(String.downcase(&1.name) == String.downcase(name))) ->
-        if not on_card?.(tag), do: {:ok, _} = Boards.Tags.toggle_card_tag(card, tag)
-        {:noreply, socket}
+        if on_card?.(tag), do: {:noreply, socket}, else: put_on(socket, card, tag)
 
       not Access.can_edit_tags?(user, board) ->
         {:noreply,
@@ -163,8 +166,10 @@ defmodule SlipdockWeb.BoardLive.CardComponent.FieldEvents do
 
         case Boards.Tags.create_tag(board, %{"name" => name, "color" => colour}) do
           {:ok, tag} ->
-            {:ok, _} = Boards.Tags.toggle_card_tag(card, tag)
-            {:noreply, socket}
+            put_on(socket, card, tag)
+
+          {:error, %Refused{message: message}} ->
+            {:noreply, notice(socket, :error, "Tag not made: #{message}")}
 
           {:error, changeset} ->
             {:noreply, notice(socket, :error, "Tag not made: #{field_errors(changeset)}.")}
@@ -364,4 +369,14 @@ defmodule SlipdockWeb.BoardLive.CardComponent.FieldEvents do
   # an empty bar would otherwise swap the box for the rendered view.
   defp keep_bar_open(socket, %{"bar" => _}), do: assign(socket, editing_bar: true)
   defp keep_bar_open(socket, _params), do: socket
+
+  defp put_on(socket, card, tag) do
+    case Boards.Tags.toggle_card_tag(card, tag) do
+      {:ok, _} ->
+        {:noreply, socket}
+
+      {:error, %Refused{message: message}} ->
+        {:noreply, notice(socket, :error, "Tag not added: #{message}")}
+    end
+  end
 end
