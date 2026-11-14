@@ -65,8 +65,8 @@ defmodule SlipdockWeb.MCP.Tools.UpdateCard do
           type: "array",
           items: %{type: "string"},
           description:
-            "Globs of the files its work touches (lib/x/**); [] clears. On a lanes board an " <>
-              "agent can't start a card whose paths overlap one in progress."
+            "Globs of the files its work touches (lib/x/**); [] clears. They scope the " <>
+              "card's handbook rules and feed its profile."
         },
         # What kind of change it is (#1951).
         profile: %{

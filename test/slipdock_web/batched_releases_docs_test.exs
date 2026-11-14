@@ -1,7 +1,7 @@
 defmodule SlipdockWeb.BatchedReleasesDocsTest do
   @moduledoc """
   Batched releases (#2833) as the docs say them (#2839): the manual has a
-  page of its own, in the contents between Verified work and Lanes, and
+  page of its own, in the contents between Verified work and Profiles, and
   every place a reader or an agent looks says the three things a batched
   board changes: a card is done when it merges, *Release now* is how a
   person ships, and *Not shipped* counts from the card's release, not its
@@ -15,7 +15,7 @@ defmodule SlipdockWeb.BatchedReleasesDocsTest do
   defp read(path), do: Slipdock.DocsText.read!(Path.join(@root, path))
   defp flat(text), do: String.replace(text, ~r/\s+/, " ")
 
-  test "the manual has the page, in the contents between Verified work and Lanes" do
+  test "the manual has the page, in the contents between Verified work and Profiles" do
     lines = @root |> Path.join("docs/manual.md") |> File.read!() |> String.split("\n")
     at = fn line -> Enum.find_index(lines, &(&1 == line)) end
 
@@ -24,10 +24,10 @@ defmodule SlipdockWeb.BatchedReleasesDocsTest do
     assert is_integer(verified) and is_integer(batched)
     assert batched > verified
 
-    # Only Verified work's own sub-headings come between them, and Lanes is next.
+    # Only Verified work's own sub-headings come between them, and Profiles is next.
     between = Enum.slice(lines, (verified + 1)..(batched - 1)//1)
     assert Enum.all?(between, &String.starts_with?(&1, "  - "))
-    assert Enum.at(lines, batched + 1) == "- [Lanes](manual/lanes.md)"
+    assert Enum.at(lines, batched + 1) == "- [Profiles](manual/profiles.md)"
 
     page = File.read!(Path.join(@root, "docs/manual/batched-releases.md"))
     assert page =~ ~r/^## Batched releases$/m

@@ -93,7 +93,6 @@ that are on, each a jump to its section, then the sections:
 - **Verified work**: a bar before work starts, evidence on completion, a
   second agent verifies, and with it the verify pool, the rejection limit,
   audits and how accepted work ships.
-- **Lanes**: what an overlap does, and the shared paths.
 - **Profiles**, and the human tier by profile.
 - **Who gets asked**: who each kind of question goes to.
 - **Handoffs**: their label and the instructions for Auto generate.

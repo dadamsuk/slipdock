@@ -67,7 +67,6 @@ defmodule SlipdockWeb.MCP.Tools.GetCard do
        |> V.put_lead_time(card)
        |> V.put_shipping(card)
        |> V.put_findings(card)
-       |> V.put_lanes(card)
        |> V.put_copied_from(card, context.user)
        |> V.put_authors(card)
        |> V.put_incidents(card, context.user, context[:token])

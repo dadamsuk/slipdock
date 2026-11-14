@@ -54,7 +54,7 @@ card going stale, one day), so nothing repeats itself.
 number, to follow one card), list, priority, tag,
 assignee, flag, title, description, completed, archived, blocked, whether a
 due date or assignee is set, the dates themselves, health, age in days, and
-the verified-work fields: the card's `bar`, its lane `paths`, its `profile`
+the verified-work fields: the card's `bar`, its `paths`, its `profile`
 and `verify_state` (`pending`, `held`, `rejected`, `accepted`, `merging`) —
 tested with `is`, `is_not`, `contains`, `any_of`, `none_of`, `is_set`,
 `before`, `after`, `within_days`, `older_than_days`, `gt`, `lt`.
@@ -74,7 +74,7 @@ Text in an action can use `{{card.title}}`, `{{card.url}}`,
 `{{card.profile}}`, `{{card.verify_state}}`, `{{board.name}}`, `{{today}}`
 and the rest.
 
-**Bars, lanes and profiles.** A rule can read, fire on and change what
+**Bars, paths and profiles.** A rule can read, fire on and change what
 [verified work](verified-work.md) keeps on a card. `card_updated` with
 `field` `bar`, `paths`, `profile` or `verify_state` fires when one changes
 (`verify_state` changes when an agent submits the card and when it is held,

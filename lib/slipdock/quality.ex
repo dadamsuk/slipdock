@@ -22,7 +22,7 @@ defmodule Slipdock.Quality do
       cards' rejections, `per_card` over them, and `in_rework` counts the
       cards rejected in the window and not yet accepted;
     * `areas` — the same per area: the handbook page whose `covers:` take in
-      most of a card's lane paths, or `unmapped` for a card with no paths, no
+      most of a card's paths, or `unmapped` for a card with no paths, no
       page covering them, or no handbook. Most rejections first;
     * `jobs` — the runner jobs that finished in the window, and of them the
       timeouts, failures, requeues (`recovery` requeued) and give-ups, each

@@ -16,6 +16,6 @@ building. Judging one is in `verifying.md`.
   prototype on card-<id>" --evidence "…"`, with the `Findings:` block:
   naming a PR is refused, and accepting it merges nothing. *Inconclusive,
   with what was learned* is a finished spike; a guess is not. A spike
-  holds no lane, so it needs no paths. When the last spike under an epic
+  needs no paths. When the last spike under an epic
   is accepted, the server opens a `product` wait on the epic to resume
   planning: that is a person's, not yours.

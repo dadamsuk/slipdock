@@ -463,7 +463,7 @@ defmodule Slipdock.Verified.Merging do
 
   @doc """
   The job kinds that finish a card's work rather than add to it: verifying
-  and merging. Lanes and the WIP limit hold work jobs only (#1807): these
+  and merging. The WIP limit holds work jobs only (#1807): these
   edit nobody's files and put no more work in progress.
   """
   def finishing_kinds, do: [Jobs.verify_kind(), @merge_kind]

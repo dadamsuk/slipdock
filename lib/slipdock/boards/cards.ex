@@ -481,9 +481,8 @@ defmodule Slipdock.Boards.Cards do
     # function. See `Slipdock.Quota`.
     |> Quota.enforce(column)
     # Created straight into a doing list (#1815), the card meets the checks
-    # a move into it makes: the bar (#1620), then lanes (#1628).
+    # a move into it makes: the bar (#1620).
     |> Slipdock.Verified.check_create(column, Slipdock.Actor.resolve(opts))
-    |> Slipdock.Lanes.check_create(column, Slipdock.Actor.resolve(opts))
     |> save_with_assignees(&Repo.insert/1, assignees)
     |> Boards.Shared.tap_ok(fn card ->
       Boards.ActivityLog.log(
@@ -655,13 +654,8 @@ defmodule Slipdock.Boards.Cards do
     end
   end
 
-  # Lanes (#1628) first, then Verified work (#1620).
-  defp check_update(card, attrs, actor) do
-    case Slipdock.Lanes.check_update(card, attrs, actor) do
-      :ok -> Slipdock.Verified.check_update(card, attrs, actor)
-      refused -> refused
-    end
-  end
+  # Verified work (#1620).
+  defp check_update(card, attrs, actor), do: Slipdock.Verified.check_update(card, attrs, actor)
 
   defp save_card(%Card{} = card, attrs, verify_changes, opts) do
     {assignees, attrs} = assignee_change(card, attrs)
@@ -1259,12 +1253,9 @@ defmodule Slipdock.Boards.Cards do
         do_move_card(card, to_column, before_id, actor)
 
       true ->
-        # Verified work (#1620): what an agent may start or finish; lanes
-        # (#1628): whether its paths overlap a card in progress.
-        with :ok <- Slipdock.Verified.check_move(card, to_column, actor),
-             :ok <- Slipdock.Lanes.check_move(card, to_column, actor) do
-          do_move_card(card, to_column, before_id, actor)
-        else
+        # Verified work (#1620): what an agent may start or finish.
+        case Slipdock.Verified.check_move(card, to_column, actor) do
+          :ok -> do_move_card(card, to_column, before_id, actor)
           {:error, message} -> {:error, :unprocessable_entity, message}
         end
     end

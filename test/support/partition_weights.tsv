@@ -160,9 +160,6 @@ test/slipdock/incidents_test.exs	async	6404
 test/slipdock/invites_test.exs	async	1161
 test/slipdock/job_log_hours_portable_test.exs	sync	41
 test/slipdock/kinds_test.exs	async	3128
-test/slipdock/lanes_advise_test.exs	async	1209
-test/slipdock/lanes_epic_test.exs	async	3668
-test/slipdock/lanes_siblings_test.exs	async	2536
 test/slipdock/lanes_test.exs	async	2924
 test/slipdock/lead_time_test.exs	async	2679
 test/slipdock/ledger_test.exs	async	3279
@@ -574,9 +571,6 @@ test/slipdock_web/health_test.exs	async	498
 test/slipdock_web/inbound_addresses_api_test.exs	async	1413
 test/slipdock_web/inbound_docs_test.exs	async	709
 test/slipdock_web/job_logs_docs_test.exs	async	141
-test/slipdock_web/lanes_advise_web_test.exs	async	2877
-test/slipdock_web/lanes_docs_test.exs	async	276
-test/slipdock_web/lanes_web_test.exs	async	8650
 test/slipdock_web/ledger_docs_test.exs	async	486
 test/slipdock_web/live/account_limits_test.exs	async	3030
 test/slipdock_web/live/account_machines_live_test.exs	async	1342
@@ -870,7 +864,6 @@ test/slipdock_web/scheduled_list_docs_test.exs	async	899
 test/slipdock_web/scheduled_list_doors_test.exs	async	1484
 test/slipdock_web/search_links_test.exs	async	2706
 test/slipdock_web/shared_page_embeds_test.exs	async	5968
-test/slipdock_web/shared_paths_web_test.exs	async	3315
 test/slipdock_web/ship_via_web_test.exs	async	5603
 test/slipdock_web/shipped_line_test.exs	async	2877
 test/slipdock_web/short_names_api_test.exs	async	946

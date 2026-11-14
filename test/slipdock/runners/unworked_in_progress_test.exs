@@ -1,18 +1,16 @@
 defmodule Slipdock.Runners.UnworkedInProgressTest do
   @moduledoc """
-  #1922: a card in progress holds the board (`wait_while_doing`) and its lane
-  only while a runner job is working on it — its own job queued, claimed or
+  #1922: a card in progress holds the board (`wait_while_doing`) only while a runner job is working on it — its own job queued, claimed or
   running, a verify or merge job still to finish, or its epic's job. A card
   in progress with no open job holds nothing for runners, and no held line
-  names it; a pull-request board's pending card keeps its lane until its
-  merge, as before; the stale and orphan in-progress checks still report it.
+  names it; the stale and orphan in-progress checks still report it.
   """
   use Slipdock.DataCase, async: true
 
   import Slipdock.Fixtures
   import Slipdock.GardenerHelpers, only: [find: 2]
 
-  alias Slipdock.{Actor, Boards, Health, Lanes, Repo, Runners}
+  alias Slipdock.{Actor, Boards, Health, Repo, Runners}
   alias Slipdock.Boards.{Activity, Card, CardMove, Comment}
   alias Slipdock.Gardener.Checks.StaleInProgress
   alias Slipdock.Health.Detectors.OrphanInProgress
@@ -51,11 +49,6 @@ defmodule Slipdock.Runners.UnworkedInProgressTest do
       card,
       Map.merge(%{pool: "loop", kind: "claude", prompt: "go", wait_while_doing: true}, attrs)
     )
-  end
-
-  defp lanes_on(ctx) do
-    {:ok, board} = Boards.update_board(ctx.board, %{"lanes" => true})
-    %{ctx | board: board}
   end
 
   defp claimed_id(ctx) do
@@ -157,76 +150,11 @@ defmodule Slipdock.Runners.UnworkedInProgressTest do
     end
   end
 
-  describe "lanes" do
-    setup ctx, do: lanes_on(ctx)
-
-    test "an overlapping card in progress with no job holds no job and refuses no move", ctx do
-      idle = card(ctx.doing, "Idle", "lib/**")
-      next = card(ctx.todo, "Next", "lib/a.ex")
-      {:ok, job} = queue(next, %{wait_while_doing: false})
-
-      assert Lanes.conflict(next) == nil
-      assert Lanes.held_cards(ctx.board.id) == %{}
-      assert Runners.held_reason(job, claimant: true) == nil
-      assert :ok = Boards.Cards.move_card(next.id, ctx.doing.id, nil, actor: ctx.agent)
-
-      # Given a job, the idle card holds its lane again.
-      working_job_fixture(idle, %{status: "queued", pool: "elsewhere"})
-      third = card(ctx.todo, "Third", "lib/b.ex")
-      assert Lanes.conflict(third).id == idle.id
-
-      assert {:error, :unprocessable_entity, message} =
-               Boards.Cards.move_card(third.id, ctx.doing.id, nil, actor: ctx.agent)
-
-      assert message =~ "##{idle.id}"
-    end
-
-    test "a queued job is held by a worked card's lane and named; freed when the job ends",
-         ctx do
-      busy = card(ctx.doing, "Busy", "lib/**")
-      work = working_job_fixture(busy)
-      {:ok, job} = queue(card(ctx.todo, "Next", "lib/a.ex"), %{wait_while_doing: false})
-      line = "Lane: overlaps ##{busy.id}, in progress"
-
-      assert Runners.held_reason(job, claimant: true) == line
-      assert Runners.held_reasons([job]) == %{job.id => line}
-      assert Runners.claim(ctx.runner) == nil
-
-      work |> Ecto.Changeset.change(status: "done") |> Repo.update!()
-
-      assert Runners.held_reason(job, claimant: true) == nil
-      assert Runners.held_reasons([job]) == %{}
-      assert claimed_id(ctx) == job.id
-    end
-
-    test "a pull-request board's pending card keeps its lane with no job, until its merge",
-         ctx do
-      {:ok, board} =
-        Boards.update_board(ctx.board, %{"verify_work" => true, "ship_via" => "pull_request"})
-
-      ctx = %{ctx | board: board}
-      pending = card(ctx.doing, "Pending", "lib/**")
-      next = card(ctx.todo, "Next", "lib/a.ex")
-
-      for state <- ["pending", "merging"] do
-        Repo.update_all(from(c in Card, where: c.id == ^pending.id), set: [verify_state: state])
-        assert Lanes.conflict(next).id == pending.id, state
-      end
-
-      Repo.update_all(from(c in Card, where: c.id == ^pending.id),
-        set: [verify_state: "accepted"]
-      )
-
-      assert Lanes.conflict(next) == nil
-    end
-  end
-
   describe "the 2026-11-06 case" do
     test "a merged card dragged back into In Progress with no job doesn't hold the next job",
          ctx do
       {:ok, board} =
         Boards.update_board(ctx.board, %{
-          "lanes" => true,
           "verify_work" => true,
           "ship_via" => "pull_request"
         })
@@ -252,13 +180,12 @@ defmodule Slipdock.Runners.UnworkedInProgressTest do
       merged = Repo.get!(Card, merged.id)
       assert merged.column_id == ctx.doing.id
 
-      # #1878's and #1885's jobs: one overlapping its lane, one waiting while
+      # #1878's and #1885's jobs: one overlapping its paths, one waiting while
       # anything is in progress. Neither is held, and nothing names it.
       lane = card(ctx.todo, "Overlapping", "lib/slipdock/runners.ex")
       {:ok, lane_job} = queue(lane, %{wait_while_doing: false})
       {:ok, wait_job} = queue(card(ctx.todo, "Waits while doing", "docs/x.md"))
 
-      assert Lanes.held_cards(ctx.board.id) == %{}
       assert Runners.waiting_on(wait_job) == nil
       assert Runners.held_reasons([lane_job, wait_job]) == %{}
 

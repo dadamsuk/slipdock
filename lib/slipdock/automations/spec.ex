@@ -121,7 +121,7 @@ defmodule Slipdock.Automations.Spec do
      "set what done means for the card (its bar; none clears it). A rule may change a bar " <>
        "that locked when work started, as a person may: only agents are held to it"},
     {"set_paths", ["paths"], ["mode"],
-     "set the paths the card's work will touch, its lane: globs relative to the repository " <>
+     "set the paths the card's work will touch, which scope its handbook rules: globs relative to the repository " <>
        "(lib/foo/**, docs/manual.md; none clears them). mode: replace (the default), add or remove"},
     {"set_profile", ["profile"], [],
      "set what kind of change the card is (security, schema, feature, fix, docs, spike, " <>
@@ -858,7 +858,7 @@ defmodule Slipdock.Automations.Spec do
 
   defp action_summary(actions), do: Enum.map_join(actions, ", then ", &one_action/1)
 
-  # Verified work and lanes (#2731), apart: `one_action/1` is over credo's limit.
+  # Verified work (#2731), apart: `one_action/1` is over credo's limit.
   defp one_action(%{"type" => "set_bar"} = a),
     do: if(a["bar"] == "none", do: "clear its bar", else: "set its bar")
 

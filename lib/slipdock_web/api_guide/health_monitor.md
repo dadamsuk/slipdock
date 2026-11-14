@@ -44,7 +44,7 @@ one card), a person as the only bottleneck (`waiting_idle`: a wait or
 review open and no job open), `slow` cards (past the board's P85 time
 to done for their profile) and jobs (a live heartbeat, the same step
 for 30 minutes), `idle_capacity` (free ready cards and runners idle for
-`idle_minutes`, or two or more jobs queued behind one card's lane) and
+`idle_minutes`) and
 `no_way_forward` (an epic in progress with every open subcard blocked).
 A sixth, `not_shipped` (a merged card no succeeded deploy names after
 the board's `not_shipped_minutes`, counted from its release on a tree

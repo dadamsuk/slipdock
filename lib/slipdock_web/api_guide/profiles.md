@@ -42,8 +42,7 @@ any board) answers a question by building, and its code is never
 merged: complete it with `no_code` naming the answer's page and the
 branch its prototype is on (`slipdock done ID --no-code "spike: answer
 on W-…, prototype on card-ID"`), never a pull request. An agent naming
-one is refused (`422`), and accepting it merges nothing. It holds no
-lane, even with paths: nothing is refused or held because of it.
+one is refused (`422`), and accepting it merges nothing.
 Spikes come from planning: the `slipdock-plan` skill's Spike stage,
 between Grill and Spec for a feature or a system, turns an open
 question that only building can answer, whose "no" changes the spec

@@ -1,10 +1,9 @@
 defmodule Slipdock.SpikeCardsTest do
   @moduledoc """
-  Spike cards merge nothing and hold no lane (#2349): a spike answers a
-  question by building, so an agent completing one names no pull request
-  (it completes with `evidence_no_code`), its default human tier is `none`
-  and an agent's acceptance holds nothing, and its paths, in progress, hold
-  no lane against an overlapping card nor hold a queued job back. A card
+  Spike cards merge nothing (#2349): a spike answers a question by
+  building, so an agent completing one names no pull request (it completes
+  with `evidence_no_code`), its default human tier is `none` and an agent's
+  acceptance holds nothing. A card
   is a spike by its profile, or with no profile by its `spike` tag, on any
   board.
   """
@@ -13,7 +12,7 @@ defmodule Slipdock.SpikeCardsTest do
   import Ecto.Query
   import Slipdock.Fixtures
 
-  alias Slipdock.{Actor, Boards, Lanes, Profiles, Repo, Runners, Verified}
+  alias Slipdock.{Actor, Boards, Profiles, Repo, Verified}
   alias Slipdock.Boards.{Card, Wait}
   alias Slipdock.Runners.Job
 
@@ -29,8 +28,7 @@ defmodule Slipdock.SpikeCardsTest do
         "verify_work" => true,
         "evidence_required" => true,
         "ship_via" => "pull_request",
-        "profiles" => true,
-        "lanes" => true
+        "profiles" => true
       })
 
     [_backlog, todo, doing, _done] = board.columns
@@ -138,67 +136,6 @@ defmodule Slipdock.SpikeCardsTest do
         Boards.update_board(ctx.board, %{"profile_tiers" => %{"spike" => "before_merge"}})
 
       assert ctx |> spike() |> Repo.preload(:board) |> Profiles.tier() == "before_merge"
-    end
-  end
-
-  describe "lanes" do
-    test "a spike in progress with paths blocks no overlapping card", ctx do
-      running = spike(ctx)
-      {:ok, running} = Boards.Cards.update_card(running, %{"paths" => ["lib/a/**"]})
-      working_job_fixture(running)
-
-      next = card_fixture(ctx.todo, %{"title" => "Next"})
-      {:ok, next} = Boards.Cards.update_card(next, %{"paths" => ["lib/a/b.ex"]})
-
-      assert Lanes.conflict(next) == nil
-      assert :ok = Boards.Cards.move_card(next.id, ctx.doing.id, nil, actor: ctx.builder)
-    end
-
-    test "a hand-tagged spike holds none either; untagged, the same card does", ctx do
-      running = card_fixture(ctx.doing, %{"title" => "Prototype"})
-      {:ok, running} = Boards.Cards.update_card(running, %{"paths" => ["lib/a/**"]})
-      working_job_fixture(running)
-
-      next = card_fixture(ctx.todo, %{"title" => "Next"})
-      {:ok, next} = Boards.Cards.update_card(next, %{"paths" => ["lib/a/b.ex"]})
-      assert %Card{id: id} = Lanes.conflict(next)
-      assert id == running.id
-
-      tagged(running, ctx.board, "spike")
-      assert Lanes.conflict(next) == nil
-    end
-
-    test "a spike isn't held behind a card in progress, nor its job", ctx do
-      {:ok, runner, _} = Runners.create_runner(ctx.board, %{"name" => "r", "pool" => "dev"})
-      running = card_fixture(ctx.doing, %{"title" => "Running"})
-      {:ok, running} = Boards.Cards.update_card(running, %{"paths" => ["lib/a/**"]})
-      working_job_fixture(running)
-
-      queued = card_fixture(ctx.todo, %{"title" => "Spike it"})
-      {:ok, queued} = Boards.Cards.update_card(queued, %{"paths" => ["lib/a/b.ex"]})
-      queued = tagged(queued, ctx.board, "spike")
-
-      assert Lanes.conflict(Repo.get!(Card, queued.id)) == nil
-      {:ok, job} = Runners.queue(queued, %{pool: "dev", kind: "claude", prompt: "go"})
-      assert Lanes.held_cards(ctx.board.id) == %{}
-      assert %{id: id} = Runners.claim(runner)
-      assert id == job.id
-    end
-
-    test "no job is held behind a spike in progress", ctx do
-      {:ok, runner, _} = Runners.create_runner(ctx.board, %{"name" => "r", "pool" => "dev"})
-      running = spike(ctx)
-      {:ok, running} = Boards.Cards.update_card(running, %{"paths" => ["lib/a/**"]})
-      working_job_fixture(running)
-
-      next = card_fixture(ctx.todo, %{"title" => "Next"})
-      {:ok, next} = Boards.Cards.update_card(next, %{"paths" => ["lib/a/b.ex"]})
-      {:ok, job} = Runners.queue(next, %{pool: "dev", kind: "claude", prompt: "go"})
-
-      assert Lanes.held_cards(ctx.board.id) == %{}
-      assert Runners.held_reason(Repo.reload!(job), claimant: true) == nil
-      assert %{id: id} = Runners.claim(runner)
-      assert id == job.id
     end
   end
 end

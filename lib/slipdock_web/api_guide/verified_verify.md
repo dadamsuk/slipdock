@@ -49,7 +49,7 @@ names), grep them across the <%= @docs_places_count %> places (<%= @docs_places 
 and give each place one result: updated, deferred to #N (only when card #N's
 bar names that place), n/a with why, or missing. One missing is
 `rule:SPEC-10=broken:<file>:<name>`. The builder does the same before
-submitting: a place its lane can't reach goes on the deferral card's
+submitting: a place its paths can't reach goes on the deferral card's
 bar by name, or the deferral doesn't count. A card resubmitted after a rejection is
 judged on what changed: its verify prompt carries the last verdict and
 the commit it judged, the verifier judges the parts that failed and any

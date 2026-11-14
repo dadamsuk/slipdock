@@ -99,71 +99,6 @@ defmodule SlipdockCLI.Render do
 
   def paused(_), do: :ok
 
-  # The board's lanes, when there is something to say: advisory (#1972),
-  # and its shared paths (#1971).
-  defp lanes_lines(b) do
-    if b["lane_mode"] == "advise", do: IO.puts(dim("lanes: advise (overlaps are told, not held)"))
-    shared_paths_line(b["shared_paths"])
-  end
-
-  defp shared_paths_line([_ | _] = globs),
-    do: IO.puts(dim("shared paths (hold no lane): " <> Enum.join(globs, ", ")))
-
-  defp shared_paths_line(_globs), do: :ok
-
-  # The card in progress its paths overlap (#1972), and what that does.
-  defp lane_overlap_line(%{"card" => id, "title" => title, "mode" => "advise"} = o),
-    do:
-      IO.puts(
-        indent(
-          dim(
-            "overlaps ##{id} “#{title}” in progress, advisory: an agent may start" <>
-              broad_side(o)
-          )
-        )
-      )
-
-  defp lane_overlap_line(%{"card" => id, "title" => title} = o),
-    do:
-      IO.puts(
-        indent(
-          dim(
-            "overlaps ##{id} “#{title}” in progress: an agent can't start this" <> broad_side(o)
-          )
-        )
-      )
-
-  defp lane_overlap_line(_overlap), do: :ok
-
-  # Whose broad glob makes the overlap (#2698).
-  defp broad_side(%{"broad" => side, "broad_paths" => globs}) do
-    whose = %{"this" => "this card's", "other" => "its", "both" => "both cards'"}[side]
-    " (#{whose || side} broad #{Enum.join(globs, ", ")})"
-  end
-
-  defp broad_side(_overlap), do: ""
-
-  # A card's paths one per line, those shared on the board (#1971) and
-  # those that claim a whole top-level directory (#2698) marked.
-  defp paths_text(paths, shared, broad) do
-    shared = shared || []
-    broad = broad || []
-
-    Enum.map_join(paths, "\n", fn path ->
-      cond do
-        Enum.member?(shared, path) -> path <> dim("  shared")
-        Enum.member?(broad, path) -> path <> yellow("  broad")
-        true -> path
-      end
-    end)
-  end
-
-  # Why a broad glob is marked (#2698), as the server says it.
-  defp broad_line([_ | _], reason),
-    do: IO.puts(indent(dim("broad: " <> (reason || "it overlaps most cards"))))
-
-  defp broad_line(_broad, _reason), do: :ok
-
   def board(b) do
     IO.puts(
       bold("#{b["name"]}") <>
@@ -182,8 +117,6 @@ defmodule SlipdockCLI.Render do
     if b["owner"], do: IO.puts(dim("owner: " <> owner_name(b)))
     # What in this tree waits on you (#2095).
     waiting_count_line(b)
-
-    lanes_lines(b)
 
     tags = Enum.map(b["tags"], & &1["name"])
     if tags != [], do: IO.puts(dim("tags: " <> Enum.join(tags, ", ")))
@@ -1187,7 +1120,7 @@ defmodule SlipdockCLI.Render do
     IO.puts("  " <> dim("index: slipdock handbook #{h["board"]} (#{h["index_page"]})"))
   end
 
-  # The rules for the card's lane paths (#1774), when it has some.
+  # The rules for the card's paths (#1774), when it has some.
   defp card_rules(%{"rules" => rules} = h) when is_list(rules) do
     IO.puts(bold("Rules") <> dim("  for the card's paths; keep to them, cite them by id"))
 
@@ -1557,9 +1490,7 @@ defmodule SlipdockCLI.Render do
     if not Enum.member?([nil, []], c["paths"]) do
       IO.puts("")
       IO.puts(bold("Paths"))
-      c["paths"] |> paths_text(c["paths_shared"], c["paths_broad"]) |> indent() |> IO.puts()
-      broad_line(c["paths_broad"], c["paths_broad_reason"])
-      lane_overlap_line(c["lane_overlap"])
+      c["paths"] |> Enum.join("\n") |> indent() |> IO.puts()
     end
 
     if state = c["verify_state"] do

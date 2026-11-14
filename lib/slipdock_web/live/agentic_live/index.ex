@@ -204,7 +204,6 @@ defmodule SlipdockWeb.AgenticLive.Index do
       {"release", "releases", "Batched releases", release.mode == "batched",
        release.mode == "batched" && release.age_cap_hours &&
          "at most #{release.age_cap_hours}h"},
-      {"lanes", "lanes", "Lanes", b.lane_mode != "off", b.lane_mode != "off" && b.lane_mode},
       {"profiles", "profiles", "Profiles", b.profiles, nil},
       {"routes", "questions", "Questions routed", routed > 0,
        routed > 0 && "#{routed} of #{length(WaitRoutes.kinds())}"},
@@ -241,10 +240,6 @@ defmodule SlipdockWeb.AgenticLive.Index do
   defp route_label("security"), do: "Security questions"
   defp route_label("release"), do: "Release questions (and audits that disagree)"
   defp route_label("other"), do: "Any other question"
-
-  defp globs_text(nil), do: ""
-  defp globs_text(globs) when is_list(globs), do: Enum.join(globs, "\n")
-  defp globs_text(text), do: text
 
   # Each profile's tier as the form has it (#1952): the board's changes, or
   # what was just chosen, over the defaults.
@@ -657,45 +652,6 @@ defmodule SlipdockWeb.AgenticLive.Index do
                       Lift hold
                     </button>
                   </div>
-                </div>
-              </.section>
-
-              <.section id="lanes" icon="hero-arrows-right-left" title="Lanes">
-                <:about>
-                  Agents working side by side stay out of each other's files.
-                </:about>
-                <div>
-                  <.input
-                    field={@form[:lane_mode]}
-                    id="board-lanes"
-                    type="select"
-                    label="When a card's paths overlap a card in progress"
-                    options={[
-                      {"Off: nothing is checked", "off"},
-                      {"Hold: an agent can't start it", "hold"},
-                      {"Advise: start it, and tell the agent", "advise"}
-                    ]}
-                    class="select field w-full sm:w-80"
-                  />
-                  <p class="-mt-1 text-xs text-base-content/60">
-                    Moving a card yourself overrides a hold.
-                  </p>
-                </div>
-                <div>
-                  <.input
-                    field={@form[:shared_paths]}
-                    id="board-shared-paths"
-                    type="textarea"
-                    rows="3"
-                    label="Shared paths"
-                    value={globs_text(@form[:shared_paths].value)}
-                    placeholder="docs/manual.md&#10;README.md"
-                    class="textarea field field-mono w-full"
-                  />
-                  <p class="-mt-1 text-xs text-base-content/60">
-                    One glob per line. Files nearly every card edits, such as the manual: cards can
-                    both declare them without holding each other.
-                  </p>
                 </div>
               </.section>
 

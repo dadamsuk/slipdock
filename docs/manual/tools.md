@@ -143,7 +143,7 @@ seed, reported as `(seed updated)`; edited, it is left alone. Installing
 1.7.0 (#2352) adds the **Spike** stage, between Grill and Spec: an open
 question becomes a spike only when only building answers it, a "no"
 changes the spec, and a late "no" costs more than the spike (counting flow
-time and lane contention as well as rework); one that fails only the last
+time as well as rework); one that fails only the last
 gets its card first in build order instead. The agent proposes the
 candidates and a person confirms them; each is a `spike` card whose answer
 is a page pinned to the epic, and planning resumes at Spec once every
@@ -209,7 +209,7 @@ over an older sweep gives its open *Sweep the code* card the current
 procedure (fixes to Housekeeping, design questions to Triage), and changes
 nothing else on it; installing 1.2.0 adds that the same mechanical fix in
 many files is one issue: one card for the whole sweep, or a few split by
-lane, never a card per file, module or area (#2795).
+area when one would hold too much at once, never a card per file, module or area (#2795).
 
 **A Triage list is never fed.** A list whose category is `triage` holds work
 for a person to look at, not for the loop: the agent guide never reads it as
@@ -236,12 +236,12 @@ line and why.
 `slipdock handbook <board> --paths a,b` gives the pages whose `covers:`
 take in any of those paths (each with how many, most first: what a
 reconcile reads) and the rules whose scope covers any of them (files,
-folders or globs, matched as lanes are), `must` first; `--paths-from -` reads them one per line, so `git diff --name-only
+folders or globs, matched as a card's paths are), `must` first; `--paths-from -` reads them one per line, so `git diff --name-only
 main | slipdock handbook <board> --paths-from -` checks a whole change. Over
 REST it is `GET /api/boards/:board/handbook?paths=a,b` (commas or newlines,
 or `paths[]=`), answering `{board, index_page, paths, pages, rules}`; the CLI
 splits a long list over several requests, so a read-only token can ask. A
-card with lane `paths` has the same rules in its `handbook` block
+card with `paths` has the same rules in its `handbook` block
 (`get_card`, `GET /api/cards/:id`, `slipdock card`): `rules` with each
 one's id, severity, page, section, check and text, held to 2 KB with
 `rules_more` counting the rest.

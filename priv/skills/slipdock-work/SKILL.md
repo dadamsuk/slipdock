@@ -190,31 +190,18 @@ whole card before touching it.
   reason (a rejection like any other), and the completion gives the change
   (`--diff-base origin/<default branch>`), which raises the profile if it
   is bigger or stricter than the card said.
-- **Lanes, where they are on** (the board's line in the guide says `lanes:
-  on` or `lanes: advise`). Before starting a card, write the paths its work will touch:
-  `slipdock edit <id> --paths "lib/foo/**,docs/manual.md"`, as narrow as the
-  brief allows. A glob ending in `**` at most one directory below the
-  repository root (`lib/**`, `lib/slipdock/**`, `docs/**`), unless wholly
-  inside a shared path, is *broad*: it overlaps most cards. Broad is
-  advice, not a refusal, but a glob marked broad in the job prompt's Paths
-  block (or listed in `paths_broad` in `get_card`) is narrowed before
-  starting, to the files or the deepest directory the change touches (an
-  in-progress card's paths may change). A move refused for overlapping a card in progress names
-  that card: narrow the paths, or leave the card blocked by it; only a
-  person overrides a lane. On a push board a card awaiting verification
-  frees its lane and its dependents; on a pull request board it holds both
-  until the merge. Paths the board shares (`shared paths` on its line,
-  marked `shared` in `slipdock card`) hold no lane: declare them honestly,
-  keep to your own sections of those files, and rebase before pushing. On a
-  board whose lanes advise (`lanes: advise` on its line) nothing is held:
-  the job's prompt has a *Lanes* block naming the cards in progress in the
-  same files. Read each (`slipdock card <id>`, its `card-<id>` branch)
-  before editing those files, stay out of them where you can, and rebase
-  on the default branch before pushing. Whether or not the board has lanes, on a card
-  with paths stage only files under them, by name, and with another
-  session active in the same repository work in a git worktree of your own
-  (`git worktree add ../<repo>-lanes/card-<id> -b card-<id>`), unless a
-  runner already put you in one (`$SLIPDOCK_WORKTREE`).
+- **Paths, staging and worktrees.** Before starting a card, write the paths
+  its work will touch, as globs relative to the repository: `slipdock edit
+  <id> --paths "lib/foo/**,docs/manual.md"`. They decide which handbook
+  rules the card carries and what its profile is inferred from; when the
+  work goes beyond them, widen them so its rules and profile stay right.
+  Stage files by name, never `git add -A`, and check `git status` before
+  committing. With another session active in the same repository, work in
+  a git worktree of your own (`git worktree add ../<repo>-lanes/card-<id>
+  -b card-<id>`), unless a runner already put you in one
+  (`$SLIPDOCK_WORKTREE`). On a push board a card awaiting verification
+  frees its dependents; on a pull request board it holds them until the
+  merge.
 - **Read the handoff first, leave one when you stop short.** A card's handoff
   (`Left off:` at the top of `slipdock card <id>`; `handoff` in its JSON) is
   where whoever had it last left it: the one next step and a short note. Read
@@ -321,7 +308,7 @@ whole card before touching it.
   comment's block. The test for one: *would a card on a different subject
   want to know this?* Never a pointer (`in the evidence`, `recorded on
   #1819`), an event the board records itself (a rejection, a timeout, a
-  lane refusal), something this card fixed, or a fact about this card's
+  requeue), something this card fixed, or a fact about this card's
   code (`Boards.move_card/4 returns :ok`). A finding reads like `gotcha:
   mix format can need two passes` or `tooling: the release image lacks
   pwsh`. An item already dealt with says where, and is kept promoted, not

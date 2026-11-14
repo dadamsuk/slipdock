@@ -20,8 +20,8 @@ tree's as `release`, and a portable export carries them.
 
 **Why batch.** One card, one release costs a post-merge suite, an image
 build and a deploy for every card, which on a private repository is paid
-CI minutes each time. Batching the merges instead would hold
-[lanes](lanes.md) longer and bring conflicts back, so merging stays as it
+CI minutes each time. Batching the merges instead would keep branches
+open longer and bring conflicts back, so merging stays as it
 is ([Shipping by pull request](verified-work.md#shipping-by-pull-request)):
 a card is verified, accepted and merged straight away, and only the
 release waits.
@@ -72,7 +72,7 @@ repository's default branch in. The runner daemon runs that `gh workflow
 run` form itself; any other command runs only if the machine's own
 `local.json` lists it, word for word, under `release_commands`, and is
 refused otherwise, since the daemon never runs what the server sends (see
-[Machines](machines.md)). Lanes and WIP limits never hold a release
+[Machines](machines.md)). WIP limits never hold a release
 job, and it goes only to a runner that says it takes `release`. The
 server holds no credentials for your repository.
 
@@ -158,4 +158,4 @@ succeeded deploy names the card.
 
 ---
 
-← [Verified work](verified-work.md) · [Contents](../manual.md) · [Lanes](lanes.md) →
+← [Verified work](verified-work.md) · [Contents](../manual.md) · [Profiles](profiles.md) →

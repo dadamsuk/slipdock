@@ -397,7 +397,7 @@ defmodule SlipdockWeb.PlanSkillDocsTest do
       stage = skill() |> section("### Spike") |> flat()
       assert_states(stage, "only building answers it (not a person, not reading)?")
       assert_states(stage, ~s{A "no" changes the spec (say how)?})
-      assert_states(stage, "counting flow time and lane contention as well as rework?")
+      assert_states(stage, "counting flow time as well as rework?")
       assert_states(stage, "Fails only the third: its card goes first in build order")
       assert_states(stage, "only those the person confirms become spikes")
       assert_states(stage, "None pass: skip the stage and say why")

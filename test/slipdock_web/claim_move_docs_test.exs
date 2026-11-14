@@ -33,17 +33,12 @@ defmodule SlipdockWeb.ClaimMoveDocsTest do
     assert_states(loop, "on a board with no doing list the prompt says to leave it where it is")
   end
 
-  test "the loop skill's bar and lanes parts say the claim has moved the card already" do
+  test "the loop skill's bar part says the claim has moved the card already" do
     loop = flat("priv/skills/slipdock-loop/SKILL.md")
 
     assert_states(
       loop,
       "In a runner's `list_top` job the claim has made that move already (step 4), so the bar is locked"
-    )
-
-    assert_states(
-      flat("priv/skills/slipdock-loop/references/lanes.md"),
-      "so paths you write now are checked as an in-progress card's paths edit"
     )
   end
 

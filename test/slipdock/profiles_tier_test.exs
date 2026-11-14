@@ -6,15 +6,15 @@ defmodule Slipdock.ProfilesTierTest do
   `none` and `ledger` merge; `before_merge` holds the card and opens one
   wait routed `release`, which a person answers with Merge (the merge is
   queued) or Send back (rejected, the reason as the failing part). With
-  profiles off every tier is `none`. A held card keeps its lane, the health
-  monitor leaves it alone, and the ledger says who it waits for.
+  profiles off every tier is `none`. The health monitor leaves a held card
+  alone, and the ledger says who it waits for.
   """
   use Slipdock.DataCase, async: true
 
   import Ecto.Query
   import Slipdock.Fixtures
 
-  alias Slipdock.{Actor, Boards, Ledger, Lanes, Profiles, Repo, Runners, Verified, WaitRoutes}
+  alias Slipdock.{Actor, Boards, Ledger, Profiles, Repo, Runners, Verified, WaitRoutes}
   alias Slipdock.Boards.{Card, Wait}
   alias Slipdock.Health.Context
   alias Slipdock.Health.Detectors.{MergeMissing, OrphanInProgress}
@@ -344,13 +344,6 @@ defmodule Slipdock.ProfilesTierTest do
   end
 
   describe "while held" do
-    test "it keeps its lane as a card awaiting verification does on a pull request board", ctx do
-      {:ok, _} = Boards.update_board(ctx.board, %{"lanes" => true})
-      held!(ctx, "schema", %{"paths" => "lib/a/**"})
-      other = card_fixture(ctx.todo, %{"title" => "Other", "paths" => "lib/a/b.ex"})
-      assert %Card{} = Lanes.conflict(other)
-    end
-
     test "the health monitor flags neither a missing merge nor an orphan", ctx do
       held = held!(ctx)
       later = DateTime.add(DateTime.utc_now(), 3 * 3600, :second)

@@ -504,10 +504,7 @@ defmodule Slipdock.Automations do
   `next_card/2`), which queues it for the runners. The feed sends at most
   one card at a time, so a list is worked one card after another, in its
   order (an answered question's job may be open beside it, #2896: the feed
-  waits for both) — except
-  that a card its lane would hold is passed over (#2102): a rule whose queued
-  job a lane holds withdraws it and sends the next card that could start,
-  and the held card keeps its place for when its lane frees.
+  waits for both).
 
   Called whenever the answer could have changed — a card event on the
   rule's board, a job ending, the rule being saved — and by the clock as a
@@ -589,7 +586,7 @@ defmodule Slipdock.Automations do
       feed_job_open?(rule) ->
         case Slipdock.Runners.Requeue.drain(rule) do
           %Slipdock.Runners.Job{} = job -> {:ok, Repo.get(Card, job.card_id)}
-          _ -> pass_lane_held(rule, opts)
+          _ -> {:idle, :job_open}
         end
 
       # An answered question goes before the next card (#1115, KTD7).
@@ -620,57 +617,6 @@ defmodule Slipdock.Automations do
     if Enum.any?(results, &match?({:ok, _}, &1)),
       do: {:ok, card},
       else: {:idle, :failed}
-  end
-
-  # The rule's open job is still queued and its lane holds it (#2102): nobody
-  # can take it until the card in the way is done, so while a later card in
-  # the list could start, the held job is withdrawn and that card sent
-  # instead. The held card keeps its place and goes when its lane frees.
-  # Nothing is withdrawn when no other card could go, nor once the job is
-  # claimed or running.
-  defp pass_lane_held(rule, opts) do
-    with {%Slipdock.Runners.Job{} = held, %Card{} = other} <- lane_held_job(rule),
-         false <- yielding?(rule, opts),
-         %Card{} = card <- next_card(rule, opts),
-         false <- wip_held?(card),
-         {:ok, withdrawn} <-
-           Slipdock.Runners.withdraw_job(
-             held,
-             "#{Slipdock.Lanes.held_line(other)}: gave way to ##{card.id}"
-           ) do
-      tell_passed_over(withdrawn, other, card)
-      send_card(rule, card)
-    else
-      _ -> {:idle, :job_open}
-    end
-  end
-
-  # The rule's queued job and the card whose lane holds it, or nil.
-  defp lane_held_job(rule) do
-    job =
-      Repo.one(
-        from(j in Slipdock.Runners.Job,
-          where: j.rule_id == ^rule.id and j.status == "queued",
-          order_by: [asc: j.id],
-          limit: 1
-        )
-      )
-
-    with %Slipdock.Runners.Job{} <- job,
-         %Card{} = other <- Slipdock.Lanes.held_cards(job.root_board_id)[job.card_id] do
-      {job, other}
-    end
-  end
-
-  defp tell_passed_over(job, other, card) do
-    with %Card{} = held <- Repo.get(Card, job.card_id) do
-      Slipdock.Boards.Comments.add_comment(
-        held,
-        "Job ##{job.id} was held: its paths overlap ##{other.id}, in progress. It gave " <>
-          "way to ##{card.id}, which could start now. This card keeps its place in the " <>
-          "list and goes when ##{other.id} is out of the way."
-      )
-    end
   end
 
   # The rule's pools have runners, and none has been seen for three leases
@@ -726,8 +672,8 @@ defmodule Slipdock.Automations do
   the enabled feeds on its board's ready list or Scheduled list that send
   to one of its pools has a card it could send now (`next_card/2`, without
   `force`: a card cooling down after its last job doesn't count, Run now or
-  not). A card that is blocked, flagged blocked or waiting, snoozed, held by
-  its lane or already has a job doesn't count either, so the order is To Do,
+  not). A card that is blocked, flagged blocked or waiting, snoozed, or already
+  has a job doesn't count either, so the order is To Do,
   then Scheduled, then Housekeeping. Always false for any other rule.
 
   Nothing extra feeds it when a job ends: the only job end that can give it
@@ -804,9 +750,6 @@ defmodule Slipdock.Automations do
   card with an open job (queued, claimed or running) from any rule, or from
   none, is passed over too, cool-down or not, so two `list_top` rules on one
   list work it side by side rather than both sending its top card (#1956).
-  So is a card its lane would hold (#2102, `Slipdock.Lanes`): with lanes
-  holding on its board, one not in progress whose paths overlap a card in
-  progress that a job is working on, which no runner could take yet.
   Nil when there is none, and always nil on a Triage list (#1793).
   """
   def next_card(%Rule{} = rule, opts \\ []) do
@@ -826,8 +769,7 @@ defmodule Slipdock.Automations do
           not Enum.any?(card.flags, &Enum.member?(["blocked", "waiting"], &1)) and
           not (trigger["unassigned"] == true and assigned?(card)) and
           not MapSet.member?(cooling, card.id) and
-          Runner.conditions_match?(Spec.conditions(rule.spec), card) and
-          not lane_held?(card)
+          Runner.conditions_match?(Spec.conditions(rule.spec), card)
       end)
     else
       _ -> nil
@@ -861,15 +803,6 @@ defmodule Slipdock.Automations do
   end
 
   defp assigned?(card), do: not is_nil(card.assignee_id) or card.assignees != []
-
-  # Its lane would hold the job it was sent (#2102): it isn't in progress
-  # already, its board's lanes hold rather than advise, and its paths overlap
-  # a card in progress that a job is working on. Checked last, being the
-  # dearest.
-  defp lane_held?(card) do
-    not Slipdock.Flow.doing_list?(card.column) and Slipdock.Lanes.hold?(card) and
-      not is_nil(Slipdock.Lanes.conflict(card))
-  end
 
   # Cards some job is already open on, whichever rule (or none) queued it:
   # another feed on the same list has sent it, or a person has (#1956).

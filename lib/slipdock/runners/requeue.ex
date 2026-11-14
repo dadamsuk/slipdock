@@ -19,8 +19,8 @@ defmodule Slipdock.Runners.Requeue do
       still queued (#1750): nobody has taken it, so it is withdrawn
       (`Slipdock.Runners.withdraw_job/2`) and the answer takes its slot. Its
       card keeps its place, is told so, and is the next one the feed sends.
-      Waiting for it instead could be forever: whatever holds it (a lane,
-      a pause, the WIP limit) may be the answered card itself.
+      Waiting for it instead could be forever: whatever holds it (a pause,
+      the WIP limit) may be the answered card itself.
     * `queued`, again, when a list_top rule's open job is another card's and
       a runner has it, or carries another card's answer (#2896): the answer
       is on the card, so its job goes into the pool's queue beside that one

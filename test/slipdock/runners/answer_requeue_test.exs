@@ -313,12 +313,11 @@ defmodule Slipdock.Runners.AnswerRequeueTest do
       {next, job}
     end
 
-    test "the answered epic's own subcard lane-holds it: the answer takes its slot", ctx do
-      {:ok, board} = Boards.update_board(ctx.board, %{"lanes" => true})
+    test "the answered epic's subcard in progress: the answer takes the queued job's slot", ctx do
       {:ok, a} = Boards.Cards.update_card(ctx.a, %{"paths" => ["docs/design/**"]})
-      rule = rule_fixture(board, spec())
+      rule = rule_fixture(ctx.board, spec())
 
-      # The epic's subcard sits in progress, holding docs/design/**.
+      # The epic's subcard sits in progress, on docs/design/**.
       {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(a, t)
       sub = Boards.get_board!(sub.id)
@@ -334,8 +333,7 @@ defmodule Slipdock.Runners.AnswerRequeueTest do
 
       {next, held} = queued_behind(ctx, "next", ["docs/**"])
 
-      # While the epic's job is parked nothing works its subcard, so the
-      # subcard holds no lane (#1922): the next card's job is free to go.
+      # While the epic's job is parked the next card's job is free to go.
       assert Runners.held_reason(Repo.reload!(held), claimant: true) == nil
       assert child.paths == ["docs/design/**"]
 
@@ -365,7 +363,7 @@ defmodule Slipdock.Runners.AnswerRequeueTest do
       assert Repo.reload!(next).column_id == ctx.todo.id
       refute Enum.any?(comments(a), &(&1 =~ "once job"))
 
-      # A runner can take the answer, the epic's own lane not counting against it.
+      # A runner can take the answer.
       assert %Job{id: id} = Runners.claim(ctx.runner)
       assert id == fresh.id
     end

@@ -36,9 +36,7 @@ the agent on the card, and reports back. The shape of the action:
   as verify, merge and overseer, aside), answering a wait sends the card
   as one job rather than one per rule, and a `list_top` rule passes
   over a card any job is open on, so two of them (one per pool) can work
-  one list side by side. It passes over a card its lane would hold too,
-  and withdraws a queued job of its own that a lane holds when another
-  card could start, so a held card never keeps its pool idle. A rule
+  one list side by side. A rule
   whose pool has gone offline (its runners seen before, none in three
   leases) sends nothing and withdraws its queued job, so the card goes
   to a pool that is online; a pool whose runners have never been seen
@@ -147,8 +145,7 @@ runner protocol: an `X-Held` header), and a queued job's `waiting_on`
 says the same, one reason in this order: `paused by David: bad deploy`,
 `WIP full: In Progress 3/3`, `#123 is in progress`, `No runner online
 for pool dev` (none seen in three leases; never told to a runner that
-is asking). `#123 is in progress` (and a lane's `Lane: overlaps #12, in
-progress`) only ever names a card a runner job is working on: one with
+is asking). `#123 is in progress` only ever names a card a runner job is working on: one with
 a job queued, claimed or running on it or its epic. A card in progress
 with no open job holds nothing back. WIP full applies when the owner turns on `automation_wip`
 (the Agentic Building page, `PATCH /api/boards/:board`, `slipdock set-board

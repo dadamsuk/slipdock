@@ -401,15 +401,6 @@ defmodule Slipdock.Portable.Import do
 
   defp pool(_value), do: nil
 
-  # A board's lane mode (#1972); an older export has only `lanes`.
-  defp lane_mode(mode, lanes) do
-    cond do
-      Enum.member?(Board.lane_modes(), mode) -> mode
-      lanes -> "hold"
-      true -> "off"
-    end
-  end
-
   defp pr_url(value) when is_binary(value),
     do: if(Regex.match?(~r{\Ahttps?://[^\s/]+/\S+\z}, value), do: String.slice(value, 0, 500))
 
@@ -525,11 +516,8 @@ defmodule Slipdock.Portable.Import do
           handoff_label: text_upto(doc[:handoff_label], Board.handoff_limits().label),
           handoff_prompt: text_upto(doc[:handoff_prompt], Board.handoff_limits().prompt),
           bar_required: bool(doc[:bar_required], false),
-          lanes: lane_mode(doc[:lane_mode], bool(doc[:lanes], false)) != "off",
-          lane_mode: lane_mode(doc[:lane_mode], bool(doc[:lanes], false)),
           profiles: bool(doc[:profiles], false),
           profile_tiers: profile_tiers(doc[:profile_tiers]),
-          shared_paths: Slipdock.Lanes.keep_valid(doc[:shared_paths]),
           evidence_required: bool(doc[:evidence_required], false),
           verify_work: bool(doc[:verify_work], false),
           verify_pool: pool(doc[:verify_pool]),

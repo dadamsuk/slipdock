@@ -1389,7 +1389,7 @@ defmodule Slipdock.HandbookTest do
       assert spike =~ ~s{a "no" changes the spec (say how)}
 
       assert spike =~
-               "a late \"no\" costs more than the spike, counting flow time and lane contention"
+               "a late \"no\" costs more than the spike, counting flow time as well as rework"
 
       assert spike =~ "gets its card first in build order instead"
       assert spike =~ "None pass: the stage is skipped, and the agent says why."

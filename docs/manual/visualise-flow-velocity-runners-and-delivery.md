@@ -37,7 +37,7 @@ it is worked out when you open it, and follows the board as it changes.
   out, failed, were requeued or given up on per 100 finished jobs, and health
   incidents fixed, flagged, cleared and open. Then **rework by area**: each
   accepted card under the handbook page whose `covers:` take in most of its
-  lane paths, or *unmapped* (no paths, no page covering them, or no
+  paths, or *unmapped* (no paths, no page covering them, or no
   handbook), most rejections first. **Rejections** counts the verifiers'
   rejections in the window by what they failed: the ask, the bar, the rules,
   the suite or the `Handbook:` line, from each decision's verdict in parts

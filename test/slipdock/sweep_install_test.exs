@@ -136,7 +136,7 @@ defmodule Slipdock.SweepInstallTest do
       for text <- [SlipdockWeb.APIGuide.markdown(), Slipdock.DocsText.read!("docs/manual.md")] do
         assert_states(text, "the same mechanical fix in many files is one issue")
         assert_states(text, "never a card per file, module or area")
-        assert_states(text, "one card for the whole sweep, or a few split by lane")
+        assert_states(text, "one card for the whole sweep, or a few split by area")
       end
 
       assert_states(SlipdockWeb.APIGuide.markdown(), "each one commit with its tests")

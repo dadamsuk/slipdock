@@ -75,7 +75,7 @@ CI, which a chat can't.
   for the build and is never closed on a red one. Its `SKILL.md` is what
   every pass needs, a single-card runner job included, since an agent carries
   it on every turn; what only some passes need (choosing the card, subcards,
-  a bug, a spike, a pull request's steps, a verify job or an audit, lanes,
+  a bug, a spike, a pull request's steps, a verify job or an audit,
   the build watch, a refusal that ends the work) is a file each under its
   `references/`, which `SKILL.md` names with the condition that loads it.
   Written for `/loop`, a schedule or a cron, so the board carries all the

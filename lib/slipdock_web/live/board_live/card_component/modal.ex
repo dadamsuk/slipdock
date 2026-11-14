@@ -518,7 +518,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent.Modal do
     />
 
     <.paths_section
-      :if={(@card.paths != [] || Slipdock.Lanes.on?(@board)) && on?(@panel, "open.paths")}
+      :if={@card.paths != [] && on?(@panel, "open.paths")}
       board={@board}
       card={@card}
       form={@form}

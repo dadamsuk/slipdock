@@ -1071,7 +1071,7 @@ curl -s -H "$H" B/api/boards/1/runner_stats
 # how well agent work goes over ?days= (30 unless given; CLI: slipdock
 # quality): verified.first_time_right of verified.accepted (accepted with
 # no rejection and never reopened), rejections per accepted card, areas
-# (each card under the handbook page covering most of its lane paths, or
+# (each card under the handbook page covering most of its paths, or
 # "unmapped"), jobs (timeouts, failed, requeues, gave_up, each per_100
 # finished jobs) and health (incidents fixed, flagged, cleared, open);
 # previous is the window before's verified numbers. rejections counts the
@@ -1754,7 +1754,7 @@ calls a URL of yours with the card. A `post` (the default), `put` or
 fields as query parameters instead, flattened to `card.title`,
 `card.url`, `card.due_date` and so on (lists comma-separated, anything
 unset left out). `status` is `open`, `done` or `archived`; `bar`, `paths`,
-`profile` and `verify_state` are what verified work and lanes keep on the
+`profile` and `verify_state` are what verified work keeps on the
 card (null or empty where unset), and a rule can change the first three
 with `set_bar`, `set_paths` and `set_profile`. The URL may
 itself carry placeholders, so `https://example.com/hooks/{{card.id}}`
@@ -1836,9 +1836,7 @@ the agent on the card, and reports back. The shape of the action:
   as verify, merge and overseer, aside), answering a wait sends the card
   as one job rather than one per rule, and a `list_top` rule passes
   over a card any job is open on, so two of them (one per pool) can work
-  one list side by side. It passes over a card its lane would hold too,
-  and withdraws a queued job of its own that a lane holds when another
-  card could start, so a held card never keeps its pool idle. A rule
+  one list side by side. A rule
   whose pool has gone offline (its runners seen before, none in three
   leases) sends nothing and withdraws its queued job, so the card goes
   to a pool that is online; a pool whose runners have never been seen
@@ -1947,8 +1945,7 @@ runner protocol: an `X-Held` header), and a queued job's `waiting_on`
 says the same, one reason in this order: `paused by David: bad deploy`,
 `WIP full: In Progress 3/3`, `#123 is in progress`, `No runner online
 for pool dev` (none seen in three leases; never told to a runner that
-is asking). `#123 is in progress` (and a lane's `Lane: overlaps #12, in
-progress`) only ever names a card a runner job is working on: one with
+is asking). `#123 is in progress` only ever names a card a runner job is working on: one with
 a job queued, claimed or running on it or its epic. A card in progress
 with no open job holds nothing back. WIP full applies when the owner turns on `automation_wip`
 (the Agentic Building page, `PATCH /api/boards/:board`, `slipdock set-board
@@ -2428,7 +2425,7 @@ one card), a person as the only bottleneck (`waiting_idle`: a wait or
 review open and no job open), `slow` cards (past the board's P85 time
 to done for their profile) and jobs (a live heartbeat, the same step
 for 30 minutes), `idle_capacity` (free ready cards and runners idle for
-`idle_minutes`, or two or more jobs queued behind one card's lane) and
+`idle_minutes`) and
 `no_way_forward` (an epic in progress with every open subcard blocked).
 A sixth, `not_shipped` (a merged card no succeeded deploy names after
 the board's `not_shipped_minutes`, counted from its release on a tree
@@ -2529,7 +2526,7 @@ pool that merges: its prompt is the root board's `release_command`
 (set like the other two; `set-board --release-command "…"`, `default`
 to clear), one line, by default `gh workflow run release.yml --ref
 {default_branch}`, the runner putting the repository's default branch
-in. Lanes and WIP limits never hold it, and it goes only to runners
+in. WIP limits never hold it, and it goes only to runners
 whose claims list `release` in `X-Runner-Kinds`. `release` jobs are
 built into the runner daemon, as `merge` jobs are (`no_release: true`
 in the machine's `local.json` turns the kind off): it runs `gh
@@ -3624,7 +3621,7 @@ item that doesn't parse, with its page and line.
 (REST `GET /api/boards/:board/handbook?paths=a,b`) gives every rule
 whose scope covers them, `must` first, and the pages whose `covers:`
 take them in (`pages`, with how many each); for a whole change,
-`git diff --name-only main | slipdock handbook <board> --paths-from -`. A card with lane `paths` carries
+`git diff --name-only main | slipdock handbook <board> --paths-from -`. A card with `paths` carries
 them in its `handbook` block as `rules` (`rules_more` counts any cut).
 Read them before building and check the diff against them before
 submitting: a verifier uses the same list. A rule is a person's call:
@@ -3678,7 +3675,7 @@ into the ready list; its fixes and investigations go to the Housekeeping
 list when the board has one (everything to Triage when it doesn't). A
 sweep files one card per issue (where, why it matters, the fix); the
 same mechanical fix in many files is one issue, never a card per file,
-module or area: one card for the whole sweep, or a few split by lane,
+module or area: one card for the whole sweep, or a few split by area when one would hold too much at once,
 each one commit with its tests (#2795). A security issue gets the
 `security` tag and stays vague anywhere public.
 
@@ -3753,9 +3750,7 @@ and its block is read there.
 A line with no known kind is kept whole as a `gotcha`. The server also
 records its own (source `rejection`, `verification`, `requeue`, `timeout`, `failed`,
 `merge`, `audit`, `health`, `incident`), counting repeats on a card, on any
-board, handbook or not. A lane refusal is not one (#1968): the refusal, the
-job's log and its held reason already say so. Findings with source `lane`
-from before then are kept. A card's `rejection` findings are dismissed
+board, handbook or not. A card's `rejection` findings are dismissed
 when the card is accepted (or merging, on a board that ships by pull
 request), each with a `note` saying the rework was accepted and when: the
 rejection has been dealt with, and the per-rule tally is in `slipdock
@@ -3956,7 +3951,7 @@ names), grep them across the 7 places (the README: `README.md`; the manual: `doc
 and give each place one result: updated, deferred to #N (only when card #N's
 bar names that place), n/a with why, or missing. One missing is
 `rule:SPEC-10=broken:<file>:<name>`. The builder does the same before
-submitting: a place its lane can't reach goes on the deferral card's
+submitting: a place its paths can't reach goes on the deferral card's
 bar by name, or the deferral doesn't count. A card resubmitted after a rejection is
 judged on what changed: its verify prompt carries the last verdict and
 the commit it judged, the verifier judges the parts that failed and any
@@ -4060,78 +4055,6 @@ person can say they merged it by hand (`verify_card` `merged`).
 
 
 
-## Lanes
-
-Some of your boards keep agents working side by side out of each
-other's files (`lanes: on` on the board's line). Before moving a card
-into an in-progress list, write the paths its work will touch on the
-card's `paths`: globs relative to the repository, like
-`lib/slipdock/runners/**` or `docs/{manual,agents}.md`
-(`PATCH /api/cards/:id {"paths": ["…"]}`, `update_card` `paths`,
-`slipdock edit ID --paths "a/**,b.md"`; or `paths` when making it:
-`create_card`, `slipdock add --paths`). Moving it in is refused
-(`422`, naming the card in the way) while its paths overlap an open
-card in progress on the board's tree that a runner job is working on
-(a job queued, claimed or running on it or its epic; a card in
-progress with no open job holds no lane), the card's own subcards and
-parents aside, and so are creating one straight into an
-in-progress list and widening an in-progress card's paths onto
-another's. An epic's lane is its subcards': in progress it holds none
-of its own, and it waits only when none of the subcards it could take
-could start. Narrow the paths, take other work, or ask a person: a
-person moving the card overrides it. A runner job for such a card is
-held (`Lane: overlaps #N, in progress`) until the other card is done,
-and a claimed job's prompt lists the card's paths. Verify and merge
-jobs are never held, by lanes or the WIP limit: they finish work. On a board that
-verifies work and ships by push, a card awaiting verification has
-shipped: it frees its lane and no longer blocks the cards that depend
-on it (a dependency stub says `released: true`), until a rejection
-sends it back for rework. On a board that ships by pull request it
-keeps both until the merge. Stage only files
-under them; with several sessions in one repository, work in a git
-worktree of your own.
-
-**Shared paths.** A board's `shared_paths` (`shared paths` on its
-line; `PATCH /api/boards/:id {"shared_paths": ["docs/manual.md"]}`,
-`update_board` `shared_paths`, `slipdock set-board B --shared-paths
-"docs/manual.md,README.md"`; `[]` or `""` clears) are globs that never
-count toward a lane: a card's path wholly inside one is left out on
-both sides, so an overlap only there holds nobody, while one anywhere
-else still does. A path only partly inside one (`docs/**` when
-`docs/manual.md` is shared) counts in full. Declare the shared files
-you edit honestly: a card's JSON names the board's `shared_paths` and
-its own `paths_shared`, the job's prompt lists them, and the
-lane-check hook lets a staged file under one through. Others may be
-editing them too: keep to your own sections, and rebase on the
-default branch before pushing.
-
-**Advisory lanes.** A board's `lane_mode` is `off`, `hold` (all of
-the above; `lanes: true` means it) or `advise` (`lanes: advise` on its
-line; `PATCH /api/boards/:id {"lane_mode": "advise"}`, `update_board`
-`lane_mode`, `slipdock set-board B --lane-mode advise`). Under
-`advise` nothing is refused or held: you start the card, and a
-claimed job's prompt carries a *Lanes* block naming each card in
-progress whose paths overlap yours, the globs, and the job and
-runner on it. Before editing those files read that card (`slipdock
-card <id>`) and its branch (`card-<id>`, if pushed), stay out of
-them where you can, and rebase on the default branch before pushing.
-A card's JSON says the overlap as `lane_overlap` (`{card, title,
-mode}`). `lanes: true/false` keeps working and means `hold`/`off`.
-
-**Broad paths.** Keep `paths` as narrow as the change: a `**` glob at
-most one directory below the repository root (`lib/**`,
-`lib/slipdock/**`, `cli/lib/**`, `docs/**`, `test/**`), unless it is
-wholly inside a shared path, is *broad*: it overlaps most cards. It
-is advice, not a refusal: nothing is refused or held for it. A
-card's JSON lists them as `paths_broad` (with `paths_broad_reason`),
-`slipdock card` and the card's *Paths* field mark them, a claimed
-job's prompt says so beside the glob, and a `lane_overlap` a broad
-glob makes says whose it is (`broad`: `this`, `other` or `both`;
-`broad_paths`, the globs). Narrow it to the files or the deepest
-directory the change touches before you start: you may change an
-in-progress card's paths.
-
-
 ## Profiles
 
 Some of your boards give each card a profile, one word for what kind
@@ -4175,8 +4098,7 @@ any board) answers a question by building, and its code is never
 merged: complete it with `no_code` naming the answer's page and the
 branch its prototype is on (`slipdock done ID --no-code "spike: answer
 on W-…, prototype on card-ID"`), never a pull request. An agent naming
-one is refused (`422`), and accepting it merges nothing. It holds no
-lane, even with paths: nothing is refused or held because of it.
+one is refused (`422`), and accepting it merges nothing.
 Spikes come from planning: the `slipdock-plan` skill's Spike stage,
 between Grill and Spec for a feature or a system, turns an open
 question that only building can answer, whose "no" changes the spec
@@ -4772,8 +4694,6 @@ Uploading past it answers `402` with `"error": "storage_limit_reached"`.
   - take work from: “To Do” (#COLUMN) · then: “Backlog” (#COLUMN) · in progress: “In Progress” (#COLUMN) · done: “Done” (#COLUMN)
   - verified work: a bar before work starts, evidence on completion, a second agent verifies (see *Verified work*)
   - ships by pull request: push `card-<id>` and open a PR, never the default branch (see *Verified work*)
-  - lanes: on — write a card's paths before starting it (see *Lanes*)
-  - shared paths (hold no lane): `docs/manual.md`
   - profiles: on — a card an agent starts gets one (see *Profiles*)
 
 The name in backticks after each board is its `code` — the short name for

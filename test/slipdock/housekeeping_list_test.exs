@@ -281,21 +281,6 @@ defmodule Slipdock.HousekeepingListTest do
       assert open_cards(ctx.sibling) == [chore.id]
     end
 
-    test "a To Do card its lane holds doesn't count", ctx do
-      {:ok, _} = Boards.update_board(ctx.board, %{"lanes" => true})
-      running = card_fixture(ctx.doing, %{"title" => "Running"})
-      {:ok, _} = Boards.Cards.update_card(running, %{"paths" => "lib/**"})
-      working_job_fixture(running)
-
-      held = card_fixture(ctx.backlog, %{"title" => "Held"})
-      {:ok, held} = Boards.Cards.update_card(held, %{"paths" => "lib/a.ex"})
-      assert :ok = Boards.Cards.move_card_to_index(held, ctx.todo, :top)
-
-      chore = card_fixture(ctx.housekeeping, %{"title" => "Chore"})
-      assert open_cards(ctx.todo_feed) == []
-      assert open_cards(ctx.sibling) == [chore.id]
-    end
-
     test "a startable Scheduled card keeps it waiting too", ctx do
       col = scheduled(ctx.board)
       [sched_feed] = feeds_on(ctx.board, "Scheduled")
@@ -382,29 +367,6 @@ defmodule Slipdock.HousekeepingListTest do
       refute Automations.yielding?(ctx.sibling, force: true)
       assert {:ok, %Card{id: id}} = Automations.feed(ctx.sibling, force: true)
       assert id == chore.id
-    end
-
-    test "a queued job its lane holds isn't swapped for the next chore while To Do has work",
-         ctx do
-      held = card_fixture(ctx.housekeeping, %{"title" => "Held"})
-      {:ok, _} = Boards.Cards.update_card(held, %{"paths" => "lib/a.ex"})
-      assert open_cards(ctx.sibling) == [held.id]
-
-      # Now a card in progress holds its lane.
-      {:ok, _} = Boards.update_board(ctx.board, %{"lanes" => true})
-      running = card_fixture(ctx.doing, %{"title" => "Running"})
-      {:ok, _} = Boards.Cards.update_card(running, %{"paths" => "lib/**"})
-      working_job_fixture(running)
-
-      first = card_fixture(ctx.todo, %{"title" => "Mine"})
-      card_fixture(ctx.todo, %{"title" => "Mine too"})
-      free = card_fixture(ctx.housekeeping, %{"title" => "Free"})
-      {:ok, _} = Boards.Cards.update_card(free, %{"paths" => "docs/**"})
-
-      assert open_cards(ctx.todo_feed) == [first.id]
-      # To Do still has a card it could send: the held chore keeps its job.
-      Automations.feed(ctx.sibling)
-      assert open_cards(ctx.sibling) == [held.id]
     end
 
     test "a rule without backfill never yields", ctx do

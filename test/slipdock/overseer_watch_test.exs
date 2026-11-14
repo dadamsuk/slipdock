@@ -330,28 +330,6 @@ defmodule Slipdock.OverseerWatchTest do
       # Still only a runner seen just now, idle for less than 15 minutes.
       assert fired(watch(ctx), "idle_capacity") == []
     end
-
-    test "two jobs held behind one card's lane fire; one alone doesn't", ctx do
-      {:ok, _} = Boards.update_board(ctx.board, %{"lanes" => true})
-      holder = card_fixture(ctx.doing, %{"title" => "Holds docs", "paths" => ["docs/agents.md"]})
-      job(holder, %{status: "running"})
-
-      first = card_fixture(ctx.todo, %{"paths" => ["docs/agents.md"]})
-      job(first, %{status: "queued"})
-      assert open(ctx, "idle_capacity") == []
-      assert fired(watch(ctx), "idle_capacity") == []
-
-      second = card_fixture(ctx.todo, %{"paths" => ["docs/agents.md", "lib/x.ex"]})
-      job(second, %{status: "queued"})
-
-      assert [fired] = fired(watch(ctx), "idle_capacity")
-      assert fired.subject == "lane:#{holder.id}"
-      assert fired.title == "2 jobs queued behind ##{holder.id}'s lane"
-      assert fired.why =~ "docs/agents.md"
-
-      :ok = Boards.Cards.move_card(holder.id, ctx.done.id)
-      assert [_] = cleared(watch(ctx), "idle_capacity")
-    end
   end
 
   describe "no way forward" do

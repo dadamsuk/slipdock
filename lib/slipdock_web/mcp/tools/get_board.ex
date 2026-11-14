@@ -226,7 +226,6 @@ defmodule SlipdockWeb.MCP.Tools.GetBoard do
          end),
        waiting_on_me: SlipdockWeb.API.WaitingJSON.tree(tree)
      }
-     |> Tools.ListBoards.put_lanes(board)
      |> Map.merge(SlipdockWeb.API.JSON.paused(board))}
   end
 

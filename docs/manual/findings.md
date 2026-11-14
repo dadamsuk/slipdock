@@ -141,7 +141,7 @@ a proposal for a person to apply or dismiss:
 - **What is proposed.** Only the project's findings, not a runner's tooling,
   and only lessons: what an agent wrote, a verifier's rejection or rule hit,
   or an audit. Events the system records (health incidents, failed merges,
-  lane holds, requeues, timeouts, failed jobs, incidents) are never drafted
+  requeues, timeouts, failed jobs, incidents) are never drafted
   into rules. Only on a board with a handbook: elsewhere findings are kept as they are.
   `slipdock findings` and the Findings page show `proposal #id` on a finding
   that has one.
@@ -157,10 +157,7 @@ a verifier's rejection, a job that times out or fails, a card requeued or
 given up on, a merge that fails, an audit that disagrees, a health-monitor
 incident, a verifier reporting a rule broken in code the change didn't touch
 (sources `rejection`, `verification`, `timeout`, `failed`, `requeue`,
-`merge`, `audit`, `health`). A lane refusing a move is not one: it is the
-lanes working, and the refusal, the job's log and its held reason already
-say so (findings with source `lane` from before this are kept as they
-were). A card's rejections are dismissed by themselves once it is accepted
+`merge`, `audit`, `health`). A card's rejections are dismissed by themselves once it is accepted
 (or merging, on a board that ships by pull request), each with a note saying
 the rework was accepted and when, since the rejection has been dealt with. The
 per-rule tally stays in `slipdock quality --rules`, which reads the verdicts.

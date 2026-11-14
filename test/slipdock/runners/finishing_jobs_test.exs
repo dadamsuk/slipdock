@@ -1,7 +1,7 @@
 defmodule Slipdock.Runners.FinishingJobsTest do
   @moduledoc """
   Verify and merge jobs finish a card's work rather than add to it (#1807):
-  neither lanes nor the WIP limit hold one, while a work job for the same
+  the WIP limit doesn't hold one, while a work job for the same
   card, held the same way, still waits.
   """
   use Slipdock.DataCase, async: true
@@ -9,7 +9,7 @@ defmodule Slipdock.Runners.FinishingJobsTest do
   import Ecto.Query
   import Slipdock.Fixtures
 
-  alias Slipdock.{Boards, Lanes, Repo, Runners, Verified}
+  alias Slipdock.{Repo, Runners, Verified}
   alias Slipdock.Boards.Board
   alias Slipdock.Runners.Runner
 
@@ -28,68 +28,12 @@ defmodule Slipdock.Runners.FinishingJobsTest do
     %{board: board, todo: todo, doing: doing, runner: runner}
   end
 
-  defp card(column, title, paths) do
-    card = card_fixture(column, %{"title" => title})
-    {:ok, card} = Boards.Cards.update_card(card, %{"paths" => paths})
-    card
-  end
-
   defp queue(card, kind), do: Runners.queue(card, %{pool: "dev", kind: kind, prompt: "go"})
 
   defp reasons(jobs), do: jobs |> Enum.map(&Repo.reload!/1) |> Runners.held_reasons()
 
   test "verify and merge are the finishing kinds" do
     assert Verified.finishing_kinds() == [Verified.verify_kind(), Verified.merge_kind()]
-  end
-
-  describe "lanes" do
-    setup ctx do
-      {:ok, board} = Boards.update_board(ctx.board, %{"lanes" => true})
-      running = card(ctx.doing, "Running", "lib/**")
-      working_job_fixture(running)
-      %{board: board, running: running}
-    end
-
-    for kind <- ["verify", "merge"] do
-      test "a #{kind} job is claimed while its card overlaps a card in progress", ctx do
-        accepted = card(ctx.todo, "Accepted epic", "lib/a.ex")
-        {:ok, job} = queue(accepted, unquote(kind))
-
-        assert Lanes.held_cards(ctx.board.id) == %{}
-        assert Runners.held_reason(Repo.reload!(job), claimant: true) == nil
-        assert reasons([job]) == %{}
-        assert %{id: id} = Runners.claim(ctx.runner)
-        assert id == job.id
-      end
-    end
-
-    test "a work job for the same card still waits, and the merge goes first", ctx do
-      epic = card(ctx.todo, "Epic", "lib/a.ex")
-      {:ok, work} = queue(epic, "claude")
-      {:ok, merge} = queue(epic, "merge")
-      line = "Lane: overlaps ##{ctx.running.id}, in progress"
-
-      assert %{} = held = Lanes.held_cards(ctx.board.id)
-      assert Map.new(held, fn {id, other} -> {id, other.id} end) == %{epic.id => ctx.running.id}
-
-      assert Runners.held_reason(Repo.reload!(work), claimant: true) == line
-      assert Runners.held_reason(Repo.reload!(merge), claimant: true) == nil
-      assert reasons([work, merge]) == %{work.id => line}
-
-      assert %{id: id} = Runners.claim(ctx.runner)
-      assert id == merge.id
-      assert Runners.claim(ctx.runner) == nil
-      assert %{reason: ^line, job: %{id: held_id}} = Runners.held(ctx.board, "dev")
-      assert held_id == work.id
-    end
-
-    test "with lanes off nothing is held, whatever the kind", ctx do
-      {:ok, _} = Boards.update_board(ctx.board, %{"lanes" => false})
-      {:ok, work} = queue(card(ctx.todo, "Epic", "lib/a.ex"), "claude")
-
-      assert Lanes.held_cards(ctx.board.id) == %{}
-      assert reasons([work]) == %{}
-    end
   end
 
   describe "the WIP limit" do

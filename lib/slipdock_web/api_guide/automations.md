@@ -101,7 +101,7 @@ calls a URL of yours with the card. A `post` (the default), `put` or
 fields as query parameters instead, flattened to `card.title`,
 `card.url`, `card.due_date` and so on (lists comma-separated, anything
 unset left out). `status` is `open`, `done` or `archived`; `bar`, `paths`,
-`profile` and `verify_state` are what verified work and lanes keep on the
+`profile` and `verify_state` are what verified work keeps on the
 card (null or empty where unset), and a rule can change the first three
 with `set_bar`, `set_paths` and `set_profile`. The URL may
 itself carry placeholders, so `https://example.com/hooks/{{card.id}}`

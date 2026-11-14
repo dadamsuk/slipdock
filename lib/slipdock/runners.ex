@@ -463,8 +463,8 @@ defmodule Slipdock.Runners do
 
   @doc """
   Queues a release job (#2835) on `root_id`'s tree for `pool`: kind
-  `release`, no card, its prompt the board's release `command`. Lanes and
-  WIP limits never hold it, and only a runner that says it takes `release`
+  `release`, no card, its prompt the board's release `command`. WIP limits
+  never hold it, and only a runner that says it takes `release`
   is handed it. `{:ok, job}` or `{:error, message}`.
   """
   def queue_release(root_id, pool, command) when is_integer(root_id) do
@@ -553,7 +553,7 @@ defmodule Slipdock.Runners do
   open job — queued, claimed or running, of any kind — is on it) or sits on
   a board in `board_ids` (under a card with an open job: an epic's job works
   its subcards). Only a worked card in progress holds runners off, by
-  `wait_while_doing` or by its lane; one with nothing working on it is left
+  `wait_while_doing`; one with nothing working on it is left
   to the stale and orphan in-progress checks.
   """
   def worked(root_ids) when is_list(root_ids) do
@@ -643,13 +643,11 @@ defmodule Slipdock.Runners do
     * `"WIP full: In Progress 3/3"` — its board holds automated work at the
       WIP limit (`automation_wip`) and its card isn't in progress already;
     * `"#123 is in progress"` — it waits while anything is (`wait_while_doing`);
-    * `"Lane: overlaps #12, in progress"` — lanes (#1628): its card's paths
-      overlap a card in progress;
     * `"No runner online for pool dev"` — no runner of its pool has been seen
       for three leases. Left out with `claimant: true`: the runner asking is
       online, whatever its last poll says.
 
-  The WIP limit and lanes hold work jobs only: a verify or merge job
+  The WIP limit holds work jobs only: a verify or merge job
   finishes a card's work rather than adding to it (#1807).
   """
   def held_reason(job, opts \\ [])
@@ -665,9 +663,6 @@ defmodule Slipdock.Runners do
       card = waiting_on(job) ->
         "##{card.id} is in progress"
 
-      other = lane_held(job) ->
-        Slipdock.Lanes.held_line(other)
-
       !opts[:claimant] and not runner_online?(job.root_board_id, job.pool) ->
         "No runner online for pool #{job.pool}"
 
@@ -677,13 +672,6 @@ defmodule Slipdock.Runners do
   end
 
   def held_reason(_job, _opts), do: nil
-
-  # The card in progress whose paths a queued job's card overlaps (#1628).
-  # A verify or merge job finishes work rather than adding to it, so lanes
-  # don't hold one (#1807).
-  defp lane_held(%Job{} = job) do
-    if not finishing?(job), do: Slipdock.Lanes.held_cards(job.root_board_id)[job.card_id]
-  end
 
   defp finishing?(%Job{kind: kind}), do: Enum.member?(Slipdock.Verified.finishing_kinds(), kind)
 
@@ -702,40 +690,29 @@ defmodule Slipdock.Runners do
     wip = Map.new(boards, &{&1, wip_full(&1)})
     doing = doing_cards(boards, worked(trees))
     in_doing = MapSet.new(for {_, cards} <- doing, c <- cards, do: c.id)
-    lanes = Map.new(trees, &{&1, Slipdock.Lanes.held_cards(&1)})
 
     for job <- queued,
-        line = batch_held(job, pauses, online, wip, {doing, in_doing, lanes}),
+        line = batch_held(job, pauses, online, wip, {doing, in_doing}),
         into: %{} do
       {job.id, line}
     end
   end
 
-  defp batch_held(job, pauses, online, wip, {doing, in_doing, lanes}) do
-    tree_pauses = pauses[job.root_board_id]
-
-    pause =
-      Enum.find(tree_pauses, &(job.pool && &1.pool == job.pool)) ||
-        Enum.find(tree_pauses, &is_nil(&1.pool))
-
-    in_way =
-      job.wait_while_doing &&
-        Enum.find(Map.get(doing, job.board_id, []), &(&1.id != job.card_id))
+  defp batch_held(job, pauses, online, wip, {doing, in_doing}) do
+    pause = batch_pause(pauses[job.root_board_id], job)
+    full = batch_wip(job, wip, in_doing)
+    in_way = batch_in_way(job, doing)
 
     cond do
       pause ->
         Pause.line(pause)
 
-      (full = wip[job.board_id]) && not MapSet.member?(in_doing, job.card_id) &&
-          not finishing?(job) ->
+      full ->
         {column, count} = full
         wip_line(column, count)
 
       in_way ->
         "##{in_way.id} is in progress"
-
-      (other = lanes[job.root_board_id][job.card_id]) && not finishing?(job) ->
-        Slipdock.Lanes.held_line(other)
 
       not Enum.member?(online[job.root_board_id], job.pool) ->
         "No runner online for pool #{job.pool}"
@@ -743,6 +720,24 @@ defmodule Slipdock.Runners do
       true ->
         nil
     end
+  end
+
+  # The pause holding `job`: its pool's, else the whole tree's.
+  defp batch_pause(tree_pauses, job) do
+    Enum.find(tree_pauses, &(job.pool && &1.pool == job.pool)) ||
+      Enum.find(tree_pauses, &is_nil(&1.pool))
+  end
+
+  # The full WIP limit holding a work job whose card isn't in progress.
+  defp batch_wip(job, wip, in_doing) do
+    full = wip[job.board_id]
+    if full && not MapSet.member?(in_doing, job.card_id) && not finishing?(job), do: full
+  end
+
+  # The card in progress a `wait_while_doing` job waits beside.
+  defp batch_in_way(job, doing) do
+    job.wait_while_doing &&
+      Enum.find(Map.get(doing, job.board_id, []), &(&1.id != job.card_id))
   end
 
   # The pools of a tree with a runner seen within three leases.
@@ -1176,8 +1171,6 @@ defmodule Slipdock.Runners do
   defp claim_next(runner) do
     now = now()
     wip_full = wip_full_boards(runner.board_id)
-    # Lanes (#1628): cards whose paths overlap a card in progress wait.
-    lane_held = runner.board_id |> Slipdock.Lanes.held_cards() |> Map.keys()
     worked = worked(runner.board_id)
 
     candidate =
@@ -1197,8 +1190,6 @@ defmodule Slipdock.Runners do
         where:
           j.board_id not in ^wip_full or exists(own_card_doing()) or
             j.kind in ^wip_exempt_kinds(),
-        # A release (#2835) has no card, so it is in no lane.
-        where: j.card_id not in ^lane_held or j.kind in ^lane_exempt_kinds(),
         # A merge job (#1656) or an overseer pass (#2068) only goes to a
         # runner that says it takes them.
         where: j.kind not in ^kinds_not_taken(runner),
@@ -1342,10 +1333,6 @@ defmodule Slipdock.Runners do
 
   # The kinds a WIP limit never holds back: verify and merge jobs finish
   # work, and an overseer pass (#2068) does none.
-  # The kinds no lane holds: what finishes a card (#1656), and a release
-  # (#2835), which has no card.
-  defp lane_exempt_kinds, do: [Slipdock.Releases.kind() | Slipdock.Verified.finishing_kinds()]
-
   # A release (#2835) is work on no card.
   defp wip_exempt_kinds,
     do: [
@@ -2109,7 +2096,6 @@ defmodule Slipdock.Runners do
     end
     |> with_paths(job)
     |> with_docs_places(job)
-    |> with_lane_advice(job)
     |> with_rejection(job)
     |> with_shipping(job)
     |> with_housekeeping(job)
@@ -2223,18 +2209,14 @@ defmodule Slipdock.Runners do
     end
   end
 
-  # The card's lane (#1628): the paths it declared, to stay inside, and
-  # which of them are shared on the board (#1971).
+  # The card's paths (#1628): the globs its handbook rules and profile go
+  # by, widened on the card when the work goes beyond them.
   defp with_paths(prompt, %Job{card_id: card_id}) do
-    case Repo.one(from(c in Card, where: c.id == ^card_id, preload: :board)) do
-      %Card{paths: [_ | _] = paths, board: board} ->
-        shared = Slipdock.Lanes.shared_paths(board)
-
+    case Repo.get(Card, card_id) do
+      %Card{paths: [_ | _] = paths} ->
         (prompt || "") <>
-          "\n\nThe card's paths (its lane): touch and stage only files under these, " <>
-          "or widen them on the card first:\n" <>
-          Enum.map_join(paths, "\n", &path_line(&1, shared)) <>
-          broad_note(paths, shared) <> shared_note(paths, shared)
+          "\n\nThe card's paths (what its handbook rules and profile go by); widen them " <>
+          "on the card first if the work goes beyond them:\n" <> Enum.join(paths, "\n")
 
       _ ->
         prompt
@@ -2251,77 +2233,6 @@ defmodule Slipdock.Runners do
       (prompt || "") <> "\n\n" <> Slipdock.Verified.docs_places_builder()
     else
       _ -> prompt
-    end
-  end
-
-  # Advisory lanes (#1972): on a board whose lane mode is `advise`, the
-  # cards in progress whose paths overlap this card's, and what to do.
-  # Nothing when none do, or in any other mode.
-  defp with_lane_advice(prompt, %Job{card_id: card_id}) do
-    with %Card{} = card <- Repo.one(from(c in Card, where: c.id == ^card_id, preload: :board)),
-         "advise" <- Slipdock.Lanes.mode(card.board),
-         [_ | _] = overlaps <- Slipdock.Lanes.overlaps(card) do
-      (prompt || "") <> "\n\n" <> lane_advice(overlaps)
-    else
-      _ -> prompt
-    end
-  end
-
-  @doc """
-  The *Lanes* block of an advisory lane's prompt (#1972): each card in
-  progress whose paths overlap, from `Slipdock.Lanes.overlaps/1`, with the
-  globs, the job and runner working it, and what to do.
-  """
-  def lane_advice(overlaps) do
-    lines =
-      Enum.map_join(overlaps, "\n", fn %{card: other, paths: mine, theirs: theirs} ->
-        "- ##{other.id} \"#{other.title}\"#{working_on(other)}: your " <>
-          Enum.join(mine, ", ") <> " meets its " <> Enum.join(theirs, ", ")
-      end)
-
-    "Lanes (advisory): this board doesn't hold overlapping work, and these cards in " <>
-      "progress touch some of the same files:\n" <>
-      lines <>
-      "\nBefore editing those files, read that card (slipdock card <id>) and its branch " <>
-      "(card-<id>, if pushed); stay out of them where you can; rebase on the default " <>
-      "branch before pushing, and expect to merge."
-  end
-
-  defp working_on(%Card{} = card) do
-    case Slipdock.Lanes.working_job(card) do
-      %Job{} = job ->
-        " (job ##{job.id}" <> if(job.runner_name, do: " on #{job.runner_name})", else: ")")
-
-      nil ->
-        ""
-    end
-  end
-
-  # A broad glob (#2698) is marked beside itself in the Paths block.
-  defp path_line(glob, shared) do
-    if Slipdock.Lanes.broad?(glob, shared),
-      do: glob <> "  (broad: " <> Slipdock.Lanes.broad_reason() <> ")",
-      else: glob
-  end
-
-  defp broad_note(paths, shared) do
-    if Enum.any?(paths, &Slipdock.Lanes.broad?(&1, shared)),
-      do:
-        "\nA broad glob claims a whole top-level directory: narrow it on the card before " <>
-          "you start (you may change an in-progress card's paths). It is advice: nothing " <>
-          "is refused for it.",
-      else: ""
-  end
-
-  defp shared_note(paths, shared) do
-    case Enum.filter(paths, &Slipdock.Lanes.shared?(&1, shared)) do
-      [] ->
-        ""
-
-      mine ->
-        "\n\nShared on the board, so they hold no lane and other cards in progress may " <>
-          "edit them too: keep to your own sections, and rebase on the default branch " <>
-          "before pushing:\n" <> Enum.join(mine, "\n")
     end
   end
 

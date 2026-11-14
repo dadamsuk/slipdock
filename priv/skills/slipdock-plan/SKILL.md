@@ -125,7 +125,7 @@ and where it **writes to**. Then:
 - **The cards:** the epic if there isn't one, its sub-board (`slipdock
   subboard <epic> --template Simple`), then the subcards in build order,
   each as `## Card shape` says. On a board that verifies work or keeps
-  lanes, give each its bar and paths as you add it (`slipdock add <sub>
+  a handbook, give each its bar and paths as you add it (`slipdock add <sub>
   "<title>" --bar "…" --paths "…"`). Set `slipdock blocked-by <card>
   <other>` only where one card builds on another's output.
 
@@ -163,8 +163,7 @@ problem, who it is for, done-when, out of scope, open questions.
 
 For each open question in the brief, answer three: only building answers
 it (not a person, not reading)? A "no" changes the spec (say how)? A late
-"no" costs more than the spike, counting flow time and lane contention as
-well as rework? All three: a candidate. Fails only the third: its card goes
+"no" costs more than the spike, counting flow time as well as rework? All three: a candidate. Fails only the third: its card goes
 first in build order. Show the candidates; only those the person confirms
 become spikes, one sitting each. None pass: skip the stage and say why.
 

@@ -212,7 +212,7 @@ defmodule Slipdock.DocsTestsStateFactsTest do
 
   test "it finds the docs tests: this card's example among them" do
     tests = Enum.map(docs_tests(), &Path.relative_to(&1, @root))
-    assert "test/slipdock_web/lanes_broad_skills_docs_test.exs" in tests
+    assert "test/slipdock_web/plan_skill_docs_test.exs" in tests
     assert "test/slipdock/nothing_personal_test.exs" in tests
   end
 

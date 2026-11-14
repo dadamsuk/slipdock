@@ -1,17 +1,11 @@
 defmodule Slipdock.Overseer.Checks.IdleCapacity do
   @moduledoc """
-  Idle capacity (#2068), two ways:
+  Idle capacity (#2068): cards free to take on a ready list (open, nobody
+  on them, not flagged, nothing they wait on, no job) while runners on the
+  tree are online and have had no job for the board's `idle_minutes`: the
+  work and the hands are both there and nothing joins them.
 
-    * cards free to take on a ready list (open, nobody on them, not
-      flagged, nothing they wait on, no job) while runners on the tree
-      are online and have had no job for the board's `idle_minutes`: the
-      work and the hands are both there and nothing joins them;
-    * two or more queued jobs held back by the lane of one card in
-      progress (`Slipdock.Lanes.held_cards/1`): one file in every card's
-      paths serialises them all.
-
-  Each clears when a runner takes work, the ready list empties, or the
-  lane frees.
+  It clears when a runner takes work or the ready list empties.
   """
   @behaviour Slipdock.Overseer.Check
 
@@ -31,7 +25,7 @@ defmodule Slipdock.Overseer.Checks.IdleCapacity do
   def label, do: "Idle capacity"
 
   @impl true
-  def find(ctx), do: idle(ctx) ++ lanes(ctx)
+  def find(ctx), do: idle(ctx)
 
   defp idle(ctx) do
     with [_ | _] = runners <- idle_runners(ctx),
@@ -103,35 +97,5 @@ defmodule Slipdock.Overseer.Checks.IdleCapacity do
     |> Repo.all()
     |> Repo.preload(blocked_by: Boards.dependency_query())
     |> Enum.reject(&Card.blocked?/1)
-  end
-
-  defp lanes(%{root: root}) do
-    root.id
-    |> Slipdock.Lanes.held_cards()
-    |> Enum.group_by(fn {_held, holder} -> holder.id end, fn {held, _} -> held end)
-    |> Enum.filter(fn {_holder, held} -> length(held) >= 2 end)
-    |> Enum.map(fn {holder_id, held} ->
-      holder = Repo.get!(Card, holder_id)
-      held = Repo.all(from(c in Card, where: c.id in ^held, order_by: c.id))
-      shared = shared_globs(holder, held)
-
-      %{
-        subject: "lane:#{holder.id}",
-        card_id: holder.id,
-        title: "#{length(held)} jobs queued behind ##{holder.id}'s lane",
-        why:
-          "#{Check.refs(held)} wait because their paths overlap #{Check.ref(holder)}'s" <>
-            if(shared == [], do: ".", else: ", on #{Enum.join(shared, ", ")}."),
-        todo:
-          "Let #{"#" <> to_string(holder.id)} finish first, narrow the waiting cards' paths, " <>
-            "or name a file every card touches (docs/agents.md, say) in the board's shared paths."
-      }
-    end)
-  end
-
-  # The holder's globs that one of the held cards declares too.
-  defp shared_globs(holder, held) do
-    theirs = held |> Enum.flat_map(& &1.paths) |> MapSet.new()
-    holder.paths |> Enum.filter(&MapSet.member?(theirs, &1)) |> Enum.take(3)
   end
 end

@@ -58,7 +58,7 @@ defmodule SlipdockCLI.AgenticBuildingTest do
   test "the server's warning about rules still holding goes to stderr" do
     serve([
       {200,
-       ~s({"board":{"id":3,"name":"Docs"},"warnings":["Agentic Building is off, but these still hold: Lanes."]})}
+       ~s({"board":{"id":3,"name":"Docs"},"warnings":["Agentic Building is off, but these still hold: Profiles."]})}
     ])
 
     err =
@@ -68,7 +68,7 @@ defmodule SlipdockCLI.AgenticBuildingTest do
         end)
       end)
 
-    assert err =~ "warning: Agentic Building is off, but these still hold: Lanes."
+    assert err =~ "warning: Agentic Building is off, but these still hold: Profiles."
   end
 
   test "the help names the flag" do

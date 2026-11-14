@@ -99,8 +99,6 @@ test/slipdock_web/job_logs_docs_test.exs
 test/slipdock_web/quality_docs_test.exs
 test/slipdock_web/ledger_docs_test.exs
 test/slipdock_web/inbound_docs_test.exs
-test/slipdock_web/lanes_broad_skills_docs_test.exs
-test/slipdock_web/lanes_docs_test.exs
 test/slipdock_web/mcp/docs_test.exs
 test/slipdock_web/capture_removed_test.exs
 test/slipdock_web/orchestration_fixes_docs_test.exs
@@ -208,14 +206,10 @@ test/slipdock/published_port_trust_test.exs
 
 # Not on the list
 except test/slipdock_web/all_fields_test.exs: renders every LiveView route, 23 s alone; its one source rule (no daisyUI field sizes) waits for CI
-except test/slipdock/lanes_test.exs: its docs/ paths are lane globs held as data; it reads no file
-except test/slipdock/lanes_epic_test.exs: its docs/ paths are lane globs held as data; it reads no file
+except test/slipdock/lanes_test.exs: its docs/ paths are card path globs held as data; it reads no file
+except test/slipdock/card_paths_test.exs: its README.md and docs/ paths are card path globs held as data; it reads no file
 except test/slipdock/profiles_test.exs: its docs/ and priv/skills/ paths are card paths held as data for the inference; it reads no file
-except test/slipdock_web/shared_paths_web_test.exs: docs/manual.md there is a glob a board shares, not a file it reads
-except test/slipdock/lanes_broad_test.exs: its docs/manual.md is a lane glob held as data; it reads no file
-except test/slipdock/lanes_advise_test.exs: its docs/manual.md is a lane glob held as data; it reads no file
 except test/slipdock_web/runner_scripts_retired_test.exs: docs/manual/machines.md there is the pointer the 410 body gives, held as data; it reads no file
-except test/slipdock/overseer_watch_test.exs: its docs/ paths are lane globs held as data; it reads no file
 except test/slipdock/verified_docs_places_test.exs: its docs and skills paths are the prompt's places, held as data; it reads no file
 except test/slipdock/handbook_rules_e2e_test.exs: its README.md is a card path given to the rules lookup, held as data; it reads no file
 except test/slipdock/pre_push_alias_test.exs: reads .credo.exs and mix.exs to test `mix pre_push` itself, 10 s alone, half the list's budget; it waits for CI

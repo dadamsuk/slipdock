@@ -292,7 +292,7 @@ defmodule SlipdockWeb.API.CardControllerTest do
       user: user,
       board: board
     } do
-      {:ok, _} = Boards.update_board(board, %{"bar_required" => true, "lanes" => true})
+      {:ok, _} = Boards.update_board(board, %{"bar_required" => true})
       agent = with_token(user, [])
 
       card =
@@ -313,7 +313,7 @@ defmodule SlipdockWeb.API.CardControllerTest do
     end
 
     test "the guide and agents.md say a card can be made with them", %{user: user, board: board} do
-      {:ok, _} = Boards.update_board(board, %{"bar_required" => true, "lanes" => true})
+      {:ok, _} = Boards.update_board(board, %{"bar_required" => true})
       squash = &String.replace(&1, ~r/\s+/, " ")
 
       {token, _} = Accounts.create_api_token(user, "reader")
@@ -327,11 +327,9 @@ defmodule SlipdockWeb.API.CardControllerTest do
 
       assert guide =~ "`bar` and `paths` on `POST /api/boards/:board/cards` and `create_card`"
       assert guide =~ ~s(`slipdock add --bar TEXT --paths "a/**"`)
-      assert guide =~ "`create_card`, `slipdock add --paths`"
 
       agents = "docs/agents.md" |> File.read!() |> squash.()
       assert agents =~ "`create_card` and `slipdock add` take `bar` and `paths`"
-      assert agents =~ "`create_card` `paths`, `slipdock add --paths`"
     end
   end
 

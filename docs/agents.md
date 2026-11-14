@@ -724,14 +724,14 @@ card…".
    **Spike** runs only when an open question passes three tests: only
    building answers it (not a person, not reading), a "no" changes the spec
    (it says how), and a late "no" costs more than the spike, counting flow
-   time and lane contention as well as rework. One that fails only the
+   time as well as rework. One that fails only the
    third gets its card first in build order instead; none pass, and the
    stage is skipped, said so. The agent proposes the candidates and a person
    confirms them (unattended, as one `product` wait on the epic). Each
    confirmed question becomes a `spike` subcard of the epic, its bar the
    question and what counts as an answer, with no paths. Planning then
    stops, with a handoff on the epic saying it resumes at Spec. A spike
-   holds no lane and merges nothing: its answer is a page pinned to the
+   merges nothing: its answer is a page pinned to the
    epic, its prototype stays on its branch (see **Spikes** under Profiles).
    When the last is accepted, the server opens a `product` wait on the
    epic, "Spikes answered (#…): resume planning". A person resumes; the
@@ -787,7 +787,7 @@ git diff --name-only main | slipdock handbook <board> --paths-from -
 ```
 
 Over REST that is `GET /api/boards/:board/handbook?paths=a,b`. A card
-whose lane has `paths` carries the same rules in `get_card`'s `handbook`
+with `paths` carries the same rules in `get_card`'s `handbook`
 (`rules`, `must` first, cut to fit, with `rules_more`), and `slipdock card`
 prints them in its Handbook block. The answer also lists the pages whose
 `covers:` take the paths in (`pages`, each with how many), which is what a
@@ -837,10 +837,7 @@ or one that works a list **top card first, one at a time** (*Work a list with
 a runner*, trigger `list_top`): whenever nothing it sent is still open it
 sends the top open card nobody has taken, skipping blocked, waiting and
 dependency-blocked ones and any with a job already open on it (so two such
-rules for two pools work one list side by side), and, with lanes holding,
-any whose paths overlap a card in progress: a queued job of its own that a
-lane holds is withdrawn and the next card that could start sent instead,
-the held card keeping its place for when its lane frees, so a runner can take over from a `/loop` or cron
+rules for two pools work one list side by side), so a runner can take over from a `/loop` or cron
 pass working the To Do list. A rule whose pool has **gone offline** (its
 runners seen before, none for three leases) sends nothing and withdraws a
 job it queued that no runner has taken (*No runner online for pool P: gave
@@ -1066,7 +1063,7 @@ and MCP `get_board` `now: true`; see
 going round (a second rejection, a third runner pass), a board waiting only
 on a person with nothing running, cards slower than the board's P85 for
 their profile and jobs whose step hasn't changed in 30 minutes, idle runners
-beside a full ready list or jobs queued behind one lane, and epics whose
+beside a full ready list, and epics whose
 open subcards are all blocked. One more, `not_shipped` (a merged card no
 succeeded deploy names after the board's `not_shipped_minutes`, counted from
 its release on a board with batched releases), runs on any
@@ -1126,8 +1123,7 @@ itself, something the card fixed, or a fact about the card's own code
 A block that only points elsewhere records nothing: the evidence is a comment
 of its own, and its block is read there.
 Settled knowledge goes straight into the handbook. The server records
-its own (rejections, timeouts, requeues, failed merges; a lane refusal is
-not one), and the daily triage and the server handle them: they merge,
+its own (rejections, timeouts, requeues, failed merges), and the daily triage and the server handle them: they merge,
 promote and dismiss findings, and draft a rule as a garden proposal when one
 recurs. Those proposals are what wait on a person, so the board's Findings
 page (`/boards/:id/findings`, from the board's Agentic Building page, whose
@@ -1251,7 +1247,7 @@ result: *updated*, *deferred to #N* (only when card #N's bar names that
 place), *n/a* with why, or *missing*. One missing is
 `--check rule:SPEC-10=broken:<file>:<name>`, a rejection; a deferral to a
 card whose bar doesn't name the place counts as missing. The builder's
-claimed prompt gives the same enumeration: a place its lane can't reach goes
+claimed prompt gives the same enumeration: a place its paths can't reach goes
 on the deferral card's bar by name, with the names it must cover, and the
 card is named in the evidence. An audit enumerates the same way, and one
 missing there is a disagreement. A card outside the scope, or a handbook
@@ -1416,46 +1412,20 @@ card it thought stuck did while the card's merge was finishing. A person
 reopens finished work; if a done card needs more, add a card for that and
 link it.
 
-**Lanes.** Agents side by side in one repository stay out of each other's
-files, each part optional and off by default: a card's `paths` (globs, set
-with `update_card` `paths` or `slipdock edit --paths`, or when the card is
-made: `create_card` `paths`, `slipdock add --paths`), a board switch
-(`lanes`) that refuses an agent starting a card whose paths overlap one in
-progress, naming it (a person moving the card overrides it), a runner
-setting that runs each job in a git worktree of its own (`--worktree`), and
-a pre-commit hook a person installs (`slipdock hook install lane-check`)
-that refuses a commit staging files outside the card's paths. The skills
-write the paths before starting, stage only them, and use a worktree when
+**Paths and worktrees.** A card's `paths` are globs relative to the
+repository naming the files its work touches, set with `update_card`
+`paths` or `slipdock edit --paths`, or when the card is made
+(`create_card` `paths`, `slipdock add --paths`). They scope the handbook
+rules the card carries (its `handbook` block, as `slipdock handbook <board>
+--paths` gives them) and they are what its profile is inferred from, so
+write them before starting and widen them when the work goes beyond them.
+Stage files by name, never `git add -A`, and check `git status` before
+committing. A runner setting runs each job in a git worktree of its own
+(`--worktree`, in `<repo>-lanes/card-<id>` on the branch `card-<id>`,
+`$SLIPDOCK_WORKTREE` set), and the skills use a worktree of their own when
 another session shares the repository. On a board that verifies work and
-ships by push, a card awaiting verification frees its lane and stops
-blocking its dependents until a rejection; on a pull request board it keeps
-both until the merge. An epic's lane is its subcards': in progress it holds
-none of its own, and it waits only when none of its subcards could start.
-A board's `shared_paths` (`update_board` `shared_paths`, `slipdock set-board
---shared-paths`) are globs that never count toward a lane: declare those
-files honestly, and an overlap only inside them holds nobody. A path only
-partly inside one still counts. `get_card` and `slipdock card` mark a
-card's shared paths, the job's prompt names them, and the lane-check hook
-lets them through; keep to your own sections of a shared file and rebase
-before pushing. A board's `lane_mode` is `off`, `hold` (what `lanes: true`
-means: overlapping starts refused, jobs held) or `advise` (`update_board`
-`lane_mode`, `slipdock set-board --lane-mode advise`): under `advise`
-nothing is held, and your job's prompt carries a *Lanes* block naming each
-card in progress whose paths overlap yours. Read that card and its branch
-before editing those files, stay out of them where you can, and rebase on
-the default branch before pushing. Keep paths narrow: a `**` glob at most
-one directory below the repository root (`lib/**`, `lib/slipdock/**`,
-`docs/**`), unless wholly inside a shared path, is *broad*, since it
-overlaps most cards. It is advice, not a refusal: `get_card` and `slipdock
-card` mark it (`paths_broad`, with `paths_broad_reason`), the job's prompt
-says so beside the glob, and a `lane_overlap` a broad glob makes names the
-side (`broad`: `this`, `other` or `both`; `broad_paths`). Narrow it to the
-files or the deepest directory the change touches before you start; you
-may change an in-progress card's paths.
-Only a card a runner job is working on holds a lane: one in progress with
-no open job, dragged there by hand or left behind, holds none. Nor does a
-`spike`, whose code is never merged. Lanes hold work jobs only, never a verify or merge
-job. See [the manual](manual/lanes.md).
+ships by push, a card awaiting verification stops blocking its dependents
+until a rejection; on a pull request board it keeps them until the merge.
 
 **Profiles.** On a board with `profiles` on (`profiles: on` on its line
 in the guide), a card an agent claims or starts with no profile gets one
@@ -1495,8 +1465,7 @@ never merged: the prototype stays on its branch and any pull request is
 closed. Complete it with why instead, naming the answer's page and the
 branch: `slipdock done ID --no-code "spike: answer on W-…, prototype on
 card-ID"` (`complete_card` `no_code`). Naming a pull request is refused,
-and accepting it merges nothing. It holds no lane, even with paths: an
-overlapping card starts beside it, and no job waits for it.
+and accepting it merges nothing.
 
 **The verifier's spend.** With profiles on, completing a `docs` card on a
 verifying board queues no verify job: the server accepts it (*Accepted by

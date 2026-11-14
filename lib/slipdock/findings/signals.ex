@@ -25,9 +25,6 @@ defmodule Slipdock.Findings.Signals do
   verdicts, not from findings, so it is unchanged. A `verification` finding
   is about code the change didn't touch, so it stays open for triage.
 
-  A **lane** refusing an agent's move is not one (#1968): it is the lanes
-  working, and the refusal, the job's log and its held reason already say so.
-
   Each records its source, card and job; a repeat on the same card and cause
   adds to the count (`Slipdock.Findings.record/1`), and the same job never
   counts twice.

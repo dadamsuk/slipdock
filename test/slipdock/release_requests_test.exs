@@ -4,7 +4,7 @@ defmodule Slipdock.ReleaseRequestsTest do
   critical card merging, *Release now* or the age cap; one runs at a time,
   a trigger during one queues a single follow-up and more join it; a
   request starts a card-less `release` job for the pool that merges, which
-  lanes never hold and only a runner taking `release` is handed; and it
+  WIP limits never hold and only a runner taking `release` is handed; and it
   ends released, failed or timed out, each step in the board's activity.
   """
   use Slipdock.DataCase, async: true
@@ -12,7 +12,7 @@ defmodule Slipdock.ReleaseRequestsTest do
   import Ecto.Query
   import Slipdock.Fixtures
 
-  alias Slipdock.{Boards, Deployments, Lanes, Releases, Repo, Runners}
+  alias Slipdock.{Boards, Deployments, Releases, Repo, Runners}
   alias Slipdock.Boards.{Activity, Card}
   alias Slipdock.Releases.Request
   alias Slipdock.Runners.{Job, Runner}
@@ -336,23 +336,6 @@ defmodule Slipdock.ReleaseRequestsTest do
         Runners.queue(card_fixture(todo), %{pool: "dev", kind: "claude", prompt: "go"})
 
       assert Runners.held_reason(Repo.reload!(work), claimant: true) =~ "WIP full"
-
-      {:ok, :started, request} = Releases.request(board, "manual", "Dana")
-      assert %Job{id: id} = Runners.claim(releaser)
-      assert id == request.job_id
-    end
-
-    test "is never held by a lane", %{board: board, todo: todo, doing: doing} do
-      {:ok, board} = Boards.update_board(board, %{"lanes" => true})
-      releaser = runner!(board, "releaser", ~w(claude merge release))
-
-      running = card_fixture(doing, %{"title" => "Running"})
-      {:ok, running} = Boards.Cards.update_card(running, %{"paths" => "lib/a/**"})
-      working_job_fixture(running)
-      held = card_fixture(todo, %{"title" => "Held"})
-      {:ok, held} = Boards.Cards.update_card(held, %{"paths" => "lib/a/b.ex"})
-      {:ok, _held_job} = Runners.queue(held, %{pool: "dev", kind: "claude", prompt: "go"})
-      assert Map.keys(Lanes.held_cards(board.id)) == [held.id]
 
       {:ok, :started, request} = Releases.request(board, "manual", "Dana")
       assert %Job{id: id} = Runners.claim(releaser)

@@ -74,8 +74,8 @@ Together, they make a loop:
    means.
 2. **Build.** [Runners](#run-an-agent-against-a-board) on your own machines
    pull jobs, so there are no ports to open. They work a list from the top,
-   and each job gets its own [lane](docs/manual/lanes.md) and worktree so
-   parallel agents stay out of each other's files. A question parks the job
+   and each job gets its own git worktree so parallel agents stay out of
+   each other's working trees. A question parks the job
    and the next card runs.
 3. **Prove.** The agent completes the card with
    [evidence](docs/manual/verified-work.md), and a second agent accepts or
@@ -202,7 +202,7 @@ list, a paragraph for each.
   left, and what it needs from a person.
 - [Runners](docs/manual/runners.md) on your own
   [machines](docs/manual/machines.md) take cards from a list, each in its own
-  [lane](docs/manual/lanes.md).
+  worktree.
 - [Verified work](docs/manual/verified-work.md): a bar, evidence, a second
   agent's verdict, shipping by pull request and
   [releases in batches](docs/manual/batched-releases.md), with

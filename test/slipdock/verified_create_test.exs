@@ -2,9 +2,7 @@ defmodule Slipdock.VerifiedCreateTest do
   @moduledoc """
   A card created straight into a doing list (#1815) meets the checks a move
   into it makes: on a board that asks for a bar, an agent can't create one
-  there without a bar, and one created with a bar has it locked; on a board
-  with lanes on, an agent can't create one there whose paths overlap a card
-  in progress. People, the assistant, automations, other lists and boards
+  there without a bar, and one created with a bar has it locked. People, the assistant, automations, other lists and boards
   with the switches off are untouched.
   """
   use Slipdock.DataCase, async: true
@@ -134,69 +132,7 @@ defmodule Slipdock.VerifiedCreateTest do
     assert barred.bar_locked_at == nil
   end
 
-  describe "lanes, with lanes on" do
-    setup ctx do
-      board = switch(ctx, %{"lanes" => true})
-      held = card_fixture(ctx.doing, %{"title" => "Holding"})
-      {:ok, held} = Boards.Cards.update_card(held, %{"paths" => ["lib/foo/**"]})
-      working_job_fixture(held)
-      %{board: board, held: held}
-    end
-
-    test "an agent can't create a card in progress whose paths overlap, and none is made",
-         ctx do
-      assert {:error, changeset} =
-               Boards.Cards.create_card(
-                 ctx.doing,
-                 %{"title" => "Overlaps", "paths" => "lib/foo/bar.ex"},
-                 actor: ctx.agent
-               )
-
-      assert {message, _} = changeset.errors[:paths]
-      assert message =~ "##{ctx.held.id}"
-      assert message =~ "Holding"
-      assert count(ctx.doing) == 1
-    end
-
-    test "an agent creates one in progress with paths apart, or none", ctx do
-      assert {:ok, _} =
-               Boards.Cards.create_card(ctx.doing, %{"title" => "Apart", "paths" => "lib/bar/**"},
-                 actor: ctx.agent
-               )
-
-      assert {:ok, _} =
-               Boards.Cards.create_card(ctx.doing, %{"title" => "Pathless"}, actor: ctx.agent)
-    end
-
-    test "an overlapping card is made in another list, or by a person", ctx do
-      assert {:ok, _} =
-               Boards.Cards.create_card(
-                 ctx.todo,
-                 %{"title" => "Queued", "paths" => "lib/foo/a.ex"},
-                 actor: ctx.agent
-               )
-
-      assert {:ok, _} =
-               Boards.Cards.create_card(
-                 ctx.doing,
-                 %{"title" => "Theirs", "paths" => "lib/foo/a.ex"},
-                 actor: Actor.web(ctx.owner)
-               )
-    end
-
-    test "an archived card holds no lane", ctx do
-      {:ok, _} = Boards.Cards.archive_card(ctx.held)
-
-      assert {:ok, _} =
-               Boards.Cards.create_card(
-                 ctx.doing,
-                 %{"title" => "After", "paths" => "lib/foo/a.ex"},
-                 actor: ctx.agent
-               )
-    end
-  end
-
-  test "with lanes off, an agent creates an overlapping card in progress", ctx do
+  test "an agent creates a card in progress whose paths overlap another's (#3178)", ctx do
     held = card_fixture(ctx.doing, %{"title" => "Holding"})
     {:ok, _} = Boards.Cards.update_card(held, %{"paths" => ["lib/foo/**"]})
 
@@ -208,8 +144,8 @@ defmodule Slipdock.VerifiedCreateTest do
              )
   end
 
-  test "with both on, a card with no bar is refused on its bar first", ctx do
-    switch(ctx, %{"bar_required" => true, "lanes" => true})
+  test "a card with no bar is refused on its bar, overlapping paths or not", ctx do
+    switch(ctx, %{"bar_required" => true})
     held = card_fixture(ctx.doing, %{"title" => "Holding", "bar" => "x"})
     {:ok, _} = Boards.Cards.update_card(held, %{"paths" => ["lib/**"]})
 

@@ -27,8 +27,8 @@ defmodule Slipdock.Releases do
   one: the request takes the cards awaiting release and queues a runner job
   of kind `release` (`kind/0`), with no card, whose prompt is the board's
   release command (`command/1`). With one running it queues a single
-  follow-up, and any further trigger joins that follow-up. Lanes and WIP
-  limits never hold a release job, and only a runner that says it takes
+  follow-up, and any further trigger joins that follow-up. WIP limits
+  never hold a release job, and only a runner that says it takes
   `release` is handed one (`Slipdock.Runners`).
 
   A running request ends (`finish/3`) `released` when a deploy of the tree

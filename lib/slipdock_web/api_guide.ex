@@ -65,7 +65,6 @@ defmodule SlipdockWeb.APIGuide do
       handbook() <> sweeps(),
       findings_section(),
       verified_work(user, Keyword.get(opts, :token)),
-      lanes_section(user, Keyword.get(opts, :token)),
       profiles_section(user, Keyword.get(opts, :token)),
       portable(),
       vocabulary_section(),
@@ -677,8 +676,6 @@ defmodule SlipdockWeb.APIGuide do
             "\n  - ships by pull request: push `card-<id>` and open a PR, never the default branch (see *Verified work*)",
         else: verified
 
-    verified = verified <> lanes_lines(full)
-
     verified =
       if full.profiles,
         do: verified <> "\n  - profiles: on — a card an agent starts gets one (see *Profiles*)",
@@ -711,36 +708,6 @@ defmodule SlipdockWeb.APIGuide do
       steps = Enum.map_join(on, "\n", &verified_step/1)
 
       md(:verified_work, %{steps: steps})
-    end
-  end
-
-  # The board line's lanes items (#1628): on, and its shared paths (#1971).
-  defp lanes_lines(%{lanes: true} = board) do
-    lanes_line(Slipdock.Lanes.mode(board)) <>
-      case Slipdock.Lanes.shared_paths(board) do
-        [] -> ""
-        shared -> "\n  - shared paths (hold no lane): " <> Enum.map_join(shared, ", ", &"`#{&1}`")
-      end
-  end
-
-  defp lanes_lines(_board), do: ""
-
-  defp lanes_line("advise"),
-    do:
-      "\n  - lanes: advise — write a card's paths before starting it; an overlap is " <>
-        "told in the job's prompt, not held (see *Lanes*)"
-
-  defp lanes_line(_mode),
-    do: "\n  - lanes: on — write a card's paths before starting it (see *Lanes*)"
-
-  # Lanes (#1628): described only when one of the reader's boards has it on.
-  defp lanes_section(nil, _token), do: ""
-
-  defp lanes_section(user, token) do
-    if user |> Access.list_boards(token: token) |> Enum.any?(& &1.lanes) do
-      md(:lanes, %{})
-    else
-      ""
     end
   end
 

@@ -67,7 +67,7 @@ pool that merges: its prompt is the root board's `release_command`
 (set like the other two; `set-board --release-command "…"`, `default`
 to clear), one line, by default `gh workflow run release.yml --ref
 {default_branch}`, the runner putting the repository's default branch
-in. Lanes and WIP limits never hold it, and it goes only to runners
+in. WIP limits never hold it, and it goes only to runners
 whose claims list `release` in `X-Runner-Kinds`. `release` jobs are
 built into the runner daemon, as `merge` jobs are (`no_release: true`
 in the machine's `local.json` turns the kind off): it runs `gh

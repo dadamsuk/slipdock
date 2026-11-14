@@ -2,7 +2,7 @@
 
 ## Verified work
 
-How this fits with runners, lanes, CI and the handbook, one card from being
+How this fits with runners, CI and the handbook, one card from being
 written to the deploy, with who acts at each stage and where it waits for a
 person, is the help page **How work flows** (`/help/agents/flow`).
 
@@ -356,7 +356,7 @@ app's help in `HelpLive.Guides`, the agents' help in `HelpLive.Agents` and
 *missing*. One missing is `--check rule:SPEC-10=broken:<file>:<name>`; a
 deferral to a card whose bar doesn't name the place counts as missing. The
 builder's claimed prompt gives it the same enumeration, and tells it to
-list each place its lane can't reach on the deferral card's bar. A card
+list each place its paths can't reach on the deferral card's bar. A card
 outside the scope, or a handbook with no `SPEC-10`, gets neither. An audit
 judges it the same way. On a card that gets the
 [mutation step](profiles.md) (a `fix`, `feature`, `schema` or `security`

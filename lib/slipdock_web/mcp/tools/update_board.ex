@@ -16,7 +16,7 @@ defmodule SlipdockWeb.MCP.Tools.UpdateBoard do
   alias SlipdockWeb.MCP.{Args, Tools, WaitingList}
 
   @fields ~w(name description color simple default_view agentic_building handoff_label bar_required
-             evidence_required verify_work verify_pool lanes lane_mode shared_paths profiles profile_tiers ship_via job_log_hours
+             evidence_required verify_work verify_pool profiles profile_tiers ship_via job_log_hours
              failure_log_hours findings_propose_at wait_default_after release_mode release_age_cap_hours
              release_command)
 
@@ -30,7 +30,7 @@ defmodule SlipdockWeb.MCP.Tools.UpdateBoard do
   def description,
     do:
       "Changes a board you own: name, description, color, simple, default_view, handoff_label, agentic_building, " <>
-        "verified-work switches, lanes, profiles, profile_tiers, " <>
+        "verified-work switches, profiles, profile_tiers, " <>
         "job log hours, findings_propose_at, wait_routes, overseer. Only what you send changes."
 
   @impl true
@@ -81,17 +81,6 @@ defmodule SlipdockWeb.MCP.Tools.UpdateBoard do
               "default (gh workflow run release.yml). Any other command runs only on a " <>
               "machine whose local.json lists it under release_commands. Root board only."
         },
-        lanes: %{
-          type: "boolean",
-          description: "Lanes on (as hold) or off. lane_mode, if sent too, wins."
-        },
-        lane_mode: %{
-          type: "string",
-          enum: Slipdock.Boards.Board.lane_modes(),
-          description:
-            "What an overlap does: off; hold (refuse an agent's start, hold its job); " <>
-              "advise (start it, and tell the agent in its job's prompt)."
-        },
         profiles: %{
           type: "boolean",
           description:
@@ -109,13 +98,6 @@ defmodule SlipdockWeb.MCP.Tools.UpdateBoard do
               {p, %{type: "string", enum: Slipdock.Profiles.tiers() ++ ["default"]}}
             end),
           additionalProperties: false
-        },
-        shared_paths: %{
-          type: "array",
-          items: %{type: "string"},
-          description:
-            "Globs that never count toward a lane (docs/manual.md, README.md): cards may " <>
-              "both declare them without holding each other. [] clears."
         },
         job_log_hours: %{
           type: "integer",

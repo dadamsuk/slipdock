@@ -36,7 +36,6 @@ covers, and leave the others unread: each is only for the pass it names.
 | The card is a spike | `references/spikes.md` |
 | The board ships by pull request, and the prompt doesn't give the steps; or the card is an epic, changes no code, is tagged `security`, is held, or its merge failed | `references/pull-requests.md` |
 | The job is of kind `verify`, or you are asked to verify or audit a card | `references/verifying.md` |
-| The board has lanes on or advising, and you write a card's paths yourself, a move or a paths edit is refused over an overlap, or the prompt names an overlapping card | `references/lanes.md` |
 | The pass pushed to a branch CI builds, not a pull request's | `references/build.md`: step 7.4, waiting for the build |
 | A command is refused with a limit (HTTP 402), a read-only token, `not signed in`, `401` or `invalid token` | `references/stops.md`, before trying anything else |
 
@@ -177,7 +176,7 @@ proposal, not an edit (`slipdock garden propose <board> <file.json>`, an
 the page's prefix), and a person applies it. An agent's edit to a rule is
 flagged for a person to keep or revert (the gardener's `rule_changed`).
 
-A card with lane paths shows them in its Handbook block (`rules`); for any
+A card with paths shows their rules in its Handbook block (`rules`); for any
 other set of paths, `slipdock handbook <board> --paths a,b`. **Before
 submitting, check the diff against them**: `git diff --name-only
 <default-branch> | slipdock handbook <board> --paths-from -` lists every
@@ -192,7 +191,7 @@ page and section names), grep each across the seven places the block lists
 (the README, the manual, the app's help, the agents' and runners' help with
 `cli/help.txt`, `docs/agents.md`, the API guide, `priv/skills/`), and give
 each place in the evidence as *updated*, *deferred to #N*, *n/a* with why,
-or *missing*. A place the lane can't reach goes on the deferral card's bar
+or *missing*. A place the card's paths can't reach goes on the deferral card's bar
 by name, with the names it must cover (`slipdock add <board> "…" --bar "1.
 docs/agents.md says --foo …"`), or the deferral doesn't count: the verifier
 gives it as missing and rejects the card.
@@ -244,8 +243,8 @@ job ends. The job is the lock, not the assignee; assignees stay people.
 If what the card asks for is genuinely unclear, do not guess a scope: hand it
 back (see **Handing a card back**) rather than inventing work on it.
 
-On a board with lanes on, write the card's paths before the move (see
-`references/lanes.md`).
+Write the card's paths before the move, if it has none (see **Paths and a
+shared repository**).
 
 **A bug card** is reproduced before any fix is built: the reported symptom,
 on the reporter's scenario, posted as its own comment. `references/bugs.md`
@@ -315,7 +314,7 @@ title becomes a folder and shows in tight lists, and a sequence of cards that
 share their first 40 characters can't be told apart there.
 
 **Its bar and paths go on in the same write**, on a board that verifies work
-or keeps lanes: `slipdock add <board> "<title>" --bar "…" --paths "a/**,b.md"`
+or keeps a handbook: `slipdock add <board> "<title>" --bar "…" --paths "a/**,b.md"`
 (`create_card` `bar` and `paths` over MCP). A bar written by whoever files the
 card is better than one the builder writes for itself at the claim.
 
@@ -457,7 +456,7 @@ anybody reads later:
 
    - **a pointer**: `in the evidence`, `recorded on #1819`, `see W-31`;
    - **an event the board records itself**: a rejection, a timeout, a
-     requeue, a lane refusal, a failed merge;
+     requeue, a failed merge;
    - **something this card fixed**: once fixed, nobody else trips on it;
    - **a fact about this card's code**: `Boards.move_card/4 returns :ok`,
      the new column's default; the code and its tests already say so.
@@ -723,26 +722,26 @@ With one on, the pass changes like this:
   spike*) answers its bar's question by building, and its code is never
   merged. Read `references/spikes.md` before building one.
 
-## Lanes
+## Paths and a shared repository
 
-Optional, and off unless the board or the runner has it on (the guide's line
-for the board says `lanes: on` or `lanes: advise`). In short:
-
-- write the card's paths before the claim's move, as narrow as the brief
-  allows. A job's prompt that lists the card's paths has them already: keep
-  to what it says of them;
-- stage only files under them, by name, never `git add -A`; if the work
-  needs another file, widen the paths on the card first (`slipdock edit <id>
-  --paths …`, and say why in a comment);
-- with another session in the same repository (`git status` shows changes
-  you didn't make, or `git worktree list` shows others), work in a git
-  worktree of your own unless the runner already put you in one
-  (`$SLIPDOCK_WORKTREE` is set): `git worktree add
-  ../<repo>-lanes/card-<id> -b card-<id>`.
-
-The whole of it is in `references/lanes.md`: read it when you write a card's
-paths yourself, when a move or a paths edit is refused over an overlap, or
-when the prompt's *Lanes* block names a card whose paths overlap this one's.
+- **Paths.** A card's paths are the files its work touches, as globs
+  relative to the repository (`slipdock edit <id> --paths
+  "lib/foo/**,test/foo/**"`). They decide which handbook rules the card
+  carries and what its profile is inferred from. A job's prompt that lists
+  the card's paths has them already. When the work goes beyond them, widen
+  them on the card (`slipdock edit <id> --paths …`, and say why in a
+  comment) so its rules and profile stay right.
+- **Stage files by name**, never `git add -A` or `.`, and check `git status`
+  before committing: anything else in the working tree is somebody else's.
+- **Another session in the same repository** (another pass, a runner, a
+  person: `git status` shows changes you didn't make, or `git worktree list`
+  shows others): work in a git worktree of your own unless the runner
+  already put you in one (`$SLIPDOCK_WORKTREE` is set). `git worktree add
+  ../<repo>-lanes/card-<id> -b card-<id>`, do the work and commit there,
+  then rebase on the default branch and push (`git push origin
+  HEAD:<default-branch>`). Remove the worktree when the card closes clean.
+  Check the latest migration number in the default branch right before
+  committing one.
 
 ## Handing a card back
 
