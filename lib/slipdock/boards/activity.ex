@@ -82,6 +82,25 @@ defmodule Slipdock.Boards.Activity do
   defp via_name("runner"), do: "Runner"
   defp via_name(_), do: "Agent"
 
+  @doc """
+  Who an entry names, for a reader outside the web UI (#3189): `%{kind:,
+  name:}`, the kind as recorded and the name as it was at the time. A
+  blank name reads as its kind ("Agent", "Automation", "Email", "System");
+  a row from before #1735 has no kind and reads as "Someone", as the
+  Activity panel shows it. The user's id is left out: the API's reader
+  may not be allowed to see who an id belongs to.
+  """
+  def actor(%__MODULE__{actor_kind: kind, actor_name: name}) when kind in @actor_kinds,
+    do: %{kind: kind, name: present(name) || default_name(kind)}
+
+  def actor(%__MODULE__{}), do: %{kind: nil, name: "Someone"}
+
+  defp default_name("person"), do: "A deleted user"
+  defp default_name("agent"), do: "Agent"
+  defp default_name("automation"), do: "Automation"
+  defp default_name("email"), do: "Email"
+  defp default_name("system"), do: "System"
+
   # A runner job's agent is named for its loop, as the card shows it
   # (#2028): "Dev server loop", not the token's label. A job id that names
   # no job, or a job with no runner name, falls back to the label.

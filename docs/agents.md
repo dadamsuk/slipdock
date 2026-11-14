@@ -1140,6 +1140,16 @@ The findings below them are reference, triaged by hand when wanted with
 --into <id>`, `GET /api/boards/:board/findings`; see
 [the manual](manual/findings.md).
 
+**Who did it.** Each entry of a board's activity log (`slipdock activity
+<board>`, `GET /api/boards/:board/activity`, MCP `activity`) carries its
+`actor`: `kind`, one of `person`, `agent`, `automation`, `email` or
+`system`, and `name`, the name it had then (the person's, an agent's loop
+or token label, the rule's). An entry from before actors were recorded has
+`kind` null and the name `Someone`. The user's id is not given. A card moved
+by a person reads as theirs, so look for the automation only when the actor
+says `automation`. `slipdock activity` puts the name before each line:
+`2026-11-14 18:28  dedev loop moved …`.
+
 **The ledger.** What shipped on a board tree since a time, for a person to
 skim instead of approving each card: each card completed, accepted, merged or
 deployed, with who accepted it (`accepted_by`: a person or an agent; `audit`

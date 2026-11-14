@@ -292,14 +292,28 @@ defmodule SlipdockCLI.Render do
     )
   end
 
+  @doc """
+  `slipdock activity`: one line an entry, when, who and what (#3189), who
+  read as the web UI's Activity panel reads it: the person or agent by
+  name, a rule as `Automation: <name>`, a row from before actors were
+  recorded as "Someone". A server too old to send `actor` gives the
+  message alone.
+  """
   def activity(items) do
     Enum.each(items, fn a ->
       IO.puts(
         dim(String.slice(a["at"] || "", 0, 16) |> String.replace("T", " ")) <>
-          "  " <> a["message"]
+          "  " <> who(a["actor"]) <> a["message"]
       )
     end)
   end
+
+  defp who(%{"kind" => "automation", "name" => "Automation"}), do: "Automation "
+  defp who(%{"kind" => "automation", "name" => name}), do: "Automation: #{name} "
+  defp who(%{"kind" => "email", "name" => "Email"}), do: "Email "
+  defp who(%{"kind" => "email", "name" => name}), do: "Email from #{name} "
+  defp who(%{"name" => name}) when is_binary(name) and name != "", do: name <> " "
+  defp who(_), do: ""
 
   # `slipdock pulse`: the board's flow numbers, then each list's traffic.
   @doc """
