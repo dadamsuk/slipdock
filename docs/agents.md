@@ -1350,7 +1350,11 @@ stage and the failing run, and Slipdock files one `critical` fix card on
 top of the root's ready list naming the batch's cards. While held,
 Release now is refused (saying why, with the run), the age cap asks for
 nothing and a critical merge other than the fix card asks for nothing.
-The fix card merging lifts the hold and releases. A deploy that succeeds
+The fix card merging lifts the hold and releases. A fix card accepted
+with no code (the cause was outside the repository: `slipdock done <card>
+--no-code "<why>"`) lifts the hold and releases nothing: the held batch
+goes at the next trigger (Release now, a critical merge or the age cap).
+A deploy that succeeds
 to the held environment at the hold's `sha` or past it (its commits name
 it: the failed run rerun, or a later release) lifts it too (#2996), and
 the board's activity says so; the fix card is archived if nothing had

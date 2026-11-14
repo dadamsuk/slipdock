@@ -2562,7 +2562,11 @@ and linking the failing run. Held, *Release now* is refused (`409`,
 the refusal saying why with the run), the age cap asks for nothing, a
 queued follow-up is dropped, and a critical card that isn't the fix
 card asks for nothing (the board's activity says so). When the fix card
-merges the hold lifts and its critical trigger releases. A deploy that
+merges the hold lifts and its critical trigger releases. When it is
+accepted with no code (`evidence_no_code`: the cause was outside the
+repository) the hold lifts and nothing is released: the held batch goes
+at the next trigger (*Release now*, a critical merge or the age cap).
+A deploy that
 succeeds to the held environment at the hold's `sha`, or with it among
 its `commits` (the failed run rerun, or a later release), lifts it too
 (#2996), with a line in the board's activity: the fix card is archived

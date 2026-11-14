@@ -173,7 +173,7 @@ defmodule SlipdockWeb.API.JSON do
   A hold on a tree's releases after a red release (#2838,
   `Slipdock.Releases.hold/1`): the `reason`, the `stage` that failed, the
   failing `run_url`, the `sha`, the failed `deployment_id`, the batch's
-  `card_ids`, the `fix_card_id` whose merge lifts it, `held_at` and `text`,
+  `card_ids`, the `fix_card_id` whose merge (or no-code acceptance, #2993) lifts it, `held_at` and `text`,
   the whole of it in words. Null while releases run.
   """
   def release_hold(nil), do: nil

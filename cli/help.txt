@@ -1188,9 +1188,11 @@ WRITE
                                                  and more join that. The board owner's. Refused
                                                  while a red release holds releases (#2838)
       --lift-hold                                lift that hold instead (the owner's); releases
-                                                 nothing. The fix card's merge lifts it too,
-                                                 and so does a succeeded deploy at the held
-                                                 sha or past it (#2996)
+                                                 nothing. The fix card's merge lifts it too
+                                                 (and releases); accepted with no code, the fix
+                                                 card lifts it and releases nothing. So does a
+                                                 succeeded deploy at the held sha or past it
+                                                 (#2996)
   releases <board>                               where its releases stand: the one running, the
                                                  one queued, the last ended, the cards awaiting
   job-progress [<id>] [--step S] [--message NOTE] renew the job's lease (a session holds it 20 min);

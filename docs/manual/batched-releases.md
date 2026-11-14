@@ -110,7 +110,11 @@ batch's cards and linking the run. While held, *Release now* is refused
 and says why, the age cap asks for nothing, a queued follow-up is dropped,
 and a critical card that isn't the fix card asks for nothing (the board's
 activity says so). When the fix card merges the hold lifts and its
-critical trigger releases. A deploy that succeeds to the held environment
+critical trigger releases. When the cause was outside the repository and
+the fix card is accepted with no code (`slipdock done <card> --no-code`),
+the hold lifts and nothing is released: nothing new merged, so the held
+batch goes at the next trigger (*Release now*, a critical merge or the age
+cap), and the fix card says so. A deploy that succeeds to the held environment
 at the held sha, or with it among its commits (the failed run rerun, or a
 later release), lifts the hold too, and the board's activity says so: the
 fix card is archived if nothing has started on it (it is still in the

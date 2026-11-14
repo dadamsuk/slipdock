@@ -4,7 +4,8 @@ defmodule Slipdock.ReleaseHoldTest do
   batched tree holds its releases and files one critical fix card; held,
   Release now and the age cap are refused and a critical merge asks for
   nothing; the fix card's merge lifts the hold and releases, and the owner
-  can lift it by hand, which releases nothing.
+  can lift it by hand, which releases nothing, as the fix card accepted
+  with no code does (#2993).
   """
   use Slipdock.DataCase, async: true
 
@@ -286,8 +287,15 @@ defmodule Slipdock.ReleaseHoldTest do
       assert fix.description =~ "No merged card was named in it."
 
       assert Releases.held_text(hold) ==
-               "the release failed; fix card ##{fix.id} releases when it merges, " <>
+               "the release failed; fix card ##{fix.id} releases when it merges " <>
+                 "(accepted with no code, it lifts the hold and releases nothing), " <>
                  "or the board's owner lifts the hold"
+
+      assert fix.description =~ "until this card merges, which lifts the hold and releases"
+
+      assert fix.description =~
+               "accepted with no code, that lifts the hold and releases nothing: " <>
+                 "the batch goes at the next trigger"
     end
 
     test "a root with no ready list files the card in its first list", ctx do
@@ -408,6 +416,7 @@ defmodule Slipdock.ReleaseHoldTest do
       assert text =~ "releases are held: the release failed at deploy"
       assert text =~ @run
       assert text =~ "fix card ##{ctx.fix.id} releases when it merges"
+      assert text =~ "accepted with no code, it lifts the hold and releases nothing"
       assert Repo.aggregate(Request, :count) == 0
     end
 
@@ -467,13 +476,77 @@ defmodule Slipdock.ReleaseHoldTest do
       assert Releases.hold(ctx.board) == nil
     end
 
-    test "the fix card accepted with nothing merged lifts nothing", ctx do
+    test "the fix card accepted with no code lifts the hold and releases nothing (#2993)",
+         ctx do
+      waiting = merged!(ctx.todo, "Waited behind the hold")
+
+      Repo.update_all(from(c in Card, where: c.id == ^ctx.fix.id),
+        set: [completed: true, verify_state: "accepted"]
+      )
+
+      Releases.subscribe(ctx.board)
+      assert Releases.card_merged(Repo.get!(Card, ctx.fix.id)) == :ok
+      assert Releases.hold(ctx.board) == nil
+      assert Repo.aggregate(Request, :count) == 0
+      assert Releases.status(ctx.board).running == nil
+      # An open board's banner hears the hold go.
+      board_id = ctx.board.id
+      assert_receive {:release_changed, ^board_id}
+
+      line = List.last(activity(ctx.board))
+      assert line =~ "Release hold lifted: fix card ##{ctx.fix.id} accepted with no code"
+      assert line =~ "Nothing was released: the held batch goes at the next trigger."
+
+      # The held batch goes at the next trigger, as before the hold.
+      assert {:ok, :started, request} = Releases.release_now(ctx.board, "Dana")
+      assert waiting.id in request.card_ids
+    end
+
+    test "the fix card accepted with a no-code reason lifts only, whatever commit its " <>
+           "verifier named",
+         ctx do
+      Repo.update_all(from(c in Card, where: c.id == ^ctx.fix.id),
+        set: [
+          completed: true,
+          verify_state: "accepted",
+          verify_commit: "abc0001",
+          evidence_no_code: "the cause was a credential, outside the repository"
+        ]
+      )
+
+      assert Releases.card_merged(Repo.get!(Card, ctx.fix.id)) == :ok
+      assert Releases.hold(ctx.board) == nil
+      assert Repo.aggregate(Request, :count) == 0
+    end
+
+    test "the fix card not accepted lifts nothing", ctx do
+      assert Releases.card_merged(Repo.get!(Card, ctx.fix.id)) == :ok
+      assert Releases.hold(ctx.board)["fix_card_id"] == ctx.fix.id
+      refute Enum.any?(activity(ctx.board), &(&1 =~ "Release hold lifted"))
+    end
+
+    test "another card accepted with no code lifts nothing", ctx do
+      other = card_fixture(ctx.todo, %{"title" => "A sweep", "priority" => "critical"})
+
+      Repo.update_all(from(c in Card, where: c.id == ^other.id),
+        set: [completed: true, verify_state: "accepted"]
+      )
+
+      assert Releases.card_merged(Repo.get!(Card, other.id)) == :ok
+      assert Releases.hold(ctx.board)["fix_card_id"] == ctx.fix.id
+      assert Repo.aggregate(Request, :count) == 0
+    end
+
+    test "a tree set back to releasing on merge: the fix card accepted with no code is left alone",
+         ctx do
+      {:ok, _} = Boards.update_board(ctx.board, %{"release_mode" => "on_merge"})
+
       Repo.update_all(from(c in Card, where: c.id == ^ctx.fix.id),
         set: [completed: true, verify_state: "accepted"]
       )
 
       assert Releases.card_merged(Repo.get!(Card, ctx.fix.id)) == :ok
-      assert Releases.hold(ctx.board)["fix_card_id"] == ctx.fix.id
+      refute Enum.any?(activity(ctx.board), &(&1 =~ "Release hold lifted"))
     end
 
     test "lifting it by hand releases nothing; lifting again is refused", ctx do
@@ -684,6 +757,72 @@ defmodule Slipdock.ReleaseHoldTest do
       assert said =~ "Release hold lifted"
       refute said =~ "Fix card"
       assert Repo.get!(Card, ctx.fix.id).archived_at == nil
+    end
+  end
+
+  describe "the fix card accepted through verified work (#2993)" do
+    setup ctx do
+      {:ok, board} =
+        Boards.update_board(ctx.board, %{
+          "verify_work" => true,
+          "evidence_required" => true,
+          "ship_via" => "pull_request"
+        })
+
+      red!(board, "deploy")
+      [fix] = fix_cards(board)
+
+      agent = fn name ->
+        %{
+          Slipdock.Actor.unknown()
+          | kind: "agent",
+            via: "api",
+            user_id: ctx.owner.id,
+            agent: name
+        }
+      end
+
+      %{board: board, fix: fix, builder: agent.("builder"), checker: agent.("checker")}
+    end
+
+    test "completed --no-code and accepted: the hold lifts, nothing is asked, the card is done",
+         ctx do
+      waiting = merged!(ctx.todo, "Waited behind the hold")
+
+      {:ok, %{verify_state: "pending"}} =
+        Boards.Cards.update_card(
+          Repo.get!(Card, ctx.fix.id),
+          %{
+            "completed" => true,
+            "evidence" => "the trust credential was renewed",
+            "evidence_no_code" => "the cause was a credential, outside the repository"
+          },
+          actor: ctx.builder
+        )
+
+      # Submitted, not accepted: still held.
+      assert Releases.hold(ctx.board)["fix_card_id"] == ctx.fix.id
+
+      assert {:ok, card} =
+               Slipdock.Verified.decide(
+                 Repo.get!(Card, ctx.fix.id),
+                 "accept",
+                 %{},
+                 ctx.checker,
+                 ctx.owner
+               )
+
+      assert card.completed
+      assert card.verify_state == "accepted"
+      assert Releases.hold(ctx.board) == nil
+      assert Repo.aggregate(Request, :count) == 0
+      assert Repo.all(from(j in Job, where: j.kind == "release")) == []
+
+      assert List.last(activity(ctx.board)) =~
+               "Release hold lifted: fix card ##{ctx.fix.id} accepted with no code"
+
+      assert [%{id: id}] = Releases.status(ctx.board).awaiting
+      assert id == waiting.id
     end
   end
 
