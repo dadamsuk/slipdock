@@ -4,6 +4,8 @@ defmodule SlipdockWeb.AccountLive.ProfileComponent do
   in. Passkeys and signing out are in Sign-in & passkeys (#1737).
   """
   use SlipdockWeb, :live_component
+
+  import SlipdockWeb.ComponentFlash, only: [flash: 3]
   alias SlipdockWeb.Dates
 
   alias Slipdock.Accounts
@@ -36,10 +38,11 @@ defmodule SlipdockWeb.AccountLive.ProfileComponent do
       {:ok, user} ->
         # The header shows the name too, so the page needs the new user.
         send(self(), {:current_user, user})
-        send(self(), {:flash, :info, "Profile saved."})
 
         {:noreply,
-         assign(socket, current_user: user, profile_form: to_form(Accounts.change_profile(user)))}
+         socket
+         |> assign(current_user: user, profile_form: to_form(Accounts.change_profile(user)))
+         |> flash(:info, "Profile saved.")}
 
       {:error, cs} ->
         {:noreply, assign(socket, profile_form: to_form(cs))}

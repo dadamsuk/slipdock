@@ -278,8 +278,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent.FieldEvents do
           {:noreply, socket}
 
         {:error, reason} ->
-          send(self(), {:put_flash, :error, Slipdock.Transcription.describe(reason)})
-          {:noreply, socket}
+          {:noreply, notice(socket, :error, Slipdock.Transcription.describe(reason))}
       end
     else
       {:noreply, socket}
@@ -287,12 +286,12 @@ defmodule SlipdockWeb.BoardLive.CardComponent.FieldEvents do
   end
 
   def handle_event("read_text", %{"id" => id}, socket) do
-    if attachment = card_attachment(socket, id) do
-      with {:error, reason} <- Slipdock.OCR.retry(attachment),
-           do: send(self(), {:put_flash, :error, Slipdock.OCR.describe(reason)})
+    with %{} = attachment <- card_attachment(socket, id),
+         {:error, reason} <- Slipdock.OCR.retry(attachment) do
+      {:noreply, notice(socket, :error, Slipdock.OCR.describe(reason))}
+    else
+      _ -> {:noreply, socket}
     end
-
-    {:noreply, socket}
   end
 
   # The card's own attachment, or nil: the id is the client's, and may name

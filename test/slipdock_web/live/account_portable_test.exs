@@ -133,6 +133,8 @@ defmodule SlipdockWeb.AccountPortableTest do
       html = view |> element("#import-boards") |> render_submit()
 
       assert html =~ "1 card(s) and 0 page(s) came in"
+      # Sent up to the page, which draws it (#2895).
+      assert has_element?(view, "#flash-info", "Imported 1 card(s).")
       # A new board rather than a merge into the one already here.
       assert length(owned(user)) == 2
     end

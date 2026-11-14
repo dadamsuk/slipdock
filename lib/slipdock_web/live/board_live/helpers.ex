@@ -18,12 +18,10 @@ defmodule SlipdockWeb.BoardLive.Helpers do
   @doc """
   A flash from one of the board's LiveComponents. A component's own
   `put_flash/3` only reaches the page when it also redirects, so the board's
-  components hand theirs to the LiveView they run in, which shows it.
+  components hand theirs to the LiveView they run in, which shows it
+  (`SlipdockWeb.ComponentFlash`, the one helper every component uses).
   """
-  def flash(socket, kind, message) do
-    send(self(), {:put_flash, kind, message})
-    socket
-  end
+  defdelegate flash(socket, kind, message), to: SlipdockWeb.ComponentFlash
 
   @doc """
   What a panel action says (a refusal, a result), for the panel that ran it

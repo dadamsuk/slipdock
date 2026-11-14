@@ -6,6 +6,8 @@ defmodule SlipdockWeb.AccountLive.SettingsComponent do
   """
   use SlipdockWeb, :live_component
 
+  import SlipdockWeb.ComponentFlash, only: [flash: 3]
+
   alias Slipdock.Accounts
   alias Slipdock.AI
   alias Slipdock.HeaderLinks
@@ -183,12 +185,6 @@ defmodule SlipdockWeb.AccountLive.SettingsComponent do
   end
 
   defp board_switch(params, _user), do: params
-
-  # Flashes belong to the page, which draws them, so they go up to it.
-  defp flash(socket, kind, message) do
-    send(self(), {:flash, kind, message})
-    socket
-  end
 
   @impl true
   def handle_event("change_quick_add", %{"user" => params}, socket) do
