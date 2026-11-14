@@ -60,11 +60,27 @@ defmodule SlipdockWeb.HeaderLinksLiveTest do
     assert has_element?(view, "#header-links-settings")
     refute has_element?(view, "#header-links")
 
+    # Before a pick: the first icon is checked and no target is chosen.
+    first_icon = hd(HeaderLinks.icons())
+    refute first_icon == "light-bulb"
+    assert has_element?(view, ~s|#header-link-form-0 input[value="#{first_icon}"][checked]|)
+    refute has_element?(view, "#header-link-form-0 option[selected]")
+
     view
     |> form("#header-link-form-0", %{
       "header_link" => %{"target" => "vault:#{vault.id}", "icon" => "light-bulb"}
     })
     |> render_change()
+
+    # The pick is kept (#3109): the re-render doesn't put the form back.
+    assert has_element?(
+             view,
+             ~s|#header-link-form-0 option[value="vault:#{vault.id}"][selected]|
+           )
+
+    assert has_element?(view, ~s|#header-link-form-0 input[value="light-bulb"][checked]|)
+    refute has_element?(view, ~s|#header-link-form-0 input[value="#{first_icon}"][checked]|)
+    assert HeaderLinks.list(user) == []
 
     view
     |> form("#header-link-form-0", %{
@@ -112,6 +128,43 @@ defmodule SlipdockWeb.HeaderLinksLiveTest do
     assert Enum.map(HeaderLinks.list(user), & &1.id) == [b.id]
     refute has_element?(view, "#header-link-#{a.id}")
     refute has_element?(view, "#header-link-row-#{a.id}")
+  end
+
+  test "settings moves a link to the right, and the header follows",
+       %{conn: conn, user: user, plan: plan, vault: vault} do
+    {:ok, a} = HeaderLinks.add(user, plan, "star")
+    {:ok, b} = HeaderLinks.add(user, vault, "flag")
+    {:ok, view, _} = live(conn, ~p"/account/settings")
+
+    # The last one has nowhere to go to the right.
+    assert has_element?(
+             view,
+             ~s(#header-link-row-#{b.id} button[phx-value-direction="right"][disabled])
+           )
+
+    view
+    |> element(~s(#header-link-row-#{a.id} button[phx-value-direction="right"]))
+    |> render_click()
+
+    assert Enum.map(HeaderLinks.list(user), & &1.id) == [b.id, a.id]
+    html = render(view)
+    {b_at, _} = :binary.match(html, ~s(id="header-link-#{b.id}"))
+    {a_at, _} = :binary.match(html, ~s(id="header-link-#{a.id}"))
+    assert b_at < a_at
+    {b_row_at, _} = :binary.match(html, ~s(id="header-link-row-#{b.id}"))
+    {a_row_at, _} = :binary.match(html, ~s(id="header-link-row-#{a.id}"))
+    assert b_row_at < a_row_at
+
+    # Now `a` is last, and it is `b` that can move right.
+    assert has_element?(
+             view,
+             ~s(#header-link-row-#{a.id} button[phx-value-direction="right"][disabled])
+           )
+
+    refute has_element?(
+             view,
+             ~s(#header-link-row-#{b.id} button[phx-value-direction="right"][disabled])
+           )
   end
 
   # #2875: the ids came through String.to_integer/1, which crashed the page.

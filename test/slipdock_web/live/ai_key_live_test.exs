@@ -172,6 +172,46 @@ defmodule SlipdockWeb.AIKeyLiveTest do
       assert Keys.model(user) == nil
     end
 
+    # #3109: the lookup itself crashing, which no answer from the endpoint
+    # covers. Without the arm for it the "asking…" line never clears.
+    test "a models lookup that raises says so, and the button works again", %{
+      conn: conn,
+      user: user
+    } do
+      Req.Test.stub(Slipdock.AI, fn _conn -> raise "the lookup blew up" end)
+      :ok = Keys.put_settings(user, %{base_url: "http://box.local:1234/v1"})
+
+      {:ok, view, _html} = live(conn, ~p"/account/settings")
+      button = element(view, "button[phx-click=list_ai_models]")
+
+      {html, log} =
+        ExUnit.CaptureLog.with_log(fn ->
+          assert render_click(button) =~ "asking http://box.local:1234/v1…"
+          render_async(view)
+        end)
+
+      assert html =~ "Couldn&#39;t list the models"
+      assert html =~ "the lookup blew up"
+      assert log =~ "the lookup blew up"
+      # No longer asking, and nothing listed or stored.
+      refute html =~ "asking http://box.local:1234/v1…"
+      assert html =~ "Save the endpoint first"
+      refute has_element?(view, "form[phx-submit=save_ai_model]")
+      assert render(button) =~ "List models"
+      assert Keys.model(user) == nil
+
+      # The endpoint comes back: the same button lists, and the error goes.
+      Slipdock.AIStub.stub_models(["local/big", "local/small"])
+      render_click(button)
+      html = render_async(view)
+
+      assert html =~ "2 model(s)"
+      refute html =~ "Couldn&#39;t list the models"
+      refute html =~ "asking http://box.local:1234/v1…"
+      assert has_element?(view, ~s|form[phx-submit=save_ai_model] option[value="local/small"]|)
+      assert render(button) =~ "Refresh model list"
+    end
+
     test "a shared server key is said so, rather than looking like your own", %{conn: conn} do
       Slipdock.TestConfig.merge(:ai, api_key: "sk-shared")
 
