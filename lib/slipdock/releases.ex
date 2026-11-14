@@ -49,7 +49,10 @@ defmodule Slipdock.Releases do
   dropped, and a critical card that isn't the fix card asks for nothing.
   The fix card merging lifts the hold and releases (`card_merged/1`); the
   board's owner can lift it by hand (`lift_hold/2`), which releases
-  nothing. A second red release while held keeps the first hold and files
+  nothing. A succeeded deploy of the tree to the held environment at the
+  hold's sha or newer (the failed run rerun, or a later release) lifts it
+  too (#2996): the fix card is archived if nobody has started it, else
+  told. A second red release while held keeps the first hold and files
   no second card. A release job that failed to fire, a backfilled deploy
   and a board that releases on merge hold nothing.
   """
@@ -582,6 +585,9 @@ defmodule Slipdock.Releases do
     if deployment.status == "failed" and root.release_mode == "batched",
       do: hold_on(root, deployment, open(root_id, "running"))
 
+    # Lifted before the request ends, so its follow-up can start (#2996).
+    if deployment.status == "succeeded", do: deployed_past_hold(root, deployment)
+
     case open(root_id, "running") do
       nil ->
         :ok
@@ -883,6 +889,101 @@ defmodule Slipdock.Releases do
       "refused until this card merges, which lifts the hold and releases, or the " <>
       "board's owner lifts it by hand.\n\n**The batch**\n\n#{batch}"
   end
+
+  # A succeeded deploy that holds the failed release's tree (#2996): to the
+  # held environment, at the hold's sha or with it among its commits (they
+  # run from the environment's last succeeded deploy, so a later release
+  # names it). It lifts the hold, and the fix card has nothing left to do.
+  defp deployed_past_hold(root, %Deployment{} = deployment) do
+    with %{} = hold <- current_hold(root.id),
+         true <- past_hold?(hold, deployment),
+         {:lifted, hold} <- locked(root, fn -> clear_hold_of(root, hold) end) do
+      fix = fix_card_settled(hold, deployment)
+      at = if(same_sha?(hold["sha"], deployment.sha), do: "at the held sha", else: "past it")
+      run = if(deployment.run_url, do: " (#{deployment.run_url})", else: "")
+
+      log(
+        root,
+        "Release hold lifted: `#{short(deployment.sha)}` deployed to " <>
+          "#{deployment.environment}#{run}, #{at} (#{hold["reason"]}).#{fix}"
+      )
+
+      broadcast(root)
+    else
+      _ -> :ok
+    end
+  end
+
+  defp past_hold?(%{"sha" => sha} = hold, %Deployment{} = deployment) when is_binary(sha) do
+    same_environment?(hold, deployment) and
+      (same_sha?(sha, deployment.sha) or
+         Enum.any?(deployment.commits, &same_sha?(sha, &1["sha"])))
+  end
+
+  defp past_hold?(_hold, _deployment), do: false
+
+  defp same_environment?(hold, %Deployment{environment: environment}) do
+    case hold["deployment_id"] && Repo.get(Deployment, hold["deployment_id"]) do
+      %Deployment{environment: held} -> held == environment
+      nil -> true
+    end
+  end
+
+  # Full or abbreviated: one sha is the start of the other.
+  defp same_sha?(a, b) when is_binary(a) and is_binary(b) and a != "" and b != "",
+    do: String.starts_with?(a, b) or String.starts_with?(b, a)
+
+  defp same_sha?(_a, _b), do: false
+
+  defp short(sha) when is_binary(sha), do: String.slice(sha, 0, 7)
+  defp short(_sha), do: "a deploy"
+
+  # Only the hold it judged: one lifted or replaced meanwhile is left alone.
+  defp clear_hold_of(root, %{"held_at" => held_at}) do
+    case current_hold(root.id) do
+      %{"held_at" => ^held_at} -> clear_hold(root)
+      _changed -> {:error, :not_held}
+    end
+  end
+
+  # The fix card of a lifted hold: archived if it is still waiting in its
+  # ready list with no job on it, else told on the card. Says which.
+  defp fix_card_settled(%{"fix_card_id" => id}, deployment) when is_integer(id) do
+    case Repo.get(Card, id) do
+      %Card{completed: false, archived_at: nil} = card ->
+        note =
+          "**Release hold lifted.** `#{short(deployment.sha)}` deployed to " <>
+            "#{deployment.environment}" <>
+            if(deployment.run_url, do: " ([the run](#{deployment.run_url}))", else: "") <>
+            ", so releases run again."
+
+        if unstarted?(card) do
+          comment(card, note <> "\n\nNothing was started on this card, so it is archived.")
+          _ = Boards.Cards.archive_card(card, actor: Slipdock.Actor.automation())
+          " Fix card ##{id} was archived: nothing had started on it."
+        else
+          comment(card, note <> "\n\nThis card isn't needed to lift it any more.")
+          " Fix card ##{id} is under way, so it was told and left open."
+        end
+
+      _done_or_gone ->
+        ""
+    end
+  end
+
+  defp fix_card_settled(_hold, _deployment), do: ""
+
+  defp unstarted?(%Card{} = card) do
+    board = Boards.get_board!(card.board_id)
+
+    match?(%{id: id} when id == card.column_id, Slipdock.Flow.ready_list(board.columns)) and
+      not Repo.exists?(
+        from(j in Job, where: j.card_id == ^card.id and j.status in ^Job.open_statuses())
+      )
+  end
+
+  defp comment(card, body),
+    do: Boards.Comments.add_comment(card, body)
 
   @doc """
   Lifts the hold on `board`'s tree's releases by hand (#2838), in `by`'s

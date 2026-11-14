@@ -48,7 +48,8 @@
   default <code>gh workflow run</code>
   runs only on a machine whose <code>local.json</code>
   lists it under <code>release_commands</code>. A red release holds the next one and files a
-  critical fix card: fix that card, and its merge releases; only the owner lifts a hold by
+  critical fix card: fix that card, and its merge releases; a deploy that succeeds at the
+  held sha or past it (the failed run rerun) lifts it too; only the owner lifts a hold by
   hand. <em>Not shipped</em>
   counts from the release there, never from the merge, so a card awaiting release is not
   late.

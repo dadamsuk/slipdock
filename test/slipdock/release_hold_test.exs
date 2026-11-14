@@ -493,6 +493,200 @@ defmodule Slipdock.ReleaseHoldTest do
     end
   end
 
+  describe "a succeeded deploy past the hold (#2996)" do
+    setup ctx do
+      held = red!(ctx.board, "deploy")
+      [fix] = fix_cards(ctx.board)
+      %{held: held, fix: fix}
+    end
+
+    defp deployed!(board, sha, extra \\ %{}) do
+      {:ok, deployment} =
+        Deployments.start(
+          board,
+          Map.merge(
+            %{
+              environment: "production",
+              sha: sha,
+              status: "succeeded",
+              run_url: @run,
+              started_at: DateTime.utc_now(),
+              finished_at: DateTime.utc_now()
+            },
+            extra
+          )
+        )
+
+      deployment
+    end
+
+    defp comments(card),
+      do:
+        Repo.all(from(c in Slipdock.Boards.Comment, where: c.card_id == ^card.id, select: c.body))
+
+    test "the failed run rerun: the same sha deployed lifts it, archives the unstarted fix card " <>
+           "and says so",
+         ctx do
+      # A rerun's deploy job starts its own row and finishes it succeeded.
+      started = started!(ctx.board, ctx.held.sha)
+      {:ok, _} = Deployments.finish(ctx.board, started.id, "succeeded")
+
+      assert Releases.hold(ctx.board) == nil
+      assert Releases.line(Releases.status(ctx.board)) == nil
+
+      said = List.last(activity(ctx.board))
+      assert said =~ "Release hold lifted: `#{String.slice(ctx.held.sha, 0, 7)}` deployed"
+      assert said =~ "to production, at the held sha"
+      assert said =~ "(the release failed at deploy)"
+      assert said =~ "Fix card ##{ctx.fix.id} was archived: nothing had started on it."
+
+      fix = Repo.get!(Card, ctx.fix.id)
+      assert fix.archived_at
+      assert [note] = comments(fix)
+      assert note =~ "**Release hold lifted.**"
+      assert note =~ "so it is archived"
+
+      # Releases run again, and lifted is lifted: nothing asks.
+      assert Repo.aggregate(Request, :count) == 0
+      assert {:ok, :started, _} = Releases.release_now(ctx.board, "Dana")
+    end
+
+    test "a later release, whose commits include the held sha, lifts it as past it", ctx do
+      deployed!(ctx.board, "abcdef1234", %{
+        commits: [
+          %{sha: "abcdef1234", subject: "The fix"},
+          %{sha: ctx.held.sha, subject: "The release that failed"}
+        ]
+      })
+
+      assert Releases.hold(ctx.board) == nil
+
+      assert List.last(activity(ctx.board)) =~
+               "`abcdef1` deployed to production (#{@run}), past it"
+    end
+
+    test "an abbreviated sha of the held one lifts it", ctx do
+      full = ctx.held.sha <> "00"
+
+      Repo.update_all(from(b in Board, where: b.id == ^ctx.board.id),
+        set: [release_hold: %{Releases.hold(ctx.board) | "sha" => full}]
+      )
+
+      deployed!(ctx.board, ctx.held.sha)
+      assert Releases.hold(ctx.board) == nil
+    end
+
+    test "a fix card already under way is told and left open", ctx do
+      doing = Enum.find(ctx.board.columns, &Slipdock.Flow.doing_list?/1)
+      Repo.update_all(from(c in Card, where: c.id == ^ctx.fix.id), set: [column_id: doing.id])
+
+      deployed!(ctx.board, ctx.held.sha)
+
+      assert Releases.hold(ctx.board) == nil
+      fix = Repo.get!(Card, ctx.fix.id)
+      assert fix.archived_at == nil
+      assert [note] = comments(fix)
+      assert note =~ "isn't needed to lift it any more"
+
+      assert List.last(activity(ctx.board)) =~
+               "Fix card ##{ctx.fix.id} is under way, so it was told and left open."
+    end
+
+    test "a fix card in the ready list with a job queued for it is under way too", ctx do
+      working_job_fixture(ctx.fix, status: "queued")
+
+      deployed!(ctx.board, ctx.held.sha)
+
+      assert Repo.get!(Card, ctx.fix.id).archived_at == nil
+      assert List.last(activity(ctx.board)) =~ "is under way"
+    end
+
+    test "a fix card already done is left alone, and the line says nothing of it", ctx do
+      Repo.update_all(from(c in Card, where: c.id == ^ctx.fix.id), set: [completed: true])
+
+      deployed!(ctx.board, ctx.held.sha)
+
+      assert Releases.hold(ctx.board) == nil
+      assert comments(Repo.get!(Card, ctx.fix.id)) == []
+      refute List.last(activity(ctx.board)) =~ "Fix card"
+    end
+
+    test "an older or unrelated sha leaves it held", ctx do
+      deployed!(ctx.board, "0123456789", %{commits: [%{sha: "0123456789", subject: "Older"}]})
+
+      assert Releases.hold(ctx.board)["fix_card_id"] == ctx.fix.id
+      assert Repo.get!(Card, ctx.fix.id).archived_at == nil
+      refute Enum.any?(activity(ctx.board), &(&1 =~ "Release hold lifted"))
+    end
+
+    test "the held sha deployed to another environment leaves it held", ctx do
+      deployed!(ctx.board, ctx.held.sha, %{environment: "staging"})
+      assert Releases.hold(ctx.board)
+    end
+
+    test "a deploy of the held sha still started, or backfilled, leaves it held", ctx do
+      started!(ctx.board, ctx.held.sha)
+
+      deployed!(ctx.board, "abcdef5678", %{
+        source: "backfill",
+        commits: [%{sha: ctx.held.sha, subject: "The release that failed"}]
+      })
+
+      assert Releases.hold(ctx.board)
+    end
+
+    test "a hold with no sha is lifted only by its fix card or by hand", ctx do
+      Repo.update_all(from(b in Board, where: b.id == ^ctx.board.id),
+        set: [release_hold: %{Releases.hold(ctx.board) | "sha" => nil}]
+      )
+
+      deployed!(ctx.board, ctx.held.sha)
+      assert Releases.hold(ctx.board)
+    end
+
+    test "a hold with an empty sha is not lifted by an unrelated deploy", ctx do
+      Repo.update_all(from(b in Board, where: b.id == ^ctx.board.id),
+        set: [release_hold: %{Releases.hold(ctx.board) | "sha" => ""}]
+      )
+
+      deployed!(ctx.board, "0123456789", %{commits: [%{sha: "0123456789", subject: "Older"}]})
+
+      assert Releases.hold(ctx.board)
+      refute Enum.any?(activity(ctx.board), &(&1 =~ "Release hold lifted"))
+    end
+
+    # The failed deploy's row can be gone (its sub-board deleted): the hold
+    # can't say which environment it was, so the held sha anywhere lifts it.
+    for {label, gone} <- [{"no deploy row named", nil}, {"its deploy row gone", -1}] do
+      test "a hold with #{label} is lifted by the held sha deployed", ctx do
+        Repo.update_all(from(b in Board, where: b.id == ^ctx.board.id),
+          set: [release_hold: %{Releases.hold(ctx.board) | "deployment_id" => unquote(gone)}]
+        )
+
+        deployed!(ctx.board, ctx.held.sha)
+
+        assert Releases.hold(ctx.board) == nil
+        assert List.last(activity(ctx.board)) =~ "Release hold lifted"
+      end
+    end
+
+    # The fix card failed to file, or the deploy landed before it was named.
+    test "a hold with no fix card is lifted, and the line names none", ctx do
+      Repo.update_all(from(b in Board, where: b.id == ^ctx.board.id),
+        set: [release_hold: %{Releases.hold(ctx.board) | "fix_card_id" => nil}]
+      )
+
+      started = started!(ctx.board, ctx.held.sha)
+      assert {:ok, _} = Deployments.finish(ctx.board, started.id, "succeeded")
+
+      assert Releases.hold(ctx.board) == nil
+      said = List.last(activity(ctx.board))
+      assert said =~ "Release hold lifted"
+      refute said =~ "Fix card"
+      assert Repo.get!(Card, ctx.fix.id).archived_at == nil
+    end
+  end
+
   describe "holds nothing" do
     test "a release job that failed to fire", ctx do
       {:ok, :started, _request} = Releases.request(ctx.board, "manual", "Dana")

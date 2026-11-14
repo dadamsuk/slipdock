@@ -307,7 +307,9 @@
       lists it, word for word, under <code>release_commands</code>. A red release (its suite,
       build or deploy failing) holds releases: the banner says why, with the failing run,
       and a critical fix card goes on top of the ready list. Its merge lifts the hold and
-      releases; the owner can also press <em>Lift hold</em>, which releases nothing.
+      releases. A deploy that succeeds at the held sha or past it (the failed run rerun, or a
+      later release) lifts it too, and archives the fix card if nothing had started on it;
+      the owner can also press <em>Lift hold</em>, which releases nothing.
     </li>
     <li>
       <strong>Who gets asked</strong>: Agentic Building → <em>Who gets asked</em>
