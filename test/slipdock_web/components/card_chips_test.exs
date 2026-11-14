@@ -392,15 +392,33 @@ defmodule SlipdockWeb.Components.CardChipsTest do
     end
 
     test "take the zone the process was given when none is passed (#2879)" do
+      # What `date_range_badge/1` does: no `zone:`, so the zone is the one the
+      # process was given. The clock is pinned to 20:00 UTC on 31 Dec 2026,
+      # when Kiritimati (UTC+14) is in 2027 and UTC is still in 2026, so the
+      # two zones write these ranges differently.
       SlipdockWeb.Dates.put_zone("Pacific/Kiritimati")
-      on_exit(fn -> SlipdockWeb.Dates.put_zone(nil) end)
-      year = SlipdockWeb.Dates.zone() |> DateTime.now!() |> DateTime.to_date() |> Map.get(:year)
+      now = ~U[2026-12-31 20:00:00Z]
 
-      assert SlipdockComponents.format_range(Date.new!(year, 6, 1), Date.new!(year, 6, 2)) ==
-               SlipdockWeb.Dates.range(Date.new!(year, 6, 1), Date.new!(year, 6, 2))
+      assert SlipdockWeb.SlipdockComponents.Schedule.format_range(
+               ~D[2027-01-02],
+               ~D[2027-01-05],
+               now: now
+             ) == "2 Jan → 5 Jan"
 
-      assert SlipdockComponents.format_range(Date.new!(year, 6, 1), Date.new!(year, 6, 2)) ==
-               "1 Jun → 2 Jun"
+      assert SlipdockWeb.SlipdockComponents.Schedule.format_range(
+               ~D[2026-12-30],
+               ~D[2027-01-05],
+               now: now
+             ) == "30 Dec 2026 → 5 Jan"
+
+      # With no zone given to the process, the same clock reads as UTC's 2026.
+      SlipdockWeb.Dates.put_zone(nil)
+
+      assert SlipdockWeb.SlipdockComponents.Schedule.format_range(
+               ~D[2026-12-30],
+               ~D[2027-01-05],
+               now: now
+             ) == "30 Dec → 5 Jan 2027"
     end
 
     test "draw nothing unless both dates are there" do
