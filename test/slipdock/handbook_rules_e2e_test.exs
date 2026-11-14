@@ -41,7 +41,8 @@ defmodule Slipdock.HandbookRulesE2ETest do
       })
     )
     |> json_response(200)
-    |> get_in(["result", "structuredContent"])
+    |> Map.fetch!("result")
+    |> mcp_data()
   end
 
   defp page(board, title), do: Enum.find(Handbook.find(board).pages, &(&1.title == title))

@@ -68,7 +68,7 @@ defmodule SlipdockWeb.MCP.AskToolTest do
     result = ask(ctx.conn, %{question: "What's happening with refunds?"})
 
     assert result["isError"] == false
-    data = result["structuredContent"]
+    data = mcp_data(result)
     assert data["question"] == "What's happening with refunds?"
     assert data["answer"] =~ "Finance are waiting"
     assert [source] = data["sources"]
@@ -91,7 +91,7 @@ defmodule SlipdockWeb.MCP.AskToolTest do
       "The runbook says how."
     ])
 
-    data = ask(ctx.conn, %{question: "How are refunds rounded?"})["structuredContent"]
+    data = mcp_data(ask(ctx.conn, %{question: "How are refunds rounded?"}))
 
     assert [%{"kind" => "page", "id" => id, "code" => code, "title" => "Refunds runbook"}] =
              data["sources"]
@@ -147,7 +147,7 @@ defmodule SlipdockWeb.MCP.AskToolTest do
     Slipdock.AIStub.reply_with("Read-only is fine.")
 
     reader = put_req_header(build_conn(), "authorization", "Bearer " <> token)
-    assert ask(reader, %{question: "anything"})["structuredContent"]["answer"] =~ "fine"
+    assert mcp_data(ask(reader, %{question: "anything"}))["answer"] =~ "fine"
   end
 
   test "a model failure comes back as a tool error", ctx do

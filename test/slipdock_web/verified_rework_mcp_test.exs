@@ -43,7 +43,7 @@ defmodule SlipdockWeb.VerifiedReworkMCPTest do
       |> Map.fetch!("result")
 
     assert result["isError"] == false, inspect(result["content"])
-    result["structuredContent"]
+    mcp_data(result)
   end
 
   test "a pending card has no rejection", ctx do

@@ -64,7 +64,8 @@ defmodule SlipdockWeb.API.PageNoteTagsTest do
         })
       )
       |> json_response(200)
-      |> get_in(["result", "structuredContent"])
+      |> Map.fetch!("result")
+      |> mcp_data()
     end
 
     pages = call.("list_pages", %{board: "brainapi", note_tag: "solo"})["pages"]

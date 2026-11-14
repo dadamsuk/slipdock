@@ -78,13 +78,13 @@ defmodule SlipdockWeb.CardTimelineAPITest do
     test "has the timeline only when asked", ctx do
       plain = as(ctx.owner) |> call(%{card: ctx.card.id})
       assert plain["isError"] == false
-      refute Map.has_key?(plain["structuredContent"], "timeline")
+      refute Map.has_key?(mcp_data(plain), "timeline")
 
       asked = as(ctx.owner) |> call(%{card: ctx.card.id, timeline: true})
       assert asked["isError"] == false
 
       assert %{"stays" => [%{"list" => "To Do"}, %{"list" => "In Progress"}]} =
-               asked["structuredContent"]["timeline"]
+               mcp_data(asked)["timeline"]
     end
   end
 

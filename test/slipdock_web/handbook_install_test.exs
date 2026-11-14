@@ -40,14 +40,14 @@ defmodule SlipdockWeb.HandbookInstallTest do
 
       first = user |> token_conn() |> mcp(%{"tool" => "handbook", "board" => board.code})
       assert first["isError"] == false, inspect(first["content"])
-      assert first["structuredContent"]["board"] == board.code
-      assert first["structuredContent"]["created"] == true
-      assert "Index" in first["structuredContent"]["added"]["pages"]
+      assert mcp_data(first)["board"] == board.code
+      assert mcp_data(first)["created"] == true
+      assert "Index" in mcp_data(first)["added"]["pages"]
       assert Handbook.find(board)
 
       again = user |> token_conn() |> mcp(%{"tool" => "handbook", "board" => board.code})
-      assert again["structuredContent"]["created"] == false
-      assert again["structuredContent"]["added"]["pages"] == []
+      assert mcp_data(again)["created"] == false
+      assert mcp_data(again)["added"]["pages"] == []
     end
 
     test "without a board it says to give one", %{user: user} do

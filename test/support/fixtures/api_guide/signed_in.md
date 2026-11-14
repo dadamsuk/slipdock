@@ -182,6 +182,16 @@ either door. Prompts: `plan-my-day`, `weekly-review`, `triage`, `resume`,
 `leave-handoff`, `tidy-board`. Resources, which the
 person attaches: `slipdock://card/42`, `board/`, `page/`, `view/`, `work`.
 
+### MCP answers
+
+A tool answers its JSON once, compact, as one text block (#3176; no
+`structuredContent`). `get_board` and `list_cards` give a brief per card
+(id, title, list, state, flags, tags, assignees; empty fields left out),
+never its description (`descriptions: true` adds it) or comments: `get_card`
+has those. Done and dropped lists are trimmed (`get_board`: the newest 5 and
+`left_out`; `list_cards`: left out, `done_left_out`, unless `column` names
+one or `open` is false); `include_done: true` gives them all.
+
 ### The AI key, and which model answers
 
 Anything that asks a language model — the written answer from

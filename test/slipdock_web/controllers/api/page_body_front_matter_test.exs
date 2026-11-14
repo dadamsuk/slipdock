@@ -252,9 +252,7 @@ defmodule SlipdockWeb.API.PageBodyFrontMatterTest do
 
     test "create and replace split the block; append does not", %{conn: conn, board: board} do
       made =
-        call(conn, %{mode: "create", board: "fmbody", title: "Sketch", body: @drawing})[
-          "structuredContent"
-        ]
+        mcp_data(call(conn, %{mode: "create", board: "fmbody", title: "Sketch", body: @drawing}))
 
       page = stored(made["id"])
       assert page.front_matter == @header
@@ -281,9 +279,9 @@ defmodule SlipdockWeb.API.PageBodyFrontMatterTest do
       card = card_fixture(hd(board.columns), %{"title" => "Draw it"})
 
       for_card =
-        call(conn, %{mode: "create", card: card.id, title: "For the card", body: @drawing})[
-          "structuredContent"
-        ]
+        mcp_data(
+          call(conn, %{mode: "create", card: card.id, title: "For the card", body: @drawing})
+        )
 
       assert stored(for_card["id"]).front_matter == @header
     end

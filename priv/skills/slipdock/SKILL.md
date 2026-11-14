@@ -32,7 +32,9 @@ it back; `archive_board` does the same for a board. Prefer those: `delete_card` 
 undone. `create_list`, `create_tag` and `create_board` add structure (a tag must exist before
 `create_card`/`update_card` can put it on a card, and making one needs write on the tree's
 root board; a `move_card` or copy into the tree by anyone else leaves off the tags it lacks and
-names them in `tags_dropped`). `list_cards` with `full: true` reads
+names them in `tags_dropped`). `get_board` and `list_cards` give a brief of each card, with no
+description or comments, and leave out (or trim to the newest 5) the done lists unless
+`include_done: true`: read a card's description with `get_card` (or every one with `descriptions: true`). `list_cards` with `full: true` reads
 every card in full (comments, checklist, docs) in one call instead of a `get_card` each. `update_card` also sets dependencies
 and works the checklist. `list_pages` lists a board's wiki (`tree: true` nests it, as `page tree`
 does), and `read_page` reads one. `page_info` answers what `page links`, `page sections`,

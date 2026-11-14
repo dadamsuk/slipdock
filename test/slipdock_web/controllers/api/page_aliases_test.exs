@@ -40,7 +40,7 @@ defmodule SlipdockWeb.API.PageAliasesTest do
       )
       |> json_response(200)
 
-    assert get_in(mcp, ["result", "structuredContent", "aliases"]) == ["Retries"]
+    assert mcp_data(mcp["result"])["aliases"] == ["Retries"]
   end
 
   test "a page with none has an empty list, and an unknown name is not found", %{

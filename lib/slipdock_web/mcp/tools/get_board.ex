@@ -6,6 +6,10 @@ defmodule SlipdockWeb.MCP.Tools.GetBoard do
   alias SlipdockWeb.API.Authorize
   alias SlipdockWeb.MCP.{Args, Tools}
 
+  # A done or dropped list shows this many of its cards, the newest done,
+  # unless the call asks for them all (#3176).
+  @done_shown 5
+
   @impl true
   def name, do: "get_board"
 
@@ -15,10 +19,9 @@ defmodule SlipdockWeb.MCP.Tools.GetBoard do
   @impl true
   def description,
     do:
-      "A board's lists in order with a summary of each card, description included. " <>
-        "Board is an id, code or name. get_card has a card's comments and checklist. " <>
-        "Or instead: pulse (flow numbers), history (flow by day), runners, dora (delivery), " <>
-        "overseer, now."
+      "A board's lists with a brief of each card (no description: get_card); done lists " <>
+        "only their newest #{@done_shown} unless include_done. Or instead: pulse, history, " <>
+        "runners, dora, overseer, now."
 
   @impl true
   def input_schema do
@@ -29,6 +32,15 @@ defmodule SlipdockWeb.MCP.Tools.GetBoard do
           type: "string",
           description:
             "Board id, code or name. The answer has paused while runner work on it is held: stop."
+        },
+        include_done: %{
+          type: "boolean",
+          description:
+            "Every card in the done and dropped lists, not only the newest #{@done_shown}."
+        },
+        descriptions: %{
+          type: "boolean",
+          description: "Each card's description in its brief too (left out unless asked)."
         },
         pulse: %{
           type: "boolean",
@@ -143,7 +155,7 @@ defmodule SlipdockWeb.MCP.Tools.GetBoard do
            |> Map.merge(SlipdockWeb.API.JSON.paused(board))}
 
         true ->
-          lists(auth, board)
+          lists(auth, board, args)
       end
     end
   end
@@ -175,7 +187,13 @@ defmodule SlipdockWeb.MCP.Tools.GetBoard do
     end
   end
 
-  defp lists(auth, board) do
+  defp lists(auth, board, args) do
+    with {:ok, all_done} <- Args.boolean(args, "include_done", false),
+         {:ok, descriptions} <- Args.boolean(args, "descriptions", false),
+         do: lists_of(auth, board, all_done: all_done, descriptions: descriptions)
+  end
+
+  defp lists_of(auth, board, opts) do
     board = Authorize.visible(auth, Boards.get_board!(board.id))
     roles = SlipdockWeb.APIGuide.list_roles(board.columns)
     # What in the tree waits on the caller (#2095).
@@ -193,21 +211,45 @@ defmodule SlipdockWeb.MCP.Tools.GetBoard do
        tags: Enum.map(board.tags, & &1.name),
        lists:
          Enum.map(board.columns, fn col ->
+           {cards, left_out} = shown(board.columns, col, opts[:all_done])
+
            %{
              name: col.name,
              role: role_of(roles, col),
              wip_limit: col.wip_limit,
              cards:
-               col.cards
-               |> Enum.map(&Tools.card_line/1)
-               |> SlipdockWeb.API.WaitingJSON.put_on_cards(tree, &(&1.subcards != nil))
+               cards
+               |> Enum.map(&Tools.card_brief(&1, opts))
+               |> SlipdockWeb.API.WaitingJSON.put_on_cards(tree, &(&1[:subcards] != nil))
            }
+           |> then(&if(left_out > 0, do: Map.put(&1, :left_out, left_out), else: &1))
          end),
        waiting_on_me: SlipdockWeb.API.WaitingJSON.tree(tree)
      }
      |> Tools.ListBoards.put_lanes(board)
      |> Map.merge(SlipdockWeb.API.JSON.paused(board))}
   end
+
+  # A done or dropped list's newest done cards, and how many were left out.
+  defp shown(columns, col, all_done) do
+    if all_done or not done_list?(columns, col) do
+      {col.cards, 0}
+    else
+      newest =
+        col.cards
+        |> Enum.sort_by(&(&1.completed_at || &1.updated_at), {:desc, DateTime})
+        |> Enum.take(@done_shown)
+        |> MapSet.new(& &1.id)
+
+      # Kept in the list's own order.
+      cards = Enum.filter(col.cards, &MapSet.member?(newest, &1.id))
+      {cards, length(col.cards) - length(cards)}
+    end
+  end
+
+  @doc "Whether `col` is a done or dropped list among `columns`."
+  def done_list?(columns, col),
+    do: Enum.member?(["done", "dropped"], SlipdockWeb.APIGuide.role(columns, col))
 
   defp role_of(roles, col) do
     Enum.find_value([:ready, :backlog, :doing, :done, :scheduled], fn role ->

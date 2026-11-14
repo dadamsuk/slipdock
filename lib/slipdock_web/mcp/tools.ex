@@ -176,10 +176,26 @@ defmodule SlipdockWeb.MCP.Tools do
   defp plural(_), do: "arguments"
 
   @doc """
-  A card in a listing: enough to choose one, not to work it — `get_card` has
-  the rest. The description is in, so an agent can tell what each card is
-  about without a `get_card` per card; comments and checklists are left out,
-  since listings are what blow a client's per-result budget.
+  A card in a listing (`get_board`, `list_cards`): enough to choose one, not
+  to work it — `get_card` has the rest. No description, comments or
+  checklist (#3176): a board's descriptions were most of what an agent paid
+  for a look at it. Its place in the list goes too (the order says it), and
+  a field with nothing in it (null, an empty list) is left out.
+  `descriptions: true` keeps the description in, for a client that wants
+  them all in one call.
+  """
+  def card_brief(card, opts \\ []) do
+    full = card_line(card)
+
+    full
+    |> Map.drop([:description, :short_name, :position, :usual_stay])
+    |> Map.reject(fn {_, v} -> v == nil or v == [] end)
+    |> then(&if(opts[:descriptions], do: Map.put(&1, :description, full.description), else: &1))
+  end
+
+  @doc """
+  A card as a write answers it (see `card_written/2`): the brief's fields,
+  with the description and where it sits in its list.
   """
   def card_line(card) do
     full = SlipdockWeb.API.JSON.card(card)

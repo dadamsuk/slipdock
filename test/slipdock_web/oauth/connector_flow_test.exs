@@ -167,14 +167,14 @@ defmodule SlipdockWeb.OAuth.ConnectorFlowTest do
 
     me = call_tool(access, "whoami", %{})
     assert me["isError"] == false
-    assert me["structuredContent"]["user"]["email"] == ctx.user.email
+    assert mcp_data(me)["user"]["email"] == ctx.user.email
 
     made = call_tool(access, "create_card", %{board: ctx.board.code, title: "From claude.ai"})
     assert made["isError"] == false
-    id = made["structuredContent"]["id"]
+    id = mcp_data(made)["id"]
 
     read = call_tool(access, "get_card", %{card: id})
-    assert read["structuredContent"]["title"] == "From claude.ai"
+    assert mcp_data(read)["title"] == "From claude.ai"
 
     # The connection is one ordinary API token, named for the client.
     row = Repo.get_by!(UserToken, user_id: ctx.user.id, label: "Claude", context: "api")
@@ -215,7 +215,7 @@ defmodule SlipdockWeb.OAuth.ConnectorFlowTest do
     assert refused["isError"] == true
     assert hd(refused["content"])["text"] =~ "read-only"
 
-    assert call_tool(access, "list_cards", %{board: ctx.board.code})["structuredContent"]["cards"] ==
+    assert mcp_data(call_tool(access, "list_cards", %{board: ctx.board.code}))["cards"] ==
              []
   end
 end

@@ -58,7 +58,7 @@ defmodule SlipdockWeb.MCP.ReadToolsTest do
 
   defp ok!(result) do
     assert result["isError"] == false, inspect(result["content"])
-    result["structuredContent"]
+    mcp_data(result)
   end
 
   defp error!(result) do
@@ -132,13 +132,12 @@ defmodule SlipdockWeb.MCP.ReadToolsTest do
       refute Map.has_key?(line, "checklist")
     end
 
-    test "each card carries its description, null when it has none", ctx do
+    test "a card is a brief: no description (get_card has it)", ctx do
       board = ctx.conn |> call("get_board", %{board: "delivery7"}) |> ok!()
       lines = board["lists"] |> Enum.flat_map(& &1["cards"]) |> Map.new(&{&1["id"], &1})
 
-      assert lines[ctx.top.id]["description"] == "what it is for"
-      assert Map.has_key?(lines[ctx.blocked.id], "description")
-      assert lines[ctx.blocked.id]["description"] == nil
+      assert lines[ctx.top.id]["title"] == "Top of the list"
+      refute Map.has_key?(lines[ctx.top.id], "description")
     end
 
     test "another tenant's board reads as not there", ctx do
@@ -173,13 +172,12 @@ defmodule SlipdockWeb.MCP.ReadToolsTest do
       refute ctx.blocked.id in ids
     end
 
-    test "each card carries its description, null when it has none", ctx do
+    test "a card is a brief: no description (get_card has it)", ctx do
       %{"cards" => cards} = ctx.conn |> call("list_cards", %{board: "delivery7"}) |> ok!()
       lines = Map.new(cards, &{&1["id"], &1})
 
-      assert lines[ctx.top.id]["description"] == "what it is for"
-      assert Map.has_key?(lines[ctx.done.id], "description")
-      assert lines[ctx.done.id]["description"] == nil
+      assert lines[ctx.top.id]["title"] == "Top of the list"
+      refute Map.has_key?(lines[ctx.top.id], "description")
     end
 
     test "open: false gives the completed ones", ctx do

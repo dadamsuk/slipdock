@@ -173,8 +173,8 @@ defmodule SlipdockWeb.TagsRootWriteTest do
 
         known = mcp(ctx[unquote(who)], %{board: ctx.sub.id, name: "OPS"})
         assert known["isError"] == false
-        assert known["structuredContent"]["created"] == false
-        assert known["structuredContent"]["tag"]["id"] == ctx.ops.id
+        assert mcp_data(known)["created"] == false
+        assert mcp_data(known)["tag"]["id"] == ctx.ops.id
 
         assert names(ctx) == ["ops"]
       end
@@ -182,7 +182,7 @@ defmodule SlipdockWeb.TagsRootWriteTest do
 
     test "a writer of the root makes one from the sub-board", ctx do
       made = mcp(ctx.root_writer, %{board: ctx.sub.id, name: "deep"})
-      assert made["structuredContent"]["created"] == true
+      assert mcp_data(made)["created"] == true
       assert names(ctx) == ["deep", "ops"]
     end
 
@@ -190,7 +190,7 @@ defmodule SlipdockWeb.TagsRootWriteTest do
       for {user, name} <- [{ctx.root_writer, "top"}, {ctx.owner, "own"}] do
         made = mcp(user, %{board: ctx.root.id, name: name})
         assert made["isError"] == false
-        assert made["structuredContent"]["created"] == true
+        assert mcp_data(made)["created"] == true
       end
 
       assert names(ctx) == ["ops", "own", "top"]
@@ -441,8 +441,8 @@ defmodule SlipdockWeb.TagsRootWriteTest do
 
         result = mcp_tool(ctx[unquote(who)], "move_card", %{card: card.id, board: ctx.sub.id})
         assert result["isError"] == false
-        assert result["structuredContent"]["tags_dropped"] == ["sneaky"]
-        assert result["structuredContent"]["tags_dropped_reason"] =~ "top board"
+        assert mcp_data(result)["tags_dropped"] == ["sneaky"]
+        assert mcp_data(result)["tags_dropped_reason"] =~ "top board"
         assert names(ctx) == ["ops"]
       end
 
@@ -498,8 +498,8 @@ defmodule SlipdockWeb.TagsRootWriteTest do
         |> json_response(200)
         |> Map.fetch!("result")
 
-      assert result["structuredContent"]["tags_dropped"] == ["sneaky"]
-      assert result["structuredContent"]["tags_dropped_reason"] =~ "token's scope"
+      assert mcp_data(result)["tags_dropped"] == ["sneaky"]
+      assert mcp_data(result)["tags_dropped_reason"] =~ "token's scope"
       assert names(ctx) == ["ops"]
     end
 
@@ -519,7 +519,7 @@ defmodule SlipdockWeb.TagsRootWriteTest do
 
       mcp_card = own_card(ctx.root_writer)
       result = mcp_tool(ctx.root_writer, "move_card", %{card: mcp_card.id, board: ctx.sub.id})
-      refute Map.has_key?(result["structuredContent"], "tags_dropped")
+      refute Map.has_key?(mcp_data(result), "tags_dropped")
       assert names(ctx) == ["ops", "sneaky"]
     end
   end

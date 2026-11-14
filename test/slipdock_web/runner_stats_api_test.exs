@@ -74,7 +74,7 @@ defmodule SlipdockWeb.RunnerStatsAPITest do
     stats = rest(conn, board)["runner_stats"]
     result = mcp(conn, %{board: board.code, runners: true})
     assert result["isError"] == false, inspect(result["content"])
-    content = result["structuredContent"]
+    content = mcp_data(result)
     refute Map.has_key?(content, "lists")
     # Both read the clock: "at" and "since" may be a second apart.
     assert Map.drop(content["runner_stats"], ~w(at since)) == Map.drop(stats, ~w(at since))

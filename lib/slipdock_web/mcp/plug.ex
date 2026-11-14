@@ -317,9 +317,11 @@ defmodule SlipdockWeb.MCP.Plug do
       {:error, @internal_error, "#{prompt.name()} failed on the server"}
   end
 
+  # The answer once, as compact JSON text (#3176). No tool declares an
+  # `outputSchema`, so the spec leaves `structuredContent` optional, and a
+  # client that put both in the model's context would charge for it twice.
   defp tool_result({:ok, data}) do
-    %{content: [%{type: "text", text: Jason.encode!(data, pretty: true)}], isError: false}
-    |> put_structured(data)
+    %{content: [%{type: "text", text: Jason.encode!(data)}], isError: false}
   end
 
   # A tool that hands back a file (`download_file`) adds content blocks of
@@ -331,13 +333,6 @@ defmodule SlipdockWeb.MCP.Plug do
   defp tool_result({:error, message}) do
     %{content: [%{type: "text", text: message}], isError: true}
   end
-
-  # `structuredContent` must be an object; a tool answering a bare list says so
-  # in the text alone.
-  defp put_structured(result, data) when is_map(data),
-    do: Map.put(result, :structuredContent, data)
-
-  defp put_structured(result, _data), do: result
 
   # A pointer, not a copy: the guide is served in one place and changes there.
   defp instructions(conn) do

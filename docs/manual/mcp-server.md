@@ -26,8 +26,8 @@ so a token can do exactly as much over MCP as over HTTP — no more.
 | `whoami` | Who the connection is signed in as, the token's scope, and how much of the account's item limit is used. |
 | `get_guide` | The [agent guide](skills.md) for this caller: the conventions, and the caller's own boards and lists. Read once per session, before changing anything. Gives the short guide by default; `section` gives one of the others it names, or `all`. |
 | `list_boards` | Boards you can see, with code, lists and which list is ready, in progress and done. `archived: true` includes archived ones. |
-| `get_board` | A board's lists in order, with a summary of each card and its description. |
-| `list_cards` | Cards in list order, filtered by `column`, `open`, `deps: "ready"`, `no_assignee` and `archived` (`exclude`, `include` or `only`). `full: true` gives each card as `get_card` does (comments, checklist, docs), 20 at a time unless `limit` says otherwise. |
+| `get_board` | A board's lists in order, with a brief of each card: id, title, list, state, flags, tags, assignees and the like, empty fields left out. No description or comments (`get_card` has them; `descriptions: true` adds each description). A done or dropped list shows its newest 5 cards and how many it `left_out`; `include_done: true` shows them all. |
+| `list_cards` | Cards in list order, each as the same brief (`descriptions: true` adds each description), filtered by `column`, `open`, `deps: "ready"`, `no_assignee` and `archived` (`exclude`, `include` or `only`). Cards in done and dropped lists are left out (counted in `done_left_out`) unless `include_done: true`, `open: false` or a `column` that is one. `full: true` gives each card as `get_card` does (comments, checklist, docs), 20 at a time unless `limit` says otherwise. |
 | `get_card` | A card in full: description, checklist with item ids, comments, dependencies, subcards and the wiki pages about it, and on a handbook board its `handbook` (the index and the sections to read before building). With `timeline: true`, also its timeline: each list it sat in, its waits and its jobs. |
 | `search` | Cards, comments and wiki pages by meaning, across every board you can read or one. `archived: true` includes archived cards; a card's id or link as `q` finds that card, archived or not. |
 | `ask` | A `question` in prose, answered from the boards as `POST /api/ask` answers it, with the cards and pages it read (`id`, `title`, `kind`). `board` keeps it to one board. A model call on your own AI key and provider, so it can take a while; a token confined to some boards is refused, as it is by `/api/ask`. |
@@ -79,6 +79,12 @@ so a token can do exactly as much over MCP as over HTTP — no more.
 | `job_log` | A runner job's [live log](runners.md) so far, as `slipdock job-log` prints it: one line per message, tool call or result of its agent. `from` carries on from an earlier call's `next`; `job.open` is false once the job has ended. Anyone who can read the card may. |
 | `keep_job_log` | Keeps an ended runner job's live log, which otherwise [expires](runners.md): writes it as a page `Pass <card> (<date>)` in the card's folder and links it from the job. Again gives the same page. Needs write access to the card. |
 | `release_now` | On a board with batched releases (`release_mode: batched`), asks for a release of its merged work now: `how` is `started`, `queued` (behind the release running) or `joined` (the follow-up already queued), with the `request` and the tree's `release` status (running, queued, last, the cards awaiting). `check: true` only reads that status. Asking is the board owner's; a board that releases on merge refuses. |
+
+Every tool answers its JSON once, compact, as the result's one text block:
+there is no `structuredContent` alongside it, so a client that would put
+both in the model's context doesn't charge for the answer twice. A look at
+a board of 15 open cards and 66 done costs a few kilobytes, not the
+hundreds it did when each card carried its description.
 
 The reading tools are marked read-only, so a client can let them run
 without asking each time. The deletes are marked destructive and none of

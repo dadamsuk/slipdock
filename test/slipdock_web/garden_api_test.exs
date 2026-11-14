@@ -401,7 +401,7 @@ defmodule SlipdockWeb.GardenAPITest do
         assert %{"suggestions" => from_mcp} =
                  as(ctx.owner)
                  |> mcp_call("garden", %{board: ref, findings: true})
-                 |> Map.fetch!("structuredContent")
+                 |> mcp_data()
 
         assert %{"awaiting" => from_rest} =
                  as(ctx.owner) |> get("/api/boards/#{ref}/findings") |> json_response(200)
@@ -415,7 +415,7 @@ defmodule SlipdockWeb.GardenAPITest do
       assert %{"suggestions" => all} =
                as(ctx.owner)
                |> mcp_call("garden", %{board: ctx.board.code, check: "proposal"})
-               |> Map.fetch!("structuredContent")
+               |> mcp_data()
 
       assert Enum.sort(ids.(all)) == Enum.sort([drafted.id, plain.id])
 
@@ -430,7 +430,7 @@ defmodule SlipdockWeb.GardenAPITest do
       assert %{"suggestions" => [listed]} =
                as(ctx.owner)
                |> mcp_call("garden", %{board: ctx.board.code, check: "proposal"})
-               |> Map.fetch!("structuredContent")
+               |> mcp_data()
 
       assert listed["id"] == s.id
       assert listed["person_only"]
@@ -496,7 +496,7 @@ defmodule SlipdockWeb.GardenAPITest do
 
     defp ok!(result) do
       assert result["isError"] == false, inspect(result["content"])
-      result["structuredContent"]
+      mcp_data(result)
     end
 
     defp error!(result) do

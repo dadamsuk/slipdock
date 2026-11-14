@@ -71,7 +71,7 @@ defmodule SlipdockWeb.FlowAPITest do
 
     result = mcp(conn, %{board: board.code, history: true, days: 7})
     assert result["isError"] == false, inspect(result["content"])
-    content = result["structuredContent"]
+    content = mcp_data(result)
     assert content["code"] == board.code
     refute Map.has_key?(content, "lists")
     assert content["flow"]["series"] == series

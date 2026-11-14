@@ -64,7 +64,7 @@ defmodule SlipdockWeb.MCP.SkillRegistryToolTest do
 
   defp ok!(result) do
     assert result["isError"] == false, inspect(result["content"])
-    result["structuredContent"]
+    mcp_data(result)
   end
 
   defp error!(result) do
