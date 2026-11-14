@@ -758,11 +758,7 @@ defmodule Slipdock.Wiki do
   written on the way past is what makes that recoverable rather than lost.
   """
   def update_page(%Page{} = page, attrs, opts \\ []) do
-    with {:ok, attrs} <- split_front_matter(stringify(attrs), opts),
-         do: save_page(page, attrs, opts)
-  end
-
-  defp save_page(page, attrs, opts) do
+    attrs = stringify(attrs)
     user = opts[:user]
 
     # Always save against the row as it now stands, not the copy the caller
@@ -771,7 +767,8 @@ defmodule Slipdock.Wiki do
     # being quietly rolled back to what this caller last saw.
     page = Repo.get!(Page, page.id)
 
-    with :ok <- check_base_hash(page, opts[:base_hash]),
+    with {:ok, attrs} <- split_front_matter(attrs, opts),
+         :ok <- check_base_hash(page, opts[:base_hash]),
          :ok <- check_shared_change(page, Page.changeset(page, attrs).changes, user) do
       result =
         Repo.transaction(fn ->
