@@ -272,6 +272,7 @@ Slipdock.Health.Detectors.HungJob.cancel/1
 Slipdock.Health.Detectors.HungJob.resolve/2
 Slipdock.Health.Detectors.IdleFeed.resolve/2
 Slipdock.Health.Detectors.OrphanInProgress.resolve/2
+Slipdock.Health.Detectors.StalledRework.resolve/2
 Slipdock.Health.Pulse.beat/2
 Slipdock.Health.Settings.put/3
 Slipdock.Health.run/2
@@ -502,6 +503,7 @@ Slipdock.Verified.Circling.after_rejection/4
 Slipdock.Verified.Decisions.decide/5
 Slipdock.Verified.Decisions.saved/3
 Slipdock.Verified.Decisions.wait_closed/2
+Slipdock.Verified.EpicRework.send_again/2
 Slipdock.Verified.Gate.assigned/4
 Slipdock.Verified.Gate.moved/2
 Slipdock.Verified.Jobs.cancel_verify_jobs/2
