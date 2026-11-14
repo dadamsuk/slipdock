@@ -151,6 +151,26 @@ defmodule SlipdockWeb.ListOrderLiveTest do
       assert %{add_card: true, add_page: false, add_document: false} = Boards.get_board!(board.id)
     end
 
+    test "a list the dialog refuses keeps it open with the error, and saves no board choice", %{
+      conn: conn,
+      board: board,
+      column: column
+    } do
+      view = open_settings(conn, board, column)
+
+      html =
+        view
+        |> form("#column-form", column: %{name: "", sort_by: "due_date", add_page: "false"})
+        |> render_submit()
+
+      assert has_element?(view, "#column-form")
+      assert html =~ "can&#39;t be blank"
+
+      assert %Column{name: name, sort_by: sort_by} = Repo.get!(Column, column.id)
+      assert {name, sort_by} == {column.name, column.sort_by}
+      assert Boards.get_board!(board.id).add_page
+    end
+
     test "somebody who can only write to the board neither sees nor changes them", %{conn: conn} do
       owner = user_fixture("owner-#{System.unique_integer([:positive])}@example.com")
       board = board_fixture(%{"name" => "Theirs"}, owner: owner)
