@@ -58,7 +58,10 @@ curl -s -H "$H" -H 'content-type: application/json' B/api/checklist/13/move \
 curl -s -X PATCH -H "$H" -H 'content-type: application/json' B/api/cards/57 \
      -d '{"completed": true, "remove_flags": ["blocked"]}'
 
-# what happened on this board lately
+# what happened on this board lately, each entry with who did it:
+# "actor": {"kind": "person"|"agent"|"automation"|"email"|"system", "name": …},
+# the name as it was then; kind null and name "Someone" for an entry from
+# before actors were recorded (CLI: slipdock activity 1; MCP: activity)
 curl -s -H "$H" "B/api/boards/1/activity?limit=20"
 
 # its flow numbers: in progress, waiting, done this week, time to done,

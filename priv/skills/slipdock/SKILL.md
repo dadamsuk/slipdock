@@ -284,7 +284,9 @@ so "how many are in To Do?", "what's on Jess's plate?" and "what changed this we
 answers. Prefer `slipdock search` when you want to choose the card yourself, which is nearly
 always and *always* before a write — and prefer `slipdock cards <board> --column C` or
 `slipdock activity <board>` when *you* want the answer, since those are the same answer without
-a model in the way.
+a model in the way. Each activity line names who did it (`actor` in `--json`: a person, an agent,
+an automation, email or system; *Someone* for an entry older than that), so read it before
+hunting for the rule that moved a card.
 
 **`slipdock favourites` is worth reading at the start of a session.** It is the boards, lists,
 cards and saved views the user has marked as theirs — where they actually work, which a list

@@ -149,7 +149,7 @@ READ
       --origin person|sweep|findings|health|overseer|verify|release|automation|import|agent|none
                                                 (who or what made it; none: made before origins)
   card <id>                           show one card in full (checklist, comments)
-  activity <board> [--limit N] [--card ID]  recent activity on a board (or one card)
+  activity <board> [--limit N] [--card ID]  recent activity on a board (or one card), with who did each
   dora <board> [--env E] [--days N]   the board's delivery performance from its recorded
                                       deploys: deployment frequency, lead time, change
                                       failure rate, time to restore, rework rate and idea

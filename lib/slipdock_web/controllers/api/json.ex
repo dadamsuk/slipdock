@@ -1142,6 +1142,7 @@ defmodule SlipdockWeb.API.JSON do
       card_id: a.card_id,
       page_id: a.page_id,
       message: a.message,
+      actor: Activity.actor(a),
       at: a.inserted_at
     }
 
