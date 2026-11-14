@@ -50,6 +50,11 @@ defmodule SlipdockWeb.ReleaseHoldDocsTest do
       {:ok, _view, html} = live(conn, ~p"/help/boards")
       Slipdock.DocsFacts.assert_states(html, claim, "/help/boards")
 
+      # The agents' flow help, the page an agent working a fix card reads.
+      {:ok, _view, flow} = live(conn, ~p"/help/agents/flow")
+      Slipdock.DocsFacts.assert_states(flow, claim, "/help/agents/flow")
+      assert flow =~ "its merge lifts the hold and releases"
+
       read = &Slipdock.DocsText.read!(Path.expand("../../" <> &1, __DIR__))
 
       for path <- [
