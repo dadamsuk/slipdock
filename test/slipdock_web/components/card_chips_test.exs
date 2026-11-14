@@ -436,4 +436,56 @@ defmodule SlipdockWeb.Components.CardChipsTest do
       refute html =~ "date-range"
     end
   end
+
+  describe "the badges' words (#3110)" do
+    # Written out here rather than through `SlipdockWeb.Dates`, so a test that
+    # passes isn't the code under test agreeing with itself.
+    @weekdays ~w(Mon Tue Wed Thu Fri Sat Sun)
+    @months ~w(Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec)
+
+    defp on(offset), do: Date.add(Date.utc_today(), offset)
+
+    defp weekday(date), do: Enum.at(@weekdays, Date.day_of_week(date) - 1)
+
+    defp short_date(date) do
+      day_month = "#{date.day} #{Enum.at(@months, date.month - 1)}"
+      if date.year == Date.utc_today().year, do: day_month, else: "#{day_month} #{date.year}"
+    end
+
+    # offset => {format_due/1, format_day/1}; :weekday and :short stand for
+    # the date's own weekday name and short date.
+    @words [
+      {-8, :short, :short},
+      {-7, :short, :short},
+      {-6, "6d past due", :short},
+      {-2, "2d past due", :short},
+      {-1, "Yesterday", "Yesterday"},
+      {0, "Today", "Today"},
+      {1, "Tomorrow", "Tomorrow"},
+      {2, :weekday, :short},
+      {6, :weekday, :short},
+      {7, :short, :short},
+      {8, :short, :short}
+    ]
+
+    defp expected(:short, date), do: short_date(date)
+    defp expected(:weekday, date), do: weekday(date)
+    defp expected(text, _date), do: text
+
+    for {offset, due, day} <- @words do
+      test "#{offset} days from today read as #{inspect(due)} and #{inspect(day)}" do
+        date = on(unquote(offset))
+
+        assert SlipdockComponents.format_due(date) == expected(unquote(due), date)
+        assert SlipdockComponents.format_day(date) == expected(unquote(day), date)
+      end
+    end
+
+    test "a date in another year keeps its year" do
+      date = Date.add(Date.utc_today(), 400)
+
+      assert SlipdockComponents.format_due(date) =~ ~r/^\d{1,2} [A-Z][a-z]{2} #{date.year}$/
+      assert SlipdockComponents.format_day(date) == SlipdockComponents.format_due(date)
+    end
+  end
 end
