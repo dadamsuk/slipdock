@@ -55,6 +55,7 @@ import {FilePicker} from "./file_picker"
 import {TagFilter} from "./tag_filter"
 import {Tabs} from "./tabs"
 import {installKeyHints} from "./key_hints"
+import {hintLabels, typeHint} from "./hint_labels"
 import {ToolbarFold} from "./toolbar_fold"
 import {LogTail} from "./log_tail"
 import {DisplayPrefs} from "./display_prefs"
@@ -738,23 +739,6 @@ function vimDir(e) {
   return !e.shiftKey && VIM_DIRS[e.key]
 }
 
-// Labels, the way a Vim browser plugin does links: they favour the home keys,
-// and only grow to pairs once the board shows more things than there are
-// characters. The pairs reuse the home keys first in both positions, and the
-// set stays prefix-free so no label swallows another.
-const HINT_CHARS = "asdfkjlghwertyuiopvbcnmxzq".split("")
-
-function hintLabels(count) {
-  if (count <= HINT_CHARS.length) return HINT_CHARS.slice(0, count)
-  const labels = [""]
-  let offset = 0
-  while (labels.length - offset < count) {
-    const prefix = labels[offset++]
-    for (const c of HINT_CHARS) labels.push(prefix + c)
-  }
-  return labels.slice(offset, offset + count)
-}
-
 // Things the user can actually see: on screen, and not scrolled out of sight
 // inside a list or the board's own horizontal scroller.
 function onScreen(selector) {
@@ -1148,9 +1132,7 @@ Hooks.BoardKeys = {
       e.preventDefault()
       e.stopPropagation()
       if (e.key === "Escape") return this.hide()
-      if (e.key === "Backspace") return this.trim()
-      if (e.key.length === 1 && HINT_CHARS.includes(e.key.toLowerCase())) this.type(e.key.toLowerCase())
-      return
+      return typeHint(this, e.key)
     }
 
     if (palette() || cardDialog() || typing()) return
@@ -1234,20 +1216,6 @@ Hooks.BoardKeys = {
     this.mode = null
     this.typed = ""
     keyboard.claimed = null
-  },
-
-  type(char) {
-    const next = this.typed + char
-    const hits = this.hints.filter(h => h.label.startsWith(next))
-    if (!hits.length) return
-    this.typed = next
-    if (hits.length === 1 && hits[0].label === next) return this.pick(hits[0].id)
-    this.paint()
-  },
-
-  trim() {
-    this.typed = this.typed.slice(0, -1)
-    this.paint()
   },
 
   // Labels still in the running keep their place; the characters already typed
