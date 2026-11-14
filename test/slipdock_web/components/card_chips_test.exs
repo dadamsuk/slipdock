@@ -374,6 +374,53 @@ defmodule SlipdockWeb.Components.CardChipsTest do
                "1 Jan 2001 → 1 Jan 2001"
     end
 
+    test "take this year from the viewer's timezone, not UTC's (#2879)" do
+      # 20:00 UTC on 31 Dec 2026 is already 1 Jan 2027 in Kiritimati (UTC+14).
+      opts = [now: ~U[2026-12-31 20:00:00Z], zone: "Pacific/Kiritimati"]
+
+      assert SlipdockWeb.SlipdockComponents.Schedule.format_range(
+               ~D[2027-01-02],
+               ~D[2027-01-05],
+               opts
+             ) == "2 Jan → 5 Jan"
+
+      assert SlipdockWeb.SlipdockComponents.Schedule.format_range(
+               ~D[2026-12-30],
+               ~D[2027-01-05],
+               opts
+             ) == "30 Dec 2026 → 5 Jan"
+    end
+
+    test "take the zone the process was given when none is passed (#2879)" do
+      # What `date_range_badge/1` does: no `zone:`, so the zone is the one the
+      # process was given. The clock is pinned to 20:00 UTC on 31 Dec 2026,
+      # when Kiritimati (UTC+14) is in 2027 and UTC is still in 2026, so the
+      # two zones write these ranges differently.
+      SlipdockWeb.Dates.put_zone("Pacific/Kiritimati")
+      now = ~U[2026-12-31 20:00:00Z]
+
+      assert SlipdockWeb.SlipdockComponents.Schedule.format_range(
+               ~D[2027-01-02],
+               ~D[2027-01-05],
+               now: now
+             ) == "2 Jan → 5 Jan"
+
+      assert SlipdockWeb.SlipdockComponents.Schedule.format_range(
+               ~D[2026-12-30],
+               ~D[2027-01-05],
+               now: now
+             ) == "30 Dec 2026 → 5 Jan"
+
+      # With no zone given to the process, the same clock reads as UTC's 2026.
+      SlipdockWeb.Dates.put_zone(nil)
+
+      assert SlipdockWeb.SlipdockComponents.Schedule.format_range(
+               ~D[2026-12-30],
+               ~D[2027-01-05],
+               now: now
+             ) == "30 Dec → 5 Jan 2027"
+    end
+
     test "draw nothing unless both dates are there" do
       start_only = %{
         start_date: ~D[2030-01-10],
