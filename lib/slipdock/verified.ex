@@ -649,9 +649,9 @@ defmodule Slipdock.Verified do
 
   @doc """
   Whether a verifier of `card` also mutates the change (#2354): profiles are
-  on for `board`, the card's profile (set, else inferred) is `fix`,
-  `feature`, `schema` or `security`, and the completion changes code (never
-  a `--no-code` one). `docs` and `spike` cards get no mutation step.
+  on for `board`, the card's profile (set, else inferred) is `schema` or
+  `security`, and the completion changes code (never a `--no-code` one).
+  `fix`, `feature`, `docs` and `spike` cards get no mutation step (#3161).
   """
   defdelegate mutation_review?(card, board), to: Prompts
 
@@ -661,7 +661,7 @@ defmodule Slipdock.Verified do
   @doc """
   The mutation step of a verify prompt (#2354): break the change's most
   consequential lines one at a time, run only the card's tests, restore, and
-  give each mutant as a part. On a `fix` card one mutation undoes the fix.
+  give each mutant as a part.
   """
   defdelegate mutation_step(card), to: Prompts
   defdelegate mutation_step(card, opts), to: Prompts

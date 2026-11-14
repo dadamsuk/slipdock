@@ -206,8 +206,8 @@ defmodule Slipdock.ProfilesVerifyTest do
   end
 
   describe "the mutation step (#2354)" do
-    test "a fix, feature, schema or security card's verify prompt carries it", ctx do
-      for profile <- ~w(fix feature schema security) do
+    test "a schema or security card's verify prompt carries it", ctx do
+      for profile <- ~w(schema security) do
         card =
           ctx
           |> card(profile)
@@ -240,19 +240,28 @@ defmodule Slipdock.ProfilesVerifyTest do
       end
     end
 
-    test "only a fix is told to undo the fix", ctx do
-      fix = ctx |> card("fix") |> submit(ctx)
-      [job] = jobs(fix, "verify")
-      assert job.prompt =~ "one mutation undoes the fix itself"
-      assert job.prompt =~ "the regression test must kill it"
+    # Tests are tiered by risk (#3161): a fix or a feature is held by its
+    # tests and the suite, and its verifier spends nothing on mutants.
+    test "a fix or feature card gets no step, from its verifier or an audit", ctx do
+      board = Repo.get!(Boards.Board, ctx.board.id)
 
-      feature = ctx |> card("feature") |> submit(ctx)
-      [job] = jobs(feature, "verify")
-      refute job.prompt =~ "undoes the fix"
+      for profile <- ~w(fix feature) do
+        card = ctx |> card(profile) |> submit(ctx)
+        [job] = jobs(card, "verify")
+        refute job.prompt =~ "The mutation step", profile
+        refute job.prompt =~ "mutant:killed", profile
+        refute Verified.mutation_review?(card, board), profile
+        refute Verified.audit_prompt(card, board) =~ "The mutation step", profile
+      end
+    end
+
+    test "no step tells a fix to undo itself any more", ctx do
+      refute Verified.mutation_step(card(ctx, "security")) =~ "undoes the fix"
+      refute Verified.mutation_step(card(ctx, "fix")) =~ "undoes the fix"
     end
 
     test "a completion that names no tests is told so", ctx do
-      card = ctx |> card("feature") |> submit(ctx)
+      card = ctx |> card("security") |> submit(ctx)
       [job] = jobs(card, "verify")
       assert job.prompt =~ "it gave no `--tests`: say so"
     end
@@ -268,19 +277,19 @@ defmodule Slipdock.ProfilesVerifyTest do
 
       refute Verified.mutation_review?(card(ctx, "docs"), board)
 
-      no_code = %{card(ctx, "feature") | evidence_no_code: "a handbook reconcile"}
+      no_code = %{card(ctx, "security") | evidence_no_code: "a handbook reconcile"}
       refute Verified.mutation_review?(no_code, board)
       refute Verified.verify_prompt(no_code, board) =~ "The mutation step"
 
       set(ctx, %{"profiles" => false})
-      card = ctx |> card("feature") |> submit(ctx)
+      card = ctx |> card("security") |> submit(ctx)
       [job] = jobs(card, "verify")
       refute job.prompt =~ "The mutation step"
       refute Verified.mutation_review?(card, Repo.get!(Boards.Board, ctx.board.id))
     end
 
-    test "an audit of a feature card asks for it too", ctx do
-      card = ctx |> card("feature")
+    test "an audit of a security card asks for it too", ctx do
+      card = ctx |> card("security")
       board = Repo.get!(Boards.Board, ctx.board.id)
       prompt = Verified.audit_prompt(card, board)
       assert prompt =~ "The mutation step"
@@ -358,7 +367,7 @@ defmodule Slipdock.ProfilesVerifyTest do
     end
 
     test "the profiles it runs on" do
-      assert Verified.mutation_profiles() == ~w(fix feature schema security)
+      assert Verified.mutation_profiles() == ~w(schema security)
     end
   end
 

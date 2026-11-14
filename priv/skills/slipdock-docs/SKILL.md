@@ -78,7 +78,8 @@ item that doesn't parse.
 |---|---|
 | Settled: how the project is, a rule it keeps | the **handbook** section that covers it (a rule in its `## Rules`) |
 | Uncertain, cuts across cards, or shows the handbook is wrong | a **finding**: a `Findings:` block in the card's closing comment (`- gotcha:`, `- rule:`, `- handbook-wrong:`, `- tooling:`, `- process:`) |
-| A concrete fix you could hand to someone (a missing test, a stale doc, a tooling bug) | a **card** in the Housekeeping list (`slipdock add <board> "…" --column Housekeeping`; the backlog on a board without one), named in the block as `→ #<card>`: a fix is a card, not a finding. A design question goes to Triage (`--column Triage`) |
+| Something that bites: a bug a person would meet, a security issue, a broken build or tool; or the second instance of a kind (fix the kind: one card, a shared mechanism and a check) | a **card** in the Housekeeping list (`slipdock add <board> "…" --column Housekeeping`; the backlog on a board without one), named in the block as `→ #<card>`: only what bites is a card. A design question goes to Triage (`--column Triage`) |
+| A missing test, a duplicate or a stale comment, outside security, data and money | a `Findings:` line, not a card (tests are tiered by risk) |
 | About this machine or this person (a local path, flaky DNS here, how they like to work) | your own **agent memory** |
 
 Project facts never live only in agent memory: the verifier, other runners

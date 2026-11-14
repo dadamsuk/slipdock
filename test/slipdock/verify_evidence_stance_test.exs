@@ -35,7 +35,7 @@ defmodule Slipdock.VerifyEvidenceStanceTest do
 
   describe "the stance" do
     test "the evidence is where to look and each claim is checked", ctx do
-      prompt = Verified.verify_prompt(card(ctx, "feature"), ctx.board)
+      prompt = Verified.verify_prompt(card(ctx, "security"), ctx.board)
 
       refute prompt =~ "redo it"
       assert_states(prompt, "don't change the code or the card beyond your decision")
@@ -70,14 +70,14 @@ defmodule Slipdock.VerifyEvidenceStanceTest do
     end
 
     test "the audit prompt asks for them too", ctx do
-      prompt = Verified.audit_prompt(accepted(card(ctx, "feature")), ctx.board)
+      prompt = Verified.audit_prompt(accepted(card(ctx, "security")), ctx.board)
       assert prompt =~ @guard
     end
 
     test "no mutation step, no guard ask", ctx do
       {:ok, off} = Boards.update_board(ctx.board, %{"profiles" => false})
-      refute Verified.verify_prompt(card(ctx, "feature"), off) =~ @guard
-      refute Verified.audit_prompt(accepted(card(ctx, "feature")), off) =~ @guard
+      refute Verified.verify_prompt(card(ctx, "security"), off) =~ @guard
+      refute Verified.audit_prompt(accepted(card(ctx, "security")), off) =~ @guard
     end
   end
 
@@ -85,7 +85,7 @@ defmodule Slipdock.VerifyEvidenceStanceTest do
     @evidence "Built it.\n- mutant:killed=lib/a.ex:42:flip > to >=\n"
 
     test "a verifier carries a killed one only when re-run or plainly covered", ctx do
-      step = Verified.mutation_step(card(ctx, "feature", %{"evidence" => @evidence}))
+      step = Verified.mutation_step(card(ctx, "security", %{"evidence" => @evidence}))
 
       assert step =~ "`mutant:killed=lib/a.ex:42:flip > to >=`"
       assert_states(step, "That list is a map, not a verdict.")
@@ -100,7 +100,7 @@ defmodule Slipdock.VerifyEvidenceStanceTest do
     end
 
     test "an audit is told to carry none of them", ctx do
-      card = card(ctx, "feature", %{"evidence" => @evidence})
+      card = card(ctx, "security", %{"evidence" => @evidence})
       step = Verified.mutation_step(card, audit: true)
 
       assert_states(
@@ -113,7 +113,7 @@ defmodule Slipdock.VerifyEvidenceStanceTest do
     end
 
     test "a builder that named none gets no map note", ctx do
-      step = Verified.mutation_step(card(ctx, "feature", %{"evidence" => "Built it."}))
+      step = Verified.mutation_step(card(ctx, "security", %{"evidence" => "Built it."}))
       assert_states(step, "The builder named no mutants in its evidence")
       refute step =~ "That list is a map"
     end

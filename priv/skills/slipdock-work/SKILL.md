@@ -327,16 +327,21 @@ whole card before touching it.
   pwsh`. An item already dealt with says where, and is kept promoted, not
   open: `- gotcha [done: W-1950 §Local setup]: …` when it is settled in
   the handbook, `- tooling: … → #2087` when a card was filed for it.
-  **A fix is a card, not a finding**: a concrete change you could hand to
-  someone (a missing test such as "no test pins `slipdock done`'s exit
-  codes", a stale moduledoc or doc entry, a tooling bug such as "`page
-  section --append -` writes a literal `-`") goes on the board now
+  **Only what bites is a card**: a bug a person would meet (a tooling
+  bug such as "`page section --append -` writes a literal `-`"), a
+  security issue or a broken build goes on the board now
   (`slipdock add <board> "…" --desc "…" --column Housekeeping` when the
   board has a Housekeeping list, else `--column Backlog`; a design
   question, whose answer would change how the product or a process
   behaves, `--column Triage`; `--desc -` reads the description from
   stdin, for a heredoc) and into the
-  block as `→ #<card>`. A finding is only for what is uncertain, cuts across
+  block as `→ #<card>`. A missing test, a duplicate or a stale comment
+  outside security, data and money is a finding line, not a card ("no
+  test pins `slipdock done`'s exit codes"): tests are tiered by risk.
+  **The second time a kind turns up, fix the kind**: one card that removes
+  it (a shared mechanism, and a check that fails CI if it comes back),
+  naming the instances it closes, never a card per instance. A finding is
+  for the rest: what is uncertain, cuts across
   cards, or shows the handbook wrong ("`mix format` can need two passes",
   "W-1950 §Tests says async is safe, but the fixture is one user").
   `Findings: none` is the usual answer. `slipdock-loop` has the

@@ -48,8 +48,8 @@ defmodule Slipdock.Verified.Checks do
   pre-existing one is reported only. A card the server accepted unverified
   (#1953, profile `docs`) carries `"not_verified" => "docs"`.
 
-  A mutation review (#2354), asked of the verifier on a `fix`, `feature`,
-  `schema` or `security` card, is a list of mutants: a line the diff added
+  A mutation review (#2354), asked of the verifier on a `schema` or
+  `security` card (#3161), is a list of mutants: a line the diff added
   or changed, broken on purpose, and whether the card's tests caught it:
 
       mutant:killed=lib/foo.ex:42:flip > to >=

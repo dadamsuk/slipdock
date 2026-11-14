@@ -866,11 +866,13 @@ Findings:</code>
   after its kind, or <code>
 → #2087</code>
 
-  at its end for a card filed for it. A fix is a card, not a finding: a concrete change
-  someone could be handed (a missing test, a stale doc, a tooling bug) goes on the board
-  as a card at once, in the Housekeeping list when the board has one (a design question
-  goes to Triage, for a person), and the block names it with the arrow; a finding is only for what is
-  uncertain, cuts across cards, or shows the handbook wrong.
+  at its end for a card filed for it. Only what bites is a card: a bug a person would
+  meet, a security issue or a broken build goes on the board as a card at once, in the
+  Housekeeping list when the board has one (a design question goes to Triage, for a
+  person), and the block names it with the arrow. A missing test, a duplicate or a stale
+  comment outside security, data and money is a finding line, not a card. The second time
+  a kind turns up, fix the kind: one card that removes it and adds a check, never a card per
+  instance. A finding is for what is uncertain, cuts across cards, or shows the handbook wrong.
 </p>
 <div phx-r="" data-person="true" class="flex gap-2 rounded-xl bg-warning/10 p-3 ring-1 ring-warning">
 <span phx-r="" class="hero-hand-raised mt-0.5 size-4 shrink-0 text-warning">
@@ -961,22 +963,18 @@ schema</code>
   or <code>
 security</code>
 
-  card&#39;s verifier also reviews the diff for defects, rejecting on an Important one. On a <code>
-fix</code>
-, <code>
-feature</code>
-,
+  card&#39;s verifier also reviews the diff for defects, rejecting on an Important one. On a
   <code>
 schema</code>
 
   or <code>
 security</code>
 
-  card the verifier also mutates the change: it breaks 3 to 5 of the lines the change added
+  card (and no other: tests are tiered by risk) the verifier also mutates the change: it breaks 3 to 5 of the lines the change added
   or changed and, on top of those, every guard or branch the change adds (a new condition,
   clause, pattern match or early return), each named with its line, one at a time, runs only the card&#39;s tests and restores each line. A break no
   test catches (a surviving mutant) is a rejection naming the mutation and the test to
-  write; on a fix, one break undoes the fix, which the regression test must catch. A
+  write. A
   survivor in lines the change didn&#39;t touch is kept as a finding. The builder runs the
   mutation review before submitting, on its own change, and names the mutants it tried in
   the evidence, one line each (<code>

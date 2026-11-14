@@ -122,9 +122,11 @@ own, and Playwright driving Chromium (`NODE_PATH` pointing at a
 database on the way out. `tools/e2e/lib.sh` is the shared set-up for a new
 one.
 
-New or changed code comes with tests for it, in the same commit: the paths
-you added, error and edge cases included, with assertions on what happens
-rather than tests that only run the lines. A change that cannot be tested (a
+New or changed code comes with tests for it, in the same commit, as much as
+its risk asks, with assertions on what happens rather than tests that only run
+the lines: error and edge cases for security, permissions, data loss and money;
+the happy path and the errors a person would meet for other features and fixes;
+nothing of their own for UI notices, copy and wording. A change that cannot be tested (a
 deploy script, say) says why in its commit message. A refactor that changes no
 behaviour is covered by the tests already there.
 

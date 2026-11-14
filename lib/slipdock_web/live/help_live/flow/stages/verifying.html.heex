@@ -19,14 +19,14 @@
   profiles on, a <code>docs</code>
   card gets no verifier (the server accepts it on its suite), and a <code>schema</code>
   or <code>security</code>
-  card's verifier also reviews the diff for defects, rejecting on an Important one. On a <code>fix</code>, <code>feature</code>,
+  card's verifier also reviews the diff for defects, rejecting on an Important one. On a
   <code>schema</code>
   or <code>security</code>
-  card the verifier also mutates the change: it breaks 3 to 5 of the lines the change added
+  card (and no other: tests are tiered by risk) the verifier also mutates the change: it breaks 3 to 5 of the lines the change added
   or changed and, on top of those, every guard or branch the change adds (a new condition,
   clause, pattern match or early return), each named with its line, one at a time, runs only the card's tests and restores each line. A break no
   test catches (a surviving mutant) is a rejection naming the mutation and the test to
-  write; on a fix, one break undoes the fix, which the regression test must catch. A
+  write. A
   survivor in lines the change didn't touch is kept as a finding. The builder runs the
   mutation review before submitting, on its own change, and names the mutants it tried in
   the evidence, one line each (<code>mutant:killed=lib/foo.ex:42:flip &gt; to &gt;=</code>):

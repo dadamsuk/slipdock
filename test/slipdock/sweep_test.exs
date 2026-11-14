@@ -72,6 +72,17 @@ defmodule Slipdock.SweepTest do
       assert card.description =~ "`--desc -` reads it from stdin"
       assert card.description =~ "--tag security"
       assert card.description =~ "clean tree"
+      # Only what bites is filed; a kind is one card; a missing test outside
+      # the risky tiers is a Findings line (#3161).
+      assert card.description =~ "4. File what bites"
+      assert card.description =~ "one card that removes the kind"
+
+      assert card.description =~
+               "is not a card: list it in the closing comment's `Findings:` block"
+
+      refute card.description =~ "File each issue as its own card"
+      {_, gaps} = List.keyfind(Sweep.lenses(), "test gaps", 0)
+      assert gaps =~ "in security, data-loss and money code"
 
       found = Sweep.find(board)
       assert found.page.id == page.id
@@ -145,7 +156,7 @@ defmodule Slipdock.SweepTest do
 
       assert {:ok, again} = Sweep.install(user, board)
       assert again.upgraded
-      assert again.version.version == "1.2.0"
+      assert again.version.version == Sweep.version()
       [after_card] = sweep_cards(board)
       assert after_card.description =~ "never a card per file, module or area"
       assert after_card.description =~ "one commit with its tests"

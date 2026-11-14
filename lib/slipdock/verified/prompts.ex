@@ -382,13 +382,15 @@ defmodule Slipdock.Verified.Prompts do
     """
   end
 
-  @mutation_profiles ~w(fix feature schema security)
+  # Only where a missed break costs most (#3161): the board's test tiers
+  # (W-1950 §Tests) keep mutation for security and schema changes.
+  @mutation_profiles ~w(schema security)
 
   @doc """
   Whether a verifier of `card` also mutates the change (#2354): profiles are
-  on for `board`, the card's profile (set, else inferred) is `fix`,
-  `feature`, `schema` or `security`, and the completion changes code (never
-  a `--no-code` one). `docs` and `spike` cards get no mutation step.
+  on for `board`, the card's profile (set, else inferred) is `schema` or
+  `security`, and the completion changes code (never a `--no-code` one).
+  `fix`, `feature`, `docs` and `spike` cards get no mutation step (#3161).
   """
   def mutation_review?(%Card{} = card, %Board{} = board),
     do:
@@ -407,7 +409,7 @@ defmodule Slipdock.Verified.Prompts do
   @doc """
   The mutation step of a verify prompt (#2354): break the change's most
   consequential lines one at a time, run only the card's tests, restore, and
-  give each mutant as a part. On a `fix` card one mutation undoes the fix.
+  give each mutant as a part.
   """
   def mutation_step(%Card{} = card, opts \\ []) do
     profile = Slipdock.Profiles.profile_of(card)
@@ -419,7 +421,7 @@ defmodule Slipdock.Verified.Prompts do
         else: "the card's tests (`#{Enum.join(List.wrap(card.evidence_tests), " ")}`)"
 
     """
-    The mutation step: would the tests catch a break? This card's profile is `#{profile}`. In the clean worktree, pick 3 to 5 of the most consequential lines the diff added or changed: a condition, a guard, an error branch, a returned value. On top of those, break once each guard or branch the diff adds (a new condition, clause, pattern match or early return), naming each with its line: a survivor there is a rejection like any other. Break each one in turn (flip `>` to `>=`, drop the branch, return the wrong thing), run only #{tests}, never the whole suite, then restore the line before the next (`git checkout -- <file>`) and leave the tree as you found it.#{fix_mutation(profile)} On a board that ships by pull request run these tests yourself all the same: CI ran the suite, not the mutations. Give each mutant as a part, its file and line read in the clean tree:
+    The mutation step: would the tests catch a break? This card's profile is `#{profile}`. In the clean worktree, pick 3 to 5 of the most consequential lines the diff added or changed: a condition, a guard, an error branch, a returned value. On top of those, break once each guard or branch the diff adds (a new condition, clause, pattern match or early return), naming each with its line: a survivor there is a rejection like any other. Break each one in turn (flip `>` to `>=`, drop the branch, return the wrong thing), run only #{tests}, never the whole suite, then restore the line before the next (`git checkout -- <file>`) and leave the tree as you found it. On a board that ships by pull request run these tests yourself all the same: CI ran the suite, not the mutations. Give each mutant as a part, its file and line read in the clean tree:
        - Killed: a test failed. `--check mutant:killed=lib/foo.ex:42:"> to >="`.
        - Survived: no test failed, on a line the diff added or changed. It is a rejection, its reason naming the mutation and the test to write: `--check mutant:survived=lib/foo.ex:42:"drop the nil guard":"a test that passes nil"`.
        - Pre-existing: a survivor on a line the diff didn't change. Reported only, and kept as a finding: `--check mutant:pre-existing=lib/bar.ex:90:"return []"`.
@@ -485,12 +487,6 @@ defmodule Slipdock.Verified.Prompts do
         "   On this resubmission, break again every mutant that survived last time and any on a line the commits since touch, giving its place afresh; a killed one elsewhere stands: give it as `--check mutant:carried=lib/foo.ex:42` (or leave it out).\n",
       else: ""
   end
-
-  defp fix_mutation("fix"),
-    do:
-      " This is a fix, so one mutation undoes the fix itself (put the old line back): the regression test must kill it, and a survivor there means the fix has no test."
-
-  defp fix_mutation(_), do: ""
 
   # On a board with a handbook a rule is a person's call, so a bar item that
   # asks for a rule change is met by an open proposal, never a direct edit
