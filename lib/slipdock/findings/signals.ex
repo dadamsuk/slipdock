@@ -221,6 +221,37 @@ defmodule Slipdock.Findings.Signals do
     end)
   end
 
+  @doc """
+  `card` was accepted with a paperwork gap (#3182): the Handbook line or the
+  evidence's format disputed, and nothing else failing. One `process`
+  finding for each gap, source `verification`, its cause naming the part, so
+  the same gap reported again is counted rather than kept twice. The gap is
+  noted, never a rejection.
+  """
+  def paperwork(%Card{} = card, checks, actor) do
+    notes = (is_map(checks) && checks["notes"]) || %{}
+
+    for {part, label} <- [
+          {"handbook_line", "the Handbook line"},
+          {"evidence", "the evidence's format"}
+        ],
+        is_map(checks) and checks[part] == "disputed" do
+      record(%{
+        card: card,
+        source: "verification",
+        kind: "process",
+        cause: "paperwork: #{label}",
+        text:
+          "Accepted with a gap in #{label}" <>
+            if(notes[part], do: ": #{notes[part]}", else: "") <>
+            " (paperwork: noted by the verifier, not a rejection).",
+        job_id: job_id(actor)
+      })
+    end
+
+    :ok
+  end
+
   @doc "A merge job for `card` failed, saying `said`."
   def merge_failed(%Card{} = card, %Job{} = job, said) do
     record(%{

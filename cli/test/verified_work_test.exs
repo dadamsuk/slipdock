@@ -441,6 +441,29 @@ defmodule SlipdockCLI.VerifiedWorkTest do
     refute out =~ "bar 2"
   end
 
+  test "card shows the evidence's format as a part, with its why (#3182)" do
+    checks = %{
+      "bar" => [%{"item" => "1", "result" => "ok"}],
+      "handbook_line" => "disputed",
+      "evidence" => "disputed",
+      "notes" => %{"evidence" => "findings in prose"}
+    }
+
+    out =
+      capture_io(fn ->
+        Render.card(
+          card(%{
+            "verify_state" => "accepted",
+            "verify_by" => %{"kind" => "agent", "agent" => "checker"},
+            "verify_checks" => checks
+          })
+        )
+      end)
+
+    assert out =~ "✗ the evidence disputed: findings in prose"
+    assert out =~ "✗ Handbook line disputed"
+  end
+
   test "card shows a part carried from an earlier verdict, and the commit it passed at" do
     checks = %{
       "ask" => "ok",

@@ -345,7 +345,8 @@ slipdock verify <id> accept|reject [--reason TEXT] [--evidence-commit SHA]   # o
 slipdock verify <id> reject --reason "bar 2: …" --check bar:1=ok --check bar:2=fail:"why"
                                        # the verdict in parts (repeat --check, or --checks-file F):
                                        # ask=ok|misses, bar:<n>=ok|fail, suite=<passed>:<failed>,
-                                       # rule:<id>=ok|broken|n/a, handbook_line=ok|disputed; a reject
+                                       # rule:<id>=ok|broken|n/a, handbook_line=ok|disputed, evidence=ok|disputed
+                                       # (paperwork: a finding, and alone it accepts); a reject
                                        # names a failing part, an accept carries no broken must rule;
                                        # a rule broken in several places: repeat rule:<id>=broken:<file>:<line>
                                        # once per instance, all in one rejection (they list under the rule);

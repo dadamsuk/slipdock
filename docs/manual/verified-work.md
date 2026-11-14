@@ -185,7 +185,8 @@ submitted it, and **Accept** and **Reject** for anyone who can edit it.
   (repeat `--check`, or `--checks-file F`, one per line), MCP
   `verify_card` `checks`, or `"checks": [...]` on the REST call. The parts
   are `ask=ok|misses`, `bar:<n>=ok|fail`, `suite=<passed>:<failed>`,
-  `rule:<id>=ok|broken|n/a|pre-existing` and `handbook_line=ok|disputed`, each with
+  `rule:<id>=ok|broken|n/a|pre-existing`, `handbook_line=ok|disputed` and
+  `evidence=ok|disputed` (the evidence's format), each with
   `:<why>` if it needs one. **A rejection names every instance found**:
   once the verifier finds a rule broken, it looks for every other instance
   of the same break the card could have missed (the same list, the same
@@ -197,9 +198,20 @@ submitted it, and **Accept** and **Reject** for anyone who can edit it.
   several places is one failing part, and its instances are listed under
   the rule on the card, in `slipdock card` and in the rejection's comment.
   A rejection has to name a failing part (an
-  agent's reason that starts `bar 2:`, `the ask:`, a rule id or `Handbook
-  line:` counts). An acceptance with any failing part is refused, except a
-  missed `should` rule. The parts are kept on the card (`verify_checks`),
+  agent's reason that starts `bar 2:`, `the ask:` or a rule id counts). An
+  acceptance with any failing part is refused, except a missed `should`
+  rule and paperwork.
+- **Paperwork is noted, not rejected** (#3182). A missing or wrong
+  `Handbook:` line (`handbook_line=disputed`) and evidence in the wrong
+  format (`evidence=disputed`: the `Handbook:` line or `Findings:` block run
+  into a paragraph, the commit or suite in prose) are paperwork. When
+  paperwork is all that fails, an agent's verdict accepts the card, even
+  one given as a rejection (its comment opens *Accepted, not rejected: only
+  paperwork fails*), and each gap is kept as a `process` finding (source
+  `verification`, cause `paperwork: the Handbook line` or `paperwork: the
+  evidence's format`). Any other failing part still rejects, paperwork
+  beside it or not, and a person's rejection stands as given. A rebuild to
+  add one line costs more than the line. The parts are kept on the card (`verify_checks`),
   listed under its verification block and in `slipdock card`, and written
   into the decision's comment. A later decision replaces them.
 - **Rule hits on code the change didn't touch are reported, not
@@ -333,11 +345,12 @@ judges four things in order: whether the bar covers what the card asks for
 with a handbook (its `Handbook/` wiki pages) the rules for the paths the change touches
 (`git diff --name-only` from the merge base, piped to `slipdock handbook B
 --paths-from -`: a broken `must` rule is a rejection) and the closing
-`Handbook:` line against the docs gate. On a bug, the check is would the
+`Handbook:` line against the docs gate (a gap there is paperwork: a
+finding, not a rejection). On a bug, the check is would the
 reporter now see it fixed, not does the work meet the bar: a card or evidence
 that says the reported symptom or its cause was never seen (a cause made up in
 the test) is a rejection on the ask, however good the tests. A rejection cites what it fails: a
-bar item, the ask, a rule id or the Handbook line. Since a rule is a person's
+bar item, the ask or a rule id. Since a rule is a person's
 call, a bar item that adds, rewords or drops a handbook rule is met by a
 matching open rule proposal (an `edit_section` on that page's `## Rules`,
 listed by `slipdock garden B --check proposal`): the verifier judges what the

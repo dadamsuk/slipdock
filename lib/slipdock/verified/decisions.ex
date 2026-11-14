@@ -168,7 +168,7 @@ defmodule Slipdock.Verified.Decisions do
   end
 
   defp decide_pending(card, decision, params, %{reason: reason, commit: commit}, actor, user) do
-    with {:ok, checks} <- verdict(card, decision, params, reason, actor),
+    with {:ok, checks, decision, reason} <- verdict(card, decision, params, reason, actor),
          {:ok, _} = decided <-
            apply_decision(
              card,
@@ -180,8 +180,29 @@ defmodule Slipdock.Verified.Decisions do
       Jobs.cancel_verify_jobs(card, actor)
       Slipdock.Findings.Signals.pre_existing(card, checks, actor)
       Slipdock.Findings.Signals.pre_existing_mutants(card, checks, actor)
+      if decision == "accept", do: Slipdock.Findings.Signals.paperwork(card, checks, actor)
       decided
     end
+  end
+
+  # An agent's rejection whose only failing parts are paperwork (#3182: the
+  # Handbook line, the evidence's format) is decided as an acceptance: a
+  # rebuild to add one line costs more than the line is worth, so the gap
+  # is kept as a finding instead. A person's rejection stands as given.
+  defp settle("reject", checks, reason, actor) do
+    alias Slipdock.Verified.Checks
+
+    if Actors.gated?(actor) and Checks.paperwork_only?(checks),
+      do: {"accept", paperwork_note(Checks.paperwork(checks), reason)},
+      else: {"reject", reason}
+  end
+
+  defp settle(decision, _checks, reason, _actor), do: {decision, reason}
+
+  @doc false
+  def paperwork_note(gaps, reason) do
+    "**Accepted, not rejected:** only paperwork fails (#{Enum.join(gaps, ", ")}), " <>
+      "so it is kept as a finding rather than sent back for a rebuild.\n\n" <> reason
   end
 
   # The decision's verdict in parts (#1778), from `params["checks"]`, or for
@@ -200,8 +221,11 @@ defmodule Slipdock.Verified.Decisions do
       # A person's rejection, given no parts at all, may stand on its reason.
       must_fail = given != %{} or Actors.gated?(actor)
 
+      {decision, reason} = settle(decision, checks, reason, actor)
+
       with :ok <- verdict_holds(decision, checks, must_fail) do
-        {:ok, checks |> stored_checks(from_reason) |> judged_at(decision, params, card)}
+        {:ok, checks |> stored_checks(from_reason) |> judged_at(decision, params, card), decision,
+         reason}
       end
     end
   end
@@ -238,7 +262,7 @@ defmodule Slipdock.Verified.Decisions do
       do:
         {:error, :unprocessable_entity,
          "a rejection names what fails: give a failing check (`--check bar:2=fail:why`, " <>
-           "`rule:UX-4=broken`, `ask=misses`, `handbook_line=disputed`, " <>
+           "`rule:UX-4=broken`, `ask=misses`, " <>
            "`mutant:survived=lib/foo.ex:42:<mutation>`), or start the reason " <>
            "with the one it fails (`bar 2: …`, `the ask: …`, `UX-4: …`, `Handbook line: …`)" <>
            pre_existing_note(checks)},
@@ -254,8 +278,9 @@ defmodule Slipdock.Verified.Decisions do
         {:error, :unprocessable_entity,
          "an acceptance can't carry a failing check: " <>
            Enum.join(blocking, ", ") <>
-           " (a broken `must` rule, a bar item, the ask, the suite, the Handbook line, an important " <>
-           "defect or a surviving mutant is a rejection)"}
+           " (a broken `must` rule, a bar item, the ask, the suite, an important " <>
+           "defect or a surviving mutant is a rejection; the Handbook line and the evidence's " <>
+           "format are paperwork, which an acceptance may carry)"}
     end
   end
 

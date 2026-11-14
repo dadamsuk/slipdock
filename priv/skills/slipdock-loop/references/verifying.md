@@ -41,7 +41,12 @@ are asked to verify or audit a card. A pass that builds reads `SKILL.md`'s
   4. **The `Handbook:` line** (a board with a handbook), in the evidence or
      the closing comment, against the docs gate (step 7.1): no line, `no
      change` on a diff that needed an update, or pages named that weren't
-     edited, is a rejection.
+     edited, is `--check handbook_line=disputed:<why>`. **Paperwork is
+     noted, not rejected**: that, and evidence in the wrong format
+     (`--check evidence=disputed:<why>`), is kept as a finding. When
+     paperwork is all that fails, accept with it as a part (a rejection
+     naming only paperwork is decided as an acceptance); every other
+     failing part still rejects.
   **A spike** is judged on its answer, not a pull request: the answer
   addresses the question its bar asks (the ask); the evidence is real
   (numbers, logs, a branch and commit you can look at, not claims); the
@@ -60,7 +65,7 @@ are asked to verify or audit a card. A pass that builds reads `SKILL.md`'s
   --evidence-commit <sha> --reason "what you checked"`, or `slipdock verify
   <id> reject --reason "<the check>: <what falls short, specifically>"`.
   A rejection cites the check it fails: a bar item (`bar 2: …`), the ask
-  (`the ask: …`), a rule id (`UX-4: …`) or the Handbook line. **Once a
+  (`the ask: …`) or a rule id (`UX-4: …`). **Once a
   rule is broken, name every instance**: look for every other place the
   card could have missed the same break (the same list, the same string,
   the same door; a page list copied across the README, a skill and a help
@@ -76,9 +81,9 @@ are asked to verify or audit a card. A pass that builds reads `SKILL.md`'s
   directly; ask for the proposal to be filed or corrected. Give the
   verdict in parts too, one `--check` each (MCP `verify_card` `checks`):
   `ask=ok|misses`, `bar:2=ok|fail`, `suite=412:0`, `rule:UX-4=ok|broken|n/a`,
-  `handbook_line=ok|disputed`, each with `:"why"` if it needs one. A
-  rejection names at least one failing part; an acceptance can't carry one
-  (a missed `should` rule aside). A rule broken only in lines the diff
+  `handbook_line=ok|disputed`, `evidence=ok|disputed`, each with `:"why"`
+  if it needs one. A rejection names at least one failing part; an
+  acceptance can't carry one (a missed `should` rule and paperwork aside). A rule broken only in lines the diff
   didn't change is not the builder's: give it as
   `rule:UX-4=pre-existing:<file>:<line>`, never `broken` and never a
   rejection; it is kept as a `rule` finding on the card, and an

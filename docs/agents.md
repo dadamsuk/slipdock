@@ -1204,9 +1204,13 @@ what the card asks for? a bar that leaves part out is a rejection), **the
 bar**, and on a board with a handbook **the rules** for the diff's paths
 (`git diff --name-only` from the merge base piped to `slipdock handbook
 <board> --paths-from -`; a broken `must` is a rejection) and **the
-`Handbook:` line**, held against the docs gate (`no change` on a diff that
-needed an update is a rejection). A rejection cites the check it fails: a bar
-item, the ask, a rule id or the Handbook line. **On a bug, the ask is the
+`Handbook:` line**, held against the docs gate. **Paperwork is noted, not
+rejected**: a missing or wrong `Handbook:` line (`handbook_line=disputed`) or
+evidence in the wrong format (`evidence=disputed`) is kept as a `process`
+finding. When paperwork is all that fails, the verdict accepts, even one given
+as a rejection; any other failing part still rejects, and a person's rejection
+stands. A rejection cites the check it fails: a bar item, the ask or a rule
+id. **On a bug, the ask is the
 reported symptom**: the check is would the reporter now see it fixed, not
 does the work meet the bar. The builder reproduces the reported symptom on
 the reporter's scenario and posts the repro as its own comment; a clean repro
@@ -1222,8 +1226,8 @@ proposal's content, not the live Rules list, and names its id when it
 accepts. A rejection never asks the builder to edit `## Rules` directly,
 only to file or correct the proposal; an audit judges the same way. The
 builder runs the same checks before submitting. The verdict is kept in parts on the card
-(`verify_checks`: the ask, each bar item, the suite, each rule and the
-Handbook line), given as `checks` to `verify_card` or `POST
+(`verify_checks`: the ask, each bar item, the suite, each rule, the
+Handbook line and the evidence's format), given as `checks` to `verify_card` or `POST
 /api/cards/:id/verify`, or `slipdock verify … --check bar:2=fail:why`
 (repeated, or `--checks-file`). A rule broken only in lines the diff didn't
 change is `rule:<id>=pre-existing:<file>:<line>`: never a rejection, kept as a

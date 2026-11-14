@@ -61,7 +61,7 @@ defmodule Slipdock.Verified.Prompts do
     #{decide}. Say once whether you agree, and report it as a step first (`deciding: agree` or `deciding: disagree`):
        - `slipdock verify #{card.id} agree --reason "what you checked" --check ask=ok --check bar:1=ok …`
        - `slipdock verify #{card.id} disagree --reason "where the verdict is wrong, specifically" --check bar:2=fail:"why" …`
-    Give your own verdict in parts, one `--check` each (MCP `verify_card` `checks`): `ask=ok|misses`, `bar:<n>=ok|fail`, `suite=<passed>:<failed>`#{if handbook, do: ", `rule:<id>=ok|broken|n/a|pre-existing:<file>:<line>`, `handbook_line=ok|disputed`", else: ""}#{if defect_review?(card, board), do: ", `defect:important|nit|pre-existing=<file>:<line>`", else: ""}#{if mutation_review?(card, board), do: ", `mutant:killed|survived|pre-existing=<file>:<line>:<mutation>`, `mutants=n/a:<why>`", else: ""}. Disagree when any part fails that the verdict passed (a missed `should` rule included), or when it failed a part that holds.
+    Give your own verdict in parts, one `--check` each (MCP `verify_card` `checks`): `ask=ok|misses`, `bar:<n>=ok|fail`, `suite=<passed>:<failed>`#{if handbook, do: ", `rule:<id>=ok|broken|n/a|pre-existing:<file>:<line>`, `handbook_line=ok|disputed`", else: ""}, `evidence=ok|disputed`#{if defect_review?(card, board), do: ", `defect:important|nit|pre-existing=<file>:<line>`", else: ""}#{if mutation_review?(card, board), do: ", `mutant:killed|survived|pre-existing=<file>:<line>:<mutation>`, `mutants=n/a:<why>`", else: ""}. Paperwork alone (the `Handbook:` line, the evidence's format) is no reason to disagree: give the part as `disputed` and agree. Disagree when any part fails that the verdict passed (a missed `should` rule included), or when it failed a part that holds.
 
     #{Slipdock.Automations.Runner.writing()}
     """
@@ -96,7 +96,9 @@ defmodule Slipdock.Verified.Prompts do
   The verifier judges, in order (#1777): the ask (does the bar cover what
   the card asks for?), the bar, and on a board with a handbook the rules for
   the diff's paths and the closing `Handbook:` line. A rejection cites the
-  check it fails: a bar item, the ask, a rule id or the Handbook line.
+  check it fails: a bar item, the ask or a rule id. The Handbook line and
+  the evidence's format are paperwork (#3182): noted as findings, never a
+  rejection on their own.
   """
   def verify_prompt(%Card{} = card, %Board{} = board, opts \\ []) do
     handbook = Slipdock.Handbook.find(board)
@@ -128,7 +130,8 @@ defmodule Slipdock.Verified.Prompts do
     #{decide}. Decide once, and report the decision as a step first (`deciding: accept` or `deciding: reject`):
        - `slipdock verify #{card.id} accept#{at} --reason "what you checked, each check in turn" --check ask=ok --check bar:1=ok …`
        - `slipdock verify #{card.id} reject#{at} --reason "<the check it fails>: what falls short, specifically" --check bar:2=fail:"why" …`
-    Give the verdict in parts, one `--check` each (MCP `verify_card` `checks`): `ask=ok|misses`, `bar:<n>=ok|fail`, `suite=<passed>:<failed>`#{if handbook, do: ", `rule:<id>=ok|broken|n/a|pre-existing:<file>:<line>`, `handbook_line=ok|disputed`", else: ""}#{if defect_review?(card, board), do: ", `defect:important|nit|pre-existing=<file>:<line>`", else: ""}#{if mutation_review?(card, board), do: ", `mutant:killed|survived|pre-existing=<file>:<line>:<mutation>`, `mutants=n/a:<why>`", else: ""}, each with `:<why>` after it if it needs one. A rejection names at least one failing part; an acceptance can't carry one, but for a missed `should` rule.
+    Give the verdict in parts, one `--check` each (MCP `verify_card` `checks`): `ask=ok|misses`, `bar:<n>=ok|fail`, `suite=<passed>:<failed>`#{if handbook, do: ", `rule:<id>=ok|broken|n/a|pre-existing:<file>:<line>`, `handbook_line=ok|disputed`", else: ""}, `evidence=ok|disputed`#{if defect_review?(card, board), do: ", `defect:important|nit|pre-existing=<file>:<line>`", else: ""}#{if mutation_review?(card, board), do: ", `mutant:killed|survived|pre-existing=<file>:<line>:<mutation>`, `mutants=n/a:<why>`", else: ""}, each with `:<why>` after it if it needs one. A rejection names at least one failing part; an acceptance can't carry one, but for a missed `should` rule or paperwork.
+    #{paperwork_sentence(handbook != nil)}
     A rejection cites what it fails: #{cite_list(handbook)}. It goes back to whoever takes the card next, so say exactly what to fix.
 
     #{Slipdock.Automations.Runner.writing()}
@@ -553,7 +556,7 @@ defmodule Slipdock.Verified.Prompts do
       DocsPlaces.docs_places_steps(card, handbook, base, sha, opts) ++
       [
         """
-        The Handbook line. Find the `Handbook:` line, in the evidence or the builder's closing comment, and hold it against the diff with the docs gate: user-visible behaviour updates the Specification; structure or boundaries, Architecture or the Data model; a choice between alternatives, a new page in `Handbook/Decisions`; something reusable, Shared modules or Components; a UI pattern, UX & UI; how to test, build or deploy, Testing & tooling or Operations. No line, a line saying `no change` on a diff that needed one, or a line naming pages the work didn't edit (`slipdock page history <page>`), is a rejection (`Handbook line: …`). Step: `judging the Handbook line`\
+        The Handbook line. Find the `Handbook:` line, in the evidence or the builder's closing comment, and hold it against the diff with the docs gate: user-visible behaviour updates the Specification; structure or boundaries, Architecture or the Data model; a choice between alternatives, a new page in `Handbook/Decisions`; something reusable, Shared modules or Components; a UI pattern, UX & UI; how to test, build or deploy, Testing & tooling or Operations. No line, a line saying `no change` on a diff that needed one, or a line naming pages the work didn't edit (`slipdock page history <page>`), is a gap: give it as `--check handbook_line=disputed:<what is missing>`. It is paperwork, noted as a finding and never a rejection on its own. Step: `judging the Handbook line`\
         """
       ]
   end
@@ -593,8 +596,23 @@ defmodule Slipdock.Verified.Prompts do
   defp cite_list(nil), do: "the bar item (`bar 2: …`) or the ask (`the ask: …`)"
 
   defp cite_list(_handbook),
+    do: "a bar item (`bar 2: …`), the ask (`the ask: …`) or a rule id (`ARCH-3: …`)"
+
+  @doc """
+  What the verify prompt says of paperwork (#3182): the `Handbook:` line
+  and the evidence's format are given as parts, kept as findings, and never
+  a rejection on their own. A rejection whose only failing parts they are
+  is decided as an acceptance.
+  """
+  def paperwork_sentence(handbook? \\ true)
+
+  def paperwork_sentence(true),
     do:
-      "a bar item (`bar 2: …`), the ask (`the ask: …`), a rule id (`ARCH-3: …`) or the Handbook line (`Handbook line: …`)"
+      "Paperwork is noted, not rejected: a missing or wrong `Handbook:` line (`handbook_line=disputed:<why>`) or evidence in the wrong format (`evidence=disputed:<why>`: the `Handbook:` line or the `Findings:` block run into a paragraph, the commit, tests or suite in prose rather than their flags) is a gap the board keeps as a finding. When paperwork is all that fails, accept with it as a part; a rejection that names only paperwork is decided as an acceptance. Every other failing part still rejects."
+
+  def paperwork_sentence(false),
+    do:
+      "Paperwork is noted, not rejected: evidence in the wrong format (`evidence=disputed:<why>`: a block run into a paragraph, the commit, tests or suite in prose rather than their flags) is a gap the board keeps as a finding. When paperwork is all that fails, accept with it as a part; a rejection that names only paperwork is decided as an acceptance. Every other failing part still rejects."
 
   # The ask as the prompt shows it: the description, cut short if long.
   @ask_cap 4000

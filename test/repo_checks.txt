@@ -125,6 +125,7 @@ test/slipdock_web/docs_places_docs_test.exs
 test/slipdock_web/audit_misses_docs_test.exs
 test/slipdock_web/api_guide_golden_test.exs
 test/slipdock_web/every_instance_docs_test.exs
+test/slipdock_web/paperwork_docs_test.exs
 test/slipdock_web/verified_merge_docs_test.exs
 test/slipdock_web/verify_by_ci_docs_test.exs
 test/slipdock_web/reproduce_reported_docs_test.exs

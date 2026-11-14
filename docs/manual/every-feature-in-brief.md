@@ -54,7 +54,9 @@ and MCP) and a link to the page that covers it.
     (`slipdock set-board --bar-required`, `slipdock edit 12 --bar "…"`), and
     evidence when it completes (`slipdock done 12 --evidence-commit abc1234
     --evidence -`), and a second agent accepting it, or rejecting it with
-    the reason (`slipdock verify 12 accept|reject --reason -`).
+    the reason (`slipdock verify 12 accept|reject --reason -`). Paperwork
+    alone (a missing or wrong `Handbook:` line, evidence in the wrong
+    format) is kept as a finding and the card accepted, not sent back.
   - The card shows the bar, the evidence and a verdict's reason as
     Markdown; click the bar, or **Edit**, to change it.
   - Evidence and
