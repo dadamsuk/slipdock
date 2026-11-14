@@ -146,6 +146,64 @@ defmodule SlipdockWeb.AccountMachinesLiveTest do
       assert has_element?(view, "#machines-empty")
     end
 
+    test "a revoke for an id that isn't one of yours revokes nothing and says nothing", ctx do
+      {:ok, key, _} = Machines.create_enrolment_key(ctx.user, [ctx.board.id])
+      {:ok, {machine_key, machine}} = Machines.enrol_with_key(key, @about)
+
+      {:ok, gone_key, _} = Machines.create_enrolment_key(ctx.user, [ctx.board.id])
+      {:ok, {_, gone}} = Machines.enrol_with_key(gone_key, %{"hostname" => "gone-box"})
+
+      stranger = user_fixture("machine-stranger@example.com")
+      their_board = board_fixture(%{}, owner: stranger)
+      {:ok, their_key, _} = Machines.create_enrolment_key(stranger, [their_board.id])
+
+      {:ok, {their_machine_key, theirs}} =
+        Machines.enrol_with_key(their_key, %{"hostname" => "their-box"})
+
+      {:ok, view, _} = live(ctx.conn, ~p"/account/machines")
+      # Deleted after the page drew it.
+      Repo.delete!(gone)
+
+      # The button's own event, with the id swapped for another, as a forged
+      # one would be: the id sent wins over the button's `phx-value-id`.
+      revoke = element(view, "#machine-#{machine.id} button", "Revoke")
+
+      for id <- ["x", "", "#{gone.id}", "#{theirs.id}"] do
+        assert render_click(revoke, %{"id" => id}) =~ "build-box", "id #{inspect(id)}"
+        refute has_element?(view, "#flash-info"), "id #{inspect(id)}"
+      end
+
+      assert Process.alive?(view.pid)
+      refute Machine.revoked?(Repo.get!(Machine, theirs.id))
+      assert Machines.authenticate(their_machine_key)
+      refute Machine.revoked?(Repo.get!(Machine, machine.id))
+      assert Machines.authenticate(machine_key)
+      assert has_element?(view, "#machine-#{machine.id} button", "Revoke")
+      refute render(view) =~ "their-box"
+    end
+
+    test "a machine whose boards are all out of reach says so", ctx do
+      stranger = user_fixture("board-stranger@example.com")
+      their_board = board_fixture(%{}, owner: stranger)
+      {:ok, key, _} = Machines.create_enrolment_key(ctx.user, [ctx.board.id])
+      {:ok, {_, machine}} = Machines.enrol_with_key(key, @about)
+
+      # A board the user can't reach, and one that no longer exists.
+      machine
+      |> Ecto.Changeset.change(board_ids: [their_board.id, their_board.id + 1_000_000])
+      |> Repo.update!()
+
+      {:ok, view, _} = live(ctx.conn, ~p"/account/machines")
+
+      assert has_element?(
+               view,
+               "#machine-#{machine.id}",
+               "serves no boards you can still reach"
+             )
+
+      refute has_element?(view, "#machine-#{machine.id}", "Served board")
+    end
+
     test "the enrolment key form is built from the form components (COMP-1)", ctx do
       {:ok, view, _} = live(ctx.conn, ~p"/account/machines")
 
