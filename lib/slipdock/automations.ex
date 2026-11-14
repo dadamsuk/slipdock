@@ -346,9 +346,15 @@ defmodule Slipdock.Automations do
     end
   end
 
+  # A changeset's errors as one line for a person, each message with its
+  # placeholders (`%{count}` from `validate_length`) filled from its opts.
   defp changeset_message(changeset) do
     changeset
-    |> Ecto.Changeset.traverse_errors(fn {msg, _} -> msg end)
+    |> Ecto.Changeset.traverse_errors(fn {msg, opts} ->
+      Enum.reduce(opts, msg, fn {k, v}, acc ->
+        String.replace(acc, "%{#{k}}", fn _ -> to_string(v) end)
+      end)
+    end)
     |> Enum.map_join("; ", fn {field, msgs} -> "#{field}: #{Enum.join(msgs, ", ")}" end)
   end
 

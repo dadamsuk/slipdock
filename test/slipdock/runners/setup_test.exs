@@ -826,4 +826,21 @@ defmodule Slipdock.Runners.SetupTest do
       refute rule.text =~ "coding agent"
     end
   end
+
+  describe "changeset_message/1 (#3052)" do
+    test "fills each placeholder from the error's opts" do
+      changeset =
+        {%{}, %{name: :string, pool: :string}}
+        |> Ecto.Changeset.cast(%{name: String.duplicate("n", 9), pool: ""}, [:name, :pool])
+        |> Ecto.Changeset.validate_length(:name, max: 5)
+        # An opt with no placeholder of its own (an enum of atoms) isn't
+        # turned to text, which would raise.
+        |> Ecto.Changeset.validate_inclusion(:name, [:a, :b])
+
+      message = Setup.changeset_message(changeset)
+
+      assert message == "name is invalid, should be at most 5 character(s)"
+      refute message =~ "%{"
+    end
+  end
 end
