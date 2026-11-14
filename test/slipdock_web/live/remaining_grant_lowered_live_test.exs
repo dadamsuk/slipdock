@@ -463,12 +463,15 @@ defmodule SlipdockWeb.RemainingGrantLoweredLiveTest do
 
       assert {1, _} = Repo.delete_all(from(g in Grant, where: g.page_id == ^page.id))
 
-      assert {:error, {:live_redirect, %{to: "/shared"}}} =
-               render_upload(input, "shot.png")
+      sent_away = render_upload(input, "shot.png")
+      assert {:error, {:live_redirect, %{to: "/shared"}}} = sent_away
 
-      assert assert_redirect(view, "/shared") == %{
-               "error" => "That isn't shared with you, or not any more."
-             }
+      # The flash is read from the redirect `render_upload` returns, not with
+      # `assert_redirect` (#3054): the redirect comes from the upload's
+      # progress callback, and the test client can stop on the view's exit
+      # before it posts the redirect message `assert_redirect` waits for.
+      {:ok, _shared, html} = follow_redirect(sent_away, as(sharee), "/shared")
+      assert html =~ "That isn&#39;t shared with you, or not any more."
 
       assert Repo.aggregate(Slipdock.Boards.Attachment, :count) == 0
     end
