@@ -132,6 +132,12 @@ defmodule SlipdockWeb.AuthLiveTest do
       Regex.run(~r{<code id="new-token"[^>]*>([^<]+)</code>}, html, capture: :all_but_first)
 
     assert Accounts.get_user_by_api_token(String.trim(token)).id == user.id
+
+    # It can be copied with a button as well as selected (#2887), and Done
+    # puts it away for good.
+    assert has_element?(view, "#new-token-copy[phx-hook=CopyText][data-target=new-token]")
+    view |> element("#new-token-once button", "Done") |> render_click()
+    refute has_element?(view, "#new-token")
   end
 
   test "groups page", %{conn: conn, user: user} do

@@ -14,17 +14,19 @@ defmodule SlipdockWeb.Components.SlipdockComponentsFacadeTest do
   alias SlipdockWeb.SlipdockComponents
   alias SlipdockWeb.SlipdockComponents.CardFace
   alias SlipdockWeb.SlipdockComponents.Chrome
+  alias SlipdockWeb.SlipdockComponents.Copy
   alias SlipdockWeb.SlipdockComponents.Fields
   alias SlipdockWeb.SlipdockComponents.Marks
   alias SlipdockWeb.SlipdockComponents.Progress
   alias SlipdockWeb.SlipdockComponents.Schedule
 
-  @sources [Marks, Schedule, Progress, CardFace, Chrome, Fields]
+  @sources [Marks, Schedule, Progress, CardFace, Chrome, Fields, Copy]
 
   # What the module exported while it still defined everything itself, bar
   # the two functions `use Phoenix.Component` and the verified routes
   # generate for the compiler's own use, and what it has been given since
-  # (`view_empty/1`, #2885; `switch_field/1`, #2894).
+  # (`view_empty/1`, #2885; `switch_field/1`, #2894; `copy_block/1` and
+  # `secret_once/1`, #2887).
   @exports [
     __components__: 0,
     age_chip: 1,
@@ -37,6 +39,7 @@ defmodule SlipdockWeb.Components.SlipdockComponentsFacadeTest do
     card: 1,
     card_borders: 1,
     color_swatch: 1,
+    copy_block: 1,
     date_range_badge: 1,
     dependency_badge: 1,
     doc_link: 1,
@@ -79,6 +82,7 @@ defmodule SlipdockWeb.Components.SlipdockComponentsFacadeTest do
     quick_add_row: 1,
     relative_time: 1,
     schedule_badges: 1,
+    secret_once: 1,
     show_set: 1,
     slip_chips: 1,
     snooze_mark: 1,

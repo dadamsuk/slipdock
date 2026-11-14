@@ -11,12 +11,13 @@ defmodule SlipdockWeb.SlipdockComponents do
 
   alias SlipdockWeb.SlipdockComponents.CardFace
   alias SlipdockWeb.SlipdockComponents.Chrome
+  alias SlipdockWeb.SlipdockComponents.Copy
   alias SlipdockWeb.SlipdockComponents.Fields
   alias SlipdockWeb.SlipdockComponents.Marks
   alias SlipdockWeb.SlipdockComponents.Progress
   alias SlipdockWeb.SlipdockComponents.Schedule
 
-  @sources [Marks, Schedule, Progress, CardFace, Chrome, Fields]
+  @sources [Marks, Schedule, Progress, CardFace, Chrome, Fields, Copy]
 
   @doc false
   # The declarations of the components delegated below, private ones left out.
@@ -259,4 +260,12 @@ defmodule SlipdockWeb.SlipdockComponents do
 
   @doc "A setting switched on or off: a checkbox, its title and a hint under it (see `SlipdockWeb.SlipdockComponents.Fields.switch_field/1`)."
   defdelegate switch_field(assigns), to: Fields
+
+  ## Text to copy -------------------------------------------------------------
+
+  @doc "Text to copy, with its Copy button: a wrapped `<code>` block, or with `pre` a `<pre>` with the button in its corner (see `SlipdockWeb.SlipdockComponents.Copy`)."
+  defdelegate copy_block(assigns), to: Copy
+
+  @doc "A secret shown this once (a new token, an enrolment key): copy it now, with a Copy button and Done."
+  defdelegate secret_once(assigns), to: Copy
 end

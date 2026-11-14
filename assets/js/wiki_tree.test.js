@@ -1,6 +1,6 @@
 // node --test assets/js — no browser, so the DOM here is the handful of
 // things wiki_tree.js touches, and the server is a pushEvent that answers.
-import {test} from "node:test"
+import {test, mock} from "node:test"
 import assert from "node:assert/strict"
 import {TreeModel, windowRange, dropZone, dropIntent, movableRow, ownRow, escapeHtml, keyMove, typeAhead, menuItems, hasMenu, rowHtml, WikiTree, ROW_HEIGHT, previewHtml, PREVIEW_MS} from "./wiki_tree.js"
 
@@ -863,6 +863,63 @@ test("a menu item's event goes to the server; copy and new tab stay here", () =>
   hook.menuItems = menuItems(page(7, {href: "/boards/1/wiki/p7"}), {board: 1, canWrite: true, selected: new Set()})
   hook.menuAction(ev, 1)
   assert.equal(opened, "https://example.test/boards/1/wiki/p7")
+})
+
+test("Copy link says Copied on its item, then the menu closes (#2887)", async () => {
+  const {hook} = mountHook({replies: [root([page(7, {href: "/boards/1/wiki/p7"})])]})
+  hook.mounted()
+  const written = []
+  Object.defineProperty(globalThis, "navigator", {value: {clipboard: {writeText: t => { written.push(t); return Promise.resolve() }}}, configurable: true})
+  globalThis.window.location = {href: "https://example.test/boards/1/wiki"}
+  hook.menuItems = menuItems(page(7, {href: "/boards/1/wiki/p7"}), {board: 1, canWrite: true, selected: new Set()})
+  const index = labels(hook.menuItems).indexOf("Copy link")
+  const label = {textContent: "Copy link"}
+  const item = {querySelector: sel => (sel === "[data-label]" ? label : null)}
+  let removed = 0
+  const menu = {remove() { removed++ }, querySelector: sel => (sel === `[data-menu-item="${index}"]` ? item : null)}
+  hook.menuEl = menu
+  mock.timers.enable({apis: ["setTimeout"]})
+  try {
+    await hook.menuAction({preventDefault() {}, stopPropagation() {}}, index)
+    assert.deepEqual(written, ["https://example.test/boards/1/wiki/p7"])
+    assert.equal(label.textContent, "Copied")
+    assert.equal(hook.menuEl, menu, "the menu stays open to say so")
+    mock.timers.tick(1500)
+    assert.equal(removed, 1)
+    assert.equal(hook.menuEl, null)
+    // A menu opened in the meantime is not the one closed.
+    hook.menuEl = menu
+    await hook.menuAction({preventDefault() {}, stopPropagation() {}}, index)
+    const other = {remove() {}}
+    hook.menuEl = other
+    mock.timers.tick(1500)
+    assert.equal(hook.menuEl, other)
+  } finally {
+    mock.timers.reset()
+  }
+})
+
+test("a menu item's label is its own span, for Copied to replace", () => {
+  const {hook, rowsEl} = mountHook({replies: [root([page(7, {href: "/boards/1/wiki/p7"})])]})
+  hook.mounted()
+  let appended = null
+  rowsEl.appendChild = el => { appended = el }
+  rowsEl.clientWidth = 300
+  hook.showMenu(menuItems(page(7, {href: "/boards/1/wiki/p7"}), {board: 1, canWrite: true, selected: new Set()}), {y: 0})
+  assert.match(appended.innerHTML, /data-menu-item="\d+"[^>]*>.*<span data-label>Copy link<\/span>/)
+})
+
+test("with no clipboard Copy link just closes the menu", async () => {
+  const {hook} = mountHook({replies: [root([page(7, {href: "/boards/1/wiki/p7"})])]})
+  hook.mounted()
+  Object.defineProperty(globalThis, "navigator", {value: {}, configurable: true})
+  globalThis.window.location = {href: "https://example.test/boards/1/wiki"}
+  hook.menuItems = menuItems(page(7, {href: "/boards/1/wiki/p7"}), {board: 1, canWrite: true, selected: new Set()})
+  let removed = 0
+  hook.menuEl = {remove() { removed++ }, querySelector: () => null}
+  await hook.menuAction({preventDefault() {}, stopPropagation() {}}, labels(hook.menuItems).indexOf("Copy link"))
+  assert.equal(removed, 1)
+  assert.equal(hook.menuEl, null)
 })
 
 test("a page also filed in a folder is marked, cannot be dragged, and can be taken out", () => {

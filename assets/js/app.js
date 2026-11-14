@@ -32,6 +32,7 @@ import {ModalDialog} from "./modal_dialog"
 import {boardHotkey, noteHotkey, placeHotkey, searchHotkey} from "./board_hotkey"
 import {installPosthog} from "./posthog"
 import {WikiTree} from "./wiki_tree"
+import {copyWithFeedback} from "./copy"
 import {EditorPrefs, WikiFileOpen, WikiTreeCollapse, WikiTreeResize, WikiTreeView, WikiWidthToggle} from "./wiki_pane"
 import {TimelineLabelResize, linkPath} from "./timeline_labels"
 import {installMeld} from "./meld_view"
@@ -1472,44 +1473,25 @@ Hooks.ScrollBottom = {
 }
 
 // Copies the text of the element named by data-target to the clipboard,
-// briefly relabelling the button (its [data-label] child) to say so.
+// saying so on the button (copy.js).
 Hooks.CopyText = {
   mounted() {
     this.el.addEventListener("click", () => {
       const target = document.getElementById(this.el.dataset.target)
-      if (!target || !navigator.clipboard) return
-      navigator.clipboard.writeText(target.innerText).then(() => {
-        // A button that says what it copies in a tooltip (data-tip) says
-        // it has been copied there (the wiki's page code, #1743).
-        const tip = this.el.dataset.tip
-        if (tip !== undefined) {
-          this.el.dataset.tip = "Copied"
-          setTimeout(() => { this.el.dataset.tip = tip }, 1500)
-        }
-        const label = this.el.querySelector("[data-label]")
-        if (!label) return
-        const old = label.textContent
-        label.textContent = "Copied"
-        setTimeout(() => { label.textContent = old }, 1500)
-      })
+      if (target) copyWithFeedback(this.el, target.innerText)
     })
   },
 }
 
 // A link that copies its own href to the clipboard rather than being
-// followed, briefly relabelling its [data-label] child to say so.
+// followed, saying so on its [data-label] child. With no clipboard it is
+// followed as a link.
 Hooks.CopyLink = {
   mounted() {
     this.el.addEventListener("click", e => {
       if (!navigator.clipboard) return
       e.preventDefault()
-      navigator.clipboard.writeText(this.el.href).then(() => {
-        const label = this.el.querySelector("[data-label]")
-        if (!label) return
-        const old = label.textContent
-        label.textContent = "Copied"
-        setTimeout(() => { label.textContent = old }, 1500)
-      })
+      copyWithFeedback(this.el, this.el.href)
     })
   },
 }

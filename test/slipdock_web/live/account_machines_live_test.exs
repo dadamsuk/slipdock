@@ -185,6 +185,12 @@ defmodule SlipdockWeb.AccountMachinesLiveTest do
       assert view |> element("#new-enrolment-key") |> render() =~
                "slipdock-runner init --key sde_"
 
+      # With a Copy button for the whole line (#2887).
+      assert has_element?(
+               view,
+               "#new-enrolment-key-copy[phx-hook=CopyText][data-target=new-enrolment-key]"
+             )
+
       assert render(view) =~ "Unused: ci"
       # The form is made again, empty, for the next key.
       assert has_element?(

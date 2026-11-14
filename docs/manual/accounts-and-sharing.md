@@ -266,7 +266,8 @@ person decides. Neither needs a token, because they are how you get one.
 
 **A token you make yourself** suits anything with no human to approve it —
 CI, cron, a scheduled job. Create one under **Account → API tokens**, give it
-a scope and an expiry, and put it in the secret store. This is the right
+a scope and an expiry, and put it in the secret store (the page shows it
+once, with a **Copy** button). This is the right
 answer there: no interactive flow helps a machine that nobody is watching.
 
 **API tokens** carry a scope (read-only or read/write, optionally confined to

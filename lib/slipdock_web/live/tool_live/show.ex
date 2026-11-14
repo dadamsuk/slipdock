@@ -11,6 +11,8 @@ defmodule SlipdockWeb.ToolLive.Show do
   """
   use SlipdockWeb, :live_view
 
+  import SlipdockWeb.SlipdockComponents, only: [copy_block: 1]
+
   alias Slipdock.Automations.Presets
   alias Slipdock.Tools
   alias SlipdockWeb.RichText
@@ -242,32 +244,6 @@ defmodule SlipdockWeb.ToolLive.Show do
 
   ## Render -------------------------------------------------------------------------
 
-  attr :id, :string, required: true
-  attr :text, :string, required: true
-  attr :label, :string, default: "Copy"
-
-  # As on Account → Agent: selectable, and a button that copies it.
-  defp copy_block(assigns) do
-    ~H"""
-    <div class="mt-2">
-      <code
-        id={@id}
-        class="block select-all whitespace-pre-wrap break-words rounded-xl bg-base-200 px-3 py-2 font-mono text-xs leading-relaxed"
-        phx-no-format
-      >{@text}</code>
-      <button
-        type="button"
-        id={"#{@id}-copy"}
-        class="btn btn-ghost btn-xs mt-1 gap-1"
-        phx-hook="CopyText"
-        data-target={@id}
-      >
-        <.icon name="hero-clipboard" class="size-3.5" /> <span data-label>{@label}</span>
-      </button>
-    </div>
-    """
-  end
-
   @impl true
   def render(assigns) do
     ~H"""
@@ -454,6 +430,7 @@ defmodule SlipdockWeb.ToolLive.Show do
               <li>
                 Install the skills with one command:
                 <.copy_block
+                  class="mt-2"
                   id="tool-install-command"
                   text={"slipdock tools install #{@tool.slug}"}
                   label="Copy command"

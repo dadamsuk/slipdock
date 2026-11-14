@@ -12,6 +12,7 @@ defmodule SlipdockWeb.AccountLive.MachinesComponent do
   use SlipdockWeb, :live_component
 
   import SlipdockWeb.ComponentFlash, only: [flash: 3]
+  import SlipdockWeb.SlipdockComponents, only: [secret_once: 1]
 
   alias Slipdock.{Access, Machines}
   alias Slipdock.Machines.{EnrolmentKey, Machine}
@@ -198,19 +199,14 @@ defmodule SlipdockWeb.AccountLive.MachinesComponent do
           For a machine with nobody at its screen: <code>slipdock-runner init --key &lt;key&gt;</code>.
           It works once, within {EnrolmentKey.validity_hours()} hours, for the boards you tick.
         </p>
-        <div :if={@new_key} class="mt-4 rounded-xl bg-warning/10 p-4 text-sm">
-          <p class="font-medium">Copy this key now — it won't be shown again.</p>
-          <code
-            id="new-enrolment-key"
-            class="mt-2 block select-all break-all rounded bg-base-200 px-2 py-1 font-mono text-xs"
-          >slipdock-runner init --key {@new_key}</code>
-          <button
-            type="button"
-            class="btn btn-ghost btn-xs mt-2"
-            phx-click="dismiss_key"
-            phx-target={@myself}
-          >Done</button>
-        </div>
+        <.secret_once
+          :if={@new_key}
+          id="new-enrolment-key"
+          text={"slipdock-runner init --key #{@new_key}"}
+          what="key"
+          dismiss="dismiss_key"
+          target={@myself}
+        />
         <.form
           for={@key_form}
           id={"enrolment-key-form-#{@form_key}"}
