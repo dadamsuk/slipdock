@@ -444,24 +444,7 @@ defmodule SlipdockWeb.WorkLive.Index do
                   card.completed && "opacity-60"
                 ]}
               >
-                <button
-                  type="button"
-                  class={[
-                    "shrink-0 rounded-full transition",
-                    if(card.completed,
-                      do: "text-success",
-                      else: "text-base-content/25 hover:text-success"
-                    )
-                  ]}
-                  phx-click="toggle_complete"
-                  phx-value-id={card.id}
-                  title={if card.completed, do: "Mark incomplete", else: "Mark complete"}
-                >
-                  <.icon
-                    name={if card.completed, do: "hero-check-circle-solid", else: "hero-check-circle"}
-                    class="size-5"
-                  />
-                </button>
+                <.complete_toggle card={card} size="size-5" />
                 <span
                   :if={card.color}
                   class={["size-2 shrink-0 rounded-full", Slipdock.Palette.dot(card.color)]}

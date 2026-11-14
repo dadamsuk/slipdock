@@ -99,7 +99,7 @@ defmodule SlipdockWeb.TableLiveTest do
     assert is_nil(Boards.Cards.get_card!(a.id).due_date)
     view |> form("#col-#{a.id}", %{"value" => to_string(todo.id)}) |> render_change()
     assert Boards.Cards.get_card!(a.id).column_id == todo.id
-    view |> element("#row-all-#{a.id} input[type=checkbox]") |> render_click()
+    view |> element("#row-all-#{a.id} [data-role=complete-toggle]") |> render_click()
     assert Boards.Cards.get_card!(a.id).completed
 
     # Quick add at the bottom and opening a card keep the table URL.

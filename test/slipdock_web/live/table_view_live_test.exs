@@ -267,7 +267,11 @@ defmodule SlipdockWeb.TableViewLiveTest do
       assert has_element?(view, "#{row} [title='3 of 5']", "★★★")
       assert has_element?(view, "#{row} .chip:not(.chip-line)", "Small")
       assert has_element?(view, "#{row} span", "free text")
-      assert has_element?(view, "#{row} input[type=checkbox][title='Mark complete']")
+
+      assert has_element?(
+               view,
+               "#{row} button[data-role=complete-toggle][aria-label='Mark complete']"
+             )
 
       # The goal it contributes to, which opens that card.
       assert has_element?(view, "#{row} [phx-click=open_card][title='Ship the thing']")
@@ -354,7 +358,7 @@ defmodule SlipdockWeb.TableViewLiveTest do
       {:ok, view, _} = live(conn, everything(ctx))
 
       assert has_element?(view, "tr#row-all-#{card.id}.opacity-60")
-      assert has_element?(view, "#row-all-#{card.id} input[title='Mark incomplete']")
+      assert has_element?(view, "#row-all-#{card.id} button[aria-label='Mark incomplete']")
     end
   end
 
@@ -447,7 +451,7 @@ defmodule SlipdockWeb.TableViewLiveTest do
       {:ok, view, _} = live(phone(conn), ~p"/boards/#{board}/table?fields=")
       assert has_element?(view, "#row-all-#{a.id}", "Thumb me")
       refute has_element?(view, "#row-all-#{a.id} dl")
-      refute has_element?(view, "#row-all-#{a.id} input[type=checkbox]")
+      refute has_element?(view, "#row-all-#{a.id} [data-role=complete-toggle]")
     end
 
     test "an empty board says so", %{conn: conn} do
@@ -603,7 +607,7 @@ defmodule SlipdockWeb.TableViewLiveTest do
               ~r/id="col-#{many.id}"/,
               ~r/id="prio-#{many.id}"/,
               ~r/data-role="date-display"/,
-              ~r/type="checkbox"/
+              ~r/data-role="complete-toggle"/
             ] do
           [{at, _}] = Regex.run(pattern, row, return: :index)
           at
@@ -612,7 +616,7 @@ defmodule SlipdockWeb.TableViewLiveTest do
       assert stops == Enum.sort(stops)
       refute has_element?(view, "#row-all-#{many.id} select[tabindex]")
       refute has_element?(view, "#row-all-#{many.id} [data-role=date-display][tabindex]")
-      refute has_element?(view, "#row-all-#{many.id} input[type=checkbox][tabindex]")
+      refute has_element?(view, "#row-all-#{many.id} [data-role=complete-toggle][tabindex]")
     end
 
     test "list, priority and due still save from the text cells",

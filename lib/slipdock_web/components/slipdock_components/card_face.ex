@@ -301,27 +301,12 @@ defmodule SlipdockWeb.SlipdockComponents.CardFace do
           </p>
           <.card_id :if={@f.id and not @page? and not @f.tags} card={@card} />
           <.favourite_mark :if={@favourite?} class="mt-1 size-3.5" />
-          <button
+          <.complete_toggle
             :if={@f.status and not @page?}
-            type="button"
-            data-role="complete-toggle"
-            class={[
-              "mt-0.5 shrink-0 rounded-full transition",
-              if(@card.completed,
-                do: "text-success",
-                else:
-                  "text-base-content/25 opacity-0 hover:text-success focus-visible:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100 no-hover:opacity-100"
-              )
-            ]}
-            phx-click={JS.push("toggle_complete", value: %{id: @card.id})}
-            title={if @card.completed, do: "Mark incomplete", else: "Mark complete"}
-            aria-label={if @card.completed, do: "Mark incomplete", else: "Mark complete"}
-          >
-            <.icon
-              name={if @card.completed, do: "hero-check-circle-solid", else: "hero-check-circle"}
-              class="size-4"
-            />
-          </button>
+            card={@card}
+            class="mt-0.5"
+            reveal
+          />
           <span :if={@actions != []} class="-mr-1 -mt-0.5 shrink-0">{render_slot(@actions)}</span>
         </div>
 
@@ -528,23 +513,7 @@ defmodule SlipdockWeb.SlipdockComponents.CardFace do
         class="size-5 shrink-0 rounded object-cover"
       />
       <.doc_link :if={@page?} path={@page_path} class="size-3.5" />
-      <button
-        :if={@f.status and not @page?}
-        type="button"
-        class={[
-          "shrink-0 rounded-full transition",
-          if(@card.completed, do: "text-success", else: "text-base-content/25 hover:text-success")
-        ]}
-        phx-click={JS.push("toggle_complete", value: %{id: @card.id})}
-        data-role="complete-toggle"
-        title={if @card.completed, do: "Mark incomplete", else: "Mark complete"}
-        aria-label={if @card.completed, do: "Mark incomplete", else: "Mark complete"}
-      >
-        <.icon
-          name={if @card.completed, do: "hero-check-circle-solid", else: "hero-check-circle"}
-          class="size-3.5"
-        />
-      </button>
+      <.complete_toggle :if={@f.status and not @page?} card={@card} size="size-3.5" />
       <p
         class={[
           "min-w-20 flex-1 truncate text-xs font-medium leading-snug",
