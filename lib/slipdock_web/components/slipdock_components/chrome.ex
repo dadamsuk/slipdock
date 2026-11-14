@@ -307,10 +307,6 @@ defmodule SlipdockWeb.SlipdockComponents.Chrome do
     required: true,
     doc: "the view's config: its sort and dir"
 
-  attr :in_fieldset, :boolean,
-    default: false,
-    doc: "the heading sits in a fieldset that is disabled for a reader"
-
   @doc """
   A column heading that sorts a board view by its column (#2892): the table's
   and Prioritise's.
@@ -318,10 +314,9 @@ defmodule SlipdockWeb.SlipdockComponents.Chrome do
   It pushes `table_sort` with its key. The sorted column is marked
   `text-primary` and carries the arrow of its direction.
 
-  It is a real `<button>`, but for one case. The table draws its rows in a
-  `<fieldset>` that is disabled for a reader, and a button in a disabled
-  fieldset is dead, while a reader may still sort. There `in_fieldset` draws a
-  `<span role="button">` that looks the same, takes focus and answers Enter.
+  It is a real `<button type="button">`, so it must not sit in a `<fieldset>`
+  disabled for a reader: a reader may still sort. The table disables each
+  cell's controls instead of the whole table.
   """
   def sort_header(assigns) do
     assigns =
@@ -335,7 +330,6 @@ defmodule SlipdockWeb.SlipdockComponents.Chrome do
 
     ~H"""
     <button
-      :if={!@in_fieldset}
       type="button"
       class={@class}
       phx-click="table_sort"
@@ -344,19 +338,6 @@ defmodule SlipdockWeb.SlipdockComponents.Chrome do
     >
       {@label}<.sort_arrow :if={@sorted} dir={@config.dir} />
     </button>
-    <span
-      :if={@in_fieldset}
-      role="button"
-      tabindex="0"
-      class={@class}
-      phx-click="table_sort"
-      phx-keydown="table_sort"
-      phx-key="Enter"
-      phx-value-sort={@sort}
-      title={"Sort by #{@label}"}
-    >
-      {@label}<.sort_arrow :if={@sorted} dir={@config.dir} />
-    </span>
     """
   end
 

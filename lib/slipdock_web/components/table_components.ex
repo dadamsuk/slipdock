@@ -49,7 +49,9 @@ defmodule SlipdockWeb.TableComponents do
         />
       </.view_empty>
 
-      <fieldset :if={@rows.groups != []} disabled={!@can_write} class="contents">
+      <%!-- Each cell's controls sit in a fieldset of their own, disabled for
+            a reader, so the sort headings stay real, live buttons (#2892). --%>
+      <div :if={@rows.groups != []} class="contents">
         <table
           id="card-table"
           class={[
@@ -66,7 +68,7 @@ defmodule SlipdockWeb.TableComponents do
                   Enum.member?(~w(completed id), key) && "w-16"
                 ]}
               >
-                <.sort_header :if={sort} sort={sort} label={label} config={@config} in_fieldset />
+                <.sort_header :if={sort} sort={sort} label={label} config={@config} />
                 <span :if={!sort}>{label}</span>
               </th>
             </tr>
@@ -125,7 +127,9 @@ defmodule SlipdockWeb.TableComponents do
                 :for={{key, _label, _} <- @fields}
                 class={["align-middle", key == "title" && "max-w-0"]}
               >
-                <.cell field={key} card={card} board={@board} />
+                <fieldset disabled={!@can_write} class="contents">
+                  <.cell field={key} card={card} board={@board} />
+                </fieldset>
               </td>
             </tr>
             <tr :if={@group_add? and not MapSet.member?(@collapsed, group.key)}>
@@ -151,7 +155,7 @@ defmodule SlipdockWeb.TableComponents do
             </tr>
           </tbody>
         </table>
-      </fieldset>
+      </div>
     </div>
     """
   end

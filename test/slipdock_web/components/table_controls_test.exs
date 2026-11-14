@@ -70,30 +70,6 @@ defmodule SlipdockWeb.TableControlsTest do
       assert count(html, "button.text-primary .hero-arrow-down") == 1
       assert count(html, ".hero-arrow-up") == 0
     end
-
-    test "in a reader's disabled fieldset it is a focusable span that answers Enter" do
-      html = header(in_fieldset: true, config: %Config{sort: "votes", dir: "desc"})
-      span = query(html, "span[role=button]")
-
-      # A <button> in a disabled fieldset is dead, and a reader may sort.
-      assert count(html, "button") == 0
-      assert Enum.count(span) == 1
-      assert attr(span, "tabindex") == "0"
-      assert attr(span, "phx-click") == "table_sort"
-      assert attr(span, "phx-keydown") == "table_sort"
-      assert attr(span, "phx-key") == "Enter"
-      assert attr(span, "phx-value-sort") == "votes"
-      assert attr(span, "title") == "Sort by Votes"
-      assert attr(span, "class") =~ "text-primary"
-      assert count(html, "span[role=button] .hero-arrow-down") == 1
-    end
-
-    test "the span has no mark or arrow off the sorted column" do
-      html = header(in_fieldset: true, config: %Config{sort: "title", dir: "asc"})
-
-      refute attr(query(html, "span[role=button]"), "class") =~ "text-primary"
-      assert count(html, "[class*=hero-arrow]") == 0
-    end
   end
 
   describe "priority_select/1" do

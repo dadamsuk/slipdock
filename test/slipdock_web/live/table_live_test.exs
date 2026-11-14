@@ -56,7 +56,7 @@ defmodule SlipdockWeb.TableLiveTest do
   } do
     {:ok, view, html} = live(conn, ~p"/boards/#{board}/table")
     assert html =~ "Alpha" and html =~ "Bravo"
-    assert has_element?(view, "#card-table thead th [role=button]", "Title")
+    assert has_element?(view, "#card-table thead th button[type=button]", "Title")
     refute has_element?(view, "#card-table tbody tr td button", "All cards")
 
     # Click the Title header twice: ascending, then descending.
