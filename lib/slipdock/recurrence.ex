@@ -34,7 +34,9 @@ defmodule Slipdock.Recurrence do
   takes the Tool's template bar instead (#2611,
   `Slipdock.Sweep.template_bar/1`): its builder writes the day's cell into
   the bar, and the next day's card would otherwise name a cell already
-  swept. Title, description,
+  swept. The Handbook Tool's *Triage findings* card takes its template bar
+  too (#2987, `Slipdock.Handbook.template_bar/1`), which names the new
+  instance's own id and stays in step with the Tool's procedure. Title, description,
   tags, priority, colour, the estimate and the checklist (unticked) come
   with the copy; the due date is the schedule's. `copied_from/1` names the
   instance a card was made from.
@@ -648,6 +650,7 @@ defmodule Slipdock.Recurrence do
     case Boards.Cards.copy_card(current, column, at: :top, attrs: attrs, origin: "automation") do
       {:ok, copy} ->
         from(c in Card, where: c.id == ^copy.id) |> Repo.update_all(set: [series_id: series.id])
+        copy = own_bar(copy)
 
         series =
           series
@@ -674,6 +677,20 @@ defmodule Slipdock.Recurrence do
       "paths" => current.paths,
       "profile" => current.profile
     }
+  end
+
+  # The Handbook Tool's triage card names its own id in its bar (#2987), so
+  # its template is asked for once the copy has one. Any other card keeps
+  # what `clean_start/1` gave it.
+  defp own_bar(copy) do
+    case Slipdock.Handbook.template_bar(copy) do
+      nil ->
+        copy
+
+      bar ->
+        {:ok, copy} = Boards.Cards.update_card(copy, %{"bar" => bar})
+        copy
+    end
   end
 
   @doc """

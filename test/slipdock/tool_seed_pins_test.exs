@@ -19,16 +19,17 @@ defmodule Slipdock.ToolSeedPinsTest do
 
   # {the Tool's version, the SHA-256 of its seed}.
   @pins %{
-    "handbook" => {"1.9.2", "e98753161810494cdf761c2a1d57480a8ac015d2453d26fb8578c490b89b1632"},
+    "handbook" => {"1.9.3", "3926959d2fdd20edadf12245d9023b186304af1d0af81eb77d09367f6928ddfa"},
     "sweep" => {"1.2.0", "4f909bba15a250fcf53912f9a5b9b7486dcb4495a28eb1e64191f550c677fe64"}
   }
 
   # What an install puts on a board. The Handbook's blueprint holds every
   # page with its front matter and rules skeleton, Before you push and A
   # runner machine among them, and the three cards. The Sweep's page changes
-  # with the board's areas, so it is taken empty and with a row, and its
-  # card's bar is a seed of its own.
-  defp seed("handbook"), do: Handbook.blueprint()
+  # with the board's areas, so it is taken empty and with a row. Each
+  # Tool's card bar (the triage card's, the sweep card's) is a seed of its
+  # own.
+  defp seed("handbook"), do: [Handbook.blueprint(), Handbook.triage_bar("W-1", 1)]
 
   defp seed("sweep") do
     [
@@ -135,6 +136,12 @@ defmodule Slipdock.ToolSeedPinsTest do
       assert digest(edited) != digest(seed)
 
       assert digest(seed("sweep")) != digest([Sweep.blueprint(), Sweep.card_bar("W-1")])
+
+      # The triage card's bar is part of the Handbook's seed (#2987).
+      assert digest(seed("handbook")) != digest(Handbook.blueprint())
+
+      assert digest(seed("handbook")) !=
+               digest([Handbook.blueprint(), Handbook.triage_bar("W-1", 1) <> "."])
     end
 
     test "tells text moved between two fields from text left where it was" do

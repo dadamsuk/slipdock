@@ -70,7 +70,13 @@ it is a fix (the backlog on a board without one) and to Triage when it is a
 design question. Installing 1.9.1 gives the reconcile card its range
 that ends on a first-parent commit. Installing 1.9.2 gives an open Triage
 findings card the procedure that leaves a finding waiting on a proposal to
-the person.
+the person. The Triage findings card's bar is the Tool's too (1.9.3), so
+it can't drift from the procedure: a finding may be left open with a reason
+only if it arrived since the last triage, one already open then is decided,
+and the bar names the card's own id in its `--message "#<id> triage"`. Each
+night's card takes that bar from the Tool, not the text of the night
+before's; installing 1.9.3 gives it to an open Triage findings card that
+has no bar, and leaves a bar somebody wrote, or a locked one, alone.
 
 **Before you push** (1.4.0): every check CI enforces on a pull request
 should run locally through one command, and builders are told which. The

@@ -242,17 +242,6 @@ defmodule Slipdock.SweepTest do
   end
 
   describe "the card's bar (#2611)" do
-    # The previous instance as its run leaves it: the bar reworded for the
-    # day's cell, locked, the card done.
-    defp swept(card, bar) do
-      Repo.update_all(from(c in Card, where: c.id == ^card.id),
-        set: [bar: bar, bar_locked_at: DateTime.utc_now(:second)]
-      )
-
-      {:ok, card} = Boards.Cards.update_card(Repo.get!(Card, card.id), %{"completed" => true})
-      card
-    end
-
     # `days` on from now: far enough that the series' next occurrence has come.
     defp next_instance(card, days \\ 3) do
       series = Slipdock.Recurrence.for_card(card)
@@ -281,7 +270,7 @@ defmodule Slipdock.SweepTest do
       yesterday =
         "Swept Architecture × test gaps (the stalest cell) at abc1234\nW-1 cell updated"
 
-      new = card |> swept(yesterday) |> next_instance()
+      new = card |> run_done(yesterday) |> next_instance()
 
       refute new.id == card.id
       assert new.title == "Sweep the code"
@@ -291,7 +280,7 @@ defmodule Slipdock.SweepTest do
       assert is_nil(new.bar_locked_at)
 
       # And the day after, from a run that named another cell.
-      newer = new |> swept("Swept Accounts × dead code at def5678") |> next_instance(6)
+      newer = new |> run_done("Swept Accounts × dead code at def5678") |> next_instance(6)
       assert newer.bar == Sweep.card_bar(page.code)
       refute newer.bar =~ "Accounts"
     end
@@ -328,7 +317,7 @@ defmodule Slipdock.SweepTest do
 
       # Another chore's series carries its own bar, as before (#2081).
       {:ok, _} = Slipdock.Recurrence.set(other, %{"rule" => "every day"}, user)
-      new = other |> swept("Its own, reworded") |> next_instance()
+      new = other |> run_done("Its own, reworded") |> next_instance()
       assert new.bar == "Its own, reworded"
     end
 
@@ -348,7 +337,7 @@ defmodule Slipdock.SweepTest do
       assert Sweep.template_bar(lookalike) == nil
 
       {:ok, series} = Slipdock.Recurrence.set(lookalike, %{"rule" => "every day"}, user)
-      swept(lookalike, "Sub's own, reworded")
+      run_done(lookalike, "Sub's own, reworded")
       # The root's own Sweep the code series is due too: two instances.
       assert Slipdock.Recurrence.tick(DateTime.add(DateTime.utc_now(), 3, :day)) == 2
       new = Boards.Cards.get_card!(Repo.get!(Slipdock.Recurrence.Series, series.id).card_id)

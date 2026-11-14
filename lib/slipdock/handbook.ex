@@ -26,12 +26,13 @@ defmodule Slipdock.Handbook do
   alias Slipdock.Blueprint
   alias Slipdock.Boards
   alias Slipdock.Boards.Board
+  alias Slipdock.Boards.Card
   alias Slipdock.Repo
   alias Slipdock.Wiki
   alias Slipdock.Wiki.{Folders, FrontMatter, Page}
 
   @name "handbook"
-  @version "1.9.2"
+  @version "1.9.3"
   @folder "Handbook"
   @decisions "Handbook/Decisions"
 
@@ -599,6 +600,44 @@ defmodule Slipdock.Handbook do
   def triage_title, do: @triage_title
 
   @doc """
+  The bar of every *#{@triage_title}* instance (#2987), for the Index page
+  `code` (`W-…`) and the card's own `id`. The procedure is the Tool's, so
+  its bar is too: one written by hand on a board let a finding stay open
+  with a reason on any night, where the procedure allows that only for one
+  that arrived since the last triage, and named the id of the card it was
+  first written on in every copy.
+  """
+  def triage_bar(code, id) do
+    """
+    Every open finding read, and each one merged, dismissed with a reason, promoted (with a note naming what it became) or, only if it arrived since the last triage (after the last line of #{code}'s `## Triage`), left open with a reason in the log line; a finding that was already open at the last triage is decided, never left open a second time
+    Settled descriptions written into handbook sections, by section, with `--message "##{id} triage"`; rule changes and decisions filed as garden proposals, never edited
+    `slipdock quality <board> --rules` read for this board, and the rules acted on named in the log line
+    A line appended to #{code}'s `## Triage` with the counts, the leftovers decided, the findings left open and the proposal ids; with no open finding to read, no line, and the card closed saying so
+    """
+    |> String.trim_trailing()
+  end
+
+  @doc """
+  The bar an instance of the triage card has, when `card` is its board's
+  *#{@triage_title}* card and the board has a handbook: the template
+  (`triage_bar/2`) with the Index's code and `card`'s own id, whatever the
+  instance before it said. `Slipdock.Recurrence` asks for it once a new
+  instance has its id. Nil for any other card, which keeps its own bar.
+  """
+  def template_bar(%Card{title: @triage_title, id: id, board_id: board_id})
+      when is_integer(id) do
+    with %Board{} = board <- Repo.get(Board, board_id),
+         %{board: %Board{id: ^board_id}, index: %Page{code: code}} when is_binary(code) <-
+           find(board) do
+      triage_bar(code, id)
+    else
+      _ -> nil
+    end
+  end
+
+  def template_bar(_card), do: nil
+
+  @doc """
   The handbook as a board blueprint (see `Slipdock.Blueprint`): the folders,
   the Index and a skeleton page per section, each with its front matter.
   """
@@ -691,7 +730,8 @@ defmodule Slipdock.Handbook do
           report = seed_skeletons(root, user, report)
           {report, upgraded} = upgrade_reconcile(root, user, report)
           {report, triaged} = upgrade_triage(root, user, report)
-          upgraded = upgraded or triaged
+          {report, barred} = put_triage_bar(root, user, report)
+          upgraded = upgraded or triaged or barred
 
           {:ok,
            %{
@@ -979,11 +1019,29 @@ defmodule Slipdock.Handbook do
     end
   end
 
+  # 1.9.3 (#2987): the triage card's bar is the Tool's (`triage_bar/2`). The
+  # newest open one that has none gets it: quietly on the card this install
+  # made, and reported as "<title> (updated: bar)" on an older install's. A
+  # bar somebody wrote, or one that has locked, is theirs; the next night's
+  # instance takes the template either way (`template_bar/1`).
+  defp put_triage_bar(root, user, report) do
+    with %Card{completed: false, bar: bar, bar_locked_at: nil} = card
+         when bar in [nil, ""] <- newest_card(root, @triage_title),
+         bar when is_binary(bar) <- template_bar(card),
+         {:ok, _} <- Boards.Cards.update_card(card, %{"bar" => bar}, by: user) do
+      if Enum.member?(report.added["cards"], @triage_title),
+        do: {report, false},
+        else: {note_card(report, "#{@triage_title} (updated: bar)"), true}
+    else
+      _ -> {report, false}
+    end
+  end
+
   defp note_card(report, name), do: update_in(report, [:added, "cards"], &(&1 ++ [name]))
 
   defp reconcile_card(root) do
     cards =
-      from(c in Slipdock.Boards.Card,
+      from(c in Card,
         where: c.board_id == ^root.id and c.title == @reconcile_title,
         order_by: [desc: c.id]
       )
@@ -1017,7 +1075,7 @@ defmodule Slipdock.Handbook do
   end
 
   defp newest_card(root, title) do
-    from(c in Slipdock.Boards.Card,
+    from(c in Card,
       where: c.board_id == ^root.id and c.title == ^title,
       order_by: [desc: c.id],
       limit: 1

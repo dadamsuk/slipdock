@@ -267,6 +267,25 @@ defmodule Slipdock.Fixtures do
   def reload(board), do: Boards.get_board!(board.id)
 
   @doc """
+  A recurring card as its run leaves it: `bar` as the run worded it, locked,
+  and the card done, so its series makes the next instance.
+  """
+  def run_done(card, bar) do
+    import Ecto.Query, only: [from: 2]
+
+    Slipdock.Repo.update_all(from(c in Slipdock.Boards.Card, where: c.id == ^card.id),
+      set: [bar: bar, bar_locked_at: DateTime.utc_now(:second)]
+    )
+
+    {:ok, card} =
+      Boards.Cards.update_card(Slipdock.Repo.get!(Slipdock.Boards.Card, card.id), %{
+        "completed" => true
+      })
+
+    card
+  end
+
+  @doc """
   `Boards.create_sub_board/2` with a code unique to this run rather than one
   derived from the card's title — for the same reason `board_fixture/2` does
   it: two async tests both giving an "Epic" card subcards would otherwise

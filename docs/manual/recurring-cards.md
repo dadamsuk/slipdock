@@ -52,8 +52,9 @@ has one, else its ready list:
 - title, description, priority, cover, tags, the estimate, and on a board
   that verifies work the bar's text, the paths and the profile come along
   (but the Sweep Tool's *Sweep the code* card takes the Tool's template bar,
-  which names no Rotation cell, not the last run's text; see
-  [Tools](tools.md));
+  which names no Rotation cell, not the last run's text, and the Handbook
+  Tool's *Triage findings* card takes the Tool's bar with the new card's own
+  id; see [Tools](tools.md));
 - the checklist comes along unticked, and subcards are copied into a new
   sub-board, every one reopened in its ready list;
 - the next instance **starts clean**: none of the last one's work state comes
