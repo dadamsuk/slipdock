@@ -230,7 +230,7 @@ Tools</a>
 Write</a>
 <span class="text-xs text-base-content/50">
 
-          141
+          139
         </span>
 </li>
 <li>
@@ -3684,8 +3684,8 @@ change fields on a card</dd>
                              --bar-required it locks when work starts
                              (--desc - or --bar - reads it from stdin)
 --paths &quot;G1,G2&quot;              the files its work touches, as globs (lib/x/**), split
-                             on commas or newlines; &quot;&quot; clears. On a --lanes board an
-                             agent can&#39;t start it while they overlap a card in progress
+                             on commas or newlines; &quot;&quot; clears. They scope the
+                             handbook rules the card carries and its inferred profile
 --profile P | --no-profile   what kind of change it is: security, schema, feature,
                              fix, docs or spike. On a board with --profiles on, an
                              agent claiming or starting a card with none gets one
@@ -4688,12 +4688,6 @@ set-board</span>
 <span class="inline-block max-w-full">
 [--release-command CMD|default]</span>
 <span class="inline-block max-w-full">
-[--lanes | --no-lanes]</span>
-<span class="inline-block max-w-full">
-[--lane-mode off|hold|advise]</span>
-<span class="inline-block max-w-full">
-[--shared-paths GLOBS]</span>
-<span class="inline-block max-w-full">
 [--route KIND=EMAIL[,EMAIL]]...</span>
 <span class="inline-block max-w-full">
 [--no-route KIND]...</span>
@@ -4779,15 +4773,6 @@ release.yml --ref {default_branch}, the runner
 putting the repository&#39;s default branch in;
 any other command runs only on a machine whose
 local.json lists it under release_commands)
---lanes: an agent can&#39;t start a card whose --paths
-overlap a card in progress (a person can)
---lane-mode off|hold|advise: what an overlap does:
-hold refuses the start (what --lanes turns on),
-advise lets it start and tells the agent in its
-job&#39;s prompt which card is in those files
---shared-paths GLOBS: globs that never count toward
-a lane (docs/manual.md,README.md), split on commas or
-newlines; &quot;&quot; clears
 --route KIND=EMAIL[,EMAIL]: who a wait asking that
 kind of question (product, ux, security, release,
 other) goes to: the first is who it waits on, the
@@ -5489,40 +5474,6 @@ dismiss</span>
 </dt>
 <dd class="mt-1 break-words text-sm text-base-content/70">
 dismiss alerts (yours only; others keep theirs)</dd>
-</div>
-<div class="min-w-0 py-3" data-role="cli-command">
-<dt>
-<code class="break-words font-mono text-sm font-medium text-base-content" data-role="cli-usage">
-<span class="inline-block max-w-full">
-hook</span>
-<span class="inline-block max-w-full">
-install</span>
-<span class="inline-block max-w-full">
-lane-check</span>
-<span class="inline-block max-w-full">
-|</span>
-<span class="inline-block max-w-full">
-hook</span>
-<span class="inline-block max-w-full">
-uninstall</span>
-<span class="inline-block max-w-full">
-lane-check</span>
-</code>
-</dt>
-<dd class="mt-1 break-words text-sm text-base-content/70">
-a git pre-commit hook, in this repository, that keeps a commit inside its card&#39;s --paths</dd>
-</div>
-<div class="min-w-0 py-3" data-role="cli-command">
-<dt>
-<code class="break-words font-mono text-sm font-medium text-base-content" data-role="cli-usage">
-<span class="inline-block max-w-full">
-lane-check</span>
-<span class="inline-block max-w-full">
-[--card ID]</span>
-</code>
-</dt>
-<dd class="mt-1 break-words text-sm text-base-content/70">
-what that hook runs: the card from --card, $SLIPDOCK_CARD or a card-&lt;id&gt; branch; files staged outside its paths refuse the commit; no card or no paths passes; a board it can&#39;t reach warns and passes</dd>
 </div>
 <div class="min-w-0 py-3" data-role="cli-command">
 <dt>

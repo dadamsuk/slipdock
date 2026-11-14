@@ -201,7 +201,7 @@ defmodule Slipdock.Automations.Runner do
   # A page *is* the document, so it answers the question it was written for.
   defp field_value("has_doc", %Page{}), do: true
   defp field_value("has_doc", card), do: Slipdock.Wiki.pages_for_card(card) != []
-  # Verified work and lanes (#2731): a page has none of these.
+  # Verified work (#2731): a page has none of these.
   defp field_value("bar", %Card{} = card), do: card.bar
   defp field_value("paths", %Card{} = card), do: card.paths
   defp field_value("profile", %Card{} = card), do: card.profile
@@ -551,7 +551,7 @@ defmodule Slipdock.Automations.Runner do
     end
   end
 
-  # Verified work and lanes (#2731). A rule is the owner's standing say, so
+  # Verified work (#2731). A rule is the owner's standing say, so
   # the checks on agents' work don't hold it (SPEC-5): it may change a locked
   # bar and lower a profile, as a person may.
   defp do_perform("set_bar", action, ctx) do

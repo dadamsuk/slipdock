@@ -19,7 +19,7 @@ Every minute it runs six checks over the board tree:
 | `looping` | a card is rejected a second time (or for a rule id it failed before) and still isn't accepted, or a card is on its third runner pass and still open |
 | `waiting_idle` | something waits on a person (an open wait, a card flagged `review` or awaiting verification) and no runner job is open anywhere on the tree |
 | `slow` | a card has been in a doing list longer than its board's P85 time to done for its profile (or for every card, with fewer than 8 of the profile done in 90 days); or a running job's heartbeat is live but its step hasn't changed in 30 minutes |
-| `idle_capacity` | cards are free on a ready list while runners on the tree are online with no job for the *idle* minutes (15); or two or more queued jobs wait behind one card's lane (a file in every card's paths, such as `docs/agents.md`, serialises them) |
+| `idle_capacity` | cards are free on a ready list while runners on the tree are online with no job for the *idle* minutes (15) |
 | `no_way_forward` | an epic is in progress and every open subcard is blocked |
 | `not_shipped` | a card merged longer ago than its board's *Not shipped after* minutes (20) and no succeeded deploy names it (on a board with [batched releases](batched-releases.md), longer ago than that since its release started); only on a tree with [delivery metrics](delivery-metrics-deploys-and-dora.md) on |
 

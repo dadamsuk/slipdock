@@ -34,8 +34,7 @@ defmodule Slipdock.Profiles do
 
   A spike card (`spike?/1`) answers a question by building, and its code is
   never merged: an agent completes it with `evidence_no_code` and its
-  branch, never a pull request (`Slipdock.Verified`), and it holds no lane
-  (`Slipdock.Lanes`). That holds on any board, profiles on or off, so a
+  branch, never a pull request (`Slipdock.Verified`). That holds on any board, profiles on or off, so a
   hand-tagged `spike` card gets it too.
 
   ## Inference

@@ -47,12 +47,11 @@ defmodule Slipdock.Health.DeadlockTest do
     )
   end
 
-  # The #1750 shape: a list_top rule's job #373 on B is queued, held by the
-  # lane of A, in progress; A's job parked on a question, whose answer is
-  # held (pending) until the rule's open job — #373 — closes.
+  # The #1750 shape: a list_top rule's job #373 on B is queued, waiting
+  # while A is in progress; A's job parked on a question, whose answer is
+  # held (pending) until the rule's open job — #373 — closes. (On #1750 a
+  # lane held it; lanes went in #3178, and `wait_while_doing` holds the same.)
   defp shape_1750(ctx) do
-    Repo.update_all(from(b in Board, where: b.id == ^ctx.board.id), set: [lanes: true])
-
     rule =
       rule_fixture(
         ctx.board,
@@ -70,10 +69,10 @@ defmodule Slipdock.Health.DeadlockTest do
     Repo.update_all(from(r in Rule, where: r.id == ^rule.id), set: [enabled: true])
 
     parked = job(a, rule_id: rule.id, status: "parked", attempts: 1)
-    # A parked job works nothing (#1922): A holds its lane only while some
-    # other job is open on it, here one of no rule's.
+    # A parked job works nothing (#1922): A holds the job back only while
+    # some other job is open on it, here one of no rule's.
     job(a, status: "running", pool: "other")
-    held = job(b, rule_id: rule.id, attempts: 0)
+    held = job(b, rule_id: rule.id, attempts: 0, wait_while_doing: true)
 
     wait =
       Repo.insert!(%Wait{
@@ -155,7 +154,7 @@ defmodule Slipdock.Health.DeadlockTest do
     assert f.summary =~ "A deadlock: "
 
     assert f.summary =~
-             "job ##{s.held.id}'s card ##{s.b.id} overlaps the lane of ##{s.a.id}, in progress"
+             "job ##{s.held.id} waits while ##{s.a.id} is in progress"
 
     assert f.summary =~ "##{s.a.id} waits for the answer on ##{s.a.id} to be sent"
 
@@ -165,7 +164,7 @@ defmodule Slipdock.Health.DeadlockTest do
     assert length(f.data["edges"]) == 3
   end
 
-  test "with only the parked job on A, A holds no lane and there is no deadlock (#1922)",
+  test "with only the parked job on A, A holds nothing and there is no deadlock (#1922)",
        ctx do
     s = shape_1750(ctx)
 
@@ -173,7 +172,6 @@ defmodule Slipdock.Health.DeadlockTest do
       set: [status: "done"]
     )
 
-    assert Slipdock.Lanes.held_cards(ctx.board.id) == %{}
     assert Runners.held_reason(Repo.reload!(s.held), claimant: true) == nil
     assert detect(ctx.board) == []
   end
@@ -181,8 +179,6 @@ defmodule Slipdock.Health.DeadlockTest do
   test "a job waiting while doing is held only by a worked card, and only that is a cycle (#1922)",
        ctx do
     s = shape_1750(ctx)
-    # No lanes: the queued job waits while anything is in progress instead.
-    Repo.update_all(from(b in Board, where: b.id == ^ctx.board.id), set: [lanes: false])
     Repo.update_all(from(j in Job, where: j.id == ^s.held.id), set: [wait_while_doing: true])
 
     # A works on (its other job is running): the job waits on it, a cycle.

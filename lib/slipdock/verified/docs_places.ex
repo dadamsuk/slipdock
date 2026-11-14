@@ -33,7 +33,7 @@ defmodule Slipdock.Verified.DocsPlaces do
 
   @doc """
   Whether `card` falls in the docs-places rule's scope (#2694), on `handbook`
-  (as `Slipdock.Handbook.find/1` gives it): `:in` when its lane paths meet
+  (as `Slipdock.Handbook.find/1` gives it): `:in` when its paths meet
   the scope of the handbook's `SPEC-10`, `:out` when they don't or the
   handbook has no such rule (or there is no handbook), and `:unknown` when
   the card has no paths, so the step is given for the diff to decide.
@@ -111,6 +111,6 @@ defmodule Slipdock.Verified.DocsPlaces do
   def docs_places_builder do
     "The docs places (#{@docs_rule}): this card's paths fall in its scope, so the verifier enumerates them rather than judging them, and so do you before submitting. List every name the change introduces or alters (commands, flags, MCP tool names, API fields, settings, page and section names), grep each across the seven places, and give each place as updated, deferred to #N, n/a with why, or missing. The places:\n" <>
       docs_places_lines() <>
-      "\nA place your lane can't reach is deferred to a card you file: list each left-out place on that card's bar, by name with the names it must cover (`--bar \"1. docs/agents.md says --foo …\"`), and name the card in your evidence. A deferral to a card whose bar doesn't list the place doesn't count, and the verifier rejects it as missing."
+      "\nA place your paths can't reach is deferred to a card you file: list each left-out place on that card's bar, by name with the names it must cover (`--bar \"1. docs/agents.md says --foo …\"`), and name the card in your evidence. A deferral to a card whose bar doesn't list the place doesn't count, and the verifier rejects it as missing."
   end
 end

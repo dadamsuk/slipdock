@@ -40,8 +40,8 @@ defmodule Slipdock.AgenticBuildingPortableTest do
   test "an export from before it: on where a setting is set, off on a plain board" do
     owner = user_fixture("agentic-old@example.com")
     plain = board_fixture(%{"name" => "Plain", "code" => unique_code()}, owner: owner)
-    laned = board_fixture(%{"name" => "Laned", "code" => unique_code()}, owner: owner)
-    {:ok, laned} = Boards.update_board(laned, %{"lane_mode" => "advise"})
+    laned = board_fixture(%{"name" => "Profiled", "code" => unique_code()}, owner: owner)
+    {:ok, laned} = Boards.update_board(laned, %{"profiles" => true})
 
     {:ok, report} =
       Portable.import(

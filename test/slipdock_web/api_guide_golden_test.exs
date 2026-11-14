@@ -8,7 +8,7 @@ defmodule SlipdockWeb.APIGuideGoldenTest do
 
   Two readers: one with no token, and one signed in with a board that has
   every switch on, so the sections only such a reader sees (*Verified work*,
-  *Lanes*, *Profiles*, the board lines) are held too. Each is held in both
+  *Profiles*, the board lines) are held too. Each is held in both
   the whole guide and the short one, whose boards section differs (#2925). The board's ids are
   replaced with placeholders, as they differ from run to run.
 
@@ -67,8 +67,6 @@ defmodule SlipdockWeb.APIGuideGoldenTest do
         "evidence_required" => true,
         "verify_work" => true,
         "ship_via" => "pull_request",
-        "lane_mode" => "hold",
-        "shared_paths" => ["docs/manual.md"],
         "profiles" => true
       })
 
@@ -103,8 +101,10 @@ defmodule SlipdockWeb.APIGuideGoldenTest do
     guide = APIGuide.markdown(base_url: @base, user: owner)
 
     # The sections only this reader is shown are there to be held.
-    for heading <- ["## Verified work", "## Lanes", "## Profiles", "## Your boards right now"],
+    for heading <- ["## Verified work", "## Profiles", "## Your boards right now"],
         do: assert(guide =~ heading)
+
+    refute guide =~ "## Lanes"
 
     golden("signed_in.md", scrub(guide, owner, board))
   end

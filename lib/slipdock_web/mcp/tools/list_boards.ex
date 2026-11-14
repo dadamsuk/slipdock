@@ -82,7 +82,6 @@ defmodule SlipdockWeb.MCP.Tools.ListBoards do
     |> put_verified(full)
     # Profiles (#1951), only on a board with them on.
     |> then(&if(full.profiles, do: Map.put(&1, :profiles, true), else: &1))
-    |> put_lanes(full)
     # Batched releases (#2834), only on a tree that has them on.
     |> put_release(full)
   end
@@ -94,18 +93,6 @@ defmodule SlipdockWeb.MCP.Tools.ListBoards do
 
       _ ->
         map
-    end
-  end
-
-  @doc """
-  `map` with a `lanes` key on a board with lanes on or shared paths set
-  (#1971): `%{on:, shared_paths:}`, the globs being the ones that hold for
-  the board (its root's and its own). A board with neither reads as before.
-  """
-  def put_lanes(map, board) do
-    case SlipdockWeb.API.JSON.board_lanes(board) do
-      nil -> map
-      lanes -> Map.put(map, :lanes, lanes)
     end
   end
 

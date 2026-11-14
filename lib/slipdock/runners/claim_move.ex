@@ -7,7 +7,7 @@ defmodule Slipdock.Runners.ClaimMove do
   card to the doing list of the board it sits on, the one the guide names
   (`Slipdock.Flow.doing_list?/1`: by category, else by name), as the runner
   (`Slipdock.Actor.runner/3`), so the board's own gates still apply: a board
-  that asks for a bar before work starts, and lanes. It assigns nobody (the
+  that asks for a bar before work starts. It assigns nobody (the
   runner shows as the card's loop, #2027) and says so in the activity. A
   board with no doing list, a card already in it, and a move the board
   refuses all leave the card where it is, and the activity says why.
@@ -43,8 +43,8 @@ defmodule Slipdock.Runners.ClaimMove do
     * `{:moved, list}` — moved to the top of `list`;
     * `{:already, list}` — already in its board's doing list;
     * `:no_doing_list` — its board has none, so it stays where it is;
-    * `{:refused, message}` — the board refused the move (a bar it asks for,
-      a lane), so it stays where it is;
+    * `{:refused, message}` — the board refused the move (a bar it asks for),
+      so it stays where it is;
     * `:skip` — not a `list_top` rule's build job, or the card is gone,
       archived or completed.
   """

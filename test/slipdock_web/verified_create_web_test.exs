@@ -2,7 +2,7 @@ defmodule SlipdockWeb.VerifiedCreateWebTest do
   @moduledoc """
   #1815 at the doors: an agent creating a card straight into a doing list
   over REST (`slipdock add --column`) and MCP `create_card` meets the bar
-  and lane checks a move into it makes, and a person on the CLI doesn't.
+  check a move into it makes, and a person on the CLI doesn't.
   """
   use SlipdockWeb.ConnCase, async: true
 
@@ -114,36 +114,5 @@ defmodule SlipdockWeb.VerifiedCreateWebTest do
       assert [card] = Repo.all(from(c in Card, where: c.column_id == ^ctx.doing.id))
       assert card.bar_locked_at
     end
-  end
-
-  test "with lanes on, REST and MCP refuse an agent's overlapping card in progress", ctx do
-    {:ok, _} = Boards.update_board(ctx.board, %{"lanes" => true})
-    held = card_fixture(ctx.doing, %{"title" => "Holding"})
-    {:ok, held} = Boards.Cards.update_card(held, %{"paths" => ["lib/foo/**"]})
-    working_job_fixture(held)
-
-    body =
-      ctx.agent
-      |> post(~p"/api/boards/#{ctx.board.id}/cards", %{
-        "title" => "Overlaps",
-        "column" => ctx.doing.name,
-        "paths" => "lib/foo/a.ex"
-      })
-      |> json_response(422)
-
-    assert inspect(body) =~ "##{held.id}"
-
-    result =
-      mcp(ctx.agent, "create_card", %{
-        board: "#{ctx.board.id}",
-        title: "Overlaps",
-        column: ctx.doing.name,
-        paths: "lib/foo/a.ex"
-      })
-
-    assert result["isError"] == true
-    assert [%{"text" => text}] = result["content"]
-    assert text =~ "##{held.id}"
-    assert in_doing(ctx) == ["Holding"]
   end
 end

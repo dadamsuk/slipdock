@@ -363,7 +363,7 @@ slipdock verify <id> merged [--evidence-commit SHA]   # a person only: a merging
 slipdock edit <id> --bar "what done means"   # the card's bar; locks when work starts on a board
                                        # that asks for one
 slipdock edit <id> --paths "lib/foo/**,docs/x.md"   # the files its work touches (globs; "" clears);
-                                       # write them before starting a card on a lanes board
+                                       # write them before starting: they scope its handbook rules and profile
 slipdock edit <id> --profile fix | --no-profile   # what kind of change it is: security, schema,
                                        # feature, fix, docs or spike; inferred when an agent starts a
                                        # card on a board with --profiles on
@@ -493,10 +493,6 @@ slipdock done <id> --no-code "<why>" --evidence "…"   # a card that changes no
                                        # no PR, never a token one; accepting merges nothing
                                        # its CI is the full test run: run only your own tests before
                                        # pushing, and a verifier checks its checks, not the suite again
-slipdock set-board <board> --lanes | --no-lanes           # Lanes, off by default: an agent can't start a card whose --paths overlap one in progress
-slipdock set-board <board> --shared-paths "docs/manual.md,README.md"  # globs that never count toward a lane (the files nearly every card edits); "" clears
-slipdock set-board <board> --lane-mode off|hold|advise   # hold refuses overlapping starts (--lanes); advise lets them start and names the overlap in the job's prompt
-slipdock hook install lane-check                          # in a repository: a pre-commit hook refusing files outside the card's paths (uninstall to remove); only when asked
 slipdock set-board <board> --inbound-senders "ann@example.com,bob@example.com"  # who else may mail the board's card addresses (replaces the list; "" clears); only when asked
 slipdock handoff <id> --delete                            # delete a card's current handoff outright (one left by mistake); --clear keeps it in the history
 slipdock fav card <id> | fav list <board> <column> | fav view <board> <view> | fav board <board>
@@ -653,10 +649,8 @@ no function for the kind. With the trigger `list_top` (`{"type": "list_top", "co
 Do", "unassigned": true}`, preset `feed_runner`) the rule works a list in order instead: one
 open job at a time (an answered question's job may be open beside the card the feed sent,
 and the feed sends the next card once both have closed), always for the top ready card that
-no job is already open on (so two such rules, one per pool, work one list side by side) and
-that its lane wouldn't hold: with lanes holding, a queued job of its own that a lane holds is
-withdrawn and the next card that
-could start sent instead. A rule whose pool has gone offline (runners seen before, none for
+no job is already open on (so two such rules, one per pool, work one list side by side).
+A rule whose pool has gone offline (runners seen before, none for
 three leases) sends nothing and withdraws its queued job that no runner has taken, so an
 online pool's rule sends that card; a pool never seen yet is fed as usual. `"wait_while_doing": true` on the runner
 action (the default for `feed_runner`) holds its jobs back while any other open card is in an

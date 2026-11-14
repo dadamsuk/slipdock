@@ -48,9 +48,7 @@ asked and that it left it, and, if the card can't be done without it, opens a
 [machine](machines.md)'s ceiling and the runner's executor are what limit a
 job, and the threat model (who can write what an agent reads) is
 `docs/agents.md` §Card text is data. A claimed job's prompt then adds what the card
-carries: its bar, its [paths](lanes.md) (naming the ones shared on the board) and,
-on a board whose lanes advise, a *Lanes* block naming each card in progress
-whose paths overlap. The
+carries: its bar and its paths. The
 **Send cards to a runner** preset is the usual rule (it is offered once the
 board has a runner): when a card
 arrives in a list, send it to a pool. It and *Work a list with a runner*
@@ -74,10 +72,7 @@ of the list, in the list's order, skipping cards that are completed,
 archived, stand-ins, waiting on an unfinished card or flagged `blocked` or
 `waiting` — and, with `unassigned: true`, cards somebody has taken — plus
 any the rule's conditions rule out, any card a job is already open on
-(queued, claimed or running), whichever rule queued it, and, with lanes
-holding, any card whose paths overlap a card in progress (see
-[Lanes](lanes.md)): a job it already sent that a lane holds, and nobody has
-taken, is withdrawn so the next card that could start goes instead. It looks again whenever its job ends, a
+(queued, claimed or running), whichever rule queued it. It looks again whenever its job ends, a
 card on the board changes or the list is reordered, the rule is saved or
 switched on, and every few minutes besides. A card whose job just ended and
 which is still at the top (the runner gave up on it) is passed over for ten
@@ -102,7 +97,8 @@ by its own name, so an agent moving it by hand doesn't guess.
 over, two `list_top` rules on the same list — each sending to its own pool,
 one per machine say — work it side by side: each sends the top card the
 other hasn't. Leave `wait_while_doing` off on both, or each holds the other
-back, and turn on lanes so the two don't work in the same files.
+back, and give each runner a worktree per job ([Machines](machines.md)) so
+the two don't share a working tree.
 
 **A pool gone offline sends nothing.** Once every runner of a rule's pool
 that has ever been seen has gone unseen for three leases, its `list_top`

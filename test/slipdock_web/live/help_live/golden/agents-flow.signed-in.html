@@ -436,29 +436,14 @@ Write a bar that can be met.</strong>
 </div>
 <p phx-r="">
 
-  On a board with <em>
-Lanes</em>
-
-  on, give the card its <strong>
+  Give the card its <strong>
 paths</strong>
 : the files its work will touch, as globs
   (<code>
 slipdock edit 12 --paths &quot;lib/billing/**,docs/manual.md&quot;</code>
-). Two agents can&#39;t
-  work cards whose paths overlap at once; the second waits. Set lanes to <em>
-Advise</em>
-
-  (<code>
-slipdock set-board B --lane-mode advise</code>
-) and the second starts anyway, its job&#39;s
-  prompt naming the card already in those files. Files nearly every card edits,
-  such as the manual, go in the board&#39;s <strong>
-shared paths</strong>
-
-  (<code>
-slipdock set-board B --shared-paths docs/manual.md,README.md</code>
-): cards can
-  declare them without holding each other, and their edits are left to merge.
+). On a board with a
+  handbook they decide which rules the card carries, and they are what its profile is
+  inferred from.
 </p>
 <p phx-r="">
 
@@ -471,7 +456,7 @@ spike</code>
   profile (<code>
 slipdock add 12 &quot;Spike: does the API page?&quot; --profile spike</code>
 ), its
-  bar the question. A spike needs no paths and holds no lane, and its code is never merged:
+  bar the question. A spike needs no paths, and its code is never merged:
   its answer is a page pinned to the epic. Planning waits until the last is accepted, then
   a product wait on the epic asks you to resume, and the Spec is written from the answers.
 </p>
@@ -579,8 +564,7 @@ Work a list with a runner</em>
   and the job&#39;s prompt names that list; for any other job the agent moves the card. A job is held, saying why, while the board is paused, its WIP
   limit is full (<em>
 WIP limits hold automated work</em>
-), another card is in progress, or
-  its lane overlaps one.
+), or another card is in progress.
 </p>
 <p phx-r="">
 
@@ -1309,19 +1293,9 @@ slipdock set-board B --bar-required</code>
 </div>
 <div class="py-2">
 <dt class="font-medium text-base-content">
-Lanes</dt>
-<dd class="mt-0.5">
-Hold: an agent can&#39;t start a card whose paths overlap a card in progress. Advise: it starts, and its prompt names that card.</dd>
-<dd class="mt-1">
-<code class="break-words">
-slipdock set-board B --lane-mode hold</code>
-</dd>
-</div>
-<div class="py-2">
-<dt class="font-medium text-base-content">
 Profiles</dt>
 <dd class="mt-0.5">
-A card an agent starts gets one word for what kind of change it is; a schema or security card an agent accepts waits for a person before it merges, and a spike merges nothing and holds no lane. A docs card gets no verify job, and a schema or security card&#39;s verifier also reviews it for defects. A fix, feature, schema or security card&#39;s verifier breaks a few of the changed lines to see that a test fails.</dd>
+A card an agent starts gets one word for what kind of change it is; a schema or security card an agent accepts waits for a person before it merges, and a spike merges nothing. A docs card gets no verify job, and a schema or security card&#39;s verifier also reviews it for defects. A fix, feature, schema or security card&#39;s verifier breaks a few of the changed lines to see that a test fails.</dd>
 <dd class="mt-1">
 <code class="break-words">
 slipdock set-board B --profiles on</code>
@@ -1335,16 +1309,6 @@ Change what an agent&#39;s acceptance of a profile does: none, ledger or before_
 <dd class="mt-1">
 <code class="break-words">
 slipdock set-board B --profile-tier schema=none</code>
-</dd>
-</div>
-<div class="py-2">
-<dt class="font-medium text-base-content">
-Shared paths</dt>
-<dd class="mt-0.5">
-Files nearly every card edits: an overlap there never holds a card or a job.</dd>
-<dd class="mt-1">
-<code class="break-words">
-slipdock set-board B --shared-paths docs/manual.md,README.md</code>
 </dd>
 </div>
 <div class="py-2">
@@ -1445,7 +1409,7 @@ slipdock overseer B --on</code>
       Every minute the server checks the tree for work going round (a second rejection, a
       third runner pass), something waiting on you while nothing runs, a card past the
       board&#39;s P85 or a job on one step for 30 minutes, idle runners beside a full ready
-      list or jobs queued behind one lane, and an epic whose open subcards are all blocked.
+      list, and an epic whose open subcards are all blocked.
     </p>
 <p phx-r="">
 
@@ -1494,8 +1458,6 @@ The agent guide</a>
 
         (its <em>
 Verified work</em>
-, <em>
-Lanes</em>
 
         and <em>
 Shipping by pull request</em>
@@ -1516,8 +1478,6 @@ docs/manual.md</code>
 
         in the source): <em>
 Verified work</em>
-, <em>
-Lanes</em>
 , <em>
 Waiting on a person</em>
 , <em>

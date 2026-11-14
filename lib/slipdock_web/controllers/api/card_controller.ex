@@ -103,7 +103,6 @@ defmodule SlipdockWeb.API.CardController do
           |> V.put_lead_time(card)
           |> V.put_shipping(card)
           |> V.put_findings(card)
-          |> V.put_lanes(card)
           |> V.put_copied_from(card, conn.assigns.current_user)
           |> V.put_authors(card)
           |> V.put_incidents(card, conn.assigns.current_user, conn.assigns[:api_token])

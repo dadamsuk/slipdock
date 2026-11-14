@@ -64,8 +64,7 @@ defmodule SlipdockWeb.AgenticBuildingTest do
       board = %{
         ctx.board
         | verify_work: true,
-          lane_mode: "advise",
-          shared_paths: ["docs/**"],
+          profiles: true,
           wait_routes: %{"ux" => [1]},
           job_log_hours: 6,
           findings_propose_at: 0
@@ -73,8 +72,7 @@ defmodule SlipdockWeb.AgenticBuildingTest do
 
       assert AgenticBuilding.live_rules(board) == [
                "A second agent verifies",
-               "Lanes",
-               "Shared paths",
+               "Profiles",
                "Findings promotion",
                "Who gets asked",
                "Job log retention"
@@ -85,9 +83,9 @@ defmodule SlipdockWeb.AgenticBuildingTest do
   describe "the migration's backfill" do
     test "turns it on where a setting is set, and leaves a plain board off", ctx do
       plain = board_fixture(%{"name" => "Plain", "code" => unique_code()}, owner: ctx.user)
-      lanes = board_fixture(%{"name" => "Lanes", "code" => unique_code()}, owner: ctx.user)
+      lanes = board_fixture(%{"name" => "Profiled", "code" => unique_code()}, owner: ctx.user)
       routed = board_fixture(%{"name" => "Routed", "code" => unique_code()}, owner: ctx.user)
-      {:ok, _} = Boards.update_board(lanes, %{"lane_mode" => "hold"})
+      {:ok, _} = Boards.update_board(lanes, %{"profiles" => true})
       Repo.update!(Ecto.Changeset.change(routed, wait_routes: %{"ux" => [ctx.user.id]}))
       {:ok, _} = Boards.update_board(ctx.board, %{"handoff_label" => "Where it got to"})
 
@@ -171,12 +169,12 @@ defmodule SlipdockWeb.AgenticBuildingTest do
       %{"boards" => boards} = mcp_json(ctx.agent, "list_boards", %{})
       assert Enum.find(boards, &(&1["id"] == ctx.board.id))["agentic_building"] == true
 
-      {:ok, _} = Boards.update_board(Boards.get_board!(ctx.board.id), %{"lane_mode" => "hold"})
+      {:ok, _} = Boards.update_board(Boards.get_board!(ctx.board.id), %{"profiles" => true})
 
       json =
         mcp_json(ctx.agent, "update_board", %{board: "#{ctx.board.id}", agentic_building: false})
 
-      assert Enum.any?(json["warnings"], &(&1 =~ "Lanes"))
+      assert Enum.any?(json["warnings"], &(&1 =~ "Profiles"))
       refute Boards.get_board!(ctx.board.id).agentic_building
     end
   end
@@ -243,18 +241,20 @@ defmodule SlipdockWeb.AgenticBuildingTest do
       turn_on(ctx.board, %{
         "verify_work" => true,
         "verify_pool" => "verify",
-        "lane_mode" => "advise"
+        "profiles" => true
       })
 
       {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/agentic")
 
       assert has_element?(view, "h1", "Agentic Building")
 
-      for section <- ~w(verified lanes profiles questions handoffs findings runners),
+      for section <- ~w(verified profiles questions handoffs findings runners),
           do: assert(has_element?(view, "#agentic-#{section}"))
 
       assert has_element?(view, ~s(#agentic-rule-verify[data-on="true"]), "pool verify")
-      assert has_element?(view, ~s(#agentic-rule-lanes[data-on="true"]), "advise")
+      assert has_element?(view, ~s(#agentic-rule-profiles[data-on="true"]))
+      refute has_element?(view, "#agentic-lanes")
+      refute has_element?(view, "#agentic-rule-lanes")
       assert has_element?(view, ~s(#agentic-rule-bar[data-on="false"]))
       assert has_element?(view, ~s(#agentic-rule-routes[data-on="false"]))
       refute has_element?(view, "#agentic-rule-routes", "of 5")

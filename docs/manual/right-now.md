@@ -37,8 +37,8 @@ runners take work from all of it), read again every few seconds:
   those but longer in its list than usual says so in amber, *Past usual
   stay*, as its tile's age chip does.
 - **Queued**: the jobs waiting for a runner, oldest first, each with its pool
-  and why it is held, if something holds it (a pause, a full WIP limit, a lane,
-  no runner online).
+  and why it is held, if something holds it (a pause, a full WIP limit, no
+  runner online).
 - **Idle runners**, at the bottom of the page: the runners holding no job,
   online or not, so the working ones lead it. A runner that takes a job moves
   up into **Runners** the next time the page is read.

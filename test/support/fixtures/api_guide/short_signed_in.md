@@ -398,8 +398,6 @@ newer than the move — nobody can tell whether it is alive.
   - take work from: “To Do” (#COLUMN) · then: “Backlog” (#COLUMN) · in progress: “In Progress” (#COLUMN) · done: “Done” (#COLUMN)
   - verified work: a bar before work starts, evidence on completion, a second agent verifies (see *Verified work*)
   - ships by pull request: push `card-<id>` and open a PR, never the default branch (see *Verified work*)
-  - lanes: on — write a card's paths before starting it (see *Lanes*)
-  - shared paths (hold no lane): `docs/manual.md`
   - profiles: on — a card an agent starts gets one (see *Profiles*)
 
 The name in backticks after each board is its `code` — the short name for
@@ -435,7 +433,6 @@ is the whole guide):
 - `handbook` — The handbook
 - `findings` — Findings
 - `verified` — Verified work
-- `lanes` — Lanes
 - `profiles` — Profiles
 - `moving` — Moving boards between servers
 - `vocabulary` — Vocabulary

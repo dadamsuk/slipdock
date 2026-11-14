@@ -76,7 +76,7 @@ curl -s -H "$H" B/api/boards/1/runner_stats
 # how well agent work goes over ?days= (30 unless given; CLI: slipdock
 # quality): verified.first_time_right of verified.accepted (accepted with
 # no rejection and never reopened), rejections per accepted card, areas
-# (each card under the handbook page covering most of its lane paths, or
+# (each card under the handbook page covering most of its paths, or
 # "unmapped"), jobs (timeouts, failed, requeues, gave_up, each per_100
 # finished jobs) and health (incidents fixed, flagged, cleared, open);
 # previous is the window before's verified numbers. rejections counts the

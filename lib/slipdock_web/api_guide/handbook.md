@@ -51,7 +51,7 @@ item that doesn't parse, with its page and line.
 (REST `GET /api/boards/:board/handbook?paths=a,b`) gives every rule
 whose scope covers them, `must` first, and the pages whose `covers:`
 take them in (`pages`, with how many each); for a whole change,
-`git diff --name-only main | slipdock handbook <board> --paths-from -`. A card with lane `paths` carries
+`git diff --name-only main | slipdock handbook <board> --paths-from -`. A card with `paths` carries
 them in its `handbook` block as `rules` (`rules_more` counts any cut).
 Read them before building and check the diff against them before
 submitting: a verifier uses the same list. A rule is a person's call:

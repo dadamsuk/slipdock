@@ -14,7 +14,6 @@ defmodule SlipdockCLI do
     Garden,
     Health,
     Inbound,
-    Lanes,
     Ledger,
     Machines,
     Now,
@@ -94,9 +93,6 @@ defmodule SlipdockCLI do
     automation_wip: :boolean,
     bar_required: :boolean,
     bar: :string,
-    lanes: :boolean,
-    lane_mode: :string,
-    shared_paths: :string,
     paths: :string,
     # A card's profile (#1951), and whether a board infers them.
     profile: :string,
@@ -454,7 +450,6 @@ defmodule SlipdockCLI do
     Skills,
     Tools,
     Deploy,
-    Lanes,
     Now
   ]
 

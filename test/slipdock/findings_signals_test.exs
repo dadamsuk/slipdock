@@ -309,44 +309,7 @@ defmodule Slipdock.FindingsSignalsTest do
     end
   end
 
-  describe "a lane refusal" do
-    # A refusal is the lanes working, not a stumble (#1968): it is still
-    # refused, with its words, and nothing is recorded.
-    test "an agent moving into a lane in use is refused, and is no finding", ctx do
-      {:ok, _} = Boards.update_board(ctx.board, %{"lanes" => true})
-      {:ok, _} = Boards.Cards.update_card(ctx.card, %{"paths" => ["lib/a/**"]})
-      # Only a card a runner job is working on holds its lane (#1922).
-      working_job_fixture(ctx.card)
-      mine = card_fixture(ctx.todo, %{"title" => "Mine"})
-      {:ok, mine} = Boards.Cards.update_card(mine, %{"paths" => ["lib/a/b.ex"]})
-
-      assert {:error, :unprocessable_entity, message} =
-               Boards.Cards.move_card(mine.id, ctx.doing.id, nil, actor: ctx.agent)
-
-      assert message =~ "this board keeps agents in lanes"
-      assert message =~ "##{ctx.card.id}"
-      assert Repo.reload!(mine).column_id == ctx.todo.id
-      assert findings(mine) == []
-      assert findings(ctx.card) == []
-      refute Repo.exists?(from f in Finding, where: f.source == "lane")
-    end
-
-    test "an agent widening its paths onto another card's is refused, and is no finding",
-         ctx do
-      {:ok, _} = Boards.update_board(ctx.board, %{"lanes" => true})
-      {:ok, _} = Boards.Cards.update_card(ctx.card, %{"paths" => ["lib/a/**"]})
-      # Only a card a runner job is working on holds its lane (#1922).
-      working_job_fixture(ctx.card)
-      mine = card_fixture(ctx.doing, %{"title" => "Mine"})
-
-      assert {:error, _} =
-               Boards.Cards.update_card(mine, %{"paths" => ["lib/a/c.ex"]}, actor: ctx.agent)
-
-      assert Repo.reload!(mine).paths == []
-      assert findings(mine) == []
-      refute Repo.exists?(from f in Finding, where: f.source == "lane")
-    end
-
+  describe "lanes, gone (#3178)" do
     test "the API guide no longer lists lane among the sources the server records" do
       guide = SlipdockWeb.APIGuide.markdown() |> String.replace(~r/\s+/, " ")
 
@@ -354,8 +317,6 @@ defmodule Slipdock.FindingsSignalsTest do
       assert sources =~ "`rejection`"
       assert sources =~ "`health`"
       refute sources =~ "`lane`"
-      assert guide =~ "A lane refusal is not one (#1968)"
-      assert guide =~ "Findings with source `lane` from before then are kept."
     end
   end
 

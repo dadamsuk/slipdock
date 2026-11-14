@@ -266,13 +266,12 @@ defmodule Slipdock.Verified do
   @doc """
   Whether `card` is awaiting verification on a board that ships by push
   (#1661). Its work is on the default branch already and nobody is editing
-  its files, so while it is pending it releases its lane (`Slipdock.Lanes`)
-  and counts as finished for the cards that depend on it
+  its files, so while it is pending it counts as finished for the cards that depend on it
   (`Slipdock.Boards.Card.blocked?/1`, through `Boards.dependency_query/0`).
-  A rejection ends both. On a board that ships by pull request the work is
-  on an unmerged branch, so a pending card keeps both until the merge.
+  A rejection ends that. On a board that ships by pull request the work is
+  on an unmerged branch, so a pending card waits for the merge.
 
-  The queries in `Slipdock.Lanes`, `Slipdock.Rollup` and
+  The queries in `Slipdock.Rollup` and
   `Boards.dependency_query/0` say the same in SQL.
   """
   defdelegate released?(card), to: Shipping
@@ -515,7 +514,7 @@ defmodule Slipdock.Verified do
 
   @doc """
   The job kinds that finish a card's work rather than add to it: verifying
-  and merging. Lanes and the WIP limit hold work jobs only (#1807): these
+  and merging. The WIP limit holds work jobs only (#1807): these
   edit nobody's files and put no more work in progress.
   """
   defdelegate finishing_kinds(), to: Merging
@@ -723,7 +722,7 @@ defmodule Slipdock.Verified do
 
   @doc """
   Whether `card` falls in the docs-places rule's scope (#2694), on `handbook`
-  (as `Slipdock.Handbook.find/1` gives it): `:in` when its lane paths meet
+  (as `Slipdock.Handbook.find/1` gives it): `:in` when its paths meet
   the scope of the handbook's `SPEC-10`, `:out` when they don't or the
   handbook has no such rule (or there is no handbook), and `:unknown` when
   the card has no paths, so the step is given for the diff to decide.

@@ -34,8 +34,8 @@ migration and a docs file is `schema`:
 3. `spike`: tagged `spike`. A spike is only ever said by tag. A spike
    answers a question by building, and its code is never merged: an agent
    completes it with `--no-code`, naming the answer's page and the branch
-   its prototype is on, and a pull request on it is refused. It holds no
-   lane. That holds with profiles off too, for a card tagged `spike`.
+   its prototype is on, and a pull request on it is refused. That holds
+   with profiles off too, for a card tagged `spike`.
 4. `fix`: tagged `bug`.
 5. `docs`: it has paths, and every one is under `docs/`, a `README.md` or
    a `.md` file.
@@ -110,7 +110,7 @@ can also decide on the card itself: the panel's *Merge* and *Send back*,
 `slipdock verify ID accept` or `reject --reason …`, `verify_card`, or
 `POST /api/cards/:id/verify`, which close the wait. Withdrawing the wait
 leaves the card held, and nothing merges until a person decides. While
-held, the card keeps its lane and its dependents wait, as a card awaiting
+held, the card's dependents wait, as a card awaiting
 verification does on a pull request board; the health monitor doesn't
 count it as stuck or as missing its merge (only *Question unanswered*
 reminds the person after two days); and its line on the ledger says
@@ -197,4 +197,4 @@ model it means is the machine's.
 
 ---
 
-← [Lanes](lanes.md) · [Contents](../manual.md) · [Waiting on a person (waits)](waiting-on-a-person-waits.md) →
+← [Batched releases](batched-releases.md) · [Contents](../manual.md) · [Waiting on a person (waits)](waiting-on-a-person-waits.md) →

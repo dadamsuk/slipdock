@@ -371,16 +371,10 @@ defmodule SlipdockWeb.API.JSON do
       failure_log_hours: b.failure_log_hours,
       # Verified work's switches (#1620), all off by default.
       bar_required: b.bar_required,
-      # Lanes (#1628), off by default.
-      lanes: b.lanes,
-      # What an overlap does (#1972): off, hold or advise.
-      lane_mode: b.lane_mode,
       # Profiles inferred when an agent starts a card (#1951), and each
       # profile's human tier on the tree (#1952), nil with profiles off.
       profiles: b.profiles,
       profile_tiers: if(b.profiles, do: Slipdock.Profiles.board_tiers(b)),
-      # Globs that never count toward a lane (#1971); [] none.
-      shared_paths: b.shared_paths,
       evidence_required: b.evidence_required,
       verify_work: b.verify_work,
       verify_pool: b.verify_pool,
@@ -495,16 +489,10 @@ defmodule SlipdockWeb.API.JSON do
       failure_log_hours: b.failure_log_hours,
       # Verified work's switches (#1620), all off by default.
       bar_required: b.bar_required,
-      # Lanes (#1628), off by default.
-      lanes: b.lanes,
-      # What an overlap does (#1972): off, hold or advise.
-      lane_mode: b.lane_mode,
       # Profiles inferred when an agent starts a card (#1951), and each
       # profile's human tier on the tree (#1952), nil with profiles off.
       profiles: b.profiles,
       profile_tiers: if(b.profiles, do: Slipdock.Profiles.board_tiers(b)),
-      # Globs that never count toward a lane (#1971); [] none.
-      shared_paths: b.shared_paths,
       evidence_required: b.evidence_required,
       verify_work: b.verify_work,
       verify_pool: b.verify_pool,
@@ -1490,19 +1478,6 @@ defmodule SlipdockWeb.API.JSON do
     do: %{card: card_stub(c), count: l.count, pinned: l.pinned, raw: l.raw}
 
   @doc """
-  A board's lanes as they hold for it (#1628, #1971, #1972): `%{on:, mode:,
-  shared_paths:}`, the switch and the mode as its tree has them and the globs that never count toward a lane
-  there (its root's and its own); nil on a board with neither.
-  """
-  def board_lanes(%Slipdock.Boards.Board{} = board) do
-    on = Slipdock.Lanes.on?(board)
-    shared = Slipdock.Lanes.shared_paths(board)
-
-    if on or shared != [],
-      do: %{on: on, mode: Slipdock.Lanes.mode(board), shared_paths: shared}
-  end
-
-  @doc """
   Who created a card and who changed it last (#2028), on a single card's
   JSON (`Slipdock.CardAuthors`): `created_by` and `updated_by`, each
   `%{kind:, name:, user_id:}` (`kind` one of person, agent, runner,
@@ -1533,67 +1508,6 @@ defmodule SlipdockWeb.API.JSON do
       from -> Map.put(map, :copied_from, %{id: from.id, title: from.title})
     end
   end
-
-  @doc """
-  Lanes on a card's JSON. Shared paths (#1971), when its board has any:
-  `shared_paths`, the globs that never count toward a lane there (what the
-  lane-check hook lets through), and `paths_shared`, those of the card's own
-  paths wholly inside one. And `lane_overlap` (#1972), with lanes on and a
-  card in progress in the way: `%{card:, title:, mode:}`, `mode` saying
-  whether it holds this card (`hold`) or only tells (`advise`), and, when
-  a broad glob makes it (#2698), `broad` (`this`, `other` or `both`: whose
-  glob is broad) and `broad_paths` (those globs). `paths_broad` (#2698)
-  lists the card's own globs that claim a whole top-level directory
-  (`Slipdock.Lanes.broad?/2`), with `paths_broad_reason`: advice, nothing
-  is refused for them. Each is left off when there is nothing to say.
-  """
-  def put_lanes(map, %Card{} = card) do
-    board = Slipdock.Boards.get_board_record(card.board_id)
-    shared = Slipdock.Lanes.shared_paths(board)
-
-    map
-    |> put_shared(card, shared)
-    |> put_broad(card, shared)
-    |> put_overlap(board, card, shared)
-  end
-
-  defp put_broad(map, card, shared) do
-    case Slipdock.Lanes.broad_paths(card.paths, shared) do
-      [] ->
-        map
-
-      broad ->
-        map
-        |> Map.put(:paths_broad, broad)
-        |> Map.put(:paths_broad_reason, Slipdock.Lanes.broad_reason())
-    end
-  end
-
-  defp put_shared(map, _card, []), do: map
-
-  defp put_shared(map, card, shared) do
-    map
-    |> Map.put(:shared_paths, shared)
-    |> Map.put(:paths_shared, Enum.filter(card.paths, &Slipdock.Lanes.shared?(&1, shared)))
-  end
-
-  defp put_overlap(map, board, card, shared) do
-    with true <- board != nil and Slipdock.Lanes.on?(board),
-         %Card{} = other <- Slipdock.Lanes.conflict(card) do
-      overlap =
-        %{card: other.id, title: other.title, mode: Slipdock.Lanes.mode(board)}
-        |> put_broad_side(Slipdock.Lanes.broad_overlap(card, other, shared))
-
-      Map.put(map, :lane_overlap, overlap)
-    else
-      _ -> map
-    end
-  end
-
-  defp put_broad_side(overlap, nil), do: overlap
-
-  defp put_broad_side(overlap, %{side: side, this: this, other: other}),
-    do: Map.merge(overlap, %{broad: side, broad_paths: this ++ other})
 
   @doc "How many open findings the card has (W-2310 §Findings)."
   def put_findings(map, %Card{} = card),

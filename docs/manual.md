@@ -30,7 +30,6 @@ The manual is in parts, one page each. Every section and what it covers:
   - [Verify jobs](manual/verified-work.md#verify-jobs)
   - [Shipping by pull request](manual/verified-work.md#shipping-by-pull-request)
 - [Batched releases](manual/batched-releases.md)
-- [Lanes](manual/lanes.md)
 - [Profiles](manual/profiles.md)
   - [The human tier](manual/profiles.md#the-human-tier)
   - [The verifier's spend](manual/profiles.md#the-verifiers-spend)

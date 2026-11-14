@@ -61,7 +61,6 @@ defmodule Slipdock.LoopSkillSplitTest do
           {"A bug: reproduce", "bugs.md"},
           {"- **A verify job** (a job", "verifying.md"},
           {"- **An audit** (a verify job", "verifying.md"},
-          {"- **The board has lanes on**", "lanes.md"},
           {"gh run watch <run-id>", "build.md"},
           {"Build the prototype on", "spikes.md"},
           {"the same pull request updates", "pull-requests.md"},
@@ -98,9 +97,6 @@ defmodule Slipdock.LoopSkillSplitTest do
     assert conditions["spikes.md"] =~ "is a spike"
     assert conditions["verifying.md"] =~ "kind `verify`"
     assert conditions["verifying.md"] =~ "verify or audit a card"
-    assert conditions["lanes.md"] =~ "lanes on or advising"
-    assert conditions["lanes.md"] =~ "paths yourself"
-    assert conditions["lanes.md"] =~ "refused over an overlap"
     assert conditions["pull-requests.md"] =~ "prompt doesn't give"
     assert conditions["pull-requests.md"] =~ "tagged `security`"
     assert conditions["build.md"] =~ "not a pull request's"

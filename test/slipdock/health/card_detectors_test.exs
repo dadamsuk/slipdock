@@ -1,8 +1,8 @@
 defmodule Slipdock.Health.CardDetectorsTest do
   @moduledoc """
   The health monitor's detectors for cards and waits nobody is moving
-  (W-2310, #1764): orphan_in_progress, unanswered_wait, dead_blocker and
-  lane_hog, each against its case and its near miss.
+  (W-2310, #1764): orphan_in_progress, unanswered_wait and dead_blocker,
+  each against its case and its near miss.
   """
   use Slipdock.DataCase, async: true
 
@@ -10,9 +10,9 @@ defmodule Slipdock.Health.CardDetectorsTest do
 
   alias Slipdock.{Boards, Health, Repo}
   alias Slipdock.Automations.Rule
-  alias Slipdock.Boards.{Board, Card, CardMove, Comment, Wait}
+  alias Slipdock.Boards.{Card, CardMove, Comment, Wait}
   alias Slipdock.Health.{Context, Settings}
-  alias Slipdock.Health.Detectors.{DeadBlocker, LaneHog, OrphanInProgress, UnansweredWait}
+  alias Slipdock.Health.Detectors.{DeadBlocker, OrphanInProgress, UnansweredWait}
   alias Slipdock.Runners.Job
 
   setup do
@@ -453,60 +453,9 @@ defmodule Slipdock.Health.CardDetectorsTest do
     end
   end
 
-  describe "lane_hog" do
-    defp lanes(ctx) do
-      Repo.update_all(from(b in Board, where: b.id == ^ctx.board.id), set: [lanes: true])
-      holder = card_fixture(ctx.doing, %{"title" => "Holder"})
-      held = card_fixture(ctx.todo, %{"title" => "Held"})
-      Repo.update_all(from(c in Card, where: c.id == ^holder.id), set: [paths: ["lib/**"]])
-      Repo.update_all(from(c in Card, where: c.id == ^held.id), set: [paths: ["lib/a.ex"]])
-
-      job =
-        Repo.insert!(%Job{
-          board_id: ctx.board.id,
-          root_board_id: ctx.board.id,
-          card_id: held.id,
-          pool: "loop",
-          kind: "claude",
-          prompt: "",
-          status: "queued",
-          inserted_at: ago(5 * 60)
-        })
-
-      # Only a card a runner job is working on holds a lane (#1922).
-      working_job_fixture(holder)
-
-      {holder, held, job}
-    end
-
-    test "a lane holding a job 5 hours while nothing happens on it is found and flagged", ctx do
-      {holder, held, job} = lanes(ctx)
-      age(holder, 5 * 60)
-
-      assert [f] = detect(LaneHog, ctx.board)
-      assert f.card_id == holder.id
-
-      assert f.summary =~
-               "holds the lane that has kept job ##{job.id} on ##{held.id} waiting 5 hours"
-
-      assert {:ok, %{"flagged" => 1}} = Health.run(ctx.board, detectors: [LaneHog])
-      assert "stuck" in card!(holder).flags
-    end
-
-    test "near misses: the holder busy an hour ago, a job queued only 2 hours", ctx do
-      {holder, _held, job} = lanes(ctx)
-      age(holder, 60)
-      assert detect(LaneHog, ctx.board) == []
-
-      age(holder, 5 * 60)
-      Repo.update_all(from(j in Job, where: j.id == ^job.id), set: [inserted_at: ago(120)])
-      assert detect(LaneHog, ctx.board) == []
-      assert [_] = detect(LaneHog, ctx.board, %{"hours" => 1})
-    end
-  end
-
-  test "all four are found by the monitor" do
+  test "all three are found by the monitor, and lane_hog is gone with lanes (#3178)" do
     keys = Enum.map(Health.detectors(), & &1.key())
-    assert Enum.all?(~w(orphan_in_progress unanswered_wait dead_blocker lane_hog), &(&1 in keys))
+    assert Enum.all?(~w(orphan_in_progress unanswered_wait dead_blocker), &(&1 in keys))
+    refute "lane_hog" in keys
   end
 end

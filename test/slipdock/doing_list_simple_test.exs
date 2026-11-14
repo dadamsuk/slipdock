@@ -379,26 +379,5 @@ defmodule Slipdock.DoingListSimpleTest do
 
       assert Automations.feed(rule) == {:idle, :wip_full}
     end
-
-    test "a feed from Doing isn't held by its own lane", ctx do
-      Repo.update_all(from(b in Board, where: b.id == ^ctx.board.id),
-        set: [lanes: true, lane_mode: "hold"]
-      )
-
-      worked = card_fixture(ctx.sub_doing, %{"title" => "Worked"})
-      {:ok, _} = Boards.Cards.update_card(worked, %{"paths" => "lib/a.ex"})
-      working_job_fixture(worked)
-
-      top = card_fixture(ctx.sub_doing, %{"title" => "Top"})
-      {:ok, _} = Boards.Cards.update_card(top, %{"paths" => "lib/a.ex"})
-      Boards.Cards.move_card(top.id, ctx.sub_doing.id, 0)
-
-      # The top card's lane overlaps the worked one's, but it is in progress
-      # already: the lane holds nothing back from it.
-      assert %Card{} = Slipdock.Lanes.conflict(Repo.get!(Card, top.id))
-      rule = feed_rule(ctx, "Doing", "dev")
-      assert {:ok, %Card{id: id}} = Automations.feed(rule)
-      assert id == top.id
-    end
   end
 end

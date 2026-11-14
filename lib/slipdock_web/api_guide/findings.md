@@ -69,9 +69,7 @@ and its block is read there.
 A line with no known kind is kept whole as a `gotcha`. The server also
 records its own (source `rejection`, `verification`, `requeue`, `timeout`, `failed`,
 `merge`, `audit`, `health`, `incident`), counting repeats on a card, on any
-board, handbook or not. A lane refusal is not one (#1968): the refusal, the
-job's log and its held reason already say so. Findings with source `lane`
-from before then are kept. A card's `rejection` findings are dismissed
+board, handbook or not. A card's `rejection` findings are dismissed
 when the card is accepted (or merging, on a board that ships by pull
 request), each with a `note` saying the rework was accepted and when: the
 rejection has been dealt with, and the per-rule tally is in `slipdock

@@ -608,10 +608,7 @@ defmodule Slipdock.Boards do
                # and so does the page they are set on (#2011).
                "agentic_building" => parent.agentic_building,
                "bar_required" => parent.bar_required,
-               "lanes" => parent.lanes,
-               "lane_mode" => parent.lane_mode,
                "profiles" => parent.profiles,
-               "shared_paths" => parent.shared_paths,
                "evidence_required" => parent.evidence_required,
                "verify_work" => parent.verify_work,
                "verify_pool" => parent.verify_pool,

@@ -82,8 +82,7 @@ and MCP) and a link to the page that covers it.
     each merged their own, or a card that changes no code (`slipdock done 12
     --no-code "<why>" --evidence -`) completes without a pull request of its own.
   - On a board that
-    ships by push, a card awaiting verification frees its lane and its
-    dependents. A machine's runner daemon updates itself from signed
+    ships by push, a card awaiting verification frees its dependents. A machine's runner daemon updates itself from signed
     releases, and when its agent can't run at all (a usage limit, a failed
     sign-in) it puts the job back in the queue with the card untouched,
     holds off until the reset, and raises one alert
@@ -91,18 +90,13 @@ and MCP) and a link to the page that covers it.
   - On every board,
     switch or not, an agent can't close an epic over open subcards or reopen
     a done card: done stays done unless a person reopens it.
-- **Lanes** — [parallel agents stay out of each other's files](lanes.md),
-  all optional and off by default: a card's paths (`slipdock edit 12 --paths
-  "lib/runners/**"`), and
-  - a board switch that refuses an agent starting a card
-    whose paths overlap one in progress (`slipdock set-board --lanes`), or in
-    advisory mode starts it and names that card in the job's prompt
-    (`slipdock set-board --lane-mode advise`);
-  - a git
-    worktree per runner job (`--worktree`), and a pre-commit hook that keeps a
-    commit inside its card's paths (`slipdock hook install lane-check`);
-  - a board's shared paths that never count toward a lane, for the files nearly
-    every card edits (`slipdock set-board --shared-paths "docs/manual.md,README.md"`).
+- **Paths** — a card's paths (`slipdock edit 12 --paths "lib/runners/**"`),
+  globs relative to the repository, say where its work is:
+  - they scope the [handbook](tools.md) rules the card carries in its
+    Handbook block (`slipdock handbook <board> --paths …` asks the same for
+    any change), and [profile](profiles.md) inference reads them;
+  - a git worktree per runner job (`--worktree`) keeps parallel agents out
+    of each other's working trees ([Machines](machines.md)).
 - **Waiting on a person** — [a wait on a card](waiting-on-a-person-waits.md):
   what it needs, from whom (or anyone), since when, and optional answer
   choices. It flags the card `waiting`.
@@ -278,7 +272,7 @@ and MCP) and a link to the page that covers it.
   every minute, server checks for work going round (a second rejection, a
   third runner pass), a board waiting only on you with nothing running, cards
   past their board's P85 and jobs stuck on one step, idle runners beside a
-  full ready list or jobs queued behind one lane, epics with every subcard
+  full ready list, epics with every subcard
   blocked, and merged cards that never shipped (`not_shipped`, the one check
   that runs with the overseer off too, on a board with delivery metrics on).
   - Each fires once — an alert and an email with why and what to do —
@@ -324,7 +318,7 @@ and MCP) and a link to the page that covers it.
   - Its [human tier](profiles.md#the-human-tier)
     says whether an agent's acceptance merges, merges onto the ledger or waits
     for a person: by default `schema` and `security` wait, and a `spike`
-    merges nothing and holds no lane
+    merges nothing
     (`slipdock set-board --profile-tier schema=none` changes one).
   - Shown as a chip
     on the card, in `slipdock card`, `get_card` and the card's JSON, and on its

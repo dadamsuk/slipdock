@@ -4,8 +4,7 @@ defmodule Slipdock.Health.Detectors.Deadlock do
   waits-for graph:
 
     * a queued job → what holds it: the cards in progress it waits beside
-      (`wait_while_doing`), the card in progress whose lane its card overlaps,
-      the cards filling a WIP limit, or — for a merge job — the jobs keeping
+      (`wait_while_doing`), the cards filling a WIP limit, or — for a merge job — the jobs keeping
       every merge runner busy (holding a job, and not asking for another
       since it claimed it: runners take merges mid-pass);
     * a held answer (`Slipdock.Runners.Requeue`, `pending`) → the job it
@@ -31,7 +30,7 @@ defmodule Slipdock.Health.Detectors.Deadlock do
 
   require Slipdock.Flow.DoingList, as: DoingList
 
-  alias Slipdock.{Automations, Boards, Lanes, Repo, Runners, Verified}
+  alias Slipdock.{Automations, Boards, Repo, Runners, Verified}
   alias Slipdock.Automations.{Rule, Spec}
   alias Slipdock.Boards.{Board, Card, Column, Wait}
   alias Slipdock.Health.{Context, Runs}
@@ -72,11 +71,10 @@ defmodule Slipdock.Health.Detectors.Deadlock do
 
     queued = Enum.filter(open_jobs, &(&1.status == "queued"))
     live = Enum.filter(open_jobs, &Enum.member?(~w(claimed running), &1.status))
-    lanes = Lanes.held_cards(root_id)
     worked = Runners.worked(root_id)
 
     edges =
-      Enum.flat_map(queued, &queued_edges(&1, {lanes, worked}, live, ctx)) ++
+      Enum.flat_map(queued, &queued_edges(&1, worked, live, ctx)) ++
         answer_edges(root_id, open_jobs) ++
         dependency_edges(ctx.board_ids) ++
         finishing_edges(ctx.board_ids, open_jobs) ++
@@ -88,7 +86,7 @@ defmodule Slipdock.Health.Detectors.Deadlock do
     |> Map.new(fn {k, v} -> {k, Enum.reverse(Enum.uniq_by(v, &elem(&1, 0)))} end)
   end
 
-  defp queued_edges(job, {lanes, worked}, live, ctx) do
+  defp queued_edges(job, worked, live, ctx) do
     finishing = Enum.member?(Verified.finishing_kinds(), job.kind)
     node = {:job, job.id}
 
@@ -102,18 +100,6 @@ defmodule Slipdock.Health.Detectors.Deadlock do
             do: {node, {:card, c.id}, "job ##{job.id} waits while ##{c.id} is in progress"}
           ),
         else: []
-
-    lane =
-      case !finishing && lanes[job.card_id] do
-        %Card{id: id} ->
-          [
-            {node, {:card, id},
-             "job ##{job.id}'s card ##{job.card_id} overlaps the lane of ##{id}, in progress"}
-          ]
-
-        _ ->
-          []
-      end
 
     wip =
       with false <- finishing,
@@ -130,7 +116,7 @@ defmodule Slipdock.Health.Detectors.Deadlock do
     merge =
       if job.kind == "merge", do: merge_runner_edges(job, live, ctx), else: []
 
-    beside ++ lane ++ wip ++ merge
+    beside ++ wip ++ merge
   end
 
   # A merge job waits for a merge runner; when every one online is busy, it

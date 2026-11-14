@@ -1,7 +1,7 @@
 defmodule Slipdock.Verified.Shipping do
   @moduledoc """
   How a card's work ships, by push or by pull request: whether a pending
-  card has released its lane, the branch its work goes on, and what its
+  card counts as finished, the branch its work goes on, and what its
   builder is told about shipping it.
   """
 
@@ -12,13 +12,12 @@ defmodule Slipdock.Verified.Shipping do
   @doc """
   Whether `card` is awaiting verification on a board that ships by push
   (#1661). Its work is on the default branch already and nobody is editing
-  its files, so while it is pending it releases its lane (`Slipdock.Lanes`)
-  and counts as finished for the cards that depend on it
+  its files, so while it is pending it counts as finished for the cards that depend on it
   (`Slipdock.Boards.Card.blocked?/1`, through `Boards.dependency_query/0`).
-  A rejection ends both. On a board that ships by pull request the work is
-  on an unmerged branch, so a pending card keeps both until the merge.
+  A rejection ends that. On a board that ships by pull request the work is
+  on an unmerged branch, so a pending card waits for the merge.
 
-  The queries in `Slipdock.Lanes`, `Slipdock.Rollup` and
+  The queries in `Slipdock.Rollup` and
   `Boards.dependency_query/0` say the same in SQL.
   """
   def released?(card, board \\ nil)

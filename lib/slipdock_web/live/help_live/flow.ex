@@ -4,7 +4,7 @@ defmodule SlipdockWeb.HelpLive.Flow do
   board worked by runners, from being written to being deployed, with who
   acts at each stage and where a person has to.
 
-  The facts are the manual's (*Verified work*, *Lanes*, *Waiting on a
+  The facts are the manual's (*Verified work*, *Waiting on a
   person*, *Tidying up*, *Findings*), `docs/agents.md` and the API guide;
   this page joins them up and links out rather than repeating every option.
   Every `slipdock …` command it shows is checked against `cli/help.txt`, and

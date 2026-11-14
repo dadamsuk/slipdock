@@ -1,17 +1,16 @@
 defmodule Slipdock.PendingReleaseTest do
   @moduledoc """
   Ship by PR 6 (#1661): on a board that ships by push, a card awaiting
-  verification has its work on the default branch already, so it releases
-  its lane and counts as finished for its dependents. A rejection brings
-  both back. On a board that ships by pull request it keeps both until the
-  merge.
+  verification has its work on the default branch already, so it counts as
+  finished for its dependents. A rejection brings that back. On a board that
+  ships by pull request its dependents wait for the merge.
   """
   use Slipdock.DataCase, async: true
 
   import Ecto.Query
   import Slipdock.Fixtures
 
-  alias Slipdock.{Actor, Boards, Lanes, Rollup, Runners, Verified}
+  alias Slipdock.{Actor, Boards, Rollup, Verified}
   alias Slipdock.Boards.Card
 
   setup do
@@ -35,7 +34,7 @@ defmodule Slipdock.PendingReleaseTest do
 
   defp ship(ctx, via) do
     {:ok, board} =
-      Boards.update_board(ctx.board, %{"verify_work" => true, "lanes" => true, "ship_via" => via})
+      Boards.update_board(ctx.board, %{"verify_work" => true, "ship_via" => via})
 
     assert board.ship_via == via
     Map.put(ctx, :board, board)
@@ -81,9 +80,6 @@ defmodule Slipdock.PendingReleaseTest do
   defp comments(card),
     do: Repo.all(from(c in Boards.Comment, where: c.card_id == ^card.id, select: c.body))
 
-  defp move(card, column, ctx),
-    do: Boards.Cards.move_card(card.id, column.id, nil, actor: ctx.builder)
-
   describe "released?/2" do
     test "pending on a push board only", ctx do
       push = ship(ctx, "push")
@@ -95,77 +91,6 @@ defmodule Slipdock.PendingReleaseTest do
       {:ok, pr} = Boards.update_board(push.board, %{"ship_via" => "pull_request"})
       refute Verified.released?(Repo.get!(Card, a.id))
       refute Verified.released?(a, pr)
-    end
-  end
-
-  describe "lanes" do
-    test "on a push board a pending card's paths stop counting", ctx do
-      ctx = ship(ctx, "push")
-      a = card(ctx.doing, "A", "lib/**")
-      working_job_fixture(a)
-      b = card(ctx.todo, "B", "lib/a.ex")
-      assert %Card{id: id} = Lanes.conflict(b)
-      assert id == a.id
-
-      submit(a, ctx)
-
-      assert Lanes.conflict(b) == nil
-      assert :ok = move(b, ctx.doing, ctx)
-    end
-
-    test "on a pull_request board a pending card keeps its lane", ctx do
-      ctx = ship(ctx, "pull_request")
-      a = card(ctx.doing, "A", "lib/**")
-      b = card(ctx.todo, "B", "lib/a.ex")
-
-      submit(a, ctx)
-
-      assert %Card{id: id} = Lanes.conflict(b)
-      assert id == a.id
-      assert {:error, :unprocessable_entity, message} = move(b, ctx.doing, ctx)
-      assert message =~ "##{a.id}"
-    end
-
-    test "a rejection takes the lane back, waiting for an overlapping card in progress", ctx do
-      ctx = ship(ctx, "push")
-      a = card(ctx.doing, "A", "lib/**")
-      b = card(ctx.todo, "B", "lib/a.ex")
-      submit(a, ctx)
-      :ok = move(b, ctx.doing, ctx)
-      b_job = working_job_fixture(b)
-
-      a = reject(a, ctx)
-      # Back on the ready list, out of the doing list.
-      assert Repo.get!(Card, a.id).column_id == ctx.todo.id
-
-      # The rework waits for B, as lanes normally do...
-      assert {:error, :unprocessable_entity, message} = move(a, ctx.doing, ctx)
-      assert message =~ "##{b.id}"
-
-      # ...and takes its lane once B is out of the way, holding off others.
-      {:ok, _} = Boards.Cards.update_card(Repo.get!(Card, b.id), %{"completed" => true})
-      b_job |> Ecto.Changeset.change(status: "done") |> Repo.update!()
-      assert :ok = move(a, ctx.doing, ctx)
-      working_job_fixture(a)
-      c = card(ctx.todo, "C", "lib/b.ex")
-      assert %Card{id: id} = Lanes.conflict(c)
-      assert id == a.id
-    end
-
-    test "a queued job held by a pending card's lane goes on a push board only", ctx do
-      ctx = ship(ctx, "push")
-      {:ok, runner, _} = Runners.create_runner(ctx.board, %{"name" => "r", "pool" => "dev"})
-      a = card(ctx.doing, "A", "lib/**")
-      working_job_fixture(a)
-      b = card(ctx.todo, "B", "lib/a.ex")
-      {:ok, job} = Runners.queue(b, %{pool: "dev", kind: "claude", prompt: "go"})
-      assert Runners.claim(runner) == nil
-
-      submit(a, ctx)
-
-      assert Runners.held_reason(Repo.reload!(job), claimant: true) == nil
-      assert %{id: id} = Runners.claim(runner)
-      assert id == job.id
     end
   end
 

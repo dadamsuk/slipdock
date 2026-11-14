@@ -6,7 +6,7 @@ defmodule Slipdock.Overseer.Condition do
   however many times it is seen.
 
   `subject` names what it is about (`card:12`, `pool:default`,
-  `lane:34`); `card_id` is the card a person should open, which is also
+  `ready`); `card_id` is the card a person should open, which is also
   what puts it in their *Waiting on you*. `why` says what was seen and
   `todo` what to do about it.
   """

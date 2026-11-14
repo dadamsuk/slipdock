@@ -1283,8 +1283,8 @@ defmodule Slipdock.Handbook do
 
   @doc """
   The rules of `handbook` (as `find/1` gives it) whose scope overlaps any of
-  `paths`: file paths, folders or globs (a card's lane paths), matched as
-  lanes are (`Slipdock.Lanes.glob_overlap?/2`). A rule with no scope of its
+  `paths`: file paths, folders or globs (a card's paths), matched as
+  `Slipdock.Lanes.glob_overlap?/2` matches globs. A rule with no scope of its
   own has its page's `covers:`, or everywhere when that is empty (see
   `Slipdock.Handbook.Rules`). `must` rules come first, then `should`, each in
   the handbook's order. No handbook, or no paths, is no rules.
@@ -1330,7 +1330,7 @@ defmodule Slipdock.Handbook do
 
   @doc """
   The handbook's pages (not the Index) whose `covers:` take in any of
-  `paths`, matched as lanes are: `%{code:, title:, paths:}`, where `paths`
+  `paths`, matched as globs (`Slipdock.Lanes.glob_overlap?/2`): `%{code:, title:, paths:}`, where `paths`
   counts the ones the page covers, most first and then in the handbook's
   order. What a reconcile reads for a range of commits (#1787). A page with
   no `covers:` claims nothing, so it is never listed.
@@ -1392,7 +1392,7 @@ defmodule Slipdock.Handbook do
     |> Enum.uniq()
   end
 
-  # A card with lane paths carries the rules for them, `must` first, cut to
+  # A card with paths carries the rules for them, `must` first, cut to
   # fit #{@rules_cap} bytes of JSON like the index (`rules_more` counts what
   # that left out: `slipdock handbook <board> --paths …` has them all).
   defp put_card_rules(reading, handbook, card) do

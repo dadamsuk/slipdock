@@ -28,6 +28,6 @@ into the ready list; its fixes and investigations go to the Housekeeping
 list when the board has one (everything to Triage when it doesn't). A
 sweep files one card per issue (where, why it matters, the fix); the
 same mechanical fix in many files is one issue, never a card per file,
-module or area: one card for the whole sweep, or a few split by lane,
+module or area: one card for the whole sweep, or a few split by area when one would hold too much at once,
 each one commit with its tests (#2795). A security issue gets the
 `security` tag and stays vague anywhere public.
