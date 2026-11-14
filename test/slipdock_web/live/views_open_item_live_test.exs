@@ -119,6 +119,42 @@ defmodule SlipdockWeb.ViewsOpenItemLiveTest do
     assert to == ~p"/boards/#{sub.id}/timeline/cards/#{kid.id}"
   end
 
+  test "the phone's schedule rows open a card and a page, and link the document", ctx do
+    path = ~p"/boards/#{ctx.board}/timeline?date=2030-01-15"
+    {:ok, view, _} = live(phone(ctx.conn), path)
+    page_row = "#tl-row-page-#{ctx.page.id}"
+    assert_doc_link(view, page_row, ctx.page)
+    refute has_element?(view, "#tl-row-#{ctx.card.id} a[title='Open the document']")
+
+    view |> element("#tl-row-#{ctx.card.id} [role=link]", "The work") |> render_click()
+    assert assert_patch(view) =~ "/boards/#{ctx.board.id}/timeline/cards/#{ctx.card.id}"
+
+    {:ok, view, _} = live(phone(ctx.conn), path)
+    view |> element("#{page_row} [role=link]", "The spec") |> render_click()
+    assert assert_patch(view) =~ "page=#{ctx.page.id}"
+  end
+
+  test "a subcard in the phone's schedule rows opens on its own board's timeline", ctx do
+    {:ok, t} = Slipdock.Boards.Templates.find_template(nil, "Simple")
+    {:ok, _} = sub_board(ctx.card, t)
+    sub = reload(Slipdock.Boards.Cards.get_card!(ctx.card.id).sub_board)
+
+    kid =
+      card_fixture(hd(sub.columns), %{
+        "title" => "The subtask",
+        "start_date" => "2030-01-14",
+        "due_date" => "2030-01-15"
+      })
+
+    {:ok, view, _} =
+      live(phone(ctx.conn), ~p"/boards/#{ctx.board}/timeline?date=2030-01-15&depth=all")
+
+    assert {:error, {:live_redirect, %{to: to}}} =
+             view |> element("#tl-row-#{kid.id} [role=link]", "The subtask") |> render_click()
+
+    assert to == ~p"/boards/#{sub.id}/timeline/cards/#{kid.id}"
+  end
+
   defp assert_doc_link(view, scope, page) do
     assert has_element?(
              view,
