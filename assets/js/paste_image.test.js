@@ -40,6 +40,12 @@ test("with no caret the text goes at the end", () => {
   assert.deepEqual(insertAtCursor("ab", {start: null, end: null}, "X\n"), {value: "ab\nX\n", caret: 5})
 })
 
+test("a start with no end inserts there and keeps the text after it", () => {
+  assert.deepEqual(insertAtCursor("abcd", {start: 2}, "X"), {value: "ab\nXcd", caret: 4})
+  assert.deepEqual(insertAtCursor("abcd", {start: 2, end: null}, "X"), {value: "ab\nXcd", caret: 4})
+  assert.deepEqual(insertAtCursor("abcd", {start: 0}, "X"), {value: "Xabcd", caret: 1})
+})
+
 test("an uploaded image's Markdown takes the placeholder's place", () => {
   const value = `before\n${P}\nafter`
   const caret = value.length
