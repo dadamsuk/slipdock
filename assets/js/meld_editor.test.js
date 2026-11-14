@@ -254,29 +254,28 @@ test("the hook: a click elsewhere in the element leaves the purge field alone", 
 })
 
 test("the hook: a second encryption adds its revisions to the first's, each id once", async () => {
-  let revisions = [{id: 5, body: "alpha here"}, {id: 9, body: "no match"}]
+  const revisions = [{id: 7, body: "alpha and beta"}, {id: 5, body: "alpha here"}, {id: 2, body: "beta"}, {id: 9, body: "no match"}]
   const {hook, ta, note, purge, click} = mountHook({
     value: "alpha and beta",
     start: 0,
     end: 5,
-    reply: () => ({owner: true, revisions}),
+    reply: {owner: true, revisions},
     answers: [{action: "ok", passphrase: "pw", hint: ""}, {action: "ok", passphrase: "pw", hint: ""}],
   })
   await hook.run("encrypt")
-  assert.equal(note.textContent, "1 earlier revision still holds this text in plain.")
-  assert.match(note.children[0].attrs["data-confirm"], /^Purge that revision when you save\?/)
+  assert.equal(note.textContent, "2 earlier revisions still hold this text in plain.")
+  assert.match(note.children[0].attrs["data-confirm"], /^Purge those 2 revisions when you save\?/)
 
-  revisions = [{id: 5, body: "alpha and beta"}, {id: 2, body: "beta"}, {id: 9, body: "no match"}]
   ta.selectionStart = ta.value.indexOf("beta")
   ta.selectionEnd = ta.value.length
   await hook.run("encrypt")
   assert.ok(!ta.value.includes("alpha") && !ta.value.includes("beta"))
-  assert.equal(note.textContent, "2 earlier revisions still hold this text in plain.")
-  assert.match(note.children[0].attrs["data-confirm"], /^Purge those 2 revisions when you save\?/, "the button counts every pending revision")
+  assert.equal(note.textContent, "2 earlier revisions still hold this text in plain.", "the note counts this text's revisions")
+  assert.match(note.children[0].attrs["data-confirm"], /^Purge those 3 revisions when you save\?/, "the button counts every pending revision")
 
   click(note.children[0])
-  assert.equal(purge.value, "2,5")
-  assert.equal(note.textContent, "2 earlier revisions holding this text in plain will be purged when you save.")
+  assert.equal(purge.value, "2,5,7", "the first text's revisions are still named")
+  assert.equal(note.textContent, "3 earlier revisions holding this text in plain will be purged when you save.")
 })
 
 test("the hook: one revision is purged and undone in the singular", async () => {
@@ -286,6 +285,8 @@ test("the hook: one revision is purged and undone in the singular", async () => 
     answers: [{action: "ok", passphrase: "pw", hint: ""}],
   })
   await hook.run("whole")
+  assert.equal(note.textContent, "1 earlier revision still holds this text in plain.")
+  assert.match(note.children[0].attrs["data-confirm"], /^Purge that revision when you save\?/)
   click(note.children[0])
   assert.equal(purge.value, "1")
   assert.equal(note.textContent, "1 earlier revision holding this text in plain will be purged when you save.")
