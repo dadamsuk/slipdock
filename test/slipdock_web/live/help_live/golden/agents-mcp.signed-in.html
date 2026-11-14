@@ -190,6 +190,27 @@ get_board</code>
     Read-only tools are marked as such, so a client can run them without asking each
     time. Deletes are marked destructive and need a confirmation in the call.
   </p>
+<p phx-r="">
+
+    Answers are kept small, since a model pays for every one: each is compact JSON, sent
+    once. <code>
+get_board</code>
+
+    and <code>
+list_cards</code>
+
+    give a brief of each card,
+    without its description or comments (<code>
+get_card</code>
+
+    has those; <code>
+descriptions: true</code>
+
+    adds each description), and leave out
+    or trim the done lists unless asked with <code>
+include_done</code>
+.
+  </p>
 </div>
 </section>
 <section phx-r="" id="help-mcp-claude" class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">

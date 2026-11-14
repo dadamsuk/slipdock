@@ -38,7 +38,7 @@ defmodule SlipdockWeb.MCP.SearchToolTest do
     |> Map.fetch!("result")
   end
 
-  defp ids(result), do: Enum.map(result["structuredContent"]["results"], & &1["id"])
+  defp ids(result), do: Enum.map(mcp_data(result)["results"], & &1["id"])
 
   test "says what the excerpt is from, and links straight to it", ctx do
     {:ok, comment} =
@@ -47,7 +47,7 @@ defmodule SlipdockWeb.MCP.SearchToolTest do
     {:ok, _} = Search.index_card(ctx.card.id)
 
     result = search(ctx.conn, %{q: "refunds rounding off by a penny"})
-    hit = Enum.find(result["structuredContent"]["results"], &(&1["id"] == ctx.card.id))
+    hit = Enum.find(mcp_data(result)["results"], &(&1["id"] == ctx.card.id))
 
     assert hit["matched"] in ["comment", "card"]
 
@@ -65,7 +65,7 @@ defmodule SlipdockWeb.MCP.SearchToolTest do
     assert ctx.twin.id in ids(result)
     refute ctx.secret.id in ids(result)
 
-    hit = Enum.find(result["structuredContent"]["results"], &(&1["id"] == ctx.card.id))
+    hit = Enum.find(mcp_data(result)["results"], &(&1["id"] == ctx.card.id))
     assert hit["board"] == "delivery8"
     assert hit["url"] =~ "/boards/#{ctx.board.id}/cards/#{ctx.card.id}"
   end
@@ -77,10 +77,10 @@ defmodule SlipdockWeb.MCP.SearchToolTest do
     refute ctx.card.id in ids(search(ctx.conn, %{q: "invoice rounding refunds"}))
 
     result = search(ctx.conn, %{q: "invoice rounding refunds", archived: true})
-    hit = Enum.find(result["structuredContent"]["results"], &(&1["id"] == ctx.card.id))
+    hit = Enum.find(mcp_data(result)["results"], &(&1["id"] == ctx.card.id))
     assert hit["archived"] == true
 
-    assert Enum.find(result["structuredContent"]["results"], &(&1["id"] == ctx.twin.id))[
+    assert Enum.find(mcp_data(result)["results"], &(&1["id"] == ctx.twin.id))[
              "archived"
            ] == false
   end

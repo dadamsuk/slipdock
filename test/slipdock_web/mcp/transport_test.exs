@@ -228,9 +228,9 @@ defmodule SlipdockWeb.MCP.TransportTest do
         |> Map.fetch!("result")
 
       assert result["isError"] == false
-      assert result["structuredContent"]["user"]["email"] == user.email
+      assert mcp_data(result)["user"]["email"] == user.email
 
-      assert result["structuredContent"]["token"] == %{
+      assert mcp_data(result)["token"] == %{
                "label" => "Claude",
                "scope" => "read",
                "boards" => []

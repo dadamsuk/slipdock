@@ -190,7 +190,7 @@ defmodule SlipdockWeb.API.FolderPlacementsTest do
 
       result = mcp(ctx.conn, %{board: "fpapi", folder: "Home/Topic", also: "/Brain/Other"})
 
-      assert [%{"path" => "Other"}] = result["structuredContent"]["also_in"]
+      assert [%{"path" => "Other"}] = mcp_data(result)["also_in"]
       assert length(Folders.list(ctx.board)) == before
     end
   end
@@ -256,7 +256,7 @@ defmodule SlipdockWeb.API.FolderPlacementsTest do
         |> Map.fetch!("result")
 
       assert [%{"title" => "Inside", "also" => true, "folder" => "Home/Topic"}] =
-               result["structuredContent"]["pages"]
+               mcp_data(result)["pages"]
     end
   end
 
@@ -292,10 +292,10 @@ defmodule SlipdockWeb.API.FolderPlacementsTest do
       result = mcp(ctx.conn, %{board: "fpapi", folder: "Home/Topic", also: "Other"})
 
       assert %{"path" => "Home/Topic", "also_in" => [%{"path" => "Other", "board" => "fpapi"}]} =
-               result["structuredContent"]
+               mcp_data(result)
 
       result = mcp(ctx.conn, %{board: "fpapi", folder: "Topic", not_in: "Other"})
-      assert result["structuredContent"]["also_in"] == []
+      assert mcp_data(result)["also_in"] == []
       assert Wiki.get_folder(ctx.folder.id).parent_id == ctx.home.id
     end
 
@@ -307,12 +307,12 @@ defmodule SlipdockWeb.API.FolderPlacementsTest do
       result = mcp(ctx.conn, %{board: "fpapi", folder: "Topic", also: "/Journal/Notes"})
 
       assert [%{"board" => "fpapijobs", "path" => "Notes"}] =
-               result["structuredContent"]["also_in"]
+               mcp_data(result)["also_in"]
 
       result =
         mcp(ctx.conn, %{board: "fpapi", folder: "Topic", also: "Desk", in_board: "fpapijobs"})
 
-      assert length(result["structuredContent"]["also_in"]) == 2
+      assert length(mcp_data(result)["also_in"]) == 2
     end
 
     test "refusals come back as tool errors with the reason", ctx do

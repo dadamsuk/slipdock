@@ -60,7 +60,7 @@ defmodule SlipdockWeb.API.NoteControllerTest do
 
     assert result["isError"] == false
     # With no folder of its own, a note goes to the top of the Knowledge Base.
-    assert result["structuredContent"]["note"]["location"] == "/Knowledge Base"
+    assert mcp_data(result)["note"]["location"] == "/Knowledge Base"
     assert Wiki.list_pages(board) == []
 
     assert [%{body: "ring them"}] =

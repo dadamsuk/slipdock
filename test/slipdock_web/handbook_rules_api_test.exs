@@ -31,7 +31,8 @@ defmodule SlipdockWeb.HandbookRulesAPITest do
       })
     )
     |> json_response(200)
-    |> get_in(["result", "structuredContent"])
+    |> Map.fetch!("result")
+    |> mcp_data()
   end
 
   setup %{user: user} do

@@ -38,7 +38,8 @@ defmodule SlipdockWeb.CardLoopTest do
       })
     )
     |> json_response(200)
-    |> get_in(["result", "structuredContent"])
+    |> Map.fetch!("result")
+    |> mcp_data()
   end
 
   describe "the card panel" do
@@ -139,7 +140,8 @@ defmodule SlipdockWeb.CardLoopTest do
       %{"cards" => cards} = mcp(conn_as(ctx.user), "list_cards", %{board: ctx.board.id})
       line = Enum.find(cards, &(&1["id"] == ctx.card.id))
       assert line["loop"]["runner"] == "Mac Studio"
-      assert line["assignees"] == []
+      # The brief leaves an empty field out (#3176): the loop is no assignee.
+      refute Map.has_key?(line, "assignees")
     end
   end
 end

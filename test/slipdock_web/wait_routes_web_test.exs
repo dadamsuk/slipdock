@@ -199,7 +199,7 @@ defmodule SlipdockWeb.WaitRoutesWebTest do
         })
 
       assert result["isError"] == false
-      assert [%{"id" => id}] = result["structuredContent"]["wait_routes"]["release"]
+      assert [%{"id" => id}] = mcp_data(result)["wait_routes"]["release"]
       assert id == ctx.rel.id
       assert routes(ctx.board) == %{"release" => [ctx.rel.id]}
 
@@ -229,7 +229,7 @@ defmodule SlipdockWeb.WaitRoutesWebTest do
       assert {wait.question, wait.on_user_id} == {"ux", ctx.pm.id}
 
       got = mcp(conn, "get_card", %{card: ctx.card.id})
-      assert got["structuredContent"]["wait"]["question"] == "ux"
+      assert mcp_data(got)["wait"]["question"] == "ux"
     end
   end
 

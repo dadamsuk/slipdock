@@ -73,7 +73,7 @@ defmodule SlipdockWeb.VerifiedVerifyWebTest do
     {:ok, _} = on(ctx)
     result = mcp(ctx.builder, "complete_card", %{card: ctx.card.id})
     assert result["isError"] == false
-    assert result["structuredContent"]["note"] =~ "submitted for verification"
+    assert mcp_data(result)["note"] =~ "submitted for verification"
 
     card = Repo.get!(Card, ctx.card.id)
     refute card.completed
@@ -341,7 +341,7 @@ defmodule SlipdockWeb.VerifiedVerifyWebTest do
       })
 
     assert result["isError"] == false
-    assert result["structuredContent"]["verified_work"]["verify_pool"] == "checkers"
+    assert mcp_data(result)["verified_work"]["verify_pool"] == "checkers"
     board = Boards.get_board!(ctx.board.id)
     assert board.verify_work and board.evidence_required
     refute board.bar_required
@@ -359,7 +359,7 @@ defmodule SlipdockWeb.VerifiedVerifyWebTest do
         "verify_pool" => ""
       })
 
-    listed = mcp(ctx.builder, "list_boards", %{})["structuredContent"]
+    listed = mcp_data(mcp(ctx.builder, "list_boards", %{}))
     refute inspect(listed) =~ "verified_work"
   end
 

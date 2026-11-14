@@ -477,7 +477,9 @@ and MCP) and a link to the page that covers it.
 - **An MCP server** at `/mcp`, so claude.ai, the Claude apps, Claude Code
   and other MCP clients get the board as a small set of tools: reading,
   searching, and adding, moving, commenting on, completing and archiving
-  cards, with their dependencies and checklists. Add it
+  cards, with their dependencies and checklists. Answers are compact and sent
+  once, and a look at a board gives a brief per card, done lists trimmed
+  (`get_card` for a description). Add it
   as a connector by its address and sign in through the browser (OAuth), or
   connect with an API token ([the tools](mcp-server.md),
   [connecting](../agents.md#over-mcp)).

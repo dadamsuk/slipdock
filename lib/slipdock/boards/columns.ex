@@ -24,6 +24,13 @@ defmodule Slipdock.Boards.Columns do
     end
   end
 
+  @doc "`board`'s lists in order, without their cards."
+  def board_columns(%Board{id: board_id}) do
+    Repo.all(
+      from(c in Column, where: c.board_id == ^board_id, order_by: [asc: c.position, asc: c.id])
+    )
+  end
+
   @doc """
   `board`'s Scheduled list (category `scheduled`, #2100), where recurring
   agent work lands, or nil.

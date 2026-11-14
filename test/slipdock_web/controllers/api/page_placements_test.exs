@@ -166,7 +166,7 @@ defmodule SlipdockWeb.API.PagePlacementsTest do
 
       result = call(c.conn, "update_page", %{page: c.page.code, also: "/Brain/Inbox"})
 
-      assert result["structuredContent"]["also_in"] == ["Inbox"]
+      assert mcp_data(result)["also_in"] == ["Inbox"]
       assert length(Folders.list(c.board)) == before
     end
   end
@@ -190,17 +190,17 @@ defmodule SlipdockWeb.API.PagePlacementsTest do
 
     test "update_page also/not_in, and list_pages by folder", %{conn: conn, page: page} do
       result = call(conn, "update_page", %{page: page.code, also: "Ideas"})
-      assert result["structuredContent"]["also_in"] == ["Ideas"]
+      assert mcp_data(result)["also_in"] == ["Ideas"]
 
       listed =
-        call(conn, "list_pages", %{board: "plapi", folder: "Ideas"})["structuredContent"][
+        mcp_data(call(conn, "list_pages", %{board: "plapi", folder: "Ideas"}))[
           "pages"
         ]
 
       assert [%{"title" => "Note", "also" => true}] = listed
 
       result = call(conn, "update_page", %{page: page.code, not_in: "Ideas"})
-      assert result["structuredContent"]["also_in"] == []
+      assert mcp_data(result)["also_in"] == []
       assert Placements.folders(page) == []
 
       assert call(conn, "update_page", %{page: page.code, also: "Home"})["isError"] == true

@@ -38,7 +38,7 @@ defmodule SlipdockWeb.MCP.JobLogTest do
   defp ok!(result) do
     assert result["isError"] == false, inspect(result["content"])
     [%{"text" => text}] = result["content"]
-    result["structuredContent"] || Jason.decode!(text)
+    mcp_data(result) || Jason.decode!(text)
   end
 
   defp error!(result) do

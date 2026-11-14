@@ -27,9 +27,9 @@ defmodule SlipdockWeb.MCP.Tools.ListCards do
   @impl true
   def description,
     do:
-      "Cards on a board, in list order. To find the next thing to do: column = the ready " <>
-        "list, open = true, deps = \"ready\", no_assignee = true, then take the first. " <>
-        "full = true: each card as get_card returns it."
+      "Cards on a board in brief, in list order, done lists left out unless include_done. " <>
+        "Next thing to do: column = the ready list, open = true, deps = \"ready\", " <>
+        "no_assignee = true, take the first. full = true: as get_card."
 
   @impl true
   def input_schema do
@@ -81,6 +81,14 @@ defmodule SlipdockWeb.MCP.Tools.ListCards do
           enum: keys(Slipdock.Origin.buckets()),
           description: "Who or what made it; none for cards made before origins were kept."
         },
+        descriptions: %{
+          type: "boolean",
+          description: "Each card's description in its brief too (left out unless asked)."
+        },
+        include_done: %{
+          type: "boolean",
+          description: "Cards in the done and dropped lists too (left out unless asked for)."
+        },
         full: %{
           type: "boolean",
           description:
@@ -107,22 +115,57 @@ defmodule SlipdockWeb.MCP.Tools.ListCards do
 
     with {:ok, ref} <- Args.required(args, "board"),
          {:ok, filters} <- filters(args, context.user),
-         {:ok, full} <- Args.boolean(args, "full", false),
-         {:ok, limit} <- Args.limit(args, "limit", if(full, do: @full_default, else: 50), @max),
+         {:ok, opts} <- options(args),
          {:ok, board} <- Args.refusal(Authorize.fetch_board(auth, ref, :read)),
          :ok <- Boards.check_column(board, filters["column"]) do
-      cards = Authorize.visible(auth, Boards.Cards.list_cards(board, filters))
-      page = Enum.take(cards, limit)
+      listed = Authorize.visible(auth, Boards.Cards.list_cards(board, filters))
+      cards = leave_out_done(listed, board, filters, opts.all_done)
+      page = Enum.take(cards, opts.limit)
 
       {:ok,
        %{
          board: %{id: board.id, code: board.code, name: board.name},
          total: length(cards),
-         truncated: length(cards) > limit,
-         cards:
-           if(full, do: in_full(board, page, context), else: Enum.map(page, &Tools.card_line/1))
+         truncated: length(cards) > opts.limit,
+         cards: lines(board, page, context, opts)
        }
+       |> put_left_out(length(listed) - length(cards))
        |> Map.merge(V.paused(board))}
+    end
+  end
+
+  defp options(args) do
+    with {:ok, full} <- Args.boolean(args, "full", false),
+         {:ok, all_done} <- Args.boolean(args, "include_done", false),
+         {:ok, descriptions} <- Args.boolean(args, "descriptions", false),
+         {:ok, limit} <- Args.limit(args, "limit", if(full, do: @full_default, else: 50), @max) do
+      {:ok, %{full: full, all_done: all_done, descriptions: descriptions, limit: limit}}
+    end
+  end
+
+  defp lines(board, page, context, %{full: true}), do: in_full(board, page, context)
+
+  defp lines(_board, page, _context, opts),
+    do: Enum.map(page, &Tools.card_brief(&1, descriptions: opts.descriptions))
+
+  defp put_left_out(answer, 0), do: answer
+  defp put_left_out(answer, n), do: Map.put(answer, :done_left_out, n)
+
+  # The cards in done and dropped lists, unless the call asks for them (#3176):
+  # include_done, a list named, or open = false (which asks for done cards).
+  defp leave_out_done(cards, board, filters, all_done) do
+    if all_done or filters["column"] != nil or filters["completed"] == "true" do
+      cards
+    else
+      columns = Boards.Columns.board_columns(board)
+
+      done =
+        for col <- columns,
+            Tools.GetBoard.done_list?(columns, col),
+            into: MapSet.new(),
+            do: col.id
+
+      Enum.reject(cards, &MapSet.member?(done, &1.column_id))
     end
   end
 

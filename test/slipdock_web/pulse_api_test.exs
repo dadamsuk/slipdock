@@ -64,14 +64,14 @@ defmodule SlipdockWeb.PulseAPITest do
 
     result = mcp(conn, %{board: board.code, pulse: true})
     assert result["isError"] == false, inspect(result["content"])
-    content = result["structuredContent"]
+    content = mcp_data(result)
     assert content["code"] == board.code
     refute Map.has_key?(content, "lists")
     assert numbers(content["pulse"]) == numbers(pulse)
   end
 
   test "without pulse, get_board still gives the lists", %{conn: conn, board: board} do
-    content = mcp(conn, %{board: board.code})["structuredContent"]
+    content = mcp_data(mcp(conn, %{board: board.code}))
     assert Enum.map(content["lists"], & &1["name"]) == ["Backlog", "To Do", "In Progress", "Done"]
     refute Map.has_key?(content, "pulse")
   end

@@ -113,7 +113,7 @@ defmodule SlipdockWeb.OriginWebTest do
 
       result = mcp(ctx.conn, "list_cards", %{"board" => ctx.board.code, "origin" => "findings"})
       assert result["isError"] == false
-      cards = result["structuredContent"]["cards"]
+      cards = mcp_data(result)["cards"]
       assert Enum.map(cards, & &1["title"]) == ["Found"]
       assert hd(cards)["origin"] == "findings"
 

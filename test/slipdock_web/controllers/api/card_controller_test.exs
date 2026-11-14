@@ -839,7 +839,7 @@ defmodule SlipdockWeb.API.CardControllerTest do
         )
         |> json_response(200)
 
-      got = get_in(result, ["result", "structuredContent"])
+      got = mcp_data(result["result"])
       assert got["id"] == card.id
       assert "covers priv/repo/migrations/" in Enum.map(got["handbook"]["suggested"], & &1["why"])
     end

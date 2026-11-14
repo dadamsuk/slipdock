@@ -48,7 +48,8 @@ defmodule SlipdockWeb.CardAuthorsTest do
       })
     )
     |> json_response(200)
-    |> get_in(["result", "structuredContent"])
+    |> Map.fetch!("result")
+    |> mcp_data()
   end
 
   defp rest_card(ctx, id),

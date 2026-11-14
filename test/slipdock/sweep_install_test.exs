@@ -42,18 +42,18 @@ defmodule Slipdock.SweepInstallTest do
 
       first = user |> token_conn() |> mcp(%{"tool" => "sweep", "board" => board.code})
       assert first["isError"] == false, inspect(first["content"])
-      assert first["structuredContent"]["board"] == board.code
-      assert first["structuredContent"]["created"] == true
-      assert first["structuredContent"]["added"]["lists"] == ["Triage"]
-      assert first["structuredContent"]["added"]["pages"] == ["Sweeps"]
+      assert mcp_data(first)["board"] == board.code
+      assert mcp_data(first)["created"] == true
+      assert mcp_data(first)["added"]["lists"] == ["Triage"]
+      assert mcp_data(first)["added"]["pages"] == ["Sweeps"]
       assert Sweep.find(board)
       # The sweep is not the handbook.
       assert Handbook.find(board) == nil
 
       again = user |> token_conn() |> mcp(%{"tool" => "sweep", "board" => board.code})
-      assert again["structuredContent"]["created"] == false
-      assert again["structuredContent"]["added"]["pages"] == []
-      assert again["structuredContent"]["added"]["cards"] == []
+      assert mcp_data(again)["created"] == false
+      assert mcp_data(again)["added"]["pages"] == []
+      assert mcp_data(again)["added"]["cards"] == []
     end
 
     test "without a board it says to give one", %{user: user} do

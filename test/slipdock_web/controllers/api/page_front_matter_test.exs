@@ -123,7 +123,8 @@ defmodule SlipdockWeb.API.PageFrontMatterTest do
         })
       )
       |> json_response(200)
-      |> get_in(["result", "structuredContent"])
+      |> Map.fetch!("result")
+      |> mcp_data()
     end
 
     test "read_page gives it and update_page sets it", %{conn: conn, page: page} do

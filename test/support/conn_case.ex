@@ -28,6 +28,7 @@ defmodule SlipdockWeb.ConnCase do
       import Plug.Conn
       import Phoenix.ConnTest
       import SlipdockWeb.ConnCase
+      import SlipdockWeb.MCPResult
     end
   end
 

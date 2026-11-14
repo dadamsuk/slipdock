@@ -233,6 +233,18 @@ that connects gets a small set of tools rather than the whole API:
 |---|---|
 | `whoami`, `get_guide`, `list_boards`, `get_board`, `list_cards`, `get_card`, `search`, `ask`, `read_page`, `list_pages`, `page_info`, `page_history`, `wiki_info`, `activity`, `download_file`, `list_automations`, `list_tools`, `garden`, `page_tool`, `job_log` | `create_card`, `update_card`, `move_card`, `comment`, `leave_handoff`, `garden_decide`, `upload_file`, `delete_attachment`, `complete_card`, `verify_card`, `status_update`, `archive_card`, `delete_card`, `create_list`, `create_tag`, `delete_list`, `create_board`, `update_board`, `archive_board`, `delete_board`, `write_page`, `quick_note`, `update_page`, `file_folder`, `share`, `revert_page`, `manage_wiki`, `card_views`, `manage_automation`, `install_tool`, `skill_registry`, `claim_job`, `job_progress`, `finish_job`, `keep_job_log`, `release_now` |
 
+Answers are kept small, since every one is paid for in the model's
+context. A tool answers its JSON once, compact, as the result's one text
+block, with no `structuredContent` beside it. `get_board` and `list_cards`
+give a brief of each card (id, title, list, state, flags, tags, assignees,
+priority, due date, dependencies, subcards; empty fields left out), never
+its description or comments: read those with `get_card`, or ask for every
+description with `descriptions: true`. Done and dropped
+lists are trimmed: `get_board` shows a done list's newest 5 and its
+`left_out` count; `list_cards` leaves their cards out (`done_left_out`)
+unless `column` names one or `open` is false. `include_done: true` gives
+them all.
+
 Files move without passing through the model: with a shell, `upload_file`
 with `card` (or `page`) and `link: true` answers with a single-use
 `upload_url`, good for ten minutes and needing no token, and
