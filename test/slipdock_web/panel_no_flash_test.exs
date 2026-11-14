@@ -7,7 +7,9 @@ defmodule SlipdockWeb.PanelNoFlashTest do
   as a click-away and closes the modal.
 
   This reads the modules those panels are made of and fails on any
-  `flash(`/`put_flash(` that is not one of the named exceptions below.
+  `flash(`/`put_flash(` that is not one of the named exceptions below, and
+  on a `{:put_flash, …}` message written out by hand, which is the same
+  flash without the helper's name (#2895).
   """
   use ExUnit.Case, async: true
 
@@ -57,7 +59,7 @@ defmodule SlipdockWeb.PanelNoFlashTest do
     source
     |> String.split("\n")
     |> Enum.with_index(1)
-    |> Enum.filter(fn {line, _} -> line =~ ~r/(?<!\w)(?:put_)?flash\(/ end)
+    |> Enum.filter(fn {line, _} -> line =~ ~r/(?<!\w)(?:put_)?flash\(|\{:put_flash,/ end)
     |> Enum.reject(fn {line, _} -> String.trim_leading(line) |> String.starts_with?("#") end)
   end
 
@@ -91,6 +93,8 @@ defmodule SlipdockWeb.PanelNoFlashTest do
     assert [_] = flashes(~s/socket |> put_flash(:info, "Yes.")/)
     assert [_] = flashes(~s/|> flash(:error, message)/)
     assert [_] = flashes(~s|Helpers.flash(socket, :error, "No.")|)
+    assert [_] = flashes(~s|send(self(), {:put_flash, :error, describe(reason)})|)
+    assert [_] = flashes(~s|do: send(self(), {:put_flash, :info, "Done."})|)
     assert flashes(~s|  # never a flash(socket, ...) here|) == []
     assert flashes(~s|notice(socket, :error, "No.")|) == []
     assert flashes(~s|Phoenix.Flash.get(@flash, :info)|) == []

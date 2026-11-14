@@ -32,11 +32,12 @@ defmodule SlipdockWeb.AccountLive.Index do
      )}
   end
 
-  # What the sections send up. A flash is drawn by the layout, which is ours,
+  # What the sections send up. A flash (`SlipdockWeb.ComponentFlash.flash/3`,
+  # the shape every component's has) is drawn by the layout, which is ours,
   # and a saved user has to reach the header (the name, and where quick add
   # puts things) as well as the section that saved it.
   @impl true
-  def handle_info({:flash, kind, message}, socket),
+  def handle_info({:put_flash, kind, message}, socket),
     do: {:noreply, put_flash(socket, kind, message)}
 
   def handle_info({:current_user, user}, socket),

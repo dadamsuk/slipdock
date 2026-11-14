@@ -6,6 +6,8 @@ defmodule SlipdockWeb.AccountLive.SettingsComponent do
   """
   use SlipdockWeb, :live_component
 
+  import SlipdockWeb.ComponentFlash, only: [flash: 3]
+
   alias Slipdock.Accounts
   alias Slipdock.AI
   alias Slipdock.HeaderLinks
@@ -184,12 +186,6 @@ defmodule SlipdockWeb.AccountLive.SettingsComponent do
 
   defp board_switch(params, _user), do: params
 
-  # Flashes belong to the page, which draws them, so they go up to it.
-  defp flash(socket, kind, message) do
-    send(self(), {:flash, kind, message})
-    socket
-  end
-
   @impl true
   def handle_event("change_quick_add", %{"user" => params}, socket) do
     user = socket.assigns.current_user
@@ -216,14 +212,11 @@ defmodule SlipdockWeb.AccountLive.SettingsComponent do
       waiting_emails: get_in(params, ["notice", "waiting_emails"]) == "true"
     }
 
-    case Accounts.update_waiting_notice(socket.assigns.current_user, attrs) do
-      {:ok, user} ->
-        send(self(), {:current_user, user})
-        {:noreply, socket |> assign(current_user: user) |> flash(:info, "Saved.")}
-
-      {:error, _cs} ->
-        {:noreply, flash(socket, :error, "Couldn't save that.")}
-    end
+    # Both are booleans the changeset only casts, so the save can't be refused
+    # (#2895: the "Couldn't save that." it had was a flash nothing could raise).
+    {:ok, user} = Accounts.update_waiting_notice(socket.assigns.current_user, attrs)
+    send(self(), {:current_user, user})
+    {:noreply, socket |> assign(current_user: user) |> flash(:info, "Saved.")}
   end
 
   def handle_event("save_quick_add", %{"user" => params}, socket) do

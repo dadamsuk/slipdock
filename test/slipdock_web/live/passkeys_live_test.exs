@@ -111,7 +111,7 @@ defmodule SlipdockWeb.PasskeysLiveTest do
       view |> element("#passkeys") |> render_hook("passkey_added", %{"name" => "Desk key"})
 
       assert has_element?(view, "#passkeys li", "Desk key")
-      assert render(view) =~ "Passkey “Desk key” added"
+      assert has_element?(view, "#flash-info", "Passkey “Desk key” added")
     end
 
     test "a failure reported by the hook is a flash", %{conn: conn} do
@@ -121,7 +121,7 @@ defmodule SlipdockWeb.PasskeysLiveTest do
       |> element("#passkeys")
       |> render_hook("passkey_failed", %{"message" => "That passkey is already on your account."})
 
-      assert render(view) =~ "That passkey is already on your account."
+      assert has_element?(view, "#flash-error", "That passkey is already on your account.")
     end
 
     test "removes one after asking", %{conn: conn, user: user} do
@@ -133,7 +133,7 @@ defmodule SlipdockWeb.PasskeysLiveTest do
       render_click(button)
 
       refute has_element?(view, "#passkey-#{passkey.id}")
-      assert render(view) =~ "Passkey removed"
+      assert has_element?(view, "#flash-info", "Passkey removed")
       assert Passkeys.list(user) == []
     end
 

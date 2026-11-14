@@ -7,6 +7,8 @@ defmodule SlipdockWeb.AccountLive.PasskeysComponent do
   """
   use SlipdockWeb, :live_component
 
+  import SlipdockWeb.ComponentFlash, only: [flash: 3]
+
   alias Slipdock.Accounts.{Passkey, Passkeys}
 
   @impl true
@@ -26,19 +28,18 @@ defmodule SlipdockWeb.AccountLive.PasskeysComponent do
     do: {:noreply, assign(socket, supported?: supported == true)}
 
   def handle_event("passkey_added", %{"name" => name}, socket) do
-    send(self(), {:flash, :info, "Passkey “#{name}” added. You can sign in with it now."})
-    {:noreply, load(socket)}
+    {:noreply,
+     socket |> load() |> flash(:info, "Passkey “#{name}” added. You can sign in with it now.")}
   end
 
   def handle_event("passkey_failed", %{"message" => message}, socket) do
-    send(self(), {:flash, :error, String.slice(to_string(message), 0, 200)})
-    {:noreply, socket}
+    {:noreply, flash(socket, :error, String.slice(to_string(message), 0, 200))}
   end
 
   def handle_event("delete_passkey", %{"id" => id}, socket) do
     with id when is_integer(id) <- SlipdockWeb.Params.id(id),
          :ok <- Passkeys.delete(socket.assigns.current_user, id) do
-      send(self(), {:flash, :info, "Passkey removed. It can't sign in any more."})
+      flash(socket, :info, "Passkey removed. It can't sign in any more.")
     end
 
     {:noreply, load(socket)}

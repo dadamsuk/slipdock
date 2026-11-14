@@ -131,6 +131,8 @@ defmodule SlipdockWeb.AccountMachinesLiveTest do
       assert Machines.authenticate(machine_key) == nil
       assert has_element?(view, "#machine-#{machine.id}", "revoked")
       refute has_element?(view, "#machine-#{machine.id} button", "Revoke")
+      # The section's flash reaches the page that draws it (#2895).
+      assert has_element?(view, "#flash-info", "build-box is revoked: its key no longer works.")
     end
 
     test "another person's machines aren't listed", ctx do

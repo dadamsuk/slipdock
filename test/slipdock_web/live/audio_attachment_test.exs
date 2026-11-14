@@ -158,9 +158,37 @@ defmodule SlipdockWeb.AudioAttachmentTest do
     {:ok, view, _} = live(conn, ~p"/boards/#{board}/cards/#{card.id}")
     assert has_element?(view, "#transcribe-#{audio.id}[disabled]", "Transcribing…")
 
-    # Pushed anyway, nothing is sent and the reader is told.
+    # Pushed anyway, nothing is sent and the reader is told: in the panel, not
+    # as a toast whose dismissal would close the card (UX-29, #2895).
     render_click(with_target(view, "#board-card"), "transcribe", %{"id" => to_string(audio.id)})
-    assert render(view) =~ "It is being transcribed already."
+
+    assert has_element?(
+             view,
+             "#card-modal #panel-notice[data-callout=error]",
+             "It is being transcribed already."
+           )
+
+    refute has_element?(view, "#flash-error")
+    assert has_element?(view, "#card-modal #transcribe-#{audio.id}")
+
+    # The next action takes the notice off again.
+    render_click(with_target(view, "#board-card"), "stop_editing_description", %{})
+    refute has_element?(view, "#panel-notice")
+  end
+
+  test "a file that isn't the card's is refused without a word", %{
+    conn: conn,
+    board: board,
+    card: card
+  } do
+    set_up_server()
+    {:ok, view, _} = live(conn, ~p"/boards/#{board}/cards/#{card.id}")
+
+    render_click(with_target(view, "#board-card"), "transcribe", %{"id" => "0"})
+
+    refute has_element?(view, "#panel-notice")
+    refute has_element?(view, "#flash-error")
+    assert has_element?(view, "#card-modal")
   end
 
   test "a reader who can't change the card has no button", %{

@@ -39,6 +39,8 @@ defmodule SlipdockWeb.TimezoneLiveTest do
 
     assert Accounts.get_user!(user.id).timezone == "America/New_York"
     assert has_element?(view, ~s|#profile-form option[selected][value="America/New_York"]|)
+    # The section's flash reaches the page that draws it (#2895).
+    assert has_element?(view, "#flash-info", "Profile saved.")
 
     # Not on the picker, but a hand-made post must not get one in either.
     html = render_submit(view |> element("#profile-form"), %{user: %{timezone: "Bogus/Zone"}})

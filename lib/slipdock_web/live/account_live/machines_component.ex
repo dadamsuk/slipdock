@@ -11,6 +11,8 @@ defmodule SlipdockWeb.AccountLive.MachinesComponent do
   """
   use SlipdockWeb, :live_component
 
+  import SlipdockWeb.ComponentFlash, only: [flash: 3]
+
   alias Slipdock.{Access, Machines}
   alias Slipdock.Machines.{EnrolmentKey, Machine}
 
@@ -77,7 +79,7 @@ defmodule SlipdockWeb.AccountLive.MachinesComponent do
     with id when not is_nil(id) <- SlipdockWeb.Params.id(id),
          {:ok, machine} <- Machines.get_machine(socket.assigns.current_user, id),
          {:ok, _} <- Machines.revoke_machine(machine) do
-      send(self(), {:flash, :info, "#{machine.name} is revoked: its key no longer works."})
+      flash(socket, :info, "#{machine.name} is revoked: its key no longer works.")
     end
 
     {:noreply, load(socket)}

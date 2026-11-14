@@ -40,6 +40,7 @@ test/slipdock/mentions_test.exs
 test/slipdock_web/live/file_picker_live_test.exs
 test/slipdock_web/mcp/tool_descriptions_test.exs
 test/slipdock/inbound_worker_pattern_test.exs
+test/slipdock_web/live/component_flash_test.exs
 test/slipdock_web/panel_no_flash_test.exs
 test/slipdock_web/device_approval_browser_only_test.exs
 test/slipdock/no_sleep_test.exs

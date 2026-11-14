@@ -5,6 +5,8 @@ defmodule SlipdockWeb.AccountLive.DataComponent do
   """
   use SlipdockWeb, :live_component
 
+  import SlipdockWeb.ComponentFlash, only: [flash: 3]
+
   alias Slipdock.Importers
 
   @impl true
@@ -85,10 +87,10 @@ defmodule SlipdockWeb.AccountLive.DataComponent do
            {:ok, Importers.import(user, File.read!(path))}
          end) do
       [{:ok, report}] ->
-        send(self(), {:flash, :info, "Imported #{report.cards} card(s)."})
-
         {:noreply,
-         assign(socket, import_report: report, import_error: nil, own_boards: own_boards(user))}
+         socket
+         |> assign(import_report: report, import_error: nil, own_boards: own_boards(user))
+         |> flash(:info, "Imported #{report.cards} card(s).")}
 
       [{:error, reason}] ->
         {:noreply, assign(socket, import_error: import_error(reason), import_report: nil)}
