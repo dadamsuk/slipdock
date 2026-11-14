@@ -106,47 +106,30 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent.Panels do
       <%!-- A sprint board's cards are sprints: it gains New sprint, and
                 each sprint Add cards…. Unticked, the hidden field sends "". --%>
       <div :if={is_nil(@board.parent_card_id)} class="space-y-1">
-        <input type="hidden" name={@form[:kind].name} value="" />
-        <label class="flex cursor-pointer items-start gap-2 text-sm">
-          <input
-            type="checkbox"
-            id="board-kind-sprints"
-            name={@form[:kind].name}
-            value="sprints"
-            checked={@form[:kind].value == "sprints"}
-            class="checkbox mt-0.5"
-          />
-          <span>
-            <span class="font-medium">Sprint board</span>
-            <span class="block text-xs text-base-content/50">
-              Every card is a sprint, with its work as subcards. Adds New sprint, and Add
-              cards… to pick work from your other boards into a sprint.
-            </span>
-          </span>
-        </label>
+        <.switch_field
+          field={@form[:kind]}
+          id="board-kind-sprints"
+          label="Sprint board"
+          value="sprints"
+          unchecked=""
+          checked={@form[:kind].value == "sprints"}
+        >
+          Every card is a sprint, with its work as subcards. Adds New sprint, and Add
+          cards… to pick work from your other boards into a sprint.
+        </.switch_field>
       </div>
       <%!-- A plain to-do list: the tracking details stay out of sight
                 (`Board.simple?/1`). Hidden, not removed. --%>
       <div class="space-y-1">
-        <input type="hidden" name={@form[:simple].name} value="false" />
-        <label class="flex cursor-pointer items-start gap-2 text-sm">
-          <input
-            type="checkbox"
-            id="board-simple"
-            name={@form[:simple].name}
-            value="true"
-            checked={Phoenix.HTML.Form.normalize_value("checkbox", @form[:simple].value)}
-            class="checkbox mt-0.5"
-          />
-          <span>
-            <span class="font-medium">Simple board</span>
-            <span class="block text-xs text-base-content/50">
-              For a plain to-do list. Hides % complete, start dates, health, time tracking,
-              votes and dependencies on its cards, and the Timeline and Prioritise views.
-              Nothing is deleted; untick it to bring them back.
-            </span>
-          </span>
-        </label>
+        <.switch_field
+          field={@form[:simple]}
+          id="board-simple"
+          label="Simple board"
+        >
+          For a plain to-do list. Hides % complete, start dates, health, time tracking,
+          votes and dependencies on its cards, and the Timeline and Prioritise views.
+          Nothing is deleted; untick it to bring them back.
+        </.switch_field>
       </div>
       <div class="space-y-1.5">
         <span class="field-label">Colour</span>
@@ -176,47 +159,27 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent.Panels do
       <%!-- The board's flow numbers as a strip over the lists (#1113).
                 Off by default; the API, MCP and CLI have them either way. --%>
       <div class="space-y-1">
-        <input type="hidden" name={@form[:show_pulse].name} value="false" />
-        <label class="flex cursor-pointer items-start gap-2 text-sm">
-          <input
-            type="checkbox"
-            id="board-show-pulse"
-            name={@form[:show_pulse].name}
-            value="true"
-            checked={Phoenix.HTML.Form.normalize_value("checkbox", @form[:show_pulse].value)}
-            class="checkbox mt-0.5"
-          />
-          <span>
-            <span class="font-medium">Show the board's pulse</span>
-            <span class="block text-xs text-base-content/50">
-              A line over the lists: how many cards are in progress and waiting, how many
-              were done this week, and how long work usually takes to get done.
-            </span>
-          </span>
-        </label>
+        <.switch_field
+          field={@form[:show_pulse]}
+          id="board-show-pulse"
+          label="Show the board's pulse"
+        >
+          A line over the lists: how many cards are in progress and waiting, how many
+          were done this week, and how long work usually takes to get done.
+        </.switch_field>
       </div>
       <%!-- Deploys and DORA metrics (#1134). Off by default, and while
                 off the deploy endpoint refuses posts for the board. --%>
       <div class="space-y-1">
-        <input type="hidden" name={@form[:delivery_metrics].name} value="false" />
-        <label class="flex cursor-pointer items-start gap-2 text-sm">
-          <input
-            type="checkbox"
-            id="board-delivery-metrics"
-            name={@form[:delivery_metrics].name}
-            value="true"
-            checked={Phoenix.HTML.Form.normalize_value("checkbox", @form[:delivery_metrics].value)}
-            class="checkbox mt-0.5"
-          />
-          <span>
-            <span class="font-medium">Delivery metrics</span>
-            <span class="block text-xs text-base-content/50">
-              Record this project's deploys from CI and show how it delivers: how often it
-              ships, how long a change takes to reach production, how often a deploy fails
-              and how fast it is put right. Nothing is recorded while this is off.
-            </span>
-          </span>
-        </label>
+        <.switch_field
+          field={@form[:delivery_metrics]}
+          id="board-delivery-metrics"
+          label="Delivery metrics"
+        >
+          Record this project's deploys from CI and show how it delivers: how often it
+          ships, how long a change takes to reach production, how often a deploy fails
+          and how fast it is put right. Nothing is recorded while this is off.
+        </.switch_field>
         <div :if={@board.delivery_metrics} class="settings-pair pl-6">
           <.input
             field={@form[:incident_tag]}
@@ -256,25 +219,15 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent.Panels do
                 item and page that hold every agent setting. Off hides them
                 and changes no setting, so a rule still set is named. --%>
       <div id="board-agentic" class="space-y-2">
-        <input type="hidden" name={@form[:agentic_building].name} value="false" />
-        <label class="flex cursor-pointer items-start gap-2 text-sm">
-          <input
-            type="checkbox"
-            id="board-agentic-building"
-            name={@form[:agentic_building].name}
-            value="true"
-            checked={Phoenix.HTML.Form.normalize_value("checkbox", @form[:agentic_building].value)}
-            class="checkbox mt-0.5"
-          />
-          <span>
-            <span class="font-medium">Agentic Building</span>
-            <span class="block text-xs text-base-content/50">
-              For a board coding agents work on. Adds Agentic Building to the board menu: one
-              page for verified work, lanes, profiles, who gets asked, handoffs, findings and
-              runner settings.
-            </span>
-          </span>
-        </label>
+        <.switch_field
+          field={@form[:agentic_building]}
+          id="board-agentic-building"
+          label="Agentic Building"
+        >
+          For a board coding agents work on. Adds Agentic Building to the board menu: one
+          page for verified work, lanes, profiles, who gets asked, handoffs, findings and
+          runner settings.
+        </.switch_field>
         <.link
           :if={@board.agentic_building}
           navigate={~p"/boards/#{@board}/agentic"}
@@ -315,24 +268,14 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent.Panels do
       <%!-- Every board has a wiki: this is the whole wiki's switch for
                 the card contents under a page's prose. Hidden, not removed. --%>
       <div class="space-y-1">
-        <input type="hidden" name={@form[:page_card_features].name} value="false" />
-        <label class="flex cursor-pointer items-start gap-2 text-sm">
-          <input
-            type="checkbox"
-            id="board-page-card-features"
-            name={@form[:page_card_features].name}
-            value="true"
-            checked={Phoenix.HTML.Form.normalize_value("checkbox", @form[:page_card_features].value)}
-            class="checkbox mt-0.5"
-          />
-          <span>
-            <span class="font-medium">Card features on wiki pages</span>
-            <span class="block text-xs text-base-content/50">
-              Status, checklist, links, fields, votes and comments under every page in this
-              board's wiki. Untick for a wiki that is only documents; nothing is deleted.
-            </span>
-          </span>
-        </label>
+        <.switch_field
+          field={@form[:page_card_features]}
+          id="board-page-card-features"
+          label="Card features on wiki pages"
+        >
+          Status, checklist, links, fields, votes and comments under every page in this
+          board's wiki. Untick for a wiki that is only documents; nothing is deleted.
+        </.switch_field>
       </div>
     </div>
     """
