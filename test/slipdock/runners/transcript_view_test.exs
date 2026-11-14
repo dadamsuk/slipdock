@@ -95,10 +95,12 @@ defmodule Slipdock.Runners.TranscriptViewTest do
     text =
       jl([
         %{type: "slipdock_cut", bytes: 40_000, limit: 32_768},
-        %{type: "slipdock_capped", limit: 8_000_000}
+        %{type: "slipdock_capped", limit: 8_000_000},
+        %{type: "slipdock_run", attempt: 2, runner: "spare"}
       ])
 
-    assert [cut, capped] = View.entries(text)
+    assert [cut, capped, run] = View.entries(text)
+    assert %{kind: :note, text: "a new run started (try 2, on spare)" <> _} = run
     assert %{kind: :note, text: "a line of 40000 bytes was left out (over 32768)"} = cut
     assert capped.text =~ "reached its limit (8000000 bytes)"
   end

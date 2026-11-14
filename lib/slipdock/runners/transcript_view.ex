@@ -15,7 +15,8 @@ defmodule Slipdock.Runners.TranscriptView do
   Each entry keeps the whole of what its line shortens (`detail`): a tool
   call's input, a result's full text, a message's whole text. Lines that are
   neither (hook output, file snapshots, thinking) are left out, and the
-  notes the server writes into a log (`slipdock_cut`, `slipdock_capped`)
+  notes the server writes into a log (`slipdock_cut`, `slipdock_capped`,
+  `slipdock_run`)
   read as notes.
   """
 
@@ -82,6 +83,13 @@ defmodule Slipdock.Runners.TranscriptView do
 
   defp from_line(%{"type" => "slipdock_cut"} = l),
     do: [note("a line of #{l["bytes"]} bytes was left out (over #{l["limit"]})")]
+
+  defp from_line(%{"type" => "slipdock_run"} = l),
+    do: [
+      note(
+        "a new run started (try #{l["attempt"]}, on #{l["runner"]}): the log goes on from here"
+      )
+    ]
 
   defp from_line(%{"type" => "slipdock_capped"} = l),
     do: [note("the log reached its limit (#{l["limit"]} bytes): nothing after this is kept")]

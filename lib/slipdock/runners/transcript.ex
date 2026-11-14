@@ -18,6 +18,14 @@ defmodule Slipdock.Runners.Transcript do
     * once the log reaches #{div(8_000_000, 1_000_000)} MB nothing more is kept, and a last line
       `{"type":"slipdock_capped","limit":L}` says so.
 
+  A job handed to a new run (#3088: claimed again after its lease ran out or
+  a `status=requeue` finish) keeps the log its earlier runs sent, and
+  `new_run/2` starts a segment after it with a line
+  `{"type":"slipdock_run","attempt":N,"runner":"…"}`. The new run's agent
+  writes a new transcript, so its runner sends from line 0 again: `from` and
+  the answers count from the start of the job's last segment, while the log
+  itself (and `transcript_lines`) counts every line kept.
+
   Before anything is stored, secrets are taken out (`scrub/2`): the runner's
   own token, any other Slipdock token, and the shapes of the common secrets
   gitleaks looks for (cloud keys, GitHub, Slack and model-provider tokens,
@@ -33,6 +41,7 @@ defmodule Slipdock.Runners.Transcript do
   @max_line 32_768
   @max_bytes 8_000_000
   @redacted "[redacted]"
+  @run_note ~s({"type":"slipdock_run")
 
   @doc "The largest send read, in bytes; the rest of it is sent again."
   def max_send, do: @max_send
@@ -73,17 +82,45 @@ defmodule Slipdock.Runners.Transcript do
     job = Repo.one(from(j in Job, where: j.id == ^id, lock: "FOR UPDATE"))
 
     cond do
-      is_nil(job) or job.runner_id != runner.id -> {:error, :not_found}
-      not Enum.member?(~w(claimed running), job.status) -> {:error, :ended}
-      job.transcript_capped -> {:capped, job.transcript_lines}
-      from > job.transcript_lines -> {:gap, job.transcript_lines}
-      true -> store(job, from, body, opts)
+      is_nil(job) or job.runner_id != runner.id ->
+        {:error, :not_found}
+
+      not Enum.member?(~w(claimed running), job.status) ->
+        {:error, :ended}
+
+      true ->
+        # What this run has sent so far: the lines after its segment's note.
+        base = run_base(job.id)
+        held = job.transcript_lines - base
+
+        cond do
+          job.transcript_capped -> {:capped, held}
+          from > held -> {:gap, held}
+          true -> store(job, base, from, body, opts)
+        end
     end
   end
 
-  defp store(job, from, body, opts) do
+  # The line the job's last segment starts at: the one after its last
+  # `slipdock_run` note, or 0 when it has none.
+  defp run_base(job_id) do
+    note = String.replace(@run_note, "_", "\\_") <> "%"
+
+    from(c in TranscriptChunk,
+      where: c.job_id == ^job_id and c.lines == 1 and like(c.body, ^note),
+      select: max(c.first_line)
+    )
+    |> Repo.one()
+    |> case do
+      nil -> 0
+      line -> line + 1
+    end
+  end
+
+  defp store(job, base, from, body, opts) do
     secrets = opts |> Keyword.get(:secrets, []) |> Enum.filter(&(is_binary(&1) and &1 != ""))
     sent = lines(body)
+    from = base + from
     total = from + length(sent)
     new = sent |> Enum.drop(job.transcript_lines - from) |> Enum.map(&clean(&1, secrets))
     room = @max_bytes - job.transcript_bytes
@@ -123,7 +160,55 @@ defmodule Slipdock.Runners.Transcript do
         ]
       )
 
-    {:ok, if(capped, do: {:capped, lines_held}, else: {:ok, lines_held}), job}
+    held = lines_held - base
+    {:ok, if(capped, do: {:capped, held}, else: {:ok, held}), job}
+  end
+
+  @doc """
+  Starts a new segment of `job`'s log as `runner` claims it (#3088), when
+  an earlier run sent lines: a `slipdock_run` note after them, so the new
+  run's sends, which start from line 0 again, are kept after it rather than
+  trimmed as already held. A log already full gets no note (nothing more is
+  kept), and one with no room left for it is capped. Run inside the claim's
+  transaction, before the runner can send. Answers the job as it now is.
+  """
+  def new_run(%Job{transcript_lines: lines, transcript_capped: capped} = job, _runner)
+      when lines == 0 or capped,
+      do: job
+
+  def new_run(%Job{} = job, %Runner{} = runner) do
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    note =
+      [type: "slipdock_run", attempt: job.attempts, runner: runner.name]
+      |> Jason.OrderedObject.new()
+      |> Jason.encode!()
+
+    {text, capped} =
+      if job.transcript_bytes + byte_size(note) + 1 <= @max_bytes,
+        do: {note <> "\n", false},
+        else: {capped_line() <> "\n", true}
+
+    Repo.insert!(%TranscriptChunk{
+      job_id: job.id,
+      first_line: job.transcript_lines,
+      lines: 1,
+      bytes: byte_size(text),
+      body: text
+    })
+
+    {_, [job]} =
+      Repo.update_all(
+        from(j in Job, where: j.id == ^job.id, select: j),
+        set: [
+          transcript_lines: job.transcript_lines + 1,
+          transcript_bytes: job.transcript_bytes + byte_size(text),
+          transcript_capped: capped,
+          transcript_at: now
+        ]
+      )
+
+    job
   end
 
   # The whole lines in a send. A last line with no newline is one the send
@@ -145,9 +230,14 @@ defmodule Slipdock.Runners.Transcript do
     if byte_size(line) > @max_line do
       Jason.encode!(%{type: "slipdock_cut", bytes: byte_size(line), limit: @max_line})
     else
-      scrub(line, secrets)
+      line |> scrub(secrets) |> not_a_run_note()
     end
   end
+
+  # Only the server starts a segment: a sent line that reads like its note
+  # is kept with a space in front, which JSON ignores and `run_base/1` doesn't.
+  defp not_a_run_note(@run_note <> _ = line), do: " " <> line
+  defp not_a_run_note(line), do: line
 
   defp fit(lines, room) do
     Enum.reduce_while(lines, {[], 0}, fn line, {kept, used} ->
