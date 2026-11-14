@@ -403,10 +403,9 @@ defmodule Slipdock.SkillRegistry do
   defp or_rollback({:ok, record}), do: record
 
   defp or_rollback({:error, %Ecto.Changeset{} = changeset}) do
-    message =
-      Enum.map_join(changeset.errors, "; ", fn {field, {text, _}} -> "#{field} #{text}" end)
-
-    Repo.rollback("The source could not be saved: #{message}.")
+    Repo.rollback(
+      "The source could not be saved: #{Slipdock.ChangesetErrors.message(changeset)}."
+    )
   end
 
   defp exists?(nil, url),

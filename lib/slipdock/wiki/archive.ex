@@ -503,9 +503,5 @@ defmodule Slipdock.Wiki.Archive do
         do: {key, value}
   end
 
-  defp errors(%Ecto.Changeset{} = changeset) do
-    changeset
-    |> Ecto.Changeset.traverse_errors(fn {msg, _opts} -> msg end)
-    |> Enum.map_join("; ", fn {field, messages} -> "#{field} #{Enum.join(messages, ", ")}" end)
-  end
+  defp errors(%Ecto.Changeset{} = changeset), do: Slipdock.ChangesetErrors.message(changeset)
 end

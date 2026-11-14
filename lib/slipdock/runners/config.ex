@@ -219,14 +219,5 @@ defmodule Slipdock.Runners.Config do
 
   defp blank(value), do: value
 
-  defp message(changeset) do
-    changeset
-    |> traverse_errors(fn {msg, opts} ->
-      Regex.replace(~r"%{(\w+)}", msg, fn _, key ->
-        opts |> Keyword.get(String.to_existing_atom(key), key) |> to_string()
-      end)
-    end)
-    |> Enum.sort()
-    |> Enum.map_join("; ", fn {field, msgs} -> "#{field} #{Enum.join(msgs, ", ")}" end)
-  end
+  defp message(changeset), do: Slipdock.ChangesetErrors.message(changeset, sort: true)
 end

@@ -44,15 +44,14 @@ defmodule SlipdockWeb.BoardLive.Helpers do
   `{"at most %{count}", count: 10}` reads "at most 10" (#2873). Every
   panel notice built from a changeset goes through this.
   """
-  def error_text({msg, opts}) when is_binary(msg),
-    do: SlipdockWeb.CoreComponents.translate_error({msg, opts})
+  def error_text({msg, opts}) when is_binary(msg), do: Slipdock.ChangesetErrors.text({msg, opts})
 
   @doc "A changeset's errors for a person: `Questions at most 10; Needs can't be blank`."
   def changeset_message(%Ecto.Changeset{} = changeset),
-    do: join_errors(changeset, &Phoenix.Naming.humanize/1)
+    do: Slipdock.ChangesetErrors.message(changeset, field: &Phoenix.Naming.humanize/1)
 
   @doc "A changeset's errors by field name, as `name has already been taken; key at most 40`."
-  def field_errors(%Ecto.Changeset{} = cs), do: join_errors(cs, &to_string/1)
+  def field_errors(%Ecto.Changeset{} = cs), do: Slipdock.ChangesetErrors.message(cs)
 
   @doc """
   An upload's refusal as the card panel says it: `Upload failed: filename
@@ -70,14 +69,6 @@ defmodule SlipdockWeb.BoardLive.Helpers do
     Enum.map_join(cs.errors, " ", fn
       {:missed_by, error} -> "Missed by " <> error_text(error) <> "."
       {_field, error} -> error_text(error)
-    end)
-  end
-
-  defp join_errors(changeset, name) do
-    changeset
-    |> Ecto.Changeset.traverse_errors(&error_text/1)
-    |> Enum.map_join("; ", fn {field, messages} ->
-      "#{name.(field)} #{Enum.join(List.wrap(messages), ", ")}"
     end)
   end
 
@@ -118,8 +109,8 @@ defmodule SlipdockWeb.BoardLive.Helpers do
 
   def view_error(%Ecto.Changeset{} = cs) do
     case cs.errors[:name] do
-      {msg, _} -> "View name #{msg}."
       nil -> "Couldn't save that view."
+      error -> "View name #{error_text(error)}."
     end
   end
 

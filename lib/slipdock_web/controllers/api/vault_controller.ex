@@ -55,8 +55,8 @@ defmodule SlipdockWeb.API.VaultController do
         {:ok, vault}
 
       {:error, cs} ->
-        {message, _} = cs.errors[:shortcut] || {"is invalid", []}
-        {:error, :unprocessable_entity, "shortcut #{message}"}
+        error = cs.errors[:shortcut] || {"is invalid", []}
+        {:error, :unprocessable_entity, "shortcut #{Slipdock.ChangesetErrors.text(error)}"}
     end
   end
 

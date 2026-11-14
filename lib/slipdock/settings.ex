@@ -490,7 +490,7 @@ defmodule Slipdock.Settings do
 
         {:error, changeset} ->
           Logger.error(
-            "Could not seed settings from the environment: #{inspect(changeset.errors)}"
+            "Could not seed settings from the environment: #{Slipdock.ChangesetErrors.message(changeset)}"
           )
 
           :ok

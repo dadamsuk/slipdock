@@ -225,7 +225,7 @@ defmodule Slipdock.Release do
           puts("A way in: setup --sign-in-link #{settings.admin_email}")
 
         {:error, changeset} ->
-          puts("Could not set up: #{inspect(changeset.errors)}")
+          puts("Could not set up: #{Slipdock.ChangesetErrors.message(changeset)}")
       end
     end
   end

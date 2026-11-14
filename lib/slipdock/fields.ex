@@ -264,8 +264,11 @@ defmodule Slipdock.Fields do
           conflict_target: conflict_target(owner)
         )
         |> case do
-          {:ok, _} -> after_set(owner, field, attrs)
-          {:error, cs} -> {:error, "Couldn't save #{field.name}: #{inspect(cs.errors)}"}
+          {:ok, _} ->
+            after_set(owner, field, attrs)
+
+          {:error, cs} ->
+            {:error, "Couldn't save #{field.name}: #{Slipdock.ChangesetErrors.message(cs)}"}
         end
 
       {:error, message} ->

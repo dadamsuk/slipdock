@@ -1924,11 +1924,5 @@ defmodule SlipdockWeb.API.JSON do
     }
   end
 
-  def errors(%Ecto.Changeset{} = changeset) do
-    Ecto.Changeset.traverse_errors(changeset, fn {msg, opts} ->
-      Regex.replace(~r"%{(\w+)}", msg, fn _, key ->
-        opts |> Keyword.get(String.to_existing_atom(key), key) |> to_string()
-      end)
-    end)
-  end
+  def errors(%Ecto.Changeset{} = changeset), do: Slipdock.ChangesetErrors.by_field(changeset)
 end

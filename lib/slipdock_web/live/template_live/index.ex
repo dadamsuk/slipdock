@@ -176,9 +176,7 @@ defmodule SlipdockWeb.TemplateLive.Index do
     }
   end
 
-  defp errors(cs) do
-    Enum.map(cs.errors, fn {field, {msg, _}} -> "#{Phoenix.Naming.humanize(field)} #{msg}" end)
-  end
+  defp errors(cs), do: Slipdock.ChangesetErrors.lines(cs, field: &Phoenix.Naming.humanize/1)
 
   ## Render -----------------------------------------------------------------
 

@@ -517,7 +517,7 @@ defmodule Slipdock.Boards do
           case refused.errors[:name] do
             {"already exists", _} -> "a template called “#{String.trim(name)}” already exists"
             {"can't be blank", _} -> "give the template a name"
-            {message, keys} -> "template name " <> interpolate(message, keys)
+            {_, _} = error -> "template name " <> Slipdock.ChangesetErrors.text(error)
             nil -> "the lists can't be saved as a template"
           end
 
@@ -527,12 +527,6 @@ defmodule Slipdock.Boards do
          |> Ecto.Changeset.add_error(:save_template, message)
          |> Map.put(:action, :insert)}
     end
-  end
-
-  defp interpolate(message, keys) do
-    Regex.replace(~r/%{(\w+)}/, message, fn _, key ->
-      keys |> Keyword.get(String.to_existing_atom(key), key) |> to_string()
-    end)
   end
 
   # A template's kind goes to the boards made from it — but not to the
@@ -642,7 +636,8 @@ defmodule Slipdock.Boards do
           {:ok, board}
 
         {:error, changeset} ->
-          {:error, "Couldn't create the sub-board: " <> inspect(changeset.errors)}
+          {:error,
+           "Couldn't create the sub-board: " <> Slipdock.ChangesetErrors.message(changeset)}
       end
     end
   end

@@ -177,9 +177,7 @@ defmodule SlipdockWeb.MultiboardLive.Index do
          |> push_patch(to: ~p"/multiboard/#{saved.id}")}
 
       {:error, changeset} ->
-        message =
-          changeset.errors
-          |> Enum.map_join(", ", fn {field, {msg, _}} -> "#{field} #{msg}" end)
+        message = Slipdock.ChangesetErrors.message(changeset, join: ", ")
 
         {:noreply, put_flash(socket, :error, "That couldn't be saved: #{message}.")}
     end

@@ -622,7 +622,10 @@ defmodule Slipdock.Verified.Decisions do
   end
 
   defp unverified_result({:ok, _}), do: :ok
-  defp unverified_result({:error, %Ecto.Changeset{} = cs}), do: {:error, 422, inspect(cs.errors)}
+
+  defp unverified_result({:error, %Ecto.Changeset{} = cs}),
+    do: {:error, 422, Slipdock.ChangesetErrors.message(cs)}
+
   defp unverified_result({:error, status, message}), do: {:error, status, message}
   defp unverified_result(other), do: {:error, 500, inspect(other)}
 

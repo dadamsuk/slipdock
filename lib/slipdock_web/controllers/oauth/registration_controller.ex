@@ -77,9 +77,9 @@ defmodule SlipdockWeb.OAuth.RegistrationController do
     do: {:error, "invalid_client_metadata", "client_name must be a string"}
 
   defp changeset_error(changeset) do
-    {field, {message, _}} = hd(changeset.errors)
+    {field, error} = hd(changeset.errors)
     code = if field == :redirect_uris, do: "invalid_redirect_uri", else: "invalid_client_metadata"
-    {code, message}
+    {code, Slipdock.ChangesetErrors.text(error)}
   end
 
   defp error(conn, status, code, description) do

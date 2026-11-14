@@ -12,7 +12,7 @@ defmodule SlipdockWeb.BoardLive.PanelGuard do
         events: @events,
         access: &assign_access/1,
         refusals: [{:can_write, false, @write_events, :read_only}],
-        say: :flash
+        say: {:notice, :column_modal}
 
   An event comes in, and in order:
 
@@ -32,10 +32,15 @@ defmodule SlipdockWeb.BoardLive.PanelGuard do
   4. otherwise the event goes to the panel's `:then` function (`event/3`
      unless named), and `:after`, if given, runs on the socket it returns.
 
-  A refusal is said where the panel says things (`:say`): a flash (`:flash`,
-  as `Helpers.flash/3`), the panel's callout (`:notice`, as `Helpers.notice/3`), or
+  A refusal is said where the panel says things (`:say`, #3164): the
+  panel's callout by default (`:notice`, as `Helpers.notice/3`: UX-29, W-1946),
   its `error` assign (`:error`), or a function of the socket and the
-  sentence that says it some other way. A refusal is always `:noreply`, so a
+  sentence that says it some other way. `{:notice, key}` is the callout
+  while the panel's dialog (the assign `key`) is open, and a flash when it
+  isn't: an event refused before the dialog opens has no panel to say it
+  in, as with the move picker's read-only open (W-1946). `:flash` is left
+  for a panel with no callout at all, and the repo check
+  `panel_no_flash_test.exs` refuses it in the board's panels. A refusal is always `:noreply`, so a
   hook that waits on a reply (the tag name box) reads no reply as a refusal.
   """
 
@@ -57,7 +62,7 @@ defmodule SlipdockWeb.BoardLive.PanelGuard do
     access = Keyword.get(opts, :access, quote(do: & &1))
     prepare = Keyword.get(opts, :prepare, quote(do: & &1))
     refusals = Keyword.get(opts, :refusals, [])
-    say = Keyword.get(opts, :say, :flash)
+    say = Keyword.get(opts, :say, :notice)
     then = Keyword.get(opts, :then, :event)
     after_fun = Keyword.get(opts, :after)
 
@@ -121,6 +126,12 @@ defmodule SlipdockWeb.BoardLive.PanelGuard do
 
   defp say(socket, :notice, message),
     do: Phoenix.Component.assign(socket, panel_notice: {:error, message})
+
+  defp say(socket, {:notice, key}, message) do
+    if is_nil(socket.assigns[key]),
+      do: say(socket, :flash, message),
+      else: say(socket, :notice, message)
+  end
 
   defp say(socket, :error, message), do: Phoenix.Component.assign(socket, error: message)
   defp say(socket, fun, message) when is_function(fun, 2), do: fun.(socket, message)

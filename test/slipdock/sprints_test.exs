@@ -603,4 +603,19 @@ defmodule Slipdock.SprintsTest do
       assert Sprints.current_sprint(sprints, ~D[2026-01-20]).id == two.id
     end
   end
+
+  describe "error_message/1 (#3140)" do
+    test "fills a changeset's placeholders rather than printing %{count}" do
+      cs =
+        {%{}, %{name: :string}}
+        |> Ecto.Changeset.cast(%{name: String.duplicate("n", 9)}, [:name])
+        |> Ecto.Changeset.validate_length(:name, max: 5)
+
+      assert Sprints.error_message(cs) == "name should be at most 5 character(s)"
+    end
+
+    test "a sentence is itself" do
+      assert Sprints.error_message("That board has no lists.") == "That board has no lists."
+    end
+  end
 end

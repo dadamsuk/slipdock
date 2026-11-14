@@ -1102,11 +1102,7 @@ defmodule Slipdock.Automations.Runner do
   defp put_if(attrs, _key, ""), do: attrs
   defp put_if(attrs, key, value), do: Map.put(attrs, key, value)
 
-  defp errors(%Ecto.Changeset{} = changeset) do
-    changeset
-    |> Ecto.Changeset.traverse_errors(fn {msg, _} -> msg end)
-    |> Enum.map_join("; ", fn {field, msgs} -> "#{field} #{Enum.join(msgs, ", ")}" end)
-  end
+  defp errors(%Ecto.Changeset{} = changeset), do: Slipdock.ChangesetErrors.message(changeset)
 
   defp errors(other), do: inspect(other)
 

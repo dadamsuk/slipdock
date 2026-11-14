@@ -95,7 +95,7 @@ defmodule SlipdockWeb.BoardSettingsManageLiveTest do
 
       view |> button("unarchive_board") |> render_click()
 
-      assert render(view) =~ "Board restored."
+      assert has_element?(view, "#settings-modal #panel-notice", "Board restored.")
       assert %Board{archived_at: nil} = Repo.get!(Board, board.id)
       refute has_element?(button(view, "unarchive_board"))
       assert has_element?(button(view, "archive_board"))
@@ -116,9 +116,12 @@ defmodule SlipdockWeb.BoardSettingsManageLiveTest do
 
       html = render(view)
       refute html =~ "Board restored."
-      # The quota's own sentence (#3117), not a blank flash.
-      assert view |> element("#flash-error") |> render() =~
+      # The quota's own sentence (#3117), in the panel's callout, not a
+      # flash (UX-29, #3131).
+      assert view |> element("#settings-modal #panel-notice") |> render() =~
                "You own all 1 boards this server allows one person."
+
+      refute has_element?(view, "#flash-error")
 
       assert %Board{archived_at: %DateTime{}} = Repo.get!(Board, board.id)
       assert has_element?(button(view, "unarchive_board"))

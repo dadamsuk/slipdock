@@ -811,13 +811,7 @@ defmodule Slipdock.Blueprint do
 
   defp reject_nil(map), do: Map.reject(map, fn {_, v} -> is_nil(v) end)
 
-  defp errors(%Ecto.Changeset{} = cs) do
-    cs
-    |> Ecto.Changeset.traverse_errors(fn {msg, opts} ->
-      Enum.reduce(opts, msg, fn {k, v}, acc -> String.replace(acc, "%{#{k}}", to_string(v)) end)
-    end)
-    |> Enum.map_join("; ", fn {field, messages} -> "#{field} #{Enum.join(messages, ", ")}" end)
-  end
+  defp errors(%Ecto.Changeset{} = cs), do: Slipdock.ChangesetErrors.message(cs)
 
   defp errors(other) when is_binary(other), do: other
   defp errors(other), do: inspect(other)

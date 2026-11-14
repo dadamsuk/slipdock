@@ -11,6 +11,12 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
   It is split into tabs (`tabs/0`), and `?tab=<key>` on the settings URL
   opens on one of them. Every tab is drawn and the others hidden, so the
   board's form, which spans General and Features, keeps what was typed.
+
+  What an action says (a refusal, a result) is a `#panel-notice` callout at
+  the panel's top, never a flash (UX-29, #3131); the next action takes it
+  away. Deleting and archiving the board leave it for the boards page, and
+  a reader who no longer owns the board loses the panel as the board
+  reloads, so those say so with a flash.
   """
   use SlipdockWeb, :live_component
 
@@ -19,6 +25,7 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
   import SlipdockWeb.SlipdockComponents
   import SlipdockWeb.SprintPlanComponents, only: [parse_sources: 2]
   import SlipdockWeb.BoardLive.Helpers
+  import SlipdockWeb.ItemComponents, only: [panel_notice: 1]
 
   alias Slipdock.{Access, Boards, Fields, Gardener, Hotkeys, Sprints}
   alias Slipdock.Boards.Board
@@ -68,7 +75,8 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
          # this once), the prompt asked for, and the first deploy arriving.
          deploy_setup: nil,
          deploy_prompt: nil,
-         deploy_arrived: nil
+         deploy_arrived: nil,
+         panel_notice: nil
        )}
 
   # A deploy arrived on this board while the panel is open (the board page
@@ -121,8 +129,17 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
   use SlipdockWeb.BoardLive.PanelGuard,
     events: @events,
     access: &LiveAccess.refresh_owner/1,
+    prepare: &clear_notice/1,
     refusals: [{:can_manage, false, :all, :owner}],
-    say: :flash
+    say: &say/2
+
+  # A refusal in the panel's callout (UX-29), but for one to a reader who no
+  # longer owns the board: `refresh_owner/1` has told the board, which
+  # reloads without this panel, so there is no panel left to say it in.
+  defp say(%{assigns: %{can_manage: false}} = socket, message),
+    do: flash(socket, :error, message)
+
+  defp say(socket, message), do: notice(socket, :error, message)
 
   # Sharing the board. Who it is shared with decides who can be put on its
   # cards, so the board is told to look again.
@@ -137,7 +154,7 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
          socket |> update(:share_key, &(&1 + 1)) |> assign(grants: Access.list_grants(board))}
 
       {:error, message} ->
-        {:noreply, flash(socket, :error, message)}
+        {:noreply, notice(socket, :error, message)}
     end
   end
 
@@ -150,7 +167,7 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
         {:noreply, assign(socket, grants: Access.list_grants(board))}
 
       _ ->
-        {:noreply, flash(socket, :error, "Couldn't remove that access.")}
+        {:noreply, notice(socket, :error, "Couldn't remove that access.")}
     end
   end
 
@@ -166,7 +183,7 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
          ) do
       {:ok, template} ->
         {:noreply,
-         flash(
+         notice(
            socket,
            :info,
            "Saved the lists of this board as the “#{template.name}” template."
@@ -174,7 +191,7 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
 
       {:error, cs} ->
         {:noreply,
-         flash(
+         notice(
            socket,
            :error,
            "Couldn't save a template: name #{error_text(cs.errors[:name] || {"is invalid", []})}."
@@ -201,7 +218,7 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
 
     case result do
       {:ok, board} -> {:noreply, assign(socket, board: board)}
-      {:error, message} -> {:noreply, flash(socket, :error, message)}
+      {:error, message} -> {:noreply, notice(socket, :error, message)}
     end
   end
 
@@ -227,10 +244,10 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
          )}
 
       {:error, message} when is_binary(message) ->
-        {:noreply, flash(socket, :error, message)}
+        {:noreply, notice(socket, :error, message)}
 
       {:error, _} ->
-        {:noreply, flash(socket, :error, "Couldn't set deploys up.")}
+        {:noreply, notice(socket, :error, "Couldn't set deploys up.")}
     end
   end
 
@@ -249,7 +266,7 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
         {:noreply, assign(socket, deploy_prompt: prompt)}
 
       {:error, message} ->
-        {:noreply, flash(socket, :error, message)}
+        {:noreply, notice(socket, :error, message)}
     end
   end
 
@@ -271,7 +288,7 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
       {:noreply, push_patch(socket, to: socket.assigns.close_path)}
     else
       {:error, %Ecto.Changeset{} = cs} -> {:noreply, assign(socket, board_form: to_form(cs))}
-      {:error, message} -> {:noreply, flash(socket, :error, "Hotkey #{message}.")}
+      {:error, message} -> {:noreply, notice(socket, :error, "Hotkey #{message}.")}
     end
   end
 
@@ -282,7 +299,7 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
 
     case Sprints.put_sources(board, user, parsed) do
       {:ok, board} -> {:noreply, assign(socket, board: board)}
-      {:error, message} -> {:noreply, flash(socket, :error, message)}
+      {:error, message} -> {:noreply, notice(socket, :error, message)}
     end
   end
 
@@ -309,7 +326,7 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
         {:noreply, update(socket, :form_key, &(&1 + 1))}
 
       {:error, cs} ->
-        {:noreply, flash(socket, :error, "Couldn't add the field: #{field_errors(cs)}")}
+        {:noreply, notice(socket, :error, "Couldn't add the field: #{field_errors(cs)}")}
     end
   end
 
@@ -332,10 +349,10 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
   defp event("install_preset", %{"key" => key}, socket) do
     case Fields.install_preset(socket.assigns.board, key) do
       {:ok, _} ->
-        {:noreply, flash(socket, :info, "Preset added. Fill the inputs on each card.")}
+        {:noreply, notice(socket, :info, "Preset added. Fill the inputs on each card.")}
 
       {:error, _} ->
-        {:noreply, flash(socket, :error, "Unknown preset.")}
+        {:noreply, notice(socket, :error, "Unknown preset.")}
     end
   end
 
@@ -348,7 +365,7 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
         {:noreply, update(socket, :form_key, &(&1 + 1))}
 
       {:error, _cs} ->
-        {:noreply, flash(socket, :error, "A milestone needs a name and a date.")}
+        {:noreply, notice(socket, :error, "A milestone needs a name and a date.")}
     end
   end
 
@@ -374,7 +391,7 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
          |> push_navigate(to: ~p"/")}
 
       {:error, :sub_board} ->
-        {:noreply, flash(socket, :error, "Subcard boards go away with their card.")}
+        {:noreply, notice(socket, :error, "Subcard boards go away with their card.")}
     end
   end
 
@@ -382,10 +399,10 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
     case Boards.Arrangement.unarchive_board(socket.assigns.board) do
       {:ok, board} ->
         send(self(), :reload_board)
-        {:noreply, socket |> assign(board: board) |> flash(:info, "Board restored.")}
+        {:noreply, socket |> assign(board: board) |> notice(:info, "Board restored.")}
 
       {:error, refused} ->
-        {:noreply, flash(socket, :error, Slipdock.Quota.refusal_message(refused))}
+        {:noreply, notice(socket, :error, Slipdock.Quota.refusal_message(refused))}
     end
   end
 
@@ -408,6 +425,7 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
         deploy_setup={@deploy_setup}
         deploy_prompt={@deploy_prompt}
         deploy_arrived={@deploy_arrived}
+        notice={@panel_notice}
         tab={@tab}
         target={@myself}
       />
@@ -468,12 +486,14 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
   attr :deploy_setup, :map, default: nil, doc: "what Track deployments generated, token and all"
   attr :deploy_prompt, :string, default: nil, doc: "the paste-into-Claude-Code prompt, when asked"
   attr :deploy_arrived, :any, default: nil, doc: "the first deploy, once it has arrived"
+  attr :notice, :any, default: nil, doc: "what the last action said, `{kind, message}`"
 
   defp settings_modal(assigns) do
     ~H"""
     <.modal id="settings-modal" on_close={JS.patch(@close_path)} size="lg">
       <div class="space-y-5 p-6">
         <h2 class="section-title">Board settings</h2>
+        <.panel_notice notice={@notice} />
         <.tabs id="settings-tabs" label="Board settings" stretch>
           <:tab
             :for={{key, label, icon} <- tabs()}

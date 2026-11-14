@@ -234,11 +234,7 @@ defmodule Slipdock.BulkEdit do
 
   defp reason_text(reason) when is_binary(reason), do: reason
 
-  defp reason_text(%Ecto.Changeset{} = cs) do
-    cs
-    |> Ecto.Changeset.traverse_errors(fn {msg, _} -> msg end)
-    |> Enum.map_join(", ", fn {field, msgs} -> "#{field} #{Enum.join(msgs, ", ")}" end)
-  end
+  defp reason_text(%Ecto.Changeset{} = cs), do: Slipdock.ChangesetErrors.message(cs, join: ", ")
 
   defp reason_text(%{message: message}) when is_binary(message), do: message
   defp reason_text(reason), do: inspect(reason)

@@ -459,18 +459,7 @@ defmodule Slipdock.Portable.Import do
     nil
   end
 
-  defp errors(changeset) do
-    changeset
-    |> Ecto.Changeset.traverse_errors(fn {msg, opts} ->
-      Regex.replace(~r/%{(\w+)}/, msg, fn whole, key ->
-        case Keyword.get(opts, String.to_existing_atom(key)) do
-          value when is_binary(value) or is_number(value) -> to_string(value)
-          _ -> whole
-        end
-      end)
-    end)
-    |> Enum.map_join("; ", fn {field, msgs} -> "#{field} #{Enum.join(msgs, ", ")}" end)
-  end
+  defp errors(changeset), do: Slipdock.ChangesetErrors.message(changeset)
 
   defp named(kind, name) when is_binary(name) and name != "", do: "The #{kind} “#{name}”"
   defp named(kind, _), do: "A #{kind}"

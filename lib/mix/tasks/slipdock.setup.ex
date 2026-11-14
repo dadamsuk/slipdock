@@ -136,7 +136,7 @@ defmodule Mix.Tasks.Slipdock.Setup do
         """)
 
       {:error, changeset} ->
-        Mix.raise("Could not set up: #{inspect(errors(changeset))}")
+        Mix.raise("Could not set up: #{errors(changeset)}")
     end
   end
 
@@ -240,7 +240,5 @@ defmodule Mix.Tasks.Slipdock.Setup do
   defp validate_directory(_directory),
     do: Mix.raise("--directory must be instance or shared_only")
 
-  defp errors(changeset) do
-    Ecto.Changeset.traverse_errors(changeset, fn {message, _} -> message end)
-  end
+  defp errors(changeset), do: Slipdock.ChangesetErrors.message(changeset)
 end
