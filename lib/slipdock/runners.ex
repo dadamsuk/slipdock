@@ -1229,7 +1229,9 @@ defmodule Slipdock.Runners do
             set: [current_job_id: job.id]
           )
 
-          job
+          # A job an earlier run sent log lines for starts a new segment
+          # (#3088): this run's runner sends from line 0 again.
+          Slipdock.Runners.Transcript.new_run(job, runner)
         else
           _ -> nil
         end

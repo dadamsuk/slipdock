@@ -2021,6 +2021,10 @@ rest comes next time), a line over 32 KiB is kept as
 is `capped L`: nothing more is kept. Tokens are taken out before it is
 stored: the runner's, any `sd…_` token, and the usual secret shapes
 (cloud and GitHub keys, private keys, bearer headers, `password=…`).
+A job claimed again from the queue (its lease ran out, or it finished
+`status=requeue`) keeps its earlier runs' lines, and the claim adds a
+`{"type":"slipdock_run","attempt":N,"runner":"…"}` line after them: the
+new run sends from 0 again, and `N` and `L` count from that line on.
 Read it back with read access to the card: `GET
 /api/jobs/:id/transcript?from=N` answers JSON Lines from line `N`, with
 `X-Transcript-Lines` (the `from` for the next read) and
