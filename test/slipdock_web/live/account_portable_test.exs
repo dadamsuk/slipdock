@@ -84,7 +84,7 @@ defmodule SlipdockWeb.AccountPortableTest do
       user: user,
       board: board
     } do
-      other = board_fixture(%{"name" => "Research", "code" => "rsc"}, owner: user)
+      other = board_fixture(%{"name" => "Research"}, owner: user)
       {:ok, view, _} = live(conn, ~p"/account/data")
 
       view
