@@ -1063,6 +1063,29 @@ defmodule Slipdock.AutomationsTest do
     end
   end
 
+  describe "a refused rule's message (#3052)" do
+    test "fills the length limit in, rather than leaving %{count}" do
+      # The longest list and pool names make a rule name over its 120.
+      {board, backlog, _doing, _done} = board_with_lists()
+
+      {:ok, list} =
+        Slipdock.Boards.Columns.update_column(backlog, %{"name" => String.duplicate("l", 60)})
+
+      board = Boards.get_board!(board.id)
+
+      assert {:error, message} =
+               Automations.create_rule_from_preset(
+                 board,
+                 "send_to_runner",
+                 %{"column" => list.name, "pool" => String.duplicate("p", 40)},
+                 created_by: user_fixture()
+               )
+
+      assert message == "name: should be at most 120 character(s)"
+      refute message =~ "%{"
+    end
+  end
+
   describe "Parser" do
     setup do
       :ok

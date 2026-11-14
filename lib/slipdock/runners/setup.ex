@@ -1011,9 +1011,18 @@ defmodule Slipdock.Runners.Setup do
 
   defp blank(_), do: nil
 
-  defp changeset_message(%Ecto.Changeset{} = changeset) do
+  # A changeset's errors as one line for a person, each message with its
+  # placeholders (`%{count}` from `validate_length`) filled from its opts.
+  # Public only for its test: `Automations` turns its own changesets into
+  # messages, so no answer reaches this through `connect/4` today.
+  @doc false
+  def changeset_message(%Ecto.Changeset{} = changeset) do
     changeset
-    |> Ecto.Changeset.traverse_errors(fn {msg, _} -> msg end)
+    |> Ecto.Changeset.traverse_errors(fn {msg, opts} ->
+      Enum.reduce(opts, msg, fn {k, v}, acc ->
+        String.replace(acc, "%{#{k}}", fn _ -> to_string(v) end)
+      end)
+    end)
     |> Enum.map_join("; ", fn {field, msgs} -> "#{field} #{Enum.join(msgs, ", ")}" end)
   end
 end
