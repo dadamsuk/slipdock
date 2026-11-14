@@ -116,7 +116,10 @@ defmodule SlipdockWeb.BoardSettingsManageLiveTest do
 
       html = render(view)
       refute html =~ "Board restored."
-      assert has_element?(view, "#flash-error")
+      # The quota's own sentence (#3117), not a blank flash.
+      assert view |> element("#flash-error") |> render() =~
+               "You own all 1 boards this server allows one person."
+
       assert %Board{archived_at: %DateTime{}} = Repo.get!(Board, board.id)
       assert has_element?(button(view, "unarchive_board"))
     end
