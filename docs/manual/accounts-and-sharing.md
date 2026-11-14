@@ -194,7 +194,9 @@ count in memory on this node and are forgotten on restart.
 (under compose, loopback and the compose network: `compose.yaml` sets `local`),
 or the CIDRs in `SLIPDOCK_TRUSTED_PROXIES` (`none` trusts nobody). A proxy
 anywhere else, on your LAN or at a public address, has to be listed there, or
-every visitor shares its address and its limit.
+every visitor shares its address and its limit. Under rootless Docker or
+Docker Desktop, `local` is too wide for a port published to other machines:
+see [Behind a TLS proxy](docker-step-by-step.md#behind-a-tls-proxy).
 
 Browser responses carry a Content-Security-Policy that allows script from this
 origin only — see `SlipdockWeb.Plugs.ContentSecurityPolicy`, which explains each

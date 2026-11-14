@@ -78,10 +78,18 @@ services:
       # network (Caddy, or a host proxy through the published port, which
       # arrives from the network's gateway), so compose names that network:
       # "local" is loopback and the networks of the container's own
-      # interfaces. On Linux Docker a visitor through the published port
-      # keeps their own address, and so is not believed; under Docker Desktop
-      # or rootless Docker that traffic arrives from the gateway, which "local"
-      # trusts, so there publish on loopback only or name your proxy instead.
+      # interfaces. A visitor through the published port keeps their own
+      # address, and so is not believed, only where Docker forwards the port
+      # in the kernel: ordinary (rootful) Linux Docker, an IPv4 visitor. Where
+      # a userland forwarder carries it, the visitor arrives from the gateway
+      # too, which "local" trusts: rootless Docker (checked on 28.5, #2967),
+      # Docker Desktop, an IPv6 visitor to this IPv4-only network, and another
+      # container on the same host. With the default publish (127.0.0.1:4000)
+      # only the host reaches the port, so that is harmless. With
+      # SLIPDOCK_PUBLISH=4000 on one of those, anybody who reaches the port
+      # could write their own X-Forwarded-For: publish on loopback and put a
+      # proxy in front, or set SLIPDOCK_TRUSTED_PROXIES to the proxy's own
+      # address (or "none" with no proxy) in .env.
       # Interpolated from .env too, so a value there still wins.
       - SLIPDOCK_TRUSTED_PROXIES=${SLIPDOCK_TRUSTED_PROXIES:-local}
     volumes:
