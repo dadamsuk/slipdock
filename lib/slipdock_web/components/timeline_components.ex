@@ -48,29 +48,19 @@ defmodule SlipdockWeb.TimelineComponents do
         id="timeline-scroll"
         class={["kanban-scroll min-h-0 overflow-auto", if(@grid?, do: "shrink", else: "flex-1")]}
       >
-        <div
+        <.view_empty
           :if={!@grid?}
-          class="flex h-full flex-col items-center justify-center gap-2 p-8 text-center text-base-content/60"
+          icon="hero-chart-bar"
+          shown={@timeline.shown}
+          hidden={@timeline.hidden}
+          config={@config}
         >
-          <.icon name="hero-chart-bar" class="size-10 opacity-40" />
-          <p :if={@timeline.shown == 0 and @timeline.hidden > 0}>
-            No cards match the current filters.
-          </p>
-          <p :if={@timeline.shown == 0 and @timeline.hidden == 0}>This board has no cards yet.</p>
-          <p :if={@timeline.shown > 0}>
+          <:line>
             Nothing is scheduled in this range
             <span :if={@timeline.earlier > 0}>· {@timeline.earlier} earlier</span>
             <span :if={@timeline.later > 0}>· {@timeline.later} later</span>
-          </p>
-          <button
-            :if={Config.filtering?(@config)}
-            type="button"
-            class="btn btn-sm"
-            phx-click="swim_clear_filters"
-          >
-            Clear filters
-          </button>
-        </div>
+          </:line>
+        </.view_empty>
 
         <div
           :if={@grid?}
@@ -263,29 +253,19 @@ defmodule SlipdockWeb.TimelineComponents do
     ~H"""
     <div class="flex h-full flex-col">
       <div id="timeline-scroll" class="kanban-scroll min-h-0 flex-1 overflow-y-auto">
-        <div
+        <.view_empty
           :if={@timeline.groups == []}
-          class="flex h-full flex-col items-center justify-center gap-2 p-8 text-center text-base-content/60"
+          icon="hero-chart-bar"
+          shown={@timeline.shown}
+          hidden={@timeline.hidden}
+          config={@config}
         >
-          <.icon name="hero-chart-bar" class="size-10 opacity-40" />
-          <p :if={@timeline.shown == 0 and @timeline.hidden > 0}>
-            No cards match the current filters.
-          </p>
-          <p :if={@timeline.shown == 0 and @timeline.hidden == 0}>This board has no cards yet.</p>
-          <p :if={@timeline.shown > 0}>
+          <:line>
             Nothing is scheduled in this range
             <span :if={@timeline.earlier > 0}>· {@timeline.earlier} earlier</span>
             <span :if={@timeline.later > 0}>· {@timeline.later} later</span>
-          </p>
-          <button
-            :if={Config.filtering?(@config)}
-            type="button"
-            class="btn btn-sm"
-            phx-click="swim_clear_filters"
-          >
-            Clear filters
-          </button>
-        </div>
+          </:line>
+        </.view_empty>
 
         <div :if={@timeline.groups != []} id="timeline">
           <%= for group <- @timeline.groups do %>

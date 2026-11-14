@@ -84,20 +84,13 @@ defmodule SlipdockWeb.NarrativeComponents do
             narrative={@narrative}
             view_name={@view_name}
           />
-          <div
+          <.view_empty
             :if={@narrative.shown == 0 and @narrative.hidden > 0}
-            class="rounded-lg bg-base-200/60 p-3 text-sm text-base-content/60"
-          >
-            No cards match the current filters.
-            <button
-              :if={Config.filtering?(@config)}
-              type="button"
-              class="btn btn-xs ml-2"
-              phx-click="swim_clear_filters"
-            >
-              Clear filters
-            </button>
-          </div>
+            variant="inline"
+            shown={@narrative.shown}
+            hidden={@narrative.hidden}
+            config={@config}
+          />
         </header>
 
         <section :for={group <- @narrative.groups} class="space-y-4">

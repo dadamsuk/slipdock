@@ -74,22 +74,13 @@ defmodule SlipdockWeb.PrioritiseComponents do
         </div>
       </div>
 
-      <div
+      <.view_empty
         :if={@p.entries == []}
-        class="flex h-64 flex-col items-center justify-center gap-2 p-8 text-center text-base-content/60"
-      >
-        <.icon name="hero-scale" class="size-10 opacity-40" />
-        <p :if={@p.hidden > 0}>No cards match the current filters.</p>
-        <p :if={@p.hidden == 0}>This board has no cards yet.</p>
-        <button
-          :if={Config.filtering?(@config)}
-          type="button"
-          class="btn btn-sm"
-          phx-click="swim_clear_filters"
-        >
-          Clear filters
-        </button>
-      </div>
+        icon="hero-scale"
+        variant="block"
+        hidden={@p.hidden}
+        config={@config}
+      />
 
       <.prioritise_stack
         :if={@narrow and @p.entries != []}

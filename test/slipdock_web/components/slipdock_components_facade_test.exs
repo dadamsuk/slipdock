@@ -22,7 +22,8 @@ defmodule SlipdockWeb.Components.SlipdockComponentsFacadeTest do
 
   # What the module exported while it still defined everything itself, bar
   # the two functions `use Phoenix.Component` and the verified routes
-  # generate for the compiler's own use.
+  # generate for the compiler's own use, and what it has been given since
+  # (`view_empty/1`, #2885).
   @exports [
     __components__: 0,
     age_chip: 1,
@@ -95,6 +96,7 @@ defmodule SlipdockWeb.Components.SlipdockComponentsFacadeTest do
     time_bar: 1,
     time_section: 1,
     timestamp: 1,
+    view_empty: 1,
     view_tabs: 1,
     view_tabs_list: 0
   ]

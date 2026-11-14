@@ -1291,23 +1291,15 @@ defmodule SlipdockWeb.SwimlaneComponents do
 
     ~H"""
     <div id="swim-scroll" class="kanban-scroll h-full overflow-auto">
-      <div
+      <.view_empty
         :if={@grid.rows == [] or @grid.cols == []}
-        class="flex h-full flex-col items-center justify-center gap-2 p-8 text-center text-base-content/60"
+        icon="hero-table-cells"
+        shown={@grid.shown}
+        hidden={@grid.hidden}
+        config={@config}
       >
-        <.icon name="hero-table-cells" class="size-10 opacity-40" />
-        <p :if={@grid.shown == 0 and @grid.hidden > 0}>No cards match the current filters.</p>
-        <p :if={@grid.shown == 0 and @grid.hidden == 0}>This board has no cards yet.</p>
-        <p :if={@grid.shown > 0}>Nothing to show on these axes.</p>
-        <button
-          :if={Config.filtering?(@config)}
-          type="button"
-          class="btn btn-sm"
-          phx-click="swim_clear_filters"
-        >
-          Clear filters
-        </button>
-      </div>
+        <:line>Nothing to show on these axes.</:line>
+      </.view_empty>
 
       <div
         :if={@grid.rows != [] and @grid.cols != []}
@@ -1457,23 +1449,15 @@ defmodule SlipdockWeb.SwimlaneComponents do
 
     ~H"""
     <div id="swim-scroll" class="kanban-scroll h-full overflow-y-auto">
-      <div
+      <.view_empty
         :if={@grid.rows == [] or @grid.cols == []}
-        class="flex h-full flex-col items-center justify-center gap-2 p-8 text-center text-base-content/60"
+        icon="hero-table-cells"
+        shown={@grid.shown}
+        hidden={@grid.hidden}
+        config={@config}
       >
-        <.icon name="hero-table-cells" class="size-10 opacity-40" />
-        <p :if={@grid.shown == 0 and @grid.hidden > 0}>No cards match the current filters.</p>
-        <p :if={@grid.shown == 0 and @grid.hidden == 0}>This board has no cards yet.</p>
-        <p :if={@grid.shown > 0}>Nothing to show on these axes.</p>
-        <button
-          :if={Config.filtering?(@config)}
-          type="button"
-          class="btn btn-sm"
-          phx-click="swim_clear_filters"
-        >
-          Clear filters
-        </button>
-      </div>
+        <:line>Nothing to show on these axes.</:line>
+      </.view_empty>
 
       <div :if={@grid.rows != [] and @grid.cols != []} id="swim-grid">
         <%= for {row, ri} <- Enum.with_index(@grid.rows) do %>

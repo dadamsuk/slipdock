@@ -36,22 +36,12 @@ defmodule SlipdockWeb.OutlineComponents do
 
     ~H"""
     <div id="outline-scroll" class="kanban-scroll h-full overflow-auto">
-      <div
+      <.view_empty
         :if={@outline.nodes == []}
-        class="flex h-full flex-col items-center justify-center gap-2 p-8 text-center text-base-content/60"
-      >
-        <.icon name="hero-queue-list" class="size-10 opacity-40" />
-        <p :if={@outline.hidden > 0}>No cards match the current filters.</p>
-        <p :if={@outline.hidden == 0}>This board has no cards yet.</p>
-        <button
-          :if={Config.filtering?(@config)}
-          type="button"
-          class="btn btn-sm"
-          phx-click="swim_clear_filters"
-        >
-          Clear filters
-        </button>
-      </div>
+        icon="hero-queue-list"
+        hidden={@outline.hidden}
+        config={@config}
+      />
 
       <div
         :if={@outline.nodes != []}
