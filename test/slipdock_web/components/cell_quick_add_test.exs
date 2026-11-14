@@ -39,6 +39,10 @@ defmodule SlipdockWeb.CellQuickAddTest do
     doc =
       render_form(%{name: "cell", value: "1:2", id: "swim-add-1-2-0", event: "swim_quick_add"})
 
+    [form] = one(doc, "form")
+    assert attr(form, "id") == "swim-add-1-2-0"
+    assert attr(form, "phx-submit") == "swim_quick_add"
+
     [input] = one(doc, "input[type=text]")
     assert attr(input, "id") == "swim-add-1-2-0-input"
     assert attr(input, "name") == "title"
