@@ -17,7 +17,7 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
 
   alias SlipdockWeb.LiveAccess
 
-  import SlipdockWeb.SlipdockComponents, only: [relative_time: 1]
+  import SlipdockWeb.SlipdockComponents, only: [copy_block: 1, relative_time: 1]
   import SlipdockWeb.ItemComponents, only: [panel_notice: 1]
   import SlipdockWeb.BoardLive.Helpers, only: [notice: 3, clear_notice: 1, field_errors: 1]
 
@@ -1228,7 +1228,7 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
       <ul class="space-y-3">
         <li :for={{step, n} <- @indexed} class="space-y-1.5 text-sm">
           <p>{step.text}</p>
-          <.code_block :if={step[:code]} id={"runner-step-#{n}"} code={step.code} />
+          <.copy_block :if={step[:code]} id={"runner-step-#{n}"} text={step.code} pre />
         </li>
       </ul>
 
@@ -1248,37 +1248,6 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
           <.icon name="hero-arrow-path" class="size-3.5" /> Make a new token
         </button>
       </div>
-    </div>
-    """
-  end
-
-  attr :id, :string, required: true
-  attr :code, :string, required: true
-  attr :class, :string, default: nil
-  attr :wrap, :boolean, default: false, doc: "wrap long lines (prose) rather than scroll"
-
-  # A block of text to paste, with its copy button.
-  defp code_block(assigns) do
-    ~H"""
-    <div class="relative">
-      <pre
-        id={@id}
-        class={[
-          "overflow-x-auto rounded-lg bg-base-300/60 p-3 pr-16 font-mono text-xs",
-          if(@wrap, do: "whitespace-pre-wrap", else: "whitespace-pre"),
-          @class && "overflow-y-auto",
-          @class
-        ]}
-      >{@code}</pre>
-      <button
-        type="button"
-        id={"#{@id}-copy"}
-        phx-hook="CopyText"
-        data-target={@id}
-        class="btn btn-ghost btn-xs absolute right-1.5 top-1.5"
-      >
-        <span data-label>Copy</span>
-      </button>
     </div>
     """
   end

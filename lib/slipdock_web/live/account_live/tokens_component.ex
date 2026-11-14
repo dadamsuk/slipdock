@@ -5,6 +5,8 @@ defmodule SlipdockWeb.AccountLive.TokensComponent do
   """
   use SlipdockWeb, :live_component
 
+  import SlipdockWeb.SlipdockComponents, only: [secret_once: 1]
+
   alias Slipdock.Accounts
 
   @impl true
@@ -57,19 +59,14 @@ defmodule SlipdockWeb.AccountLive.TokensComponent do
           CLI and scripts. Run <code>slipdock auth &lt;token&gt;</code>
           after creating one.
         </p>
-        <div :if={@new_token} class="mt-4 rounded-xl bg-warning/10 p-4 text-sm">
-          <p class="font-medium">Copy this token now — it won't be shown again.</p>
-          <code
-            id="new-token"
-            class="mt-2 block select-all break-all rounded bg-base-200 px-2 py-1 font-mono text-xs"
-          >{@new_token}</code>
-          <button
-            type="button"
-            class="btn btn-ghost btn-xs mt-2"
-            phx-click="dismiss_token"
-            phx-target={@myself}
-          >Done</button>
-        </div>
+        <.secret_once
+          :if={@new_token}
+          id="new-token"
+          text={@new_token}
+          what="token"
+          dismiss="dismiss_token"
+          target={@myself}
+        />
         <form
           id={"token-form-#{@form_key}"}
           phx-submit="create_token"

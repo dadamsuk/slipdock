@@ -140,7 +140,8 @@ the machine on the Machines page ends it at once.
 On a machine with no browser to hand, make a one-time **enrolment key** on
 the Machines page (`slipdock machine enrol-key <board>… --label NAME`) and give it to `init`.
 The name you give the key is the name the machine enrols under; without one it
-takes its hostname:
+takes its hostname. The page shows the key once, as the whole `init` line with
+a **Copy** button beside it:
 
 ```sh
 slipdock-runner init --server https://slipdock.example.com --key sdk_…

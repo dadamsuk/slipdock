@@ -20,6 +20,8 @@
 // `vault`, `dir:Projects` and `board:4` too. Keys are the same on every
 // board, since ids are, which is what lets the vault's tree be one tree.
 
+import {COPIED_MS, copyWithFeedback} from "./copy.js"
+
 export const ROW_HEIGHT = 30
 // Rows a finger can hit, on a touch screen (R11.11).
 export const TOUCH_ROW_HEIGHT = 40
@@ -475,7 +477,7 @@ function menuHtml(items) {
   return items.map((item, i) => {
     const rule = i > 0 && item.group !== group ? `<li class="my-0.5 border-t border-base-300/70"></li>` : ""
     group = item.group
-    const inner = `<span class="${item.icon} size-4"></span> ${escapeHtml(item.label)}`
+    const inner = `<span class="${item.icon} size-4"></span> <span data-label>${escapeHtml(item.label)}</span>`
     const tone = item.danger ? "text-error" : ""
     if (item.href && !item.action)
       return rule + `<li><a href="${escapeHtml(item.href)}" data-phx-link="${item.nav}" data-phx-link-state="push" class="${tone}">${inner}</a></li>`
@@ -1045,12 +1047,25 @@ export const WikiTree = {
     e.preventDefault()
     e.stopPropagation()
     const item = (this.menuItems || [])[index]
+    if (item && item.action === "copy") return this.copyLink(item, index)
     this.closeMenu()
     if (!item) return
     if (item.event) return this.pushEvent(item.event, item.payload)
     const url = new URL(item.href, window.location.href).toString()
     if (item.action === "newTab") window.open(url, "_blank", "noopener")
-    if (item.action === "copy" && navigator.clipboard) navigator.clipboard.writeText(url)
+  },
+
+  // Copy link says "Copied" on its own item, and the menu closes once it
+  // has been read (#2887); a menu opened since is left alone.
+  copyLink(item, index) {
+    const menu = this.menuEl
+    const button = menu && menu.querySelector(`[data-menu-item="${index}"]`)
+    const url = new URL(item.href, window.location.href).toString()
+    return copyWithFeedback(button, url).then(copied => {
+      const close = () => { if (this.menuEl === menu) this.closeMenu() }
+      if (copied && button) setTimeout(close, COPIED_MS)
+      else close()
+    })
   },
 
   closeMenu() {

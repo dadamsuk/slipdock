@@ -23,25 +23,10 @@ defmodule SlipdockWeb.HelpLive.Components do
   attr :id, :string, required: true
   attr :text, :string, required: true
 
-  # Something to copy. Selectable as well, so the button isn't the only way.
+  # Something to copy, as everywhere else (`copy_block/1`, #2887).
   def snippet(assigns) do
     ~H"""
-    <div>
-      <code
-        id={@id}
-        class="block select-all whitespace-pre-wrap break-words rounded-xl bg-base-200 px-3 py-2 font-mono text-xs leading-relaxed text-base-content"
-        phx-no-format
-      >{@text}</code>
-      <button
-        type="button"
-        id={"#{@id}-copy"}
-        class="btn btn-ghost btn-xs mt-1 gap-1"
-        phx-hook="CopyText"
-        data-target={@id}
-      >
-        <.icon name="hero-clipboard" class="size-3.5" /> <span data-label>Copy</span>
-      </button>
-    </div>
+    <SlipdockWeb.SlipdockComponents.copy_block id={@id} text={@text} />
     """
   end
 

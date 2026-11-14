@@ -7,6 +7,8 @@ defmodule SlipdockWeb.AccountLive.AgentComponent do
   """
   use SlipdockWeb, :live_component
 
+  import SlipdockWeb.SlipdockComponents, only: [copy_block: 1]
+
   # Everything on this tab is built from one fact: the address this server was
   # reached on. It is the thing people get wrong when they copy setup
   # instructions out of a repository, so the page works it out for them.
@@ -26,33 +28,6 @@ defmodule SlipdockWeb.AccountLive.AgentComponent do
            "start with the device flow the guide describes and tell me the code " <>
            "to approve."
      )}
-  end
-
-  attr :id, :string, required: true
-  attr :text, :string, required: true
-  attr :label, :string, default: "Copy"
-
-  # Something to copy, with the button that copies it. The text is selectable
-  # too: a copy button that needs JavaScript must not be the only way out.
-  defp copy_block(assigns) do
-    ~H"""
-    <div class="mt-3">
-      <code
-        id={@id}
-        class="block select-all whitespace-pre-wrap break-words rounded-xl bg-base-200 px-3 py-2 font-mono text-xs leading-relaxed"
-        phx-no-format
-      >{@text}</code>
-      <button
-        type="button"
-        id={"#{@id}-copy"}
-        class="btn btn-ghost btn-xs mt-1 gap-1"
-        phx-hook="CopyText"
-        data-target={@id}
-      >
-        <.icon name="hero-clipboard" class="size-3.5" /> <span data-label>{@label}</span>
-      </button>
-    </div>
-    """
   end
 
   @impl true
@@ -83,7 +58,7 @@ defmodule SlipdockWeb.AccountLive.AgentComponent do
           up the next thing, and every call it can make. Read with a token it also ends
           with your own boards and lists, which is why it is worth reading twice.
         </p>
-        <.copy_block id="agent-prompt" text={@agent_prompt} label="Copy prompt" />
+        <.copy_block class="mt-3" id="agent-prompt" text={@agent_prompt} label="Copy prompt" />
       </section>
 
       <section class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
@@ -125,6 +100,7 @@ defmodule SlipdockWeb.AccountLive.AgentComponent do
           nothing in.
         </p>
         <.copy_block
+          class="mt-3"
           id="agent-install"
           text={"curl -fsSL #{@base_url}/install.sh | sh"}
           label="Copy command"
@@ -133,6 +109,7 @@ defmodule SlipdockWeb.AccountLive.AgentComponent do
           On Windows, in PowerShell — not WSL, whose home Claude on Windows doesn't read:
         </p>
         <.copy_block
+          class="mt-3"
           id="agent-install-windows"
           text={"irm #{@base_url}/install.ps1 | iex"}
           label="Copy command"
@@ -204,7 +181,7 @@ defmodule SlipdockWeb.AccountLive.AgentComponent do
           <.link navigate={~p"/account/tokens"} class="link">API tokens</.link>
           tab as a connected app, where deleting it disconnects it.
         </p>
-        <.copy_block id="agent-mcp-url" text={"#{@base_url}/mcp"} label="Copy address" />
+        <.copy_block class="mt-3" id="agent-mcp-url" text={"#{@base_url}/mcp"} label="Copy address" />
         <p class="mt-3 text-sm text-base-content/60">
           <strong>With an API token,</strong>
           for clients that take a URL and a header: make one on the
@@ -212,6 +189,7 @@ defmodule SlipdockWeb.AccountLive.AgentComponent do
           tab, read-only if the client should only look, and put it in place of <code>&lt;token&gt;</code>. In Claude Code:
         </p>
         <.copy_block
+          class="mt-3"
           id="agent-mcp"
           text={"claude mcp add --transport http slipdock #{@base_url}/mcp --header \"Authorization: Bearer <token>\""}
           label="Copy command"
@@ -241,6 +219,7 @@ defmodule SlipdockWeb.AccountLive.AgentComponent do
           (it needs Erlang/OTP 27 or later, and says how to get it if there is none):
         </p>
         <.copy_block
+          class="mt-3"
           id="agent-cli-unix"
           text={"curl -fsSL #{@base_url}/cli/install.sh | sh\nslipdock auth"}
           label="Copy commands"
@@ -251,6 +230,7 @@ defmodule SlipdockWeb.AccountLive.AgentComponent do
           from here — Erlang too, through winget, if there is none — and puts it on your PATH:
         </p>
         <.copy_block
+          class="mt-3"
           id="agent-cli-windows"
           text={"irm #{@base_url}/cli/install.ps1 | iex\nslipdock auth"}
           label="Copy commands"
@@ -259,6 +239,7 @@ defmodule SlipdockWeb.AccountLive.AgentComponent do
           Or build it from the repository (Elixir 1.19 or later), then point it here:
         </p>
         <.copy_block
+          class="mt-3"
           id="agent-cli"
           text={"cd cli && mix escript.build && cp slipdock ~/.local/bin/\nslipdock url #{@base_url}\nslipdock auth"}
           label="Copy commands"
