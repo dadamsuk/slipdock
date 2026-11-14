@@ -107,6 +107,29 @@ defmodule Slipdock.PolicyTest do
       assert {:error, %Refused{by: :token}} = Boards.Tags.delete_tag(ctx.ops)
     end
 
+    test "a token scoped to one tree writes its tags, and is refused another's (ARCH-8)",
+         ctx do
+      other = board_fixture(%{"name" => "Other"}, owner: ctx.owner)
+
+      {_plain, token} =
+        Accounts.create_api_token(ctx.owner, "root only",
+          scope: "write",
+          scope_boards: [ctx.root.id]
+        )
+
+      as(ctx.owner, token)
+
+      # The root's tree, from a board inside it too.
+      assert {:ok, _} = Boards.Tags.create_tag(ctx.root, %{"name" => "in", "color" => "sky"})
+      assert {:ok, _} = Boards.Tags.create_tag(ctx.sub, %{"name" => "in sub", "color" => "sky"})
+
+      assert {:error, %Refused{by: :token} = refused} =
+               Boards.Tags.create_tag(other, %{"name" => "out", "color" => "sky"})
+
+      assert refused.message =~ "this API token"
+      assert Boards.Tags.list_tags(other.id) == []
+    end
+
     test "a token narrows only the user it was issued to", ctx do
       {_plain, token} = Accounts.create_api_token(ctx.owner, "reader", scope: "read")
       Actor.put(Actor.web(ctx.writer), nil, {ctx.owner, token})
@@ -176,6 +199,31 @@ defmodule Slipdock.PolicyTest do
       assert tag_names(ctx.sub_card) == ["ops"]
       assert {:ok, _} = Boards.Tags.toggle_card_tag(ctx.sub_card, ctx.ops)
       assert tag_names(ctx.sub_card) == []
+    end
+
+    test "a card grant raises the level on that card, where the board's own grant doesn't reach",
+         ctx do
+      # The epic is on the root board, where the card writer has no board grant.
+      assert Access.board_permission(ctx.card_writer, ctx.root) == :none
+      as(ctx.card_writer)
+      assert {:ok, _} = Boards.Tags.toggle_card_tag(ctx.epic, ctx.ops)
+      assert tag_names(ctx.epic) == ["ops"]
+
+      other = card_fixture(hd(ctx.root.columns), %{"title" => "Not granted"})
+
+      assert {:error, %Refused{action: :toggle_card_tag, by: :user}} =
+               Boards.Tags.toggle_card_tag(other, ctx.ops)
+    end
+
+    test "a commenter is refused: tagging needs write", ctx do
+      commenter = user_fixture("policy.commenter@example.com")
+      {:ok, _} = Access.grant(ctx.root, commenter, "comment", ctx.owner)
+      as(commenter)
+
+      assert {:error, %Refused{action: :toggle_card_tag, need: :write, by: :user}} =
+               Boards.Tags.toggle_card_tag(ctx.epic, ctx.ops)
+
+      assert tag_names(ctx.epic) == []
     end
 
     test "a reader is refused, and the card keeps its tags", ctx do
