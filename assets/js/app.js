@@ -47,6 +47,7 @@ import {typing} from "./typing"
 import {PasskeyLogin, PasskeyRegister} from "./passkey"
 import {DockDrag} from "./dock_drag"
 import {AutoDismiss} from "./auto_dismiss"
+import {BoardResync} from "./board_resync"
 import {DateField} from "./date_field"
 import {FilePicker} from "./file_picker"
 import {TagFilter} from "./tag_filter"
@@ -542,6 +543,10 @@ Hooks.Focus = {
 
 // Dismisses a flash after a few seconds without a click (auto_dismiss.js).
 Hooks.AutoDismiss = AutoDismiss
+
+// A board page asks whether it has missed a change, and says so when its
+// connection stops answering (#2918, board_resync.js).
+Hooks.BoardResync = BoardResync
 
 // A running card timer: counts up from `data-since` once a second, so the
 // server needn't push a tick. Keyed on the start time, so a restart remounts.

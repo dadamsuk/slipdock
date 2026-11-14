@@ -352,6 +352,11 @@ defmodule SlipdockWeb.BoardLive.State do
   end
 
   def reload_board(socket) do
+    # Taken before the board is read, so a change landing between the two
+    # leaves the page's hash behind the board, never ahead of it: the next
+    # `resync` (#2918) draws it again rather than missing it.
+    fingerprint = Boards.PubSub.fingerprint(socket.assigns.board.id)
+
     board =
       Access.hide_unreadable_dependencies(
         socket.assigns.current_user,
@@ -360,6 +365,7 @@ defmodule SlipdockWeb.BoardLive.State do
 
     socket
     |> assign(board: board, page_title: board.name, ancestry: Boards.ancestry(board))
+    |> assign(fingerprint: fingerprint)
     |> assign(pulse: board_pulse(board), pauses: board_pauses(board))
     |> assign_waiting_tree()
     # Deploys move the delivery strip themselves; a reload only follows

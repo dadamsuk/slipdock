@@ -2,6 +2,11 @@
 
 ## Features
 
+- An open board keeps up by itself: every change shows at once, and the
+  page also asks the server whether it has missed one when its tab comes
+  back into view and once a minute while it is in view, and draws the board
+  again if so. A page whose connection has stopped answering says *This
+  board may be out of date*, tries to reconnect, and offers Reload
 - Multiple boards, each with its own colour, description, tags and a short
   **code** — a unique, URL-safe handle of up to 10 characters ("QVM V1
   Remediation" becomes `qvm-v1-rem`), taken from the name and editable in
