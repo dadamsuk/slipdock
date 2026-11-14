@@ -141,6 +141,33 @@ defmodule SlipdockWeb.SwimlanesLiveTest do
     assert card.column_id == todo.id
   end
 
+  test "quick add in the stacked cells a phone reads lands in that cell", %{
+    conn: conn,
+    board: board,
+    todo: todo
+  } do
+    {:ok, view, html} =
+      live(phone(conn), ~p"/boards/#{board}/swimlanes?rows=flag&cols=column&empty=show")
+
+    assert html =~ "swim-cell-stacked"
+    # rows: flagged, blocked, review, waiting, starred, none; cols: the four lists.
+    view |> element(~s(button[phx-click=swim_start_add][phx-value-cell="1:1"])) |> render_click()
+
+    view
+    |> form(~s(form[id^="swim-add-1-1-"]), %{"title" => "Stacked card"})
+    |> render_submit()
+
+    card =
+      board
+      |> reload()
+      |> Map.get(:columns)
+      |> Enum.flat_map(& &1.cards)
+      |> Enum.find(&(&1.title == "Stacked card"))
+
+    assert card.flags == ["blocked"]
+    assert card.column_id == todo.id
+  end
+
   test "saving, loading, updating and deleting a view", %{conn: conn, board: board} do
     {:ok, view, _} = live(conn, ~p"/boards/#{board}/swimlanes?rows=tag&sort=title")
 

@@ -7,6 +7,7 @@ defmodule SlipdockWeb.CalendarComponents do
   alias SlipdockWeb.Dates
 
   import SlipdockWeb.SlipdockComponents
+  import SlipdockWeb.SwimlaneComponents, only: [cell_quick_add: 1]
   import SlipdockWeb.TimelineComponents, only: [dateless_tray: 1]
   alias Slipdock.Palette
   alias Slipdock.Swimlanes.Config
@@ -128,36 +129,14 @@ defmodule SlipdockWeb.CalendarComponents do
               >
                 {if expanded, do: "Show less", else: "+#{more} more"}
               </button>
-              <form
+              <.cell_quick_add
                 :if={@adding == day.key}
                 id={"cal-add-#{day.key}-#{@form_key}"}
-                phx-submit="cal_quick_add"
-                class="kanban-pop mt-1 space-y-1"
-              >
-                <input type="hidden" name="date" value={day.key} />
-                <input
-                  type="text"
-                  name="title"
-                  placeholder="Card title, then Enter"
-                  class="input field w-full"
-                  phx-hook="Focus"
-                  id={"cal-add-input-#{day.key}-#{@form_key}"}
-                  phx-window-keydown="swim_cancel_add"
-                  phx-key="Escape"
-                  autocomplete="off"
-                  required
-                />
-                <div class="flex items-center gap-1">
-                  <button type="submit" class="btn btn-primary btn-xs">Add</button>
-                  <button
-                    type="button"
-                    class="btn btn-ghost btn-xs btn-square"
-                    phx-click="swim_cancel_add"
-                  >
-                    <.icon name="hero-x-mark" class="size-3" />
-                  </button>
-                </div>
-              </form>
+                event="cal_quick_add"
+                name="date"
+                value={day.key}
+                class="mt-1"
+              />
             </div>
           <% end %>
         </div>
@@ -279,36 +258,14 @@ defmodule SlipdockWeb.CalendarComponents do
               Nothing scheduled today.
             </p>
 
-            <form
+            <.cell_quick_add
               :if={@adding == day.key}
               id={"cal-add-#{day.key}-#{@form_key}"}
-              phx-submit="cal_quick_add"
-              class="kanban-pop mt-1.5 space-y-1"
-            >
-              <input type="hidden" name="date" value={day.key} />
-              <input
-                type="text"
-                name="title"
-                placeholder="Card title, then Enter"
-                class="input field w-full"
-                phx-hook="Focus"
-                id={"cal-add-input-#{day.key}-#{@form_key}"}
-                phx-window-keydown="swim_cancel_add"
-                phx-key="Escape"
-                autocomplete="off"
-                required
-              />
-              <div class="flex items-center gap-1">
-                <button type="submit" class="btn btn-primary btn-xs">Add</button>
-                <button
-                  type="button"
-                  class="btn btn-ghost btn-xs btn-square"
-                  phx-click="swim_cancel_add"
-                >
-                  <.icon name="hero-x-mark" class="size-3" />
-                </button>
-              </div>
-            </form>
+              event="cal_quick_add"
+              name="date"
+              value={day.key}
+              class="mt-1.5"
+            />
           </section>
 
           <p :if={@days == []} class="px-3 py-8 text-center text-sm text-base-content/50">

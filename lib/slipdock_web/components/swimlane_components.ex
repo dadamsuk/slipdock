@@ -1378,36 +1378,13 @@ defmodule SlipdockWeb.SwimlaneComponents do
                 marks={@favourites}
                 zone={@zone}
               />
-              <form
+              <.cell_quick_add
                 :if={@adding == "#{ri}:#{ci}"}
                 id={"swim-add-#{ri}-#{ci}-#{@form_key}"}
-                phx-submit="swim_quick_add"
-                class="kanban-pop space-y-2"
-              >
-                <input type="hidden" name="cell" value={"#{ri}:#{ci}"} />
-                <input
-                  type="text"
-                  name="title"
-                  placeholder="Card title, then Enter"
-                  class="input field w-full"
-                  phx-hook="Focus"
-                  id={"swim-add-input-#{ri}-#{ci}-#{@form_key}"}
-                  phx-window-keydown="swim_cancel_add"
-                  phx-key="Escape"
-                  autocomplete="off"
-                  required
-                />
-                <div class="flex items-center gap-1">
-                  <button type="submit" class="btn btn-primary btn-xs">Add card</button>
-                  <button
-                    type="button"
-                    class="btn btn-ghost btn-xs btn-square"
-                    phx-click="swim_cancel_add"
-                  >
-                    <.icon name="hero-x-mark" class="size-3.5" />
-                  </button>
-                </div>
-              </form>
+                event="swim_quick_add"
+                name="cell"
+                value={"#{ri}:#{ci}"}
+              />
               <button
                 :if={@can_add? and @adding != "#{ri}:#{ci}"}
                 type="button"
@@ -1529,36 +1506,14 @@ defmodule SlipdockWeb.SwimlaneComponents do
                   />
                 </div>
 
-                <form
+                <.cell_quick_add
                   :if={@adding == "#{ri}:#{ci}"}
                   id={"swim-add-#{ri}-#{ci}-#{@form_key}"}
-                  phx-submit="swim_quick_add"
-                  class="kanban-pop mt-2 space-y-2"
-                >
-                  <input type="hidden" name="cell" value={"#{ri}:#{ci}"} />
-                  <input
-                    type="text"
-                    name="title"
-                    placeholder="Card title, then Enter"
-                    class="input field w-full"
-                    phx-hook="Focus"
-                    id={"swim-add-input-#{ri}-#{ci}-#{@form_key}"}
-                    phx-window-keydown="swim_cancel_add"
-                    phx-key="Escape"
-                    autocomplete="off"
-                    required
-                  />
-                  <div class="flex items-center gap-1">
-                    <button type="submit" class="btn btn-primary btn-xs">Add card</button>
-                    <button
-                      type="button"
-                      class="btn btn-ghost btn-xs btn-square"
-                      phx-click="swim_cancel_add"
-                    >
-                      <.icon name="hero-x-mark" class="size-3.5" />
-                    </button>
-                  </div>
-                </form>
+                  event="swim_quick_add"
+                  name="cell"
+                  value={"#{ri}:#{ci}"}
+                  class="mt-2"
+                />
                 <button
                   :if={@can_add? and @adding != "#{ri}:#{ci}"}
                   type="button"
@@ -1574,6 +1529,50 @@ defmodule SlipdockWeb.SwimlaneComponents do
         <% end %>
       </div>
     </div>
+    """
+  end
+
+  attr :id, :string, required: true, doc: "the form's id; the title input is `<id>-input`"
+  attr :event, :string, required: true, doc: "the event the form submits"
+  attr :name, :string, required: true, doc: "the hidden field naming the cell"
+  attr :value, :string, required: true, doc: "the cell: a swimlane's `row:col`, a calendar day"
+  attr :class, :string, default: nil, doc: "its margin where it sits"
+
+  @doc """
+  The quick-add form opened in a cell (#2891): a swimlane cell or a calendar
+  day, the only one. A title input (`Focus` hook, Escape sends
+  `swim_cancel_add`), **Add card** and an X that sends `swim_cancel_add`, with
+  the hidden `name`/`value` telling the `event` which cell it was. Put the
+  id's form key in `id`, so a fresh form remounts the input and it takes focus.
+  """
+  def cell_quick_add(assigns) do
+    ~H"""
+    <form id={@id} phx-submit={@event} class={["kanban-pop space-y-2", @class]}>
+      <input type="hidden" name={@name} value={@value} />
+      <input
+        type="text"
+        name="title"
+        placeholder="Card title, then Enter"
+        class="input field w-full"
+        phx-hook="Focus"
+        id={"#{@id}-input"}
+        phx-window-keydown="swim_cancel_add"
+        phx-key="Escape"
+        autocomplete="off"
+        required
+      />
+      <div class="flex items-center gap-1">
+        <button type="submit" class="btn btn-primary btn-xs">Add card</button>
+        <button
+          type="button"
+          class="btn btn-ghost btn-xs btn-square"
+          aria-label="Cancel"
+          phx-click="swim_cancel_add"
+        >
+          <.icon name="hero-x-mark" class="size-3.5" />
+        </button>
+      </div>
+    </form>
     """
   end
 
