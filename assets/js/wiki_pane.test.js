@@ -407,3 +407,29 @@ test("the hook keeps each choice the server reports back", () => {
   hook.handlers["wiki-editor:preview"]({on: false})
   assert.ok(!(PREVIEW_KEY in store.items))
 })
+
+test("where reading localStorage itself throws, the hooks still mount and work for the visit", () => {
+  const before = Object.getOwnPropertyDescriptor(globalThis, "localStorage")
+  Object.defineProperty(globalThis, "localStorage", {configurable: true, get() { throw new Error("SecurityError") }})
+  try {
+    const fold = mount(WikiTreeCollapse, {storage: undefined})
+    fold.el.fire("click")
+    assert.equal(fold.root.attrs["data-wiki-tree"], "collapsed")
+    const wide = mount(WikiWidthToggle, {storage: undefined})
+    wide.el.fire("click")
+    assert.equal(isFullWidth(wide.root), true)
+    const handle = mount(WikiTreeResize, {storage: undefined, pane: null})
+    handle.el.fire("keydown", {key: "ArrowRight"})
+    assert.equal(handle.root.style.props["--wiki-tree-width"], `${DEFAULT_WIDTH + STEP}px`)
+    assert.deepEqual(viewHook(undefined).pushed, [])
+    const prefs = prefsHook(undefined)
+    assert.doesNotThrow(() => prefs.mounted())
+    assert.deepEqual(prefs.pushed, [])
+    const root = element()
+    assert.doesNotThrow(() => restorePane(root))
+    assert.equal(root.attrs["data-wiki-tree"], undefined)
+  } finally {
+    if (before) Object.defineProperty(globalThis, "localStorage", before)
+    else delete globalThis.localStorage
+  }
+})

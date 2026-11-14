@@ -10,7 +10,10 @@
 // The page beside it is read in a column, or across the whole width
 // (#748): `data-wiki-width="full"` on <html>, kept the same way.
 
-import {read, write, widthPref, rootFlag, resizeHandle, rootToggle} from "./pane_controls.js"
+import {widthPref, rootFlag, resizeHandle, rootToggle} from "./pane_controls.js"
+// Storage that can't be had or refuses (a private window, storage turned
+// off) leaves a preference for this visit only: see storage.js (#2882).
+import {storage as browserStorage, read, write} from "./storage.js"
 
 export const WIDTH_KEY = "slipdock:wiki-tree-width"
 export const COLLAPSED_KEY = "slipdock:wiki-tree-collapsed"
@@ -77,7 +80,7 @@ export const VIEW_KEY = "slipdock:wiki-tree-view"
 
 export const WikiTreeView = {
   mounted() {
-    this.storage = this.storage || localStorage
+    this.storage = this.storage || browserStorage()
     if (read(VIEW_KEY, this.storage) === "recent") this.pushEvent("tree_view", {view: "recent"})
     this.handleEvent("wiki-tree:view", ({view}) =>
       write(VIEW_KEY, view === "recent" ? "recent" : null, this.storage))
@@ -134,7 +137,7 @@ export function savePreview(storage, on) {
 // keeps each new choice the server reports back.
 export const EditorPrefs = {
   mounted() {
-    const storage = this.storage || localStorage
+    const storage = this.storage || browserStorage()
     if (savedPreview(storage)) this.pushEvent("restore_preview", {on: true})
     this.handleEvent("wiki-editor:preview", ({on}) => savePreview(storage, on))
   },

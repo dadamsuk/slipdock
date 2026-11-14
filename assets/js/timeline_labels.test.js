@@ -212,3 +212,19 @@ test("a sliver of a bar is left from its middle, not past its far edge", () => {
   const {d} = linkPath(box, rect(110, 120, 4, 24), rect(300, 170, 30, 24), true)
   assert.match(d, /^M102,124 /)
 })
+
+test("where reading localStorage itself throws, the handle still mounts and works for the visit", () => {
+  const before = Object.getOwnPropertyDescriptor(globalThis, "localStorage")
+  Object.defineProperty(globalThis, "localStorage", {configurable: true, get() { throw new Error("SecurityError") }})
+  try {
+    const hook = mount({storage: undefined})
+    hook.el.fire("keydown", {key: "ArrowRight"})
+    assert.equal(labelWidth(hook.root), DEFAULT_LABEL_WIDTH + LABEL_STEP)
+    const root = element()
+    assert.doesNotThrow(() => restoreLabelWidth(root))
+    assert.equal(labelWidth(root), DEFAULT_LABEL_WIDTH)
+  } finally {
+    if (before) Object.defineProperty(globalThis, "localStorage", before)
+    else delete globalThis.localStorage
+  }
+})

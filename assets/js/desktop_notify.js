@@ -9,15 +9,13 @@
 // when this tab is in front and already showing the card. The event's id is
 // the toast's tag, so several tabs show one toast between them.
 //
-// The toggle is remembered in this browser (localStorage, as
-// `display_prefs.js` does), since permission is per browser too.
+// The toggle is remembered in this browser (localStorage, through
+// `storage.js`), since permission is per browser too.
 // `DesktopNotifyToggle` draws it on the account's Preferences page.
 
-export const KEY = "slipdock:desktop-notify"
+import {storage, read, write} from "./storage.js"
 
-function storage() {
-  try { return globalThis.localStorage || null } catch (_) { return null }
-}
+export const KEY = "slipdock:desktop-notify"
 
 function notificationApi() {
   return typeof globalThis.Notification === "function" ? globalThis.Notification : null
@@ -30,17 +28,11 @@ export function permission(N = notificationApi()) {
 }
 
 export function enabled(store = storage()) {
-  if (!store) return false
-  try { return store.getItem(KEY) === "on" } catch (_) { return false }
+  return read(KEY, store) === "on"
 }
 
 export function setEnabled(on, store = storage()) {
-  if (!store) return
-  try {
-    if (on) store.setItem(KEY, "on")
-    else if (store.removeItem) store.removeItem(KEY)
-    else store.setItem(KEY, "off")
-  } catch (_) { /* full or refused */ }
+  write(KEY, on ? "on" : null, store)
 }
 
 // Turning the toggle on: asks for permission and keeps it on only if given.

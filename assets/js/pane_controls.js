@@ -7,19 +7,12 @@
 // (timeline_labels.js) are configurations of these, so a fix to dragging or
 // to the keys is made once.
 
-// localStorage can throw (private windows, storage turned off); a preference
-// that cannot be kept is still worth having for this visit. The store is the
-// last argument, as storage.js (#2882) has it.
-export function read(key, store) {
-  try { return store.getItem(key) } catch (_e) { return null }
-}
-
-export function write(key, value, store) {
-  try {
-    if (value === null) store.removeItem(key)
-    else store.setItem(key, value)
-  } catch (_e) {}
-}
+// localStorage can throw, and so can reading the property itself (private
+// windows, storage turned off); a preference that cannot be kept is still
+// worth having for this visit. storage.js guards every touch (#2882); read
+// and write are passed on from it for the panes' own callers.
+import {storage as browserStorage, read, write} from "./storage.js"
+export {read, write}
 
 // A width kept as the CSS variable `prop` on the root and under `key` in
 // storage, between `min` and `max`, `def` when nothing is set.
@@ -85,13 +78,13 @@ export function rootFlag({attr, value, key}) {
 // - `stopPropagation`: keep the press from reaching what is under the handle.
 //
 // The hook reads `this.root` and `this.storage` if they are set before it
-// mounts (as the tests do), else <html> and localStorage.
+// mounts (as the tests do), else <html> and storage.js's storage().
 export function resizeHandle({pref, step, startWidth, onChange = () => {}, stopPropagation = false}) {
   const from = startWidth || (hook => pref.current(hook.root))
   return {
     mounted() {
       this.root = this.root || document.documentElement
-      this.storage = this.storage || localStorage
+      this.storage = this.storage || browserStorage()
       this.el.setAttribute("aria-valuemin", String(pref.min))
       this.el.setAttribute("aria-valuemax", String(pref.max))
       this.announce(pref.current(this.root))
@@ -167,7 +160,7 @@ export function rootToggle({flag, aria, invert = false, titles}) {
   return {
     mounted() {
       this.root = this.root || document.documentElement
-      this.storage = this.storage || localStorage
+      this.storage = this.storage || browserStorage()
       this.sync()
       this.onClick = () => {
         flag.set(this.root, this.storage, !flag.is(this.root))

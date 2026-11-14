@@ -82,3 +82,21 @@ test("nothing saved, or something unreadable, means the default corner", () => {
 test("storage that refuses a write is not an error", () => {
   assert.doesNotThrow(() => save({setItem: () => { throw new Error("quota") }}, {side: "left", top: 1}, phone))
 })
+
+// Where storage is blocked, reading the `localStorage` property itself throws
+// (#2882): runs `fn` with such a getter in place.
+function whileStorageBlocked(fn) {
+  const before = Object.getOwnPropertyDescriptor(globalThis, "localStorage")
+  Object.defineProperty(globalThis, "localStorage", {configurable: true, get() { throw new Error("SecurityError") }})
+  try { return fn() } finally {
+    if (before) Object.defineProperty(globalThis, "localStorage", before)
+    else delete globalThis.localStorage
+  }
+}
+
+test("where reading localStorage throws, nothing is loaded and saving doesn't throw", () => {
+  whileStorageBlocked(() => {
+    assert.equal(load(undefined, phone), null)
+    assert.doesNotThrow(() => save(undefined, {side: "left", top: 100}, phone))
+  })
+})
