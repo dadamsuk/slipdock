@@ -2563,7 +2563,12 @@ and linking the failing run. Held, *Release now* is refused (`409`,
 the refusal saying why with the run), the age cap asks for nothing, a
 queued follow-up is dropped, and a critical card that isn't the fix
 card asks for nothing (the board's activity says so). When the fix card
-merges the hold lifts and its critical trigger releases. A second red
+merges the hold lifts and its critical trigger releases. A deploy that
+succeeds to the held environment at the hold's `sha`, or with it among
+its `commits` (the failed run rerun, or a later release), lifts it too
+(#2996), with a line in the board's activity: the fix card is archived
+if it is still in the ready list with no job, else commented on and left
+open. A second red
 release while held keeps the first hold and files no second card. The
 owner lifts it by hand with `DELETE /api/boards/:board/release/hold`
 (`slipdock release B --lift-hold`, MCP `release_now` `lift_hold: true`,

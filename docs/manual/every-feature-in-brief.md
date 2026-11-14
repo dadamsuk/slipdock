@@ -520,7 +520,9 @@ and MCP) and a link to the page that covers it.
   - A red release holds the next one: the banner says why with the failing
     run, a `critical` fix card naming the batch goes on top of the ready
     list, and its merge releases (or the owner lifts the hold: *Lift hold*,
-    `slipdock release <board> --lift-hold`).
+    `slipdock release <board> --lift-hold`). A deploy that then succeeds at
+    the held sha or past it (the failed run rerun, or a later release) lifts
+    it too.
 
 ### Run an agent against a board
 

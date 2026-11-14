@@ -1350,7 +1350,11 @@ stage and the failing run, and Slipdock files one `critical` fix card on
 top of the root's ready list naming the batch's cards. While held,
 Release now is refused (saying why, with the run), the age cap asks for
 nothing and a critical merge other than the fix card asks for nothing.
-The fix card merging lifts the hold and releases. The owner can lift it by
+The fix card merging lifts the hold and releases. A deploy that succeeds
+to the held environment at the hold's `sha` or past it (its commits name
+it: the failed run rerun, or a later release) lifts it too (#2996), and
+the board's activity says so; the fix card is archived if nothing had
+started on it, else told in a comment and left open. The owner can lift it by
 hand: `slipdock release <board> --lift-hold`,
 `DELETE /api/boards/:board/release/hold`, MCP `release_now` with
 `lift_hold: true`, or *Lift hold* on the banner and the Agentic Building

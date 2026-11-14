@@ -618,7 +618,8 @@ local.json</code>
   lists it under <code phx-r="">
 release_commands</code>
 . A red release holds the next one and files a
-  critical fix card: fix that card, and its merge releases; only the owner lifts a hold by
+  critical fix card: fix that card, and its merge releases; a deploy that succeeds at the
+  held sha or past it (the failed run rerun) lifts it too; only the owner lifts a hold by
   hand. <em phx-r="">
 Not shipped</em>
 

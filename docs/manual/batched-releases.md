@@ -110,7 +110,12 @@ batch's cards and linking the run. While held, *Release now* is refused
 and says why, the age cap asks for nothing, a queued follow-up is dropped,
 and a critical card that isn't the fix card asks for nothing (the board's
 activity says so). When the fix card merges the hold lifts and its
-critical trigger releases. A second red release keeps the first hold and
+critical trigger releases. A deploy that succeeds to the held environment
+at the held sha, or with it among its commits (the failed run rerun, or a
+later release), lifts the hold too, and the board's activity says so: the
+fix card is archived if nothing has started on it (it is still in the
+ready list with no job), and otherwise gets a comment saying the hold is
+lifted and is left open. A second red release keeps the first hold and
 files no second card. The board's owner can lift the hold by hand: *Lift
 hold* on the banner or the Agentic Building page, `slipdock release
 <board> --lift-hold`, `DELETE /api/boards/:board/release/hold` or MCP
