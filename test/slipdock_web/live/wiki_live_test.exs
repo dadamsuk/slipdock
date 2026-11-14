@@ -689,6 +689,76 @@ defmodule SlipdockWeb.WikiLiveTest do
     refute Wiki.get_page!(page.id).column_id
   end
 
+  # #3122: the panel's refusals and its notice, each asserted by its words.
+  describe "the page panel's notices" do
+    setup %{board: board} do
+      [todo | _] = board.columns
+      page = page_fixture(board, %{"title" => "The spec"})
+      {:ok, _} = Wiki.place(page, todo)
+      %{page: page, todo: todo}
+    end
+
+    test "won't assign the page to someone outside the board", %{
+      conn: conn,
+      board: board,
+      page: page
+    } do
+      outsider = user_fixture("panel.outsider@example.com")
+      {:ok, view, _html} = live(conn, ~p"/boards/#{board}?#{[page: page.id]}")
+
+      html =
+        render_hook(page_panel(view), "page_change", %{
+          "page" => %{"assignee_id" => to_string(outsider.id)}
+        })
+
+      assert html =~ "That person can&#39;t be put on this page."
+      assert Wiki.get_page!(page.id).assignee_id == nil
+    end
+
+    test "takes off only the page it shows", %{conn: conn, board: board, page: page, todo: todo} do
+      other = page_fixture(board, %{"title" => "Another page"})
+      {:ok, _} = Wiki.place(other, todo)
+      {:ok, view, _html} = live(conn, ~p"/boards/#{board}?#{[page: page.id]}")
+
+      html = render_hook(page_panel(view), "unplace_page", %{"id" => to_string(other.id)})
+
+      assert html =~ "That page couldn&#39;t be taken off the board."
+      assert Wiki.get_page!(other.id).column_id == todo.id
+      assert Wiki.get_page!(page.id).column_id == todo.id
+    end
+
+    test "won't take a page off for someone who can write it but not the board", %{
+      board: board,
+      user: owner,
+      page: page,
+      todo: todo
+    } do
+      editor = user_fixture("panel.page-editor@example.com")
+      {:ok, _} = Access.grant(board, editor, "read", owner)
+      {:ok, _} = Access.grant(page, editor, "write", owner)
+      assert Access.page_permission(editor, Wiki.get_page!(page.id)) == :write
+
+      {:ok, view, _html} = live(conn_as(editor), ~p"/boards/#{board}?#{[page: page.id]}")
+      html = render_hook(page_panel(view), "unplace_page", %{"id" => to_string(page.id)})
+
+      assert html =~ "That page couldn&#39;t be taken off the board."
+      assert Wiki.get_page!(page.id).column_id == todo.id
+    end
+
+    test "says the page is still in the wiki once it is off the board", %{
+      conn: conn,
+      board: board,
+      page: page
+    } do
+      {:ok, view, _html} = live(conn, ~p"/boards/#{board}?#{[page: page.id]}")
+
+      render_hook(page_panel(view), "unplace_page", %{"id" => to_string(page.id)})
+
+      assert render(view) =~ "Took “The spec” off the board. It is still in the wiki."
+      refute Wiki.get_page!(page.id).column_id
+    end
+  end
+
   test "the document icon opens the page, and the tile opens its panel", %{
     conn: conn,
     board: board
