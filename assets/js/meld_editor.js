@@ -12,6 +12,7 @@
 import {findBlocks, encryptBlock, hasEncrypted} from "./meld.js"
 import {dialogPrompt, unlockWith, session} from "./meld_view.js"
 import {ask} from "./confirm.js"
+import {writeAt} from "./caret_menu.js"
 
 const REMOVE = "Put the decrypted text back into the page as ordinary text? It is sent to the server and kept in the page's history."
 
@@ -120,9 +121,7 @@ export const MeldEditor = {
     })
     if (!result) return
     if (result.error) return this.say(result.error)
-    ta.value = result.text
-    ta.selectionStart = ta.selectionEnd = result.caret
-    ta.dispatchEvent(new Event("input", {bubbles: true}))
+    writeAt(ta, result.text, result.caret)
     ta.focus()
     if (result.exposed) this.checkHistory(result.exposed)
   },
