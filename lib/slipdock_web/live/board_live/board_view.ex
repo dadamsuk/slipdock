@@ -751,6 +751,8 @@ defmodule SlipdockWeb.BoardLive.BoardView do
   awaiting cards'), then the fix card, the release running with its
   build beside it (#3091: before the follow-up queued, not after it),
   the follow-up queued, and the cards awaiting (`release_awaiting/1`).
+  The release running opens the list of the cards it takes (#3153), as
+  the awaiting count does before it starts.
   """
   def release_line(assigns) do
     release = assigns.release
@@ -780,6 +782,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
         texts: texts,
         hold_run: hold && release.hold["run_url"],
         running_run: release.running && release.running.run_url,
+        releasing: Map.get(release, :releasing, []),
         empty: if(parts == [], do: assigns.empty)
       )
 
@@ -800,7 +803,13 @@ defmodule SlipdockWeb.BoardLive.BoardView do
         <% :fix -> %>
           {@texts[:fix]}
         <% :running -> %>
-          {@texts[:running]}
+          <.release_cards
+            :if={@releasing != []}
+            id={"#{@id}-releasing"}
+            text={@texts[:running]}
+            cards={@releasing}
+          />
+          <span :if={@releasing == []}>{@texts[:running]}</span>
           <.link
             :if={@running_run}
             id={"#{@id}-running-run"}
@@ -832,12 +841,27 @@ defmodule SlipdockWeb.BoardLive.BoardView do
     assigns = assign(assigns, text: Slipdock.Releases.awaiting_text(assigns.release))
 
     ~H"""
-    <details :if={@text} id={@id} class="inline-block align-top">
+    <.release_cards :if={@text} id={@id} text={@text} cards={@release.awaiting} />
+    """
+  end
+
+  attr :id, :string, required: true
+  attr :text, :string, required: true, doc: "the toggle's words"
+  attr :cards, :list, required: true
+
+  @doc """
+  A count of cards that opens the list of them, each a link to its card:
+  the cards awaiting release (#3038), and the cards the running release
+  takes (#3153), so the list stays in reach once a release starts.
+  """
+  def release_cards(assigns) do
+    ~H"""
+    <details id={@id} class="inline-block align-top">
       <summary id={"#{@id}-toggle"} class="link cursor-pointer" title="Show the cards">
         {@text}
       </summary>
       <ul id={"#{@id}-cards"} class="mt-1 mb-1 list-disc pl-5">
-        <li :for={card <- @release.awaiting} id={"#{@id}-card-#{card.id}"}>
+        <li :for={card <- @cards} id={"#{@id}-card-#{card.id}"}>
           <.link navigate={~p"/boards/#{card.board_id}/cards/#{card.id}"} class="link">
             #{card.id} {card.title}
           </.link>

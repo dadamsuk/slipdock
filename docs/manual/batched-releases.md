@@ -130,7 +130,10 @@ merge hold nothing.
 **What the next release takes.** The release banner on every board of a
 batched tree, and the *Releases* status on the Agentic Building page, say
 *2 merged, awaiting release*; click it to list those cards, each a link to
-the card. That list is the batch the next release ships.
+the card. That list is the batch the next release ships. Once a release
+starts, the line says *A release is running (2 cards)* instead, and that
+opens the list of the cards it is shipping, so the batch stays in view
+until the deploy has shipped it.
 
 `slipdock releases <board>` (`GET /api/boards/:board/release`,
 `release_now` with `check: true`) shows the release running, the one

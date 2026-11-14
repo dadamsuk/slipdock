@@ -504,7 +504,8 @@ and MCP) and a link to the page that covers it.
     (`release` on the card's JSON and `get_card`, the *Release* line in
     `slipdock card`).
   - The release banner's *N merged, awaiting release* opens the list of
-    those cards: what the next release takes.
+    those cards: what the next release takes. While it runs, *A release is
+    running (N cards)* opens the list of the cards it is shipping.
   - A release runs when a `critical` card merges, at the
     age cap, or on **Release now** (the board's banner, `slipdock release
     <board>`, `POST /api/boards/:board/release`, MCP `release_now`; the

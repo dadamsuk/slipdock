@@ -199,21 +199,36 @@ defmodule Slipdock.Releases do
 
   @doc """
   Where `board`'s tree stands: `%{mode, hold, running, queued, last,
-  awaiting}`: the hold (`hold/1`, or nil), the open requests (or nil), the
-  last one that ended, and the cards awaiting release.
+  awaiting, releasing}`: the hold (`hold/1`, or nil), the open requests
+  (or nil), the last one that ended, the cards awaiting release, and the
+  cards the running release takes (#3153: in its order, the archived
+  left out; empty while none runs).
   """
   def status(%Board{} = board) do
     root_id = Board.root_id(board)
+    running = open(root_id, "running")
 
     %{
       mode: mode(board),
       hold: current_hold(root_id),
-      running: open(root_id, "running"),
+      running: running,
       queued: open(root_id, "queued"),
       last: last_ended(root_id),
-      awaiting: awaiting(board)
+      awaiting: awaiting(board),
+      releasing: releasing(running)
     }
   end
+
+  defp releasing(%Request{card_ids: [_ | _] = ids}) do
+    by_id =
+      from(c in Card, where: c.id in ^ids and is_nil(c.archived_at))
+      |> Repo.all()
+      |> Map.new(&{&1.id, &1})
+
+    for id <- ids, card = by_id[id], do: card
+  end
+
+  defp releasing(_running), do: []
 
   defp open(root_id, status),
     do: Repo.one(from(r in Request, where: r.board_id == ^root_id and r.status == ^status))

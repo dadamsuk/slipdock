@@ -372,11 +372,75 @@ defmodule SlipdockWeb.ReleaseNowTest do
       # The count is said once, as the toggle, not in the line as well.
       assert occurrences(view, "#release-banner-line", "2 merged, awaiting release") == 1
 
-      # A release running takes them: no count, no list, no separator.
+      # A release running takes them: the awaiting count goes, and the
+      # running release opens the same list (#3153), with no separator.
       {:ok, :started, _} = Releases.release_now(ctx.board, "Eli")
-      assert has_element?(view, "#release-banner-line", "A release is running (2 cards)")
       refute has_element?(view, "#release-awaiting")
+
+      assert has_element?(
+               view,
+               "#release-releasing-toggle",
+               "A release is running (2 cards)"
+             )
+
+      for card <- [first, second] do
+        assert has_element?(
+                 view,
+                 ~s(#release-releasing-card-#{card.id} a[href="/boards/#{ctx.board.id}/cards/#{card.id}"]),
+                 "##{card.id} #{card.title}"
+               )
+      end
+
+      refute has_element?(view, "#release-releasing-card-#{open.id}")
+      assert occurrences(view, "#release-banner-line", "A release is running") == 1
       refute has_element?(view, "#release-banner-line span", "·")
+    end
+
+    test "a card merged while a release runs awaits the next, outside the running list (#3153)",
+         ctx do
+      first = merged!(ctx.todo, "First feature")
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}")
+      {:ok, :started, _} = Releases.release_now(ctx.board, "Eli")
+      later = merged!(ctx.todo, "Later feature")
+      send(view.pid, {:release_changed, ctx.board.id})
+
+      assert has_element?(view, "#release-releasing-card-#{first.id}")
+      refute has_element?(view, "#release-releasing-card-#{later.id}")
+    end
+
+    test "the running list follows the release's own card order, not id order (#3153)", ctx do
+      first = merged!(ctx.todo, "First feature")
+      second = merged!(ctx.todo, "Second feature")
+      third = merged!(ctx.todo, "Third feature")
+      {:ok, :started, _} = Releases.release_now(ctx.board, "Eli")
+
+      # The request's order is neither ascending nor descending by id.
+      order = [second.id, third.id, first.id]
+      running = Releases.status(ctx.board).running
+      {:ok, _} = running |> Ecto.Changeset.change(card_ids: order) |> Repo.update()
+
+      assert Enum.map(Releases.status(ctx.board).releasing, & &1.id) == order
+
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}")
+
+      listed =
+        Regex.scan(~r/id="release-releasing-card-(\d+)"/, render(view), capture: :all_but_first)
+        |> Enum.map(fn [id] -> String.to_integer(id) end)
+
+      assert listed == order
+    end
+
+    test "a running release whose cards are all archived says so without a list (#3153)", ctx do
+      card = merged!(ctx.todo, "Feature")
+      {:ok, :started, _} = Releases.release_now(ctx.board, "Eli")
+
+      {:ok, _} =
+        card |> Ecto.Changeset.change(archived_at: DateTime.utc_now(:second)) |> Repo.update()
+
+      assert Releases.status(ctx.board).releasing == []
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}")
+      assert has_element?(view, "#release-banner-line", "A release is running (1 cards)")
+      refute has_element?(view, "#release-releasing")
     end
 
     test "with no hold, a release running opens the line, with no separator before it (#2995)",
@@ -496,10 +560,18 @@ defmodule SlipdockWeb.ReleaseNowTest do
       assert occurrences(view, "#board-release-line", "1 merged, awaiting release") == 1
       refute has_element?(view, "#board-release-line", "·")
 
-      # A release running lists nothing, and leaves no separator behind.
+      # A release running lists its cards instead (#3153), and leaves no
+      # separator behind.
       {:ok, :started, _} = Releases.release_now(ctx.board, "Eli")
-      assert has_element?(view, "#board-release-line", "A release is running")
       refute has_element?(view, "#board-release-awaiting")
+      assert has_element?(view, "#board-release-releasing-toggle", "A release is running")
+
+      assert has_element?(
+               view,
+               ~s(#board-release-releasing-card-#{card.id} a[href="/boards/#{ctx.board.id}/cards/#{card.id}"]),
+               "##{card.id} Feature"
+             )
+
       refute has_element?(view, "#board-release-line span", "·")
     end
 
