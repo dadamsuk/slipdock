@@ -79,6 +79,65 @@ defmodule SlipdockWeb.AccountPortableTest do
       refute html =~ "boards=#{board.id}"
     end
 
+    test "picking two puts both in the link, and All of them resets it", %{
+      conn: conn,
+      user: user,
+      board: board
+    } do
+      other = board_fixture(%{"name" => "Research"}, owner: user)
+      {:ok, view, _} = live(conn, ~p"/account/data")
+
+      view
+      |> element("button[phx-click='pick_board'][phx-value-id='#{board.id}']")
+      |> render_click()
+
+      html =
+        view
+        |> element("button[phx-click='pick_board'][phx-value-id='#{other.id}']")
+        |> render_click()
+
+      assert html =~ "Download 2 board(s)"
+      assert picked_in_link(view) == Enum.sort([board.id, other.id])
+
+      html = view |> element("button[phx-click='pick_all_boards']") |> render_click()
+
+      assert html =~ "Download every board you own"
+      assert picked_in_link(view) == []
+      # Nothing stays picked: no board's button is still highlighted.
+      refute has_element?(view, "button[phx-click='pick_board'].btn-secondary")
+    end
+
+    test "a pick with a malformed id changes nothing", %{conn: conn, board: board} do
+      {:ok, view, _} = live(conn, ~p"/account/data")
+      button = "button[phx-click='pick_board'][phx-value-id='#{board.id}']"
+      view |> element(button) |> render_click()
+
+      html = view |> element(button) |> render_click(%{"id" => "not-a-board"})
+
+      assert html =~ "Download 1 board(s)"
+      assert picked_in_link(view) == [board.id]
+    end
+
+    # The board ids the download link asks for, read back from its query.
+    defp picked_in_link(view) do
+      [_, href] =
+        Regex.run(
+          ~r/href="([^"]*boards\.json[^"]*)"/,
+          view |> element("a[href^='/account/boards.json']") |> render()
+        )
+
+      href
+      |> String.replace("&amp;", "&")
+      |> URI.parse()
+      |> Map.get(:query)
+      |> Kernel.||("")
+      |> URI.decode_query()
+      |> Map.get("boards", "")
+      |> String.split(",", trim: true)
+      |> Enum.map(&String.to_integer/1)
+      |> Enum.sort()
+    end
+
     test "the archived switch shows up in the link", %{conn: conn} do
       {:ok, view, _} = live(conn, ~p"/account/data")
 
@@ -123,6 +182,14 @@ defmodule SlipdockWeb.AccountPortableTest do
           type: "application/json"
         }
       ])
+    end
+
+    # A browser sends the form's change event when a file is chosen;
+    # `render_upload` doesn't, so send it the way the file input would.
+    defp choose_file(view) do
+      view
+      |> element("#import-boards")
+      |> render_change(%{"_target" => ["board_document"]})
     end
 
     test "a document from this server goes back in as a new board", %{conn: conn, user: user} do
@@ -181,6 +248,64 @@ defmodule SlipdockWeb.AccountPortableTest do
       html = view |> element("#import-boards") |> render_submit()
 
       assert html =~ "not JSON"
+    end
+
+    test "submitted with no file, it asks for one", %{conn: conn, user: user} do
+      {:ok, view, _} = live(conn, ~p"/account/data")
+
+      html = view |> element("#import-boards") |> render_submit()
+
+      assert html =~ "Choose a file first."
+      assert length(owned(user)) == 1
+    end
+
+    test "a chosen file taken back is not imported", %{conn: conn, user: user} do
+      document = user |> Portable.export() |> Jason.encode!()
+      {:ok, view, _} = live(conn, ~p"/account/data")
+      input = upload(view, document)
+      render_upload(input, "boards.json")
+
+      # The entry goes when its upload channel does, after the click's own
+      # render (see `file_picker_live_test.exs`, #2723): wait for it.
+      %{"boards.json" => channel} = Phoenix.LiveViewTest.UploadClient.channel_pids(input)
+      down = Process.monitor(channel)
+
+      view
+      |> element("#import-boards-file button[aria-label='Remove boards.json']")
+      |> render_click()
+
+      assert_receive {:DOWN, ^down, :process, ^channel, _}
+      refute has_element?(view, "#import-boards-file [data-role=file-name]", "boards.json")
+
+      html = view |> element("#import-boards") |> render_submit()
+
+      assert html =~ "Choose a file first."
+      refute html =~ "came in"
+      assert length(owned(user)) == 1
+    end
+
+    test "choosing a new file clears the last import's report", %{conn: conn, user: user} do
+      document = user |> Portable.export() |> Jason.encode!()
+      {:ok, view, _} = live(conn, ~p"/account/data")
+
+      upload(view, document) |> render_upload("boards.json")
+      assert view |> element("#import-boards") |> render_submit() =~ "came in"
+
+      upload(view, document) |> render_upload("boards.json")
+      html = choose_file(view)
+
+      refute html =~ "came in"
+    end
+
+    test "choosing a new file clears the last import's error", %{conn: conn} do
+      {:ok, view, _} = live(conn, ~p"/account/data")
+
+      assert view |> element("#import-boards") |> render_submit() =~ "Choose a file first."
+
+      upload(view, ~s({"boards": []})) |> render_upload("boards.json")
+      html = choose_file(view)
+
+      refute html =~ "Choose a file first."
     end
 
     test "a document that will not fit builds nothing", %{conn: conn, user: user, board: board} do
