@@ -106,6 +106,9 @@ defmodule SlipdockWeb.SlipdockComponents.Marks do
   attr :priority, :string, required: true, doc: "the card's priority now"
   attr :label, :string, default: "Priority", doc: "the select's accessible name"
 
+  slot :inner_block,
+    doc: "what the form draws before the select, such as the table's `priority_badge`"
+
   @doc """
   A card's priority as a select that saves when it changes (#2892): the
   table's Priority cell and both of Prioritise's layouts.
@@ -113,21 +116,26 @@ defmodule SlipdockWeb.SlipdockComponents.Marks do
   It is a `table_update` form sending `card_id`, `field=priority` and the
   chosen `value`. The select has no visible label where it is drawn (a column
   or a `<dt>` names it by sight), so `label` is its `aria-label`.
+  Its inner block is drawn in the form, before the select: the table puts
+  the card's bars there, so `#prio-<id>` holds both.
   """
   def priority_select(assigns) do
     ~H"""
     <form phx-change="table_update" phx-submit="table_update" id={@id}>
       <input type="hidden" name="card_id" value={@card_id} />
       <input type="hidden" name="field" value="priority" />
-      <select name="value" class="select field-bare w-28" aria-label={@label}>
-        <option
-          :for={{label, value} <- priority_options()}
-          value={value}
-          selected={value == @priority}
-        >
-          {label}
-        </option>
-      </select>
+      <div class="flex items-center gap-1">
+        {render_slot(@inner_block)}
+        <select name="value" class="select field-bare w-28" aria-label={@label}>
+          <option
+            :for={{label, value} <- priority_options()}
+            value={value}
+            selected={value == @priority}
+          >
+            {label}
+          </option>
+        </select>
+      </div>
     </form>
     """
   end

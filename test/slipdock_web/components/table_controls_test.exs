@@ -126,6 +126,22 @@ defmodule SlipdockWeb.TableControlsTest do
       assert LazyHTML.text(query(html, "option[selected]")) =~ "High"
     end
 
+    test "its inner block is drawn in the form, before the select" do
+      assigns = %{}
+
+      html =
+        rendered_to_string(~H"""
+        <SlipdockComponents.priority_select id="prio-7" card_id="7" priority="high">
+          <SlipdockComponents.priority_badge priority="high" />
+        </SlipdockComponents.priority_select>
+        """)
+
+      assert count(html, "form#prio-7 [data-role=priority][data-priority=high]") == 1
+      assert count(html, "form#prio-7 [data-role=priority] + select") == 1
+      # With no block there is only the select.
+      assert count(select(), "form [data-role=priority]") == 0
+    end
+
     test "a page's id passes through as given" do
       html = select(id: "prio-priority-page-3", card_id: "page-3", priority: "none")
 

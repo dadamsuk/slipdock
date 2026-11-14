@@ -336,14 +336,13 @@ defmodule SlipdockWeb.TableComponents do
 
   defp cell(%{field: "priority"} = assigns) do
     ~H"""
-    <div class="flex items-center gap-1">
+    <.priority_select
+      id={"prio-#{item_id(@card)}"}
+      card_id={item_id(@card)}
+      priority={@card.priority}
+    >
       <.priority_badge priority={@card.priority} />
-      <.priority_select
-        id={"prio-#{item_id(@card)}"}
-        card_id={item_id(@card)}
-        priority={@card.priority}
-      />
-    </div>
+    </.priority_select>
     """
   end
 
