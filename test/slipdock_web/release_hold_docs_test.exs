@@ -42,5 +42,26 @@ defmodule SlipdockWeb.ReleaseHoldDocsTest do
 
       assert SlipdockWeb.APIGuide.markdown() =~ "A red release holds releases"
     end
+
+    test "each says a fix card accepted with no code lifts the hold and releases nothing (#2993)",
+         %{conn: conn} do
+      claim = ~s(the fix card "accepted with no code" lifts the hold and releases nothing)
+
+      {:ok, _view, html} = live(conn, ~p"/help/boards")
+      Slipdock.DocsFacts.assert_states(html, claim, "/help/boards")
+
+      read = &Slipdock.DocsText.read!(Path.expand("../../" <> &1, __DIR__))
+
+      for path <- [
+            "docs/manual/every-feature-in-brief.md",
+            "docs/manual/batched-releases.md",
+            "docs/agents.md",
+            "lib/slipdock_web/api_guide.ex",
+            "cli/help.txt",
+            "priv/skills/slipdock/SKILL.md"
+          ] do
+        Slipdock.DocsFacts.assert_states(read.(path), claim, path)
+      end
+    end
   end
 end

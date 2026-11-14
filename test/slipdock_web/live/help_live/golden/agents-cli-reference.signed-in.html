@@ -6208,9 +6208,11 @@ Release now, on a board with batched releases: a runner&#39;s release job runs t
 <dd class="mt-2 min-w-0">
 <pre class="overflow-x-auto rounded-xl bg-base-200 px-3 py-2 font-mono text-xs leading-relaxed">
 --lift-hold                                lift that hold instead (the owner&#39;s); releases
-                                           nothing. The fix card&#39;s merge lifts it too,
-                                           and so does a succeeded deploy at the held
-                                           sha or past it (#2996)</pre>
+                                           nothing. The fix card&#39;s merge lifts it too
+                                           (and releases); accepted with no code, the fix
+                                           card lifts it and releases nothing. So does a
+                                           succeeded deploy at the held sha or past it
+                                           (#2996)</pre>
 </dd>
 </div>
 <div class="min-w-0 py-3" data-role="cli-command">

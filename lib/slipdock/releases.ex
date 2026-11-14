@@ -48,8 +48,10 @@ defmodule Slipdock.Releases do
   held, *Release now* and the age cap are refused, a queued follow-up is
   dropped, and a critical card that isn't the fix card asks for nothing.
   The fix card merging lifts the hold and releases (`card_merged/1`); the
-  board's owner can lift it by hand (`lift_hold/2`), which releases
-  nothing. A succeeded deploy of the tree to the held environment at the
+  fix card accepted with no code (its cause was outside the repository,
+  #2993) lifts the hold and releases nothing, as does the board's owner
+  lifting it by hand (`lift_hold/2`): the held batch then goes at the next
+  trigger. A succeeded deploy of the tree to the held environment at the
   hold's sha or newer (the failed run rerun, or a later release) lifts it
   too (#2996): the fix card is archived if nobody has started it, else
   told. A second red release while held keeps the first hold and files
@@ -254,7 +256,9 @@ defmodule Slipdock.Releases do
 
     fix =
       if(hold["fix_card_id"],
-        do: "; fix card ##{hold["fix_card_id"]} releases when it merges",
+        do:
+          "; fix card ##{hold["fix_card_id"]} releases when it merges " <>
+            "(accepted with no code, it lifts the hold and releases nothing)",
         else: ""
       )
 
@@ -312,14 +316,17 @@ defmodule Slipdock.Releases do
   A card has merged (#2835): on a batched tree, one of priority `critical`
   asks for a release. The fix card of a hold (#2838) lifts it first, and
   asks whatever its priority. Anything else is left for the next trigger,
-  as is a card accepted with no commit (nothing merged).
+  as is a card accepted with no commit (nothing merged): the fix card
+  accepted so (#2993) lifts the hold and asks for nothing, since nothing
+  new merged and a release is a person's or a merge's to start.
   """
   def card_merged(%Card{} = card) do
     board = Repo.get!(Board, card.board_id)
 
     cond do
-      not is_binary(merged_sha(card)) or not batched?(board) -> :ok
-      fix_card?(board, card) -> fixed(board, card)
+      not batched?(board) -> :ok
+      fix_card?(board, card) -> fixed(board, card, merged?(card))
+      not merged?(card) -> :ok
       card.priority == "critical" -> request(board, "critical", "##{card.id} #{card.title}")
       true -> :ok
     end
@@ -328,10 +335,29 @@ defmodule Slipdock.Releases do
   defp fix_card?(board, %Card{id: id}),
     do: match?(%{"fix_card_id" => ^id}, current_hold(Board.root_id(board)))
 
-  defp fixed(board, %Card{} = card) do
+  # Accepted with a commit and no "no code" reason: something merged.
+  defp merged?(%Card{} = card),
+    do: is_binary(merged_sha(card)) and not Slipdock.Verified.Evidence.no_code?(card)
+
+  defp fixed(board, %Card{} = card, true) do
     _ = lift(root(board), "lifted: fix card ##{card.id} merged", "Its merge releases.")
     request(board, "critical", "##{card.id} #{card.title}")
   end
+
+  # Nothing merged (#2993): the hold lifts, as *Lift hold* does, and the
+  # held batch waits for the next trigger.
+  defp fixed(board, %Card{verify_state: "accepted"} = card, false) do
+    _ =
+      lift(
+        root(board),
+        "lifted: fix card ##{card.id} accepted with no code",
+        "Nothing was released: the held batch goes at the next trigger."
+      )
+
+    :ok
+  end
+
+  defp fixed(_board, _card, false), do: :ok
 
   @doc """
   Asks for a release of `board`'s tree. `trigger` is one of
@@ -887,7 +913,10 @@ defmodule Slipdock.Releases do
     "The release#{sha} failed#{if(hold["stage"], do: " at **#{hold["stage"]}**", else: "")}: " <>
       "#{run}.\n\nReleases on this board are held: Release now and the age cap are " <>
       "refused until this card merges, which lifts the hold and releases, or the " <>
-      "board's owner lifts it by hand.\n\n**The batch**\n\n#{batch}"
+      "board's owner lifts it by hand. If the cause is outside the repository and " <>
+      "this card is accepted with no code, that lifts the hold and releases nothing: " <>
+      "the batch goes at the next trigger (Release now, a critical merge or the age " <>
+      "cap).\n\n**The batch**\n\n#{batch}"
   end
 
   # A succeeded deploy that holds the failed release's tree (#2996): to the

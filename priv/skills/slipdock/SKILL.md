@@ -585,6 +585,7 @@ slipdock release <board>                      # owner, on a board with batched r
                                               # and Release now is how a person ships. Not shipped counts from the release there, not the merge
 slipdock release <board> --lift-hold          # owner: lift a red release's hold (releases nothing). Held, Release now is refused;
                                               # the critical fix card it filed releases when it merges: fix that, don't lift
+                                              # (accepted with no code, `done --no-code` for a cause outside the repo, it lifts the hold and releases nothing)
                                               # (a deploy succeeding at the held sha or past it, a rerun too, lifts it by itself)
 slipdock releases <board>                     # where its releases stand: running, queued, the last ended, the cards awaiting
 slipdock set-board <board> --release-command "make release"   # the one line a release job runs (default: gh workflow run release.yml
