@@ -151,7 +151,11 @@ do one of these:
 - with no proxy at all, set `SLIPDOCK_TRUSTED_PROXIES=none`;
 - with Caddy from `deploy/caddy`, or another proxy in a container, name its
   address alone (`SLIPDOCK_TRUSTED_PROXIES=172.18.0.3/32`, say) instead of
-  `local`.
+  `local`. Compose gives a container a new address when it is recreated
+  unless the network pins it, so pin the proxy's with `ipv4_address` under
+  its service's `networks:` (and give that network a fixed `subnet` in its
+  `ipam` config); otherwise a recreate leaves the trusted address pointing at
+  nothing, or at another container.
 
 If yours connects from a public address (Cloudflare proxying straight to the origin, say), list its
 ranges in `SLIPDOCK_TRUSTED_PROXIES`, comma-separated; otherwise everybody

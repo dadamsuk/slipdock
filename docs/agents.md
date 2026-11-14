@@ -244,8 +244,9 @@ needs no long-lived API token to move files
 
 A page written as a whole note keeps its front matter as front matter: a
 `---` block that sets a key at the top of the body sent to `write_page`
-`create` or `replace`, `POST /api/boards/:board/pages` (for a card or a
-folder too), `PATCH /api/pages/:id`, or `slipdock page new` / `page edit`
+`create` or `replace`, `POST /api/boards/:board/pages`,
+`POST /api/folders/:id/pages` (in a folder), `POST /api/cards/:id/pages` (a
+card's write-up), `PATCH /api/pages/:id`, or `slipdock page new` / `page edit`
 with `--file`, is stored as the page's front matter (replacing what it had)
 and the rest as the body, as a vault sync does. A body with no block leaves
 the front matter alone, a horizontal rule stays text, and such a body sent
