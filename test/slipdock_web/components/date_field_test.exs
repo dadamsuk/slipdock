@@ -68,6 +68,16 @@ defmodule SlipdockWeb.DateFieldTest do
       assert doc |> Floki.find("[data-role=date-text]") |> Floki.text() == "No end date"
     end
 
+    test "the wrapper carries the viewer's timezone for the hook's year (#2881)" do
+      doc = parse(render_field(id: "d", name: "x", value: ~D[2030-01-15]))
+      assert Floki.attribute(Floki.find(doc, "#d"), "data-zone") == ["Etc/UTC"]
+
+      # The zone is this process's, so it goes with the test.
+      SlipdockWeb.Dates.put_zone("Pacific/Auckland")
+      doc = parse(render_field(id: "d", name: "x", value: nil))
+      assert Floki.attribute(Floki.find(doc, "#d"), "data-zone") == ["Pacific/Auckland"]
+    end
+
     test "takes an ISO string, and ignores one that isn't a date" do
       doc = parse(render_field(name: "x", value: "2030-02-03"))
       assert doc |> Floki.find("[data-role=date-text]") |> Floki.text() == "3 Feb 2030"

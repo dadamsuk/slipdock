@@ -9,17 +9,18 @@
 // digit on the display hands the keys to the native input, so a date can
 // still be typed where the browser allows it.
 
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+import {localDay, short} from "./relative_time.js"
 
 // "2026-11-18" -> "18 Nov", with the year when it isn't this one: the same
-// words SlipdockWeb.Dates.short/2 writes on the server.
-export function formatShort(iso, today = new Date()) {
+// words SlipdockWeb.Dates.short/2 writes on the server (#2881). This year is
+// the one `today` falls in in `zone`, the viewer's timezone the server wrote
+// into `data-zone`, not the browser's: around New Year the two can differ.
+export function formatShort(iso, today = new Date(), zone = "UTC") {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || "")
   if (!m) return null
   const [year, month, day] = [Number(m[1]), Number(m[2]), Number(m[3])]
   if (month < 1 || month > 12 || day < 1 || day > 31) return null
-  const words = `${day} ${MONTHS[month - 1]}`
-  return year === today.getFullYear() ? words : `${words} ${year}`
+  return short({year, month, day}, localDay(today, zone))
 }
 
 export function canShowPicker(input) {
@@ -65,7 +66,7 @@ export function sync(el, today = new Date()) {
   const text = el.querySelector("[data-role=date-text]")
   const clearBtn = el.querySelector("[data-role=date-clear]")
   if (!input || !text) return
-  const words = formatShort(input.value, today)
+  const words = formatShort(input.value, today, el.dataset.zone || "UTC")
   text.textContent = words || el.dataset.placeholder || "Add date"
   if (words) el.removeAttribute("data-empty")
   else el.setAttribute("data-empty", "")

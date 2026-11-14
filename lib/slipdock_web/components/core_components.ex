@@ -472,6 +472,10 @@ defmodule SlipdockWeb.CoreComponents do
   has no `showPicker`, the native input is shown instead. `×` clears it,
   unless `required`.
 
+  The wrapper carries `data-zone`, the viewer's timezone (`Dates.zone/0`),
+  so the hook's words show the year by the same day the server's do
+  (`short` in `assets/js/relative_time.js`, #2881).
+
   ```heex
   <.date_field field={@form[:due_date]} label="Due date" min={@card.start_date} />
   <.date_field id="due-12" name="value" value={@card.due_date} bare aria-label="Due date" />
@@ -517,6 +521,7 @@ defmodule SlipdockWeb.CoreComponents do
         date: date,
         iso: date && Date.to_iso8601(date),
         text: if(date, do: SlipdockWeb.Dates.short(date), else: assigns.placeholder),
+        zone: SlipdockWeb.Dates.zone(),
         min: iso_or_nil(assigns.min),
         max: iso_or_nil(assigns.max)
       )
@@ -539,6 +544,7 @@ defmodule SlipdockWeb.CoreComponents do
       phx-hook="DateField"
       data-date-field
       data-placeholder={@placeholder}
+      data-zone={@zone}
       data-empty={is_nil(@date)}
       class={[
         "date-field",

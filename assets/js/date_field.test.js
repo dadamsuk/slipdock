@@ -4,6 +4,7 @@
 import {test} from "node:test"
 import assert from "node:assert/strict"
 import {DateField, canShowPicker, clear, formatShort, keyAction, openPicker, sync} from "./date_field.js"
+import {MONTHS, localDay, short} from "./relative_time.js"
 
 function attrs() {
   const a = {}
@@ -26,7 +27,7 @@ function target() {
   }
 }
 
-function field({value = "", picker = true, throws = false, disabled = false, placeholder} = {}) {
+function field({value = "", picker = true, throws = false, disabled = false, placeholder, zone} = {}) {
   const events = []
   const input = {
     ...target(),
@@ -48,7 +49,7 @@ function field({value = "", picker = true, throws = false, disabled = false, pla
   const el = {
     ...attrs(),
     ...target(),
-    dataset: placeholder ? {placeholder} : {},
+    dataset: {...(placeholder ? {placeholder} : {}), ...(zone ? {zone} : {})},
     querySelector(sel) {
       return {
         "input[type=date]": input,
@@ -75,6 +76,29 @@ test("formatShort writes the server's short date", () => {
   assert.equal(formatShort(null, today), null)
   assert.equal(formatShort("2026-13-01", today), null)
   assert.equal(formatShort("18/11/2026", today), null)
+})
+
+// #2881: the year is today's in the viewer's zone, as the server's is.
+// 23:30 UTC on 31 Dec 2026 is already 1 Jan 2027 in Auckland and still
+// 2026 in New York.
+test("formatShort takes this year from the viewer's zone, not the browser's", () => {
+  const eve = new Date(Date.UTC(2026, 11, 31, 23, 30))
+  assert.equal(formatShort("2027-01-05", eve, "Pacific/Auckland"), "5 Jan")
+  assert.equal(formatShort("2026-12-24", eve, "Pacific/Auckland"), "24 Dec 2026")
+  assert.equal(formatShort("2027-01-05", eve, "America/New_York"), "5 Jan 2027")
+  assert.equal(formatShort("2026-12-24", eve, "America/New_York"), "24 Dec")
+  // No zone, or one the browser doesn't know, reads as UTC (as Dates does).
+  assert.equal(formatShort("2026-12-24", eve), "24 Dec")
+  assert.equal(formatShort("2026-12-24", eve, "Nowhere/Atlantis"), "24 Dec")
+  assert.equal(formatShort("2027-13-01", eve, "Pacific/Auckland"), null)
+})
+
+test("formatShort writes the words relative_time.js's short does", () => {
+  const today = {year: 2026, month: 11, day: 18}
+  const at = new Date(Date.UTC(2026, 10, 18, 12))
+  assert.equal(formatShort("2025-03-04", at), short({year: 2025, month: 3, day: 4}, today))
+  assert.equal(formatShort("2026-03-04", at), short({year: 2026, month: 3, day: 4}, today))
+  assert.deepEqual(MONTHS.length, 12)
 })
 
 test("keyAction: Enter, Space and Alt+Down open; a digit types", () => {
@@ -166,11 +190,26 @@ test("sync shows the date or the placeholder, and the clear button only with a d
   assert.equal(g.text.textContent, "No end")
 })
 
+test("sync reads the year by the wrapper's data-zone (#2881)", () => {
+  const eve = new Date(Date.UTC(2026, 11, 31, 23, 30))
+  const ahead = field({value: "2027-01-05", zone: "Pacific/Auckland"})
+  sync(ahead.el, eve)
+  assert.equal(ahead.text.textContent, "5 Jan")
+
+  const behind = field({value: "2027-01-05", zone: "America/New_York"})
+  sync(behind.el, eve)
+  assert.equal(behind.text.textContent, "5 Jan 2027")
+
+  const none = field({value: "2027-01-05"})
+  sync(none.el, eve)
+  assert.equal(none.text.textContent, "5 Jan 2027")
+})
+
 test("a pick updates the words", () => {
   const {hook, input, text} = field()
   hook.mounted()
   assert.equal(text.textContent, "Add date")
-  input.value = `${new Date().getFullYear()}-03-04`
+  input.value = `${localDay(new Date(), "UTC").year}-03-04`
   input.dispatchEvent({type: "change"})
   assert.equal(text.textContent, "4 Mar")
 })
