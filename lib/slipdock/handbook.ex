@@ -32,7 +32,7 @@ defmodule Slipdock.Handbook do
   alias Slipdock.Wiki.{Folders, FrontMatter, Page}
 
   @name "handbook"
-  @version "1.9.3"
+  @version "1.9.4"
   @folder "Handbook"
   @decisions "Handbook/Decisions"
 
@@ -262,7 +262,7 @@ defmodule Slipdock.Handbook do
 
   ## Grill
 
-  - **Asks:** in numbered rounds. A round is every question whose prerequisites are settled, each with a recommended answer that a yes accepts. With nobody there, a round goes into one wait, a question each. It stops when the next answer wouldn't change the plan: the agent can say back what is built, for whom, what done looks like and what is out of scope. It doesn't ask what the board already answers (the handbook, earlier Decisions).
+  - **Asks:** in numbered rounds. A round is every question whose prerequisites are settled, each with a recommended answer that a yes accepts. With nobody there, it answers what the board answers (the card, the handbook, a Decision) and marks each such answer *(assumed)* where it writes it; only the person's decisions go into the one wait, as a numbered round, a question each with its recommended answer, and it never answers those itself. It stops when the next answer wouldn't change the plan: the agent can say back what is built, for whom, what done looks like and what is out of scope. It doesn't ask what the board already answers (the handbook, earlier Decisions).
   - **Skill:** the plan skill's Grill. To use another, add `skill: <its name>` here, the name in its front matter (`grilling`, with no collection's prefix): the one enabled on this board from the skills registry, else one installed where the agent runs.
   - **Produces:** a brief: the problem, who it is for, done-when, out of scope, open questions.
   - **Writes to:** the epic's description, making the epic if there is none.
@@ -306,10 +306,20 @@ defmodule Slipdock.Handbook do
   _Replace `none` with the page holding the person's own defaults (stack, hosting), as `defaults: W-123`: their Knowledge Base. Decide reads it, proposes each default with its rationale, asks, and records the outcome as a Decision on this project. A default is never imposed. With none named, it asks from scratch._
   """
 
+  # The 1.9.3 Playbook seed (as #2065 left it), whose Grill said only that
+  # a round goes into one wait with nobody there: not that the agent answers
+  # what the board answers, marked *(assumed)*, and waits only for the
+  # person's decisions (#3050).
+  @playbook_1_9 String.replace(
+                  @playbook,
+                  "With nobody there, it answers what the board answers (the card, the handbook, a Decision) and marks each such answer *(assumed)* where it writes it; only the person's decisions go into the one wait, as a numbered round, a question each with its recommended answer, and it never answers those itself.",
+                  "With nobody there, a round goes into one wait, a question each."
+                )
+
   # The 1.8.0 Playbook seed, whose Grill asked one question at a time
   # (#2065): unattended that was a wait per question. Its Skill line gave no
   # example of a name either.
-  @playbook_1_8 @playbook
+  @playbook_1_8 @playbook_1_9
                 |> String.replace(
                   "in numbered rounds. A round is every question whose prerequisites are settled, each with a recommended answer that a yes accepts. With nobody there, a round goes into one wait, a question each. It stops when the next answer wouldn't change the plan: the agent can say back",
                   "one question at a time, until the agent can say back"
@@ -512,8 +522,9 @@ defmodule Slipdock.Handbook do
     ]
   end
 
-  # On Playbook, its 1.8.0 seed, whose Grill asked one question at a time
-  # (#2065), its 1.7.0 seed, whose Grill named no registry skill (#2601),
+  # On Playbook, its 1.9.3 seed, whose Grill didn't say to answer what the
+  # board answers, marked (assumed), and wait only for the person's (#3050),
+  # its 1.8.0 seed, whose Grill asked one question at a time (#2065), its 1.7.0 seed, whose Grill named no registry skill (#2601),
   # its 1.6.0 seed and the 1.5.0 one before Card shape read a moot bar item
   # the obvious way (#2096), neither with a Spike stage (#2352).
   defp replaceable("playbook") do
@@ -521,6 +532,7 @@ defmodule Slipdock.Handbook do
 
     [
       {skeleton("playbook"), "seed added"},
+      {{@playbook_1_9, rules}, "seed updated"},
       {{@playbook_1_8, rules}, "seed updated"},
       {{@playbook_1_7, rules}, "seed updated"},
       {{@playbook_1_6, rules}, "seed updated"},
@@ -559,10 +571,12 @@ defmodule Slipdock.Handbook do
   end
 
   @doc false
-  # The body a Playbook page had as 1.8.0 seeded it, before its Grill asked
+  # The body a Playbook page had as 1.9.3 seeded it, before its Grill said
+  # what to do unattended (#3050), as 1.8.0 did before its Grill asked
   # in numbered rounds (#2065), as 1.7.0 did before its Grill named a
   # registry skill (#2601), as 1.6.0 did before the Spike stage (#2352), and
   # as 1.5.0 did before #2096, for the upgrade's tests.
+  def seed_body("playbook", "1.9.3"), do: playbook_body(@playbook_1_9)
   def seed_body("playbook", "1.8.0"), do: playbook_body(@playbook_1_8)
   def seed_body("playbook", "1.7.0"), do: playbook_body(@playbook_1_7)
   def seed_body("playbook", "1.6.0"), do: playbook_body(@playbook_1_6)
@@ -783,7 +797,7 @@ defmodule Slipdock.Handbook do
   # A Principles or Playbook page still holding the 1.5.0 skeleton gets the
   # seed in its place (#2041), and a Principles page still holding the 1.5.0
   # seed gets 1.6.0's (#2112), as a Playbook still holding an earlier seed
-  # gets today's (#2352, #2601, #2065): nobody has written on it, so nothing
+  # gets today's (#2352, #2601, #2065, #3050): nobody has written on it, so nothing
   # is lost.
   # One somebody edited is the board's own and is left alone. Reported as
   # "<title> (seed added)" or "<title> (seed updated)" among the added pages,

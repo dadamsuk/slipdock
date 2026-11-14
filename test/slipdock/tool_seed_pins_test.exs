@@ -19,7 +19,7 @@ defmodule Slipdock.ToolSeedPinsTest do
 
   # {the Tool's version, the SHA-256 of its seed}.
   @pins %{
-    "handbook" => {"1.9.3", "3926959d2fdd20edadf12245d9023b186304af1d0af81eb77d09367f6928ddfa"},
+    "handbook" => {"1.9.4", "917bccd8e7e221fbe6ab53496cb0ec6e81e313b780750881d02c729c079d949d"},
     "sweep" => {"1.2.0", "4f909bba15a250fcf53912f9a5b9b7486dcb4495a28eb1e64191f550c677fe64"}
   }
 
