@@ -164,6 +164,18 @@ defmodule SlipdockWeb.TimelineComponentsTest do
       assert "Ship it\nDue Fri 25 Jan 2030" in titles
     end
 
+    test "a start-only bar's tooltip says when it starts (#2880)", %{board: board} do
+      card_fixture(hd(board.columns), %{"title" => "Kick off", "start_date" => "2030-01-08"})
+
+      titles =
+        Slipdock.Boards.get_board!(board.id)
+        |> render_timeline()
+        |> Floki.find("[title]")
+        |> Floki.attribute("title")
+
+      assert "Kick off\nStarts Tue 8 Jan 2030" in titles
+    end
+
     test "a title too long for either side is cut to the roomier side's width" do
       board = board_fixture(%{"name" => "Long", "code" => "tllong"})
       [list | _] = board.columns

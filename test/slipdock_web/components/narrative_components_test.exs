@@ -22,7 +22,7 @@ defmodule SlipdockWeb.NarrativeComponentsTest do
   end
 
   test "the heading's range and a milestone read as day, month and year" do
-    board = board_fixture(%{"name" => "Story", "code" => "nar2880"})
+    board = board_fixture(%{"name" => "Story"})
 
     {:ok, _} =
       Slipdock.Boards.Milestones.create_milestone(board, %{
@@ -36,7 +36,7 @@ defmodule SlipdockWeb.NarrativeComponentsTest do
   end
 
   test "a range of one day reads as that day, with its year, this year's too" do
-    board = board_fixture(%{"name" => "Day", "code" => "nar2880d"})
+    board = board_fixture(%{"name" => "Day"})
     assert render_narrative(board, "2030-01-15", "2030-01-15") =~ "What happened, 15 Jan 2030"
 
     today = Date.utc_today()
