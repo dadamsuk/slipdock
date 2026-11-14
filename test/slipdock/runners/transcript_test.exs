@@ -308,5 +308,102 @@ defmodule Slipdock.Runners.TranscriptTest do
       assert Transcript.read(Repo.reload!(ctx.job)) == " " <> fake
       assert {:ok, 2} = Transcript.append(ctx.runner, ctx.job.id, 1, lines(1..1))
     end
+
+    test "the claim's note is counted in the log's bytes and stamps its time", ctx do
+      assert {:ok, 3} = Transcript.append(ctx.runner, ctx.job.id, 0, lines(0..2))
+      past = DateTime.utc_now() |> DateTime.add(-3600) |> DateTime.truncate(:second)
+      Repo.update_all(from(j in Job, where: j.id == ^ctx.job.id), set: [transcript_at: past])
+      expire_lease(ctx.job)
+      assert %Job{} = Runners.claim(other_runner(ctx))
+
+      job = Repo.reload!(ctx.job)
+      text = ~s({"type":"slipdock_run","attempt":2,"runner":"spare"}\n)
+      assert Transcript.read(job, 3) == text
+      # The first run's bytes plus the note chunk's, so the cap counts it.
+      assert job.transcript_bytes == byte_size(lines(0..2)) + byte_size(text)
+      assert job.transcript_bytes == Repo.aggregate(TranscriptChunk, :sum, :bytes)
+      refute job.transcript_capped
+      # The log changed at the claim, not an hour ago.
+      assert DateTime.compare(job.transcript_at, past) == :gt
+    end
+
+    test "a note that exactly fills the log is written, and one byte less room caps it", ctx do
+      text = ~s({"type":"slipdock_run","attempt":#{ctx.job.attempts},"runner":"box"}\n)
+      fits = Transcript.max_bytes() - byte_size(text)
+
+      Repo.update_all(from(j in Job, where: j.id == ^ctx.job.id),
+        set: [transcript_lines: 5, transcript_bytes: fits]
+      )
+
+      job = Transcript.new_run(Repo.reload!(ctx.job), ctx.runner)
+      refute job.transcript_capped
+      assert job.transcript_lines == 6
+      assert job.transcript_bytes == Transcript.max_bytes()
+      assert Transcript.read(job, 5) == text
+
+      # One byte less room: the note doesn't fit, and the log is capped instead.
+      Repo.delete_all(TranscriptChunk)
+
+      Repo.update_all(from(j in Job, where: j.id == ^ctx.job.id),
+        set: [transcript_lines: 5, transcript_bytes: fits + 1]
+      )
+
+      job = Transcript.new_run(Repo.reload!(ctx.job), ctx.runner)
+      assert job.transcript_capped
+      assert %{"type" => "slipdock_capped"} = note(job, 5)
+    end
+
+    test "a capped log answers a second run with its own segment's count", ctx do
+      assert {:ok, 3} = Transcript.append(ctx.runner, ctx.job.id, 0, lines(0..2))
+      assert {:ok, _} = Runners.finish(ctx.runner, ctx.job.id, %{status: "requeue", exit: "1"})
+      assert %Job{} = Runners.claim(ctx.runner)
+      assert %{"type" => "slipdock_run"} = note(ctx.job, 3)
+
+      # Capped before the new run sent anything: it holds none of its lines.
+      Repo.update_all(from(j in Job, where: j.id == ^ctx.job.id), set: [transcript_capped: true])
+      assert {:capped, 0} = Transcript.append(ctx.runner, ctx.job.id, 0, lines(10..11))
+
+      # The new run's own send hits the cap: its lines count as taken, and
+      # every later send is answered with that count, not the whole log's.
+      Repo.update_all(from(j in Job, where: j.id == ^ctx.job.id),
+        set: [transcript_capped: false, transcript_bytes: Transcript.max_bytes() - 5]
+      )
+
+      assert {:capped, 2} = Transcript.append(ctx.runner, ctx.job.id, 0, lines(10..11))
+      assert Repo.reload!(ctx.job).transcript_lines == 6
+      assert {:capped, 2} = Transcript.append(ctx.runner, ctx.job.id, 2, lines(12..12))
+      assert {:capped, 2} = Transcript.append(ctx.runner, ctx.job.id, 0, lines(10..10))
+    end
+
+    test "a sent line one character off the note's type doesn't start a segment", ctx do
+      # `_` is any one character in a LIKE pattern unless escaped.
+      near = ~s({"type":"slipdock-run","attempt":9,"runner":"x"}\n)
+      assert {:ok, 1} = Transcript.append(ctx.runner, ctx.job.id, 0, near)
+      assert Transcript.read(Repo.reload!(ctx.job)) == near
+      assert {:ok, 2} = Transcript.append(ctx.runner, ctx.job.id, 1, lines(1..1))
+      assert {:gap, 2} = Transcript.append(ctx.runner, ctx.job.id, 3, lines(3..3))
+    end
+
+    test "only a chunk that is the note alone starts a segment", ctx do
+      # A send's chunk can't start with the note (such a line is stored with
+      # a space before it), so this one is put in by hand: two lines, the
+      # first reading as the note. The segment's start doesn't move.
+      body = ~s({"type":"slipdock_run","attempt":2,"runner":"x"}\n) <> lines(1..1)
+
+      Repo.insert!(%TranscriptChunk{
+        job_id: ctx.job.id,
+        first_line: 0,
+        lines: 2,
+        bytes: byte_size(body),
+        body: body
+      })
+
+      Repo.update_all(from(j in Job, where: j.id == ^ctx.job.id),
+        set: [transcript_lines: 2, transcript_bytes: byte_size(body)]
+      )
+
+      assert {:ok, 3} = Transcript.append(ctx.runner, ctx.job.id, 2, lines(2..2))
+      assert {:gap, 3} = Transcript.append(ctx.runner, ctx.job.id, 4, lines(4..4))
+    end
   end
 end
