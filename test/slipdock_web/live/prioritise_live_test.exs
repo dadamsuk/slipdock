@@ -234,4 +234,30 @@ defmodule SlipdockWeb.PrioritiseLiveTest do
       assert has_element?(view, "#prio-#{ctx.b.id} td span", "80%")
     end
   end
+
+  test "a date and a text field are edited in place, the date with the app's date field (#2878)",
+       %{conn: conn, board: board, a: a} do
+    {:ok, due} = Fields.create_field(board, %{"name" => "Due", "key" => "due", "kind" => "date"})
+
+    {:ok, note} =
+      Fields.create_field(board, %{"name" => "Note", "key" => "note", "kind" => "text"})
+
+    {:ok, view, _html} = live(conn, ~p"/boards/#{board}/prioritise")
+    date_form = "#prio-field-#{a.id}-#{due.id}"
+
+    assert has_element?(view, "#{date_form} .date-field.field-bare[phx-hook=DateField]")
+    refute has_element?(view, "#{date_form} > input[type=date]")
+
+    view |> form(date_form, %{"value" => "2030-01-15"}) |> render_change()
+    assert Fields.value(Boards.Cards.get_card!(a.id), due) == ~D[2030-01-15]
+    assert has_element?(view, "#{date_form} [data-role=date-text]", "15 Jan")
+
+    view |> form("#prio-field-#{a.id}-#{note.id}", %{"value" => "soon"}) |> render_change()
+    assert Fields.value(Boards.Cards.get_card!(a.id), note) == "soon"
+
+    # Cleared, the date says so with a dash, as the row's other empty values do.
+    view |> form(date_form, %{"value" => ""}) |> render_change()
+    assert Fields.value(Boards.Cards.get_card!(a.id), due) == nil
+    assert has_element?(view, "#{date_form} [data-role=date-text]", "—")
+  end
 end

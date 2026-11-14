@@ -254,6 +254,204 @@ defmodule SlipdockWeb.ItemComponents do
     end
   end
 
+  attr :field, FieldDefinition, required: true
+  attr :item, :any, required: true, doc: "the card or page whose value it edits"
+  attr :can_write, :boolean, required: true
+  attr :id, :string, required: true, doc: "the form's (or the stars' row's) DOM id"
+  attr :event, :string, default: "set_field"
+  attr :target, :any, default: nil, doc: "the LiveComponent the event goes to"
+
+  attr :params, :list,
+    default: [],
+    doc: "more `{name, value}` the event carries beside `field_id` and `value`"
+
+  attr :look, :atom,
+    values: [:boxed, :bare],
+    default: :boxed,
+    doc: "`:boxed` fills a panel's column; `:bare` edits in place in a table row"
+
+  @doc """
+  One custom field's value, edited in place: the stars of a rating, a
+  select, a number, a date or text. The card and page panels
+  (`fields_section/1`) and the Prioritise table both draw their fields with
+  it, so the two can't drift (#2878).
+
+  Every kind sends `event` with `field_id`, `value` ("" clears it) and each
+  of `params` (the table adds `card_id`). Without `can_write`, or for a
+  formula, it shows the value as `Slipdock.Fields.format/2` writes it.
+
+  A number honours the field's `step`, `min` and `max`, and shows a whole
+  float without its `.0`. In the `:boxed` look its unit is the placeholder
+  and a typed value saves after 600ms; in the `:bare` look the unit is a
+  suffix in the box ("4000 people", "80%") and a value saves when the box
+  is left, since a save re-ranks the table's rows under the cursor.
+  """
+  def field_input(%{can_write: false} = assigns), do: field_value(assigns)
+  def field_input(%{field: %{kind: "formula"}} = assigns), do: field_value(assigns)
+
+  def field_input(%{field: %{kind: "rating"}} = assigns) do
+    assigns =
+      assign(assigns,
+        value: Fields.value(assigns.item, assigns.field),
+        max: FieldDefinition.rating_max(assigns.field),
+        values: for({k, v} <- assigns.params, do: {"phx-value-#{k}", v})
+      )
+
+    ~H"""
+    <div class="flex items-center gap-0.5" id={@id}>
+      <button
+        :for={n <- 1..@max//1}
+        phx-target={@target}
+        type="button"
+        class={[
+          "leading-none transition hover:scale-110",
+          if(@look == :bare, do: "text-sm", else: "text-base"),
+          if(is_number(@value) and n <= @value, do: "text-amber-500", else: "text-base-content/25")
+        ]}
+        phx-click={@event}
+        phx-value-field_id={@field.id}
+        value={n}
+        title={"#{n} of #{@max}"}
+        {@values}
+      >
+        ★
+      </button>
+      <button
+        :if={is_number(@value)}
+        phx-target={@target}
+        type="button"
+        class="btn btn-ghost btn-xs btn-square"
+        phx-click={@event}
+        phx-value-field_id={@field.id}
+        value=""
+        title="Clear"
+        {@values}
+      >
+        <.icon name="hero-x-mark" class="size-3" />
+      </button>
+    </div>
+    """
+  end
+
+  def field_input(assigns) do
+    value = Fields.value(assigns.item, assigns.field)
+    config = assigns.field.config || %{}
+    unit = config["unit"] |> to_string() |> String.trim()
+
+    assigns =
+      assign(assigns,
+        value: field_input_value(value),
+        config: config,
+        unit: unit,
+        debounce: if(assigns.look == :bare, do: "blur", else: "600")
+      )
+
+    ~H"""
+    <form
+      phx-target={@target}
+      phx-change={@event}
+      phx-submit={@event}
+      id={@id}
+      class={@look == :bare && "flex items-center"}
+    >
+      <input :for={{k, v} <- @params} type="hidden" name={k} value={v} />
+      <input type="hidden" name="field_id" value={@field.id} />
+      <%= case {@field.kind, @look} do %>
+        <% {"number", :boxed} -> %>
+          <input
+            type="number"
+            name="value"
+            value={@value}
+            step={@config["step"] || "any"}
+            min={@config["min"]}
+            max={@config["max"]}
+            placeholder={@config["unit"]}
+            aria-label={@field.name}
+            class="input field w-full"
+            phx-debounce={@debounce}
+          />
+        <% {"number", :bare} -> %>
+          <label class="prio-number field-bare">
+            <input
+              type="number"
+              name="value"
+              value={@value}
+              step={@config["step"] || "any"}
+              min={@config["min"]}
+              max={@config["max"]}
+              phx-debounce={@debounce}
+              style={"--prio-chars: #{chars(@value)}"}
+              aria-label={@field.name}
+              placeholder="—"
+            />
+            <span
+              :if={@unit != ""}
+              data-unit
+              class={["prio-unit", Fields.tight_unit?(@unit) && "prio-unit-tight"]}
+            >
+              {@unit}
+            </span>
+          </label>
+        <% {"select", look} -> %>
+          <select
+            name="value"
+            aria-label={@field.name}
+            class={["select", if(look == :bare, do: "field-bare w-28", else: "field w-full")]}
+          >
+            <option value="" selected={is_nil(@value)}>—</option>
+            <option :for={o <- @field.options} value={o["key"]} selected={o["key"] == @value}>
+              {o["label"]}
+            </option>
+          </select>
+        <% {"date", look} -> %>
+          <.date_field
+            id={"#{@id}-date"}
+            name="value"
+            value={@value}
+            bare={look == :bare}
+            placeholder={if(look == :bare, do: "—", else: "Add date")}
+            aria-label={@field.name}
+            class={if(look == :bare, do: "w-32", else: "w-full")}
+          />
+        <% {_text, look} -> %>
+          <input
+            type="text"
+            name="value"
+            value={@value}
+            aria-label={@field.name}
+            class={
+              if(look == :bare, do: "input field-bare prio-input w-36", else: "input field w-full")
+            }
+            placeholder={look == :bare && "—"}
+            phx-debounce={@debounce}
+          />
+      <% end %>
+    </form>
+    """
+  end
+
+  defp field_value(assigns) do
+    assigns =
+      assign(assigns,
+        text: Fields.format(assigns.field, Fields.value(assigns.item, assigns.field)) || "—"
+      )
+
+    ~H"""
+    <span :if={@look == :bare}>{@text}</span>
+    <p :if={@look == :boxed} class="text-xs">{@text}</p>
+    """
+  end
+
+  # A whole float shows without its ".0": 4000, not 4000.0.
+  defp field_input_value(n) when is_float(n) and n == trunc(n), do: trunc(n)
+  defp field_input_value(v), do: v
+
+  # How wide a bare number box starts, in characters, where the browser
+  # can't size it to what is typed (`field-sizing`): the value, or the
+  # placeholder.
+  defp chars(nil), do: 1
+  defp chars(v), do: v |> to_string() |> String.length() |> max(1)
+
   attr :target, :any, default: nil, doc: "the LiveComponent the events go to"
   attr :item, :any, required: true
   attr :board, :any, required: true
@@ -485,89 +683,14 @@ defmodule SlipdockWeb.ItemComponents do
             {Fields.format(field, value) || "—"}
           </span>
         </div>
-        <%= cond do %>
-          <% field.kind == "formula" -> %>
-          <% not @can_write -> %>
-            <p class="text-xs">{Fields.format(field, value) || "—"}</p>
-          <% field.kind == "rating" -> %>
-            <div class="flex items-center gap-0.5">
-              <button
-                :for={n <- 1..FieldDefinition.rating_max(field)//1}
-                phx-target={@target}
-                type="button"
-                class={[
-                  "text-base leading-none transition hover:scale-110",
-                  if(is_number(value) and n <= value,
-                    do: "text-amber-500",
-                    else: "text-base-content/25"
-                  )
-                ]}
-                phx-click="set_field"
-                phx-value-field_id={field.id}
-                value={n}
-                title={"#{n} of #{FieldDefinition.rating_max(field)}"}
-              >
-                ★
-              </button>
-              <button
-                :if={is_number(value)}
-                phx-target={@target}
-                type="button"
-                class="btn btn-ghost btn-xs btn-square"
-                phx-click="set_field"
-                phx-value-field_id={field.id}
-                value=""
-                title="Clear"
-              >
-                <.icon name="hero-x-mark" class="size-3" />
-              </button>
-            </div>
-          <% true -> %>
-            <form
-              phx-target={@target}
-              phx-change="set_field"
-              phx-submit="set_field"
-              id={dom_id("field-form-#{field.id}", @item)}
-            >
-              <input type="hidden" name="field_id" value={field.id} />
-              <%= case field.kind do %>
-                <% "number" -> %>
-                  <input
-                    type="number"
-                    name="value"
-                    value={value}
-                    step={field.config["step"] || "any"}
-                    min={field.config["min"]}
-                    max={field.config["max"]}
-                    placeholder={field.config["unit"]}
-                    class="input field w-full"
-                    phx-debounce="600"
-                  />
-                <% "select" -> %>
-                  <select name="value" class="select field w-full">
-                    <option value="">—</option>
-                    <option :for={o <- field.options} value={o["key"]} selected={o["key"] == value}>
-                      {o["label"]}
-                    </option>
-                  </select>
-                <% "date" -> %>
-                  <.date_field
-                    id={dom_id("field-date-#{field.id}", @item)}
-                    name="value"
-                    value={value}
-                    class="w-full"
-                  />
-                <% _ -> %>
-                  <input
-                    type="text"
-                    name="value"
-                    value={value}
-                    class="input field w-full"
-                    phx-debounce="600"
-                  />
-              <% end %>
-            </form>
-        <% end %>
+        <.field_input
+          :if={field.kind != "formula"}
+          field={field}
+          item={@item}
+          can_write={@can_write}
+          target={@target}
+          id={dom_id("field-form-#{field.id}", @item)}
+        />
       </div>
     </div>
     """

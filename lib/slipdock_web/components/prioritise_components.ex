@@ -6,6 +6,7 @@ defmodule SlipdockWeb.PrioritiseComponents do
   use SlipdockWeb, :html
 
   import SlipdockWeb.SlipdockComponents
+  import SlipdockWeb.ItemComponents, only: [field_input: 1]
   alias Slipdock.Boards.{Card, FieldDefinition}
   alias Slipdock.Fields
   alias Slipdock.Swimlanes.Config
@@ -189,7 +190,15 @@ defmodule SlipdockWeb.PrioritiseComponents do
               <.vote_control card={entry.card} mine={entry.mine} votes={@p.votes} />
             </td>
             <td :for={f <- @p.inputs} class="whitespace-nowrap">
-              <.field_editor field={f} card={entry.card} can_write={@can_write} />
+              <.field_input
+                field={f}
+                item={entry.card}
+                can_write={@can_write}
+                id={"prio-field-#{item_id(entry.card)}-#{f.id}"}
+                event="prio_field"
+                params={[{"card_id", item_id(entry.card)}]}
+                look={:bare}
+              />
             </td>
             <td :for={f <- @p.formulas} class="text-right font-semibold">
               {Fields.format(f, Fields.value(entry.card, f)) || "—"}
@@ -285,7 +294,17 @@ defmodule SlipdockWeb.PrioritiseComponents do
 
           <div :for={f <- @p.inputs} class="contents">
             <dt class="truncate text-2xs uppercase tracking-wide text-base-content/45">{f.name}</dt>
-            <dd><.field_editor field={f} card={entry.card} can_write={@can_write} /></dd>
+            <dd>
+              <.field_input
+                field={f}
+                item={entry.card}
+                can_write={@can_write}
+                id={"prio-field-#{item_id(entry.card)}-#{f.id}"}
+                event="prio_field"
+                params={[{"card_id", item_id(entry.card)}]}
+                look={:bare}
+              />
+            </dd>
           </div>
         </dl>
       </li>
@@ -366,147 +385,4 @@ defmodule SlipdockWeb.PrioritiseComponents do
     </div>
     """
   end
-
-  attr :field, FieldDefinition, required: true
-  attr :card, :any, required: true
-  attr :can_write, :boolean, required: true
-
-  defp field_editor(%{can_write: false} = assigns) do
-    ~H"""
-    <span>{Fields.format(@field, Fields.value(@card, @field)) || "—"}</span>
-    """
-  end
-
-  defp field_editor(%{field: %{kind: "rating"}} = assigns) do
-    assigns = assign(assigns, value: Fields.value(assigns.card, assigns.field))
-
-    ~H"""
-    <div class="flex items-center gap-0.5" id={"prio-field-#{item_id(@card)}-#{@field.id}"}>
-      <button
-        :for={n <- 1..FieldDefinition.rating_max(@field)//1}
-        type="button"
-        class={[
-          "text-sm leading-none transition hover:scale-110",
-          if(is_number(@value) and n <= @value, do: "text-amber-500", else: "text-base-content/25")
-        ]}
-        phx-click="prio_field"
-        phx-value-card_id={item_id(@card)}
-        phx-value-field_id={@field.id}
-        value={n}
-        title={"#{n} of #{FieldDefinition.rating_max(@field)}"}
-      >
-        ★
-      </button>
-      <button
-        :if={is_number(@value)}
-        type="button"
-        class="btn btn-ghost btn-xs btn-square"
-        phx-click="prio_field"
-        phx-value-card_id={item_id(@card)}
-        phx-value-field_id={@field.id}
-        value=""
-        title="Clear"
-      >
-        <.icon name="hero-x-mark" class="size-3" />
-      </button>
-    </div>
-    """
-  end
-
-  defp field_editor(%{field: %{kind: "select"}} = assigns) do
-    assigns = assign(assigns, value: Fields.value(assigns.card, assigns.field))
-
-    ~H"""
-    <form
-      phx-change="prio_field"
-      phx-submit="prio_field"
-      id={"prio-field-#{item_id(@card)}-#{@field.id}"}
-    >
-      <input type="hidden" name="card_id" value={item_id(@card)} />
-      <input type="hidden" name="field_id" value={@field.id} />
-      <select name="value" class="select field-bare w-28">
-        <option value="" selected={is_nil(@value)}>—</option>
-        <option :for={o <- @field.options} value={o["key"]} selected={o["key"] == @value}>
-          {o["label"]}
-        </option>
-      </select>
-    </form>
-    """
-  end
-
-  defp field_editor(assigns) do
-    value = Fields.value(assigns.card, assigns.field)
-    config = assigns.field.config || %{}
-
-    assigns =
-      assign(assigns,
-        value: value,
-        config: config,
-        input_type:
-          case assigns.field.kind do
-            "number" -> "number"
-            "date" -> "date"
-            _ -> "text"
-          end
-      )
-
-    ~H"""
-    <form
-      phx-change="prio_field"
-      phx-submit="prio_field"
-      id={"prio-field-#{item_id(@card)}-#{@field.id}"}
-      class="flex items-center"
-    >
-      <input type="hidden" name="card_id" value={item_id(@card)} />
-      <input type="hidden" name="field_id" value={@field.id} />
-      <label :if={@input_type == "number"} class="prio-number field-bare">
-        <input
-          type="number"
-          name="value"
-          value={input_value(@input_type, @value)}
-          step="any"
-          min={@config["min"]}
-          max={@config["max"]}
-          phx-debounce="blur"
-          style={"--prio-chars: #{chars(input_value(@input_type, @value))}"}
-          aria-label={@field.name}
-          placeholder="—"
-        />
-        <span
-          :if={unit(@config) != ""}
-          data-unit
-          class={["prio-unit", tight_unit?(unit(@config)) && "prio-unit-tight"]}
-        >
-          {unit(@config)}
-        </span>
-      </label>
-      <input
-        :if={@input_type != "number"}
-        type={@input_type}
-        name="value"
-        value={input_value(@input_type, @value)}
-        phx-debounce="blur"
-        aria-label={@field.name}
-        class={["input field-bare prio-input", if(@input_type == "text", do: "w-36", else: "w-32")]}
-        placeholder="—"
-      />
-    </form>
-    """
-  end
-
-  # A number field's unit, if it has one.
-  defp unit(config), do: to_string(config["unit"] || "") |> String.trim()
-
-  # The signs that sit against their number ("80%", not "80 %"), as in
-  # `Slipdock.Fields.format/2`.
-  defp tight_unit?(unit), do: Enum.member?(~w(% ‰ ° ′ ″), unit)
-
-  # How wide a number box starts, in characters, where the browser can't
-  # size it to what is typed (`field-sizing`): the value, or the placeholder.
-  defp chars(nil), do: 1
-  defp chars(v), do: v |> to_string() |> String.length() |> max(1)
-
-  defp input_value("date", %Date{} = d), do: Date.to_iso8601(d)
-  defp input_value(_, n) when is_float(n), do: if(n == trunc(n), do: trunc(n), else: n)
-  defp input_value(_, v), do: v
 end
