@@ -313,7 +313,8 @@ defmodule SlipdockWeb.SprintsLiveTest do
       view |> element("#new-sprint") |> render_click()
 
       refusals = [
-        {%{"days" => "0"}, "days must be a whole number from 1 to 365"},
+        # A good start that isn't the form's own, sent with a refused days.
+        {%{"days" => "0", "start" => "2026-10-05"}, "days must be a whole number from 1 to 365"},
         {%{"days" => "7", "start" => "2026-13-45"}, "start must be a date, like 2026-10-05"}
       ]
 
@@ -339,6 +340,15 @@ defmodule SlipdockWeb.SprintsLiveTest do
                  "#new-sprint-form textarea[name='sprint[goal]']",
                  "Ship the importer"
                )
+
+        # A real start comes back as typed; a bad one can't be drawn by a
+        # date field, so only the good one is looked for.
+        if refused["days"] == "0" do
+          assert has_element?(
+                   view,
+                   "#new-sprint-form input[name='sprint[start]'][value='2026-10-05']"
+                 )
+        end
 
         # Nothing was made, and the panel didn't go on to picking cards.
         refute has_element?(view, "#sprint-picker")
@@ -456,6 +466,40 @@ defmodule SlipdockWeb.SprintsLiveTest do
       assert Boards.Cards.get_card!(slow.id).board_id == sub.id
       assert Boards.Cards.get_card!(long.id).board_id == sub.id
       refute Boards.Cards.get_card!(quick.id).board_id == sub.id
+    end
+
+    test "subcards re-read by a sort keep their epic, and the sprint's contents are read again",
+         %{
+           conn: conn,
+           sprints: sprints,
+           sprint: sprint,
+           slow: slow,
+           epic: epic,
+           short: short
+         } do
+      view = open_plan(conn, sprints, sprint)
+      expand(view, epic)
+      view |> form("#plan-sort-form", %{"sort" => "estimate"}) |> render_change()
+
+      # Ticked after the sort: the epic (5h, from its subcards) and one of the
+      # subcards the sort re-read. The subcard is inside the epic's hours, so
+      # it is counted as a card but not counted again in the hours.
+      view |> element("#sprint-pick-#{epic.id}") |> render_click()
+      view |> element("#sprint-pick-#{short.id}") |> render_click()
+      totals = view |> element("#sprint-plan-totals") |> render()
+      assert totals =~ "2 cards ticked"
+      assert totals =~ ~r/·\s*5h/
+      refute totals =~ "7h"
+
+      # Somebody else puts a card in the sprint; the next sort shows it there.
+      assert view |> element("#sprint-plan-totals") |> render() =~ "in the sprint already: 0 open"
+      {:ok, _} = Sprints.add_cards(sprint, [Boards.Cards.get_card!(slow.id)])
+      view |> form("#plan-sort-form", %{"sort" => "position"}) |> render_change()
+
+      totals = view |> element("#sprint-plan-totals") |> render()
+      assert totals =~ "in the sprint already: 1 open"
+      assert totals =~ ~r/1 open\s*<span[^>]*>\s*·\s*8h/
+      refute has_element?(view, "#plan-card-#{slow.id}")
     end
 
     test "an unknown sort falls back to board order", %{
@@ -622,6 +666,14 @@ defmodule SlipdockWeb.SprintsLiveTest do
       assert has_element?(view, "#{source}[phx-value-id='#{home.id}']")
       refute has_element?(view, "#sprint-pick-#{epic.id}")
       refute has_element?(view, back)
+      assert view |> element("#sprint-plan-totals") |> render() =~ "1 card ticked"
+
+      # The board just left is no longer read: a tick sent for one of its
+      # cards is not taken.
+      view
+      |> with_target("#board-sprints")
+      |> render_hook("sprint_toggle", %{"id" => to_string(epic.id)})
+
       assert view |> element("#sprint-plan-totals") |> render() =~ "1 card ticked"
 
       # The tick made two levels down is still what is added.
