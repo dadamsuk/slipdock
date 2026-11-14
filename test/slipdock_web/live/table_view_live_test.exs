@@ -255,7 +255,7 @@ defmodule SlipdockWeb.TableViewLiveTest do
       row = "#row-all-#{card.id}"
 
       assert has_element?(view, "#{row} [title='Has description']")
-      assert has_element?(view, "#{row} [phx-click=open_card][title=Loaded]")
+      assert has_element?(view, "#{row} [role=link][title=Loaded]")
       assert has_element?(view, "#{row} select[name=value] option[selected]", "Backlog")
       assert has_element?(view, "#{row} input[type=date][value='2030-01-01']")
       assert has_element?(view, "#{row} input[type=number][value='40']")
@@ -305,7 +305,7 @@ defmodule SlipdockWeb.TableViewLiveTest do
       # hover, and the column keeps its 40% share of the header.
       assert has_element?(
                view,
-               "#{row} td.max-w-0 [phx-click=open_card].truncate[title='#{long}']"
+               "#{row} td.max-w-0 [role=link].truncate[title='#{long}']"
              )
 
       assert has_element?(view, "#{row} td.max-w-0 div.min-w-0")

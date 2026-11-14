@@ -192,6 +192,9 @@ defmodule SlipdockWeb.SlipdockComponents do
   @doc "Whether a thing drawn on a board is a wiki page rather than a card."
   defdelegate page?(item), to: CardFace
 
+  @doc "The path of a placed page's document, the verified wiki route: what its document icon links to."
+  defdelegate page_path(page), to: CardFace
+
   @doc "The id a card or a placed wiki page answers to on the board: `page-7` for a page, a bare number for a card."
   defdelegate item_id(item), to: CardFace
 

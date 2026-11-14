@@ -63,6 +63,7 @@ defmodule SlipdockWeb.Components.SlipdockComponentsFacadeTest do
     modal: 1,
     open_item: 1,
     page?: 1,
+    page_path: 1,
     past_date_detail: 3,
     past_date_label: 2,
     percent_badge: 1,

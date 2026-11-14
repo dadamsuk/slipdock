@@ -1,6 +1,7 @@
 defmodule SlipdockWeb.SlipdockComponents.CardFace do
   @moduledoc "The front of a card on a board: the tile itself, the marks only it draws, a placed wiki page's parts and the stand-in for a card that moved."
   use Phoenix.Component
+  use SlipdockWeb, :verified_routes
 
   alias Phoenix.LiveView.JS
   alias Slipdock.Palette
@@ -205,7 +206,7 @@ defmodule SlipdockWeb.SlipdockComponents.CardFace do
         # and the click handlers can tell the two apart.
         item_id: item_id(card),
         dom_id: assigns.id || if(page?, do: "page-#{card.id}", else: "card-#{card.id}"),
-        page_path: page? && "/boards/#{card.board_id}/wiki/#{card.slug}"
+        page_path: page? && page_path(card)
       )
 
     ~H"""
@@ -894,6 +895,13 @@ defmodule SlipdockWeb.SlipdockComponents.CardFace do
   """
   def page?(%Slipdock.Wiki.Page{}), do: true
   def page?(_), do: false
+
+  @doc """
+  The path of a placed page's document: what its tile's document icon links
+  to, in every view that draws one.
+  """
+  def page_path(%Slipdock.Wiki.Page{board_id: board_id, slug: slug}),
+    do: ~p"/boards/#{board_id}/wiki/#{slug}"
 
   @doc """
   The id a card or a placed wiki page answers to on the board: `page-7` for a

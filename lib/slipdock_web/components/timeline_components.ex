@@ -323,6 +323,16 @@ defmodule SlipdockWeb.TimelineComponents do
     """
   end
 
+  # The click that opens a row's item. A timeline draws an epic's subcards from
+  # their own sub-board, and a card from another board can't open in this
+  # board's panel, so it goes to its own board's timeline; a page or a card
+  # here opens as everywhere else (`open_item/1`).
+  defp open_bar(item, board) do
+    if not page?(item) and item.board_id != board.id,
+      do: JS.navigate(~p"/boards/#{item.board_id}/timeline/cards/#{item.id}"),
+      else: open_item(item)
+  end
+
   attr :bars, :list, required: true
   attr :window, :map, required: true
   attr :board, :any, required: true
@@ -337,14 +347,8 @@ defmodule SlipdockWeb.TimelineComponents do
     <%= for bar <- @bars do %>
       <% key = "card-#{bar.card.id}" %>
       <% collapsed = MapSet.member?(@collapsed, key) %>
-      <% foreign = bar.card.board_id != @board.id %>
       <% page? = SlipdockWeb.SlipdockComponents.page?(bar.card) %>
-      <% open =
-        cond do
-          page? -> JS.push("open_page", value: %{id: bar.card.id})
-          foreign -> JS.navigate(~p"/boards/#{bar.card.board_id}/timeline/cards/#{bar.card.id}")
-          true -> JS.push("open_card", value: %{id: bar.card.id})
-        end %>
+      <% open = open_bar(bar.card, @board) %>
       <li
         id={"tl-row-#{SlipdockWeb.SlipdockComponents.item_id(bar.card)}"}
         class={[
@@ -373,7 +377,7 @@ defmodule SlipdockWeb.TimelineComponents do
           ></span>
           <SlipdockWeb.SlipdockComponents.doc_link
             :if={page?}
-            path={"/boards/#{bar.card.board_id}/wiki/#{bar.card.slug}"}
+            path={SlipdockWeb.SlipdockComponents.page_path(bar.card)}
             class="size-3.5"
           />
           <span
@@ -467,14 +471,8 @@ defmodule SlipdockWeb.TimelineComponents do
     <%= for bar <- @bars do %>
       <% key = "card-#{bar.card.id}" %>
       <% collapsed = MapSet.member?(@collapsed, key) %>
-      <% foreign = bar.card.board_id != @board.id %>
       <% page? = SlipdockWeb.SlipdockComponents.page?(bar.card) %>
-      <% open =
-        cond do
-          page? -> JS.push("open_page", value: %{id: bar.card.id})
-          foreign -> JS.navigate(~p"/boards/#{bar.card.board_id}/timeline/cards/#{bar.card.id}")
-          true -> JS.push("open_card", value: %{id: bar.card.id})
-        end %>
+      <% open = open_bar(bar.card, @board) %>
       <% place = label_place(bar, @window) %>
       <div
         id={"tl-#{@group_key}-#{SlipdockWeb.SlipdockComponents.item_id(bar.card)}"}
@@ -515,7 +513,7 @@ defmodule SlipdockWeb.TimelineComponents do
           ></span>
           <SlipdockWeb.SlipdockComponents.doc_link
             :if={page?}
-            path={"/boards/#{bar.card.board_id}/wiki/#{bar.card.slug}"}
+            path={SlipdockWeb.SlipdockComponents.page_path(bar.card)}
             class="size-3"
           />
           <span
@@ -772,10 +770,7 @@ defmodule SlipdockWeb.TimelineComponents do
               "max-w-56 cursor-pointer truncate hover:underline",
               card.completed && "opacity-60"
             ]}
-            phx-click={
-              if SlipdockWeb.SlipdockComponents.page?(card), do: "open_page", else: "open_card"
-            }
-            phx-value-id={card.id}
+            phx-click={SlipdockWeb.SlipdockComponents.open_item(card)}
             title={card.title}
           >
             {card.title}
