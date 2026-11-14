@@ -41,6 +41,58 @@ defmodule SlipdockWeb.FieldsLiveTest do
     assert render(view) =~ "{size}"
   end
 
+  test "a field with a blank name is refused, says why and adds nothing", %{
+    conn: conn,
+    board: board
+  } do
+    {:ok, view, _} = live(conn, ~p"/boards/#{board}/settings")
+
+    view
+    |> form("#field-form-0", %{
+      "name" => "",
+      "kind" => "number",
+      "options" => "",
+      "expression" => ""
+    })
+    |> render_submit()
+
+    assert render(view) =~ "Couldn&#39;t add the field: name can&#39;t be blank"
+    assert Fields.list_fields(board.id) == []
+  end
+
+  # A view of its own: the flash from one refusal stays on the page, so a
+  # second submit in the same view would pass on the first one's message.
+  test "a field with a bad formula is refused, says why and adds nothing", %{
+    conn: conn,
+    board: board
+  } do
+    {:ok, view, html} = live(conn, ~p"/boards/#{board}/settings")
+    refute html =~ "Couldn&#39;t add the field"
+
+    view
+    |> form("#field-form-0", %{
+      "name" => "Score",
+      "kind" => "formula",
+      "options" => "",
+      "expression" => "{reach} * ("
+    })
+    |> render_submit()
+
+    assert render(view) =~ "Couldn&#39;t add the field: config formula ends too early"
+    assert Fields.list_fields(board.id) == []
+  end
+
+  test "installing an unknown preset says so and adds nothing", %{conn: conn, board: board} do
+    {:ok, view, _} = live(conn, ~p"/boards/#{board}/settings")
+
+    view
+    |> with_target("#board-settings")
+    |> render_hook("install_preset", %{"key" => "no_such_preset"})
+
+    assert render(view) =~ "Unknown preset."
+    assert Fields.list_fields(board.id) == []
+  end
+
   test "the card modal sets rating, number and choice fields and shows the formula", %{
     conn: conn,
     board: board,
