@@ -257,6 +257,26 @@ defmodule SlipdockWeb.ReleaseNowTest do
     :ok
   end
 
+  # The build link sits with the running release, before the follow-up
+  # queued, not after it (#3091): `prefix` is the line's ids' prefix.
+  defp assert_link_beside_running(view, prefix) do
+    assert has_element?(
+             view,
+             ~s(##{prefix}-part-running ##{prefix}-running-run[href="#{@run}"]),
+             "follow the build"
+           )
+
+    assert has_element?(view, "##{prefix}-part-running", "A release is running (1 cards)")
+    refute has_element?(view, "##{prefix}-part-queued ##{prefix}-running-run")
+
+    html = render(view)
+    [_, after_running] = String.split(html, ~s(id="#{prefix}-part-running"), parts: 2)
+    [running, after_link] = String.split(after_running, "follow the build", parts: 2)
+    refute running =~ "another is queued"
+    assert after_link =~ ~s(id="#{prefix}-part-queued")
+    assert after_link =~ "another is queued"
+  end
+
   describe "the board page" do
     test "a running release links its build once its job fires it, without a reload (#3005)",
          ctx do
@@ -276,6 +296,16 @@ defmodule SlipdockWeb.ReleaseNowTest do
              )
 
       assert has_element?(view, "#release-banner-line", "A release is running")
+    end
+
+    test "with another queued, the build link sits with the running release (#3091)", ctx do
+      merged!(ctx.todo, "Feature")
+      {:ok, :started, request} = Releases.release_now(ctx.board, "Dana")
+      fire!(ctx.runner, request, "release: run #{@run}\n")
+      {:ok, :queued, _} = Releases.release_now(ctx.board, "Eli")
+
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}")
+      assert_link_beside_running(view, "release")
     end
 
     test "a fired release that named no run links nothing, and an ended one drops the link",
@@ -420,6 +450,16 @@ defmodule SlipdockWeb.ReleaseNowTest do
                ~s(#board-release-running-run[href="#{@run}"][target="_blank"]),
                "follow the build"
              )
+    end
+
+    test "with another queued, the build link sits with the running release (#3091)", ctx do
+      merged!(ctx.todo, "Feature")
+      {:ok, :started, request} = Releases.release_now(ctx.board, "Dana")
+      fire!(ctx.runner, request, "release: run #{@run}\n")
+      {:ok, :queued, _} = Releases.release_now(ctx.board, "Eli")
+
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/agentic")
+      assert_link_beside_running(view, "board-release")
     end
 
     test "saves the release command and releases now", ctx do
