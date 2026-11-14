@@ -190,13 +190,22 @@ function nextSibling(flat, index, kind) {
   return null
 }
 
-// Whether a writer can drag the row about: a page, folder or file of a board
-// they can write to. A vault's mapped folders are where another board's
-// wiki is shown, not folders of this one, and an extra placement is the
-// page or folder seen from another folder (it is moved from its home row),
-// as is everything seen inside a placed folder (`via`).
+// Whether the row is the reader's to act on where it stands: one they can
+// write to, seen at its home. A vault's mapped folders are where another
+// board's wiki is shown, not folders of this one; an extra placement
+// (`also`) is the page or folder seen from another folder, and so is
+// everything seen inside a placed folder (`via`). Those are renamed, moved,
+// archived and picked from their home row, so dragging, F2 and Delete, the
+// selection, the full page and folder menu and a file's Archive… and Delete…
+// all ask this one question (#2872). A file is never placed (`also`), but a
+// file inside a placed folder is `via` and is refused like the rest.
+export function ownRow(row) {
+  return !!row && !!row.writable && !row.mount && !row.also && !row.via
+}
+
+// Whether a writer can drag the row about: a page, folder or file of their own.
 export function movableRow(row) {
-  return !!row && ["page", "folder", "file"].includes(row.kind) && !row.mount && !row.also && !row.via && !!row.writable
+  return ownRow(row) && ["page", "folder", "file"].includes(row.kind)
 }
 
 // What dropping row `from` on row `to` (in `zone`) asks the server for:
@@ -405,13 +414,16 @@ export function menuItems(row, ctx) {
   if (row.kind === "file") {
     add(true, {label: "Open in a new tab", icon: "hero-arrow-top-right-on-square", action: "newTab", href: row.href})
     add(true, {label: "Copy link", icon: "hero-link", action: "copy", href: row.href})
-    // Put away, or gone for good (#769): the server asks, and says who may delete.
-    add(writable, {label: "Archive…", icon: "hero-archive-box", event: "ask_archive_file", payload: {id}, danger: true, group: "danger"})
-    add(writable, {label: "Delete…", icon: "hero-trash", event: "ask_delete_file", payload: {id}, danger: true, group: "danger"})
+    // Put away, or gone for good (#769): the server asks, and says who may
+    // delete. A file seen inside a placed folder (`via`) is archived and
+    // deleted from its home row (see ownRow), so it gets neither here.
+    add(ownRow(row), {label: "Archive…", icon: "hero-archive-box", event: "ask_archive_file", payload: {id}, danger: true, group: "danger"})
+    add(ownRow(row), {label: "Delete…", icon: "hero-trash", event: "ask_delete_file", payload: {id}, danger: true, group: "danger"})
     return items
   }
 
-  if (row.also) {
+  // Seen away from home (see ownRow): opened, linked or taken out, no more.
+  if (row.also || row.via) {
     add(true, {label: "Open", icon: row.kind === "folder" ? "hero-folder-open" : "hero-document-text", href: row.href, nav})
     add(true, {label: "Open in a new tab", icon: "hero-arrow-top-right-on-square", action: "newTab", href: row.href})
     add(writable && row.placed_in, {label: "Take out of this folder", icon: "hero-folder-minus", event: "remove_placement", payload: {kind: row.kind, id, folder: String(row.placed_in)}, group: "edit"})
@@ -866,7 +878,7 @@ export const WikiTree = {
     const flat = this.flat || []
     let index = this.active ? flat.findIndex(i => i.row.key === this.active) : -1
     const item = flat[index]
-    const mine = item && item.row.writable && !item.row.mount
+    const mine = item && ownRow(item.row)
 
     // Space shows the highlighted page's preview, or puts it away (#760);
     // any other key puts it away.
@@ -941,11 +953,11 @@ export const WikiTree = {
   },
 
   // Ctrl/Cmd-click adds or takes away one row; Shift-click takes in every
-  // row from the last one picked. Only rows that can be moved, archived or
-  // tagged are picked.
+  // row from the last one picked. Only a page or folder of the reader's own
+  // (see ownRow) is picked.
   pick(key, range) {
     const flat = this.flat || []
-    const pickable = i => ["page", "folder"].includes(i.row.kind) && i.row.writable && !i.row.mount
+    const pickable = i => ["page", "folder"].includes(i.row.kind) && ownRow(i.row)
     if (range && this.active) {
       const a = flat.findIndex(i => i.row.key === this.active)
       const b = flat.findIndex(i => i.row.key === key)

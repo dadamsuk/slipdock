@@ -374,8 +374,15 @@ the tree the placed folder follows the folders at home there, with the link
 marker; it opens and shuts there on its own (each place keeps its own open
 state), shows only what the reader may open, and is not dragged about — nor
 is anything inside it, there. Its menu has **Open**, **Open in a new tab**,
-**Take out of this folder** and **Copy link**; any folder's menu has **Also
-file in…**. The folder's page says where else it is filed. Listing a folder
+**Take out of this folder** and **Copy link**; a page or folder inside it has
+the same without **Take out**, and a file inside it only **Open in a new tab**
+and **Copy link**, with no **Archive…** or **Delete…**. Any folder's menu has
+**Also file in…**. A row seen
+from another folder like this, a page's extra row and a file inside a placed
+folder too, is renamed, moved, archived, deleted or picked for the selection
+bar from its home row: **F2**,
+**Delete** and Ctrl- or Shift-click pass it by. The folder's page says where
+else it is filed. Listing a folder
 (`page ls --folder`, `list_pages`' `folder`) includes the pages anywhere
 under the folders placed there, marked `also`. A synced copy of the wiki
 writes the folder once, at home. Moving it to another board drops the
