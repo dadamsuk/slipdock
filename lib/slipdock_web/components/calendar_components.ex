@@ -332,6 +332,16 @@ defmodule SlipdockWeb.CalendarComponents do
 
   defp milestones?(assigns, day), do: Map.get(assigns.calendar.milestones, day.key, []) != []
 
+  # The flags and tags a chip has room for: fewer flags when compact, and no
+  # tags at all.
+  defp chip_flags(card, compact, on) do
+    if on.("flags"), do: Enum.take(card.flags || [], if(compact, do: 1, else: 2)), else: []
+  end
+
+  defp chip_tags(card, compact, on) do
+    if !compact and on.("tags"), do: Enum.take(loaded(card.tags), 3), else: []
+  end
+
   attr :card, :map, required: true
   attr :day, :map, required: true
   attr :compact, :boolean, default: false
@@ -350,19 +360,11 @@ defmodule SlipdockWeb.CalendarComponents do
         overdue?: not assigns.start and assigns.day.past? and not assigns.card.completed,
         on: on,
         page?: page?,
-        item_id: if(page?, do: "page-#{assigns.card.id}", else: to_string(assigns.card.id)),
-        page_path: page? && "/boards/#{assigns.card.board_id}/wiki/#{assigns.card.slug}",
-        flags:
-          if(on.("flags"),
-            do: Enum.take(assigns.card.flags || [], if(assigns.compact, do: 1, else: 2)),
-            else: []
-          ),
+        item_id: SlipdockWeb.SlipdockComponents.item_id(assigns.card),
+        page_path: page? && SlipdockWeb.SlipdockComponents.page_path(assigns.card),
+        flags: chip_flags(assigns.card, assigns.compact, on),
         priority?: on.("priority") and priority_on_face?(assigns.card.priority),
-        tags:
-          if(!assigns.compact and on.("tags"),
-            do: Enum.take(loaded(assigns.card.tags), 3),
-            else: []
-          ),
+        tags: chip_tags(assigns.card, assigns.compact, on),
         status?: !assigns.compact and on.("status") and not page?
       )
 
@@ -378,8 +380,7 @@ defmodule SlipdockWeb.CalendarComponents do
         @overdue? && "ring-error/40",
         chip_border(if @on.("cover"), do: @card, else: %{color: nil})
       ]}
-      phx-click={if @page?, do: "open_page", else: "open_card"}
-      phx-value-id={@card.id}
+      phx-click={SlipdockWeb.SlipdockComponents.open_item(@card)}
       title={chip_title(@card)}
     >
       <span class={[

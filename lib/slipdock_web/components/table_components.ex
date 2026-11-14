@@ -308,7 +308,7 @@ defmodule SlipdockWeb.TableComponents do
             panel, exactly as it does on the board. --%>
       <SlipdockWeb.SlipdockComponents.doc_link
         :if={SlipdockWeb.SlipdockComponents.page?(@card)}
-        path={"/boards/#{@card.board_id}/wiki/#{@card.slug}"}
+        path={SlipdockWeb.SlipdockComponents.page_path(@card)}
         class="size-3.5"
       />
       <span
@@ -318,8 +318,7 @@ defmodule SlipdockWeb.TableComponents do
           "cursor-pointer truncate text-left font-medium hover:underline",
           @card.completed && "text-base-content/50"
         ]}
-        phx-click={if SlipdockWeb.SlipdockComponents.page?(@card), do: "open_page", else: "open_card"}
-        phx-value-id={@card.id}
+        phx-click={SlipdockWeb.SlipdockComponents.open_item(@card)}
         title={@card.title}
       >
         {@card.title}

@@ -112,7 +112,7 @@ defmodule SlipdockWeb.TableLiveTest do
            |> Enum.any?(&(&1.title == "Charlie"))
 
     view
-    |> element("#card-table [phx-click=open_card][phx-value-id='#{a.id}']")
+    |> element("#card-table #row-all-#{a.id} [role=link][title=Alpha]")
     |> render_click()
 
     assert_patch(

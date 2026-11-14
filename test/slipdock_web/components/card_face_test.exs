@@ -618,4 +618,32 @@ defmodule SlipdockWeb.Components.CardFaceTest do
       end
     end
   end
+
+  describe "opening an item (#2890)" do
+    test "page_path/1 is a placed page's document, on its own board" do
+      page = %Slipdock.Wiki.Page{id: 7, board_id: 3, slug: "a-page"}
+      assert SlipdockComponents.page_path(page) == "/boards/3/wiki/a-page"
+    end
+
+    test "page_path/1 is for a page, not a card" do
+      assert_raise FunctionClauseError, fn ->
+        SlipdockComponents.page_path(%Card{id: 7, board_id: 3})
+      end
+    end
+
+    test "open_item/1 opens a page's panel and a card's modal, by its id" do
+      page = %Slipdock.Wiki.Page{id: 7, board_id: 3, slug: "a-page"}
+
+      assert SlipdockComponents.open_item(page) ==
+               Phoenix.LiveView.JS.push("open_page", value: %{id: 7})
+
+      assert SlipdockComponents.open_item(%Card{id: 7}) ==
+               Phoenix.LiveView.JS.push("open_card", value: %{id: 7})
+    end
+
+    test "item_id/1 tells a page from a card that shares its number" do
+      assert SlipdockComponents.item_id(%Slipdock.Wiki.Page{id: 7}) == "page-7"
+      assert SlipdockComponents.item_id(%Card{id: 7}) == "7"
+    end
+  end
 end
