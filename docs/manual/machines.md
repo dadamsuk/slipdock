@@ -354,7 +354,9 @@ optional, and with no file at all `claude` and `codex` are found on your
 - `hooks`: what a runner's before, after and probe hooks run, by name. A
   before hook that fails stops the job; the after hook runs however the job
   ended, with `$SLIPDOCK_EXIT` and `$SLIPDOCK_STATUS` (`done`, `failed`,
-  `cancelled` or `timeout`). The probe hook runs at the end of a probe
+  `cancelled`, `timeout`, or `requeued` when the agent couldn't run at all
+  and the job went back to the queue: see
+  [Runners](runners.md)). The probe hook runs at the end of a probe
   (below), and a probe whose hook exits non-zero is red.
 - `models`: a model for a card's profile (`docs`, `fix`, `feature`,
   `schema`, `security`, `spike`), over the runner's own.

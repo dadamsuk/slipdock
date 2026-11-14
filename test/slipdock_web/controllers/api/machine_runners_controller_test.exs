@@ -519,6 +519,37 @@ defmodule SlipdockWeb.API.MachineRunnersControllerTest do
       assert Repo.get!(Runners.Job, job.id).status == "done"
     end
 
+    test "a job its agent couldn't run goes back to the queue (#2920)", ctx do
+      runner = add(ctx)
+      {:ok, job} = Runners.queue(ctx.card, %{pool: "build", kind: "claude", prompt: "Do it"})
+      assert claim(ctx.key, runner.id).status == 200
+
+      query =
+        URI.encode_query(%{
+          exit: 1,
+          status: "requeue",
+          trouble: "limit",
+          until: "2026-11-15T18:00:00Z",
+          reason: "You've hit your weekly limit · resets Nov 15, 6pm",
+          runner: runner.id
+        })
+
+      finish =
+        build_conn()
+        |> put_req_header("authorization", "Bearer " <> ctx.key)
+        |> put_req_header("content-type", "text/plain")
+        |> post("/api/runner/jobs/#{job.id}/finish?#{query}", "You've hit your weekly limit")
+
+      assert finish.resp_body == "ok queued\n"
+      job = Repo.get!(Runners.Job, job.id)
+      assert job.status == "queued"
+      assert job.attempts == 0
+
+      assert [alert] = Repo.all(Slipdock.Automations.Alert)
+      assert alert.title =~ "the agent hit its usage limit"
+      assert alert.body =~ "2026-11-15 18:00 UTC"
+    end
+
     test "nothing else: another machine's runner, a shell runner, no runner named", ctx do
       runner = add(ctx)
       {:ok, shell, _} = Runners.create_runner(ctx.board, %{"name" => "sh", "pool" => "build"})

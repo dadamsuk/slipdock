@@ -983,7 +983,11 @@ has — the MCP tools `claim_job`, `job_progress` and `finish_job`, or
 card. A job whose lease ran out goes back in the queue, and until another
 runner claims it the runner that held it takes it back with its next
 heartbeat, `job_progress` or finish (a machine that slept, a session that
-went quiet), at no cost to the job's three tries. `job_progress` with `step` (`slipdock job-progress --step`) says what a
+went quiet), at no cost to the job's three tries. A runner whose agent
+can't run at all (a usage limit, a failed sign-in) finishes its job
+`requeue` (#2920): the job goes back in the queue uncounted, its card
+untouched, the machine's runners hold off until the stated reset, and
+the board gets one alert. `job_progress` with `step` (`slipdock job-progress --step`) says what a
 job is doing now on the job alone, never as a comment on the card (a subcard
 an epic's job names in its step shows that job as its loop): a verify job reports each
 step that way, and every runner job's prompt asks for its milestones too (on

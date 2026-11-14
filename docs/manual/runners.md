@@ -205,6 +205,25 @@ answering a wait sends the card as one job. The card's **Runner jobs**
 section shows each job, which runner took it, when, and the tail of its log;
 **Cancel** stops a queued job at once and asks a running one to stop.
 
+**When the agent can't run at all** (#2920). A usage limit on the runners'
+agent account, or the agent failing to sign in, fails every job within
+seconds, and a runner that carried on would fail the whole queue in
+minutes. So the runner daemon reads two signs as the machine's trouble,
+not the card's: the agent's limit message (*You've hit your weekly limit
+· resets Nov 15, 6pm*), and an agent that exits non-zero within a minute
+before a single tool call. It finishes the job `requeue`: the job goes
+back in the queue as though it had never been claimed (no try spent),
+and its card is left as it is, with no failure, no handoff, no
+`requeue_stuck` count, no blocked flag and no `job_finished` notice, only
+a line in its activity. Every runner on the machine with the same agent
+then takes no job until the reset the message states (an hour when it
+states none), or, after a quick exit, for a minute, doubling each time to
+30 minutes, until a job runs normally. The board gets one warning alert a
+machine (*Runners on build-box stopped: the agent hit its usage limit*),
+not one a job. Restarting the daemon ends the hold sooner, once the
+account is mended. A job asked to cancel, or with an open wait, ends
+cancelled or parked as ever.
+
 **Parked on a question.** A job whose agent needs something only a person
 can give opens a [wait](waiting-on-a-person-waits.md) and stops (`slipdock
 wait <card> "…"` inside the job, `update_card` `wait` from a session, or
@@ -309,8 +328,8 @@ asked to follow (best effort) or as Claude Code hooks in
 the instructions only: it runs on Anthropic's machines, so there is nothing
 for a hook to run on — and ChatGPT the same, on OpenAI's. A machine's
 runners take theirs on the machine's page, the hooks by name from its local
-file, with `$SLIPDOCK_STATUS` (`done`, `failed`, `cancelled` or `timeout`)
-and `$SLIPDOCK_EXIT` after the job. Putting back a card a job left in
+file, with `$SLIPDOCK_STATUS` (`done`, `failed`, `cancelled`, `timeout`,
+or `requeued` when the agent couldn't run) and `$SLIPDOCK_EXIT` after the job. Putting back a card a job left in
 progress, and alerting on it, is the server's (`requeue_stuck` and
 `job_finished`, above), so a hook never moves cards.
 

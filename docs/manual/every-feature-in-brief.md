@@ -84,7 +84,10 @@ and MCP) and a link to the page that covers it.
   - On a board that
     ships by push, a card awaiting verification frees its lane and its
     dependents. A machine's runner daemon updates itself from signed
-    releases.
+    releases, and when its agent can't run at all (a usage limit, a failed
+    sign-in) it puts the job back in the queue with the card untouched,
+    holds off until the reset, and raises one alert
+    ([Runners](runners.md)).
   - On every board,
     switch or not, an agent can't close an epic over open subcards or reopen
     a done card: done stays done unless a person reopens it.

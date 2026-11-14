@@ -208,6 +208,8 @@ func runRunners(ctx context.Context, d string, st machine.State, key string, cei
 		Logf:     logf,
 		Getenv:   env.Getenv,
 		LookPath: env.LookPath,
+		// One set of holds for every runner (#2920): they share the agents' accounts.
+		Holds: runner.NewHolds(),
 	}
 	pool := runner.NewPool(ctx, logf)
 	ctx = pool.Context()

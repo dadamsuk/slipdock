@@ -38,6 +38,12 @@ defmodule SlipdockWeb.API.RunnerController do
   handoff; both are in the prompt already, so a runner that only reads the
   body loses nothing.
 
+  A job its agent couldn't run on the machine at all (#2920) finishes
+  `status=requeue&trouble=limit|quick_exit&until=<ISO 8601>&reason=<line>`
+  and answers `ok queued`: it goes back to the queue uncounted, its card
+  untouched, and the board gets one alert for the machine
+  (`Slipdock.Runners.Trouble`). Cancelled or waiting, it ends as ever.
+
   An empty claim says why work is held, when it is, in `X-Held`
   ("paused by David: bad deploy", "WIP full: In Progress 3/3").
 
@@ -108,7 +114,11 @@ defmodule SlipdockWeb.API.RunnerController do
       exit: params["exit"],
       status: params["status"],
       output: output,
-      merged: params["merged"]
+      merged: params["merged"],
+      # A job its agent couldn't run (status=requeue, #2920).
+      trouble: params["trouble"],
+      until: params["until"],
+      reason: params["reason"]
     }
 
     case Runners.finish(conn.assigns.runner, id, attrs) do
