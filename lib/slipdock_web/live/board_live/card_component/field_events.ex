@@ -123,7 +123,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent.FieldEvents do
   end
 
   def handle_event("toggle_tag", %{"id" => id}, socket) do
-    if tag = board_tag(socket, id),
+    if tag = tag_by_id(socket.assigns.board, id),
       do: {:ok, _} = Boards.Tags.toggle_card_tag(socket.assigns.card, tag)
 
     {:noreply, socket}
@@ -347,10 +347,6 @@ defmodule SlipdockWeb.BoardLive.CardComponent.FieldEvents do
       Boards.Cards.move_card(card.id, new_col, nil, actor: Slipdock.Actor.web(user))
     end
   end
-
-  # A tag of this board's tree (they live on the root), or nil.
-  defp board_tag(socket, id),
-    do: Enum.find(socket.assigns.board.tags, &(to_string(&1.id) == to_string(id)))
 
   defp time_target(%{"_target" => ["card", field]}) when field in @time_fields, do: [field]
 

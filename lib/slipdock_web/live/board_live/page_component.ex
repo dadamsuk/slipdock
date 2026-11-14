@@ -205,7 +205,7 @@ defmodule SlipdockWeb.BoardLive.PageComponent do
   defp event("page_toggle_tag", %{"id" => tag_id}, socket) do
     with %Slipdock.Wiki.Page{} = page <- socket.assigns.item,
          true <- socket.assigns.can_write,
-         %{} = tag <- Enum.find(socket.assigns.board.tags, &(to_string(&1.id) == tag_id)) do
+         %{} = tag <- tag_by_id(socket.assigns.board, tag_id) do
       current = Wiki.tags(page)
 
       tags =

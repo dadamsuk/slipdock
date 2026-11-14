@@ -138,7 +138,17 @@ defmodule SlipdockWeb.BoardLive.Helpers do
   @doc "`value` as an integer, or nil: `SlipdockWeb.Params.int/1`, so `\"12abc\"` is nil."
   defdelegate to_int(value), to: SlipdockWeb.Params, as: :int
 
-  def tag_by_id(board, id), do: Enum.find(board.tags, &(&1.id == id))
+  @doc """
+  The board's tag with this id, or nil. The id may be the integer a filter
+  holds or the string an event carries (`SlipdockWeb.Params.id/1`), so
+  anything that isn't an id finds no tag.
+  """
+  def tag_by_id(board, id) do
+    case SlipdockWeb.Params.id(id) do
+      nil -> nil
+      id -> Enum.find(board.tags, &(&1.id == id))
+    end
+  end
 
   def column_options(board), do: Enum.map(board.columns, &{&1.name, &1.id})
 
