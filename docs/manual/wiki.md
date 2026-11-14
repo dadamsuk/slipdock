@@ -707,8 +707,11 @@ side (old on the left, new on the right, the changed words picked out, as
 GitHub's split view does: tick two in the history and press **Compare selected
 versions**, or **Compare with current** from an old one), and any one can be put back —
 which is itself a save, so nothing is ever removed. Consecutive saves by the
-same hand within ten minutes collapse into one, so an agent appending every
-few minutes does not bury the day's real edits.
+same hand, through the same door, within ten minutes collapse into one, so an
+agent appending every few minutes does not bury the day's real edits. A save
+whose message differs from that revision's (including one with a message onto
+a revision with none) starts a revision of its own instead, with its own diff
+and revert; a save with no message, or the same one, still collapses.
 
 **A save can carry the hash it was based on.** Every page has a
 `content_hash`; send it back and a save that would land on top of someone

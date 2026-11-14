@@ -12,7 +12,9 @@ defmodule Slipdock.Wiki do
     * **Every save writes a revision.** A page is never quietly overwritten
       and never hard-deleted (archive, except an owner's purge), so any state
       it has been in is recoverable. Consecutive saves by the same author
-      within ten minutes collapse into one revision so history stays readable.
+      through the same door within ten minutes collapse into one revision so
+      history stays readable, unless the save carries a message other than
+      the open revision's: that starts a revision of its own (#3144).
     * **A save may carry the hash it was based on.** If someone else has
       written in between, the save is refused with both bodies rather than
       applied on top — the failure mode of last-write-wins is invisible data
@@ -1347,15 +1349,19 @@ defmodule Slipdock.Wiki do
   # page and reverting is just "take that snapshot". Consecutive saves by the
   # same hand within ten minutes overwrite one another rather than piling up:
   # an agent appending every few minutes should not bury the day's real edits.
+  # A save with a message of its own (one the open revision doesn't carry,
+  # including onto one with none) starts a new revision instead, so two
+  # cards' edits by one runner account keep a message, diff and revert each.
   defp write_revision(%Page{} = page, opts, flags) do
     user = opts[:user]
     via = opts[:via] || "web"
+    message = no_blank(opts[:message])
 
     attrs = %{
       "page_id" => page.id,
       "title" => page.title,
       "body" => page.body,
-      "summary" => opts[:message],
+      "summary" => message,
       "via" => via,
       "agent" => opts[:agent],
       "author_id" => user && user.id
@@ -1363,7 +1369,7 @@ defmodule Slipdock.Wiki do
 
     last = if flags[:force], do: nil, else: latest_revision(page.id)
 
-    case collapsible(last, user, via) do
+    case collapsible(last, user, via, message) do
       nil ->
         %Revision{} |> Revision.changeset(attrs) |> Repo.insert()
 
@@ -1383,13 +1389,19 @@ defmodule Slipdock.Wiki do
     |> Repo.one()
   end
 
-  defp collapsible(nil, _user, _via), do: nil
+  # A blank message is no message: it neither starts a revision nor wipes
+  # the open one's.
+  defp no_blank(""), do: nil
+  defp no_blank(message), do: message
 
-  defp collapsible(%Revision{} = revision, user, via) do
+  defp collapsible(nil, _user, _via, _message), do: nil
+
+  defp collapsible(%Revision{} = revision, user, via, message) do
     same_author = revision.author_id == (user && user.id)
     recent = DateTime.diff(DateTime.utc_now(), revision.inserted_at) <= @collapse_seconds
+    same_message = message == nil or message == revision.summary
 
-    if same_author and revision.via == via and recent, do: revision
+    if same_author and revision.via == via and recent and same_message, do: revision
   end
 
   ## Activity -----------------------------------------------------------------

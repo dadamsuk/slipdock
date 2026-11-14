@@ -251,6 +251,40 @@ defmodule Slipdock.WikiTest do
       assert only.body == "three"
     end
 
+    test "a save with another message starts a revision of its own", %{page: page, user: user} do
+      {:ok, page} = Wiki.update_page(page, %{"body" => "two"}, user: user, message: "#1 first")
+      {:ok, page} = Wiki.update_page(page, %{"body" => "three"}, user: user, message: "#2 second")
+
+      assert [second, first, _created] = Wiki.list_revisions(page)
+      assert {second.summary, second.body} == {"#2 second", "three"}
+      assert {first.summary, first.body} == {"#1 first", "two"}
+    end
+
+    test "a save with no message, or the same one, merges and keeps the message", %{
+      page: page,
+      user: user
+    } do
+      {:ok, page} = Wiki.update_page(page, %{"body" => "two"}, user: user, message: "#1 first")
+      {:ok, page} = Wiki.update_page(page, %{"body" => "three"}, user: user)
+      {:ok, page} = Wiki.update_page(page, %{"body" => "four"}, user: user, message: "")
+      {:ok, page} = Wiki.update_page(page, %{"body" => "five"}, user: user, message: "#1 first")
+
+      assert [merged, _created] = Wiki.list_revisions(page)
+      assert {merged.summary, merged.body} == {"#1 first", "five"}
+    end
+
+    test "a save with a message onto a revision with none starts a new one", %{
+      page: page,
+      user: user
+    } do
+      {:ok, page} = Wiki.update_page(page, %{"body" => "two"}, user: user)
+      {:ok, page} = Wiki.update_page(page, %{"body" => "three"}, user: user, message: "#1 first")
+
+      assert [labelled, unlabelled] = Wiki.list_revisions(page)
+      assert {labelled.summary, labelled.body} == {"#1 first", "three"}
+      assert {unlabelled.summary, unlabelled.body} == {nil, "two"}
+    end
+
     test "a different writer starts a revision of their own", %{page: page, user: user} do
       other = user_fixture("other.writer@example.com")
       {:ok, page} = Wiki.update_page(page, %{"body" => "theirs"}, user: other)
