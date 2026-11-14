@@ -1228,14 +1228,14 @@ defmodule SlipdockWeb.SwimlaneComponents do
   # (`SlipdockComponents.view_tabs_list/0`), the one table of each view's
   # path and icon (#2877). Only a mode a saved view can hold
   # (`Config.modes/0`) is looked up; anything else is swimlanes, as an
-  # unknown mode always was.
+  # unknown mode always was. That includes a stored mode that isn't a
+  # string at all (a saved view's `config` is any map, an imported one
+  # as the archive had it), so it is never given to `to_string/1`.
   defp mode_tab(mode) do
-    name = to_string(mode)
-    tabs = view_tabs_list()
+    name = if is_binary(mode) or is_atom(mode), do: to_string(mode)
     known = if Enum.member?(Config.modes(), name), do: name, else: "swimlanes"
 
-    Enum.find(tabs, fn {tab, _, _, _, _, _} -> Atom.to_string(tab) == known end) ||
-      Enum.find(tabs, fn {tab, _, _, _, _, _} -> tab == :swimlanes end)
+    Enum.find(view_tabs_list(), fn {tab, _, _, _, _, _} -> Atom.to_string(tab) == known end)
   end
 
   attr :name, :string, required: true

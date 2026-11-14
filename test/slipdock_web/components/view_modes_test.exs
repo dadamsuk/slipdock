@@ -51,6 +51,14 @@ defmodule SlipdockWeb.ViewModesTest do
       # A page of its own in the switcher, but not a mode a saved view holds.
       assert mode_icon("visualise") == @swimlanes_icon
     end
+
+    test "a stored mode that isn't a string is swimlanes, not a crash" do
+      assert mode_icon(%{"a" => 1}) == @swimlanes_icon
+      assert mode_icon([%{}]) == @swimlanes_icon
+      assert mode_icon(["table"]) == @swimlanes_icon
+      assert mode_icon(3) == @swimlanes_icon
+      assert mode_icon(1.5) == @swimlanes_icon
+    end
   end
 
   describe "view_mode_path/3" do
@@ -110,6 +118,13 @@ defmodule SlipdockWeb.ViewModesTest do
       assert view_mode_path(7, "nope") == "/boards/7/swimlanes"
       assert view_mode_path(7, nil, view: 1) == "/boards/7/swimlanes?view=1"
       assert view_mode_path(7, "visualise") == "/boards/7/swimlanes"
+    end
+
+    test "a stored mode that isn't a string is swimlanes, not a crash" do
+      assert view_mode_path(7, %{"a" => 1}) == "/boards/7/swimlanes"
+      assert view_mode_path(7, [%{}], view: 2) == "/boards/7/swimlanes?view=2"
+      assert view_mode_path(7, ["table"]) == "/boards/7/swimlanes"
+      assert view_mode_path(7, 3) == "/boards/7/swimlanes"
     end
   end
 end
