@@ -56,6 +56,25 @@ defmodule SlipdockWeb.BoardLive.Helpers do
   @doc "A changeset's errors by field name, as `name has already been taken; key at most 40`."
   def field_errors(%Ecto.Changeset{} = cs), do: join_errors(cs, &to_string/1)
 
+  @doc """
+  An upload's refusal as the card panel says it: `Upload failed: filename
+  should be at most 255 character(s).`, or that the file could not be
+  stored when the changeset carries no error to name.
+  """
+  def upload_failed(%Ecto.Changeset{errors: []}), do: "Upload failed: file could not be stored."
+  def upload_failed(%Ecto.Changeset{} = cs), do: "Upload failed: #{field_errors(cs)}."
+
+  @doc """
+  An incident's refusal under the card's Incident section: `Missed by …`
+  for the check that missed it, each other error as it reads.
+  """
+  def incident_error(%Ecto.Changeset{} = cs) do
+    Enum.map_join(cs.errors, " ", fn
+      {:missed_by, error} -> "Missed by " <> error_text(error) <> "."
+      {_field, error} -> error_text(error)
+    end)
+  end
+
   defp join_errors(changeset, name) do
     changeset
     |> Ecto.Changeset.traverse_errors(&error_text/1)

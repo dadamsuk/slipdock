@@ -72,4 +72,26 @@ defmodule SlipdockWeb.BoardLive.HelpersTest do
       assert Helpers.url_error(changeset([])) == "could not be added"
     end
   end
+
+  describe "upload_failed/1 and incident_error/1 (#2873)" do
+    test "upload_failed names each error with its placeholder filled" do
+      cs = changeset([{:name, "should be at most %{count} character(s)", count: 255}])
+
+      assert Helpers.upload_failed(cs) ==
+               "Upload failed: name should be at most 255 character(s)."
+    end
+
+    test "upload_failed says the file wasn't stored when no error is named" do
+      assert Helpers.upload_failed(changeset([])) == "Upload failed: file could not be stored."
+    end
+
+    test "incident_error keeps Missed by for that field and fills placeholders in each" do
+      cs =
+        changeset([])
+        |> add_error(:missed_by, "must be one of %{n} checks", n: 4)
+        |> add_error(:caused_by_id, "at most %{count} links", count: 1)
+
+      assert Helpers.incident_error(cs) == "at most 1 links Missed by must be one of 4 checks."
+    end
+  end
 end
