@@ -5,7 +5,8 @@ defmodule SlipdockWeb.SettingsFlashTest do
   page shows it as `#flash-info` or `#flash-error`.
 
   Quick add, quick note's refusal, header links and a refused endpoint are
-  asserted beside their features; these are the rest.
+  asserted beside their features; these are the rest. The waiting notice's
+  save is also followed up to the page's own user (#3128).
   """
   use SlipdockWeb.ConnCase, async: true
 
@@ -27,6 +28,9 @@ defmodule SlipdockWeb.SettingsFlashTest do
 
   # The server's AI settings file can't be read, so nothing is saved over it.
   defp break_key_file(file), do: File.write!(file, "{\"users\": [")
+
+  # The user the account page itself holds, not the section's copy of it.
+  defp page_user(view), do: :sys.get_state(view.pid).socket.assigns.current_user
 
   describe "names in trees and lists" do
     test "a save says so", %{conn: conn} do
@@ -61,6 +65,29 @@ defmodule SlipdockWeb.SettingsFlashTest do
 
       assert has_element?(view, "#flash-info", "Saved.")
       refute has_element?(view, "#flash-error")
+    end
+
+    # The page keeps the user for the header and hands it back down to the
+    # section, so a save has to reach the page's copy too (#3128).
+    test "a save reaches the page's own user", %{conn: conn, user: user} do
+      {:ok, view, _} = live(conn, ~p"/account/settings")
+      assert page_user(view).waiting_alerts == user.waiting_alerts
+      assert page_user(view).waiting_emails == user.waiting_emails
+
+      view
+      |> form("#waiting-notice-form",
+        notice: %{
+          waiting_alerts: to_string(not user.waiting_alerts),
+          waiting_emails: to_string(not user.waiting_emails)
+        }
+      )
+      |> render_submit()
+
+      saved = Slipdock.Accounts.get_user!(user.id)
+      assert saved.waiting_alerts == not user.waiting_alerts
+      assert saved.waiting_emails == not user.waiting_emails
+      assert page_user(view).waiting_alerts == saved.waiting_alerts
+      assert page_user(view).waiting_emails == saved.waiting_emails
     end
   end
 
