@@ -141,7 +141,8 @@ export const MeldEditor = {
     this.purge.value = yes ? mergeIds("", this.pending || []) : ""
     const n = (this.pending || []).length
     const words = n === 1 ? "1 earlier revision" : `${n} earlier revisions`
-    this.say(yes ? `${words} holding this text in plain will be purged when you save.` : `${words} still hold this text in plain.`, n, yes)
+    const hold = n === 1 ? "holds" : "hold"
+    this.say(yes ? `${words} holding this text in plain will be purged when you save.` : `${words} still ${hold} this text in plain.`, n, yes)
   },
 
   say(message, purgeable = 0, chosen = false) {
