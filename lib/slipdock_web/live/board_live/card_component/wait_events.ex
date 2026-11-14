@@ -92,9 +92,12 @@ defmodule SlipdockWeb.BoardLive.CardComponent.WaitEvents do
         {:noreply,
          socket
          |> assign(wait_suggest: Map.put(socket.assigns.wait_suggest, n, :running))
-         |> start_async({:wait_suggest, n}, fn ->
-           Slipdock.AI.WaitAnswerer.suggest(card, board, wait, n, typed, user: user)
-         end)}
+         |> start_async(
+           {:wait_suggest, n},
+           Slipdock.Actor.carry(fn ->
+             Slipdock.AI.WaitAnswerer.suggest(card, board, wait, n, typed, user: user)
+           end)
+         )}
       else
         {:noreply,
          assign(socket,

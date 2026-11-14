@@ -10,6 +10,7 @@ defmodule Slipdock.Boards.Attachments do
   alias Slipdock.Boards.Attachment
   alias Slipdock.Boards.Board
   alias Slipdock.Boards.Card
+  alias Slipdock.Policy
   alias Slipdock.Quota
   alias Slipdock.Repo
   alias Slipdock.Search.Indexer
@@ -71,8 +72,14 @@ defmodule Slipdock.Boards.Attachments do
   `owner` is `%{card_id: id}` or `%{page_id: id}`; `folder` is the directory
   under the uploads root the bytes go in. Shared so the wiki's paste-an-image
   is the same code path as a card's, rather than a second one to keep honest.
+
+  Asks write on the card or page (`Slipdock.Policy`, `:attach_file`).
   """
   def store_attachment(owner, folder, meta, source) when is_map(owner) do
+    with :ok <- Policy.authorize(:attach_file, owner), do: store(owner, folder, meta, source)
+  end
+
+  defp store(owner, folder, meta, source) do
     ext = meta |> Map.get(:filename, "") |> Path.extname() |> String.downcase() |> safe_ext()
     key = Path.join(folder, Ecto.UUID.generate() <> ext)
 
@@ -161,6 +168,10 @@ defmodule Slipdock.Boards.Attachments do
   The card's front shows the first image that is not kept off it.
   """
   def hide_attachment_on_card(%Attachment{} = attachment, hide?) when is_boolean(hide?) do
+    with :ok <- Policy.authorize(:hide_file, attachment), do: hide(attachment, hide?)
+  end
+
+  defp hide(attachment, hide?) do
     attachment
     |> Attachment.front_changeset(hide?)
     |> Repo.update()
@@ -194,7 +205,12 @@ defmodule Slipdock.Boards.Attachments do
     end
   end
 
+  @doc "Deletes a file and its bytes: write on its card or page (`:remove_file`)."
   def delete_attachment(%Attachment{} = attachment) do
+    with :ok <- Policy.authorize(:remove_file, attachment), do: delete(attachment)
+  end
+
+  defp delete(attachment) do
     attachment = Repo.preload(attachment, [:card, :page])
 
     Repo.delete(attachment)

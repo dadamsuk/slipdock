@@ -236,9 +236,12 @@ defmodule SlipdockWeb.SearchLive.Index do
 
     socket
     |> assign(busy: true, error: nil)
-    |> start_async(:search, fn ->
-      {query, Search.search(user, query, archived: archived, board_id: board_id, limit: 30)}
-    end)
+    |> start_async(
+      :search,
+      Slipdock.Actor.carry(fn ->
+        {query, Search.search(user, query, archived: archived, board_id: board_id, limit: 30)}
+      end)
+    )
   end
 
   defp ask(socket, text) do
@@ -254,7 +257,7 @@ defmodule SlipdockWeb.SearchLive.Index do
       error: nil,
       form_key: socket.assigns.form_key + 1
     )
-    |> start_async(:ask, fn -> Researcher.ask(user, history, text) end)
+    |> start_async(:ask, Slipdock.Actor.carry(fn -> Researcher.ask(user, history, text) end))
   end
 
   @impl true

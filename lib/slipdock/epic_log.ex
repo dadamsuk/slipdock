@@ -225,7 +225,15 @@ defmodule Slipdock.EpicLog do
 
   # A line joins the epic's last comment when that is one of these and came
   # within @join_seconds; else it is a comment of its own.
+  # The server's own line on the epic: whoever did the subcard's step may
+  # not be able to write the epic (`Slipdock.Policy`, #3169).
   defp write(epic, line) do
+    Slipdock.Policy.as_system("the epic's progress line, the server's own", fn ->
+      write_line(epic, line)
+    end)
+  end
+
+  defp write_line(epic, line) do
     last =
       Repo.one(
         from c in Comment,

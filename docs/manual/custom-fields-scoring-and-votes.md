@@ -2,7 +2,9 @@
 
 ## Custom fields, scoring and votes
 
-Board settings (root boards) hold the tree's **fields**: number (with
+Board settings (root boards) hold the tree's **fields**, and only a writer
+of the root board adds, changes or removes one, from any door, as with tags;
+anyone who can edit a card sets its values. The fields are: number (with
 optional min, max, unit), rating (1–5 by default), choice (each option with
 an optional weight and colour), date, text, and **formula**. Every field
 has a short key, used in formulas as `{key}`; a formula is an arithmetic

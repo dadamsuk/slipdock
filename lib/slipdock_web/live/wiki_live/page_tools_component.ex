@@ -30,7 +30,10 @@ defmodule SlipdockWeb.WikiLive.PageToolsComponent do
     {:noreply,
      socket
      |> assign(busy: tool, answer: nil, error: nil, made: %{})
-     |> start_async(:run, fn -> PageTools.run(tool, %{title: title, body: text}, user) end)}
+     |> start_async(
+       :run,
+       Slipdock.Actor.carry(fn -> PageTools.run(tool, %{title: title, body: text}, user) end)
+     )}
   end
 
   def handle_event("run", _params, socket), do: {:noreply, socket}

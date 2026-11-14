@@ -187,8 +187,13 @@ defmodule SlipdockWeb.WaitAPITest do
     end
 
     test "whoever opened it may withdraw it without write on the card", ctx do
+      # Opened while they could write; a fixture (`Slipdock.Policy`, #3169).
       {:ok, _} =
-        Boards.Waits.open_wait(ctx.card, Slipdock.Actor.web(ctx.commenter), %{"needs" => "Mine?"})
+        Slipdock.Policy.as_system("a test fixture", fn ->
+          Boards.Waits.open_wait(ctx.card, Slipdock.Actor.web(ctx.commenter), %{
+            "needs" => "Mine?"
+          })
+        end)
 
       assert %{"wait" => %{"close_reason" => "withdrawn"}} =
                token(ctx.commenter, "c")

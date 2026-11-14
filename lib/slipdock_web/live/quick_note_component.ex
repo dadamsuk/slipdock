@@ -45,7 +45,7 @@ defmodule SlipdockWeb.QuickNoteComponent do
         {:noreply,
          socket
          |> assign(busy?: true, text: text, error: nil, saved: nil)
-         |> start_async(:save, fn -> QuickNote.save(user, text) end)}
+         |> start_async(:save, Slipdock.Actor.carry(fn -> QuickNote.save(user, text) end))}
     end
   end
 

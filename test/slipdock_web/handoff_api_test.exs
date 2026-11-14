@@ -240,8 +240,11 @@ defmodule SlipdockWeb.HandoffAPITest do
              |> delete("/api/cards/#{ctx.card.id}/handoff")
              |> json_response(403)
 
+      # The test's own write, whoever the last request acted for (#3169).
       {:ok, _} =
-        Boards.Handoffs.leave_handoff(ctx.secret, nil, %{next_step: "Theirs", via: "runner"})
+        Slipdock.Policy.as_system("a test fixture", fn ->
+          Boards.Handoffs.leave_handoff(ctx.secret, nil, %{next_step: "Theirs", via: "runner"})
+        end)
 
       assert as(ctx.owner) |> delete("/api/cards/#{ctx.secret.id}/handoff") |> json_response(403)
 

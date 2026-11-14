@@ -16,6 +16,7 @@ defmodule Slipdock.Votes do
   alias Slipdock.Accounts.User
   alias Slipdock.Boards
   alias Slipdock.Boards.{Board, Card, Owned, Vote}
+  alias Slipdock.Policy
   alias Slipdock.Repo
   alias Slipdock.Wiki.Page
 
@@ -72,8 +73,14 @@ defmodule Slipdock.Votes do
   @doc """
   Sets `user`'s votes on a card or a page to `count` (0 removes them), within
   the tree's budget rules. Returns `{:ok, reloaded}`, `{:error, message}`.
+  Voting asks comment on the card or page (`Slipdock.Policy`, `:vote`):
+  `{:error, %Slipdock.Policy.Refused{}}` otherwise.
   """
   def set(owner, %User{} = user, count, comment \\ nil) when is_integer(count) do
+    with :ok <- Policy.authorize(:vote, owner), do: put(owner, user, count, comment)
+  end
+
+  defp put(owner, user, count, comment) do
     root_id = Boards.root_of_board(owner.board_id)
     root = Repo.get!(Board, root_id)
     current = mine(Repo.preload(owner, :votes, force: true), user)

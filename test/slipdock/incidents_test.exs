@@ -280,12 +280,16 @@ defmodule Slipdock.IncidentsTest do
       assert card["card"]["caused_by_card"] == %{"id" => ctx.hidden.id, "hidden" => true}
 
       # An incident on their own board, caused by the user's card: not listed for the user.
+      # The stranger's own write, on their board; the request above left the
+      # user's actor on the test process (`Slipdock.Policy`, #3169).
       {:ok, _} =
-        Boards.Cards.create_card(
-          hd(Boards.get_board!(ctx.hidden.board_id).columns),
-          %{"title" => "Theirs", "caused_by" => ctx.cause.id},
-          by: ctx.stranger
-        )
+        Slipdock.Policy.as_system("a test fixture", fn ->
+          Boards.Cards.create_card(
+            hd(Boards.get_board!(ctx.hidden.board_id).columns),
+            %{"title" => "Theirs", "caused_by" => ctx.cause.id},
+            by: ctx.stranger
+          )
+        end)
 
       cause = ctx.conn |> get(~p"/api/cards/#{ctx.cause.id}") |> json_response(200)
       refute Map.has_key?(cause["card"], "incidents")

@@ -675,6 +675,8 @@ defmodule Slipdock.Runners.AnswerRequeueTest do
       rule = rule_fixture(ctx.board, spec())
       park(ctx)
       other = board_fixture(%{"name" => "Elsewhere"}, owner: ctx.owner)
+      # Dana may still answer it there (`Slipdock.Policy`, #3169).
+      {:ok, _} = Slipdock.Access.grant(other, ctx.dana, "write", ctx.owner)
 
       {:ok, _} =
         Boards.Moves.move_card_to_board(Boards.Cards.get_card!(ctx.a.id), hd(other.columns))

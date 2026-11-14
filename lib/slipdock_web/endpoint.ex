@@ -59,6 +59,14 @@ defmodule SlipdockWeb.Endpoint do
     plug Phoenix.Ecto.CheckRepoStatus, otp_app: :slipdock
   end
 
+  # Nobody is acting until the request says who (#3169). Bandit serves the
+  # requests of one keep-alive connection in one process, and the actor
+  # `Slipdock.Policy` asks is kept on the process: without this, a request
+  # that sets none (the runner protocol, inbound mail, an upload link) would
+  # act as whoever the connection's last request was, a proxy's pooled
+  # connection being anybody's.
+  plug :forget_actor
+
   # The deploy's health probe; before the request log and the session, so
   # polling it is cheap and quiet (see `SlipdockWeb.Health`).
   plug SlipdockWeb.Health
@@ -81,6 +89,11 @@ defmodule SlipdockWeb.Endpoint do
 
   # `/mcp` reads its own body. JSON-RPC has its own answer to a body that is
   # not JSON (`-32700`), and `Plug.Parsers` would raise a 400 HTML page first.
+  defp forget_actor(conn, _opts) do
+    Slipdock.Actor.put(nil)
+    conn
+  end
+
   defp parse_body(%Plug.Conn{path_info: ["mcp"]} = conn, _opts), do: conn
   # Runners send their logs as plain text from `curl`, whose default content
   # type would otherwise have the form parser eat them.

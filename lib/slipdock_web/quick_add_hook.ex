@@ -69,7 +69,7 @@ defmodule SlipdockWeb.QuickAddHook do
         {:halt,
          socket
          |> put(%{socket.assigns.quick_add | busy?: true, text: text, error: nil, result: nil})
-         |> start_async(:quick_add, fn -> Capture.capture(user, text) end)}
+         |> start_async(:quick_add, Slipdock.Actor.carry(fn -> Capture.capture(user, text) end))}
     end
   end
 

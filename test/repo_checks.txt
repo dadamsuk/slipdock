@@ -29,6 +29,9 @@ test/slipdock/boundaries_test.exs
 # migrated (W-1945 §Permissions, #3167)
 test/slipdock/unchecked_writes_test.exs
 
+# A LiveView's async task acts for the page's person (`Actor.carry/1`, #3169)
+test/slipdock_web/async_actor_test.exs
+
 # Source conventions
 test/slipdock_web/fonts_test.exs
 test/slipdock_web/buttons_test.exs

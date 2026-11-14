@@ -41,7 +41,13 @@ defmodule Slipdock.DataCase do
     # A write the test itself makes, with no actor set, is a fixture and
     # passes `Slipdock.Policy`; a request it makes sets its actor and is
     # checked. A test of the refusal calls `Slipdock.Policy.forbid_nobody/0`.
-    Slipdock.Policy.allow_nobody()
+    # `SLIPDOCK_POLICY_STRICT=<log file>` lets nobody through only inside
+    # `Slipdock.Fixtures` and logs every other refusal of nobody, to find a
+    # server path that writes with nobody behind it (#3169; W-1950 §Tests).
+    case System.get_env("SLIPDOCK_POLICY_STRICT") do
+      log when log in [nil, ""] -> Slipdock.Policy.allow_nobody()
+      log -> Slipdock.Policy.allow_nobody_in_fixtures(log)
+    end
 
     # Board keys this test derives are held for as long as its transaction is.
     Slipdock.BoardKeyClaims.register_test(self(), pid)

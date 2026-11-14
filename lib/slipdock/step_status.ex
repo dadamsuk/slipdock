@@ -203,6 +203,13 @@ defmodule Slipdock.StepStatus do
   def post(_card, nil), do: :ok
 
   def post(%Card{} = card, text) when is_binary(text) do
+    # The server's own quiet step status (#2022), not a person's.
+    Slipdock.Policy.as_system("the card's step status, the server's own", fn ->
+      post_now(card, text)
+    end)
+  end
+
+  defp post_now(card, text) do
     if latest_body(card.id) == text do
       :ok
     else

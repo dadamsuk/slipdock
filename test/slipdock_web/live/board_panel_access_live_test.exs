@@ -121,7 +121,12 @@ defmodule SlipdockWeb.BoardPanelAccessLiveTest do
     assert render(view) =~ "Shared card"
 
     {:ok, _} = Access.revoke(grant)
-    {:ok, _} = Boards.Cards.update_card(ctx.card, %{"title" => "Renamed card"})
+    # The test's own write, whoever the page's first request acted for (#3169).
+    {:ok, _} =
+      Slipdock.Policy.as_system("a test fixture", fn ->
+        Boards.Cards.update_card(ctx.card, %{"title" => "Renamed card"})
+      end)
+
     send(view.pid, {:board_changed, ctx.board.id})
 
     assert {"/", %{"error" => "Your access to that board was removed."}} =

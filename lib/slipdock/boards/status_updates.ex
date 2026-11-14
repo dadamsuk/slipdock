@@ -7,6 +7,7 @@ defmodule Slipdock.Boards.StatusUpdates do
 
   alias Slipdock.Boards
   alias Slipdock.Boards.StatusUpdate
+  alias Slipdock.Policy
   alias Slipdock.Repo
 
   ## Status updates
@@ -19,8 +20,15 @@ defmodule Slipdock.Boards.StatusUpdates do
   `Slipdock.StepStatus`): the update is kept and open views refresh, but it
   writes no activity line and isn't indexed, so nobody following the card
   hears of a routine step. A person's update is never quiet.
+
+  Asks comment on the card or page (`Slipdock.Policy`, `:add_status_update`).
   """
   def add_status_update(owner, user, attrs, opts \\ []) do
+    with :ok <- Policy.authorize(:add_status_update, owner, opts),
+         do: insert(owner, user, attrs, opts)
+  end
+
+  defp insert(owner, user, attrs, opts) do
     quiet? = Keyword.get(opts, :quiet, false)
 
     %StatusUpdate{user_id: user && user.id}
@@ -46,8 +54,14 @@ defmodule Slipdock.Boards.StatusUpdates do
     Boards.Shared.notify_owned(owner)
   end
 
+  @doc "Deletes a status update: write on its card or page (`:delete_status_update`)."
   def delete_status_update(id) do
     update = Repo.get!(StatusUpdate, id)
+
+    with :ok <- Policy.authorize(:delete_status_update, update), do: delete(update)
+  end
+
+  defp delete(update) do
     owner = Boards.Shared.owner_of(update)
 
     Repo.delete(update)

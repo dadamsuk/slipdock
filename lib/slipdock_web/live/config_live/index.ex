@@ -187,9 +187,12 @@ defmodule SlipdockWeb.ConfigLive.Index do
     {:noreply,
      socket
      |> assign(listing_models?: true, model_list_error: nil)
-     |> start_async(:model_list, fn ->
-       AI.models(base_url: AI.default_base_url(), api_key: key)
-     end)}
+     |> start_async(
+       :model_list,
+       Slipdock.Actor.carry(fn ->
+         AI.models(base_url: AI.default_base_url(), api_key: key)
+       end)
+     )}
   end
 
   ## Transcription server

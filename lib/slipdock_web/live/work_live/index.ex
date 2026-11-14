@@ -103,15 +103,21 @@ defmodule SlipdockWeb.WorkLive.Index do
   end
 
   def handle_event("toggle_complete", %{"id" => id}, socket) do
-    user = socket.assigns.current_user
-    card = Boards.Cards.get_card!(id)
+    SlipdockWeb.Refusals.said(
+      socket,
+      fn ->
+        user = socket.assigns.current_user
+        card = Boards.Cards.get_card!(id)
 
-    if Access.can_write?(Access.card_permission(user, card)) do
-      Boards.Cards.toggle_completed(card)
-      {:noreply, load(socket)}
-    else
-      {:noreply, put_flash(socket, :error, "You have read-only access to that card.")}
-    end
+        if Access.can_write?(Access.card_permission(user, card)) do
+          Boards.Cards.toggle_completed(card)
+          {:noreply, load(socket)}
+        else
+          {:noreply, put_flash(socket, :error, "You have read-only access to that card.")}
+        end
+      end,
+      &put_flash(&1, :error, &2)
+    )
   end
 
   # Off my own list (#2069): held on the item's cause, so a new one shows.
@@ -148,23 +154,37 @@ defmodule SlipdockWeb.WorkLive.Index do
 
   # A wait answered from here: by choice button or in words.
   def handle_event("answer_wait", %{"card" => id} = params, socket) do
-    user = socket.assigns.current_user
-    card = Boards.Cards.get_card!(id)
+    SlipdockWeb.Refusals.said(
+      socket,
+      fn ->
+        user = socket.assigns.current_user
+        card = Boards.Cards.get_card!(id)
 
-    attrs = %{
-      "choice" => params["choice"],
-      "answer" => get_in(params, ["wait", "answer"]) || params["answer"]
-    }
+        attrs = %{
+          "choice" => params["choice"],
+          "answer" => get_in(params, ["wait", "answer"]) || params["answer"]
+        }
 
-    with true <- Access.can_write?(Access.card_permission(user, card)),
-         {:ok, _} <- Boards.Waits.answer_wait(card, Actor.web(user), attrs) do
-      # `load/1` counts the header's number again, from the same section.
-      {:noreply, load(socket)}
-    else
-      false -> {:noreply, put_flash(socket, :error, "You have read-only access to that card.")}
-      {:error, message} when is_binary(message) -> {:noreply, put_flash(socket, :error, message)}
-      {:error, _} -> {:noreply, put_flash(socket, :error, "That answer couldn't be saved.")}
-    end
+        with true <- Access.can_write?(Access.card_permission(user, card)),
+             {:ok, _} <- Boards.Waits.answer_wait(card, Actor.web(user), attrs) do
+          # `load/1` counts the header's number again, from the same section.
+          {:noreply, load(socket)}
+        else
+          false ->
+            {:noreply, put_flash(socket, :error, "You have read-only access to that card.")}
+
+          {:error, message} when is_binary(message) ->
+            {:noreply, put_flash(socket, :error, message)}
+
+          {:error, %Slipdock.Policy.Refused{message: message}} ->
+            {:noreply, put_flash(socket, :error, message)}
+
+          {:error, _} ->
+            {:noreply, put_flash(socket, :error, "That answer couldn't be saved.")}
+        end
+      end,
+      &put_flash(&1, :error, &2)
+    )
   end
 
   # "3 waiting · 2 dismissed · 1 board muted" (#2069).

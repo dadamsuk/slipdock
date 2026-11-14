@@ -195,6 +195,17 @@ defmodule SlipdockWeb.BoardLive.Show do
 
   defp access_hook(_event, _params, socket), do: {:cont, socket}
 
+  # A write the context refuses (`Slipdock.Policy`) is said in a flash,
+  # whatever the handler made of it (`SlipdockWeb.Refusals`, #3169).
+  defp refusals(socket, handler),
+    do: SlipdockWeb.Refusals.said(socket, handler, &put_flash(&1, :error, &2))
+
+  # A write of the page's own the context refused, said in a flash (#3169).
+  defp refused(socket, {:error, %Slipdock.Policy.Refused{message: message}}),
+    do: put_flash(socket, :error, message)
+
+  defp refused(socket, _result), do: socket
+
   defp mount_assigns(socket, board) do
     socket
     |> assign(SnoozeEvents.mount_assigns())
@@ -867,7 +878,7 @@ defmodule SlipdockWeb.BoardLive.Show do
   # The other views' events and the keyboard's live in modules of their own;
   # they get here only past the guards above.
   def handle_event(event, params, socket) when event in @view_events,
-    do: ViewEvents.handle_event(event, params, socket)
+    do: refusals(socket, fn -> ViewEvents.handle_event(event, params, socket) end)
 
   # The page asks whether it has missed anything (#2918): when its tab comes
   # back into view, and once a minute while it is in view
@@ -909,10 +920,10 @@ defmodule SlipdockWeb.BoardLive.Show do
     do: {:noreply, DisplayPrefs.restore(socket, params)}
 
   def handle_event(event, params, socket) when event in @keyboard_events,
-    do: Keyboard.handle_event(event, params, socket)
+    do: refusals(socket, fn -> Keyboard.handle_event(event, params, socket) end)
 
   def handle_event(event, params, socket) when event in @snooze_events,
-    do: SnoozeEvents.handle_event(event, params, socket)
+    do: refusals(socket, fn -> SnoozeEvents.handle_event(event, params, socket) end)
 
   def handle_event(event, params, socket) when event in @search_events,
     do: SearchResults.handle_event(event, params, socket)
@@ -1303,8 +1314,8 @@ defmodule SlipdockWeb.BoardLive.Show do
   def handle_event("toggle_complete", %{"id" => id}, socket) do
     with {:ok, card} <- writable_card(socket, id) do
       user = socket.assigns.current_user
-      Boards.Cards.toggle_completed(card, by: user, actor: Slipdock.Actor.web(user))
-      {:noreply, socket}
+      toggled = Boards.Cards.toggle_completed(card, by: user, actor: Slipdock.Actor.web(user))
+      {:noreply, refused(socket, toggled)}
     else
       _ -> {:noreply, put_flash(socket, :error, "You have read-only access to that card.")}
     end
@@ -1864,11 +1875,12 @@ defmodule SlipdockWeb.BoardLive.Show do
       if moved_since_drawn?(params["from"], card.column_id) do
         {:noreply, moved_since_drawn(socket)}
       else
-        Boards.Cards.move_card(card.id, column.id, params["before"],
-          actor: Slipdock.Actor.web(socket.assigns.current_user)
-        )
+        moved =
+          Boards.Cards.move_card(card.id, column.id, params["before"],
+            actor: Slipdock.Actor.web(socket.assigns.current_user)
+          )
 
-        {:noreply, socket}
+        {:noreply, refused(socket, moved)}
       end
     else
       _ -> {:noreply, socket}

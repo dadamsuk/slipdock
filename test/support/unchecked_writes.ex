@@ -64,6 +64,23 @@ defmodule Slipdock.UncheckedWrites do
     {found -- listed, listed -- found}
   end
 
+  @doc """
+  The lines of `test/support/system_writes.txt`, as `{"Mod.fun/arity",
+  reason}`: the writes only the server makes, which ask nobody on purpose
+  (#3169). Each line is the function, a space and why nobody is behind it;
+  blanks and `#` comments are skipped. A line with no reason raises.
+  """
+  def read_system_list(path) do
+    path
+    |> read_list()
+    |> Enum.map(fn line ->
+      case String.split(line, ~r/\s+/, parts: 2) do
+        [fun, why] when byte_size(why) > 0 -> {fun, String.trim(why)}
+        _ -> raise ArgumentError, "#{Path.basename(path)}: no reason given for #{line}"
+      end
+    end)
+  end
+
   @doc "The lines of a list file: one `Mod.fun/arity` each; blanks and `#` comments skipped."
   def read_list(path) do
     path

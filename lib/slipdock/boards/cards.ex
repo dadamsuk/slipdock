@@ -17,6 +17,7 @@ defmodule Slipdock.Boards.Cards do
   alias Slipdock.Boards.ShortNames
   alias Slipdock.Boards.Wait
   alias Slipdock.CardState
+  alias Slipdock.Policy
   alias Slipdock.Quota
   alias Slipdock.Repo
   alias Slipdock.Rollup
@@ -381,8 +382,15 @@ defmodule Slipdock.Boards.Cards do
     end)
   end
 
-  @doc "Replaces the card's tags with the given list of `%Tag{}`s."
+  @doc """
+  Replaces the card's tags with the given list of `%Tag{}`s: write on the
+  card (`Slipdock.Policy`, `:toggle_card_tag`).
+  """
   def set_card_tags(%Card{} = card, tags) when is_list(tags) do
+    with :ok <- Policy.authorize(:toggle_card_tag, card), do: put_tags(card, tags)
+  end
+
+  defp put_tags(card, tags) do
     card = Repo.preload(card, :tags)
 
     card
@@ -429,8 +437,16 @@ defmodule Slipdock.Boards.Cards do
   Adds a card to `column`. `opts[:by]` is the person writing it, when known:
   it is who anybody `@mentioned` in the description is told mentioned them
   (see `Slipdock.Mentions`).
+
+  Asks write on the column's board (`Slipdock.Policy`, `:create_card`) for
+  whoever `opts` name, else this process's actor:
+  `{:error, %Slipdock.Policy.Refused{}}` otherwise.
   """
   def create_card(%Column{} = column, attrs, opts \\ []) do
+    with :ok <- Policy.authorize(:create_card, column, opts), do: new_card(column, attrs, opts)
+  end
+
+  defp new_card(column, attrs, opts) do
     position = Boards.Shared.next_position(from(c in Card, where: c.column_id == ^column.id))
     card = %Card{board_id: column.board_id, column_id: column.id, position: position}
 
@@ -628,6 +644,11 @@ defmodule Slipdock.Boards.Cards do
   end
 
   def update_card(%Card{} = card, attrs, opts) do
+    # Write on the card (`Slipdock.Policy`, `:update_card`), before anything.
+    with :ok <- Policy.authorize(:update_card, card, opts), do: save_change(card, attrs, opts)
+  end
+
+  defp save_change(card, attrs, opts) do
     # Verified work (#1620): what an agent may change on a board that checks.
     # A verifier's decision (`Slipdock.Verified.decide/5`) brings its own.
     # An incident's cause (#1946) first: a card the writer can read.
@@ -1028,6 +1049,10 @@ defmodule Slipdock.Boards.Cards do
   def start_timer(%Card{timer_started_at: %DateTime{}} = card), do: {:ok, card}
 
   def start_timer(%Card{} = card) do
+    with :ok <- Policy.authorize(:time_card, card), do: start(card)
+  end
+
+  defp start(card) do
     # Conditional on the timer still being stopped, so two starts racing each
     # other leave the first one's start time in place.
     {count, _} =
@@ -1057,7 +1082,11 @@ defmodule Slipdock.Boards.Cards do
   """
   def stop_timer(%Card{timer_started_at: nil} = card), do: {:ok, card}
 
-  def stop_timer(%Card{timer_started_at: since} = card) do
+  def stop_timer(%Card{} = card) do
+    with :ok <- Policy.authorize(:time_card, card), do: stop(card)
+  end
+
+  defp stop(%Card{timer_started_at: since} = card) do
     minutes = Slipdock.TimeTracking.running(card)
     cap = Slipdock.TimeTracking.max_minutes()
 
@@ -1117,7 +1146,12 @@ defmodule Slipdock.Boards.Cards do
     update_card(card, %{"completed" => !card.completed}, opts)
   end
 
+  @doc "Archives a card: write on it (`Slipdock.Policy`, `:archive_card`)."
   def archive_card(%Card{} = card, opts \\ []) do
+    with :ok <- Policy.authorize(:archive_card, card, opts), do: archive(card, opts)
+  end
+
+  defp archive(card, opts) do
     card
     # Archiving puts a card away for good, so any snooze goes with it.
     |> Ecto.Changeset.change(archived_at: DateTime.utc_now(:second), snoozed_until: nil)
@@ -1150,6 +1184,10 @@ defmodule Slipdock.Boards.Cards do
   # one back is asking for one more — otherwise "archive, add, restore" would
   # go on for ever, trial or no trial.
   def unarchive_card(%Card{} = card, opts \\ []) do
+    with :ok <- Policy.authorize(:archive_card, card, opts), do: unarchive(card, opts)
+  end
+
+  defp unarchive(card, opts) do
     position = Boards.Shared.next_position(from(c in Card, where: c.column_id == ^card.column_id))
 
     card
@@ -1169,7 +1207,12 @@ defmodule Slipdock.Boards.Cards do
     end)
   end
 
+  @doc "Deletes a card for good: write on it (`Slipdock.Policy`, `:delete_card`)."
   def delete_card(%Card{} = card) do
+    with :ok <- Policy.authorize(:delete_card, card), do: delete(card)
+  end
+
+  defp delete(card) do
     keys = Boards.Attachments.card_file_keys([card.id])
 
     Repo.delete(card)
@@ -1244,6 +1287,14 @@ defmodule Slipdock.Boards.Cards do
   """
   def move_card(card_id, to_column_id, before_id \\ nil, opts \\ []) do
     card = Repo.get!(Card, card_id)
+
+    # Write on the card (`Slipdock.Policy`, `:move_card`); the list is on
+    # its own board, which the move checks below.
+    with :ok <- Policy.authorize(:move_card, card, opts),
+         do: move(card, to_column_id, before_id, opts)
+  end
+
+  defp move(card, to_column_id, before_id, opts) do
     to_column = Repo.get!(Column, to_column_id)
 
     # A list on another board would pull the card off its own board without
@@ -1377,6 +1428,13 @@ defmodule Slipdock.Boards.Cards do
   indexed for search, or handed to automations.
   """
   def leave_stand_in(%Card{} = card, before \\ nil) do
+    # The server's own consequence of a move already allowed (#3169).
+    Policy.as_system("a card moved off a board leaves a stand-in", fn ->
+      stand_in(card, before)
+    end)
+  end
+
+  defp stand_in(card, before) do
     stand_in =
       Repo.insert!(%Card{
         title: card.title,
@@ -1420,6 +1478,13 @@ defmodule Slipdock.Boards.Cards do
   # done list keeps its stand-in where it is.
   @doc false
   def follow_stand_ins(%Card{} = card, %Column{} = from, %Column{} = to) do
+    # Their boards may be ones the mover can't write (#3169).
+    Policy.as_system("a card done takes its stand-ins to done", fn ->
+      follow(card, from, to)
+    end)
+  end
+
+  defp follow(card, from, to) do
     if Column.done?(to) and not Column.done?(from) and not Card.stand_in?(card) do
       for stand_in <- stand_ins_for(card.id),
           done = done_column(stand_in.board_id),

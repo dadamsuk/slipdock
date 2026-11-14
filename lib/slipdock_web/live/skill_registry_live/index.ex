@@ -58,7 +58,10 @@ defmodule SlipdockWeb.SkillRegistryLive.Index do
     {:noreply,
      socket
      |> assign(form: url_form(url), add_error: nil, notice: nil, busy: :add)
-     |> start_async(:add, fn -> SkillRegistry.add_source(user, url, seed: seed) end)}
+     |> start_async(
+       :add,
+       Slipdock.Actor.carry(fn -> SkillRegistry.add_source(user, url, seed: seed) end)
+     )}
   end
 
   def handle_event("refresh", %{"id" => id}, socket) do
@@ -72,7 +75,10 @@ defmodule SlipdockWeb.SkillRegistryLive.Index do
         {:noreply,
          socket
          |> assign(busy: {:refresh, source.id}, notice: nil)
-         |> start_async(:refresh, fn -> SkillRegistry.refresh_source(user, source) end)}
+         |> start_async(
+           :refresh,
+           Slipdock.Actor.carry(fn -> SkillRegistry.refresh_source(user, source) end)
+         )}
     end
   end
 

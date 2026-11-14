@@ -44,7 +44,14 @@ defmodule Slipdock.Inbound.Replies do
     if body(message, fn _ -> nil end) == "" and files == [] do
       {:reject, @nothing}
     else
-      {stored, left_off} = store_all(card, files)
+      # A reply is a comment, and its files come with it: trust (`Trust`)
+      # has allowed the sender at comment, so storing them, which asks
+      # write, is the server's own (`Slipdock.Policy`, #3169).
+      {stored, left_off} =
+        Slipdock.Policy.as_system("an emailed reply's files, its sender trusted to comment", fn ->
+          store_all(card, files)
+        end)
+
       cid = fn id -> if a = stored[{:cid, id}], do: Boards.Attachments.attachment_url(a) end
 
       said = body(message, cid)

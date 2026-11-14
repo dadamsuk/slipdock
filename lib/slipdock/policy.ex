@@ -34,8 +34,9 @@ defmodule Slipdock.Policy do
   alias Slipdock.Actor
   alias Slipdock.Boards.Board
   alias Slipdock.Boards.Card
-  alias Slipdock.Boards.Tag
+  alias Slipdock.Boards.Column
   alias Slipdock.Repo
+  alias Slipdock.Wiki.Page
 
   defmodule Refused do
     @moduledoc """
@@ -46,28 +47,71 @@ defmodule Slipdock.Policy do
     defexception [:action, :scope, :need, :by, :message]
   end
 
-  # action => {whose level counts, the level it needs}
+  # {action, whose level counts, the level it needs, what it is, for the
+  # refusal}. A new write adds its row here (W-1945 §Permissions).
   #
-  # Scopes: `:tree_root` is the root of the subject's board tree (tags are
-  # the tree's, DATA-9); `:card` is the card itself, raised by a grant on it.
-  @rules %{
-    create_tag: {:tree_root, :write},
-    update_tag: {:tree_root, :write},
-    delete_tag: {:tree_root, :write},
-    toggle_card_tag: {:card, :write}
-  }
+  # Scopes: `:tree_root` is the root of the subject's board tree (tags,
+  # fields and milestones are the tree's, DATA-9); `:board` is the board
+  # itself (a column's, a card's); `:card` is the card itself, raised by a
+  # grant on it; `:owner` is the card or the wiki page a row hangs off
+  # (`Boards.Owned`), a page's share counting.
+  @table [
+    # Tags (#3168)
+    {:create_tag, :tree_root, :write, "Making a tag"},
+    {:update_tag, :tree_root, :write, "Changing a tag"},
+    {:delete_tag, :tree_root, :write, "Deleting a tag"},
+    {:toggle_card_tag, :card, :write, "Tagging a card"},
+    # Cards and what hangs from one (#3169)
+    {:create_card, :board, :write, "Adding a card"},
+    {:update_card, :card, :write, "Changing a card"},
+    {:archive_card, :card, :write, "Archiving a card"},
+    {:delete_card, :card, :write, "Deleting a card"},
+    {:move_card, :card, :write, "Moving a card"},
+    {:move_card_in, :board, :write, "Moving a card onto a board"},
+    {:time_card, :card, :write, "The card's timer"},
+    {:add_comment, :owner, :comment, "Commenting"},
+    {:delete_comment, :owner, :write, "Deleting somebody else's comment"},
+    {:delete_own_comment, :owner, :comment, "Deleting your comment"},
+    {:edit_checklist, :owner, :write, "Changing a checklist"},
+    {:tick_checklist, :owner, :write, "Ticking a checklist"},
+    {:attach_file, :owner, :write, "Attaching a file"},
+    {:remove_file, :owner, :write, "Removing a file"},
+    {:hide_file, :owner, :write, "Keeping an image off the card's front"},
+    {:edit_card_urls, :owner, :write, "Changing the web links"},
+    {:edit_dependency, :card, :write, "Changing what blocks a card"},
+    {:link_to_card, :card, :read, "Pointing at a card"},
+    {:edit_link, :card, :write, "Linking cards"},
+    {:leave_handoff, :card, :comment, "Leaving a handoff"},
+    {:delete_handoff, :card, :write, "Deleting somebody else's handoff"},
+    {:delete_own_handoff, :card, :comment, "Deleting your handoff"},
+    {:edit_milestone, :tree_root, :write, "Changing a milestone"},
+    {:add_status_update, :owner, :comment, "Posting a status update"},
+    {:delete_status_update, :owner, :write, "Deleting a status update"},
+    {:open_wait, :card, :write, "Opening a wait"},
+    {:answer_wait, :card, :write, "Answering a wait"},
+    {:answer_own_wait, :card, :comment, "Answering a wait on you"},
+    {:withdraw_wait, :card, :write, "Withdrawing a wait"},
+    {:withdraw_own_wait, :card, :read, "Withdrawing your wait"},
+    {:edit_field, :tree_root, :write, "Changing a custom field"},
+    {:set_field_value, :owner, :write, "Setting a custom field"},
+    {:edit_recurrence, :card, :write, "Changing how a card repeats"},
+    {:snooze_card, :card, :write, "Snoozing a card"},
+    {:vote, :owner, :read, "Voting"}
+  ]
 
-  @what %{
-    create_tag: "Making a tag",
-    update_tag: "Changing a tag",
-    delete_tag: "Deleting a tag",
-    toggle_card_tag: "Tagging a card"
-  }
+  @rules Map.new(@table, fn {action, scope, level, _} -> {action, {scope, level}} end)
+  @what Map.new(@table, fn {action, _, _, what} -> {action, what} end)
 
-  @where %{tree_root: "the top board of its tree", card: "the card"}
+  @where %{
+    tree_root: "the top board of its tree",
+    board: "the board",
+    card: "the card",
+    owner: "the card or page"
+  }
 
   @system {__MODULE__, :system}
   @nobody_ok {__MODULE__, :nobody_ok}
+  @refusal {__MODULE__, :refusal}
 
   @doc "The table: what each action needs, and on what."
   def rules, do: @rules
@@ -77,8 +121,16 @@ defmodule Slipdock.Policy do
   `{:error, %Refused{}}`. `opts[:actor]` asks for that actor instead.
   """
   def authorize(action, subject, opts \\ []) when is_map_key(@rules, action) do
+    with {:error, %Refused{} = refused} = result <- check(action, subject, opts) do
+      Process.put(@refusal, refused)
+      result
+    end
+  end
+
+  # What `authorize/3` decides, without noting a refusal (`can?/3` asks it).
+  defp check(action, subject, opts) do
     {scope, need} = Map.fetch!(@rules, action)
-    actor = opts[:actor] || Actor.current()
+    actor = actor(opts)
 
     cond do
       Process.get(@system) -> :ok
@@ -87,12 +139,42 @@ defmodule Slipdock.Policy do
     end
   end
 
+  # Who the `opts` name (`opts[:actor]`, or `:via` and `:by`, as
+  # `Actor.resolve/1` reads a context's own `opts`, passed straight through)
+  # when that is a person or a rule, else the process's actor.
+  defp actor(opts) when is_list(opts) do
+    case Actor.resolve(opts) do
+      %{kind: "automation"} = actor -> actor
+      %{user_id: id} = actor when not is_nil(id) -> actor
+      _ -> Actor.current()
+    end
+  end
+
+  defp actor(_opts), do: Actor.current()
+
+  @doc """
+  The id of the person this process (or `opts[:actor]`) acts for, or nil:
+  for a rule that turns on authorship (a commenter deletes only their own
+  comment).
+  """
+  def user_id(opts \\ []), do: actor(opts)[:user_id]
+
   @doc """
   Whether this process's actor may do `action` to `subject`: what a door
   draws a button from, asked of the same table as the write, so the two
   can't disagree.
   """
-  def can?(action, subject, opts \\ []), do: authorize(action, subject, opts) == :ok
+  def can?(action, subject, opts \\ []) when is_map_key(@rules, action),
+    do: check(action, subject, opts) == :ok
+
+  @doc """
+  The last refusal `authorize/3` answered in this process, taken (so it is
+  answered once), or nil. A door that runs a write and may not look at its
+  answer (a handler that ignores it, or crashes matching `{:ok, _}`) says
+  this one instead (`SlipdockWeb.Refusals`, #3169). `can?/3` notes none:
+  it only asks.
+  """
+  def take_refusal, do: Process.delete(@refusal)
 
   @doc """
   Runs `fun` as the server itself, saying why: a write no person or token is
@@ -121,6 +203,15 @@ defmodule Slipdock.Policy do
   """
   def allow_nobody, do: Process.put(@nobody_ok, true)
 
+  @doc """
+  The strict form of `allow_nobody/0`, for a test run that looks for a
+  server path writing with nobody behind it (`SLIPDOCK_POLICY_STRICT=1`,
+  `Slipdock.DataCase`; W-1950 §Tests): nobody passes only inside
+  `Slipdock.Fixtures`. Each other refusal of nobody is appended to `log`,
+  with the call's stack, so a run can be read for the server paths.
+  """
+  def allow_nobody_in_fixtures(log), do: Process.put(@nobody_ok, {:fixtures, log})
+
   @doc "Undoes `allow_nobody/0`: nobody acting is refused again, as outside a test."
   def forbid_nobody, do: Process.delete(@nobody_ok)
 
@@ -129,7 +220,7 @@ defmodule Slipdock.Policy do
   defp decide(action, scope, need, subject, actor) do
     case user_for(actor) do
       nil ->
-        if Process.get(@nobody_ok), do: :ok, else: refuse(action, scope, need, :nobody)
+        if nobody_ok?(action), do: :ok, else: refuse(action, scope, need, :nobody)
 
       %User{} = user ->
         token = token_for(user)
@@ -142,6 +233,30 @@ defmodule Slipdock.Policy do
           true -> refuse(action, scope, need, :user)
         end
     end
+  end
+
+  defp nobody_ok?(action) do
+    case Process.get(@nobody_ok) do
+      true -> true
+      {:fixtures, log} -> in_fixtures?() or note_nobody(log, action)
+      _ -> false
+    end
+  end
+
+  defp in_fixtures? do
+    {:current_stacktrace, stack} = Process.info(self(), :current_stacktrace)
+    Enum.any?(stack, fn {mod, _f, _a, _loc} -> mod == Slipdock.Fixtures end)
+  end
+
+  defp note_nobody(log, action) do
+    {:current_stacktrace, stack} = Process.info(self(), :current_stacktrace)
+
+    frames =
+      for {mod, fun, arity, loc} <- Enum.drop(stack, 2),
+          do: "#{inspect(mod)}.#{fun}/#{arity}:#{loc[:line]}"
+
+    File.write!(log, "#{action} #{Enum.join(frames, " < ")}\n", [:append])
+    false
   end
 
   @ranks ~w(none view read comment write owner)a
@@ -168,7 +283,8 @@ defmodule Slipdock.Policy do
     end
   end
 
-  # {the level, the board the token's scope is checked against}
+  # {the level, the board the token's scope is checked against}. Every level
+  # is read from the database now, not from the struct the caller holds.
   defp level(:tree_root, user, subject) do
     case root_board(subject) do
       nil -> {:none, nil}
@@ -176,24 +292,69 @@ defmodule Slipdock.Policy do
     end
   end
 
-  defp level(:card, user, %Card{id: id}) do
-    case Repo.get(Card, id) do
+  defp level(:board, user, subject) do
+    case board_of(subject) do
       nil -> {:none, nil}
-      card -> {Access.card_permission(user, card), card.board_id}
+      board -> {Access.board_permission(user, board), board.id}
     end
   end
 
-  # Read again: the root a struct names can have moved (a board moved into
-  # another tree) or gone.
-  defp root_board(%Tag{board_id: id}), do: Repo.get(Board, id)
+  # A saved view granted to someone with view-only access to the board
+  # reaches the cards it shows, at the view's grant (`Access.view_card_level/2`).
+  defp level(:card, user, subject) do
+    case card_of(subject) do
+      nil -> {:none, nil}
+      card -> {card_level(user, card), card.board_id}
+    end
+  end
 
-  defp root_board(%Board{id: id}) do
-    case Repo.get(Board, id) do
+  # What hangs off a card or a wiki page (`Boards.Owned`): the card's level,
+  # or the page's (a share on the page counts).
+  defp level(:owner, user, subject) do
+    case page_of(subject) do
+      %Page{} = page -> {Access.page_permission(user, page), page.board_id}
+      nil -> level(:card, user, subject)
+    end
+  end
+
+  defp card_level(user, card) do
+    case Access.card_permission(user, card) do
+      :none -> Access.view_card_level(user, card)
+      level -> level
+    end
+  end
+
+  defp card_of(%Card{id: id}), do: Repo.get(Card, id)
+  defp card_of(%{card_id: id}) when is_integer(id), do: Repo.get(Card, id)
+  defp card_of(_), do: nil
+
+  defp page_of(%Page{id: id}), do: Repo.get(Page, id)
+  defp page_of(%{page_id: id}) when is_integer(id), do: Repo.get(Page, id)
+  defp page_of(_), do: nil
+
+  defp board_of(%Board{id: id}), do: Repo.get(Board, id)
+  defp board_of(%Column{board_id: id}), do: Repo.get(Board, id)
+
+  defp board_of(%Card{} = card),
+    do: with(%Card{board_id: id} <- card_of(card), do: Repo.get(Board, id))
+
+  defp board_of(_), do: nil
+
+  # Read again: the root a struct names can have moved (a board moved into
+  # another tree) or gone. Tags, fields and milestones are kept on the root.
+  defp root_board(%Board{} = board) do
+    case board_of(board) do
       nil -> nil
       %Board{root_id: nil} = board -> board
       %Board{root_id: root_id} -> Repo.get(Board, root_id)
     end
   end
+
+  defp root_board(%Card{} = card),
+    do: with(%Card{board_id: id} <- card_of(card), do: root_board(%Board{id: id}))
+
+  defp root_board(%{board_id: id}) when is_integer(id), do: root_board(%Board{id: id})
+  defp root_board(subject), do: with(%Board{} = board <- board_of(subject), do: root_board(board))
 
   defp refuse(action, scope, need, by) do
     what = Map.fetch!(@what, action)

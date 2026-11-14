@@ -346,7 +346,7 @@ defmodule SlipdockWeb.AccountLive.SettingsComponent do
     {:noreply,
      socket
      |> assign(ai_listing?: true, ai_models_error: nil)
-     |> start_async(:ai_models, fn -> AI.models(user: user) end)}
+     |> start_async(:ai_models, Slipdock.Actor.carry(fn -> AI.models(user: user) end))}
   end
 
   def handle_event("remove_ai_key", _, socket) do

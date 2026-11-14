@@ -117,14 +117,10 @@ defmodule SlipdockWeb.AIChatComponent do
             error: nil,
             form_key: socket.assigns.form_key + 1
           )
-          |> start_async(:reply, fn ->
-            context = Context.build(source)
-
-            if mode == "edit",
-              do: {:edit, Assistant.propose(context, history, text, user: user)},
-              else:
-                {:chat, Assistant.chat(context, history, text, user: user, card: source[:card])}
-          end)
+          |> start_async(
+            :reply,
+            Slipdock.Actor.carry(fn -> reply(source, history, text, mode, user) end)
+          )
 
         {:noreply, socket}
     end
@@ -588,5 +584,14 @@ defmodule SlipdockWeb.AIChatComponent do
       </button>
     </form>
     """
+  end
+
+  # The model's answer, off the LiveView's process (`start_async/3`).
+  defp reply(source, history, text, mode, user) do
+    context = Context.build(source)
+
+    if mode == "edit",
+      do: {:edit, Assistant.propose(context, history, text, user: user)},
+      else: {:chat, Assistant.chat(context, history, text, user: user, card: source[:card])}
   end
 end

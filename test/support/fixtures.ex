@@ -172,12 +172,16 @@ defmodule Slipdock.Fixtures do
     tag
   end
 
+  # A fixture is the test's own write, whoever the test process acts for
+  # after a request it made (`Slipdock.Policy`, #3169).
   def card_fixture(column, attrs \\ %{}) do
     {:ok, card} =
-      Boards.Cards.create_card(
-        column,
-        Map.merge(%{"title" => "Card #{System.unique_integer([:positive])}"}, attrs)
-      )
+      Slipdock.Policy.as_system("a test fixture", fn ->
+        Boards.Cards.create_card(
+          column,
+          Map.merge(%{"title" => "Card #{System.unique_integer([:positive])}"}, attrs)
+        )
+      end)
 
     card
   end
@@ -282,9 +286,11 @@ defmodule Slipdock.Fixtures do
     )
 
     {:ok, card} =
-      Boards.Cards.update_card(Slipdock.Repo.get!(Slipdock.Boards.Card, card.id), %{
-        "completed" => true
-      })
+      Slipdock.Policy.as_system("a test fixture", fn ->
+        Boards.Cards.update_card(Slipdock.Repo.get!(Slipdock.Boards.Card, card.id), %{
+          "completed" => true
+        })
+      end)
 
     card
   end
@@ -341,7 +347,12 @@ defmodule Slipdock.Fixtures do
 
     late = card_fixture(backlog, %{"title" => "Late", "due_date" => "2030-01-01"})
     stuck = card_fixture(backlog, %{"title" => "Stuck"})
-    {:ok, _} = Boards.Dependencies.add_dependency(stuck, late)
+
+    {:ok, _} =
+      Slipdock.Policy.as_system("a test fixture", fn ->
+        Boards.Dependencies.add_dependency(stuck, late)
+      end)
+
     loose = card_fixture(backlog, %{"title" => "Loose"})
 
     %{

@@ -224,8 +224,17 @@ defmodule SlipdockWeb.WikiLive.Index do
   @impl true
   def handle_event(event, params, socket) do
     case Enum.find(@event_modules, &Enum.member?(&1.events(), event)) do
-      nil -> raise FunctionClauseError, module: __MODULE__, function: :handle_event, arity: 3
-      module -> module.handle_event(event, params, socket)
+      nil ->
+        raise FunctionClauseError, module: __MODULE__, function: :handle_event, arity: 3
+
+      # A write the context refuses (`Slipdock.Policy`) is said in a flash,
+      # whatever the handler made of it (`SlipdockWeb.Refusals`, #3169).
+      module ->
+        SlipdockWeb.Refusals.said(
+          socket,
+          fn -> module.handle_event(event, params, socket) end,
+          &put_flash(&1, :error, &2)
+        )
     end
   end
 

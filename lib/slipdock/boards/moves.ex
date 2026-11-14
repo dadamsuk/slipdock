@@ -61,8 +61,17 @@ defmodule Slipdock.Boards.Moves do
 
   Returns `{:ok, summary}` — the moved card and what it cost on the way — or
   `{:error, message}`.
+
+  Asks both ends (`Slipdock.Policy`, #2745, #2750): write on the card
+  (`:move_card`) and on the board it goes to (`:move_card_in`).
   """
   def move_card_to_board(%Card{} = card, %Column{} = to_column, opts \\ []) do
+    with :ok <- Slipdock.Policy.authorize(:move_card, card, opts),
+         :ok <- Slipdock.Policy.authorize(:move_card_in, to_column, opts),
+         do: move_to(card, to_column, opts)
+  end
+
+  defp move_to(card, to_column, opts) do
     cond do
       not is_nil(card.archived_at) ->
         {:error, "Restore the card before moving it."}

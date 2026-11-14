@@ -95,6 +95,23 @@ defmodule Slipdock.Actor do
   def principal, do: Process.get(@principal) || {nil, nil}
 
   @doc """
+  `fun`, to run in another process (a LiveView's `start_async/3`, a task)
+  as this one's actor: the actor, its name and the `{user, api_token}` this
+  process acts for go with it, so a write the task makes is asked of
+  `Slipdock.Policy` as the person's, not refused as nobody's (#3169).
+  """
+  def carry(fun) when is_function(fun, 0) do
+    current = Process.get(@current)
+    principal = Process.get(@principal)
+
+    fn ->
+      if current, do: Process.put(@current, current)
+      if principal, do: Process.put(@principal, principal)
+      fun.()
+    end
+  end
+
+  @doc """
   Who this process's writes are by: the automation rule while one is firing
   (`Slipdock.Automations`), else what `put/2` was given, else `unknown/0`.
   """

@@ -10,6 +10,7 @@ defmodule Slipdock.Boards.Links do
   alias Slipdock.Boards.Board
   alias Slipdock.Boards.Card
   alias Slipdock.Boards.CardLink
+  alias Slipdock.Policy
   alias Slipdock.Repo
 
   @card_link ~r"^(?:https?://[^/\s]+)?/boards/\d+/(?:[a-z]+/)?cards/(\d{1,18})(?:[/?#]\S*)?$"
@@ -19,9 +20,15 @@ defmodule Slipdock.Boards.Links do
   @doc """
   Links `from` to `to` with `kind` (see `Slipdock.Boards.CardLink`). Cards may
   be on any boards. A "relates" link is symmetric, so one in either
-  direction is enough.
+  direction is enough. Write on `from`, read on `to` (`Slipdock.Policy`).
   """
   def add_link(%Card{} = from, %Card{} = to, kind) when is_binary(kind) do
+    with :ok <- Policy.authorize(:edit_link, from),
+         :ok <- Policy.authorize(:link_to_card, to),
+         do: link(from, to, kind)
+  end
+
+  defp link(from, to, kind) do
     cond do
       from.id == to.id ->
         {:error, "A card can't link to itself."}
@@ -71,9 +78,18 @@ defmodule Slipdock.Boards.Links do
 
   def get_link!(id), do: CardLink |> Repo.get!(id) |> Repo.preload([:from, :to])
 
+  @doc "Removes a link: write on either of its cards (`:edit_link`)."
   def remove_link(%CardLink{} = link) do
     link = Repo.preload(link, [:from, :to])
 
+    # Either end will do: asked of the first quietly, so only the second's
+    # refusal is the answer.
+    if Policy.can?(:edit_link, link.from),
+      do: delete(link),
+      else: with(:ok <- Policy.authorize(:edit_link, link.to), do: delete(link))
+  end
+
+  defp delete(link) do
     Repo.delete(link)
     |> Boards.Shared.tap_ok(fn _ ->
       Boards.ActivityLog.log(

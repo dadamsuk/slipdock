@@ -11,6 +11,7 @@ defmodule Slipdock.Boards.Waits do
   alias Slipdock.Boards.Board
   alias Slipdock.Boards.Card
   alias Slipdock.Boards.Wait
+  alias Slipdock.Policy
   alias Slipdock.Repo
 
   @doc false
@@ -32,9 +33,14 @@ defmodule Slipdock.Boards.Waits do
   and with inbound mail on they can answer by replying. A card has one
   open wait at most: a second is refused, naming the first.
 
-  Who may open one is the caller's to check: anyone who may change the card.
+  Anyone who may change the card may open one: it asks `Slipdock.Policy`
+  (`:open_wait`) for `actor`.
   """
   def open_wait(%Card{} = card, actor, attrs) do
+    with :ok <- Policy.authorize(:open_wait, card, actor: actor), do: open(card, actor, attrs)
+  end
+
+  defp open(card, actor, attrs) do
     card = Repo.get!(Card, card.id)
     user = Boards.ActivityLog.actor_user(actor)
     {attrs, told} = route_wait(card, attrs)
@@ -75,7 +81,7 @@ defmodule Slipdock.Boards.Waits do
         "waits on #{Wait.on_name(wait)}: #{wait.needs}"
       )
 
-      {:ok, _} = Boards.Comments.add_comment(card, opened_text(wait), by: user)
+      {:ok, _} = Boards.Comments.add_comment(card, opened_text(wait), by: user, actor: actor)
       Slipdock.EpicLog.wait_opened(card, wait)
       Slipdock.StepStatus.wait_opened(card, wait)
       Slipdock.Boards.WaitEmail.opened(wait, card)
@@ -128,6 +134,13 @@ defmodule Slipdock.Boards.Waits do
   in a comment on the card. Used when a routed user leaves the board.
   """
   def move_wait(%Wait{} = wait, to_user_id, why) do
+    # The server's own: the person it was on has gone (#3169).
+    Policy.as_system("a routed person left the board, so their wait moves", fn ->
+      move(wait, to_user_id, why)
+    end)
+  end
+
+  defp move(wait, to_user_id, why) do
     card = Repo.get!(Card, wait.card_id)
 
     {:ok, moved} =
@@ -234,8 +247,11 @@ defmodule Slipdock.Boards.Waits do
   An agent can't answer a wait it opened itself (KTD8): both classified as
   an agent and sharing a token or a job. A person always can, even on the
   agent's token. Of two answers racing, the second is told who answered
-  first and when. Who may answer at all is the caller's to check: anyone
-  who may change the card.
+  first and when. Who may answer at all is asked of `Slipdock.Policy`:
+  anyone who may change the card (`:answer_wait`), and the person the wait
+  is on with comment (`:answer_own_wait`, as a reply by email has it). Once
+  allowed, what follows (the flag, the comment, the job sent again) is the
+  server's own.
   """
   def answer_wait(%Card{} = card, actor, attrs) do
     case current_wait(card) do
@@ -246,11 +262,22 @@ defmodule Slipdock.Boards.Waits do
 
   def answer_wait(%Wait{} = wait, actor, attrs) do
     wait = Repo.preload(wait, wait_preloads())
+    action = if on_actor?(wait, actor), do: :answer_own_wait, else: :answer_wait
 
+    with :ok <- Policy.authorize(action, wait, actor: actor) do
+      Policy.as_system("an answered wait's flag, comment and job", fn ->
+        answer_or_skip(wait, actor, attrs)
+      end)
+    end
+  end
+
+  defp answer_or_skip(wait, actor, attrs) do
     if truthy?(wait_attr(attrs, :skip)),
       do: skip_wait(wait, actor),
       else: answer_open_wait(wait, actor, attrs)
   end
+
+  defp on_actor?(%Wait{on_user_id: id}, actor), do: is_integer(id) and id == actor[:user_id]
 
   defp answer_open_wait(wait, actor, attrs, opts \\ []) do
     answer = attrs |> wait_attr(:answer) |> blank_to_nil()
@@ -466,21 +493,39 @@ defmodule Slipdock.Boards.Waits do
         {:error, "card ##{card.id} has no open wait"}
 
       wait ->
-        reason = opts |> Keyword.get(:reason) |> blank_to_nil()
+        withdraw_open(card, wait, actor, opts)
+    end
+  end
 
-        with :ok <- withdraw_reason(wait, actor, reason),
-             :ok <- reason_length(reason),
-             :ok <- Slipdock.Verified.may_close_wait(wait, actor),
-             {:ok, closed} <- close_wait(wait, actor, "withdrawn", opts) do
-          {:ok, _} =
-            Boards.Comments.add_comment(
-              Repo.get!(Card, card.id),
-              opts[:note] || withdrawn_text(actor, closed, reason),
-              by: Boards.ActivityLog.actor_user(actor)
-            )
+  # Its opener with read (`:withdraw_own_wait`), anyone else with write.
+  defp withdraw_open(card, wait, actor, opts) do
+    action = if opened_by_actor?(wait, actor), do: :withdraw_own_wait, else: :withdraw_wait
 
-          {:ok, closed}
-        end
+    with :ok <- Policy.authorize(action, wait, actor: actor) do
+      Policy.as_system("a withdrawn wait's flag and comment", fn ->
+        withdraw(card, wait, actor, opts)
+      end)
+    end
+  end
+
+  defp opened_by_actor?(%Wait{opened_by_id: id}, actor),
+    do: is_integer(id) and id == actor[:user_id]
+
+  defp withdraw(card, wait, actor, opts) do
+    reason = opts |> Keyword.get(:reason) |> blank_to_nil()
+
+    with :ok <- withdraw_reason(wait, actor, reason),
+         :ok <- reason_length(reason),
+         :ok <- Slipdock.Verified.may_close_wait(wait, actor),
+         {:ok, closed} <- close_wait(wait, actor, "withdrawn", opts) do
+      {:ok, _} =
+        Boards.Comments.add_comment(
+          Repo.get!(Card, card.id),
+          opts[:note] || withdrawn_text(actor, closed, reason),
+          by: Boards.ActivityLog.actor_user(actor)
+        )
+
+      {:ok, closed}
     end
   end
 
@@ -518,6 +563,12 @@ defmodule Slipdock.Boards.Waits do
   as it would on a person's answer. Anything else is refused.
   """
   def default_wait(%Wait{} = wait, after_text) do
+    Policy.as_system("an approval wait unanswered past its time takes its default", fn ->
+      default(wait, after_text)
+    end)
+  end
+
+  defp default(wait, after_text) do
     wait = Repo.preload(wait, wait_preloads())
 
     if Wait.approval?(wait) and is_nil(wait.closed_at) do
@@ -538,6 +589,14 @@ defmodule Slipdock.Boards.Waits do
   # wait set it, unless the flag going is what closed it (`flag: false`).
   @doc false
   def close_wait(%Wait{} = wait, actor, reason, opts) do
+    # Called once a close is allowed (an answer, a withdrawal, the card done
+    # or archived): taking the flag off is the server's own (#3169).
+    Policy.as_system("a closed wait takes its flag off", fn ->
+      close(wait, actor, reason, opts)
+    end)
+  end
+
+  defp close(wait, actor, reason, opts) do
     now = DateTime.utc_now(:second)
     user = Boards.ActivityLog.actor_user(actor)
 

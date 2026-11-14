@@ -252,8 +252,13 @@ defmodule Slipdock.PolicyTest do
     end
 
     test "the table names every Boards.Tags write" do
-      assert Map.keys(Policy.rules()) |> Enum.sort() ==
-               [:create_tag, :delete_tag, :toggle_card_tag, :update_tag]
+      assert Policy.rules() |> Map.take([:create_tag, :delete_tag, :toggle_card_tag, :update_tag]) ==
+               %{
+                 create_tag: {:tree_root, :write},
+                 update_tag: {:tree_root, :write},
+                 delete_tag: {:tree_root, :write},
+                 toggle_card_tag: {:card, :write}
+               }
     end
   end
 end

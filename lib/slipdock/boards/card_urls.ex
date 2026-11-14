@@ -7,6 +7,7 @@ defmodule Slipdock.Boards.CardUrls do
 
   alias Slipdock.Boards
   alias Slipdock.Boards.CardUrl
+  alias Slipdock.Policy
   alias Slipdock.Repo
 
   ## External links ----------------------------------------------------------
@@ -14,8 +15,13 @@ defmodule Slipdock.Boards.CardUrls do
   @doc """
   Puts a link to somewhere outside the system on a card. `attrs` carries the
   `url` and an optional `title`; the datestamp is the row's own `inserted_at`.
+  Asks write on the card or page (`Slipdock.Policy`, `:edit_card_urls`).
   """
   def add_card_url(owner, attrs) do
+    with :ok <- Policy.authorize(:edit_card_urls, owner), do: insert(owner, attrs)
+  end
+
+  defp insert(owner, attrs) do
     %CardUrl{}
     |> struct!(Boards.Shared.owned_by(owner))
     |> CardUrl.changeset(stringify(attrs))
@@ -28,7 +34,12 @@ defmodule Slipdock.Boards.CardUrls do
 
   def get_card_url!(id), do: CardUrl |> Repo.get!(id) |> Repo.preload([:card, :page])
 
+  @doc "Takes a web link off its card or page: write on it (`:edit_card_urls`)."
   def delete_card_url(%CardUrl{} = url) do
+    with :ok <- Policy.authorize(:edit_card_urls, url), do: delete(url)
+  end
+
+  defp delete(url) do
     owner = Boards.Shared.owner_of(url)
 
     Repo.delete(url)

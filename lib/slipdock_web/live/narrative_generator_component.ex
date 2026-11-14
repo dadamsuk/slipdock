@@ -41,13 +41,16 @@ defmodule SlipdockWeb.NarrativeGeneratorComponent do
       {:noreply,
        socket
        |> assign(level: key, busy: true, error: nil, open: true)
-       |> start_async(:generate, fn ->
-         # The model that answered, which with fallbacks need not be the
-         # one asked first (#1670).
-         on_usage = fn usage -> Process.put(:ai_model_used, usage.model) end
-         result = Narrator.generate(source, key, user: user, on_usage: on_usage)
-         {key, result, Process.get(:ai_model_used)}
-       end)}
+       |> start_async(
+         :generate,
+         Slipdock.Actor.carry(fn ->
+           # The model that answered, which with fallbacks need not be the
+           # one asked first (#1670).
+           on_usage = fn usage -> Process.put(:ai_model_used, usage.model) end
+           result = Narrator.generate(source, key, user: user, on_usage: on_usage)
+           {key, result, Process.get(:ai_model_used)}
+         end)
+       )}
     end
   end
 

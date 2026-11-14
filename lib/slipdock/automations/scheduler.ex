@@ -95,8 +95,13 @@ defmodule Slipdock.Automations.Scheduler do
 
   @doc false
   # Runs each `{label, fun}` in turn; one that raises is logged and the rest
-  # still run.
-  def run_jobs(jobs), do: Enum.each(jobs, fn {label, fun} -> guarded(label, fun) end)
+  # still run. Each is the server's own work, with nobody behind it, and
+  # says so to `Slipdock.Policy` with its label (#3169).
+  def run_jobs(jobs) do
+    Enum.each(jobs, fn {label, fun} ->
+      guarded(label, fn -> Slipdock.Policy.as_system("the scheduler: " <> label, fun) end)
+    end)
+  end
 
   defp guarded(label, fun, fallback \\ nil) do
     fun.()

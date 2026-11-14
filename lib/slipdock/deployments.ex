@@ -28,6 +28,10 @@ defmodule Slipdock.Deployments do
     end
   end
 
+  # What a deploy writes on its cards (shipped, a release settled) is the
+  # server's own: the board's deploy token is behind it, no person (#3169).
+  @deploy_reason "a deploy recorded with the board's deploy token"
+
   @doc "Whether `board` takes deploys and shows delivery metrics."
   def enabled?(%Board{delivery_metrics: on}), do: on == true
 
@@ -49,6 +53,10 @@ defmodule Slipdock.Deployments do
   answers `{:existing, deployment}` rather than recording it again.
   """
   def start(%Board{} = board, attrs) do
+    Slipdock.Policy.as_system(@deploy_reason, fn -> start_deploy(board, attrs) end)
+  end
+
+  defp start_deploy(board, attrs) do
     attrs = Map.new(attrs, fn {k, v} -> {to_string(k), v} end)
 
     cond do
@@ -116,6 +124,10 @@ defmodule Slipdock.Deployments do
   `{:ok, deployment}`, `{:error, :off}` or `{:error, changeset}`.
   """
   def record_failure(%Board{} = board, attrs) do
+    Slipdock.Policy.as_system(@deploy_reason, fn -> fail(board, attrs) end)
+  end
+
+  defp fail(board, attrs) do
     attrs = Map.new(attrs, fn {k, v} -> {to_string(k), v} end)
 
     cond do
@@ -182,6 +194,10 @@ defmodule Slipdock.Deployments do
   changeset error.
   """
   def finish(%Board{} = board, id, status, opts \\ []) do
+    Slipdock.Policy.as_system(@deploy_reason, fn -> finish_deploy(board, id, status, opts) end)
+  end
+
+  defp finish_deploy(board, id, status, opts) do
     at = Keyword.get_lazy(opts, :at, &DateTime.utc_now/0)
 
     cond do
