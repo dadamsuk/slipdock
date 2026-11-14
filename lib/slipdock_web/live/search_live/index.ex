@@ -95,7 +95,7 @@ defmodule SlipdockWeb.SearchLive.Index do
   defp scope_to_board(socket, ""), do: assign(socket, board_id: nil)
 
   defp scope_to_board(socket, ref) do
-    with {id, ""} <- Integer.parse(to_string(ref)),
+    with id when is_integer(id) <- SlipdockWeb.Params.id(ref),
          true <- Enum.any?(socket.assigns.boards, &(&1.id == id)) do
       assign(socket, board_id: id)
     else

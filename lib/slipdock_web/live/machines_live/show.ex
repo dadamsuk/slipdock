@@ -293,21 +293,12 @@ defmodule SlipdockWeb.MachinesLive.Show do
   # marking each with its limit as it is typed.
   defp outside(machine, params, board_id) do
     config = Config.load(%{}) |> Config.dump() |> Map.merge(Map.take(params, @config_fields))
-    config = Map.update!(config, "timeout_minutes", &to_int/1)
+    config = Map.update!(config, "timeout_minutes", &SlipdockWeb.Params.int/1)
     config |> Ceiling.outside(machine.ceiling, board_id) |> Map.new()
   end
 
-  defp to_int(value) when is_integer(value), do: value
-
-  defp to_int(value) do
-    case Integer.parse(to_string(value || "")) do
-      {n, ""} -> n
-      _ -> nil
-    end
-  end
-
   defp form_board_id(%{editing: %{board_id: id}}), do: id
-  defp form_board_id(%{form: %{"board" => ref}}), do: to_int(ref)
+  defp form_board_id(%{form: %{"board" => ref}}), do: SlipdockWeb.Params.id(ref)
   defp form_board_id(_), do: nil
 
   defp runner_outside(machine, runner) do

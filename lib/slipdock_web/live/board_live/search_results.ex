@@ -46,8 +46,8 @@ defmodule SlipdockWeb.BoardLive.SearchResults do
 
   @doc "Handles one of `events/0`."
   def handle_event("toggle_result_group", %{"id" => id}, socket) do
-    case Integer.parse(to_string(id)) do
-      {id, ""} ->
+    case SlipdockWeb.Params.id(id) do
+      id when is_integer(id) ->
         folds = socket.assigns.result_folds
 
         folds =
