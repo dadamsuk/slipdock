@@ -279,14 +279,12 @@ defmodule SlipdockWeb.SlipdockComponents.Schedule do
     """
   end
 
-  @doc "A start-to-due range, as in \"31 Oct → 5 Nov\", with the year on a date outside this one."
-  def format_range(start, due), do: range_day(start) <> " → " <> range_day(due)
-
-  defp range_day(date) do
-    if date.year == Date.utc_today().year,
-      do: Dates.short(date),
-      else: Dates.long(date)
-  end
+  @doc """
+  A start-to-due range, as in \"31 Oct → 5 Nov\", with the year on a date
+  outside this one: `SlipdockWeb.Dates.range/3`, so "this year" is the
+  viewer's (the `:zone` option, else the process's), not UTC's (#2879).
+  """
+  def format_range(start, due, opts \\ []), do: Dates.range(start, due, opts)
 
   # The date icons, one pair everywhere a start or a due date is drawn: the
   # card face, the filter menu and the card back (#1709). An arrow into a
