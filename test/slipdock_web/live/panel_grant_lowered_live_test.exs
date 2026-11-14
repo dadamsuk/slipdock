@@ -322,6 +322,32 @@ defmodule SlipdockWeb.PanelGrantLoweredLiveTest do
       assert after_.title == "Placed page"
       assert [%{body: "still allowed"}] = after_.comments
     end
+
+    # The refusal's notice is for the event refused: the next event the
+    # panel handles takes it down (#3103).
+    test "the page panel's refusal notice goes once an event is handled", ctx do
+      page = page_fixture(ctx.board, %{"title" => "Placed page"}, user: ctx.owner)
+      {:ok, _} = Wiki.place(page, ctx.column)
+      {:ok, view, _} = live(as(ctx.writer), ~p"/boards/#{ctx.board}?#{[page: page.id]}")
+
+      lower(:untold, ctx, ctx.board, "comment")
+      panel = with_target(view, "#board-page")
+
+      render_hook(panel, "page_change", %{"page" => %{"title" => "Changed"}})
+
+      assert has_element?(
+               view,
+               "#page-panel #panel-notice[data-callout=error]",
+               "You have read-only access to that page."
+             )
+
+      render_hook(panel, "add_comment", %{"body" => "still allowed"})
+
+      assert [%{body: "still allowed"}] =
+               Repo.preload(Wiki.get_page!(page.id), :comments).comments
+
+      refute has_element?(view, "#page-panel #panel-notice")
+    end
   end
 
   describe "the grant taken away, the board untold:" do
