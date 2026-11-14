@@ -114,6 +114,24 @@ defmodule SlipdockWeb.HeaderLinksLiveTest do
     refute has_element?(view, "#header-link-row-#{a.id}")
   end
 
+  # #2875: the ids came through String.to_integer/1, which crashed the page.
+  test "a malformed id moves and removes nothing, and settings stay up",
+       %{conn: conn, user: user, plan: plan, vault: vault} do
+    {:ok, a} = HeaderLinks.add(user, plan, "star")
+    {:ok, b} = HeaderLinks.add(user, vault, "flag")
+    {:ok, view, _} = live(conn, ~p"/account/settings")
+    left = element(view, ~s(#header-link-row-#{b.id} button[phx-value-direction="left"]))
+    remove = element(view, "#header-link-row-#{b.id} button", "Remove")
+
+    for id <- ["#{b.id}abc", "x", "", "-#{b.id}"] do
+      render_click(left, %{"id" => id})
+      render_click(remove, %{"id" => id})
+    end
+
+    assert Enum.map(HeaderLinks.list(user), & &1.id) == [a.id, b.id]
+    assert has_element?(view, "#header-link-row-#{b.id}")
+  end
+
   test "a full header offers no form", %{conn: conn, user: user} do
     for _ <- 1..HeaderLinks.max(),
         do: {:ok, _} = HeaderLinks.add(user, board_fixture(%{}, owner: user), "star")

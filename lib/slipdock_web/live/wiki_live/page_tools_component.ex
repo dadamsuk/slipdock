@@ -16,6 +16,7 @@ defmodule SlipdockWeb.WikiLive.PageToolsComponent do
   alias Slipdock.{Access, Boards, Wiki}
   alias Slipdock.Wiki.PageTools
   alias SlipdockWeb.Markdown
+  alias SlipdockWeb.Params
 
   @impl true
   def mount(socket) do
@@ -41,9 +42,10 @@ defmodule SlipdockWeb.WikiLive.PageToolsComponent do
   def handle_event("insert", _params, socket), do: {:noreply, socket}
 
   def handle_event("make_card", %{"index" => index}, socket) do
-    index = String.to_integer(index)
+    index = Params.int(index)
 
-    with %{answer: %{items: items}} = assigns <- socket.assigns,
+    with true <- is_integer(index) and index >= 0,
+         %{answer: %{items: items}} = assigns <- socket.assigns,
          true <- may_make_card?(assigns),
          nil <- assigns.made[index],
          text when is_binary(text) <- Enum.at(items, index),

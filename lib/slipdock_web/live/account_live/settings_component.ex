@@ -11,6 +11,7 @@ defmodule SlipdockWeb.AccountLive.SettingsComponent do
   alias Slipdock.HeaderLinks
   alias Slipdock.QuickAdd.Capture
   alias Slipdock.Wiki.QuickNote
+  alias SlipdockWeb.Params
 
   @impl true
   def update(assigns, socket) do
@@ -72,7 +73,7 @@ defmodule SlipdockWeb.AccountLive.SettingsComponent do
 
   defp quick_note_attrs(user, location) do
     with [id, path] <- String.split(location, ":", parts: 2),
-         {id, ""} <- Integer.parse(id),
+         id when is_integer(id) <- Params.id(id),
          {:ok, vault} <- Slipdock.Vaults.get_vault(user, id) do
       {:ok, %{quick_note_vault_id: vault.id, quick_note_folder: path}}
     else
@@ -283,19 +284,26 @@ defmodule SlipdockWeb.AccountLive.SettingsComponent do
   end
 
   def handle_event("remove_header_link", %{"id" => id}, socket) do
-    HeaderLinks.remove(socket.assigns.current_user, String.to_integer(id))
-    {:noreply, header_links_changed(socket)}
+    case Params.id(id) do
+      nil ->
+        {:noreply, socket}
+
+      id ->
+        HeaderLinks.remove(socket.assigns.current_user, id)
+        {:noreply, header_links_changed(socket)}
+    end
   end
 
   def handle_event("move_header_link", %{"id" => id, "direction" => direction}, socket)
       when direction in ["left", "right"] do
-    HeaderLinks.move(
-      socket.assigns.current_user,
-      String.to_integer(id),
-      String.to_existing_atom(direction)
-    )
+    case Params.id(id) do
+      nil ->
+        {:noreply, socket}
 
-    {:noreply, header_links_changed(socket)}
+      id ->
+        HeaderLinks.move(socket.assigns.current_user, id, String.to_existing_atom(direction))
+        {:noreply, header_links_changed(socket)}
+    end
   end
 
   # Saves the endpoint and, when one was typed, the key. A blank key field

@@ -54,6 +54,23 @@ defmodule SlipdockWeb.WikiPageToolsLiveTest do
     assert Wiki.get_page!(ctx.page.id).body =~ "(##{card.id})"
   end
 
+  # #2875: the index came through String.to_integer/1, which crashed the
+  # panel on text, and a negative one made a card from the end of the list.
+  test "an index that isn't one makes no card, and the panel stays up", ctx do
+    AIStub.reply_with(%{"actions" => ["Book the hall", "Ring the printers."]})
+    {:ok, view, _html} = live(ctx.conn, ~p"/boards/#{ctx.board}/wiki/#{ctx.page.slug}")
+    open(view)
+    run(view, "actions")
+    tools = with_target(view, "#page-tools-#{ctx.page.id}")
+
+    for index <- ["x", "1abc", "", "-1", "2"],
+        do: render_hook(tools, "make_card", %{"index" => index})
+
+    assert Boards.get_board!(ctx.board.id).columns |> hd() |> Map.fetch!(:cards) == []
+    assert has_element?(view, "#page-tools-card-0")
+    assert has_element?(view, "#page-tools-card-1")
+  end
+
   test "a reader who can't write gets the tools and no cards", ctx do
     AIStub.reply_with(%{"actions" => ["Book the hall"]})
     reader = user_fixture("reader-pt@example.com")

@@ -196,6 +196,37 @@ defmodule SlipdockWeb.WaitQuestionsLiveTest do
       assert Boards.Waits.current_wait(ctx.card) == nil
     end
 
+    # #2875: n is 1-based, so "0" (or text) once removed the last question.
+    test "removing a question that isn't one removes nothing", ctx do
+      {:ok, view, _} = open(ctx.conn, ctx)
+      view |> element("#wait-ask") |> render_click()
+      view |> element("#wait-ask-add") |> render_click()
+
+      view
+      |> form("#wait-ask-form", %{"ask" => %{"questions" => %{"1" => "A?", "2" => "B?"}}})
+      |> render_change()
+
+      for n <- ["0", "2x", "-1", ""],
+          do: view |> element("#wait-ask-remove-2") |> render_click(%{"n" => n})
+
+      assert has_element?(view, "#wait-ask-1", "A?")
+      assert has_element?(view, "#wait-ask-2", "B?")
+    end
+
+    # #2875: a question key that isn't a number is dropped, not put first.
+    test "a question under a key that isn't a number is left out", ctx do
+      {:ok, view, _} = open(ctx.conn, ctx)
+      view |> element("#wait-ask") |> render_click()
+
+      view
+      |> element("#wait-ask-form")
+      |> render_change(%{"ask" => %{"questions" => %{"1" => "A?", "x" => "Stray?"}}})
+
+      assert has_element?(view, "#wait-ask-1", "A?")
+      refute has_element?(view, "#wait-ask-2")
+      refute render(view) =~ "Stray?"
+    end
+
     test "no question at all is refused, and the form stays", ctx do
       {:ok, view, _} = open(ctx.conn, ctx)
       view |> element("#wait-ask") |> render_click()

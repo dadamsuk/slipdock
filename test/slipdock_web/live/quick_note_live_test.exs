@@ -144,6 +144,17 @@ defmodule SlipdockWeb.QuickNoteLiveTest do
     assert Repo.reload!(ctx.user).quick_note_vault_id == nil
   end
 
+  # #2875: a vault id that isn't a number is refused, not a crash.
+  test "a location whose vault isn't a number is refused and nothing is saved", ctx do
+    {:ok, view, _html} = live(ctx.conn, ~p"/account/settings")
+
+    for bad <- ["x:Inbox", "#{ctx.vault.id}x:Inbox", ":Inbox"] do
+      view |> element("#quick-note-form") |> render_submit(%{"location" => bad})
+      assert render(view) =~ "That isn&#39;t your wiki."
+      assert Repo.reload!(ctx.user).quick_note_vault_id == nil
+    end
+  end
+
   test "Shift-Alt-N is on the help sheet" do
     assert {"Shift-Alt-N", _} = List.keyfind(SlipdockWeb.Shortcuts.all(), "Shift-Alt-N", 0)
   end
