@@ -140,6 +140,14 @@ defmodule SlipdockWeb.ViewEmptyTest do
       assert LazyHTML.attribute(button(html), "class") == ["btn btn-xs ml-2"]
     end
 
+    test "inline draws no button with no filter set, even with cards hidden" do
+      html = render_empty(hidden: 2, variant: "inline", config: %Config{})
+
+      assert html =~ @filtered
+      assert Enum.empty?(button(html))
+      refute html =~ "Clear filters"
+    end
+
     test "inline shows the view's own line when cards are shown" do
       html = render_empty(shown: 1, hidden: 0, variant: "inline")
       assert html =~ "Nothing on these axes."
