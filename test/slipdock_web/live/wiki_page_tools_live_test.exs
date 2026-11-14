@@ -20,6 +20,8 @@ defmodule SlipdockWeb.WikiPageToolsLiveTest do
     render_async(view)
   end
 
+  defp chat(text), do: %{"message" => %{"content" => text}}
+
   test "reading: the panel opens, summarises the saved page and shuts", ctx do
     AIStub.reply_with("**All** about printers.")
     {:ok, view, _html} = live(ctx.conn, ~p"/boards/#{ctx.board}/wiki/#{ctx.page.slug}")
@@ -148,6 +150,91 @@ defmodule SlipdockWeb.WikiPageToolsLiveTest do
     AIStub.reply_with("- A point")
     assert run(view, "key_points") =~ "A point"
     refute has_element?(view, "#page-tools-error")
+  end
+
+  # #3104: the button goes after one click, but a double click or a replayed
+  # event sends the same index again, and only `made` stands in its way.
+  test "an index sent again makes no second card and leaves the page alone", ctx do
+    AIStub.reply_with(%{"actions" => ["Book the hall", "Ring the printers."]})
+    {:ok, view, _html} = live(ctx.conn, ~p"/boards/#{ctx.board}/wiki/#{ctx.page.slug}")
+    open(view)
+    run(view, "actions")
+    tools = with_target(view, "#page-tools-#{ctx.page.id}")
+
+    render_hook(tools, "make_card", %{"index" => "1"})
+    body = Wiki.get_page!(ctx.page.id).body
+    [card] = Boards.get_board!(ctx.board.id).columns |> hd() |> Map.fetch!(:cards)
+
+    render_hook(tools, "make_card", %{"index" => "1"})
+    assert [^card] = Boards.get_board!(ctx.board.id).columns |> hd() |> Map.fetch!(:cards)
+    assert Wiki.get_page!(ctx.page.id).body == body
+    assert body =~ "(##{card.id})"
+  end
+
+  test "a board with no lists says so and makes no card", ctx do
+    AIStub.reply_with(%{"actions" => ["Book the hall"]})
+    {:ok, view, _html} = live(ctx.conn, ~p"/boards/#{ctx.board}/wiki/#{ctx.page.slug}")
+    open(view)
+    run(view, "actions")
+
+    for column <- Boards.get_board!(ctx.board.id).columns,
+        do: {:ok, _} = Boards.Columns.delete_column(column)
+
+    view |> element("#page-tools-card-0") |> render_click()
+    assert has_element?(view, "#page-tools-error", "That board has no lists to put a card in.")
+    assert has_element?(view, "#page-tools-card-0")
+    assert Slipdock.Repo.aggregate(Boards.Card, :count) == 0
+    assert Wiki.get_page!(ctx.page.id).body == "Ring the printers."
+  end
+
+  test "a tool run that crashes says so, and the tools can run again", ctx do
+    Req.Test.stub(Slipdock.AI, fn _conn -> raise "the model's connection fell over" end)
+    {:ok, view, _html} = live(ctx.conn, ~p"/boards/#{ctx.board}/wiki/#{ctx.page.slug}")
+    open(view)
+
+    ExUnit.CaptureLog.capture_log(fn -> run(view, "summarise") end)
+    assert has_element?(view, "#page-tools-error", "That didn't work; please try again.")
+    refute has_element?(view, "#page-tool-summarise[disabled]")
+
+    AIStub.reply_with("About printers.")
+    assert run(view, "summarise") =~ "About printers."
+    refute has_element?(view, "#page-tools-error")
+  end
+
+  test "a run sent while one is working starts no second request", ctx do
+    test = self()
+
+    Req.Test.stub(Slipdock.AI, fn conn ->
+      send(test, {:asked, self()})
+      receive do: (:answer -> Req.Test.json(conn, %{"choices" => [chat("One answer.")]}))
+    end)
+
+    {:ok, view, _html} = live(ctx.conn, ~p"/boards/#{ctx.board}/wiki/#{ctx.page.slug}")
+    open(view)
+    view |> element("#page-tool-summarise") |> render_click()
+    assert_receive {:asked, model}
+    assert has_element?(view, "#page-tool-summarise", "Working…")
+
+    tools = with_target(view, "#page-tools-#{ctx.page.id}")
+    render_hook(tools, "run", %{"tool" => "key_points"})
+    refute_receive {:asked, _}, 200
+    assert has_element?(view, "#page-tool-summarise", "Working…")
+
+    send(model, :answer)
+    assert render_async(view) =~ "One answer."
+    refute_received {:asked, _}
+  end
+
+  test "insert while reading pushes nothing to an editor", ctx do
+    AIStub.reply_with("About printers.")
+    {:ok, view, _html} = live(ctx.conn, ~p"/boards/#{ctx.board}/wiki/#{ctx.page.slug}")
+    open(view)
+    assert run(view, "summarise") =~ "About printers."
+    refute has_element?(view, "#page-tools-insert")
+
+    view |> with_target("#page-tools-#{ctx.page.id}") |> render_hook("insert", %{})
+    refute_push_event(view, "wiki-editor:insert", %{})
+    assert Wiki.get_page!(ctx.page.id).body == "Ring the printers."
   end
 
   test "a drawing and the history have no tools", ctx do
