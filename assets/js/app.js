@@ -59,6 +59,7 @@ import {LogTail} from "./log_tail"
 import {DisplayPrefs} from "./display_prefs"
 import {DesktopNotify, DesktopNotifyToggle} from "./desktop_notify"
 import {DropdownAlign} from "./dropdown_align"
+import {selectedText, sendSelection} from "./wiki_selection"
 
 const Hooks = {}
 Hooks.ModalDialog = ModalDialog
@@ -644,12 +645,6 @@ Hooks.PasteImage = {
   },
 }
 
-function touchesPlaintext(range) {
-  const inside = node => (node.nodeType === 1 ? node : node.parentElement)?.closest("[data-meld-open]")
-  return Boolean(inside(range.startContainer) || inside(range.endContainer) ||
-    range.cloneContents().querySelector("[data-meld-open], .meld-plain"))
-}
-
 // A passage of a wiki page becomes a card. Selecting text inside the element
 // raises a small button beside the selection; pressing it sends the text to
 // the server, which makes the card and writes the link into both ends.
@@ -661,23 +656,16 @@ Hooks.WikiSelection = {
     document.addEventListener("selectionchange", this.onUp)
     this.button.addEventListener("mousedown", e => {
       e.preventDefault()
-      const text = this.selectedText()
-      if (text) this.pushEvent("card_from_selection", {text})
+      sendSelection(this.el, window.getSelection(), (event, payload) => this.pushEvent(event, payload))
       this.hide()
     })
   },
   destroyed() {
     document.removeEventListener("selectionchange", this.onUp)
   },
+  // Decrypted text stays in the browser: it never becomes a card.
   selectedText() {
-    const sel = window.getSelection()
-    if (!sel || sel.isCollapsed || sel.rangeCount === 0) return null
-    const range = sel.getRangeAt(0)
-    if (!this.el.contains(range.commonAncestorContainer)) return null
-    // Decrypted text stays in the browser: it never becomes a card.
-    if (touchesPlaintext(range)) return null
-    const text = sel.toString().trim()
-    return text.length > 2 ? text : null
+    return selectedText(this.el, window.getSelection())
   },
   sync() {
     const text = this.selectedText()
