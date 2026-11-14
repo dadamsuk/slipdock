@@ -503,6 +503,173 @@ defmodule Slipdock.HandbookTest do
     end
   end
 
+  describe "the triage card's bar (#2987)" do
+    alias Slipdock.Boards.Card
+
+    defp triage(board), do: Repo.get_by!(Card, board_id: board.id, title: "Triage findings")
+
+    # The bar as it was written by hand on a board: a finding may stay open
+    # on any night, and the message names the card it was first written on.
+    @by_hand "Every open finding read, and each merged, dismissed with a reason, promoted or left open with a reason\n" <>
+               ~s(Settled descriptions written with --message "#2078 triage")
+
+    # `days` on from now: far enough that the series' next occurrence has come.
+    defp next_instance(card, days \\ 3) do
+      series = Slipdock.Recurrence.for_card(card)
+      # The reconcile card's series fires with it.
+      assert Slipdock.Recurrence.tick(DateTime.add(DateTime.utc_now(), days, :day)) >= 1
+      Boards.Cards.get_card!(Repo.get!(Slipdock.Recurrence.Series, series.id).card_id)
+    end
+
+    test "is the Tool's at install: step 4 can't be slipped past, and it names the card's own id",
+         %{user: user, board: board} do
+      {:ok, result} = Handbook.install(user, board)
+      card = triage(board)
+      code = Handbook.find(board).index.code
+
+      assert card.bar == Handbook.triage_bar(code, card.id)
+      assert is_nil(card.bar_locked_at)
+      refute "Triage findings (updated: bar)" in result.report.added["cards"]
+      # A fresh install is not an upgrade: the bar came with the card it made.
+      refute result.upgraded
+
+      [findings, descriptions, numbers, log] = String.split(card.bar, "\n")
+
+      # Left open only if it arrived since the last triage; an older one is decided.
+      assert findings =~
+               "or, only if it arrived since the last triage (after the last line of #{code}'s `## Triage`), left open with a reason in the log line"
+
+      assert findings =~
+               "a finding that was already open at the last triage is decided, never left open a second time"
+
+      refute findings =~ "promoted or left open"
+
+      assert descriptions =~ ~s(`--message "##{card.id} triage"`)
+      assert descriptions =~ "filed as garden proposals, never edited"
+      assert numbers =~ "`slipdock quality <board> --rules` read"
+      assert log =~ "A line appended to #{code}'s `## Triage`"
+      assert log =~ "with no open finding to read, no line"
+    end
+
+    test "the next instance takes the Tool's bar with its own id, not the last one's text",
+         %{user: user, board: board} do
+      {:ok, _} = Handbook.install(user, board)
+      card = triage(board)
+      code = Handbook.find(board).index.code
+
+      new = card |> run_done(@by_hand) |> next_instance()
+
+      refute new.id == card.id
+      assert new.title == "Triage findings"
+      assert new.bar == Handbook.triage_bar(code, new.id)
+      assert new.bar =~ ~s("##{new.id} triage")
+      refute new.bar =~ "#2078"
+      refute new.bar =~ ~s("##{card.id} triage")
+      refute new.bar =~ "promoted or left open"
+      assert is_nil(new.bar_locked_at)
+
+      # And the night after: its own id again, not the one before's.
+      newer = new |> run_done(new.bar) |> next_instance(6)
+      assert newer.bar == Handbook.triage_bar(code, newer.id)
+      refute newer.bar =~ ~s("##{new.id} triage")
+    end
+
+    test "an older install's card with no bar gets it, once; a written or locked bar is kept",
+         %{user: user, board: board} do
+      {:ok, _} = Handbook.install(user, board)
+      card = triage(board)
+      code = Handbook.find(board).index.code
+
+      for none <- [nil, ""] do
+        Repo.update_all(from(c in Card, where: c.id == ^card.id), set: [bar: none])
+        {:ok, again} = Handbook.install(user, board)
+        assert again.upgraded
+        assert "Triage findings (updated: bar)" in again.report.added["cards"]
+        assert Repo.get!(Card, card.id).bar == Handbook.triage_bar(code, card.id)
+      end
+
+      {:ok, third} = Handbook.install(user, board)
+      refute third.upgraded
+      refute "Triage findings (updated: bar)" in third.report.added["cards"]
+
+      Repo.update_all(from(c in Card, where: c.id == ^card.id), set: [bar: @by_hand])
+      {:ok, kept} = Handbook.install(user, board)
+      refute "Triage findings (updated: bar)" in kept.report.added["cards"]
+      assert Repo.get!(Card, card.id).bar == @by_hand
+
+      # Locked with none (work started): a person's to give now.
+      Repo.update_all(from(c in Card, where: c.id == ^card.id),
+        set: [bar: nil, bar_locked_at: DateTime.utc_now(:second)]
+      )
+
+      {:ok, locked} = Handbook.install(user, board)
+      refute "Triage findings (updated: bar)" in locked.report.added["cards"]
+      assert Repo.get!(Card, card.id).bar == nil
+    end
+
+    test "a done triage card with no bar is left alone", %{user: user, board: board} do
+      {:ok, _} = Handbook.install(user, board)
+      card = triage(board)
+      Repo.update_all(from(c in Card, where: c.id == ^card.id), set: [bar: nil, completed: true])
+
+      {:ok, again} = Handbook.install(user, board)
+      refute "Triage findings (updated: bar)" in again.report.added["cards"]
+      assert Repo.get!(Card, card.id).bar == nil
+    end
+
+    test "is only for the handbook's own card on a board with a handbook", %{
+      user: user,
+      board: board
+    } do
+      [_backlog, todo | _] = board.columns
+
+      # The same title on a board with no handbook keeps its own bar.
+      lookalike = card_fixture(todo, %{"title" => "Triage findings", "bar" => "Ours"})
+      assert Handbook.template_bar(lookalike) == nil
+
+      {:ok, _} = Handbook.install(user, board)
+      other = card_fixture(todo, %{"title" => "Another chore", "bar" => "Its own"})
+      assert Handbook.template_bar(other) == nil
+      assert Handbook.template_bar(%Card{title: "Triage findings", board_id: board.id}) == nil
+      assert Handbook.template_bar(nil) == nil
+
+      code = Handbook.find(board).index.code
+
+      assert Handbook.template_bar(Repo.get!(Card, lookalike.id)) ==
+               Handbook.triage_bar(code, lookalike.id)
+
+      # Another chore's series carries its own bar, as before (#2081).
+      {:ok, _} = Slipdock.Recurrence.set(other, %{"rule" => "every day"}, user)
+
+      Repo.update_all(from(c in Card, where: c.title == "Triage findings"),
+        set: [completed: true]
+      )
+
+      series = Slipdock.Recurrence.for_card(other)
+      other = run_done(other, "Its own, reworded")
+      Slipdock.Recurrence.tick(DateTime.add(DateTime.utc_now(), 3, :day))
+      new = Repo.get!(Card, Repo.get!(Slipdock.Recurrence.Series, series.id).card_id)
+      refute new.id == other.id
+      assert new.bar == "Its own, reworded"
+    end
+
+    test "a card of the same title on a sub-board of a handbook board keeps its own bar",
+         %{user: user, board: board} do
+      {:ok, _} = Handbook.install(user, board)
+      [col | _] = board.columns
+      epic = card_fixture(col, %{"title" => "Epic"})
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
+      {:ok, sub} = sub_board(epic, t)
+      [sub_col | _] = Boards.get_board!(sub.id).columns
+
+      # Handbook.find(sub) finds the root's handbook, but the template is the
+      # root card's, not this one's.
+      assert Handbook.find(sub).board.id == board.id
+      lookalike = card_fixture(sub_col, %{"title" => "Triage findings", "bar" => "Sub's own"})
+      assert Handbook.template_bar(lookalike) == nil
+    end
+  end
+
   describe "upgrading the triage card (#2779)" do
     test "installing over an older one gives it the current procedure, once",
          %{user: user, board: board} do
