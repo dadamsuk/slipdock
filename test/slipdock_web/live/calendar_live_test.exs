@@ -286,6 +286,23 @@ defmodule SlipdockWeb.CalendarLiveTest do
       assert has_element?(view, "#{chip} button[aria-label='Mark incomplete']")
     end
 
+    test "let the owner tick a card done, and not a reader (#2886)", %{
+      conn: conn,
+      board: board,
+      due: due
+    } do
+      path = ~p"/boards/#{board}/calendar?date=2030-01-15"
+      toggle = "#cal-2030-01-15-#{due.id} [data-role=complete-toggle]"
+
+      {:ok, view, _} = live(conn, path)
+      assert has_element?(view, "#{toggle}:not([disabled])")
+
+      reader = user_fixture("cal.reader@example.com")
+      {:ok, _} = Slipdock.Access.grant(board, reader, "read", user_fixture())
+      {:ok, view, _} = live(log_in_user(build_conn(), reader), path)
+      assert has_element?(view, "#{toggle}[disabled]")
+    end
+
     test "leave out decorations the display turns off, and thin them when compact", %{
       conn: conn,
       board: board,

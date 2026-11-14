@@ -162,6 +162,19 @@ defmodule SlipdockWeb.OutlineLiveTest do
     Boards.get_board!(sub.id).columns |> hd() |> Map.get(:cards) |> Enum.sort_by(& &1.position)
   end
 
+  test "a row's check is the owner's to tick, and disabled for a reader (#2886)", ctx do
+    path = ~p"/boards/#{ctx.board}/outline"
+    toggle = "#ol-#{ctx.c.id} [data-role=complete-toggle]"
+
+    {:ok, view, _} = live(build_conn() |> log_in_user(user_fixture()), path)
+    assert has_element?(view, "#{toggle}:not([disabled])")
+
+    reader = user_fixture("outline.reader@example.com")
+    {:ok, _} = Slipdock.Access.grant(ctx.board, reader, "read", user_fixture())
+    {:ok, view, _} = live(build_conn() |> log_in_user(reader), path)
+    assert has_element?(view, "#{toggle}[disabled]")
+  end
+
   test "one page of cards has no pager", ctx do
     conn = build_conn() |> log_in_user(user_fixture())
     {:ok, view, _} = live(conn, ~p"/boards/#{ctx.board}/outline")
