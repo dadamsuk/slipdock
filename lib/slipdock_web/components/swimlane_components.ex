@@ -1200,12 +1200,11 @@ defmodule SlipdockWeb.SwimlaneComponents do
   def view_mode_path(board, mode, query \\ []) do
     {_mode, suffix, _label, _icon, _title, _key} = mode_tab(mode)
 
-    Phoenix.VerifiedRoutes.unverified_path(
-      SlipdockWeb.Endpoint,
-      SlipdockWeb.Router,
-      ~p"/boards/#{board}" <> suffix,
-      query
-    )
+    # The board's own verified route carries the query, so it is encoded as
+    # every other `~p` is (sorted in tests); the view's suffix goes in after
+    # the board.
+    base = ~p"/boards/#{board}"
+    String.replace_prefix(~p"/boards/#{board}?#{query}", base, base <> suffix)
   end
 
   @doc """

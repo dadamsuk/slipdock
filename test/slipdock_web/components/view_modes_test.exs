@@ -3,6 +3,7 @@ defmodule SlipdockWeb.ViewModesTest do
   # (`SlipdockComponents.view_tabs_list/0`), so a saved view in any mode
   # `Config` allows gets its own (#2877: Prioritise used to get swimlanes').
   use ExUnit.Case, async: true
+  use SlipdockWeb, :verified_routes
 
   import SlipdockWeb.SwimlaneComponents,
     only: [mode_icon: 1, view_mode_path: 2, view_mode_path: 3]
@@ -87,6 +88,17 @@ defmodule SlipdockWeb.ViewModesTest do
       assert view_mode_path(7, :table, q: "a b", sort: "due") == "/boards/7/table?q=a+b&sort=due"
       assert view_mode_path(7, :board, %{"view" => 4}) == "/boards/7?view=4"
       assert view_mode_path(7, :board, tags: ["x", "y"]) == "/boards/7?tags[]=x&tags[]=y"
+    end
+
+    test "the query is encoded as a verified route's is, whatever order it came in" do
+      query = [unit: "month", rows: "column", date: "2030-01-15"]
+
+      assert view_mode_path(7, :timeline, query) == ~p"/boards/7/timeline?#{query}"
+      assert view_mode_path(7, :board, query) == ~p"/boards/7?#{query}"
+      assert view_mode_path(7, "nope", query) == ~p"/boards/7/swimlanes?#{query}"
+
+      assert view_mode_path(7, :timeline, query) ==
+               "/boards/7/timeline?date=2030-01-15&rows=column&unit=month"
     end
 
     test "an empty query adds nothing" do
