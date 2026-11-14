@@ -966,19 +966,14 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
         <div :if={MapSet.member?(@panel, "side.cover")} class="space-y-1.5">
           <span class="section-label">Cover</span>
           <div class="flex flex-wrap gap-1.5">
-            <button
+            <.color_swatch
               phx-target={@target}
-              type="button"
-              class={[
-                "flex size-6 items-center justify-center rounded-full ring-1 ring-base-content/20 ring-offset-2 ring-offset-base-100",
-                is_nil(@card.color) && "ring-2 ring-base-content"
-              ]}
+              color={nil}
+              label="No cover"
+              selected={is_nil(@card.color)}
               phx-click="set_cover"
               phx-value-color=""
-              title="No cover"
-            >
-              <.icon name="hero-no-symbol" class="size-3.5 opacity-50" />
-            </button>
+            />
             <.color_swatch
               :for={{name, _} <- Palette.all()}
               phx-target={@target}
