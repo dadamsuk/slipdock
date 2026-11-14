@@ -133,6 +133,26 @@ a trusted proxy: by default loopback only, which covers a proxy on the same
 host. Under compose, `compose.yaml` sets `SLIPDOCK_TRUSTED_PROXIES=local`:
 loopback and the container's own network, which covers Caddy and a host proxy
 reaching the published port. A proxy elsewhere on your LAN has to be listed.
+
+`local` is safe because a visitor who reaches the published port directly
+keeps their own address, which isn't trusted. That holds only on ordinary
+(rootful) Linux Docker, for an IPv4 visitor. Under **rootless Docker** or
+**Docker Desktop**, or for an **IPv6 visitor** when the compose network is
+IPv4-only (the default), Docker carries the connection through a forwarder of
+its own, and every visitor arrives from the network's gateway, which `local`
+trusts. So does another container on the same host. With the default
+`SLIPDOCK_PUBLISH=127.0.0.1:4000` that changes nothing, since only the host
+can reach the port. With the port published to other machines
+(`SLIPDOCK_PUBLISH=4000`) on one of those setups, anybody who can reach it
+could write their own `X-Forwarded-For` and so pick their own address. There,
+do one of these:
+
+- keep the port on loopback and put the proxy in front of it (as above);
+- with no proxy at all, set `SLIPDOCK_TRUSTED_PROXIES=none`;
+- with Caddy from `deploy/caddy`, or another proxy in a container, name its
+  address alone (`SLIPDOCK_TRUSTED_PROXIES=172.18.0.3/32`, say) instead of
+  `local`.
+
 If yours connects from a public address (Cloudflare proxying straight to the origin, say), list its
 ranges in `SLIPDOCK_TRUSTED_PROXIES`, comma-separated; otherwise everybody
 appears to come from the proxy and shares one sign-in limit. `none` trusts

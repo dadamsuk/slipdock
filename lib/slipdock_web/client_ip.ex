@@ -23,8 +23,14 @@ defmodule SlipdockWeb.ClientIP do
   interfaces are on. That is what `compose.yaml` sets: inside a container
   those are the compose network, so Caddy or a proxy on the host (which
   reaches a published port from the network's gateway) is believed, while a
-  visitor arriving through the published port keeps their own address. On a
-  host with its own LAN interface it would trust the whole LAN, so it is for
+  visitor arriving through the published port keeps their own address. That
+  last part holds only where Docker forwards the port in the kernel (rootful
+  Linux Docker, an IPv4 visitor). Under rootless Docker, Docker Desktop, or for
+  an IPv6 visitor to an IPv4-only compose network, a userland forwarder
+  carries the connection and the visitor arrives from the gateway as well, so
+  a port published beyond loopback there needs the proxy named, or `none`
+  (#2967; `compose.yaml` and the manual's Docker page say so). On a host with
+  its own LAN interface `"local"` would trust the whole LAN, so it is for
   containers.
   """
 
