@@ -9,6 +9,7 @@ defmodule Slipdock.Boards.Handoffs do
   alias Slipdock.Boards
   alias Slipdock.Boards.Card
   alias Slipdock.Boards.Handoff
+  alias Slipdock.Policy
   alias Slipdock.Repo
 
   ## Handoffs
@@ -19,12 +20,16 @@ defmodule Slipdock.Boards.Handoffs do
   `via` (`ui`, `api`, `mcp`, `cli` or `runner`) and `job_id`. It is a new
   row, never an edit: the newest is the handoff and the rest its history.
 
-  Who may write is the caller's to check: anyone who may comment on the card.
+  Anyone who may comment on the card may write one: it asks
+  `Slipdock.Policy` (`:leave_handoff`), and answers
+  `{:error, %Slipdock.Policy.Refused{}}` otherwise.
   """
   def leave_handoff(%Card{} = card, user, attrs) do
-    %Handoff{card_id: card.id, user_id: user && user.id}
-    |> Handoff.changeset(attrs)
-    |> insert_handoff(card, "left a handoff on “#{card.title}”: ")
+    with :ok <- Policy.authorize(:leave_handoff, card) do
+      %Handoff{card_id: card.id, user_id: user && user.id}
+      |> Handoff.changeset(attrs)
+      |> insert_handoff(card, "left a handoff on “#{card.title}”: ")
+    end
   end
 
   @doc """
@@ -32,9 +37,11 @@ defmodule Slipdock.Boards.Handoffs do
   was cleared and by whom. `attrs` takes `via` and `job_id`.
   """
   def clear_handoff(%Card{} = card, user, attrs) do
-    %Handoff{card_id: card.id, user_id: user && user.id}
-    |> Handoff.clear_changeset(attrs)
-    |> insert_handoff(card, "cleared the handoff on “#{card.title}”")
+    with :ok <- Policy.authorize(:leave_handoff, card) do
+      %Handoff{card_id: card.id, user_id: user && user.id}
+      |> Handoff.clear_changeset(attrs)
+      |> insert_handoff(card, "cleared the handoff on “#{card.title}”")
+    end
   end
 
   @doc """
@@ -43,27 +50,36 @@ defmodule Slipdock.Boards.Handoffs do
   none or it was a clear). Unlike `clear_handoff/3` nothing is kept, only a
   line in the activity log. `{:error, :none}` when the card has no handoff.
 
-  Who may delete is the caller's to check: `may_delete_handoff?/3`.
+  Whoever can edit the card deletes it (`:delete_handoff`); its author
+  while they can comment on the card (`:delete_own_handoff`), as with a
+  comment (`may_delete_handoff?/3`, what a door draws from).
   """
   def delete_handoff(%Card{} = card) do
-    case current_handoff(card) do
-      nil ->
-        {:error, :none}
-
-      handoff ->
-        {:ok, _} = Repo.delete(handoff)
-
-        Boards.ActivityLog.log(
-          Repo,
-          card.board_id,
-          card.id,
-          "handoff",
-          "deleted the handoff on “#{card.title}”: " <> handoff.next_step
-        )
-
-        Boards.PubSub.broadcast(card.board_id)
-        {:ok, handoff}
+    with %Handoff{} = handoff <- current_handoff(card) || {:error, :none},
+         :ok <- Policy.authorize(handoff_action(handoff), card) do
+      delete(card, handoff)
     end
+  end
+
+  defp handoff_action(%Handoff{user_id: id}) when is_integer(id) do
+    if id == Policy.user_id(), do: :delete_own_handoff, else: :delete_handoff
+  end
+
+  defp handoff_action(_), do: :delete_handoff
+
+  defp delete(card, handoff) do
+    {:ok, _} = Repo.delete(handoff)
+
+    Boards.ActivityLog.log(
+      Repo,
+      card.board_id,
+      card.id,
+      "handoff",
+      "deleted the handoff on “#{card.title}”: " <> handoff.next_step
+    )
+
+    Boards.PubSub.broadcast(card.board_id)
+    {:ok, handoff}
   end
 
   @doc """

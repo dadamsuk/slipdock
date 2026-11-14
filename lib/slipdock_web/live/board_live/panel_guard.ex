@@ -76,9 +76,19 @@ defmodule SlipdockWeb.BoardLive.PanelGuard do
 
         case SlipdockWeb.BoardLive.PanelGuard.verdict(event, socket, unquote(refusals)) do
           :ok ->
-            SlipdockWeb.BoardLive.PanelGuard.finish(
-              unquote(then)(event, params, socket),
-              unquote(after_fun)
+            # A write the context refuses (`Slipdock.Policy`) is said where
+            # the panel says things, whatever the handler made of it (#3169).
+            SlipdockWeb.Refusals.said(
+              socket,
+              fn ->
+                SlipdockWeb.BoardLive.PanelGuard.finish(
+                  unquote(then)(event, params, socket),
+                  unquote(after_fun)
+                )
+              end,
+              fn socket, message ->
+                SlipdockWeb.BoardLive.PanelGuard.say_refusal(socket, unquote(say), message)
+              end
             )
 
           :quiet ->
@@ -117,6 +127,11 @@ defmodule SlipdockWeb.BoardLive.PanelGuard do
   @doc false
   # A refusal, said where the panel says things. `nil` is the unknown event's.
   def refuse(socket, message, say), do: {:noreply, say(socket, say, message || @unknown)}
+
+  @doc false
+  # The context's refusal (`Slipdock.Policy`), said as this panel says one
+  # of its own.
+  def say_refusal(socket, say, message), do: say(socket, say, message)
 
   # A flash goes through `ComponentFlash`, which calls nothing in the app;
   # the notice is written here rather than through `Helpers.notice/3`: a

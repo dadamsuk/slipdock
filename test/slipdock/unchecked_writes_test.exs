@@ -16,9 +16,13 @@ defmodule Slipdock.UncheckedWritesTest do
 
   @root Path.expand("../..", __DIR__)
   @list Path.join(@root, "test/support/unchecked_writes.txt")
+  @system Path.join(@root, "test/support/system_writes.txt")
+
+  defp system_funs, do: @system |> UncheckedWrites.read_system_list() |> Enum.map(&elem(&1, 0))
 
   test "no context function writes without asking, beyond the ones listed" do
-    {unlisted, stale} = UncheckedWrites.compare(@root, UncheckedWrites.read_list(@list))
+    listed = UncheckedWrites.read_list(@list)
+    {unlisted, stale} = UncheckedWrites.compare(@root, listed ++ system_funs())
 
     assert unlisted == [],
            "These write without asking who is writing. Call Slipdock.Policy.authorize/2 " <>
@@ -26,8 +30,27 @@ defmodule Slipdock.UncheckedWritesTest do
              Enum.join(unlisted, ", ")
 
     assert stale == [],
-           "These ask now, or are gone: take them off test/support/unchecked_writes.txt: " <>
-             Enum.join(stale, ", ")
+           "These ask now, or are gone: take them off test/support/unchecked_writes.txt " <>
+             "(or system_writes.txt): " <> Enum.join(stale, ", ")
+  end
+
+  # The server's own writes (#3169): each says why nobody is behind it, and
+  # none is on both lists.
+  test "a write on system_writes.txt gives its reason, and isn't also unchecked" do
+    system = UncheckedWrites.read_system_list(@system)
+    assert system != []
+    assert Enum.all?(system, fn {_fun, why} -> String.length(why) >= 10 end)
+    assert system_funs() -- Enum.uniq(system_funs()) == []
+    assert Enum.filter(system_funs(), &(&1 in UncheckedWrites.read_list(@list))) == []
+  end
+
+  # Policy 2 (#3169): the card contexts ask, or are the server's own.
+  test "the card contexts ask for every write, or are listed as the server's" do
+    cards =
+      ~r/^Slipdock\.(Boards\.(Cards|CardEdits|Moves|Checklists|Comments|Attachments|Handoffs|Waits|StatusUpdates|Dependencies|Links|CardUrls|Milestones)|Fields|Recurrence|Snooze|Votes|LeadTime|Ledger)\./
+
+    assert @root |> UncheckedWrites.unchecked() |> Enum.filter(&(&1 =~ cards)) |> Enum.sort() ==
+             system_funs() |> Enum.filter(&(&1 =~ cards)) |> Enum.sort()
   end
 
   test "Boards.Tags asks for every write" do
@@ -122,6 +145,20 @@ defmodule Slipdock.UncheckedWritesTest do
       path = Path.join(root, "list.txt")
       File.write!(path, "# a comment\n\nSlipdock.Things.piped/1\n  \n")
       assert UncheckedWrites.read_list(path) == ["Slipdock.Things.piped/1"]
+    end
+
+    test "a system write's line carries its reason, and one without is refused", %{root: root} do
+      path = Path.join(root, "system.txt")
+      File.write!(path, "# why\nSlipdock.Things.wipe/0   the nightly sweep, nobody behind it\n")
+
+      assert UncheckedWrites.read_system_list(path) ==
+               [{"Slipdock.Things.wipe/0", "the nightly sweep, nobody behind it"}]
+
+      File.write!(path, "Slipdock.Things.wipe/0\n")
+
+      assert_raise ArgumentError, ~r/no reason given/, fn ->
+        UncheckedWrites.read_system_list(path)
+      end
     end
   end
 end

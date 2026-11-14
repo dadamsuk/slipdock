@@ -96,7 +96,12 @@ defmodule SlipdockWeb.AttachmentControllerTest do
     assert get(conn_as(viewer), Boards.Attachments.attachment_url(hidden_file)).status == 404
 
     # Once the card leaves the view, so do its files.
-    {:ok, _} = Boards.Cards.update_card(card, %{"title" => "Notes"})
+    # The test's own write, whoever the last request acted for (#3169).
+    {:ok, _} =
+      Slipdock.Policy.as_system("a test fixture", fn ->
+        Boards.Cards.update_card(card, %{"title" => "Notes"})
+      end)
+
     assert get(conn_as(viewer), Boards.Attachments.attachment_url(image)).status == 404
 
     # The owner still reaches both.

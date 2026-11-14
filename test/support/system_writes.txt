@@ -1,0 +1,27 @@
+# Context functions that write and ask nobody on purpose: only the server
+# makes these writes, as the clock or as a consequence of a write that has
+# already asked (#3169; W-1945 §Permissions, *Where authorisation lives*).
+# One per line: `Module.function/arity`, a space, and why nobody is behind
+# it. test/slipdock/unchecked_writes_test.exs holds every other write to
+# asking `Slipdock.Policy`; one that calls a write that asks wraps it in
+# `Policy.as_system/2` with the same reason. Policy 8 (#3175) adds the check
+# that no door calls these.
+Slipdock.Boards.Attachments.backfill_attachment_hashes/0 run at boot: hashes files stored before the hash was kept (#1015)
+Slipdock.Boards.Attachments.update_attachment_transcript/2 the transcription server records where a transcript has got to
+Slipdock.Boards.Cards.follow_stand_ins/3 a card reaching done takes its stand-ins on other boards to their done lists
+Slipdock.Boards.Cards.infer_profile/2 an agent starting a card gives it a profile (#1951), after the move has asked
+Slipdock.Boards.Cards.leave_stand_in/2 a card carried to another sprint leaves a stand-in where it was
+Slipdock.Boards.Checklists.log_checklist/2 one activity line for checklist changes that have each asked
+Slipdock.Boards.Dependencies.unblock_dependents/2 a blocker done or put away unblocks its dependents, on whatever board they are
+Slipdock.Boards.Moves.record_move/5 the movement ledger's row for a create, move, archive or restore that has asked
+Slipdock.Boards.Waits.close_wait/4 closes a wait once an answer, a withdrawal, a completion or an archive has asked
+Slipdock.Boards.Waits.default_wait/2 the scheduler answers an approval wait left past its board's time with its default (#2096)
+Slipdock.Boards.Waits.move_wait/3 a routed person has left the board, so their wait goes to the next person (#1949)
+Slipdock.LeadTime.brief/2 a read: its only write fills the job-cost cache (Runners.JobCost.count/1)
+Slipdock.LeadTime.for_card/2 a read: its only write fills the job-cost cache (Runners.JobCost.count/1)
+Slipdock.LeadTime.for_epic/2 a read: its only write fills the job-cost cache (Runners.JobCost.count/1)
+Slipdock.LeadTime.worked_brief/2 a read: its only write fills the job-cost cache (Runners.JobCost.count/1)
+Slipdock.Ledger.since/2 a read: its only write fills the job-cost cache (Runners.JobCost.count/1)
+Slipdock.Recurrence.card_archived/1 archiving a series' current instance pauses the series, with a comment saying so
+Slipdock.Recurrence.completion_changed/1 completing or reopening an after-done instance sets when the next is made
+Slipdock.Recurrence.tick/1 the scheduler's clock makes each series' next instance

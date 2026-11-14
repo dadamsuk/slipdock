@@ -132,6 +132,33 @@ defmodule Slipdock.Access do
   end
 
   @doc """
+  What `user` may do to `card` through the saved views granted to them, for
+  someone whose access to its board is view-only: the highest grant among
+  the views they hold whose filters show the card (as `view_shows_card?/2`
+  tests, and the board's `writable_card` asks of the open view), else
+  `:none`. `Slipdock.Policy` reads it beside `card_permission/2` (#3169).
+  """
+  @spec view_card_level(User.t() | nil, Card.t()) :: level
+  def view_card_level(nil, _card), do: :none
+  def view_card_level(_user, %Card{archived_at: archived}) when not is_nil(archived), do: :none
+
+  def view_card_level(%User{} = user, %Card{} = card) do
+    board = Repo.get!(Board, card.board_id)
+
+    if board_permission(user, board) == :view do
+      card = Boards.Cards.get_card!(card.id)
+
+      user
+      |> accessible_views(board)
+      |> Enum.filter(&Swimlanes.matches?(card, Config.from_map(&1.config)))
+      |> Enum.map(&view_permission(user, &1))
+      |> Enum.reduce(:none, &higher/2)
+    else
+      :none
+    end
+  end
+
+  @doc """
   The cards in `cards` the user can read, in their order — `card_permission/2`
   for a list, without its queries per card: each distinct board is checked
   once, and the direct card grants come back in one query.

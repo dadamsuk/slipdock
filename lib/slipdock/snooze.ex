@@ -109,6 +109,11 @@ defmodule Slipdock.Snooze do
   (`{:error, :bad_date}`) and a note that's too long (`{:error, :note_too_long}`).
   """
   def snooze(%Card{} = card, by, until, opts \\ []) do
+    # Write on the card (`Slipdock.Policy`, `:snooze_card`).
+    with :ok <- Slipdock.Policy.authorize(:snooze_card, card), do: put(card, by, until, opts)
+  end
+
+  defp put(card, by, until, opts) do
     now = opts[:now] || DateTime.utc_now()
     note = opts[:note] |> to_string() |> String.trim()
 
@@ -199,6 +204,12 @@ defmodule Slipdock.Snooze do
   Wakes every card whose snooze has run out at `now`. Returns how many woke.
   """
   def tick(now \\ DateTime.utc_now()) do
+    Slipdock.Policy.as_system("the clock wakes a snooze whose time has come", fn ->
+      wake_due(now)
+    end)
+  end
+
+  defp wake_due(now) do
     from(c in Card,
       where: not is_nil(c.snoozed_until) and c.snoozed_until <= ^now and is_nil(c.archived_at),
       order_by: [asc: c.snoozed_until, asc: c.id],
@@ -219,6 +230,12 @@ defmodule Slipdock.Snooze do
   def wake(%Card{snoozed_until: nil}, _opts), do: {:error, :not_snoozed}
 
   def wake(%Card{} = card, opts) do
+    with :ok <- Slipdock.Policy.authorize(:snooze_card, card), do: wake_now(card, opts)
+  end
+
+  def wake(_card, _opts), do: {:error, :not_snoozed}
+
+  defp wake_now(card, opts) do
     by = opts[:by]
     reason = opts[:reason] || :hand
     until = card.snoozed_until
@@ -240,8 +257,6 @@ defmodule Slipdock.Snooze do
 
     if count == 1, do: {:ok, woke(card, by, reason)}, else: {:error, :not_snoozed}
   end
-
-  def wake(_card, _opts), do: {:error, :not_snoozed}
 
   defp woke(%Card{} = card, by, reason) do
     snoozer = card.snoozed_by_id && Repo.get(User, card.snoozed_by_id)
@@ -296,6 +311,16 @@ defmodule Slipdock.Snooze do
   somebody else. Returns what `wake/2` does, or `:ignored`.
   """
   def activity(%Card{} = card, by, _kind) do
+    # The server's own consequence of a comment or an assignment already
+    # allowed: whoever wrote may not be able to write the card (#3169).
+    Slipdock.Policy.as_system("activity on a snoozed card wakes it", fn ->
+      wake_on_activity(card, by)
+    end)
+  end
+
+  def activity(_owner, _by, _kind), do: :ignored
+
+  defp wake_on_activity(card, by) do
     fresh = Repo.get(Card, card.id)
 
     cond do
@@ -305,8 +330,6 @@ defmodule Slipdock.Snooze do
       true -> wake(fresh, by: by, reason: :activity)
     end
   end
-
-  def activity(_owner, _by, _kind), do: :ignored
 
   # "Tue 3 Nov" in the snoozer's timezone, with the note when there is one.
   defp describe(%Card{snoozed_until: until, snooze_note: note}, by) do

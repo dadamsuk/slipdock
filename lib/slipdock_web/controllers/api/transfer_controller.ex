@@ -132,11 +132,18 @@ defmodule SlipdockWeb.API.TransferController do
   end
 
   # The request, as though the token that made the link had sent it.
+  # The process acts for them too, so the context's own check
+  # (`Slipdock.Policy`, #3169) asks as that person, narrowed by that token.
   defp as(conn, %Link{user: user, user_token: token}) do
+    actor =
+      Slipdock.Actor.from_conn(conn |> assign(:current_user, user) |> assign(:api_token, token))
+
+    Slipdock.Actor.put(actor, user && Slipdock.Accounts.User.display_name(user), {user, token})
+
     conn
     |> assign(:current_user, user)
     |> assign(:api_token, token)
-    |> assign(:actor, Slipdock.Actor.from_conn(assign(conn, :api_token, token)))
+    |> assign(:actor, actor)
   end
 
   defp store(conn, %Link{card: %Card{} = card}, params) do

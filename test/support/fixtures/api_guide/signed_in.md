@@ -513,7 +513,10 @@ There are two ways to give them one:
 - Also on a card, and safe to ignore until you need them: `status_updates`
   (a stated `on_track` / `at_risk` / `off_track` with a note), custom
   `fields` and formula `scores`, `votes`, `attachments`, `milestones` on the
-  board, and saved views.
+  board, and saved views. Fields and milestones are the tree's, kept on its
+  root as tags are: only a writer of the root adds, changes or removes one,
+  and anybody else is answered 403; anyone who may edit a card sets its
+  values.
 
 The parts of a card's JSON that matter while you are working:
 

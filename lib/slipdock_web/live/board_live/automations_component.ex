@@ -182,12 +182,15 @@ defmodule SlipdockWeb.BoardLive.AutomationsComponent do
       {:noreply,
        socket
        |> assign(rule_busy: true, rule_error: nil, rule_text: text)
-       |> start_async(:rule, fn ->
-         case editing do
-           nil -> Automations.create_rule_from_text(board, text, created_by: user)
-           id -> Automations.rewrite_rule(Automations.get_rule!(id), text, created_by: user)
-         end
-       end)}
+       |> start_async(
+         :rule,
+         Slipdock.Actor.carry(fn ->
+           case editing do
+             nil -> Automations.create_rule_from_text(board, text, created_by: user)
+             id -> Automations.rewrite_rule(Automations.get_rule!(id), text, created_by: user)
+           end
+         end)
+       )}
     end
   end
 

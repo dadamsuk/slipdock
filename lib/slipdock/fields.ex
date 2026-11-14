@@ -15,6 +15,7 @@ defmodule Slipdock.Fields do
   alias Slipdock.Boards.{Board, Card, FieldDefinition, FieldValue, Owned}
   alias Slipdock.Wiki.Page
   alias Slipdock.Fields.Expression
+  alias Slipdock.Policy
   alias Slipdock.Repo
 
   @presets [
@@ -102,7 +103,16 @@ defmodule Slipdock.Fields do
     end)
   end
 
+  @doc """
+  Adds a field to `board`'s tree. Fields are the tree's, kept on its root,
+  so every change to one asks write on the root (`Slipdock.Policy`,
+  `:edit_field`), as tags do (#2751).
+  """
   def create_field(%Board{} = board, attrs) do
+    with :ok <- Policy.authorize(:edit_field, board), do: insert_field(board, attrs)
+  end
+
+  defp insert_field(board, attrs) do
     root_id = Board.root_id(board)
 
     position =
@@ -116,6 +126,10 @@ defmodule Slipdock.Fields do
   end
 
   def update_field(%FieldDefinition{} = field, attrs) do
+    with :ok <- Policy.authorize(:edit_field, field), do: save_field(field, attrs)
+  end
+
+  defp save_field(field, attrs) do
     field
     |> FieldDefinition.changeset(attrs)
     |> Repo.update()
@@ -123,6 +137,10 @@ defmodule Slipdock.Fields do
   end
 
   def delete_field(%FieldDefinition{} = field) do
+    with :ok <- Policy.authorize(:edit_field, field), do: drop_field(field)
+  end
+
+  defp drop_field(field) do
     Repo.delete(field)
     |> tap_ok(fn f -> Slipdock.Boards.PubSub.broadcast_tree(f.board_id) end)
   end
@@ -132,6 +150,10 @@ defmodule Slipdock.Fields do
   yet (matched by key) and the formula field. Returns the formula field.
   """
   def install_preset(%Board{} = board, key) do
+    with :ok <- Policy.authorize(:edit_field, board), do: install(board, key)
+  end
+
+  defp install(board, key) do
     case Enum.find(@presets, &(&1.key == key)) do
       nil ->
         {:error, :unknown_preset}
@@ -140,17 +162,9 @@ defmodule Slipdock.Fields do
         root_id = Board.root_id(board)
         existing = list_fields(root_id)
 
-        Enum.each(preset.inputs, fn input ->
-          unless Enum.any?(existing, &(&1.key == input.key)) do
-            {:ok, _} =
-              create_field(board, %{
-                "name" => input.name,
-                "key" => input.key,
-                "kind" => input.kind,
-                "config" => input.config
-              })
-          end
-        end)
+        preset.inputs
+        |> Enum.reject(fn input -> Enum.any?(existing, &(&1.key == input.key)) end)
+        |> Enum.each(&({:ok, _} = create_input(board, &1)))
 
         case Enum.find(existing, &(&1.key == preset.key)) do
           nil ->
@@ -165,6 +179,15 @@ defmodule Slipdock.Fields do
             {:ok, field}
         end
     end
+  end
+
+  defp create_input(board, input) do
+    create_field(board, %{
+      "name" => input.name,
+      "key" => input.key,
+      "kind" => input.kind,
+      "config" => input.config
+    })
   end
 
   ## Values ---------------------------------------------------------------------
@@ -246,6 +269,10 @@ defmodule Slipdock.Fields do
     do: {:error, "A formula is computed, not set."}
 
   def set_value(owner, %FieldDefinition{} = field, raw) do
+    with :ok <- Policy.authorize(:set_field_value, owner), do: put_value(owner, field, raw)
+  end
+
+  defp put_value(owner, field, raw) do
     case cast(field, raw) do
       {:ok, nil} ->
         FieldValue

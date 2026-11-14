@@ -141,6 +141,8 @@ defmodule Slipdock.CardAuthorsTest do
     setup ctx do
       other = user_fixture("authors.editor@example.com")
       other = Repo.update!(Ecto.Changeset.change(other, name: "Sam Editor"))
+      # An editor of the board: the card's writes ask (`Slipdock.Policy`, #3169).
+      {:ok, _} = Slipdock.Access.grant(ctx.board, other, "write", ctx.owner)
       card = create(ctx, Actor.web(ctx.owner))
       # Everything so far was a while ago.
       set_updated(card, ago(600))

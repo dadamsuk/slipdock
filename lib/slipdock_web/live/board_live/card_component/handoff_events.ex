@@ -56,9 +56,12 @@ defmodule SlipdockWeb.BoardLive.CardComponent.HandoffEvents do
         {:noreply,
          socket
          |> assign(handoff_draft: :running)
-         |> start_async(:handoff_draft, fn ->
-           Slipdock.AI.HandoffDrafter.draft(card, board, user: user)
-         end)}
+         |> start_async(
+           :handoff_draft,
+           Slipdock.Actor.carry(fn ->
+             Slipdock.AI.HandoffDrafter.draft(card, board, user: user)
+           end)
+         )}
     end
   end
 

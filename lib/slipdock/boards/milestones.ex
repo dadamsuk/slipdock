@@ -8,6 +8,7 @@ defmodule Slipdock.Boards.Milestones do
   alias Slipdock.Boards
   alias Slipdock.Boards.Board
   alias Slipdock.Boards.Milestone
+  alias Slipdock.Policy
   alias Slipdock.Repo
 
   ## Milestones
@@ -32,8 +33,16 @@ defmodule Slipdock.Boards.Milestones do
     end
   end
 
-  @doc "Adds a milestone to the tree `board` belongs to."
+  @doc """
+  Adds a milestone to the tree `board` belongs to. A milestone is the
+  tree's, so its writes ask write on the root (`Slipdock.Policy`,
+  `:edit_milestone`).
+  """
   def create_milestone(%Board{} = board, attrs) do
+    with :ok <- Policy.authorize(:edit_milestone, board), do: insert(board, attrs)
+  end
+
+  defp insert(board, attrs) do
     root_id = Board.root_id(board)
 
     %Milestone{board_id: root_id}
@@ -53,6 +62,10 @@ defmodule Slipdock.Boards.Milestones do
   end
 
   def update_milestone(%Milestone{} = milestone, attrs) do
+    with :ok <- Policy.authorize(:edit_milestone, milestone), do: save(milestone, attrs)
+  end
+
+  defp save(milestone, attrs) do
     milestone
     |> Milestone.changeset(attrs)
     |> Repo.update()
@@ -70,6 +83,10 @@ defmodule Slipdock.Boards.Milestones do
   end
 
   def delete_milestone(%Milestone{} = milestone) do
+    with :ok <- Policy.authorize(:edit_milestone, milestone), do: delete(milestone)
+  end
+
+  defp delete(milestone) do
     Repo.delete(milestone)
     |> Boards.Shared.tap_ok(fn m ->
       Boards.ActivityLog.log(Repo, m.board_id, nil, "milestone", "removed milestone “#{m.name}”")

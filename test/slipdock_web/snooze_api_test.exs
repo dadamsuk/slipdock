@@ -130,7 +130,13 @@ defmodule SlipdockWeb.SnoozeAPITest do
       |> post("/api/cards/#{id}/snooze", %{until: later_date()})
       |> json_response(403)
 
-      {:ok, _} = Snooze.snooze(ctx.card, ctx.owner, later_date())
+      # After the requests above, the test process still acts for the last
+      # one's person: this is the test's own write (`Slipdock.Policy`, #3169).
+      {:ok, _} =
+        Slipdock.Policy.as_system("a test fixture", fn ->
+          Snooze.snooze(ctx.card, ctx.owner, later_date())
+        end)
+
       as(ctx.reader) |> delete("/api/cards/#{id}/snooze") |> json_response(403)
       assert Card.snoozed?(Repo.get!(Card, id))
     end

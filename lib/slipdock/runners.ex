@@ -40,6 +40,9 @@ defmodule Slipdock.Runners do
   @max_log 8_000
   # The longest progress message a job keeps (#1668).
   @max_step 300
+
+  # Why the runner protocol writes as the server (`Slipdock.Policy`, #3169).
+  @runner_reason "a runner's own job: its token is checked (`authenticate/1`), and no person is behind it"
   @max_steps 200
   # A burst of rules must not fill the queue faster than anybody can read it.
   @queue_per_minute 60
@@ -1079,6 +1082,12 @@ defmodule Slipdock.Runners do
   claim is one `UPDATE` over a row locked with `SKIP LOCKED`.
   """
   def claim(%Runner{} = runner, wait_ms \\ 0) do
+    # The runner protocol's own writes (the card to the doing list, its
+    # comment): no person is behind them, its token is (#3169).
+    Slipdock.Policy.as_system(@runner_reason, fn -> claim_job(runner, wait_ms) end)
+  end
+
+  defp claim_job(runner, wait_ms) do
     deadline = System.monotonic_time(:millisecond) + max(wait_ms, 0)
     topic = pool_topic(runner.board_id, runner.pool)
 
@@ -1466,6 +1475,10 @@ defmodule Slipdock.Runners do
   was asked to cancel or has an open wait, which win as ever.
   """
   def finish(%Runner{} = runner, job_id, attrs) do
+    Slipdock.Policy.as_system(@runner_reason, fn -> finish_job(runner, job_id, attrs) end)
+  end
+
+  defp finish_job(runner, job_id, attrs) do
     with {:ok, job} <- held_job(runner, job_id) do
       cond do
         Enum.member?(Job.finished_statuses(), job.status) ->

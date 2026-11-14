@@ -7,6 +7,7 @@ defmodule Slipdock.Boards.Checklists do
 
   alias Slipdock.Boards
   alias Slipdock.Boards.ChecklistItem
+  alias Slipdock.Policy
   alias Slipdock.Repo
 
   ## Checklist
@@ -18,6 +19,10 @@ defmodule Slipdock.Boards.Checklists do
 
   @doc "Adds a tick box to a card or to a wiki page. `log: false` leaves it out of the activity log."
   def add_checklist_item(owner, text, opts \\ []) do
+    with :ok <- Policy.authorize(:edit_checklist, owner, opts), do: insert(owner, text, opts)
+  end
+
+  defp insert(owner, text, opts) do
     position =
       Boards.Shared.next_position(where(ChecklistItem, ^Boards.Shared.owned_clause(owner)))
 
@@ -38,6 +43,13 @@ defmodule Slipdock.Boards.Checklists do
   def toggle_checklist_item(item, opts \\ [])
 
   def toggle_checklist_item(%ChecklistItem{} = item, opts) do
+    with :ok <- Policy.authorize(:tick_checklist, item, opts), do: toggle(item, opts)
+  end
+
+  def toggle_checklist_item(id, opts),
+    do: toggle_checklist_item(Repo.get!(ChecklistItem, id), opts)
+
+  defp toggle(item, opts) do
     item
     |> Ecto.Changeset.change(done: !item.done)
     |> Repo.update()
@@ -50,13 +62,17 @@ defmodule Slipdock.Boards.Checklists do
     end)
   end
 
-  def toggle_checklist_item(id, opts),
-    do: toggle_checklist_item(Repo.get!(ChecklistItem, id), opts)
-
   @doc "Removes a tick box. `log: false` as for `add_checklist_item/3`."
   def delete_checklist_item(item, opts \\ [])
 
   def delete_checklist_item(%ChecklistItem{} = item, opts) do
+    with :ok <- Policy.authorize(:edit_checklist, item, opts), do: delete(item, opts)
+  end
+
+  def delete_checklist_item(id, opts),
+    do: delete_checklist_item(Repo.get!(ChecklistItem, id), opts)
+
+  defp delete(item, opts) do
     Repo.delete(item)
     |> Boards.Shared.tap_ok(fn _ ->
       owner = Boards.Shared.owner_of(item)
@@ -64,9 +80,6 @@ defmodule Slipdock.Boards.Checklists do
       if Keyword.get(opts, :log, true), do: log_checklist(owner, removed: 1)
     end)
   end
-
-  def delete_checklist_item(id, opts),
-    do: delete_checklist_item(Repo.get!(ChecklistItem, id), opts)
 
   @doc """
   Moves a tick box so that it sits directly before `before_id`, another tick
@@ -79,6 +92,10 @@ defmodule Slipdock.Boards.Checklists do
   line in the activity log: nothing was added, ticked or removed.
   """
   def move_checklist_item(%ChecklistItem{} = item, before_id) do
+    with :ok <- Policy.authorize(:edit_checklist, item), do: move(item, before_id)
+  end
+
+  defp move(item, before_id) do
     owner = Boards.Shared.owner_of(item)
 
     ids =

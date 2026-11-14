@@ -322,6 +322,8 @@ defmodule Slipdock.WorkWaitingTest do
       card = card_fixture(ctx.todo)
       open_wait(card, ctx.dana, %{"on_user_id" => ctx.owner.id})
       other = board_fixture(%{"name" => "Other"}, owner: ctx.owner)
+      # Dana opens it, so Dana writes there too (`Slipdock.Policy`, #3169).
+      {:ok, _} = Slipdock.Access.grant(other, ctx.dana, "write", ctx.owner)
       card2 = card_fixture(Enum.at(other.columns, 1))
       open_wait(card2, ctx.dana, %{"on_user_id" => ctx.owner.id})
 

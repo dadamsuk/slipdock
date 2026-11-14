@@ -356,7 +356,10 @@ defmodule SlipdockWeb.WikiLive.ItemEvents do
         {:noreply,
          socket
          |> assign(tree_prompt: %{prompt | asking: true, error: nil, plan: nil})
-         |> start_async(:organise_ai, fn -> AutoOrganise.plan(folder, "ai", user: user) end)}
+         |> start_async(
+           :organise_ai,
+           Slipdock.Actor.carry(fn -> AutoOrganise.plan(folder, "ai", user: user) end)
+         )}
 
       _ ->
         {:noreply, socket}

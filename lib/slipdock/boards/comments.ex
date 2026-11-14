@@ -8,6 +8,7 @@ defmodule Slipdock.Boards.Comments do
   alias Slipdock.Boards
   alias Slipdock.Boards.Card
   alias Slipdock.Boards.Comment
+  alias Slipdock.Policy
   alias Slipdock.Repo
 
   ## Comments
@@ -16,8 +17,15 @@ defmodule Slipdock.Boards.Comments do
   Comments on a card or on a wiki page. `opts[:by]` is who wrote it, when
   known, and is kept as its author; anybody it `@mentions` on a card is told
   (see `Slipdock.Mentions`).
+
+  Asks comment on the card or page (`Slipdock.Policy`, `:add_comment`):
+  `{:error, %Slipdock.Policy.Refused{}}` otherwise.
   """
   def add_comment(owner, body, opts \\ []) do
+    with :ok <- Policy.authorize(:add_comment, owner, opts), do: insert(owner, body, opts)
+  end
+
+  defp insert(owner, body, opts) do
     author = if match?(%Slipdock.Accounts.User{}, opts[:by]), do: opts[:by]
 
     %Comment{}
@@ -50,7 +58,23 @@ defmodule Slipdock.Boards.Comments do
   @doc "A comment on `owner` (a card or a page), or nil if it is not one of its own."
   def get_comment(owner, id), do: Boards.Shared.get_owned(Comment, owner, id)
 
+  @doc """
+  Deletes a comment. A writer of the card or page deletes any comment
+  (`:delete_comment`); a commenter only their own (`:delete_own_comment`,
+  #863).
+  """
   def delete_comment(%Comment{} = comment) do
+    action =
+      if comment.user_id && comment.user_id == Policy.user_id(),
+        do: :delete_own_comment,
+        else: :delete_comment
+
+    with :ok <- Policy.authorize(action, comment), do: delete(comment)
+  end
+
+  def delete_comment(id), do: delete_comment(Repo.get!(Comment, id))
+
+  defp delete(comment) do
     Slipdock.Findings.comment_deleted(comment)
 
     Repo.delete(comment)
@@ -58,6 +82,4 @@ defmodule Slipdock.Boards.Comments do
       Boards.Shared.notify_owned(Boards.Shared.owner_of(comment))
     end)
   end
-
-  def delete_comment(id), do: delete_comment(Repo.get!(Comment, id))
 end

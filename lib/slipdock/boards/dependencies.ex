@@ -8,6 +8,7 @@ defmodule Slipdock.Boards.Dependencies do
 
   alias Slipdock.Boards
   alias Slipdock.Boards.Card
+  alias Slipdock.Policy
   alias Slipdock.Repo
 
   ## Dependencies
@@ -20,6 +21,13 @@ defmodule Slipdock.Boards.Dependencies do
   the blocker's), as for links.
   """
   def add_dependency(%Card{} = blocked, %Card{} = blocker) do
+    # Write on the blocked card, read on its blocker (`Slipdock.Policy`).
+    with :ok <- Policy.authorize(:edit_dependency, blocked),
+         :ok <- Policy.authorize(:link_to_card, blocker),
+         do: insert(blocked, blocker)
+  end
+
+  defp insert(blocked, blocker) do
     cond do
       blocked.id == blocker.id ->
         {:error, "A card can't depend on itself."}
@@ -40,8 +48,15 @@ defmodule Slipdock.Boards.Dependencies do
     end
   end
 
-  @doc "Removes the dependency between two cards, whichever direction it runs."
+  @doc """
+  Removes the dependency between two cards, whichever direction it runs:
+  write on `a`, the card it is taken off (`:edit_dependency`).
+  """
   def remove_dependency(%Card{} = a, %Card{} = b) do
+    with :ok <- Policy.authorize(:edit_dependency, a), do: delete(a, b)
+  end
+
+  defp delete(a, b) do
     {n, _} =
       Repo.delete_all(
         from(d in "card_dependencies",
@@ -68,6 +83,14 @@ defmodule Slipdock.Boards.Dependencies do
   # Also run by `Slipdock.Verified.saved/3` when a card goes pending on a
   # board that ships by push: it counts as finished for its dependents (#1661).
   def unblock_dependents(%Card{} = blocker, opts) do
+    # The server's own consequence of a write already allowed: a dependent
+    # on a board the writer can't touch is unblocked all the same (#3169).
+    Policy.as_system("a blocker done unblocks its dependents", fn ->
+      unblock_all(blocker, opts)
+    end)
+  end
+
+  defp unblock_all(blocker, opts) do
     from(c in Card,
       join: d in "card_dependencies",
       on: d.blocked_id == c.id,

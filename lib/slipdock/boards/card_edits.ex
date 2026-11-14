@@ -63,6 +63,12 @@ defmodule Slipdock.Boards.CardEdits do
   """
   @spec edit(struct(), edit(), keyword()) :: {:ok, struct()} | tuple()
   def edit(%Card{} = card, edit, opts) do
+    # Write on the card (`Slipdock.Policy`); each step asks again as it writes.
+    with :ok <- Slipdock.Policy.authorize(:update_card, card, opts),
+         do: apply_edit(card, edit, opts)
+  end
+
+  defp apply_edit(card, edit, opts) do
     by = Keyword.fetch!(opts, :by)
 
     Repo.transaction(fn ->

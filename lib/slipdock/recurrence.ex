@@ -175,6 +175,11 @@ defmodule Slipdock.Recurrence do
   first date the rule falls on from today.
   """
   def set(%Card{} = card, attrs, %User{} = by) do
+    # Write on the card (`Slipdock.Policy`, `:edit_recurrence`).
+    with :ok <- Slipdock.Policy.authorize(:edit_recurrence, card), do: put(card, attrs, by)
+  end
+
+  defp put(card, attrs, by) do
     existing = for_card(card)
 
     with {:ok, attrs} <- read_attrs(card, attrs, existing, by),
@@ -370,6 +375,10 @@ defmodule Slipdock.Recurrence do
 
   @doc "Stops `card`'s series. The instances made so far stay as they are."
   def stop(%Card{} = card) do
+    with :ok <- Slipdock.Policy.authorize(:edit_recurrence, card), do: drop(card)
+  end
+
+  defp drop(card) do
     case for_card(card) do
       nil ->
         {:error, :not_found}
@@ -388,35 +397,42 @@ defmodule Slipdock.Recurrence do
   the date it will be due on by another of its amounts.
   """
   def skip(%Card{} = card) do
-    with %Series{next_on: %Date{} = next_on} = series <- for_card(card) do
-      rule = Series.rule(series)
+    with :ok <- Slipdock.Policy.authorize(:edit_recurrence, card), do: skip_next(card)
+  end
 
-      next =
-        if series.kind == "after_done",
-          do: Rule.after_done_date(rule, next_on),
-          else: Rule.next_date(rule, next_on)
-
-      series
-      |> Ecto.Changeset.change(occurrence(series, next))
-      |> end_if_over()
-      |> Repo.update()
-      |> tap(fn
-        {:ok, _} ->
-          Boards.ActivityLog.log_activity_for(
-            card,
-            "card",
-            "skipped the occurrence of #{next_on} of “#{card.title}”"
-          )
-
-          Boards.PubSub.card_changed(card)
-
-        _ ->
-          :ok
-      end)
-    else
+  defp skip_next(card) do
+    case for_card(card) do
+      %Series{next_on: %Date{} = next_on} = series -> skip_occurrence(card, series, next_on)
       nil -> {:error, :not_found}
       %Series{} -> {:error, "there is no next occurrence to skip"}
     end
+  end
+
+  defp skip_occurrence(card, series, next_on) do
+    rule = Series.rule(series)
+
+    next =
+      if series.kind == "after_done",
+        do: Rule.after_done_date(rule, next_on),
+        else: Rule.next_date(rule, next_on)
+
+    series
+    |> Ecto.Changeset.change(occurrence(series, next))
+    |> end_if_over()
+    |> Repo.update()
+    |> tap(fn
+      {:ok, _} ->
+        Boards.ActivityLog.log_activity_for(
+          card,
+          "card",
+          "skipped the occurrence of #{next_on} of “#{card.title}”"
+        )
+
+        Boards.PubSub.card_changed(card)
+
+      _ ->
+        :ok
+    end)
   end
 
   ## What happens to the current instance
@@ -444,6 +460,11 @@ defmodule Slipdock.Recurrence do
 
   @doc "Called when a card is archived: archiving the current instance pauses its series."
   def card_archived(%Card{} = card) do
+    # The server's own consequence of an archive already allowed (#3169).
+    Slipdock.Policy.as_system("archiving a card pauses its series", fn -> pause(card) end)
+  end
+
+  defp pause(card) do
     case for_card(card) do
       %Series{paused: false} = series ->
         {:ok, _} = series |> Ecto.Changeset.change(paused: true) |> Repo.update()
@@ -467,6 +488,12 @@ defmodule Slipdock.Recurrence do
   acted. Called by `Slipdock.Automations.Scheduler` every minute.
   """
   def tick(now \\ DateTime.utc_now()) do
+    Slipdock.Policy.as_system("the recurrence clock makes each series' next instance", fn ->
+      run_tick(now)
+    end)
+  end
+
+  defp run_tick(now) do
     now = DateTime.truncate(now, :second)
 
     from(s in Series,
