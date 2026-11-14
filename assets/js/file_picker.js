@@ -7,7 +7,7 @@
 // 2 GB. Both are held to file_size_cases.json (#2876).
 export function fileSize(bytes) {
   if (typeof bytes !== "number" || !isFinite(bytes) || bytes < 0) return ""
-  if (bytes < 1024) return `${Math.round(bytes)} B`
+  if (bytes < 1024) return `${bytes} B`
   const round = n => String(Math.round(n * 10) / 10)
   if (bytes < 1024 ** 2) return `${round(bytes / 1024)} KB`
   if (bytes < 1024 ** 3) return `${round(bytes / 1024 ** 2)} MB`

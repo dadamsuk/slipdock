@@ -139,7 +139,7 @@ defmodule SlipdockWeb.WikiLive.Modals do
         <h2 class="min-w-0 flex-1 truncate text-sm font-semibold" title={@shown.file.name}>
           {@shown.file.name}
         </h2>
-        <span class="text-xs text-base-content/60">
+        <span id="wiki-file-size" class="text-xs text-base-content/60">
           {file_size(@shown.file.size)}
         </span>
         <a

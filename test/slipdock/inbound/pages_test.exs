@@ -224,6 +224,27 @@ defmodule Slipdock.Inbound.PagesTest do
       refute page.body =~ "small.txt"
     end
 
+    test "added to a page with + Title, a file left off is named with its size (#2876)", ctx do
+      {:ok, journal} =
+        Wiki.create_page(ctx.board, %{"title" => "Journal", "body" => "# Journal"},
+          user: ctx.user
+        )
+
+      raw =
+        multipart([
+          text("With the log."),
+          file("huge.log", "text/plain", :binary.copy("x", 1_500_000))
+        ])
+
+      assert {:accepted, email} = send_page(ctx, "+ Journal", raw)
+      assert email.page_id == journal.id
+
+      page = Repo.get!(Page, journal.id)
+      assert files(page) == []
+      assert page.body =~ "With the log.\n\n**Not attached.**"
+      assert page.body =~ "`huge.log` (1.4 MB): the account's storage is full"
+    end
+
     test "a message that is only files, with no room for any, bounces", ctx do
       big = :binary.copy("x", 1024 * 1024 + 1)
       raw = multipart([file("scan.pdf", "application/pdf", big)])

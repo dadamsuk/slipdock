@@ -66,6 +66,33 @@ defmodule SlipdockWeb.AttachmentsLiveTest do
     refute has_element?(view, "#attachment-#{a.id}")
   end
 
+  # #2876: a card's attachment reads in the words every other place uses.
+  test "an attachment is listed with its size: 1,500,000 bytes read 1.4 MB", %{
+    conn: conn,
+    board: board,
+    card: card
+  } do
+    {:ok, view, _html} = live(conn, ~p"/boards/#{board}/cards/#{card.id}")
+
+    view
+    |> file_input("#attach-form", :attachment, [
+      %{name: "dump.bin", content: :binary.copy(<<0>>, 1_500_000), type: "application/zip"},
+      %{name: "note.txt", content: "hello", type: "text/plain"}
+    ])
+    |> then(fn input ->
+      render_upload(input, "dump.bin")
+      render_upload(input, "note.txt")
+    end)
+
+    attachments = Boards.Cards.get_card!(card.id).attachments
+    big = Enum.find(attachments, &(&1.filename == "dump.bin"))
+    small = Enum.find(attachments, &(&1.filename == "note.txt"))
+    assert big.size == 1_500_000
+
+    assert view |> element("#attachment-#{big.id} p") |> render() =~ ~r/>\s*1\.4 MB ·/
+    assert view |> element("#attachment-#{small.id} p") |> render() =~ ~r/>\s*5 B ·/
+  end
+
   test "a file part-way up is not stored until its last chunk lands", %{
     conn: conn,
     board: board,
