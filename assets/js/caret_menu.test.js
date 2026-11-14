@@ -1,55 +1,13 @@
 // node --test assets/js — the list at the caret that the @mention list and
-// the [[page picker share (#2884). No browser, so the DOM here is the handful
-// of things caret_menu.js touches.
+// the [[page picker share (#2884). No browser, so the DOM is the stand-in in
+// caret_menu_fake_dom.js.
 import {test, beforeEach} from "node:test"
 import assert from "node:assert/strict"
 import {caretMenu, placeMenu, step, writeAt} from "./caret_menu.js"
-
-function listeners() {
-  const on = {}
-  return {
-    on,
-    addEventListener: (type, fn) => { (on[type] ||= []).push(fn) },
-    fire(type, e = {}) { (on[type] || []).forEach(fn => fn(e)) },
-  }
-}
-
-function element(tag) {
-  const classes = new Set()
-  const l = listeners()
-  return {
-    tag, children: [], dataset: {}, style: {}, textContent: "", offsetHeight: 0, removed: false,
-    get className() { return [...classes].join(" ") },
-    set className(v) { classes.clear(); v.split(/\s+/).filter(Boolean).forEach(c => classes.add(c)) },
-    classList: {add: c => classes.add(c), remove: c => classes.delete(c), contains: c => classes.has(c)},
-    ...l,
-    appendChild(c) { this.children.push(c); return c },
-    append(...cs) { this.children.push(...cs) },
-    replaceChildren(...cs) { this.children = cs },
-    remove() { this.removed = true },
-  }
-}
+import {fakeDom, textarea, listeners, key, active} from "./caret_menu_fake_dom.js"
 
 let body, timers
-beforeEach(() => {
-  body = element("body")
-  timers = []
-  globalThis.document = {createElement: element, body}
-  globalThis.window = {innerWidth: 1000, innerHeight: 800}
-  globalThis.Event = class { constructor(type, o) { this.type = type; Object.assign(this, o) } }
-  globalThis.setTimeout = fn => timers.push(fn)
-})
-
-function textarea(value, caret = value.length) {
-  const ta = {
-    value, selectionStart: caret, selectionEnd: caret, sent: [], focused: 0,
-    ...listeners(),
-    dispatchEvent(e) { this.sent.push(e.type); this.fire(e.type, e) },
-    focus() { this.focused++ },
-    getBoundingClientRect: () => ({left: 100, bottom: 200}),
-  }
-  return ta
-}
+beforeEach(() => { ({body, timers} = fakeDom()) })
 
 // A word is "#" and what follows it; each row is a word to write.
 const query = (text, caret) => {
@@ -74,15 +32,7 @@ function mount(value, opts = {}) {
   return {h, ta, el, calls, menu: body.children[0]}
 }
 
-const key = k => {
-  const e = {key: k, prevented: 0, stopped: 0}
-  e.preventDefault = () => e.prevented++
-  e.stopPropagation = () => e.stopped++
-  return e
-}
-
 const rows = menu => menu.children.map(li => li.children[0].textContent)
-const active = menu => menu.children.findIndex(li => li.children[0].classList.contains("menu-active"))
 
 test("the list goes on <body>, hidden, at its width and with its data", () => {
   const {menu} = mount("")

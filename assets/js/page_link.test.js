@@ -1,7 +1,8 @@
 // node --test assets/js
-import {test} from "node:test"
+import {test, beforeEach} from "node:test"
 import assert from "node:assert/strict"
-import {linkQuery, applyLink, suggestPages} from "./page_link.js"
+import {PageLink, linkQuery, applyLink, suggestPages} from "./page_link.js"
+import {fakeDom, mountHook, type, key, links, active} from "./caret_menu_fake_dom.js"
 
 const at = text => linkQuery(text, text.length)
 
@@ -55,4 +56,68 @@ test("the pages are asked of the server with the word, the board and fresh", asy
 test("no board and no reply still ask and answer: with no pages", async () => {
   const hook = {el: {dataset: {}}, pushEvent: (_n, payload, reply) => { assert.equal(payload.board, ""); reply(null) }}
   assert.deepEqual(await suggestPages(hook, {text: ""}, {fresh: false}), [])
+})
+
+// PageLink as built, mounted with a pushEvent that answers as the server does.
+let body
+beforeEach(() => { ({body} = fakeDom()) })
+
+const pages = [
+  {code: "W-7", title: "Retry policy", path: "Design", insert: "[[Retry policy]]"},
+  {code: "W-31", title: "Retention", path: "", insert: "[[W-31|Retention]]"},
+]
+
+function mountLink(value, reply = {pages}) {
+  const sent = []
+  const pushEvent = (name, payload, cb) => { sent.push({name, payload}); cb(reply) }
+  return {...mountHook(PageLink, value, {dataset: {board: "3"}, extra: {pushEvent}, body}), sent}
+}
+
+const tick = () => new Promise(resolve => setImmediate(resolve))
+const titles = menu => links(menu).map(a => a.children[0].children[0].textContent)
+
+test("PageLink: its list is on <body>, marked and 320px wide", () => {
+  const {menu} = mountLink("")
+  assert.deepEqual(menu.dataset, {pageLinkMenu: ""})
+  assert.equal(menu.style.width, "320px")
+})
+
+test("PageLink: typing [[ret asks the server and lists its reply", async () => {
+  const {ta, menu, sent} = mountLink("")
+  type(ta, "See [[ret")
+  await tick()
+  assert.deepEqual(sent, [{name: "page_link_suggest", payload: {q: "ret", board: "3", fresh: true}}])
+  assert.deepEqual(titles(menu), ["Retry policy", "Retention"])
+  assert.deepEqual(links(menu).map(a => a.children[1].textContent), ["W-7", "W-31"])
+  assert.equal(active(menu), 0)
+  assert.equal(menu.classList.contains("hidden"), false)
+})
+
+test("PageLink: a single bracket asks nothing", async () => {
+  const {ta, menu, sent} = mountLink("")
+  type(ta, "See [ret")
+  await tick()
+  assert.deepEqual(sent, [])
+  assert.equal(menu.classList.contains("hidden"), true)
+})
+
+test("PageLink: taking a row writes its insert over [[word, and tells the form", async () => {
+  const {ta, el, menu} = mountLink("")
+  type(ta, "See [[ret]] now", 9)
+  await tick()
+  el.fire("keydown", key("ArrowDown"))
+  ta.sent.length = 0
+  el.fire("keydown", key("Enter"))
+  assert.equal(ta.value, "See [[W-31|Retention]] now")
+  assert.equal(ta.selectionStart, 22)
+  assert.deepEqual(ta.sent, ["input"])
+  assert.equal(menu.classList.contains("hidden"), true)
+})
+
+test("PageLink: an empty reply lists nothing", async () => {
+  const {ta, menu} = mountLink("", null)
+  type(ta, "[[x")
+  await tick()
+  assert.equal(menu.children.length, 0)
+  assert.equal(menu.classList.contains("hidden"), true)
 })
