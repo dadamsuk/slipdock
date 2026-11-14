@@ -17,6 +17,7 @@ defmodule Slipdock.Tools do
   import Ecto.Query
 
   alias Slipdock.Accounts.User
+  alias Slipdock.ChangesetErrors
   alias Slipdock.Quota
   alias Slipdock.Repo
   alias Slipdock.Blueprint
@@ -623,7 +624,7 @@ defmodule Slipdock.Tools do
           report: put_in(report, [:added, "files"], files)
         }
       else
-        {:error, %Ecto.Changeset{} = cs} -> Repo.rollback(changeset_message(cs))
+        {:error, %Ecto.Changeset{} = cs} -> Repo.rollback(ChangesetErrors.message(cs))
         {:error, message} -> Repo.rollback(message)
       end
     end)
@@ -666,7 +667,7 @@ defmodule Slipdock.Tools do
           report: report
         }
       else
-        {:error, %Ecto.Changeset{} = cs} -> Repo.rollback(changeset_message(cs))
+        {:error, %Ecto.Changeset{} = cs} -> Repo.rollback(ChangesetErrors.message(cs))
         {:error, message} -> Repo.rollback(message)
       end
     end)
@@ -727,7 +728,7 @@ defmodule Slipdock.Tools do
               {:ok, :added}
 
             {:error, %Ecto.Changeset{} = cs} ->
-              {:error, "file #{path}: " <> changeset_message(cs)}
+              {:error, "file #{path}: " <> ChangesetErrors.message(cs)}
 
             {:error, other} ->
               {:error, "file #{path}: #{inspect(other)}"}
@@ -744,14 +745,6 @@ defmodule Slipdock.Tools do
       {:ok, folder} -> {:ok, folder}
       _ -> Slipdock.Wiki.Folders.create(board, %{"name" => path})
     end
-  end
-
-  defp changeset_message(%Ecto.Changeset{} = cs) do
-    cs
-    |> Ecto.Changeset.traverse_errors(fn {msg, opts} ->
-      Enum.reduce(opts, msg, fn {k, v}, acc -> String.replace(acc, "%{#{k}}", to_string(v)) end)
-    end)
-    |> Enum.map_join("; ", fn {field, messages} -> "#{field} #{Enum.join(messages, ", ")}" end)
   end
 
   defp blank_to_nil(nil), do: nil

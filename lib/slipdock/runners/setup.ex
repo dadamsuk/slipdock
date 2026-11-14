@@ -27,6 +27,7 @@ defmodule Slipdock.Runners.Setup do
   alias Slipdock.Automations
   alias Slipdock.Automations.Spec
   alias Slipdock.Boards.Board
+  alias Slipdock.ChangesetErrors
   alias Slipdock.Runners.Runner
 
   @scenarios ~w(daemon loop cloud chatgpt)
@@ -286,7 +287,7 @@ defmodule Slipdock.Runners.Setup do
              created_by: user
            ) do
         {:ok, rule} -> {:ok, rule}
-        {:error, %Ecto.Changeset{} = changeset} -> {:error, changeset_message(changeset)}
+        {:error, %Ecto.Changeset{} = changeset} -> {:error, ChangesetErrors.message(changeset)}
         {:error, message} -> {:error, message}
       end
     else
@@ -318,9 +319,14 @@ defmodule Slipdock.Runners.Setup do
           }
 
           case Automations.create_rule_from_preset(board, preset, params, created_by: user) do
-            {:ok, rule} -> scheduled_sibling(board, rule, user)
-            {:error, %Ecto.Changeset{} = changeset} -> {:error, changeset_message(changeset)}
-            {:error, message} -> {:error, message}
+            {:ok, rule} ->
+              scheduled_sibling(board, rule, user)
+
+            {:error, %Ecto.Changeset{} = changeset} ->
+              {:error, ChangesetErrors.message(changeset)}
+
+            {:error, message} ->
+              {:error, message}
           end
         end
 
@@ -1010,19 +1016,4 @@ defmodule Slipdock.Runners.Setup do
     do: if(String.trim(value) == "", do: nil, else: String.trim(value))
 
   defp blank(_), do: nil
-
-  # A changeset's errors as one line for a person, each message with its
-  # placeholders (`%{count}` from `validate_length`) filled from its opts.
-  # Public only for its test: `Automations` turns its own changesets into
-  # messages, so no answer reaches this through `connect/4` today.
-  @doc false
-  def changeset_message(%Ecto.Changeset{} = changeset) do
-    changeset
-    |> Ecto.Changeset.traverse_errors(fn {msg, opts} ->
-      Enum.reduce(opts, msg, fn {k, v}, acc ->
-        String.replace(acc, "%{#{k}}", fn _ -> to_string(v) end)
-      end)
-    end)
-    |> Enum.map_join("; ", fn {field, msgs} -> "#{field} #{Enum.join(msgs, ", ")}" end)
-  end
 end
