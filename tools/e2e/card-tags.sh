@@ -19,7 +19,7 @@ IDS=$(mix run -e '
   colours = Palette.names()
   tags =
     for i <- 1..40 do
-      {:ok, t} = Boards.create_tag(board, %{"name" => "Tag #{String.pad_leading(to_string(i), 2, "0")}", "color" => Enum.at(colours, rem(i, length(colours)))})
+      {:ok, t} = Boards.Tags.create_tag(board, %{"name" => "Tag #{String.pad_leading(to_string(i), 2, "0")}", "color" => Enum.at(colours, rem(i, length(colours)))})
       t
     end
   {:ok, card} = Boards.create_card(first, %{"title" => "Plan the launch", "description" => "The description."})

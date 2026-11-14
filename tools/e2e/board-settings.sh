@@ -21,8 +21,8 @@ mix run -e '
   alias Slipdock.{Accounts, Automations, Boards}
   {:ok, u} = Accounts.get_or_create_user_by_email("e2e@example.com")
   b = Boards.get_board!('"$KB"')
-  {:ok, _} = Boards.create_tag(b, %{"name" => "urgent", "color" => "rose"})
-  {:ok, _} = Boards.create_tag(b, %{"name" => "later", "color" => "sky"})
+  {:ok, _} = Boards.Tags.create_tag(b, %{"name" => "urgent", "color" => "rose"})
+  {:ok, _} = Boards.Tags.create_tag(b, %{"name" => "later", "color" => "sky"})
   {:ok, _} = Automations.create_rule_from_preset(b, "overdue", %{}, created_by: u)
 ' > /dev/null
 

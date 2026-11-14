@@ -16,7 +16,7 @@ ids=$(mix run -e '
   kb = Boards.get_board!('"$KB"')
   [todo, doing | _] = kb.columns
   day = fn n -> Date.utc_today() |> Date.add(n) |> Date.to_iso8601() end
-  {:ok, tag} = Boards.create_tag(kb, %{"name" => "Design", "color" => "sky"})
+  {:ok, tag} = Boards.Tags.create_tag(kb, %{"name" => "Design", "color" => "sky"})
   {:ok, full} = Boards.create_card(todo, %{"title" => "Repaint the shed before the rain", "priority" => "high",
     "start_date" => day.(10), "due_date" => day.(20), "description" => "Two coats.", "percent_complete" => 40})
   {:ok, _} = Boards.set_card_tags(full, [tag])

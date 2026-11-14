@@ -22,7 +22,7 @@ IDS=$(mix run -e '
     for {name, color} <- [{"frontend", "sky"}, {"needs-design-review", "violet"},
                           {"customer-reported", "red"}, {"performance", "amber"},
                           {"accessibility", "lime"}, {"documentation", "teal"}] do
-      {:ok, tag} = Boards.create_tag(board, %{"name" => name, "color" => color})
+      {:ok, tag} = Boards.Tags.create_tag(board, %{"name" => name, "color" => color})
       tag
     end
 

@@ -20,8 +20,8 @@ mix run -e '
   [backlog, todo, doing, done] = board.columns
   {:ok, _} = Boards.update_column(doing, %{"wip_limit" => 3})
   {:ok, later} = Boards.create_column(board, %{"name" => "Maybe Later"})
-  {:ok, bug} = Boards.create_tag(board, %{"name" => "bug", "color" => "rose"})
-  {:ok, feat} = Boards.create_tag(board, %{"name" => "feature", "color" => "sky"})
+  {:ok, bug} = Boards.Tags.create_tag(board, %{"name" => "bug", "color" => "rose"})
+  {:ok, feat} = Boards.Tags.create_tag(board, %{"name" => "feature", "color" => "sky"})
   now = DateTime.utc_now()
   at = fn h -> DateTime.add(now, -round(h * 3600), :second) end
   row = fn card, kind, from, to, h ->
