@@ -97,7 +97,12 @@ defmodule SlipdockWeb.MCP.Plug do
     case SlipdockWeb.UserAuth.api_user_from_bearer(conn) do
       {user, api_token} ->
         # An agent's writes, for the activity log (#1735).
-        Slipdock.Actor.put(Slipdock.Actor.mcp(%{user: user, token: api_token}))
+        Slipdock.Actor.put(
+          Slipdock.Actor.mcp(%{user: user, token: api_token}),
+          nil,
+          {user, api_token}
+        )
+
         {:ok, conn |> assign(:current_user, user) |> assign(:api_token, api_token)}
 
       nil ->

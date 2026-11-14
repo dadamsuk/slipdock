@@ -100,12 +100,19 @@ defmodule SlipdockWeb.UserAuth do
   # The process keeps it too, for the activity log (#1735).
   defp assign_actor(conn) do
     actor = Slipdock.Actor.from_conn(conn)
-    put_actor(actor, conn.assigns[:current_user])
+    user = conn.assigns[:current_user]
+
+    Slipdock.Actor.put(
+      actor,
+      user && Accounts.User.display_name(user),
+      {user, conn.assigns[:api_token]}
+    )
+
     assign(conn, :actor, actor)
   end
 
   defp put_actor(actor, user),
-    do: Slipdock.Actor.put(actor, user && Accounts.User.display_name(user))
+    do: Slipdock.Actor.put(actor, user && Accounts.User.display_name(user), {user, nil})
 
   @doc "Plug: loads the current user from an `Authorization: Bearer` API token, else 401."
   def fetch_api_user(conn, _opts) do

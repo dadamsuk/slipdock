@@ -65,15 +65,27 @@ defmodule Slipdock.Actor do
 
   @current {__MODULE__, :current}
   @rule {__MODULE__, :rule}
+  @principal {__MODULE__, :principal}
 
   @doc """
   Sets who this process's writes are by: an actor from the builders above,
   with the name to show for it when it is a person (a snapshot, so a deleted
   user's entries still name them). `nil` clears it.
   """
-  def put(actor, name \\ nil)
-  def put(nil, _name), do: Process.delete(@current)
-  def put(%{kind: _} = actor, name), do: Process.put(@current, Map.put(actor, :name, name))
+  def put(actor, name \\ nil, principal \\ {nil, nil})
+
+  def put(nil, _name, _principal) do
+    Process.delete(@principal)
+    Process.delete(@current)
+  end
+
+  def put(%{kind: _} = actor, name, {_user, _token} = principal) do
+    Process.put(@principal, principal)
+    Process.put(@current, Map.put(actor, :name, name))
+  end
+
+  @doc "SPIKE #3162: the `{user, api_token}` this process acts for, for `Slipdock.Policy`."
+  def principal, do: Process.get(@principal) || {nil, nil}
 
   @doc """
   Who this process's writes are by: the automation rule while one is firing

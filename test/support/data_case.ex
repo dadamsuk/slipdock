@@ -38,6 +38,9 @@ defmodule Slipdock.DataCase do
   def setup_sandbox(tags) do
     pid = Ecto.Adapters.SQL.Sandbox.start_owner!(Slipdock.Repo, shared: not tags[:async])
 
+    # SPIKE #3162: a write the test itself makes, with no actor, is a fixture.
+    unless tags[:policy_strict], do: Slipdock.Policy.allow_nobody()
+
     # Board keys this test derives are held for as long as its transaction is.
     Slipdock.BoardKeyClaims.register_test(self(), pid)
 

@@ -19,12 +19,14 @@ defmodule Slipdock.Boards.Tags do
 
   # Tags belong to the root of the board tree so sub-boards share them.
   def create_tag(%Board{} = board, attrs) do
-    root_id = Board.root_id(board)
+    with :ok <- Slipdock.Policy.authorize(:create_tag, board) do
+      root_id = Board.root_id(board)
 
-    %Tag{board_id: root_id}
-    |> Tag.changeset(Map.put(attrs, "board_id", root_id))
-    |> Repo.insert()
-    |> Boards.Shared.tap_ok(&Boards.PubSub.broadcast_tree(&1.board_id))
+      %Tag{board_id: root_id}
+      |> Tag.changeset(Map.put(attrs, "board_id", root_id))
+      |> Repo.insert()
+      |> Boards.Shared.tap_ok(&Boards.PubSub.broadcast_tree(&1.board_id))
+    end
   end
 
   @doc """
@@ -46,14 +48,18 @@ defmodule Slipdock.Boards.Tags do
   end
 
   def update_tag(%Tag{} = tag, attrs) do
-    tag
-    |> Tag.changeset(attrs)
-    |> Repo.update()
-    |> Boards.Shared.tap_ok(&Boards.PubSub.broadcast_tree(&1.board_id))
+    with :ok <- Slipdock.Policy.authorize(:update_tag, tag) do
+      tag
+      |> Tag.changeset(attrs)
+      |> Repo.update()
+      |> Boards.Shared.tap_ok(&Boards.PubSub.broadcast_tree(&1.board_id))
+    end
   end
 
   def delete_tag(%Tag{} = tag) do
-    Repo.delete(tag) |> Boards.Shared.tap_ok(&Boards.PubSub.broadcast_tree(&1.board_id))
+    with :ok <- Slipdock.Policy.authorize(:delete_tag, tag) do
+      Repo.delete(tag) |> Boards.Shared.tap_ok(&Boards.PubSub.broadcast_tree(&1.board_id))
+    end
   end
 
   def get_tag!(id), do: Repo.get!(Tag, id)
