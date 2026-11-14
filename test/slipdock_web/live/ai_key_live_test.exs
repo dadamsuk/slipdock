@@ -184,10 +184,17 @@ defmodule SlipdockWeb.AIKeyLiveTest do
       {:ok, view, _html} = live(conn, ~p"/account/settings")
       button = element(view, "button[phx-click=list_ai_models]")
 
+      # #3154: LiveView hands the crash to the page before the task
+      # re-raises and logs it, so `render_async/1` can return before the
+      # report is written. Wait for the lookup's task to exit (it logs on
+      # the way out) before the capture closes.
       {html, log} =
         ExUnit.CaptureLog.with_log(fn ->
           assert render_click(button) =~ "asking http://box.local:1234/v1…"
-          render_async(view)
+          tasks = monitor_async_tasks(view)
+          html = render_async(view)
+          await_down(tasks)
+          html
         end)
 
       assert html =~ "Couldn&#39;t list the models"
@@ -311,6 +318,20 @@ defmodule SlipdockWeb.AIKeyLiveTest do
   end
 
   # How many of a select's options carry this value.
+  # The live view's `start_async/3` tasks still running: their pids,
+  # monitored. One that has already exited has logged already.
+  defp monitor_async_tasks(view) do
+    for pid <- Process.list(),
+        {:dictionary, dict} <- [Process.info(pid, :dictionary)],
+        match?({Phoenix.LiveView.Async, _, _}, dict[:"$initial_call"]),
+        view.pid in List.wrap(dict[:"$callers"]),
+        do: Process.monitor(pid)
+  end
+
+  defp await_down(refs) do
+    for ref <- refs, do: assert_receive({:DOWN, ^ref, :process, _, _}, 5_000)
+  end
+
   defp option_count(view, select, value) do
     html = view |> element(select) |> render()
     length(Regex.scan(~r/<option[^>]*value="#{Regex.escape(value)}"/, html))
