@@ -437,6 +437,14 @@ defmodule Slipdock.HandbookTest do
       assert triage.description =~
                "Only a finding that arrived since the last triage may stay open"
 
+      # Findings are grouped by kind, a kind is one card that removes it, and
+      # a missing test outside the risky tiers is dismissed, not filed (#3161).
+      assert triage.description =~ "and then by kind"
+      assert triage.description =~ "Only what bites becomes a card"
+      assert triage.description =~ "becomes **one** card that removes the kind"
+      assert triage.description =~ "never a card per instance"
+      assert triage.description =~ "tests are tiered by risk"
+
       assert Enum.map(Boards.Cards.get_card!(triage.id).blocked_by, & &1.id) == [seed.id]
 
       index = Handbook.find(board).index

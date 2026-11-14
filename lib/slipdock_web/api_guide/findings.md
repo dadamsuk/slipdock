@@ -30,17 +30,21 @@ after its kind when it is settled in the handbook (`- gotcha [done:
 W-1950 §Local setup]: …`), or `→ #<card>` (or `-> #<card>`) at its end
 when a card was filed for it (`- tooling: no test pins it → #2087`).
 
-A fix is a card, not a finding: a concrete change you could hand to
-someone (a missing test such as "no test pins `slipdock done`'s exit
-codes", a stale moduledoc or doc entry, a tooling bug such as "`page
-section --append -` writes a literal `-`") goes on the board as a card
-now (`POST /api/boards/:board/cards`, `create_card`, `slipdock add`: in
-the Housekeeping list when the board has one, else the backlog; a
-design question, whose answer changes how the product or a process
-behaves, in Triage) and into the block as `→ #<card>`. A finding is only for
-what is uncertain, cuts across cards, or shows the handbook wrong
-("`mix format` can need two passes", "W-1950 §Tests says async is safe,
-but the fixture is one user").
+Only what bites is a card: a bug a person would meet (a tooling bug
+such as "`page section --append -` writes a literal `-`"), a security
+issue, or a broken build goes on the board as a card now (`POST
+/api/boards/:board/cards`, `create_card`, `slipdock add`: in the
+Housekeeping list when the board has one, else the backlog; a design
+question, whose answer changes how the product or a process behaves, in
+Triage) and into the block as `→ #<card>`. A missing test, a duplicate
+or a stale comment in code that isn't security, data or money is a
+finding line, not a card ("no test pins `slipdock done`'s exit codes"):
+tests are tiered by risk. The second time a kind turns up, fix the kind:
+one card that removes it (a shared helper or mechanism, and a check that
+fails CI if it comes back), naming the instances it closes, never a card
+per instance. A finding is for the rest: what is uncertain, cuts across
+cards, or shows the handbook wrong ("`mix format` can need two passes",
+"W-1950 §Tests says async is safe, but the fixture is one user").
 
 One record per lesson: an item repeating an open finding on the same
 card (after normalising case, whitespace, backticks, trailing

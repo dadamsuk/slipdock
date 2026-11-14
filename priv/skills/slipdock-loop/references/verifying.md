@@ -87,16 +87,15 @@ are asked to verify or audit a card. A pass that builds reads `SKILL.md`'s
   style, and give each finding with its file and line,
   `defect:important|nit|pre-existing=<file>:<line>[:why]`; an important
   one is a rejection, a nit or a pre-existing one is reported only.
-  On a `fix`, `feature`, `schema` or `security` card (profiles on; never
-  `docs`, `spike` or a `--no-code` completion) the prompt adds a
+  On a `schema` or `security` card (profiles on; never `fix`, `feature`,
+  `docs`, `spike` or a `--no-code` completion: tests are tiered by risk) the prompt adds a
   **mutation step**: in the clean worktree, pick 3 to 5 of the most
   consequential lines the diff added or changed, and on top of those every
   guard or branch the diff adds (a new condition, clause, pattern match or
   early return), once each and named with its line; break each in turn (flip
   `>` to `>=`, drop the branch, return the wrong thing), run only the
   card's `--tests`, never the whole suite (on a pull request board too:
-  CI ran the suite, not the mutations), and restore the line. On a `fix`,
-  one mutation undoes the fix: the regression test must kill it. Give
+  CI ran the suite, not the mutations), and restore the line. Give
   each as `mutant:killed=<file>:<line>:<mutation>`,
   `mutant:survived=<file>:<line>:<mutation>[:the test that's missing]`
   (a rejection, its reason naming the mutation and the test to write) or

@@ -8,10 +8,15 @@ holds the detail behind each rule.
 
 ## The rules
 
-1. **Tests come with the code**, in the same commit: the error and edge cases
-   too, asserting what happens. If something can't be tested, say why on the
-   card. A refactor that changes no behaviour is covered by the tests already
-   there.
+1. **Tests come with the code, as much as its risk asks**, in the same
+   commit, asserting what happens. Security, permissions, data loss and
+   money: the error and edge cases too. Other features and fixes: the happy
+   path and the errors a person would meet. UI notices, copy and flash
+   wording need no test of their own. W-1950 §Tests has the tiers. If
+   something can't be tested, say why on the card. A refactor that changes
+   no behaviour is covered by the tests already there. **The second time a
+   kind of problem turns up, fix the kind**: one shared mechanism and a check
+   that fails CI if it comes back, not a fix and a card per instance.
 2. **Change every place a feature shows up**, or say on the card why not. The
    same feature usually lives in the web UI, the REST API, the CLI (`cli/`)
    and the MCP tools (`lib/slipdock_web/mcp/tools/`), and is described in the

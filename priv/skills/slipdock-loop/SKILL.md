@@ -493,25 +493,29 @@ anybody reads later:
    setup]: …`), or `→ #<card>` at its end when you filed a card for it
    (`- tooling: no test pins the CLI's exit codes → #2087`).
 
-   **A fix is a card, not a finding.** A concrete change you could hand
-   to someone (a missing test, a stale moduledoc or doc entry, a tooling
-   bug) waits a day for triage as a finding, and triage turns it into a
-   card anyway. So file the card now, in the Housekeeping list when the
+   **Only what bites is a card.** A bug a person would meet, a security
+   issue or a broken build or tool is filed as a card now, not left a day
+   for triage: in the Housekeeping list when the
    board has one, where runners take it after the ready list (`slipdock
    add <board> "<title>" --desc "<what, where, why>" --column
    Housekeeping`), else the backlog (`--column Backlog`); `--desc -` with
    a heredoc for more than a line. A **design question** (the answer would
    change how the product or a process behaves) goes to Triage for a
    person instead (`--column Triage`). Put it in the block with the arrow,
-   so it is kept promoted. A finding
-   is only for what is uncertain, cuts across cards, or shows the
-   handbook wrong:
+   so it is kept promoted. A missing test, a duplicate or a stale
+   comment in code that isn't security, data or money is a finding line,
+   not a card: tests are tiered by risk (W-1950 §Tests). **The second
+   time a kind turns up, fix the kind**: one card that removes it (a
+   shared helper or mechanism, and a check that fails CI if it comes
+   back), naming the instances it closes, never a card per instance. A
+   finding is for the rest: what is uncertain, cuts across cards, or
+   shows the handbook wrong:
 
    | A card (`→ #id`) | A finding |
    |---|---|
-   | no test pins `slipdock done`'s exit codes | `mix format` can need two passes; run the check after it |
-   | the `Findings` moduledoc still says a person triages them | the shared `_pre_push` database can hold another branch's migration |
-   | `page section --append -` writes a literal `-` | W-1950 §Tests says async is safe, but the fixture is one user |
+   | `page section --append -` writes a literal `-` (a bug a person meets) | no test pins `slipdock done`'s exit codes (a missing test) |
+   | a third copy that drops `%{count}`: one helper, and a check that fails on a new copy (the kind) | `mix format` can need two passes; run the check after it |
+   | a card grant can write the whole board (security) | W-1950 §Tests says async is safe, but the fixture is one user |
 
    `Findings: none` is the usual answer: most cards teach nothing a card
    on another subject needs, and filler costs a person a dismissal each.
@@ -657,8 +661,9 @@ With one on, the pass changes like this:
   checks a verifier will (a verify job's, in `references/verifying.md`) on
   your own work: the
   bar covers the ask, each part of the bar is met, no `must` rule for the
-  diff is broken, and the `Handbook:` line is honest. Then **the mutation
-  review before submitting**, on any card that changes code. **Commit the
+  diff is broken, and the `Handbook:` line is honest. Then, on a `schema` or `security` card that changes code, **the
+  mutation review before submitting** (no other card has one: tests are
+  tiered by risk, W-1950 §Tests). **Commit the
   card's work first** (a WIP commit you amend later will do): restoring
   with `git checkout -- <file>` puts the file back as it was at HEAD, so on
   uncommitted work it discards every edit the card made to that file, not
@@ -667,9 +672,8 @@ With one on, the pass changes like this:
   returned value), run only the card's tests, restore the line (`git
   checkout -- <file>`, now back to the commit), and add a test until each
   break fails one; a survivor you leave gets its reason in the
-  evidence. On a `fix`, undo the fix itself: the regression test must
-  fail. It is the verifier's own mutation step (on a `fix`, `feature`,
-  `schema` or `security` card with profiles on), and a mutant it finds
+  evidence. It is the verifier's own mutation step (on a `schema` or
+  `security` card with profiles on), and a mutant it finds
   surviving costs a rejection and a second build. **Name the mutants in
   the evidence**, one line each, as the verifier writes them:
   `mutant:killed=lib/foo.ex:42:flip > to >=` (or

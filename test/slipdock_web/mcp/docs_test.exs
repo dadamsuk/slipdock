@@ -218,16 +218,16 @@ defmodule SlipdockWeb.MCP.DocsTest do
       assert work =~ "`gotcha: mix format can need two passes`"
     end
 
-    test "everywhere the block is taught, a fix is a card, not a finding (#2121)" do
+    test "everywhere the block is taught, only what bites is a card (#2121, #3161)" do
       for path <- ~w(priv/skills/slipdock-loop/SKILL.md priv/skills/slipdock-work/SKILL.md
                      priv/skills/slipdock-docs/SKILL.md docs/agents.md docs/manual.md
                      lib/slipdock_web/api_guide.ex lib/slipdock_web/live/help_live/flow.ex
                      lib/slipdock/sweep.ex) do
         text = read(path) |> String.replace(~r/\s+/, " ")
 
-        assert text =~ "a fix is a card, not a finding" or
-                 text =~ "A fix is a card, not a finding",
-               path
+        assert text =~ "only what bites is a card" or text =~ "Only what bites is a card", path
+        refute text =~ "a fix is a card, not a finding", path
+        refute text =~ "A fix is a card, not a finding", path
 
         assert text =~ "→ #", path
         assert text =~ "cuts across cards", path
@@ -239,6 +239,13 @@ defmodule SlipdockWeb.MCP.DocsTest do
         text = read(path) |> String.replace(~r/\s+/, " ")
         assert text =~ "no test pins `slipdock done`'s exit codes", path
         assert text =~ "`mix format` can need two passes", path
+
+        # A missing test is a finding line, and a repeated kind gets one card
+        # that removes it, never a card an instance (#3161).
+        assert text =~ "a finding line", path
+        assert text =~ "tiered by risk", path
+        assert text =~ ~r/fix the kind/i, path
+        assert text =~ "never a card per instance", path
 
         assert text =~ "--column Backlog" or text =~ "in the backlog" or
                  text =~ "else the backlog",

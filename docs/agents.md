@@ -1085,17 +1085,21 @@ finding it repeats, on this card or another (`rule` and `handbook-wrong`
 excepted across cards). An item already dealt with says where, and is kept
 *promoted*, not open: `- gotcha [done: W-1950 §Local setup]: …` when it is
 settled in the handbook, `- tooling: … → #2087` when a card was filed for it.
-A fix is a card, not a finding: a concrete change you could hand to someone
-(a missing test such as "no test pins `slipdock done`'s exit codes", a stale
-moduledoc or doc entry, a tooling bug such as "`page section --append -`
-writes a literal `-`") goes on the board as a card now, in the Housekeeping
+Only what bites is a card: a bug a person would meet (a tooling bug such as
+"`page section --append -` writes a literal `-`"), a security issue or a broken
+build goes on the board as a card now, in the Housekeeping
 list when the board has one, where runners take it after the ready list
 (`slipdock add <board> "…" --desc "…" --column Housekeeping`), else the
 backlog (`--column Backlog`); `--desc -` reads the description from stdin,
 for a heredoc. A design question (the answer would change how the product or
 a process behaves) goes to Triage for a person (`--column Triage`). Name the
-card in the block as `→ #<card>`. A
-finding is only for what is uncertain, cuts across cards, or shows the
+card in the block as `→ #<card>`. A missing test, a duplicate or a stale
+comment in code that isn't security, data or money is a finding line, not a
+card ("no test pins `slipdock done`'s exit codes"): tests are tiered by risk.
+The second time a kind turns up, fix the kind: one card that removes it (a
+shared helper or mechanism, and a check that fails CI if it comes back),
+naming the instances it closes, never a card per instance. A
+finding is for the rest: what is uncertain, cuts across cards, or shows the
 handbook wrong ("`mix format` can need two passes", "the shared `_pre_push`
 database can hold another branch's migration", "W-1950 §Tests says async is
 safe, but the fixture is one user").
@@ -1474,9 +1478,9 @@ verifier of a `schema` or `security` card, your prompt has a defect
 review: read the diff for bugs, give each finding with its file and line
 (`--check defect:important|nit|pre-existing=<file>:<line>[:why]`), and
 reject on any Important one; a Nit or a Pre-existing finding is reported
-only. On a `fix`, `feature`, `schema` or `security` card your prompt also
-has a mutation review: break 3 to 5 of the lines the diff added or changed
-(on a `fix`, one undoes the fix), and on top of those every guard or branch
+only. On a `schema` or `security` card your prompt also has a mutation
+review (no other profile has one: tests are tiered by risk): break 3 to 5
+of the lines the diff added or changed, and on top of those every guard or branch
 the diff adds (a new condition, clause, pattern match or early return), once
 each and named with its line, run only the card's tests against each,
 restore it, and give each as `--check

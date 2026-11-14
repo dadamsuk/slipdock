@@ -38,9 +38,8 @@ works too) at its end when a card was filed for it (`- tooling: no test pins
 the CLI's exit codes → #2087`). Words like "(corrected)" or "fixed" are not
 read as done, since lessons say them too.
 
-A fix is a card, not a finding. A concrete change you could hand to someone
-waits a day for triage as a finding, and triage only turns it into a card, so
-a pass files the card at once: in the Housekeeping list when the board has
+Only what bites is a card. A bug a person would meet, a security issue or a
+broken build or tool is filed as a card at once, not left a day for triage: in the Housekeeping list when the board has
 one, where runners take it after the ready list (`slipdock add <board> "…"
 --desc "…" --column Housekeeping`), else the backlog (`--column Backlog`);
 `--desc -` with a heredoc for a longer one. A design question (the answer would
@@ -48,14 +47,19 @@ change how the product or a process behaves) goes to Triage for a person
 instead (`--column Triage`). The block names the card with the arrow. The
 sweep and findings triage file the same way, saying who they are
 (`--origin sweep`, `--origin findings`), and so does an audit that disagrees:
-its rework card goes to Housekeeping when the board has one. A finding is
-only for what is uncertain, cuts across cards, or shows the handbook wrong:
+its rework card goes to Housekeeping when the board has one. A missing test,
+a duplicate or a stale comment in code that isn't security, data or money is a
+finding line, not a card: tests are tiered by risk. **The second time a kind
+turns up, fix the kind**: one card that removes it (a shared helper or
+mechanism, and a check that fails CI if it comes back), naming the instances
+it closes, never a card per instance. A finding is for the rest too: what is
+uncertain, cuts across cards, or shows the handbook wrong:
 
 | A card (`→ #id`) | A finding |
 |---|---|
-| no test pins `slipdock done`'s exit codes | `mix format` can need two passes; run the check after it |
-| a stale moduledoc or doc entry | the shared `_pre_push` database can hold another branch's migration |
-| `page section --append -` writes a literal `-` | W-1950 §Tests says async is safe, but the fixture is one user |
+| `page section --append -` writes a literal `-` (a bug a person meets) | no test pins `slipdock done`'s exit codes (a missing test) |
+| a third copy that drops `%{count}`: one helper, and a check that fails on a new copy (the kind) | `mix format` can need two passes; run the check after it |
+| a card grant can write the whole board (security) | W-1950 §Tests says async is safe, but the fixture is one user |
 
 Write the block once, in the closing comment (on a board that verifies work, the completion's
 evidence): not again in a wrap-up, a restatement or on the epic. The block is
