@@ -338,6 +338,141 @@ defmodule SlipdockWeb.SprintsLiveTest do
     refute has_element?(view, "#velocity-chart")
   end
 
+  describe "what Add says and skips (#3118)" do
+    # Opens the picker from the sprint's card (with one other board, it opens
+    # on Work's lists), ticks the cards, lets `meanwhile` change them, and
+    # clicks Add.
+    defp tick_and_add(conn, sprints, sprint, cards, meanwhile \\ fn -> :ok end) do
+      {:ok, view, _} = live(conn, ~p"/boards/#{sprints}/cards/#{sprint.id}")
+      view |> element("#card-sprint-add-cards") |> render_click()
+      for card <- cards, do: view |> element("#sprint-pick-#{card.id}") |> render_click()
+      meanwhile.()
+      view |> element("#sprint-add") |> render_click()
+      view
+    end
+
+    defp board_of(card), do: Boards.Cards.get_card!(card.id).board_id
+
+    test "one card is said in the singular", %{
+      conn: conn,
+      sprints: sprints,
+      todo: todo,
+      work: work
+    } do
+      {:ok, sprint} = Sprints.create_sprint(sprints)
+      a = card_fixture(todo, %{"title" => "Write the release notes"})
+      stays = card_fixture(todo, %{"title" => "Not this time"})
+
+      view = tick_and_add(conn, sprints, sprint, [a])
+
+      assert has_element?(view, "#flash-info", "Added 1 card to #{sprint.title}.")
+      refute has_element?(view, "#flash-info", "1 cards")
+      refute has_element?(view, "#flash-error")
+      assert board_of(a) == Boards.Cards.get_card!(sprint.id).sub_board.id
+      assert board_of(stays) == work.id
+    end
+
+    test "a card left out is named in the note", %{
+      conn: conn,
+      sprints: sprints,
+      todo: todo,
+      work: work
+    } do
+      {:ok, sprint} = Sprints.create_sprint(sprints)
+      a = card_fixture(todo, %{"title" => "Write the release notes"})
+      b = card_fixture(todo, %{"title" => "Fix the login bug"})
+
+      view =
+        tick_and_add(conn, sprints, sprint, [a, b], fn ->
+          {:ok, _} = Boards.Cards.archive_card(Boards.Cards.get_card!(b.id))
+        end)
+
+      assert has_element?(
+               view,
+               "#flash-info",
+               "Added 1 card to #{sprint.title}. “Fix the login bug” was left out: it is archived."
+             )
+
+      refute has_element?(view, "#flash-error")
+      assert board_of(a) == Boards.Cards.get_card!(sprint.id).sub_board.id
+      assert board_of(b) == work.id
+    end
+
+    test "every card left out is an error: Nothing added to", %{
+      conn: conn,
+      sprints: sprints,
+      todo: todo,
+      work: work
+    } do
+      {:ok, sprint} = Sprints.create_sprint(sprints)
+      a = card_fixture(todo, %{"title" => "Write the release notes"})
+      b = card_fixture(todo, %{"title" => "Fix the login bug"})
+
+      # Ticked, then one archived and the other put in the sprint by
+      # somebody else before Add is clicked.
+      view =
+        tick_and_add(conn, sprints, sprint, [a, b], fn ->
+          {:ok, _} = Boards.Cards.archive_card(Boards.Cards.get_card!(a.id))
+          {:ok, %{added: [_]}} = Sprints.add_cards(sprint, [b])
+        end)
+
+      assert has_element?(
+               view,
+               "#flash-error",
+               "Nothing added to #{sprint.title}. " <>
+                 "“Write the release notes” was left out: it is archived. " <>
+                 "“Fix the login bug” was left out: it is already in the sprint."
+             )
+
+      refute has_element?(view, "#flash-info")
+      assert board_of(a) == work.id
+      assert board_of(b) == Boards.Cards.get_card!(sprint.id).sub_board.id
+    end
+
+    test "a card deleted after it was ticked is dropped without a note", %{
+      conn: conn,
+      sprints: sprints,
+      todo: todo
+    } do
+      {:ok, sprint} = Sprints.create_sprint(sprints)
+      a = card_fixture(todo, %{"title" => "Write the release notes"})
+      gone = card_fixture(todo, %{"title" => "Deleted meanwhile"})
+
+      view =
+        tick_and_add(conn, sprints, sprint, [a, gone], fn ->
+          {:ok, _} = Boards.Cards.delete_card(Boards.Cards.get_card!(gone.id))
+        end)
+
+      assert has_element?(view, "#flash-info", "Added 1 card to #{sprint.title}.")
+      refute render(view) =~ "Deleted meanwhile"
+      refute render(view) =~ "left out"
+      assert board_of(a) == Boards.Cards.get_card!(sprint.id).sub_board.id
+      assert Boards.Cards.get_card(gone.id) == nil
+    end
+
+    test "every ticked card deleted says Nothing added, and is not an error", %{
+      conn: conn,
+      sprints: sprints,
+      todo: todo
+    } do
+      {:ok, sprint} = Sprints.create_sprint(sprints)
+      gone = card_fixture(todo, %{"title" => "Deleted meanwhile"})
+
+      view =
+        tick_and_add(conn, sprints, sprint, [gone], fn ->
+          {:ok, _} = Boards.Cards.delete_card(Boards.Cards.get_card!(gone.id))
+        end)
+
+      assert has_element?(view, "#flash-info", "Nothing added to #{sprint.title}.")
+      refute has_element?(view, "#flash-error")
+      refute render(view) =~ "left out"
+      assert Boards.Cards.get_card(gone.id) == nil
+
+      assert Boards.get_board!(Boards.Cards.get_card!(sprint.id).sub_board.id).columns
+             |> Enum.flat_map(& &1.cards) == []
+    end
+  end
+
   describe "stand-ins" do
     test "the board a card left shows a stand-in that opens the real card", %{
       conn: conn,
