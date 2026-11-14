@@ -38,7 +38,9 @@ defmodule SlipdockWeb.Ops do
   defp cast_one(%{type: :string} = p, v) when is_integer(v), do: cast_one(p, to_string(v))
 
   defp cast_one(%{type: {:enum, values}, name: n}, v) do
-    if v in values, do: {:ok, v}, else: {:error, "#{n} must be #{Enum.join(values, " or ")}"}
+    if Enum.member?(values, v),
+      do: {:ok, v},
+      else: {:error, "#{n} must be #{Enum.join(values, " or ")}"}
   end
 
   defp cast_one(%{type: :position}, v) when v in ["top", "bottom"],
@@ -136,14 +138,17 @@ defmodule SlipdockWeb.Ops do
       params =
         d.params
         |> Enum.reject(& &1[:in_path])
-        |> Enum.map_join(", ", fn p ->
-          "`#{p.name}`" <> if(p[:default], do: " (default `#{p.default}`)", else: "")
-        end)
+        |> Enum.map_join(", ", &param_word/1)
 
       "- `#{d.verb |> to_string() |> String.upcase()} #{d.path}` — #{d.summary} " <>
         "Takes #{params}. Needs #{permission(d.permission)}."
     end)
   end
+
+  defp param_word(%{default: default, name: name}) when not is_nil(default),
+    do: "`#{name}` (default `#{default}`)"
+
+  defp param_word(%{name: name}), do: "`#{name}`"
 
   defp permission({subject, need}), do: "#{need} on the #{subject}"
 end
