@@ -98,6 +98,45 @@ defmodule SlipdockWeb.AutomationsLiveTest do
       assert Automations.list_rules(board.id) == []
     end
 
+    # #3123: the task itself dying (`handle_async`'s `:exit`), not the model
+    # answering badly. Without that arm the composer stays busy for good.
+    test "a rule whose writing dies says so, keeps the sentence, and can be sent again", %{
+      conn: conn,
+      board: board,
+      doing: doing
+    } do
+      Req.Test.stub(Slipdock.AI, fn _conn -> raise "the model's connection fell over" end)
+      {:ok, view, _html} = live(conn, ~p"/boards/#{board}/automations")
+
+      ExUnit.CaptureLog.capture_log(fn ->
+        view |> form("#rule-form", %{"text" => "email ops about new work"}) |> render_submit()
+        render_async(view)
+      end)
+
+      html = render(view)
+      assert html =~ "Writing the rule failed: "
+      assert html =~ "the model&#39;s connection fell over"
+      refute html =~ "Writing the rule…"
+      assert has_element?(view, "#rule-form textarea:not([disabled])", "email ops about new work")
+      assert has_element?(view, "#rule-form button[type=submit]:not([disabled])", "Create rule")
+      assert Automations.list_rules(board.id) == []
+
+      Slipdock.AIStub.reply_with(%{
+        "name" => "Tell ops about new work",
+        "spec" => %{
+          "trigger" => %{"type" => "card_created", "column" => doing.name},
+          "actions" => [%{"type" => "alert", "title" => "{{card.title}}"}]
+        }
+      })
+
+      view |> form("#rule-form", %{"text" => "email ops about new work"}) |> render_submit()
+      html = render_async(view)
+
+      assert html =~ "Tell ops about new work"
+      refute html =~ "Writing the rule failed"
+      assert [%{name: "Tell ops about new work"}] = Automations.list_rules(board.id)
+    end
+
     test "rules can be turned off, reworded and deleted", %{
       conn: conn,
       board: board,
@@ -182,6 +221,37 @@ defmodule SlipdockWeb.AutomationsLiveTest do
       # The alert it raised reaches the header bar of the page that ran it.
       view |> element("#alerts-bar button[phx-click=toggle_alerts]") |> render_click()
       assert render(view) =~ "Overdue: Late thing"
+    end
+
+    # #3123: Run now's other two answers, beside "ran once" above.
+    test "a timed rule run by hand says how many times it ran, or that nothing matched", %{
+      conn: conn,
+      board: board,
+      backlog: backlog
+    } do
+      rule =
+        rule_fixture(board, %{
+          "trigger" => %{"type" => "card_overdue"},
+          "actions" => [%{"type" => "alert", "title" => "Overdue: {{card.title}}"}]
+        })
+
+      {:ok, view, _html} = live(conn, ~p"/boards/#{board}/automations")
+      view |> element("button[phx-click=run_rule]") |> render_click()
+      assert render(view) =~ "Nothing matched “#{rule.name}” right now."
+      assert Automations.list_alerts(user_fixture()) == []
+
+      for title <- ["Late thing", "Later thing", "Latest thing"] do
+        card_fixture(backlog, %{
+          "title" => title,
+          "due_date" => Date.to_iso8601(Date.add(Date.utc_today(), -3))
+        })
+      end
+
+      view |> element("button[phx-click=run_rule]") |> render_click()
+      html = render(view)
+      assert html =~ "“#{rule.name}” ran 3 times."
+      refute html =~ "Nothing matched"
+      assert length(Automations.list_alerts(user_fixture())) == 3
     end
 
     test "someone with read-only access can't manage rules", %{conn: _conn, board: board} do

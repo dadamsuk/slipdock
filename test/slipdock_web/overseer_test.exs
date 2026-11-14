@@ -299,6 +299,17 @@ defmodule SlipdockWeb.OverseerTest do
       assert Overseer.settings(ctx.board).min_minutes == 20
     end
 
+    # #3123
+    test "turning it off again says so", %{conn: conn} = ctx do
+      {:ok, _} = Overseer.put_settings(ctx.board, %{enabled: true})
+      {:ok, view, _} = live(conn, ~p"/boards/#{ctx.board}/automations")
+
+      view |> form("#overseer-form", overseer: %{enabled: "false"}) |> render_submit()
+
+      assert has_element?(view, "#overseer-notice[data-callout=info]", "The overseer is off.")
+      refute Overseer.settings(ctx.board).enabled
+    end
+
     test "open conditions are listed with what to do", %{conn: conn} = ctx do
       {card, condition} = waiting(ctx)
       {:ok, view, _} = live(conn, ~p"/boards/#{ctx.board}/automations")

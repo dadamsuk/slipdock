@@ -137,6 +137,42 @@ defmodule SlipdockWeb.WaitQuestionsLiveTest do
       assert has_element?(view, "#wait-suggest-error-2", "didn't suggest an answer")
     end
 
+    # #3123: the task itself dying (`handle_async`'s `:exit`), not the model
+    # answering badly. Without that arm the button spins for good.
+    test "a suggestion whose task dies says so under its box, and can be asked again", ctx do
+      Req.Test.stub(Slipdock.AI, fn _conn -> raise "the model's connection fell over" end)
+      ask(ctx)
+      {:ok, view, _} = open(ctx.conn, ctx)
+
+      view
+      |> form("#wait-answer-form", %{"wait" => %{"answers" => %{"1" => "", "2" => "12"}}})
+      |> render_change()
+
+      ExUnit.CaptureLog.capture_log(fn ->
+        view |> element("#wait-suggest-1") |> render_click()
+        render_async(view)
+      end)
+
+      assert has_element?(
+               view,
+               "#wait-suggest-error-1",
+               "The answer couldn't be suggested. Try again."
+             )
+
+      # Only that question's: the other box, and what was typed in it, stand.
+      refute has_element?(view, "#wait-suggest-error-2")
+      assert has_element?(view, "#wait-answer-2", "12")
+      assert has_element?(view, "#wait-suggest-1:not([disabled])")
+      assert Wait.open?(Boards.Waits.current_wait(ctx.card))
+
+      AIStub.reply_with(%{"answer" => "eu-west-1"})
+      view |> element("#wait-suggest-1") |> render_click()
+      render_async(view)
+
+      assert has_element?(view, "#wait-answer-1", "eu-west-1")
+      refute has_element?(view, "#wait-suggest-error-1")
+    end
+
     test "is not offered without a model, and the event asks none", ctx do
       Slipdock.TestConfig.merge(:ai, api_key: nil)
       ask(ctx)

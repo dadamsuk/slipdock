@@ -335,6 +335,33 @@ defmodule SlipdockWeb.HandoffLiveTest do
       assert has_element?(view, "#handoff-form input[value='Keep me']")
     end
 
+    # #3123: the task itself dying (`handle_async`'s `:exit`), not the model
+    # answering badly. Without that arm the button spins for good.
+    test "a draft whose task dies says so, keeps the form, and can be asked again", ctx do
+      leave(ctx, "Keep me")
+      Req.Test.stub(Slipdock.AI, fn _conn -> raise "the model's connection fell over" end)
+
+      {:ok, view, _} = open(ctx.conn, ctx)
+      view |> element("#handoff-edit") |> render_click()
+
+      ExUnit.CaptureLog.capture_log(fn ->
+        view |> element("#handoff-draft") |> render_click()
+        render_async(view)
+      end)
+
+      assert has_element?(view, "#handoff-draft-error", "The draft couldn't be made. Try again.")
+      assert has_element?(view, "#handoff-draft:not([disabled])", "Auto generate")
+      assert has_element?(view, "#handoff-form input[value='Keep me']")
+      assert %{next_step: "Keep me"} = Boards.Handoffs.current_handoff(ctx.card)
+
+      Slipdock.AIStub.reply_with(%{"next_step" => "Second time lucky", "body" => ""})
+      view |> element("#handoff-draft") |> render_click()
+      render_async(view)
+
+      assert has_element?(view, "#handoff-form input[value='Second time lucky']")
+      refute has_element?(view, "#handoff-draft-error")
+    end
+
     test "is not offered without an AI model, and the event asks no model", ctx do
       Slipdock.TestConfig.merge(:ai, api_key: nil)
 
