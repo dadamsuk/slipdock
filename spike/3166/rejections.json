@@ -1,0 +1,74 @@
+{
+ "rejections": 280,
+ "accepts": 741,
+ "why": {
+  "paperwork: Handbook line / evidence / findings": 41,
+  "other": 41,
+  "docs: a place not updated (SPEC-10)": 34,
+  "tests: surviving mutants / untested line (TEST-3)": 152,
+  "defect: behaviour wrong or bar unmet": 9,
+  "process: depends on unmerged work / wrong commit": 3
+ },
+ "by_profile": {
+  "fix": {
+   "accepted": 17,
+   "rejected": 8,
+   "why": {
+    "defect: behaviour wrong or bar unmet": 1,
+    "docs: a place not updated (SPEC-10)": 2,
+    "paperwork: Handbook line / evidence / findings": 1,
+    "tests: surviving mutants / untested line (TEST-3)": 2,
+    "other": 2
+   }
+  },
+  "security": {
+   "accepted": 52,
+   "rejected": 23,
+   "why": {
+    "other": 6,
+    "tests: surviving mutants / untested line (TEST-3)": 14,
+    "paperwork: Handbook line / evidence / findings": 2,
+    "defect: behaviour wrong or bar unmet": 1
+   }
+  },
+  "schema": {
+   "accepted": 17,
+   "rejected": 15,
+   "why": {
+    "docs: a place not updated (SPEC-10)": 2,
+    "tests: surviving mutants / untested line (TEST-3)": 8,
+    "paperwork: Handbook line / evidence / findings": 2,
+    "other": 3
+   }
+  },
+  "spike": {
+   "accepted": 1,
+   "rejected": 0,
+   "why": {}
+  },
+  "feature": {
+   "accepted": 401,
+   "rejected": 180,
+   "why": {
+    "paperwork: Handbook line / evidence / findings": 17,
+    "other": 23,
+    "tests: surviving mutants / untested line (TEST-3)": 119,
+    "docs: a place not updated (SPEC-10)": 16,
+    "defect: behaviour wrong or bar unmet": 4,
+    "process: depends on unmerged work / wrong commit": 1
+   }
+  },
+  "None": {
+   "accepted": 253,
+   "rejected": 54,
+   "why": {
+    "docs: a place not updated (SPEC-10)": 14,
+    "paperwork: Handbook line / evidence / findings": 19,
+    "defect: behaviour wrong or bar unmet": 3,
+    "process: depends on unmerged work / wrong commit": 2,
+    "tests: surviving mutants / untested line (TEST-3)": 9,
+    "other": 7
+   }
+  }
+ }
+}

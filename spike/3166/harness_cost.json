@@ -1,0 +1,274 @@
+{
+ "since": "2026-11-03",
+ "cards_new": 826,
+ "jobs": 2840,
+ "job_hours_by_kind": {
+  "audit": [
+   62,
+   5.1
+  ],
+  "merge": [
+   711,
+   1.0
+  ],
+  "verify": [
+   1041,
+   77.9
+  ],
+  "claude": [
+   1026,
+   336.6
+  ]
+ },
+ "parts": {
+  "daemon": {
+   "cards": 56,
+   "job_hours": {
+    "audit": 0.5,
+    "merge": 0.1,
+    "verify": 5.6,
+    "claude": 23.9
+   },
+   "total_h": 30.0,
+   "examples": [
+    "#3105 Account machines: revoke with an id that isn't yours is untested",
+    "#3127 Tests for two surviving mutants in machine_runners.ex",
+    "#2627 CLAUDE.md: skills line predates the daemon",
+    "#2618 Daemon self-update waits until its runners are idle",
+    "#2569 Machines: a runner daemon configured from the board",
+    "#2630 Daemon ceiling: insideRoots accepts a directory that is the parent of "
+   ]
+  },
+  "lanes": {
+   "cards": 27,
+   "job_hours": {
+    "merge": 0.0,
+    "verify": 2.2,
+    "claude": 8.0,
+    "audit": 0.2
+   },
+   "total_h": 10.4,
+   "examples": [
+    "#2015 Lanes scope: full, modest, light or none (none turns lanes off complet",
+    "#3071 Wiki page paths still hand-built outside the views",
+    "#1968 Findings: a lane refusal is not a finding",
+    "#1970 Lanes: shared paths and advisory mode",
+    "#2102 A feed passes over a card its lane holds and sends the next one",
+    "#2115 mix pre_push shares one test database across every worktree, so a bran"
+   ]
+  },
+  "merge queue": {
+   "cards": 30,
+   "job_hours": {
+    "merge": 0.0,
+    "verify": 2.5,
+    "claude": 20.6,
+    "audit": 0.2
+   },
+   "total_h": 23.4,
+   "examples": [
+    "#3153 the status line shows how many tickets are merge awaiting release but ",
+    "#1666 Ship by PR: merge in the runner's repo, say why it failed, name the ve",
+    "#1850 Done stays done: put-backs skip merging cards, agents can't reopen",
+    "#1857 CI: skip the post-merge suite when CI already passed on that tree",
+    "#1917 Epics on a pull-request board have no PR of their own to merge",
+    "#1976 Resubmitting with --pr but no --evidence-commit leaves the card nothin"
+   ]
+  },
+  "releases": {
+   "cards": 50,
+   "job_hours": {
+    "merge": 0.0,
+    "verify": 6.8,
+    "claude": 28.7,
+    "audit": 0.0
+   },
+   "total_h": 35.6,
+   "examples": [
+    "#2995 Release banner: the failing-run link reads as part of 'awaiting releas",
+    "#2996 Release hold: a rerun of the failed run that deploys still holds relea",
+    "#2993 Red release: a no-code fix card leaves the hold on",
+    "#3091 Release line: 'follow the build' reads as part of 'another is queued'",
+    "#3153 the status line shows how many tickets are merge awaiting release but ",
+    "#1653 Verified work: ship by push or by pull request"
+   ]
+  },
+  "verify": {
+   "cards": 63,
+   "job_hours": {
+    "merge": 0.1,
+    "verify": 3.3,
+    "claude": 17.0,
+    "audit": 0.4
+   },
+   "total_h": 20.8,
+   "examples": [
+    "#3107 Quick add settings: a rejected save is untested",
+    "#3127 Tests for two surviving mutants in machine_runners.ex",
+    "#3129 Tests for three surviving mutants (garden, outline, PasteImage)",
+    "#3139 Docs: three small corrections from verifiers",
+    "#1659 Verified work: rejected cards go back for rework",
+    "#1653 Verified work: ship by push or by pull request"
+   ]
+  },
+  "audit": {
+   "cards": 24,
+   "job_hours": {
+    "merge": 0.0,
+    "verify": 1.3,
+    "claude": 6.5,
+    "audit": 0.1
+   },
+   "total_h": 7.9,
+   "examples": [
+    "#3070 Audit of #2888: **The none swatch's `class` is untested: the borders' ",
+    "#3103 Audit of #2893: **The page panel's `clear_notice` (`page_component.ex:",
+    "#2634 Handbook still teaches the retired runner scripts (audit of #2582)",
+    "#2632 An audit that disagrees files the rework, not only an alert",
+    "#2645 Audit of #2613: No test holds the answer's feed hold on a sub-board: d",
+    "#2647 Audit of #2637: Two docs still say every failed merge counts as a reje"
+   ]
+  },
+  "health": {
+   "cards": 26,
+   "job_hours": {
+    "merge": 0.0,
+    "verify": 2.5,
+    "claude": 9.8,
+    "audit": 0.6
+   },
+   "total_h": 13.0,
+   "examples": [
+    "#3158 Overseer: turned on at the card limit, it is saved on with no card",
+    "#3086 Flaky: overseer_watch_test slow-card title reads 3h, not 2h 59m",
+    "#3088 A requeued job's next run loses its first transcript lines",
+    "#1750 Answered wait stuck behind a queued, held job",
+    "#1759 Health monitor: stuck work fixed, or flagged",
+    "#1849 Health monitor: two false positives seen on its first day"
+   ]
+  },
+  "generators": {
+   "cards": 76,
+   "job_hours": {
+    "merge": 0.1,
+    "verify": 4.5,
+    "claude": 20.9,
+    "audit": 0.7
+   },
+   "total_h": 26.2,
+   "examples": [
+    "#3135 A card's open-findings count includes waiting findings",
+    "#2987 Triage findings card: bar 1 lets a leftover stay open twice",
+    "#3095 Reconcile the handbook",
+    "#3094 Triage findings",
+    "#2912 Reinstall the Sweep and Handbook Tools on slipdock",
+    "#3093 Sweep the code"
+   ]
+  },
+  "jobs & pools": {
+   "cards": 119,
+   "job_hours": {
+    "claude": 52.0,
+    "merge": 0.1,
+    "verify": 11.2,
+    "audit": 1.6
+   },
+   "total_h": 64.9,
+   "examples": [
+    "#3166 Design: which parts of the runner harness earn their cost",
+    "#2920 A Claude usage limit turns every runner into a fail loop across the wh",
+    "#3091 Release line: 'follow the build' reads as part of 'another is queued'",
+    "#3088 A requeued job's next run loses its first transcript lines",
+    "#3127 Tests for two surviving mutants in machine_runners.ex",
+    "#1666 Ship by PR: merge in the runner's repo, say why it failed, name the ve"
+   ]
+  }
+ },
+ "harness_cards": 351,
+ "harness_job_hours": 160.3,
+ "all_job_hours": 420.7,
+ "origin": {
+  "agent": 209,
+  "None": 591,
+  "automation": 9,
+  "verify": 10,
+  "person": 5,
+  "release": 2
+ },
+ "verify_by_profile": {
+  "null": {
+   "cards": 321,
+   "verify_jobs": 316,
+   "verify_h": 10.1,
+   "rebuilds_after_first": 44
+  },
+  "docs": {
+   "cards": 14,
+   "verify_jobs": 0,
+   "verify_h": 0.0,
+   "rebuilds_after_first": 0
+  },
+  "feature": {
+   "cards": 406,
+   "verify_jobs": 592,
+   "verify_h": 55.6,
+   "rebuilds_after_first": 328
+  },
+  "fix": {
+   "cards": 17,
+   "verify_jobs": 25,
+   "verify_h": 1.6,
+   "rebuilds_after_first": 10
+  },
+  "schema": {
+   "cards": 18,
+   "verify_jobs": 32,
+   "verify_h": 4.0,
+   "rebuilds_after_first": 28
+  },
+  "security": {
+   "cards": 47,
+   "verify_jobs": 75,
+   "verify_h": 6.7,
+   "rebuilds_after_first": 33
+  },
+  "spike": {
+   "cards": 3,
+   "verify_jobs": 1,
+   "verify_h": 0.0,
+   "rebuilds_after_first": 0
+  }
+ },
+ "audit": {
+  "jobs": 62,
+  "hours": 5.1,
+  "statuses": {
+   "done": 61,
+   "failed": 1
+  }
+ },
+ "merge": {
+  "jobs": 711,
+  "hours": 1.0,
+  "statuses": {
+   "done": 667,
+   "failed": 44
+  },
+  "cards": 673
+ },
+ "job_status": {
+  "done": 2569,
+  "failed": 129,
+  "cancelled": 95,
+  "parked": 39,
+  "timeout": 7,
+  "running": 1
+ },
+ "recovery": {
+  "None": 2728,
+  "gave_up": 25,
+  "requeued_before_done": 34,
+  "parked": 39,
+  "withdrawn": 14
+ }
+}
