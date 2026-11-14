@@ -61,6 +61,17 @@ defmodule Slipdock.AccountsTest do
     assert is_nil(Accounts.get_user_by_api_token(token))
   end
 
+  test "deleting an api token leaves another user's token alone" do
+    {:ok, owner} = Accounts.get_or_create_user_by_email("api-owner@example.com")
+    {:ok, other} = Accounts.get_or_create_user_by_email("api-other@example.com")
+    {token, record} = Accounts.create_api_token(owner, "laptop")
+
+    assert :ok = Accounts.delete_api_token(other, record.id)
+    assert Accounts.get_user_by_api_token(token).id == owner.id
+    assert [%{id: id}] = Accounts.list_api_tokens(owner)
+    assert id == record.id
+  end
+
   test "only an admin can mint an admin-scope token" do
     {:ok, user} = Accounts.get_or_create_user_by_email("plain@example.com")
 

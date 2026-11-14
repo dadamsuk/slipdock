@@ -94,6 +94,102 @@ defmodule SlipdockWeb.ApiTokensLiveTest do
     assert Accounts.list_api_tokens(user) == []
   end
 
+  test "revoking clears the token shown once", %{conn: conn, user: user} do
+    {:ok, view, _html} = live(conn, ~p"/account/tokens")
+
+    view
+    |> form("form[phx-submit=create_token]", %{"label" => "fresh", "scope" => "write"})
+    |> render_submit()
+
+    assert has_element?(view, "#new-token")
+    {_plain, other} = Accounts.create_api_token(user, "older")
+
+    view |> component_target() |> render_hook("delete_token", %{"id" => to_string(other.id)})
+    refute has_element?(view, "#new-token")
+    assert [%{label: "fresh"}] = Accounts.list_api_tokens(user)
+  end
+
+  describe "revoking an id that isn't one of yours" do
+    setup %{user: user} do
+      {_plain, mine} = Accounts.create_api_token(user, "mine")
+      %{mine: mine}
+    end
+
+    test "leaves another account's token working", %{conn: conn, mine: mine} do
+      other = user_fixture("stranger@example.com")
+      {plain, theirs} = Accounts.create_api_token(other, "theirs")
+      {:ok, view, _html} = live(conn, ~p"/account/tokens")
+
+      view |> component_target() |> render_hook("delete_token", %{"id" => to_string(theirs.id)})
+
+      assert Accounts.get_user_by_api_token(plain).id == other.id
+      assert [%{id: id}] = Accounts.list_api_tokens(other)
+      assert id == theirs.id
+      assert Process.alive?(view.pid)
+      assert has_element?(view, "#token-#{mine.id}")
+    end
+
+    for {name, id} <- [malformed: "12abc", negative: "-1", empty: ""] do
+      test "does nothing for a #{name} id", %{conn: conn, user: user, mine: mine} do
+        {:ok, view, _html} = live(conn, ~p"/account/tokens")
+
+        view |> component_target() |> render_hook("delete_token", %{"id" => unquote(id)})
+
+        assert Process.alive?(view.pid)
+        assert has_element?(view, "#token-#{mine.id}")
+        assert [%{id: id}] = Accounts.list_api_tokens(user)
+        assert id == mine.id
+      end
+    end
+  end
+
+  describe "the admin scope" do
+    test "is not offered to someone who isn't an admin", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/account/tokens")
+
+      refute has_element?(view, "select[name=scope] option[value=admin]")
+      refute render(view) =~ "Administer this server"
+    end
+
+    test "submitted by someone who isn't an admin, mints an ordinary token", %{
+      conn: conn,
+      user: user
+    } do
+      {:ok, view, _html} = live(conn, ~p"/account/tokens")
+
+      view
+      |> component_target()
+      |> render_hook("create_token", %{"label" => "forged", "scope" => "admin"})
+
+      assert [token] = Accounts.list_api_tokens(user)
+      assert token.label == "forged"
+      assert token.scope == "write"
+      refute view |> element("#token-#{token.id}") |> render() =~ "admin"
+    end
+
+    test "is offered to an admin, and mints an admin token", %{conn: conn, user: user} do
+      {:ok, admin} = Accounts.promote(user)
+      {:ok, view, _html} = live(conn, ~p"/account/tokens")
+
+      assert has_element?(
+               view,
+               "select[name=scope] option[value=admin]",
+               "Administer this server"
+             )
+
+      view
+      |> form("form[phx-submit=create_token]", %{"label" => "ops", "scope" => "admin"})
+      |> render_submit()
+
+      assert [%{scope: "admin"}] = Accounts.list_api_tokens(admin)
+    end
+  end
+
+  # The tokens section is a component: a hand-sent event, as a forged one
+  # would be, is aimed at the component whose root holds the token form.
+  defp component_target(view),
+    do: with_target(view, "[data-phx-component]:has(form[phx-submit=create_token])")
+
   describe "a connection made with OAuth" do
     setup %{user: user} do
       {:ok, client} =
