@@ -136,6 +136,39 @@ defmodule Slipdock.Boards.PubSub do
     :ok
   end
 
+  @doc """
+  A hash of the rows a board page draws its lists from: the board, its
+  lists and its cards (where each is, whether it is done or archived, when
+  it last changed). A page keeps the one it drew from and asks again now and
+  then (`resync` in `SlipdockWeb.BoardLive.Show`, #2918): a different answer
+  means it missed a change, whether the broadcast never reached it or its
+  connection stopped answering.
+
+  A card's position is in it because a reorder moves positions with
+  `update_all`, which leaves `updated_at` alone, and its title because
+  `updated_at` is to the second, so an edit in the same second as the last
+  change wouldn't move it. A sub-board's rows aren't
+  in it: the lists this page draws are its own board's.
+  """
+  def fingerprint(board_id) when is_integer(board_id) do
+    %{rows: [[hash]]} =
+      Repo.query!(
+        """
+        SELECT md5(concat(
+          (SELECT updated_at FROM boards WHERE id = $1), '|',
+          (SELECT string_agg(concat(id, ':', position, ':', name, ':', updated_at), ',' ORDER BY id)
+             FROM columns WHERE board_id = $1), '|',
+          (SELECT string_agg(concat(id, ':', column_id, ':', position, ':', completed, ':',
+                                    archived_at, ':', updated_at, ':', md5(title)), ',' ORDER BY id)
+             FROM cards WHERE board_id = $1)
+        ))
+        """,
+        [board_id]
+      )
+
+    hash
+  end
+
   @doc "`board_id` and the ids of the boards above it, the root last."
   def ancestor_board_ids(board_id) do
     case Repo.one(

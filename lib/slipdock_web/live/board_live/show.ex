@@ -1,6 +1,8 @@
 defmodule SlipdockWeb.BoardLive.Show do
   use SlipdockWeb, :live_view
 
+  require Logger
+
   import SlipdockWeb.SlipdockComponents
   import SlipdockWeb.SwimlaneComponents
   import SlipdockWeb.TableComponents
@@ -82,7 +84,7 @@ defmodule SlipdockWeb.BoardLive.Show do
     quick_add_change open_card open_page focus_column focus_card focus_open focus_end
     validate_document swim_config swim_set swim_clear_filters table_sort cal_toggle_day
     swim_toggle_row swim_start_add swim_cancel_add outline_add_sub outline_page toggle_select_mode
-    clear_selection select_list select_all_in_list display_restore) ++
+    clear_selection select_list select_all_in_list display_restore resync) ++
                  SnoozeEvents.read_events() ++ SearchResults.read_events()
 
   # Events only the board owner may perform.
@@ -142,6 +144,9 @@ defmodule SlipdockWeb.BoardLive.Show do
   end
 
   defp mount_board(board, user, perm, card_only, socket) do
+    # What the page draws, as a hash, for `resync` to compare (#2918).
+    fingerprint = Boards.PubSub.fingerprint(board.id)
+
     if connected?(socket) do
       Boards.PubSub.subscribe(board.id)
       Boards.PubSub.subscribe_templates()
@@ -170,7 +175,8 @@ defmodule SlipdockWeb.BoardLive.Show do
        # itself is `BoardLive.PageComponent`.
        page_id: nil,
        view_grants: [],
-       share_key: 0
+       share_key: 0,
+       fingerprint: fingerprint
      )
      |> mount_assigns(board)
      |> assign_card_views()}
@@ -755,6 +761,43 @@ defmodule SlipdockWeb.BoardLive.Show do
     # A burst of writes (an import, an automation, a bulk move) queues one of
     # these per write; one reload answers all that have already arrived.
     drain_board_changed()
+    {:noreply, catch_up(socket)}
+  end
+
+  # A callback finished: the panel's log, and the rule's own last run, move on.
+  def handle_info({:callbacks_changed, _id}, %{assigns: %{panel: :automations}} = socket) do
+    send_update(SlipdockWeb.BoardLive.AutomationsComponent, id: "automations", refresh: true)
+    {:noreply, socket}
+  end
+
+  def handle_info({:rules_changed, rules}, socket), do: {:noreply, assign(socket, rules: rules)}
+
+  # Who the board is shared with changed (see `BoardLive.SettingsComponent`).
+  def handle_info(:refresh_assignable, socket), do: {:noreply, refresh_assignable(socket)}
+
+  def handle_info({:moving_board, moving}, socket),
+    do: {:noreply, assign(socket, moving_board: moving)}
+
+  def handle_info({:sprint_picking, picking}, socket),
+    do: {:noreply, assign(socket, sprint_picking: picking)}
+
+  # A flash raised by one of the board's components (see `Helpers.flash/3`).
+  def handle_info({:put_flash, kind, message}, socket),
+    do: {:noreply, put_flash(socket, kind, message)}
+
+  # A component changed the board in a way the reader should see at once.
+  def handle_info(:reload_board, socket), do: {:noreply, reload_board(socket)}
+
+  def handle_info({:templates_changed}, socket) do
+    {:noreply,
+     assign(socket, templates: Boards.Templates.list_templates(socket.assigns.current_user))}
+  end
+
+  def handle_info(_, socket), do: {:noreply, socket}
+
+  # The board as it is now, and the open panel with it: after a change was
+  # broadcast, or one the page missed (`resync`, #2918).
+  defp catch_up(socket) do
     socket = socket |> reload_board() |> refresh_swimlanes()
     board = socket.assigns.board
 
@@ -794,45 +837,13 @@ defmodule SlipdockWeb.BoardLive.Show do
           socket
       end
 
-    {:noreply, socket}
+    socket
   rescue
     Ecto.NoResultsError ->
-      {:noreply,
-       socket
-       |> put_flash(:error, "This board was deleted.")
-       |> push_navigate(to: ~p"/")}
+      socket
+      |> put_flash(:error, "This board was deleted.")
+      |> push_navigate(to: ~p"/")
   end
-
-  # A callback finished: the panel's log, and the rule's own last run, move on.
-  def handle_info({:callbacks_changed, _id}, %{assigns: %{panel: :automations}} = socket) do
-    send_update(SlipdockWeb.BoardLive.AutomationsComponent, id: "automations", refresh: true)
-    {:noreply, socket}
-  end
-
-  def handle_info({:rules_changed, rules}, socket), do: {:noreply, assign(socket, rules: rules)}
-
-  # Who the board is shared with changed (see `BoardLive.SettingsComponent`).
-  def handle_info(:refresh_assignable, socket), do: {:noreply, refresh_assignable(socket)}
-
-  def handle_info({:moving_board, moving}, socket),
-    do: {:noreply, assign(socket, moving_board: moving)}
-
-  def handle_info({:sprint_picking, picking}, socket),
-    do: {:noreply, assign(socket, sprint_picking: picking)}
-
-  # A flash raised by one of the board's components (see `Helpers.flash/3`).
-  def handle_info({:put_flash, kind, message}, socket),
-    do: {:noreply, put_flash(socket, kind, message)}
-
-  # A component changed the board in a way the reader should see at once.
-  def handle_info(:reload_board, socket), do: {:noreply, reload_board(socket)}
-
-  def handle_info({:templates_changed}, socket) do
-    {:noreply,
-     assign(socket, templates: Boards.Templates.list_templates(socket.assigns.current_user))}
-  end
-
-  def handle_info(_, socket), do: {:noreply, socket}
 
   ## Filters -----------------------------------------------------------------
 
@@ -857,6 +868,24 @@ defmodule SlipdockWeb.BoardLive.Show do
   # they get here only past the guards above.
   def handle_event(event, params, socket) when event in @view_events,
     do: ViewEvents.handle_event(event, params, socket)
+
+  # The page asks whether it has missed anything (#2918): when its tab comes
+  # back into view, and once a minute while it is in view
+  # (`assets/js/board_resync.js`). A broadcast can go astray, and a
+  # connection can stop answering without the page being told, so the page
+  # doesn't rely on being told: a board whose rows no longer match what this
+  # page drew is drawn again. The reply is what tells the browser the
+  # connection still answers.
+  def handle_event("resync", _params, socket) do
+    fingerprint = Slipdock.Boards.PubSub.fingerprint(socket.assigns.board.id)
+
+    if fingerprint == socket.assigns[:fingerprint] do
+      {:reply, %{resynced: false}, socket}
+    else
+      Logger.warning("Board page #{socket.assigns.board.id} missed a change; resynced (#2918)")
+      {:reply, %{resynced: true}, catch_up(socket)}
+    end
+  end
 
   # The reader's own Show all switch for the board (#2031): theirs, not the
   # board's, so read access is enough; nobody signed in has none to keep.
@@ -1667,6 +1696,31 @@ defmodule SlipdockWeb.BoardLive.Show do
         data-focus={@focus && if(@focus.holding?, do: "hold", else: "point")}
         class="hidden"
       >
+      </div>
+
+      <%!-- Asks now and then whether the page has missed a change, and says
+            so when the connection stops answering (#2918,
+            `assets/js/board_resync.js`). Ignored by patches: the notice is
+            the browser's to show, and only a reconnect hides it. --%>
+      <div id="board-resync" phx-hook="BoardResync" phx-update="ignore">
+        <div
+          id="board-stale"
+          data-stale-notice
+          role="status"
+          hidden
+          class="pointer-events-none fixed inset-x-0 top-3 z-50 flex justify-center px-4"
+        >
+          <div
+            class="kanban-toast-in flex w-fit max-w-full items-center gap-3 rounded-box bg-base-100 p-3.5 text-sm text-base-content shadow-xl ring-1 ring-base-content/10"
+            style="pointer-events: auto"
+          >
+            <.icon name="hero-exclamation-triangle" class="size-5 shrink-0 text-warning" />
+            <p class="min-w-0 flex-1">
+              This board may be out of date: its connection stopped answering. Trying again…
+            </p>
+            <a href="" id="board-stale-reload" class="btn btn-primary btn-sm">Reload</a>
+          </div>
+        </div>
       </div>
 
       <.focus_toast :if={@focus} focus={@focus} focus_title={@focus_title} />
