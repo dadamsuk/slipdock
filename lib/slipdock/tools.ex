@@ -101,12 +101,10 @@ defmodule Slipdock.Tools do
         %{remaining: left} = Quota.status(user, :storage)
 
         {:error, :payment_required, Atom.to_string(reason),
-         "This package unpacks to #{kb(size)}, and you have #{kb(left)} of storage left on " <>
+         "This package unpacks to #{Quota.humanise_bytes(size)}, and you have #{Quota.humanise_bytes(left)} of storage left on " <>
            "this server. Delete some attachments, or ask an admin to raise the limit."}
     end
   end
-
-  defp kb(bytes), do: "#{Float.round(bytes / 1024, 1)} KB"
 
   defp insert_version(user, tool, package) do
     manifest = package.manifest

@@ -231,9 +231,6 @@ defmodule SlipdockWeb.ToolLive.Show do
   defp subject_name(%{group: %{} = g}), do: "group #{g.name}"
   defp subject_name(_), do: "someone"
 
-  defp kb(bytes) when bytes < 1024, do: "#{bytes} B"
-  defp kb(bytes), do: "#{Float.round(bytes / 1024, 1)} KB"
-
   defp setup_skill(skills) do
     Enum.find(skills, &String.ends_with?(&1.name, "-setup")) || List.first(skills)
   end
@@ -549,7 +546,7 @@ defmodule SlipdockWeb.ToolLive.Show do
               </div>
               <p :if={@board_files != []}>
                 Files, in the board's <b>{Tools.tool_folder()}</b>
-                folder: {Enum.map_join(@board_files, ", ", &"#{&1.path} (#{kb(&1.size)})")}
+                folder: {Enum.map_join(@board_files, ", ", &"#{&1.path} (#{file_size(&1.size)})")}
               </p>
             </div>
 
@@ -568,7 +565,7 @@ defmodule SlipdockWeb.ToolLive.Show do
                   <p class="border-b border-base-content/10 px-3 py-1 text-xs font-mono text-base-content/60">
                     {skill.name}/{path}
                   </p>
-                  <pre class="max-h-96 overflow-auto whitespace-pre-wrap px-3 py-2 text-xs"><%= if String.valid?(content), do: content, else: "(#{kb(byte_size(content))} of binary data)" %></pre>
+                  <pre class="max-h-96 overflow-auto whitespace-pre-wrap px-3 py-2 text-xs"><%= if String.valid?(content), do: content, else: "(#{file_size(byte_size(content))} of binary data)" %></pre>
                 </div>
               </div>
             </div>

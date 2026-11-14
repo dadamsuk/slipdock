@@ -2,7 +2,10 @@
 // a stand-in DOM of just what file_picker.js touches.
 import {test} from "node:test"
 import assert from "node:assert/strict"
+import {readFileSync} from "node:fs"
 import {FilePicker, fileSize, show} from "./file_picker.js"
+
+const {cases} = JSON.parse(readFileSync(new URL("./file_size_cases.json", import.meta.url)))
 
 function target() {
   const listeners = {}
@@ -33,6 +36,11 @@ function picker({files = []} = {}) {
   return {hook, el, input, row, name, size, remove}
 }
 
+test("fileSize says what file_size/1 says, case for case", () => {
+  assert.ok(cases.length > 15)
+  for (const c of cases) assert.equal(fileSize(c.bytes), c.says, `${c.bytes}`)
+})
+
 test("fileSize writes bytes the way the server does", () => {
   assert.equal(fileSize(0), "0 B")
   assert.equal(fileSize(512), "512 B")
@@ -41,6 +49,8 @@ test("fileSize writes bytes the way the server does", () => {
   assert.equal(fileSize(3_355_443), "3.2 MB")
   assert.equal(fileSize(undefined), "")
   assert.equal(fileSize(-1), "")
+  assert.equal(fileSize(NaN), "")
+  assert.equal(fileSize(2 * 1024 ** 3), "2 GB")
 })
 
 test("show puts the name and size in the row, or hides it", () => {

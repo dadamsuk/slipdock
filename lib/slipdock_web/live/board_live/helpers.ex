@@ -91,12 +91,6 @@ defmodule SlipdockWeb.BoardLive.Helpers do
       |> String.replace(@upload_placeholder <> "\n", "")
       |> String.replace(@upload_placeholder, "")
 
-  def human_size(bytes) when bytes < 1024, do: "#{bytes} B"
-
-  def human_size(bytes) when bytes < 1024 * 1024, do: "#{Float.round(bytes / 1024, 1)} KB"
-
-  def human_size(bytes), do: "#{Float.round(bytes / (1024 * 1024), 1)} MB"
-
   def attachment_icon(%Attachment{} = a) do
     case Attachment.kind(a) do
       :pdf -> "hero-document-text"

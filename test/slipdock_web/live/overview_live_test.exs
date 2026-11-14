@@ -38,7 +38,7 @@ defmodule SlipdockWeb.OverviewLiveTest do
     assert row =~ ordinary.email
     # Boards, lists, cards, pages, files, storage, in that order.
     assert row =~
-             ~r/>\s*1\s*<.*>\s*#{length(board.columns)}\s*<.*>\s*2\s*<.*>\s*1\s*<.*>\s*0\s*<.*0 bytes/s
+             ~r/>\s*1\s*<.*>\s*#{length(board.columns)}\s*<.*>\s*2\s*<.*>\s*1\s*<.*>\s*0\s*<.*0 B</s
 
     assert row =~ "never"
     assert row =~ SlipdockWeb.Dates.short(ordinary.inserted_at)

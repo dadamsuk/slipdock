@@ -220,7 +220,7 @@ defmodule Slipdock.Inbound.PagesTest do
       assert [%Attachment{filename: "small.txt"}] = files(page)
       assert page.body =~ "Two files."
       assert page.body =~ "**Not attached.**"
-      assert page.body =~ "`huge.log` (1.0 MB): the account's storage is full"
+      assert page.body =~ "`huge.log` (1 MB): the account's storage is full"
       refute page.body =~ "small.txt"
     end
 

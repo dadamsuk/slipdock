@@ -1,0 +1,25 @@
+{
+  "about": "SlipdockWeb.CoreComponents.file_size/1 (which is Slipdock.Quota.humanise_bytes/1) and file_picker.js's fileSize are both held to these cases (#2876): file_picker.test.js and test/slipdock_web/components/file_size_parity_test.exs",
+  "cases": [
+    {"bytes": 0, "says": "0 B"},
+    {"bytes": 1, "says": "1 B"},
+    {"bytes": 512, "says": "512 B"},
+    {"bytes": 1023, "says": "1023 B"},
+    {"bytes": 1024, "says": "1 KB"},
+    {"bytes": 1536, "says": "1.5 KB"},
+    {"bytes": 10240, "says": "10 KB"},
+    {"bytes": 12800, "says": "12.5 KB"},
+    {"bytes": 1048575, "says": "1024 KB"},
+    {"bytes": 1048576, "says": "1 MB"},
+    {"bytes": 1500000, "says": "1.4 MB"},
+    {"bytes": 2097152, "says": "2 MB"},
+    {"bytes": 3355443, "says": "3.2 MB"},
+    {"bytes": 10485760, "says": "10 MB"},
+    {"bytes": 1073741823, "says": "1024 MB"},
+    {"bytes": 1073741824, "says": "1 GB"},
+    {"bytes": 1610612736, "says": "1.5 GB"},
+    {"bytes": 10737418240, "says": "10 GB"},
+    {"bytes": -1, "says": ""},
+    {"bytes": null, "says": ""}
+  ]
+}

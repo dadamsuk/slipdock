@@ -140,7 +140,7 @@ defmodule SlipdockWeb.WikiLive.Modals do
           {@shown.file.name}
         </h2>
         <span class="text-xs text-base-content/60">
-          {SlipdockWeb.FileViewer.size(@shown.file.size)}
+          {file_size(@shown.file.size)}
         </span>
         <a
           href={Slipdock.Wiki.Files.url(@shown.file)}

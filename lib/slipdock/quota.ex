@@ -722,8 +722,14 @@ defmodule Slipdock.Quota do
   def label(:trial), do: "free trial"
 
   @doc """
-  Bytes as a person would write them. Used in every limit message, so a 10 GB
-  limit never appears as 10737418240.
+  Bytes as a person would write them: `512 B`, `12.5 KB`, `1.4 MB`, `10 GB`.
+
+  The one file-size formatter (#2876): counted in 1024s, one decimal place
+  with a `.0` left off. Every limit message uses it, so a 10 GB limit never
+  appears as 10737418240, and so does every file size the app shows
+  (`SlipdockWeb.CoreComponents.file_size/1`). The upload picker's
+  `fileSize` in `assets/js/file_picker.js` writes the same words; both are
+  held to `assets/js/file_size_cases.json`.
   """
   @spec humanise_bytes(number()) :: String.t()
   def humanise_bytes(bytes) when bytes >= 1024 * 1024 * 1024,
@@ -733,7 +739,7 @@ defmodule Slipdock.Quota do
     do: "#{trim_float(bytes / (1024 * 1024))} MB"
 
   def humanise_bytes(bytes) when bytes >= 1024, do: "#{trim_float(bytes / 1024)} KB"
-  def humanise_bytes(bytes), do: "#{round(bytes)} bytes"
+  def humanise_bytes(bytes), do: "#{round(bytes)} B"
 
   defp trim_float(value) do
     rounded = Float.round(value, 1)

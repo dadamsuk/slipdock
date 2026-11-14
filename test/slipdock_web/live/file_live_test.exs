@@ -122,7 +122,9 @@ defmodule SlipdockWeb.FileLiveTest do
     big = stored(board, "huge.csv", "a\n")
     {:ok, _} = big |> Ecto.Changeset.change(size: Viewer.max_text() + 1) |> Slipdock.Repo.update()
     {:ok, view, _} = live(conn, ~p"/files/#{big.id}")
-    assert view |> element("#file-problem") |> render() =~ "too big to show here"
+    assert view |> element("#file-problem") |> render() =~ "too big to show here (over 2 MB)"
+    # The header's size is file_size/1's, counted in 1024s like everywhere else (#2876).
+    assert render(view) =~ "2 MB"
   end
 
   test "a .vtt transcript reads as speakers' turns with their times; a broken one shows its text",

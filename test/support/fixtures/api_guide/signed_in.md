@@ -4702,7 +4702,7 @@ you start rather than discovering it halfway through a batch.
 boards shared with you, and sub-boards (the ones behind subcards) do not count.
 Creating one past the limit answers `402` with `"error": "board_limit_reached"`.
 
-**Files: 0 bytes of 10 GB used, 10 GB left.**
+**Files: 0 B of 10 GB used, 10 GB left.**
 Uploading past it answers `402` with `"error": "storage_limit_reached"`.
 
 
