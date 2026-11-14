@@ -228,9 +228,9 @@ defmodule SlipdockWeb.BoardLive.ViewEvents do
   # Held to the outline's pages by `Slipdock.Outline.page/3` when drawn.
   def handle_event("outline_page", %{"page" => page}, socket) do
     page =
-      case Integer.parse(to_string(page)) do
-        {n, ""} -> max(n, 1)
-        _ -> 1
+      case Params.int(page) do
+        n when is_integer(n) -> max(n, 1)
+        nil -> 1
       end
 
     {:noreply, assign(socket, outline_page: page)}

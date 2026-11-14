@@ -915,14 +915,7 @@ defmodule SlipdockWeb.WikiLive.State do
     assign(socket, card_results: results)
   end
 
-  def blank_to_integer(nil), do: nil
-
-  def blank_to_integer(value) do
-    case Integer.parse(to_string(value)) do
-      {n, ""} -> n
-      _ -> nil
-    end
-  end
+  def blank_to_integer(value), do: Params.int(value)
 
   def blank_to_nil(value) when value in [nil, "", "none"], do: nil
 

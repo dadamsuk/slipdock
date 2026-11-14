@@ -191,7 +191,7 @@ defmodule SlipdockWeb.ToolLive.Show do
   def handle_event("unshare", %{"id" => id}, socket) do
     %{current_user: user, tool: tool} = socket.assigns
 
-    case Tools.unshare(user, tool, String.to_integer(id)) do
+    case unshare(user, tool, SlipdockWeb.Params.id(id)) do
       {:ok, _} ->
         {:noreply,
          socket |> put_flash(:info, "No longer shared.") |> load(socket.assigns.version.version)}
@@ -202,6 +202,11 @@ defmodule SlipdockWeb.ToolLive.Show do
   end
 
   ## Helpers ----------------------------------------------------------------------
+
+  # A share id that isn't one (a stale page, a hand-made frame) is refused
+  # like a share that isn't on this Tool, rather than crashing the view.
+  defp unshare(_user, _tool, nil), do: {:error, "that share is not on this Tool"}
+  defp unshare(user, tool, grant_id), do: Tools.unshare(user, tool, grant_id)
 
   defp upgrade_message(%{board: board, version: version, report: report}) do
     added = report.added |> Enum.flat_map(fn {_, names} -> names end)

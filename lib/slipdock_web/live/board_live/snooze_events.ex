@@ -97,7 +97,7 @@ defmodule SlipdockWeb.BoardLive.SnoozeEvents do
   end
 
   def handle_event("toggle_snoozed", %{"id" => id}, socket) do
-    id = to_int(id)
+    id = SlipdockWeb.Params.id(id)
 
     {:noreply,
      update(socket, :revealed_snoozed, fn set ->
@@ -181,20 +181,9 @@ defmodule SlipdockWeb.BoardLive.SnoozeEvents do
     do: socket |> board_cards(ids) |> Enum.reject(&(&1.completed or Card.stand_in?(&1)))
 
   defp board_cards(socket, ids) do
-    ids = ids |> Enum.map(&to_int/1) |> Enum.reject(&is_nil/1)
+    ids = ids |> Enum.map(&SlipdockWeb.Params.id/1) |> Enum.reject(&is_nil/1)
     Boards.Cards.list_board_cards(socket.assigns.board.id, ids)
   end
-
-  defp to_int(id) when is_integer(id), do: id
-
-  defp to_int(id) when is_binary(id) do
-    case Integer.parse(id) do
-      {n, ""} -> n
-      _ -> nil
-    end
-  end
-
-  defp to_int(_), do: nil
 
   ## The picker ---------------------------------------------------------------
 

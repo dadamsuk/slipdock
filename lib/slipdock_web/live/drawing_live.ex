@@ -26,7 +26,7 @@ defmodule SlipdockWeb.DrawingLive do
   def mount(%{"kind" => kind, "id" => id}, _session, socket) do
     user = socket.assigns.current_user
 
-    with {n, ""} <- Integer.parse(id),
+    with n when is_integer(n) <- SlipdockWeb.Params.id(id),
          drawing when not is_nil(drawing) <- fetch(kind, n),
          true <- Drawings.readable?(drawing, user) do
       board = Boards.get_board_record!(drawing.board_id)

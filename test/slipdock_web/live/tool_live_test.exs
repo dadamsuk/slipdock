@@ -190,6 +190,24 @@ defmodule SlipdockWeb.ToolLiveTest do
     refute Tools.visible?(friend, tool)
   end
 
+  test "an unshare whose id isn't one is refused with a flash, and the share stays", %{
+    conn: conn,
+    user: user,
+    tool: tool,
+    name: name
+  } do
+    friend = grantee(tool, user)
+    {:ok, view, _html} = live(conn, ~p"/tools/#{name}")
+
+    for bad <- ["not-a-number", "", "0", "-3"] do
+      html = render_click(view, "unshare", %{"id" => bad})
+      assert html =~ "that share is not on this Tool"
+    end
+
+    assert [_grant] = Tools.grants(tool)
+    assert Tools.visible?(friend, tool)
+  end
+
   test "an older version can be read by number", %{conn: conn, user: user, name: name} do
     {:ok, _} = Tools.publish(user, package(name, "2.0.0", %{"README.md" => "# Second"}))
 
