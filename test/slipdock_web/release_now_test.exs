@@ -3,7 +3,8 @@ defmodule SlipdockWeb.ReleaseNowTest do
   *Release now* and the release command at every door (#2835): REST
   `GET`/`POST /api/boards/:board/release` (the owner's; a board that
   releases on merge refused), MCP `release_now` (and `check`), the board's
-  release banner and the Agentic Building page's button, `release_command`
+  release banner and the Agentic Building page's button, each after a red
+  release too (#3179: it warns, naming the failing run), `release_command`
   through `PATCH /api/boards/:id`, `update_board`, the page and a portable
   export; and the release job as a runner claims it over HTTP.
   """
@@ -17,6 +18,8 @@ defmodule SlipdockWeb.ReleaseNowTest do
   alias Slipdock.Boards.Card
   alias Slipdock.Releases.Request
   alias Slipdock.Runners.Job
+
+  @red_run "https://github.com/example/app/actions/runs/88"
 
   setup %{user: user} do
     user = user |> Ecto.Changeset.change(name: "Dana") |> Repo.update!()
@@ -91,15 +94,15 @@ defmodule SlipdockWeb.ReleaseNowTest do
     |> String.trim()
   end
 
-  # The hold as it is with a part taken out: no run named, or no fix card.
-  defp hold_without!(board, keys) do
-    hold = Map.drop(Releases.hold(board), keys)
+  # The red release as it is with a part taken out: no run named, or no fix card.
+  defp red_without!(board, keys) do
+    red = Map.drop(Releases.red_release(board), keys)
 
     Repo.update_all(from(b in Slipdock.Boards.Board, where: b.id == ^board.id),
-      set: [release_hold: hold]
+      set: [red_release: red]
     )
 
-    hold
+    red
   end
 
   defp merged!(todo, title) do
@@ -443,7 +446,7 @@ defmodule SlipdockWeb.ReleaseNowTest do
       refute has_element?(view, "#release-releasing")
     end
 
-    test "with no hold, a release running opens the line, with no separator before it (#2995)",
+    test "with no red release, a release running opens the line, with no separator before it (#2995)",
          ctx do
       merged!(ctx.todo, "First feature")
       merged!(ctx.todo, "Second feature")
@@ -599,125 +602,112 @@ defmodule SlipdockWeb.ReleaseNowTest do
     end
   end
 
-  describe "a red release's hold (#2838)" do
+  describe "after a red release (#2838, #3179)" do
     setup ctx do
       {:ok, _} =
         Slipdock.Deployments.record_failure(ctx.board, %{
           environment: "production",
           sha: "feed0099",
           stage: "test",
-          run_url: "https://github.com/example/app/actions/runs/88"
+          run_url: @red_run
         })
 
-      hold = Releases.hold(ctx.board)
-      assert hold["fix_card_id"]
-      %{hold: hold}
+      red = Releases.red_release(ctx.board)
+      assert red["fix_card_id"]
+      %{red: red}
     end
 
-    test "REST: GET shows it, POST is refused saying why, DELETE lifts it once", ctx do
+    test "REST: GET shows it, POST releases with a warning naming the run", ctx do
       body = ctx.agent |> get(~p"/api/boards/#{ctx.board.id}/release") |> json_response(200)
-      hold = body["release"]["hold"]
-      assert hold["reason"] == "the release failed at test"
-      assert hold["stage"] == "test"
-      assert hold["run_url"] == "https://github.com/example/app/actions/runs/88"
-      assert hold["fix_card_id"] == ctx.hold["fix_card_id"]
-      assert hold["text"] =~ "fix card ##{ctx.hold["fix_card_id"]} releases when it merges"
+      red = body["release"]["red_release"]
+      refute Map.has_key?(body["release"], "hold")
+      assert red["reason"] == "the release failed at test"
+      assert red["stage"] == "test"
+      assert red["run_url"] == @red_run
+      assert red["fix_card_id"] == ctx.red["fix_card_id"]
+      assert red["failed_at"]
+      assert red["text"] =~ "the last release failed: the release failed at test (#{@red_run})"
 
-      body = ctx.agent |> post(~p"/api/boards/#{ctx.board.id}/release") |> json_response(409)
-      assert inspect(body) =~ "releases are held: the release failed at test"
-      assert inspect(body) =~ "actions/runs/88"
-      assert Repo.aggregate(Request, :count) == 0
-
-      body =
-        ctx.agent |> delete(~p"/api/boards/#{ctx.board.id}/release/hold") |> json_response(200)
-
-      assert body["lifted"]["stage"] == "test"
-      assert body["line"] == "Release hold lifted. Nothing was released."
-      assert body["release"]["hold"] == nil
-      assert Repo.aggregate(Request, :count) == 0
-
-      body =
-        ctx.agent |> delete(~p"/api/boards/#{ctx.board.id}/release/hold") |> json_response(409)
-
-      assert inspect(body) =~ "aren't held"
+      merged!(ctx.todo, "Waiting")
+      body = ctx.agent |> post(~p"/api/boards/#{ctx.board.id}/release") |> json_response(201)
+      assert body["how"] == "started"
+      assert body["warning"] =~ "Warning: the last release failed"
+      assert body["warning"] =~ @red_run
+      assert body["warning"] =~ "fix card ##{ctx.red["fix_card_id"]}"
+      assert Repo.aggregate(Request, :count) == 1
+      # Releasing doesn't clear it: the fix card does.
+      assert body["release"]["red_release"]["stage"] == "test"
     end
 
-    test "REST: someone it is shared with can't lift it", ctx do
-      editor = user_fixture("editor#{System.unique_integer([:positive])}@example.com")
-      share_fixture(ctx.board, [editor], "write")
-      conn = with_token(editor, "theirs")
-
-      assert conn |> delete(~p"/api/boards/#{ctx.board.id}/release/hold") |> json_response(403)
-      assert Releases.hold(ctx.board)
+    test "REST: the hold's door is gone", ctx do
+      conn = delete(ctx.agent, "/api/boards/#{ctx.board.id}/release/hold")
+      assert conn.status == 404
+      assert Releases.red_release(ctx.board)
     end
 
-    test "MCP: check shows it, release_now is refused, lift_hold lifts it", ctx do
+    test "REST: with no red release the warning is null", ctx do
+      Repo.update_all(from(b in Slipdock.Boards.Board, where: b.id == ^ctx.board.id),
+        set: [red_release: nil]
+      )
+
+      body = ctx.agent |> post(~p"/api/boards/#{ctx.board.id}/release") |> json_response(201)
+      assert body["warning"] == nil
+    end
+
+    test "MCP: check shows it, release_now releases with the warning, lift_hold is unknown",
+         ctx do
       {false, text} = mcp(ctx.agent, "release_now", %{board: "#{ctx.board.id}", check: true})
-      assert Jason.decode!(text)["release"]["hold"]["stage"] == "test"
+      assert Jason.decode!(text)["release"]["red_release"]["stage"] == "test"
 
-      {true, text} = mcp(ctx.agent, "release_now", %{board: "#{ctx.board.id}"})
-      assert text =~ "releases are held"
-
-      editor = user_fixture("editor#{System.unique_integer([:positive])}@example.com")
-      share_fixture(ctx.board, [editor], "write")
-
-      {true, _} =
-        mcp(with_token(editor, "theirs"), "release_now", %{
-          board: "#{ctx.board.id}",
-          check: true,
-          lift_hold: true
-        })
-
-      assert Releases.hold(ctx.board)
-
-      # check with lift_hold lifts: the owner's lift wins over the read.
-      {false, text} =
-        mcp(ctx.agent, "release_now", %{board: "#{ctx.board.id}", check: true, lift_hold: true})
-
+      {false, text} = mcp(ctx.agent, "release_now", %{board: "#{ctx.board.id}"})
       body = Jason.decode!(text)
-      assert body["lifted"]["stage"] == "test"
-      assert body["release"]["hold"] == nil
-      assert Repo.aggregate(Request, :count) == 0
+      assert body["how"] == "started"
+      assert body["warning"] =~ @red_run
 
-      {true, text} = mcp(ctx.agent, "release_now", %{board: "#{ctx.board.id}", lift_hold: true})
-      assert text =~ "aren't held"
+      {true, _} = mcp(ctx.agent, "release_now", %{board: "#{ctx.board.id}", lift_hold: true})
+      assert Releases.red_release(ctx.board)
+
+      refute SlipdockWeb.MCP.Tools.ReleaseNow.input_schema().properties
+             |> Map.has_key?(:lift_hold)
     end
 
-    test "the board page's banner says it is held, links the run, and Lift hold lifts it", ctx do
+    test "the board page's banner says it failed, links the run, and Release now warns", ctx do
       merged!(ctx.todo, "Waiting")
       {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}")
 
       assert has_element?(
                view,
                "#release-banner-line",
-               "Releases held: the release failed at test"
+               "Last release failed: the release failed at test"
              )
 
-      assert has_element?(view, "#release-banner-line", "fix card ##{ctx.hold["fix_card_id"]}")
-      # Held, the count still opens the list, after the hold (#3038).
+      assert has_element?(view, "#release-banner-line", "fix card ##{ctx.red["fix_card_id"]}")
+      # The count still opens the list, after the failure (#3038).
       assert has_element?(view, "#release-banner-line span", "·")
       assert has_element?(view, "#release-awaiting-toggle", "1 merged, awaiting release")
 
       assert has_element?(
                view,
-               ~s(#release-hold-run[href="https://github.com/example/app/actions/runs/88"]),
+               ~s(#release-red-run[href="#{@red_run}"]),
                "the failing run"
              )
 
-      view |> element("#release-lift-hold") |> render_click()
-
-      assert Releases.hold(ctx.board) == nil
-      assert Repo.aggregate(Request, :count) == 0
-      # The banner stays for the merged card, without Lift hold or the run.
-      assert has_element?(view, "#release-banner-line", "merged, awaiting release")
       refute has_element?(view, "#release-lift-hold")
-      refute has_element?(view, "#release-hold-run")
+      assert view |> element("#release-now") |> render() =~ "the last release failed"
+
+      view |> element("#release-now") |> render_click()
+
+      assert has_element?(view, "#flash-info", "Release started")
+      assert has_element?(view, "#flash-info", "Warning: the last release failed")
+      assert [%Request{status: "running"}] = Repo.all(Request)
+      # The banner still shows it, until the fix card merges.
+      assert has_element?(view, "#release-red-run")
     end
 
-    test "the failing run sits with the hold's reason, not after the cards awaiting (#2995)",
+    test "the failing run sits with the reason, not after the cards awaiting (#2995)",
          ctx do
       merged!(ctx.todo, "Waiting")
-      fix = "fix card ##{ctx.hold["fix_card_id"]}"
+      fix = "fix card ##{ctx.red["fix_card_id"]}"
 
       for {path, line} <- [
             {~p"/boards/#{ctx.board}", "#release-banner-line"},
@@ -726,7 +716,7 @@ defmodule SlipdockWeb.ReleaseNowTest do
         {:ok, view, _} = live(ctx.conn, path)
 
         assert text(view, line) =~
-                 "Releases held: the release failed at test (the failing run) · #{fix} · 1 merged, awaiting release"
+                 "Last release failed: the release failed at test (the failing run) · #{fix} · 1 merged, awaiting release"
 
         # Nothing after the count but the list of the cards it opens.
         refute text(view, line) =~ ~r/awaiting release.*the failing run/
@@ -734,35 +724,37 @@ defmodule SlipdockWeb.ReleaseNowTest do
       end
     end
 
-    test "a hold that names no run says the reason alone, with no brackets (#2995)", ctx do
+    test "a red release that names no run says the reason alone, with no brackets (#2995)",
+         ctx do
       merged!(ctx.todo, "Waiting")
-      hold_without!(ctx.board, ["run_url"])
-      fix = "fix card ##{ctx.hold["fix_card_id"]}"
+      red_without!(ctx.board, ["run_url"])
+      fix = "fix card ##{ctx.red["fix_card_id"]}"
 
       for {path, line, run} <- [
-            {~p"/boards/#{ctx.board}", "#release-banner-line", "#release-hold-run"},
-            {~p"/boards/#{ctx.board}/agentic", "#board-release-line", "#board-release-hold-run"}
+            {~p"/boards/#{ctx.board}", "#release-banner-line", "#release-red-run"},
+            {~p"/boards/#{ctx.board}/agentic", "#board-release-line", "#board-release-red-run"}
           ] do
         {:ok, view, _} = live(ctx.conn, path)
 
         assert text(view, line) =~
-                 "Releases held: the release failed at test · #{fix} · 1 merged, awaiting release"
+                 "Last release failed: the release failed at test · #{fix} · 1 merged, awaiting release"
 
         refute has_element?(view, run)
         refute text(view, line) =~ "("
       end
     end
 
-    test "a hold with no fix card and nothing awaiting ends at its run, with no separator (#2995)",
-         ctx do
-      hold_without!(ctx.board, ["fix_card_id"])
+    test "a red release with no fix card and nothing awaiting ends at its run (#2995)", ctx do
+      red_without!(ctx.board, ["fix_card_id"])
 
       for {path, line} <- [
             {~p"/boards/#{ctx.board}", "#release-banner-line"},
             {~p"/boards/#{ctx.board}/agentic", "#board-release-line"}
           ] do
         {:ok, view, _} = live(ctx.conn, path)
-        assert text(view, line) == "Releases held: the release failed at test (the failing run)"
+
+        assert text(view, line) ==
+                 "Last release failed: the release failed at test (the failing run)"
       end
 
       # With a card awaiting, the count follows the run, after one separator.
@@ -777,56 +769,31 @@ defmodule SlipdockWeb.ReleaseNowTest do
         )
 
       assert html |> String.replace(~r/<[^>]+>/, "") |> String.replace(~r/\s+/, " ") =~
-               "Releases held: the release failed at test (the failing run) · 1 merged, awaiting release"
+               "Last release failed: the release failed at test (the failing run) · 1 merged, awaiting release"
     end
 
-    test "someone it is shared with sees the hold but no Lift hold", ctx do
+    test "someone it is shared with sees it, and can't release", ctx do
       editor = user_fixture("editor#{System.unique_integer([:positive])}@example.com")
       share_fixture(ctx.board, [editor], "write")
 
       {:ok, view, _} = live(log_in_user(build_conn(), editor), ~p"/boards/#{ctx.board}")
-      assert has_element?(view, "#release-banner-line", "Releases held")
-      refute has_element?(view, "#release-lift-hold")
-
-      render_hook(view, "lift_release_hold", %{})
-      assert Releases.hold(ctx.board)
+      assert has_element?(view, "#release-banner-line", "Last release failed")
+      refute has_element?(view, "#release-now")
     end
 
-    test "the Agentic Building page shows it with the run and lifts it", ctx do
+    test "the Agentic Building page shows it with the run, and Release now warns", ctx do
       merged!(ctx.todo, "Waiting")
       {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/agentic")
-      assert has_element?(view, "#board-release-line", "Releases held")
-      # Held, the count still opens the list, after the hold (#3038).
+      assert has_element?(view, "#board-release-line", "Last release failed")
       assert has_element?(view, "#board-release-line span", "·")
       assert has_element?(view, "#board-release-awaiting-toggle", "1 merged, awaiting release")
-
-      assert has_element?(
-               view,
-               ~s(#board-release-hold-run[href="https://github.com/example/app/actions/runs/88"])
-             )
-
-      view |> element("#board-release-lift-hold") |> render_click()
-
-      assert Releases.hold(ctx.board) == nil
-      refute has_element?(view, "#board-release-lift-hold")
-      assert render(view) =~ "Release hold lifted. Nothing was released."
-
-      # Lifted already (elsewhere, or a second click): the refusal says so.
-      render_hook(view, "lift_release_hold", %{})
-      assert render(view) =~ "this board&#39;s releases aren&#39;t held"
-    end
-
-    test "on the Agentic Building page someone it is shared with sees it, with no Lift hold",
-         ctx do
-      editor = user_fixture("editor#{System.unique_integer([:positive])}@example.com")
-      share_fixture(ctx.board, [editor], "write")
-
-      {:ok, view, _} = live(log_in_user(build_conn(), editor), ~p"/boards/#{ctx.board}/agentic")
-      assert has_element?(view, "#board-release-line", "Releases held")
+      assert has_element?(view, ~s(#board-release-red-run[href="#{@red_run}"]))
       refute has_element?(view, "#board-release-lift-hold")
 
-      render_hook(view, "lift_release_hold", %{})
-      assert Releases.hold(ctx.board)
+      view |> element("#board-release-now") |> render_click()
+      assert has_element?(view, "#flash-info", "Release started")
+      assert has_element?(view, "#flash-info", "Warning: the last release failed")
+      assert [%Request{status: "running"}] = Repo.all(Request)
     end
   end
 
@@ -903,13 +870,14 @@ defmodule SlipdockWeb.ReleaseNowTest do
 
       {:ok, _view, html} = live(conn, ~p"/help/agents")
       assert html =~ "Release a batched board&#39;s merged work now"
-      assert html =~ "slipdock release [--lift-hold], slipdock releases"
-      assert html =~ "release_now (check: true to read, lift_hold: true)"
-      assert html =~ "DELETE …/release/hold"
+      assert html =~ "slipdock release, slipdock releases"
+      assert html =~ "release_now (check: true to read)"
+      refute html =~ "lift_hold"
+      refute html =~ "release/hold"
 
       {:ok, _view, html} = live(conn, ~p"/help/agents/flow")
       assert html =~ "A batched board releases on a trigger, not on a merge."
-      assert html =~ "A red release holds the next one and files a"
+      assert html =~ "A red release holds nothing and files a"
     end
   end
 

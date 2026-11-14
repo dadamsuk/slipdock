@@ -88,7 +88,7 @@ defmodule SlipdockWeb.BoardLive.Show do
                  SnoozeEvents.read_events() ++ SearchResults.read_events()
 
   # Events only the board owner may perform.
-  @owner_events ~w(swim_publish_view swim_unpublish_view resume_pause release_now lift_release_hold)
+  @owner_events ~w(swim_publish_view swim_unpublish_view resume_pause release_now)
 
   @known_events @owner_events ++ @board_write_events ++ @self_checked_events ++ @read_events
 
@@ -954,19 +954,7 @@ defmodule SlipdockWeb.BoardLive.Show do
   def handle_event("release_now", _params, socket) do
     %{board: board, current_user: user} = socket.assigns
 
-    socket =
-      case Slipdock.Releases.release_now(board, Slipdock.Accounts.User.display_name(user)) do
-        {:ok, how, _request} -> put_flash(socket, :info, Slipdock.Releases.said(how))
-        {:error, reason} -> put_flash(socket, :error, Slipdock.Releases.refusal(reason))
-      end
-
-    {:noreply, assign(socket, release: board_release(board, user))}
-  end
-
-  # The banner's Lift hold (#2838): a red release's hold, by hand; the owner's.
-  def handle_event("lift_release_hold", _params, socket) do
-    %{board: board, current_user: user} = socket.assigns
-    socket = SlipdockWeb.AgenticLive.Index.lift_hold(socket, board, user)
+    socket = SlipdockWeb.AgenticLive.Index.release_now(socket, board, user)
     {:noreply, assign(socket, release: board_release(board, user))}
   end
 

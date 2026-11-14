@@ -520,13 +520,13 @@ and MCP) and a link to the page that covers it.
     any other command runs only if the machine's own `local.json` lists it,
     word for word, under `release_commands`, and is refused otherwise
     (`no_release: true` there stops the machine taking releases at all).
-  - A red release holds the next one: the banner says why with the failing
-    run, a `critical` fix card naming the batch goes on top of the ready
-    list, and its merge releases (or the owner lifts the hold: *Lift hold*,
-    `slipdock release <board> --lift-hold`). A fix card accepted with no
-    code lifts the hold and releases nothing. A deploy that then succeeds at
-    the held sha or past it (the failed run rerun, or a later release) lifts
-    it too.
+  - A red release holds nothing (#3179): the banner says the last release
+    failed, with the failing run, a `critical` fix card naming the batch
+    goes on top of the ready list, and *Release now* and the age cap still
+    release, with a warning that names the failing run. The fix card's
+    merge releases; accepted with no code, it clears the warning and
+    releases nothing. A deploy that then succeeds at the failed sha or past
+    it (the failed run rerun, or a later release) clears it too.
 
 ### Run an agent against a board
 

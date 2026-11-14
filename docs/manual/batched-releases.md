@@ -98,34 +98,34 @@ tree is recorded, `failed` when the job or the deploy fails, and
 `timed_out` when nothing is heard for 3 hours; then the follow-up starts.
 On a board with delivery metrics off no deploy is ever recorded, so the
 finished job is the release, and the cards it covered show *Released*
-with its time. After a failed or timed-out release the age cap asks for
-nothing more until a person, or a critical merge, has released.
+with its time. After a failed or timed-out release the age cap counts
+from that release's end instead of the oldest merge, so it doesn't try
+again the minute one fails.
 
-**A red release holds releases.** When a release's suite, build or deploy
-fails (a failed deploy recorded on the tree, `slipdock deploy failed
---stage S`), the tree's releases are held. The release banner says why,
-with the stage and the failing run, and Slipdock files one card of
-priority `critical` on top of the root board's ready list, naming the
-batch's cards and linking the run. While held, *Release now* is refused
-and says why, the age cap asks for nothing, a queued follow-up is dropped,
-and a critical card that isn't the fix card asks for nothing (the board's
-activity says so). When the fix card merges the hold lifts and its
+**A red release files its fix card and holds nothing** (#3179): *Release
+now* and the age cap still release, with a warning that names the failing
+run. When a release's suite, build or deploy fails (a failed deploy recorded on the
+tree, `slipdock deploy failed --stage S`), the deploy is recorded as
+failed, the release banner says *Last release failed* with the stage and
+a link to the failing run, and Slipdock files one card of priority
+`critical` on top of the root board's ready list, naming the batch's
+cards and linking the run. Nothing is refused: *Release now*, the age
+cap, a queued follow-up and a critical merge all still release, each
+with a warning that names the failing run (in the confirm, the flash,
+the answer's `warning` over the API and MCP, the CLI's output and the
+board's activity). When the fix card merges, the failure clears and its
 critical trigger releases. When the cause was outside the repository and
 the fix card is accepted with no code (`slipdock done <card> --no-code`),
-the hold lifts and nothing is released: nothing new merged, so the held
-batch goes at the next trigger (*Release now*, a critical merge or the age
-cap), and the fix card says so. A deploy that succeeds to the held environment
-at the held sha, or with it among its commits (the failed run rerun, or a
-later release), lifts the hold too, and the board's activity says so: the
-fix card is archived if nothing has started on it (it is still in the
-ready list with no job), and otherwise gets a comment saying the hold is
-lifted and is left open. A second red release keeps the first hold and
-files no second card. The board's owner can lift the hold by hand: *Lift
-hold* on the banner or the Agentic Building page, `slipdock release
-<board> --lift-hold`, `DELETE /api/boards/:board/release/hold` or MCP
-`release_now` with `lift_hold: true`; that releases nothing. A release job
-that failed to fire, a backfilled deploy and a board that releases on
-merge hold nothing.
+the failure clears and nothing is released: nothing new merged, so the
+batch goes at the next trigger (*Release now*, a critical merge or the
+age cap), and the fix card says so. A deploy that succeeds to the failed
+environment at the failed sha, or with it among its commits (the failed
+run rerun, or a later release), clears it too, and the board's activity
+says so: the fix card is archived if nothing has started on it (it is
+still in the ready list with no job), and otherwise gets a comment and is
+left open. A second red release while one stands files no second card. A
+release job that failed to fire, a backfilled deploy and a board that
+releases on merge file no fix card.
 
 **What the next release takes.** The release banner on every board of a
 batched tree, and the *Releases* status on the Agentic Building page, say

@@ -1377,25 +1377,22 @@ refused otherwise (exit 2, nothing run). `slipdock releases
 true`) says what is running, queued and awaiting release, for the whole
 tree: asked of a sub-board, it needs read on the root board too.
 
-**A red release holds releases** (#2838). A failed deploy recorded on a
-batched tree holds its releases: the status's `hold` gives the reason, the
-stage and the failing run, and Slipdock files one `critical` fix card on
-top of the root's ready list naming the batch's cards. While held,
-Release now is refused (saying why, with the run), the age cap asks for
-nothing and a critical merge other than the fix card asks for nothing.
-The fix card merging lifts the hold and releases. A fix card accepted
-with no code (the cause was outside the repository: `slipdock done <card>
---no-code "<why>"`) lifts the hold and releases nothing: the held batch
-goes at the next trigger (Release now, a critical merge or the age cap).
-A deploy that succeeds
-to the held environment at the hold's `sha` or past it (its commits name
-it: the failed run rerun, or a later release) lifts it too (#2996), and
-the board's activity says so; the fix card is archived if nothing had
-started on it, else told in a comment and left open. The owner can lift it by
-hand: `slipdock release <board> --lift-hold`,
-`DELETE /api/boards/:board/release/hold`, MCP `release_now` with
-`lift_hold: true`, or *Lift hold* on the banner and the Agentic Building
-page; lifting releases nothing. An agent doesn't lift a hold on its own: fix the card.
+**A red release holds nothing; it files its fix card** (#2838, #3179).
+A failed deploy recorded on a batched tree is recorded as failed, the
+status's `red_release` gives the reason, the stage and the failing run
+(the release banner shows it), and Slipdock files one `critical` fix card
+on top of the root's ready list naming the batch's cards. Nothing is
+refused: Release now, the age cap and a critical merge all release, and
+Release now's answer carries a `warning` naming the failing run. The fix
+card merging clears the failure and releases. A fix card accepted with
+no code (the cause was outside the repository: `slipdock done <card>
+--no-code "<why>"`) clears it and releases nothing: the batch goes at the
+next trigger (Release now, a critical merge or the age cap). A deploy
+that succeeds to the failed environment at the failed `sha` or past it
+(its commits name it: the failed run rerun, or a later release) clears
+it too (#2996), and the board's activity says so; the fix card is
+archived if nothing had started on it, else told in a comment and left
+open. To clear it, fix the card.
 
 **Epics close over finished subcards.** On every board, with no switch, an
 agent can't complete (or submit) a card while its sub-board has open cards

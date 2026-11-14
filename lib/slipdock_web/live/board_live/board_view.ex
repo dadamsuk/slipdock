@@ -692,11 +692,11 @@ defmodule SlipdockWeb.BoardLive.BoardView do
   attr :can_manage, :boolean, required: true
 
   @doc """
-  A batched tree's releases (#2835), on every board of it: a hold after a
-  red release (#2838), the release running (with a link to its build once
-  its job has fired it, #3005), the follow-up queued and how many merged
-  cards await one, with Release now (and Lift hold, while held) for the
-  owner. Nothing while there is nothing to say.
+  A batched tree's releases (#2835), on every board of it: the red
+  release standing (#2838: it holds nothing, #3179), the release running
+  (with a link to its build once its job has fired it, #3005), the
+  follow-up queued and how many merged cards await one, with Release now
+  for the owner. Nothing while there is nothing to say.
   """
   def release_banner(assigns) do
     assigns =
@@ -722,22 +722,23 @@ defmodule SlipdockWeb.BoardLive.BoardView do
         id="release-now"
         class="btn btn-xs"
         phx-click="release_now"
-        data-confirm="Release this board's merged work now?"
+        data-confirm={SlipdockWeb.BoardLive.BoardView.release_confirm(@release)}
       >
         Release now
       </button>
-      <button
-        :if={@can_manage and @release.hold}
-        type="button"
-        id="release-lift-hold"
-        class="btn btn-xs btn-warning"
-        phx-click="lift_release_hold"
-        data-confirm="Lift the hold? Releases run again; nothing is released now."
-      >
-        Lift hold
-      </button>
     </div>
     """
+  end
+
+  @doc """
+  What Release now asks before it releases: after a red release (#3179),
+  that the last one failed, naming its run (`Releases.red_warning/1`).
+  """
+  def release_confirm(release) do
+    case release && Slipdock.Releases.red_warning(release) do
+      nil -> "Release this board's merged work now?"
+      warning -> warning <> " Release this board's merged work now?"
+    end
   end
 
   attr :release, :any, required: true, doc: "`Slipdock.Releases.status/1`"
@@ -746,9 +747,9 @@ defmodule SlipdockWeb.BoardLive.BoardView do
 
   @doc """
   Where a tree's releases stand, in one line, for the board's banner and
-  the Agentic Building page (#2995): the hold and why, with its failing
-  run in brackets beside the reason (the link is the hold's, not the
-  awaiting cards'), then the fix card, the release running with its
+  the Agentic Building page (#2995): the red release standing and why,
+  with its failing run in brackets beside the reason (the link is the
+  failure's, not the awaiting cards'), then the fix card, the release running with its
   build beside it (#3091: before the follow-up queued, not after it),
   the follow-up queued, and the cards awaiting (`release_awaiting/1`).
   The release running opens the list of the cards it takes (#3153), as
@@ -756,21 +757,21 @@ defmodule SlipdockWeb.BoardLive.BoardView do
   """
   def release_line(assigns) do
     release = assigns.release
-    hold = Slipdock.Releases.hold_text(release)
+    red = Slipdock.Releases.red_text(release)
     awaiting = Slipdock.Releases.awaiting_text(release)
 
     # `Releases.line/2` on the status narrowed to one part at a time, so
     # the running release's build link sits beside it, before the
     # follow-up queued (#3091).
     part = fn only ->
-      Slipdock.Releases.line(Map.merge(release, only), awaiting: false, hold: false)
+      Slipdock.Releases.line(Map.merge(release, only), awaiting: false, red: false)
     end
 
     texts = [
-      hold: hold,
+      red: red,
       fix: part.(%{running: nil, queued: nil}),
-      running: part.(%{hold: nil, queued: nil}),
-      queued: part.(%{hold: nil, running: nil}),
+      running: part.(%{red_release: nil, queued: nil}),
+      queued: part.(%{red_release: nil, running: nil}),
       awaiting: awaiting
     ]
 
@@ -780,7 +781,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
       assign(assigns,
         parts: parts,
         texts: texts,
-        hold_run: hold && release.hold["run_url"],
+        red_run: red && release.red_release["run_url"],
         running_run: release.running && release.running.run_url,
         releasing: Map.get(release, :releasing, []),
         empty: if(parts == [], do: assigns.empty)
@@ -791,11 +792,11 @@ defmodule SlipdockWeb.BoardLive.BoardView do
     <span :for={{part, i} <- Enum.with_index(@parts)} id={"#{@id}-part-#{part}"}>
       {if i > 0, do: " · "}
       <%= case part do %>
-        <% :hold -> %>
-          {@texts[:hold]}
-          <span :if={@hold_run} id={"#{@id}-hold-run-note"} phx-no-format>(<.link
-              id={"#{@id}-hold-run"}
-              href={@hold_run}
+        <% :red -> %>
+          {@texts[:red]}
+          <span :if={@red_run} id={"#{@id}-red-run-note"} phx-no-format>(<.link
+              id={"#{@id}-red-run"}
+              href={@red_run}
               target="_blank"
               rel="noopener noreferrer"
               class="link"

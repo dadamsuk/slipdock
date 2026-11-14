@@ -168,11 +168,13 @@ defmodule Slipdock.Boards.Board do
     # (`Slipdock.Releases.default_command/0`). The root board's, as the two
     # above.
     field :release_command, :string
-    # Releases held after a red one (#2838, `Slipdock.Releases.hold/1`): nil,
-    # or why (reason, stage, run_url, sha, deployment_id, card_ids,
-    # fix_card_id, held_at). The root board's, and written only by Releases,
-    # never by `changeset/2`.
-    field :release_hold, :map
+    # The red release standing on the tree (#2838, #3179,
+    # `Slipdock.Releases.red_release/1`): nil, or why (reason, stage,
+    # run_url, sha, deployment_id, card_ids, fix_card_id, failed_at). It
+    # holds nothing; the banner and the warnings say it. The root board's,
+    # and written only by Releases, never by `changeset/2`. The column keeps
+    # the name #2838 gave it: a rename would break a rollback (OPS-6).
+    field :red_release, :map, source: :release_hold
 
     # The other addresses the board's card addresses take mail from (#1289),
     # besides each address owner's own: lower-cased, at most

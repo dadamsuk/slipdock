@@ -122,52 +122,53 @@ defmodule SlipdockCLI.ReleaseTest do
                "awaiting release: 2\n  #41 One\n  #42 Two\n"
   end
 
-  @hold %{
+  @red %{
     "reason" => "the release failed at test",
     "stage" => "test",
     "run_url" => "https://ci.example.com/runs/6",
     "fix_card_id" => 50,
     "text" =>
-      "the release failed at test (https://ci.example.com/runs/6); fix card #50 releases " <>
-        "when it merges, or the board's owner lifts the hold"
+      "Warning: the last release failed: the release failed at test " <>
+        "(https://ci.example.com/runs/6); fix card #50 is filed."
   }
 
-  test "releases prints a hold first, saying why with the run (#2838)" do
+  test "releases prints a red release first, its warning naming the run (#3179)" do
     serve([
       {200,
-       JSON.encode!(%{"release" => %{"mode" => "batched", "hold" => @hold, "awaiting" => []}})}
+       JSON.encode!(%{
+         "release" => %{"mode" => "batched", "red_release" => @red, "awaiting" => []}
+       })}
     ])
 
     assert capture_io(fn -> Runners.run("releases", ["ops"], []) end) ==
              "release mode: batched\n" <>
-               "held: the release failed at test (https://ci.example.com/runs/6); fix card #50 " <>
-               "releases when it merges, or the board's owner lifts the hold\n" <>
+               "Warning: the last release failed: the release failed at test " <>
+               "(https://ci.example.com/runs/6); fix card #50 is filed.\n" <>
                "awaiting release: none\n"
   end
 
-  test "release --lift-hold deletes the hold and asks for no release (#2838)" do
-    {opts, ["release", "ops"], []} =
-      OptionParser.parse(["release", "ops", "--lift-hold"], strict: SlipdockCLI.switches())
-
-    assert opts[:lift_hold] == true
-
+  test "release after a red release posts, and prints the server's warning (#3179)" do
     serve([
-      {200,
+      {201,
        JSON.encode!(%{
-         "lifted" => @hold,
-         "line" => "Release hold lifted. Nothing was released.",
-         "release" => %{"mode" => "batched", "hold" => nil, "awaiting" => @awaiting}
+         "how" => "started",
+         "line" => "Release started: a runner fires the release command next.",
+         "warning" => @red["text"],
+         "release" => %{"mode" => "batched", "red_release" => @red, "awaiting" => @awaiting}
        })}
     ])
 
-    out = capture_io(fn -> Runners.run("release", ["ops"], opts) end)
+    out = capture_io(fn -> Runners.run("release", ["ops"], []) end)
 
-    assert_received {:request, "DELETE", "/api/boards/ops/release/hold", _}
-    refute_received {:request, "POST", _, _}
+    assert_received {:request, "POST", "/api/boards/ops/release", _}
 
     assert out ==
-             "Release hold lifted. Nothing was released.\n" <>
-               "awaiting release: 2\n  #41 One\n  #42 Two\n"
+             "Release started: a runner fires the release command next.\n" <>
+               @red["text"] <> "\n" <> "awaiting release: 2\n  #41 One\n  #42 Two\n"
+  end
+
+  test "--lift-hold is gone (#3179)" do
+    refute Keyword.has_key?(SlipdockCLI.switches(), :lift_hold)
   end
 
   test "a request nothing is recorded as asking for prints no empty field" do

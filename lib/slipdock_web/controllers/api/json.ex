@@ -170,38 +170,57 @@ defmodule SlipdockWeb.API.JSON do
   end
 
   @doc """
-  A hold on a tree's releases after a red release (#2838,
-  `Slipdock.Releases.hold/1`): the `reason`, the `stage` that failed, the
-  failing `run_url`, the `sha`, the failed `deployment_id`, the batch's
-  `card_ids`, the `fix_card_id` whose merge (or no-code acceptance, #2993) lifts it, `held_at` and `text`,
-  the whole of it in words. Null while releases run.
+  The red release standing on a tree (#2838, #3179,
+  `Slipdock.Releases.red_release/1`): the `reason`, the `stage` that failed,
+  the failing `run_url`, the `sha`, the failed `deployment_id`, the batch's
+  `card_ids`, the `fix_card_id` whose merge (or no-code acceptance, #2993)
+  clears it, `failed_at` and `text`, the warning a release asked for now
+  gives. It holds nothing. Null while none stands.
   """
-  def release_hold(nil), do: nil
+  def red_release(nil), do: nil
 
-  def release_hold(%{} = hold) do
+  def red_release(%{} = red) do
     %{
-      reason: hold["reason"],
-      stage: hold["stage"],
-      run_url: hold["run_url"],
-      sha: hold["sha"],
-      deployment_id: hold["deployment_id"],
-      card_ids: hold["card_ids"] || [],
-      fix_card_id: hold["fix_card_id"],
-      held_at: hold["held_at"],
-      text: Slipdock.Releases.held_text(hold)
+      reason: red["reason"],
+      stage: red["stage"],
+      run_url: red["run_url"],
+      sha: red["sha"],
+      deployment_id: red["deployment_id"],
+      card_ids: red["card_ids"] || [],
+      fix_card_id: red["fix_card_id"],
+      failed_at: red["failed_at"],
+      text: Slipdock.Releases.red_warning(red)
+    }
+  end
+
+  @doc """
+  *Release now*'s answer (#2835), the same over REST and MCP: `how` it was
+  placed, its `line`, the `warning` while a red release stands (#3179,
+  `Slipdock.Releases.red_warning/1`, naming the failing run; null
+  otherwise), the `request` and the tree's `release` status.
+  """
+  def release_now(board, how, request) do
+    status = Slipdock.Releases.status(board)
+
+    %{
+      how: how,
+      line: Slipdock.Releases.said(how),
+      warning: Slipdock.Releases.red_warning(status),
+      request: release_request(request),
+      release: release_status(status)
     }
   end
 
   @doc """
   Where a tree's releases stand (#2835, `Slipdock.Releases.status/1`): its
-  `mode`, the `hold` (#2838, `release_hold/1`, null while releases run),
-  the `running` and `queued` requests, the `last` one that ended, and the
-  cards `awaiting` release (`id`, `title`, `priority`, `merged_at`).
+  `mode`, the `red_release` (#3179, `red_release/1`, null while none
+  stands), the `running` and `queued` requests, the `last` one that ended,
+  and the cards `awaiting` release (`id`, `title`, `priority`, `merged_at`).
   """
   def release_status(%{} = status) do
     %{
       mode: status.mode,
-      hold: release_hold(Map.get(status, :hold)),
+      red_release: red_release(Map.get(status, :red_release)),
       running: release_request(status.running),
       queued: release_request(status.queued),
       last: release_request(status.last),

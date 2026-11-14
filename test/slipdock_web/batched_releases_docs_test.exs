@@ -49,13 +49,13 @@ defmodule SlipdockWeb.BatchedReleasesDocsTest do
           "gh workflow run\nrelease.yml --ref {default_branch}",
           "`release_commands`",
           "`workflow_dispatch`",
-          "--lift-hold",
           "`release_requested_at`"
         ],
         do: assert(page =~ part, inspect(part))
 
     assert_states(page, "Releases run one at a time")
-    assert_states(page, "A red release holds releases")
+    assert_states(page, "A red release files its fix card and holds nothing")
+    refute page =~ "--lift-hold"
 
     # The section left Verified work, which points at the page instead.
     verified_work = File.read!(Path.join(@root, "docs/manual/verified-work.md"))
