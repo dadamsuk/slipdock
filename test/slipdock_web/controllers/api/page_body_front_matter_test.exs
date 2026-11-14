@@ -94,6 +94,48 @@ defmodule SlipdockWeb.API.PageBodyFrontMatterTest do
         assert page.body == @rest, path
       end
     end
+
+    test "a page for a card, a write-up and a page in a folder refuse a block and front_matter together",
+         %{conn: conn, board: board} do
+      card = card_fixture(hd(board.columns), %{"title" => "Draw it"})
+      {:ok, folder} = Wiki.create_folder(board, %{"name" => "Drawings"})
+
+      for {path, params} <- [
+            {"/api/boards/fmbody/pages", %{"card" => card.id}},
+            {"/api/cards/#{card.id}/pages", %{}},
+            {"/api/folders/#{folder.id}/pages", %{}}
+          ],
+          front_matter <- ["b: 2", ""] do
+        assert %{"error" => error} =
+                 conn
+                 |> post(
+                   path,
+                   Map.merge(params, %{
+                     "title" => "Both at #{path}",
+                     "body" => "---\na: 1\n---\nx",
+                     "front_matter" => front_matter
+                   })
+                 )
+                 |> json_response(422),
+               path
+
+        assert error =~ "send one", path
+      end
+
+      assert Wiki.list_pages(board) == []
+
+      # A body with no block beside the field is written as it always was.
+      page =
+        conn
+        |> post_page("/api/folders/#{folder.id}/pages", %{
+          "title" => "Plain",
+          "body" => "Just text",
+          "front_matter" => "b: 2"
+        })
+        |> stored()
+
+      assert page.body == "Just text"
+    end
   end
 
   describe "PATCH" do

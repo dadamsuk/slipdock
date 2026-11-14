@@ -588,6 +588,9 @@ defmodule Slipdock.Wiki do
   top is stored as the page's `front_matter`, the way a vault sync stores a
   file's, and the rest is the body (#2992). Sent with a `front_matter` of its
   own as well, nothing is written: `{:error, :unprocessable_entity, message}`.
+  `:front_matter_sent` says the request named a `front_matter` that the
+  caller didn't put in `attrs` (a page for a card, a page in a folder), so
+  that write is refused the same way.
   """
   def create_page(%Board{} = board, attrs, opts \\ []) do
     with {:ok, attrs} <- split_front_matter(stringify(attrs), opts),
@@ -602,7 +605,7 @@ defmodule Slipdock.Wiki do
   defp split_front_matter(%{"body" => body} = attrs, opts) when is_binary(body) do
     with true <- opts[:split_front_matter] == true,
          {header, rest} when is_binary(header) <- Slipdock.Wiki.FrontMatter.lift(body) do
-      if Map.has_key?(attrs, "front_matter"),
+      if Map.has_key?(attrs, "front_matter") or opts[:front_matter_sent] == true,
         do:
           {:error, :unprocessable_entity,
            "the body starts with a front matter block (--- lines) and front_matter was sent " <>

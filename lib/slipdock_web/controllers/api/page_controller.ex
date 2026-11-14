@@ -1733,7 +1733,13 @@ defmodule SlipdockWeb.API.PageController do
   # For a write whose `body` is a whole note (a create, a PATCH): a front
   # matter block at its top is the page's front matter, not text (#2992).
   # Not for an append or a section write, whose body is a part of one.
-  defp note_opts(conn, params), do: [split_front_matter: true] ++ write_opts(conn, params)
+  # `front_matter_sent` refuses a block sent beside a `front_matter` field on
+  # the paths that don't put that field in the page's attrs (a card's page,
+  # a write-up, a page in a folder), as the board create and PATCH refuse it.
+  defp note_opts(conn, params) do
+    [split_front_matter: true, front_matter_sent: Map.has_key?(params, "front_matter")] ++
+      write_opts(conn, params)
+  end
 
   defp via(conn) do
     case get_req_header(conn, "x-slipdock-client") ++ get_req_header(conn, "x-kanban-client") do
