@@ -48,20 +48,16 @@ defmodule SlipdockWeb.BoardLive.CardPanel.Properties do
       <div :for={{edge, label, field} <- @edges} class="flex items-center gap-2 pt-1.5">
         <span class="w-11 shrink-0 text-xs text-base-content/60">{label}</span>
         <div class="flex flex-wrap gap-1">
-          <button
+          <.color_swatch
             phx-target={@target}
-            type="button"
-            class={[
-              "flex size-5 items-center justify-center rounded-full ring-1 ring-base-content/20 ring-offset-1 ring-offset-base-100",
-              edge_colour(@card, field, @same) == nil && "ring-2 ring-base-content"
-            ]}
+            color={nil}
+            label={"No #{String.downcase(label)} border"}
+            selected={edge_colour(@card, field, @same) == nil}
             phx-click="set_border"
             phx-value-edge={edge}
             phx-value-color=""
-            title={"No #{String.downcase(label)} border"}
-          >
-            <.icon name="hero-no-symbol" class="size-3 opacity-50" />
-          </button>
+            class="size-5"
+          />
           <.color_swatch
             :for={{name, _} <- Palette.all()}
             phx-target={@target}

@@ -260,10 +260,48 @@ defmodule SlipdockWeb.SlipdockComponents.Marks do
     """
   end
 
-  attr :color, :string, required: true
+  attr :color, :any,
+    required: true,
+    doc: "a `Slipdock.Palette` name, or nil for the \"none\" swatch"
+
   attr :selected, :boolean, default: false
   attr :class, :string, default: "size-6"
-  attr :rest, :global
+
+  attr :label, :string,
+    default: nil,
+    doc: "its `title` and `aria-label`: the colour's name unless given (\"None\" for nil)"
+
+  attr :rest, :global, include: ~w(popovertarget popovertargetaction)
+
+  @doc """
+  One colour of a picker, as a round button: every colour picker's swatch
+  (#2888). Its `title` and `aria-label` are the colour's name, `aria-pressed`
+  says whether it is the one chosen, and the caller's `phx-click` (and a
+  popover's `popovertarget`) pass through.
+
+  `color={nil}` is the "none" swatch, a struck-through circle, for a picker
+  whose colour can be cleared; give it a `label` saying what none means
+  there ("No cover").
+  """
+  def color_swatch(%{color: nil} = assigns) do
+    ~H"""
+    <button
+      type="button"
+      class={[
+        @class,
+        "flex items-center justify-center rounded-full ring-1 ring-base-content/20 ring-offset-2 ring-offset-base-100",
+        @selected && "ring-2 ring-base-content"
+      ]}
+      title={@label || "None"}
+      aria-label={@label || "None"}
+      aria-pressed={to_string(@selected)}
+      data-swatch="none"
+      {@rest}
+    >
+      <.icon name="hero-no-symbol" class="size-3/5 opacity-50" />
+    </button>
+    """
+  end
 
   def color_swatch(assigns) do
     ~H"""
@@ -275,8 +313,10 @@ defmodule SlipdockWeb.SlipdockComponents.Marks do
         Palette.dot(@color),
         @selected && "ring-2 ring-base-content"
       ]}
-      title={Palette.label(@color)}
+      title={@label || Palette.label(@color)}
+      aria-label={@label || Palette.label(@color)}
       aria-pressed={to_string(@selected)}
+      data-swatch={@color}
       {@rest}
     ></button>
     """

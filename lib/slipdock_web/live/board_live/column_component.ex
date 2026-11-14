@@ -271,19 +271,13 @@ defmodule SlipdockWeb.BoardLive.ColumnComponent do
           <div class="space-y-1.5">
             <span class="text-sm font-medium">Colour</span>
             <div class="flex flex-wrap gap-1.5">
-              <button
+              <.color_swatch
                 phx-target={@target}
-                type="button"
-                class={[
-                  "flex size-6 items-center justify-center rounded-full ring-1 ring-base-content/20 ring-offset-2 ring-offset-base-100",
-                  is_nil(@column.color) && "ring-2 ring-base-content"
-                ]}
+                color={nil}
+                selected={is_nil(@column.color)}
                 phx-click="set_column_color"
                 phx-value-color=""
-                title="None"
-              >
-                <.icon name="hero-no-symbol" class="size-3.5 opacity-50" />
-              </button>
+              />
               <.color_swatch
                 :for={{name, _} <- Palette.all()}
                 phx-target={@target}

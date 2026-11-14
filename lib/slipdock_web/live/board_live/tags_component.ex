@@ -358,25 +358,19 @@ defmodule SlipdockWeb.BoardLive.TagsComponent do
         aria-label="Colour"
         class="grid w-44 grid-cols-6 gap-1.5 rounded-xl bg-base-100 p-2 shadow-xl ring-1 ring-base-content/10"
       >
-        <button
+        <.color_swatch
           :for={{name, _} <- Palette.all()}
-          type="button"
           id={"#{@id}-#{name}"}
-          class={[
-            "size-5 rounded-full ring-offset-2 ring-offset-base-100 transition hover:scale-110",
-            Palette.dot(name),
-            @selected == name && "ring-2 ring-base-content"
-          ]}
-          title={Palette.label(name)}
-          aria-label={Palette.label(name)}
-          aria-pressed={to_string(@selected == name)}
+          color={name}
+          selected={@selected == name}
+          class="size-5"
           popovertarget={@id}
           popovertargetaction="hide"
           phx-target={@target}
           phx-click={@event}
           phx-value-color={name}
           {@values}
-        ></button>
+        />
       </div>
     </div>
     """
