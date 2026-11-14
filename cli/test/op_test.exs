@@ -4,6 +4,8 @@ defmodule SlipdockCLI.OpTest do
   `move_card` (`priv/ops.json`): the words and flags become that definition's
   params, and the request is what REST and MCP take.
   """
+  # Sync: the end-to-end test sets HOME and the SLIPDOCK_* variables, which are
+  # one environment for the whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO
