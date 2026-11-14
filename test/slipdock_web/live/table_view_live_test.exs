@@ -393,6 +393,29 @@ defmodule SlipdockWeb.TableViewLiveTest do
       assert Boards.Cards.get_card!(card.id).priority != "critical"
     end
 
+    test "a reader still sorts: the heading is no button for the fieldset to disable", %{
+      conn: conn,
+      board: board
+    } do
+      {:ok, view, _} = live(conn, ~p"/boards/#{board}/table")
+
+      assert has_element?(
+               view,
+               "fieldset[disabled] thead span[role=button][phx-value-sort=title]"
+             )
+
+      refute has_element?(view, "fieldset[disabled] thead button")
+
+      view |> element("thead [phx-value-sort=title]") |> render_click()
+      assert_patch(view, ~p"/boards/#{board}/table?sort=title")
+      assert has_element?(view, "thead [phx-value-sort=title].text-primary .hero-arrow-up")
+
+      # Enter on the focused heading does what a click does.
+      view |> element("thead [phx-value-sort=title]") |> render_keydown(%{"key" => "Enter"})
+      assert_patch(view, ~p"/boards/#{board}/table?dir=desc&sort=title")
+      assert has_element?(view, "thead [phx-value-sort=title].text-primary .hero-arrow-down")
+    end
+
     test "an empty board offers no add row either", %{conn: conn, user: user} do
       owner = user_fixture("empty-owner@example.com")
       board = board_fixture(%{"name" => "Empty theirs"}, owner: owner)
@@ -429,6 +452,7 @@ defmodule SlipdockWeb.TableViewLiveTest do
       refute has_element?(view, "#card-table button[phx-click=swim_toggle_row]")
       assert has_element?(view, "form#table-add")
 
+      assert has_element?(view, "#prio-#{a.id} select[aria-label=Priority]")
       view |> form("#prio-#{a.id}", %{"value" => "low"}) |> render_change()
       assert Boards.Cards.get_card!(a.id).priority == "low"
     end

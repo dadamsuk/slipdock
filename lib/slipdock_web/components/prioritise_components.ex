@@ -157,24 +157,12 @@ defmodule SlipdockWeb.PrioritiseComponents do
               </div>
             </td>
             <td>
-              <form
+              <.priority_select
                 :if={@can_write}
-                phx-change="table_update"
-                phx-submit="table_update"
                 id={"prio-priority-#{item_id(entry.card)}"}
-              >
-                <input type="hidden" name="card_id" value={item_id(entry.card)} />
-                <input type="hidden" name="field" value="priority" />
-                <select name="value" class="select field-bare w-28">
-                  <option
-                    :for={{label, value} <- priority_options()}
-                    value={value}
-                    selected={value == entry.card.priority}
-                  >
-                    {label}
-                  </option>
-                </select>
-              </form>
+                card_id={item_id(entry.card)}
+                priority={entry.card.priority}
+              />
               <.priority_badge :if={!@can_write} priority={entry.card.priority} />
             </td>
             <td>
@@ -262,24 +250,12 @@ defmodule SlipdockWeb.PrioritiseComponents do
         <dl class="grid grid-cols-[5.5rem_minmax(0,1fr)] items-center gap-x-2 gap-y-1 pl-8">
           <dt class="text-2xs uppercase tracking-wide text-base-content/45">Priority</dt>
           <dd>
-            <form
+            <.priority_select
               :if={@can_write}
-              phx-change="table_update"
-              phx-submit="table_update"
               id={"prio-priority-#{item_id(entry.card)}"}
-            >
-              <input type="hidden" name="card_id" value={item_id(entry.card)} />
-              <input type="hidden" name="field" value="priority" />
-              <select name="value" class="select field-bare w-28">
-                <option
-                  :for={{label, value} <- priority_options()}
-                  value={value}
-                  selected={value == entry.card.priority}
-                >
-                  {label}
-                </option>
-              </select>
-            </form>
+              card_id={item_id(entry.card)}
+              priority={entry.card.priority}
+            />
             <.priority_badge :if={!@can_write} priority={entry.card.priority} />
           </dd>
 
@@ -300,29 +276,6 @@ defmodule SlipdockWeb.PrioritiseComponents do
         </dl>
       </li>
     </ul>
-    """
-  end
-
-  attr :sort, :string, required: true
-  attr :label, :string, required: true
-  attr :config, Config, required: true
-
-  defp sort_header(assigns) do
-    ~H"""
-    <button
-      type="button"
-      class="flex items-center gap-1 uppercase hover:text-base-content"
-      phx-click="table_sort"
-      phx-value-sort={@sort}
-      title={"Sort by #{@label}"}
-    >
-      {@label}
-      <.icon
-        :if={@config.sort == @sort}
-        name={if @config.dir == "asc", do: "hero-arrow-up", else: "hero-arrow-down"}
-        class="size-3"
-      />
-    </button>
     """
   end
 

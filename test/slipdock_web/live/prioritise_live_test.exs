@@ -86,10 +86,27 @@ defmodule SlipdockWeb.PrioritiseLiveTest do
     assert Boards.Cards.get_card!(a.id) |> Slipdock.Boards.Card.vote_total() == 1
     assert render(view) =~ ~r{<strong>9</strong>\s+of 10}
 
+    # The select is named for a screen reader, as the table's is (#2892).
+    assert has_element?(view, "#prio-priority-#{a.id} select[aria-label=Priority]")
+
+    # No column is marked until one is sorted on.
+    refute has_element?(view, "#prioritise-table thead .text-primary")
+
     # Clicking a header sorts explicitly.
     view |> element("#prioritise-table button[phx-value-sort=votes]") |> render_click()
     assert_patch(view)
     assert render(view) =~ "Ranked by <strong class=\"text-base-content\">Votes</strong>"
+
+    # The sorted column is marked, with its direction, and only that one (#2892).
+    votes = "#prioritise-table thead button[phx-value-sort=votes]"
+    assert has_element?(view, votes <> ".text-primary [class*=hero-arrow]")
+
+    refute has_element?(
+             view,
+             "#prioritise-table thead button[phx-value-sort=priority].text-primary"
+           )
+
+    assert view |> element("#prioritise-table thead .text-primary") |> render() =~ "Votes"
   end
 
   test "a placed wiki page is ranked with the cards, and every control is its own", %{

@@ -300,6 +300,74 @@ defmodule SlipdockWeb.SlipdockComponents.Chrome do
     """
   end
 
+  attr :sort, :string, required: true, doc: "the sort key the heading asks for"
+  attr :label, :string, required: true
+
+  attr :config, Slipdock.Swimlanes.Config,
+    required: true,
+    doc: "the view's config: its sort and dir"
+
+  attr :in_fieldset, :boolean,
+    default: false,
+    doc: "the heading sits in a fieldset that is disabled for a reader"
+
+  @doc """
+  A column heading that sorts a board view by its column (#2892): the table's
+  and Prioritise's.
+
+  It pushes `table_sort` with its key. The sorted column is marked
+  `text-primary` and carries the arrow of its direction.
+
+  It is a real `<button>`, but for one case. The table draws its rows in a
+  `<fieldset>` that is disabled for a reader, and a button in a disabled
+  fieldset is dead, while a reader may still sort. There `in_fieldset` draws a
+  `<span role="button">` that looks the same, takes focus and answers Enter.
+  """
+  def sort_header(assigns) do
+    assigns =
+      assign(assigns,
+        sorted: assigns.config.sort == assigns.sort,
+        class: [
+          "inline-flex cursor-pointer items-center gap-1 uppercase hover:text-base-content",
+          assigns.config.sort == assigns.sort && "text-primary"
+        ]
+      )
+
+    ~H"""
+    <button
+      :if={!@in_fieldset}
+      type="button"
+      class={@class}
+      phx-click="table_sort"
+      phx-value-sort={@sort}
+      title={"Sort by #{@label}"}
+    >
+      {@label}<.sort_arrow :if={@sorted} dir={@config.dir} />
+    </button>
+    <span
+      :if={@in_fieldset}
+      role="button"
+      tabindex="0"
+      class={@class}
+      phx-click="table_sort"
+      phx-keydown="table_sort"
+      phx-key="Enter"
+      phx-value-sort={@sort}
+      title={"Sort by #{@label}"}
+    >
+      {@label}<.sort_arrow :if={@sorted} dir={@config.dir} />
+    </span>
+    """
+  end
+
+  attr :dir, :string, required: true
+
+  defp sort_arrow(assigns) do
+    ~H"""
+    <.icon name={if @dir == "asc", do: "hero-arrow-up", else: "hero-arrow-down"} class="size-3" />
+    """
+  end
+
   # The filters hide everything, the board is empty, or (nil) cards are shown
   # and the view's own line says why none is drawn.
   defp view_empty_message(0, hidden) when hidden > 0, do: @view_empty_filtered

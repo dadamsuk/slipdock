@@ -101,6 +101,37 @@ defmodule SlipdockWeb.SlipdockComponents.Marks do
     """
   end
 
+  attr :id, :string, required: true, doc: "the form's id, which must be unique on the page"
+  attr :card_id, :string, required: true, doc: "the card's `item_id/1`, sent as `card_id`"
+  attr :priority, :string, required: true, doc: "the card's priority now"
+  attr :label, :string, default: "Priority", doc: "the select's accessible name"
+
+  @doc """
+  A card's priority as a select that saves when it changes (#2892): the
+  table's Priority cell and both of Prioritise's layouts.
+
+  It is a `table_update` form sending `card_id`, `field=priority` and the
+  chosen `value`. The select has no visible label where it is drawn (a column
+  or a `<dt>` names it by sight), so `label` is its `aria-label`.
+  """
+  def priority_select(assigns) do
+    ~H"""
+    <form phx-change="table_update" phx-submit="table_update" id={@id}>
+      <input type="hidden" name="card_id" value={@card_id} />
+      <input type="hidden" name="field" value="priority" />
+      <select name="value" class="select field-bare w-28" aria-label={@label}>
+        <option
+          :for={{label, value} <- priority_options()}
+          value={value}
+          selected={value == @priority}
+        >
+          {label}
+        </option>
+      </select>
+    </form>
+    """
+  end
+
   ## Flags ------------------------------------------------------------------
 
   @flags [

@@ -66,25 +66,7 @@ defmodule SlipdockWeb.TableComponents do
                   Enum.member?(~w(completed id), key) && "w-16"
                 ]}
               >
-                <span
-                  :if={sort}
-                  role="button"
-                  tabindex="0"
-                  class={[
-                    "inline-flex cursor-pointer items-center gap-1 uppercase hover:text-base-content",
-                    @config.sort == sort && "text-primary"
-                  ]}
-                  phx-click="table_sort"
-                  phx-value-sort={sort}
-                  title={"Sort by #{label}"}
-                >
-                  {label}
-                  <.icon
-                    :if={@config.sort == sort}
-                    name={if @config.dir == "asc", do: "hero-arrow-up", else: "hero-arrow-down"}
-                    class="size-3"
-                  />
-                </span>
+                <.sort_header :if={sort} sort={sort} label={label} config={@config} in_fieldset />
                 <span :if={!sort}>{label}</span>
               </th>
             </tr>
@@ -354,26 +336,14 @@ defmodule SlipdockWeb.TableComponents do
 
   defp cell(%{field: "priority"} = assigns) do
     ~H"""
-    <form
-      phx-change="table_update"
-      phx-submit="table_update"
-      id={"prio-#{SlipdockWeb.SlipdockComponents.item_id(@card)}"}
-    >
-      <input type="hidden" name="card_id" value={SlipdockWeb.SlipdockComponents.item_id(@card)} />
-      <input type="hidden" name="field" value="priority" />
-      <div class="flex items-center gap-1">
-        <.priority_badge priority={@card.priority} />
-        <select name="value" class="select field-bare w-28" aria-label="Priority">
-          <option
-            :for={{label, value} <- priority_options()}
-            value={value}
-            selected={value == @card.priority}
-          >
-            {label}
-          </option>
-        </select>
-      </div>
-    </form>
+    <div class="flex items-center gap-1">
+      <.priority_badge priority={@card.priority} />
+      <.priority_select
+        id={"prio-#{item_id(@card)}"}
+        card_id={item_id(@card)}
+        priority={@card.priority}
+      />
+    </div>
     """
   end
 
