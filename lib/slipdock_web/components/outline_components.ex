@@ -153,25 +153,11 @@ defmodule SlipdockWeb.OutlineComponents do
             <.icon name="hero-ellipsis-horizontal" class="size-3.5 text-base-content/50" />
           </.link>
           <span :if={node.children == [] and not node.more} class="size-6 shrink-0"></span>
-          <button
+          <.complete_toggle
             :if={MapSet.member?(@show, "status")}
-            type="button"
-            class={[
-              "shrink-0 rounded-full transition",
-              if(node.card.completed,
-                do: "text-success",
-                else: "text-base-content/25 hover:text-success"
-              )
-            ]}
-            phx-click={JS.push("toggle_complete", value: %{id: node.card.id})}
+            card={node.card}
             disabled={!@can_write}
-            title={if node.card.completed, do: "Mark incomplete", else: "Mark complete"}
-          >
-            <.icon
-              name={if node.card.completed, do: "hero-check-circle-solid", else: "hero-check-circle"}
-              class="size-4"
-            />
-          </button>
+          />
           <span
             :if={not is_nil(node.card.color) and MapSet.member?(@show, "cover")}
             class={["size-2 shrink-0 rounded-full", Palette.dot(node.card.color)]}

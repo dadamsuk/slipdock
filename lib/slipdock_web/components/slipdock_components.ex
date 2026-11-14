@@ -160,6 +160,9 @@ defmodule SlipdockWeb.SlipdockComponents do
   @doc "A card's stated % complete, as a chip with a small bar."
   defdelegate percent_badge(assigns), to: Progress
 
+  @doc "The round check that marks a card complete or open again, with its label."
+  defdelegate complete_toggle(assigns), to: Progress
+
   @doc "Time spent against the estimate, as a chip: `1.5h/4h` with a small bar coloured by how close it is, or just the time spent without an estimate."
   defdelegate time_badge(assigns), to: Progress
 

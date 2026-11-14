@@ -494,14 +494,7 @@ defmodule SlipdockWeb.TableComponents do
 
   defp cell(%{field: "completed"} = assigns) do
     ~H"""
-    <input
-      type="checkbox"
-      class="checkbox"
-      checked={@card.completed}
-      phx-click="toggle_complete"
-      phx-value-id={@card.id}
-      title={if @card.completed, do: "Mark incomplete", else: "Mark complete"}
-    />
+    <.complete_toggle card={@card} size="size-5" />
     """
   end
 

@@ -201,24 +201,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
       class="space-y-3"
     >
       <div class="flex items-start gap-3">
-        <button
-          type="button"
-          class={[
-            "mt-1.5 shrink-0",
-            if(@card.completed,
-              do: "text-success",
-              else: "text-base-content/30 hover:text-success"
-            )
-          ]}
-          phx-click="toggle_complete"
-          phx-value-id={@card.id}
-          title={if @card.completed, do: "Mark incomplete", else: "Mark complete"}
-        >
-          <.icon
-            name={if @card.completed, do: "hero-check-circle-solid", else: "hero-check-circle"}
-            class="size-6"
-          />
-        </button>
+        <.complete_toggle card={@card} class="mt-1.5" size="size-6" disabled={!@can_write} />
         <textarea
           name={@form[:title].name}
           id="card-title"

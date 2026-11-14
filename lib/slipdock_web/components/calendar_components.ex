@@ -408,22 +408,12 @@ defmodule SlipdockWeb.CalendarComponents do
         <span :if={@tags != []} class="flex items-center gap-0.5">
           <span :for={tag <- @tags} class={["size-1.5 rounded-full", Palette.dot(tag.color)]}></span>
         </span>
-        <button
+        <.complete_toggle
           :if={@status?}
-          type="button"
-          class={[
-            "shrink-0 rounded-full",
-            if(@card.completed, do: "text-success", else: "text-base-content/25 hover:text-success")
-          ]}
-          phx-click={JS.push("toggle_complete", value: %{id: @card.id})}
-          title={if @card.completed, do: "Mark incomplete", else: "Mark complete"}
-          aria-label={if @card.completed, do: "Mark incomplete", else: "Mark complete"}
-        >
-          <.icon
-            name={if @card.completed, do: "hero-check-circle-solid", else: "hero-check-circle"}
-            class="size-3.5"
-          />
-        </button>
+          card={@card}
+          size="size-3.5"
+          disabled={!@can_write}
+        />
       </span>
     </div>
     """

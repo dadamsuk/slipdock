@@ -188,6 +188,60 @@ defmodule SlipdockWeb.SlipdockComponents.Progress do
 
   defp profile_title(profile, _source), do: "Profile: #{profile}"
 
+  attr :card, :map, required: true, doc: "the card it completes; reads `id` and `completed`"
+  attr :class, :any, default: nil, doc: "layout classes (margin) beside the toggle's own"
+  attr :size, :string, default: "size-4", doc: "the icon's size class"
+  attr :disabled, :boolean, default: false, doc: "true when the reader can't write the card"
+
+  attr :reveal, :boolean,
+    default: false,
+    doc: "an open card's toggle hides until hover or focus (always shown on touch)"
+
+  attr :rest, :global, doc: "an id, data-* or a phx-target"
+
+  @doc """
+  The round check that marks a card complete or open again (#2886): a solid
+  success check when done, a muted outline otherwise. Sends `toggle_complete`
+  with the card's `id`, and always says what it does in `title` and
+  `aria-label` ("Mark complete" / "Mark incomplete").
+  """
+  def complete_toggle(assigns) do
+    assigns = assign(assigns, :label, complete_label(assigns.card.completed))
+
+    ~H"""
+    <button
+      type="button"
+      data-role="complete-toggle"
+      class={[
+        "shrink-0 rounded-full transition disabled:cursor-not-allowed",
+        if(@card.completed,
+          do: "text-success",
+          else: [
+            "text-base-content/30 hover:text-success",
+            @reveal &&
+              "opacity-0 focus-visible:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100 no-hover:opacity-100"
+          ]
+        ),
+        @class
+      ]}
+      phx-click="toggle_complete"
+      phx-value-id={@card.id}
+      disabled={@disabled}
+      title={@label}
+      aria-label={@label}
+      {@rest}
+    >
+      <.icon
+        name={if @card.completed, do: "hero-check-circle-solid", else: "hero-check-circle"}
+        class={@size}
+      />
+    </button>
+    """
+  end
+
+  defp complete_label(true), do: "Mark incomplete"
+  defp complete_label(_), do: "Mark complete"
+
   attr :percent, :integer, required: true
 
   @doc "A card's stated % complete, as a chip with a small bar."

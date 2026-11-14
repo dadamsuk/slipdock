@@ -183,4 +183,18 @@ defmodule SlipdockWeb.CardPropertiesLiveTest do
 
     assert has_element?(view, "aside fieldset[disabled] #card-props #card-priority")
   end
+
+  test "the title's check is labelled, and disabled for a reader (#2886)", ctx do
+    {:ok, view, _} = open(ctx.conn, ctx)
+    toggle = "#card-title-form [data-role=complete-toggle]"
+    assert has_element?(view, "#{toggle}[aria-label='Mark complete']:not([disabled])")
+
+    reader = user_fixture("props.check@example.com")
+    {:ok, _} = Access.grant(ctx.board, reader, "read", ctx.owner)
+
+    {:ok, view, _} =
+      live(log_in_user(build_conn(), reader), ~p"/boards/#{ctx.board}/cards/#{ctx.card.id}")
+
+    assert has_element?(view, "#{toggle}[disabled]")
+  end
 end
