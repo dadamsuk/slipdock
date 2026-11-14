@@ -136,4 +136,36 @@ defmodule Slipdock.ToolsUpgradeTest do
 
     assert Tools.current_install(user, tool).version == "2.0.0"
   end
+
+  describe "a refused upgrade's message (#3124)" do
+    test "a new board file under a folder name over 120 is refused in words, and nothing moves",
+         %{user: user, name: name, tool: tool, board: board} do
+      path = String.duplicate("d", 130) <> "/long.md"
+
+      manifest =
+        files(name)["tool.json"]
+        |> Jason.decode!()
+        |> Map.update!("files", &(&1 ++ [%{"path" => path, "install" => "board"}]))
+        |> Map.put("version", "2.0.0")
+
+      v2_board =
+        Map.update!(
+          v1_board(name),
+          "lists",
+          &(&1 ++ [%{"name" => "Archive", "category" => "dropped"}])
+        )
+
+      publish_v2(user, name, v2_board, %{
+        "tool.json" => Jason.encode!(manifest),
+        ("files/" <> path) => "Too deep."
+      })
+
+      assert {:error, "name should be at most 120 character(s)"} =
+               Tools.install_board(user, tool)
+
+      # The whole upgrade rolled back: the version, and what came before the file.
+      assert Tools.current_install(user, tool).version == "1.0.0"
+      refute "Archive" in Enum.map(Boards.get_board!(board.id).columns, & &1.name)
+    end
+  end
 end

@@ -26,6 +26,7 @@ defmodule Slipdock.Runners.MachineRunners do
 
   import Ecto.Query
 
+  alias Slipdock.ChangesetErrors
   alias Slipdock.Boards.Board
   alias Slipdock.Machines.Machine
   alias Slipdock.Repo
@@ -128,7 +129,7 @@ defmodule Slipdock.Runners.MachineRunners do
           runner
 
         {:error, cs} ->
-          Repo.rollback({:invalid, changeset_message(cs)})
+          Repo.rollback({:invalid, ChangesetErrors.message(cs)})
       end
     end)
     |> after_change(machine)
@@ -475,14 +476,4 @@ defmodule Slipdock.Runners.MachineRunners do
 
   defp stringify(attrs) when is_map(attrs), do: Map.new(attrs, fn {k, v} -> {to_string(k), v} end)
   defp stringify(_), do: %{}
-
-  defp changeset_message(cs) do
-    cs
-    |> Ecto.Changeset.traverse_errors(fn {msg, opts} ->
-      Regex.replace(~r"%{(\w+)}", msg, fn _, key ->
-        opts |> Keyword.get(String.to_existing_atom(key), key) |> to_string()
-      end)
-    end)
-    |> Enum.map_join("; ", fn {field, msgs} -> "#{field} #{Enum.join(msgs, ", ")}" end)
-  end
 end

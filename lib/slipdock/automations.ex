@@ -29,6 +29,7 @@ defmodule Slipdock.Automations do
 
   alias Slipdock.Repo
   alias Slipdock.Accounts.User
+  alias Slipdock.ChangesetErrors
 
   alias Slipdock.Automations.{
     Alert,
@@ -291,7 +292,7 @@ defmodule Slipdock.Automations do
 
       case create_rule(attrs, opts) do
         {:ok, rule} -> {:ok, rule}
-        {:error, changeset} -> {:error, changeset_message(changeset)}
+        {:error, changeset} -> {:error, ChangesetErrors.message(changeset, separator: ": ")}
       end
     end
   end
@@ -305,7 +306,7 @@ defmodule Slipdock.Automations do
     with {:ok, attrs} <- Presets.build(key, params, user: opts[:created_by]) do
       case create_rule(Map.put(attrs, "board_id", board.id), opts) do
         {:ok, rule} -> {:ok, rule}
-        {:error, changeset} -> {:error, changeset_message(changeset)}
+        {:error, changeset} -> {:error, ChangesetErrors.message(changeset, separator: ": ")}
       end
     end
   end
@@ -341,21 +342,9 @@ defmodule Slipdock.Automations do
              "scope" => parsed["scope"] || rule.scope
            }) do
         {:ok, rule} -> {:ok, rule}
-        {:error, changeset} -> {:error, changeset_message(changeset)}
+        {:error, changeset} -> {:error, ChangesetErrors.message(changeset, separator: ": ")}
       end
     end
-  end
-
-  # A changeset's errors as one line for a person, each message with its
-  # placeholders (`%{count}` from `validate_length`) filled from its opts.
-  defp changeset_message(changeset) do
-    changeset
-    |> Ecto.Changeset.traverse_errors(fn {msg, opts} ->
-      Enum.reduce(opts, msg, fn {k, v}, acc ->
-        String.replace(acc, "%{#{k}}", fn _ -> to_string(v) end)
-      end)
-    end)
-    |> Enum.map_join("; ", fn {field, msgs} -> "#{field}: #{Enum.join(msgs, ", ")}" end)
   end
 
   ## Events -------------------------------------------------------------------

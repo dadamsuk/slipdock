@@ -38,7 +38,6 @@ defmodule Slipdock.RegexUnicodeTest do
     {"lib/slipdock/boards.ex", "%{(\\w+)}"} => @machine_messages,
     {"lib/slipdock/portable/import.ex", "%{(\\w+)}"} => @machine_messages,
     {"lib/slipdock/runners/config.ex", "%{(\\w+)}"} => @machine_messages,
-    {"lib/slipdock/runners/machine_runners.ex", "%{(\\w+)}"} => @machine_messages,
     {"lib/slipdock_web/controllers/api/json.ex", "%{(\\w+)}"} => @machine_messages,
     {"lib/slipdock/deployments.ex", "#(\\d+)\\b"} =>
       "a deploy's commit messages, not card text; captures ASCII digits only",

@@ -278,17 +278,15 @@ defmodule Slipdock.Runners.Setup do
   # "Tell me when a job times out or a card is given up": a rule of its own,
   # raising an alert for the pool's jobs (see the `runner_trouble` preset).
   defp alert_rule(board, params, answers, user) do
+    # `Automations` answers a refused rule as a message already, its
+    # changeset turned to text by `Slipdock.ChangesetErrors`.
     if Enum.member?(["yes", "true", true], params["alert"]) do
-      case Automations.create_rule_from_preset(
-             board,
-             "runner_trouble",
-             %{"pool" => answers["pool"], "notify" => "alert"},
-             created_by: user
-           ) do
-        {:ok, rule} -> {:ok, rule}
-        {:error, %Ecto.Changeset{} = changeset} -> {:error, changeset_message(changeset)}
-        {:error, message} -> {:error, message}
-      end
+      Automations.create_rule_from_preset(
+        board,
+        "runner_trouble",
+        %{"pool" => answers["pool"], "notify" => "alert"},
+        created_by: user
+      )
     else
       {:ok, nil}
     end
@@ -306,23 +304,23 @@ defmodule Slipdock.Runners.Setup do
         end
 
       column ->
-        with {:ok, list} <- find_list(board, column) do
-          preset = if params["feed"] == "top", do: "feed_runner", else: "send_to_runner"
+        preset = if params["feed"] == "top", do: "feed_runner", else: "send_to_runner"
 
-          params = %{
-            "column" => list.name,
-            "pool" => answers["pool"],
-            "kind" => kind(answers),
-            "wait" => params["wait"],
-            "requeue" => params["requeue"]
-          }
-
-          case Automations.create_rule_from_preset(board, preset, params, created_by: user) do
-            {:ok, rule} -> scheduled_sibling(board, rule, user)
-            {:error, %Ecto.Changeset{} = changeset} -> {:error, changeset_message(changeset)}
-            {:error, message} -> {:error, message}
-          end
-        end
+        with {:ok, list} <- find_list(board, column),
+             {:ok, rule} <-
+               Automations.create_rule_from_preset(
+                 board,
+                 preset,
+                 %{
+                   "column" => list.name,
+                   "pool" => answers["pool"],
+                   "kind" => kind(answers),
+                   "wait" => params["wait"],
+                   "requeue" => params["requeue"]
+                 },
+                 created_by: user
+               ),
+             do: scheduled_sibling(board, rule, user)
 
       true ->
         {:ok, nil}
@@ -1010,19 +1008,4 @@ defmodule Slipdock.Runners.Setup do
     do: if(String.trim(value) == "", do: nil, else: String.trim(value))
 
   defp blank(_), do: nil
-
-  # A changeset's errors as one line for a person, each message with its
-  # placeholders (`%{count}` from `validate_length`) filled from its opts.
-  # Public only for its test: `Automations` turns its own changesets into
-  # messages, so no answer reaches this through `connect/4` today.
-  @doc false
-  def changeset_message(%Ecto.Changeset{} = changeset) do
-    changeset
-    |> Ecto.Changeset.traverse_errors(fn {msg, opts} ->
-      Enum.reduce(opts, msg, fn {k, v}, acc ->
-        String.replace(acc, "%{#{k}}", fn _ -> to_string(v) end)
-      end)
-    end)
-    |> Enum.map_join("; ", fn {field, msgs} -> "#{field} #{Enum.join(msgs, ", ")}" end)
-  end
 end

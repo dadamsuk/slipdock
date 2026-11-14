@@ -122,4 +122,41 @@ defmodule Slipdock.ToolsInstallTest do
     assert message =~ "no board to install"
     assert Tools.current_install(owner, v.tool) == nil
   end
+
+  describe "a refused install's message (#3124)" do
+    test "a board name over 80 is refused with the field and its limit", %{
+      owner: owner,
+      tool: tool
+    } do
+      assert {:error, "name should be at most 80 character(s)"} =
+               Tools.install_board(owner, tool, name: String.duplicate("b", 81))
+
+      assert Tools.current_install(owner, tool) == nil
+    end
+
+    test "a board file Wiki.Files refuses names the file and why", %{owner: owner} do
+      name = unique_name()
+
+      {:ok, version} =
+        Tools.publish(
+          owner,
+          package(name, "1.0.0", %{"files/guide.md" => :binary.copy("x", 2 * 1024 * 1024)})
+        )
+
+      # The owner's storage then drops to 1 MB, less than the Tool's board file.
+      {:ok, _} =
+        Slipdock.Settings.complete_setup(%{
+          "admin_email" => "admin@example.com",
+          "storage_limit_mb" => 1
+        })
+
+      assert {:error, message} = Tools.install_board(owner, version.tool)
+
+      assert message ==
+               "file guide.md: base This board's owner has used all 1 MB of their file " <>
+                 "storage. They can delete some attachments, or ask an admin to raise the limit."
+
+      assert Tools.current_install(owner, version.tool) == nil
+    end
+  end
 end
