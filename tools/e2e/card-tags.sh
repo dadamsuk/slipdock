@@ -22,10 +22,10 @@ IDS=$(mix run -e '
       {:ok, t} = Boards.Tags.create_tag(board, %{"name" => "Tag #{String.pad_leading(to_string(i), 2, "0")}", "color" => Enum.at(colours, rem(i, length(colours)))})
       t
     end
-  {:ok, card} = Boards.create_card(first, %{"title" => "Plan the launch", "description" => "The description."})
-  {:ok, _} = Boards.toggle_card_tag(card, Enum.at(tags, 2))
-  {:ok, _} = Boards.toggle_card_tag(Boards.get_card!(card.id), Enum.at(tags, 11))
-  {:ok, _} = Boards.toggle_flag(Boards.get_card!(card.id), "flagged")
+  {:ok, card} = Boards.Cards.create_card(first, %{"title" => "Plan the launch", "description" => "The description."})
+  {:ok, _} = Boards.Tags.toggle_card_tag(card, Enum.at(tags, 2))
+  {:ok, _} = Boards.Tags.toggle_card_tag(Boards.Cards.get_card!(card.id), Enum.at(tags, 11))
+  {:ok, _} = Boards.Cards.toggle_flag(Boards.Cards.get_card!(card.id), "flagged")
   IO.puts("IDS #{card.id}")
 ' | grep '^IDS' | cut -d' ' -f2-)
 

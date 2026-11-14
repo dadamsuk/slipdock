@@ -18,8 +18,8 @@ mix run -e '
   board = Boards.get_board!('"$KB"')
   {:ok, board} = Boards.update_board(board, %{"delivery_metrics" => true})
   [backlog, todo, doing, done] = board.columns
-  {:ok, _} = Boards.update_column(doing, %{"wip_limit" => 3})
-  {:ok, later} = Boards.create_column(board, %{"name" => "Maybe Later"})
+  {:ok, _} = Boards.Columns.update_column(doing, %{"wip_limit" => 3})
+  {:ok, later} = Boards.Columns.create_column(board, %{"name" => "Maybe Later"})
   {:ok, bug} = Boards.Tags.create_tag(board, %{"name" => "bug", "color" => "rose"})
   {:ok, feat} = Boards.Tags.create_tag(board, %{"name" => "feature", "color" => "sky"})
   now = DateTime.utc_now()
@@ -33,9 +33,9 @@ mix run -e '
   :rand.seed(:exsss, {1, 2, 3})
   for n <- 1..60 do
     start = 30 * 24 * :rand.uniform()
-    {:ok, c} = Boards.create_card(backlog, %{"title" => "Card #{n}: something to do"})
+    {:ok, c} = Boards.Cards.create_card(backlog, %{"title" => "Card #{n}: something to do"})
     Repo.delete_all(from m in CardMove, where: m.card_id == ^c.id)
-    if rem(n, 3) == 0, do: Boards.set_card_tags(c, [bug]), else: if(rem(n, 4) == 0, do: Boards.set_card_tags(c, [feat]))
+    if rem(n, 3) == 0, do: Boards.Cards.set_card_tags(c, [bug]), else: if(rem(n, 4) == 0, do: Boards.Cards.set_card_tags(c, [feat]))
     row.(c, "created", nil, backlog, start)
     stage = rem(n, 6)
     {col, last} =
@@ -62,7 +62,7 @@ mix run -e '
     set = if col.id == done.id, do: set ++ [completed: true, completed_at: DateTime.truncate(at.(last), :second)], else: set
     Repo.update_all(from(x in Card, where: x.id == ^c.id), set: set)
   end
-  {:ok, _} = Boards.create_card(later, %{"title" => "One day, perhaps"})
+  {:ok, _} = Boards.Cards.create_card(later, %{"title" => "One day, perhaps"})
 
   {:ok, runner, _} = Runners.create_runner(board, %{"name" => "dev-box", "pool" => "dev"})
   cards = Repo.all(from c in Card, where: c.board_id == ^board.id, order_by: c.id, limit: 14)

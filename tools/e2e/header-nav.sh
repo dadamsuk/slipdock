@@ -17,9 +17,9 @@ mix run -e '
   {:ok, me} = Accounts.get_or_create_user_by_email("e2e@example.com")
   {:ok, asker} = Accounts.get_or_create_user_by_email("asker@example.com")
   board = Boards.get_board!('"$KB"') |> Repo.preload(:columns)
-  {:ok, card} = Boards.create_card(hd(board.columns), %{"title" => "Which region?"})
+  {:ok, card} = Boards.Cards.create_card(hd(board.columns), %{"title" => "Which region?"})
   actor = %{Actor.unknown() | kind: "agent", via: "mcp", user_id: asker.id}
-  {:ok, _} = Boards.open_wait(card, actor, %{"needs" => "Which region?", "on_user_id" => me.id})
+  {:ok, _} = Boards.Waits.open_wait(card, actor, %{"needs" => "Which region?", "on_user_id" => me.id})
   {:ok, _} = Slipdock.Automations.raise_alert(%{"board_id" => board.id, "title" => "Stuck"})
 ' > /dev/null
 node tools/e2e/header-nav.mjs "$LINK" "$BASE" "$KB"

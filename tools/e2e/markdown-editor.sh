@@ -13,7 +13,7 @@ e2e_start
 
 CARD=$(mix run -e '
   board = Slipdock.Boards.get_board!('"$KB"')
-  {:ok, card} = Slipdock.Boards.create_card(hd(board.columns), %{"title" => "Editor card"})
+  {:ok, card} = Slipdock.Boards.Cards.create_card(hd(board.columns), %{"title" => "Editor card"})
   IO.puts("CARD #{card.id}")
 ' | grep '^CARD' | cut -d' ' -f2)
 
@@ -25,7 +25,7 @@ mix run -e '
   images = length(String.split(page.body, "/attachments/")) - 1
   unless page.body =~ "# Plan **now**" and images == 3 and not (page.body =~ "Uploading"),
     do: raise("page not saved: #{inspect(page.body)}")
-  card = Boards.get_card!('"$CARD"')
+  card = Boards.Cards.get_card!('"$CARD"')
   unless card.description == "**Bold** move", do: raise("description: #{inspect(card.description)}")
   unless Enum.any?(card.comments, &(&1.body =~ ~r/^Ping @\S+ ok$/)),
     do: raise("comments: #{inspect(Enum.map(card.comments, & &1.body))}")

@@ -19,7 +19,7 @@ mix run -e '
   %{window: %{from: from, days: days}} = Timeline.build(board, Config.defaults("timeline"))
   on = fn n -> Date.add(from, n) |> Date.to_iso8601() end
   mk = fn title, attrs ->
-    {:ok, c} = Boards.create_card(list, Map.put(attrs, "title", title))
+    {:ok, c} = Boards.Cards.create_card(list, Map.put(attrs, "title", title))
     c
   end
   wide = mk.("Onboarding flow redesign", %{"start_date" => on.(days - 60), "due_date" => on.(days - 38)})
@@ -31,8 +31,8 @@ mix run -e '
   _clip = mk.("Runs past the window edge", %{"start_date" => on.(days - 1), "due_date" => on.(days + 20)})
   _ = mk.("No date yet", %{})
   _ = mk.("Also undated", %{})
-  {:ok, _} = Boards.add_dependency(short, wide)
-  {:ok, _} = Boards.add_dependency(reco, short)
-  {:ok, _} = Boards.add_dependency(due, reco)
+  {:ok, _} = Boards.Dependencies.add_dependency(short, wide)
+  {:ok, _} = Boards.Dependencies.add_dependency(reco, short)
+  {:ok, _} = Boards.Dependencies.add_dependency(due, reco)
 ' > /dev/null
 node tools/e2e/timeline-labels.mjs "$LINK" "$BASE" "$KB"

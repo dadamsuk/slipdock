@@ -14,8 +14,8 @@ e2e_start
 ids=$(mix run -e '
   alias Slipdock.Boards
   kb = Boards.get_board!('"$KB"')
-  {:ok, loose} = Boards.create_card(hd(kb.columns), %{"title" => "Loose end"})
-  {:ok, row} = Boards.create_card(hd(kb.columns), %{"title" => "Table row", "due_date" => "2030-01-15"})
+  {:ok, loose} = Boards.Cards.create_card(hd(kb.columns), %{"title" => "Loose end"})
+  {:ok, row} = Boards.Cards.create_card(hd(kb.columns), %{"title" => "Table row", "due_date" => "2030-01-15"})
   IO.puts("IDS #{loose.id} #{row.id}")
 ' | grep '^IDS' | cut -d' ' -f2-)
 read -r LOOSE ROW <<<"$ids"

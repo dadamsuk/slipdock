@@ -15,10 +15,10 @@ COL=$(mix run -e '
   alias Slipdock.{Accounts, Boards, Favourites}
   {:ok, user} = Accounts.get_or_create_user_by_email("e2e@example.com")
   board = Boards.get_board!('"$KB"')
-  for n <- ["Review", "Shipped", "Later"], do: {:ok, _} = Boards.create_column(board, %{"name" => n})
+  for n <- ["Review", "Shipped", "Later"], do: {:ok, _} = Boards.Columns.create_column(board, %{"name" => n})
   board = Boards.get_board!('"$KB"')
   [first | _] = board.columns
-  {:ok, _} = Boards.create_card(first, %{"title" => "Draft the brief"})
+  {:ok, _} = Boards.Cards.create_card(first, %{"title" => "Draft the brief"})
   {:ok, :added} = Favourites.toggle(user, :column, first.id)
   IO.puts("COL #{first.id}")
 ' | grep '^COL' | cut -d' ' -f2)

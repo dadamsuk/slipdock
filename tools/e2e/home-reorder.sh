@@ -13,7 +13,7 @@ node tools/e2e/home-reorder.mjs "$LINK" "$BASE" "$KB" "$HUNT"
 
 mix run -e '
   {:ok, user} = Slipdock.Accounts.get_or_create_user_by_email("e2e@example.com")
-  first = user |> Slipdock.Access.list_boards() |> Slipdock.Boards.sort_boards("manual") |> hd()
+  first = user |> Slipdock.Access.list_boards() |> Slipdock.Boards.Arrangement.sort_boards("manual") |> hd()
   unless first.id == '"$HUNT"', do: raise("Journal Desk is not first: #{inspect(first.name)}")
   IO.puts("ok: the order from Reorder mode is saved")
 '

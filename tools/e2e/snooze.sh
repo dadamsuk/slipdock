@@ -15,11 +15,11 @@ IDS=$(mix run -e '
   alias Slipdock.{Boards, Repo}
   board = Boards.get_board!('"$KB"') |> Repo.preload(:columns)
   [_backlog, todo, doing | _] = Enum.sort_by(board.columns, & &1.position)
-  {:ok, a} = Boards.create_card(todo, %{"title" => "Chase the quote"})
-  {:ok, b} = Boards.create_card(todo, %{"title" => "Renew the domain"})
-  {:ok, c} = Boards.create_card(doing, %{"title" => "Busy one"})
-  {:ok, d} = Boards.create_card(todo, %{"title" => "Pair one"})
-  {:ok, e} = Boards.create_card(todo, %{"title" => "Pair two"})
+  {:ok, a} = Boards.Cards.create_card(todo, %{"title" => "Chase the quote"})
+  {:ok, b} = Boards.Cards.create_card(todo, %{"title" => "Renew the domain"})
+  {:ok, c} = Boards.Cards.create_card(doing, %{"title" => "Busy one"})
+  {:ok, d} = Boards.Cards.create_card(todo, %{"title" => "Pair one"})
+  {:ok, e} = Boards.Cards.create_card(todo, %{"title" => "Pair two"})
   IO.puts("IDS #{todo.id} #{a.id} #{b.id} #{c.id} #{d.id} #{e.id}")
 ' | grep '^IDS' | cut -d' ' -f2-)
 

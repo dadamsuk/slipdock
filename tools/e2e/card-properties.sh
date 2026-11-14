@@ -17,8 +17,8 @@ IDS=$(mix run -e '
   {:ok, user} = Accounts.get_or_create_user_by_email("e2e@example.com")
   board = Boards.get_board!('"$KB"') |> Repo.preload(:columns)
   [first, second | _] = Enum.sort_by(board.columns, & &1.position)
-  {:ok, card} = Boards.create_card(first, %{"title" => "Plan the launch"})
-  {:ok, card} = Boards.update_card(card, %{"priority" => "high", "due_date" => Date.add(Date.utc_today(), 7), "start_date" => Date.utc_today(), "percent_complete" => 40, "assignee_id" => user.id})
+  {:ok, card} = Boards.Cards.create_card(first, %{"title" => "Plan the launch"})
+  {:ok, card} = Boards.Cards.update_card(card, %{"priority" => "high", "due_date" => Date.add(Date.utc_today(), 7), "start_date" => Date.utc_today(), "percent_complete" => 40, "assignee_id" => user.id})
   IO.puts("IDS #{card.id} #{second.id}")
 ' | grep '^IDS' | cut -d' ' -f2-)
 

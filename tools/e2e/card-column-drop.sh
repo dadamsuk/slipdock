@@ -15,9 +15,9 @@ mix run -e '
   alias Slipdock.{Boards, Repo}
   board = Boards.get_board!('"$KB"') |> Repo.preload(:columns)
   [backlog, todo, doing | _] = Enum.sort_by(board.columns, & &1.position)
-  for t <- ~w(Alpha Bravo Charlie), do: {:ok, _} = Boards.create_card(backlog, %{"title" => t})
-  for t <- ~w(Delta Echo), do: {:ok, _} = Boards.create_card(todo, %{"title" => t})
-  {:ok, _} = Boards.create_card(doing, %{"title" => "Foxtrot"})
+  for t <- ~w(Alpha Bravo Charlie), do: {:ok, _} = Boards.Cards.create_card(backlog, %{"title" => t})
+  for t <- ~w(Delta Echo), do: {:ok, _} = Boards.Cards.create_card(todo, %{"title" => t})
+  {:ok, _} = Boards.Cards.create_card(doing, %{"title" => "Foxtrot"})
 ' > /dev/null
 
 node tools/e2e/card-column-drop.mjs "$LINK" "$BASE" "$KB"

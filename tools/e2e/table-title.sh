@@ -14,8 +14,8 @@ ID=$(mix run -e '
   board = Boards.get_board!('"$KB"') |> Repo.preload(:columns)
   [_backlog, todo | _] = Enum.sort_by(board.columns, & &1.position)
   title = String.duplicate("a very long card title that goes on ", 5) |> String.trim()
-  {:ok, a} = Boards.create_card(todo, %{"title" => title})
-  {:ok, _} = Boards.create_card(todo, %{"title" => "Short"})
+  {:ok, a} = Boards.Cards.create_card(todo, %{"title" => title})
+  {:ok, _} = Boards.Cards.create_card(todo, %{"title" => "Short"})
   IO.puts("ID #{a.id}")
 ' | grep '^ID' | cut -d' ' -f2-)
 

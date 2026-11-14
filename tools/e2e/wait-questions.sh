@@ -22,7 +22,7 @@ CARD=$(mix run -e '
   alias Slipdock.{Boards, Repo}
   board = Boards.get_board!('"$KB"') |> Repo.preload(:columns)
   [first | _] = Enum.sort_by(board.columns, & &1.position)
-  {:ok, card} = Boards.create_card(first, %{"title" => "Deploy", "description" => "Data must stay in the EU."})
+  {:ok, card} = Boards.Cards.create_card(first, %{"title" => "Deploy", "description" => "Data must stay in the EU."})
   IO.puts("CARD #{card.id}")
 ' | grep '^CARD' | cut -d' ' -f2)
 
@@ -33,7 +33,7 @@ grep -q "1. Which region? ← answer this one" "$AI_LOG" || { echo "FAIL: the mo
 echo "ok: the model was told the card and which question to answer"
 
 mix run -e '
-  [skipped, answered] = Slipdock.Boards.list_waits(%Slipdock.Boards.Card{id: '"$CARD"'})
+  [skipped, answered] = Slipdock.Boards.Waits.list_waits(%Slipdock.Boards.Card{id: '"$CARD"'})
   unless answered.questions == ["Which region?", "How many seats?"], do: raise("questions #{inspect(answered.questions)}")
   unless answered.answers == ["eu-west-1", "12"], do: raise("answers #{inspect(answered.answers)}")
   unless skipped.close_reason == "skipped", do: raise("second #{inspect(skipped.close_reason)}")

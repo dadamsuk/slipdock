@@ -18,7 +18,7 @@ e2e_start
 mix run -e '
   alias Slipdock.{Accounts, Boards}
   kb = Boards.get_board!('"$KB"')
-  for n <- ["Review", "Blocked", "Done"], do: {:ok, _} = Boards.create_column(kb, %{"name" => n})
+  for n <- ["Review", "Blocked", "Done"], do: {:ok, _} = Boards.Columns.create_column(kb, %{"name" => n})
   kb = Boards.get_board!('"$KB"')
   tags =
     for {n, c} <- [{"Design", "sky"}, {"Backend", "lime"}, {"Urgent", "red"}, {"Docs", "amber"}] do
@@ -30,13 +30,13 @@ mix run -e '
     col = Enum.at(kb.columns, rem(i, length(kb.columns)))
     start = Date.add(today, i * 3 - 40)
     {:ok, card} =
-      Boards.create_card(col, %{
+      Boards.Cards.create_card(col, %{
         "title" => "Task #{i}: tidy the release notes for part #{i}",
         "priority" => Enum.at(~w(critical high medium low none), rem(i, 5)),
         "start_date" => Date.to_iso8601(start),
         "due_date" => Date.to_iso8601(Date.add(start, 5 + rem(i, 9)))
       })
-    {:ok, _} = Boards.set_card_tags(card, [Enum.at(tags, rem(i, 4))])
+    {:ok, _} = Boards.Cards.set_card_tags(card, [Enum.at(tags, rem(i, 4))])
   end
   {:ok, _} = Accounts.get_or_create_user_by_email("e2e@example.com")
 ' > /dev/null

@@ -16,7 +16,7 @@ mix run -e '
   {:ok, me} = Accounts.get_or_create_user_by_email("e2e@example.com")
   board = Boards.get_board!('"$KB"') |> Repo.preload(:columns)
   [first, second | _] = board.columns
-  for n <- 1..14, do: {:ok, _} = Boards.create_card(first, %{"title" => "Card #{n}", "assignee_id" => me.id})
-  {:ok, _} = Boards.create_card(second, %{"title" => "Over there"})
+  for n <- 1..14, do: {:ok, _} = Boards.Cards.create_card(first, %{"title" => "Card #{n}", "assignee_id" => me.id})
+  {:ok, _} = Boards.Cards.create_card(second, %{"title" => "Over there"})
 ' > /dev/null
 node tools/e2e/phone-shell.mjs "$LINK" "$BASE" "$KB"

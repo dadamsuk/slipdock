@@ -16,13 +16,13 @@ IDS=$(mix run -e '
   alias Slipdock.{Boards, Repo}
   board = Boards.get_board!('"$KB"') |> Repo.preload(:columns)
   [first | _] = Enum.sort_by(board.columns, & &1.position)
-  {:ok, card} = Boards.create_card(first, %{"title" => "Plan the launch", "description" => "The description."})
-  {:ok, epic} = Boards.create_card(first, %{"title" => "Launch the new site"})
-  {:ok, t} = Boards.find_template(nil, "Simple")
+  {:ok, card} = Boards.Cards.create_card(first, %{"title" => "Plan the launch", "description" => "The description."})
+  {:ok, epic} = Boards.Cards.create_card(first, %{"title" => "Launch the new site"})
+  {:ok, t} = Boards.Templates.find_template(nil, "Simple")
   {:ok, sub} = Boards.create_sub_board(epic, t)
   [sub_first | _] = sub |> Repo.preload(:columns) |> Map.get(:columns) |> Enum.sort_by(& &1.position)
-  {:ok, _} = Boards.create_card(sub_first, %{"title" => "Write the copy"})
-  {:ok, _} = Boards.create_card(sub_first, %{"title" => "Pick the photos"})
+  {:ok, _} = Boards.Cards.create_card(sub_first, %{"title" => "Write the copy"})
+  {:ok, _} = Boards.Cards.create_card(sub_first, %{"title" => "Pick the photos"})
   IO.puts("IDS #{card.id} #{epic.id} #{sub.id}")
 ' | grep '^IDS' | cut -d' ' -f2-)
 

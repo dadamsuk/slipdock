@@ -24,8 +24,8 @@ CARDS=$(mix run -e '
           {"Size it", %{"needs" => "How big?"}},
           {"Name it", %{"needs" => "What name?"}}
         ] do
-      {:ok, card} = Boards.create_card(first, %{"title" => title})
-      {:ok, _} = Boards.open_wait(card, agent, attrs)
+      {:ok, card} = Boards.Cards.create_card(first, %{"title" => title})
+      {:ok, _} = Boards.Waits.open_wait(card, agent, attrs)
       card.id
     end
 
@@ -38,9 +38,9 @@ node tools/e2e/wait.mjs "$LINK" "$BASE" "$KB" "$CHOICE" "$WORDS" "$FLAG" "${SHOT
 mix run -e '
   alias Slipdock.Boards
   card = &%Boards.Card{id: &1}
-  a = Boards.last_wait(card.('"$CHOICE"'))
-  b = Boards.last_wait(card.('"$WORDS"'))
-  c = Boards.last_wait(card.('"$FLAG"'))
+  a = Boards.Waits.last_wait(card.('"$CHOICE"'))
+  b = Boards.Waits.last_wait(card.('"$WORDS"'))
+  c = Boards.Waits.last_wait(card.('"$FLAG"'))
   if {a.close_reason, a.choice} != {"answered", 2}, do: raise("choice: #{inspect({a.close_reason, a.choice})}")
   if {b.close_reason, b.answer} != {"answered", "Large"}, do: raise("words: #{inspect({b.close_reason, b.answer})}")
   if c.close_reason != "withdrawn", do: raise("flag: #{inspect(c.close_reason)}")

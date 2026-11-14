@@ -16,11 +16,11 @@ IDS=$(mix run -e '
   alias Slipdock.{Boards, Repo}
   board = Boards.get_board!('"$KB"') |> Repo.preload(:columns)
   [first | _] = Enum.sort_by(board.columns, & &1.position)
-  {:ok, epic} = Boards.create_card(first, %{"title" => "Launch the new site", "description" => "The description."})
-  {:ok, t} = Boards.find_template(nil, "Simple")
+  {:ok, epic} = Boards.Cards.create_card(first, %{"title" => "Launch the new site", "description" => "The description."})
+  {:ok, t} = Boards.Templates.find_template(nil, "Simple")
   {:ok, sub} = Boards.create_sub_board(epic, t)
   [sub_first | _] = sub |> Repo.preload(:columns) |> Map.get(:columns) |> Enum.sort_by(& &1.position)
-  {:ok, _} = Boards.create_card(sub_first, %{"title" => "Write the copy"})
+  {:ok, _} = Boards.Cards.create_card(sub_first, %{"title" => "Write the copy"})
   IO.puts("IDS #{epic.id} #{sub.id}")
 ' | grep '^IDS' | cut -d' ' -f2-)
 

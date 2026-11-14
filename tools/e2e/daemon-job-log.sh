@@ -40,7 +40,7 @@ read -r CARD KEY <<<"$(mix run -e '
   user = Accounts.get_user_by_email("e2e@example.com")
   board = Boards.get_board!('"$KB"') |> Repo.preload(:columns)
   [todo | _] = Enum.sort_by(board.columns, & &1.position)
-  {:ok, card} = Boards.create_card(todo, %{"title" => "Watch me work"})
+  {:ok, card} = Boards.Cards.create_card(todo, %{"title" => "Watch me work"})
   {:ok, key, _} = Machines.create_enrolment_key(user, [board.id])
   IO.puts("IDS #{card.id} #{key}")
 ' | grep '^IDS' | cut -d' ' -f2-)"

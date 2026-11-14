@@ -17,8 +17,8 @@ ids=$(mix run -e '
   {:ok, user} = Accounts.get_or_create_user_by_email("e2e@example.com")
   board = Boards.get_board!('"$KB"')
   title = "Agent supervision 5/9: parked jobs must be released on timeout, and everybody told about it"
-  {:ok, card} = Boards.create_card(hd(board.columns), %{"title" => title})
-  {:ok, card} = Boards.update_card(card, %{"short_name" => "Parked jobs"})
+  {:ok, card} = Boards.Cards.create_card(hd(board.columns), %{"title" => title})
+  {:ok, card} = Boards.Cards.update_card(card, %{"short_name" => "Parked jobs"})
   {:ok, page} = Wiki.create_page_from_card(card, user: user, title: "Write up")
   folder = Wiki.get_folder(Repo.get!(Wiki.Page, page.id).folder_id)
   IO.puts("IDS #{folder.parent_id} #{folder.id}")

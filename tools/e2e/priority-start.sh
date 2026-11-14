@@ -16,14 +16,14 @@ ids=$(mix run -e '
   kb = Boards.get_board!('"$KB"')
   [todo | _] = kb.columns
   day = fn n -> Date.utc_today() |> Date.add(n) |> Date.to_iso8601() end
-  {:ok, low} = Boards.create_card(todo, %{"title" => "Sweep the yard", "priority" => "low", "start_date" => day.(11), "due_date" => day.(20)})
-  {:ok, med} = Boards.create_card(todo, %{"title" => "Sort the post", "priority" => "medium", "start_date" => day.(0), "due_date" => day.(0)})
-  {:ok, high} = Boards.create_card(todo, %{"title" => "Fix the gutter", "priority" => "high", "start_date" => day.(0), "due_date" => day.(0)})
-  {:ok, crit} = Boards.create_card(todo, %{"title" => "Mend the roof", "priority" => "critical", "start_date" => day.(-14), "due_date" => day.(0)})
-  {:ok, t} = Boards.find_template(nil, "Simple")
+  {:ok, low} = Boards.Cards.create_card(todo, %{"title" => "Sweep the yard", "priority" => "low", "start_date" => day.(11), "due_date" => day.(20)})
+  {:ok, med} = Boards.Cards.create_card(todo, %{"title" => "Sort the post", "priority" => "medium", "start_date" => day.(0), "due_date" => day.(0)})
+  {:ok, high} = Boards.Cards.create_card(todo, %{"title" => "Fix the gutter", "priority" => "high", "start_date" => day.(0), "due_date" => day.(0)})
+  {:ok, crit} = Boards.Cards.create_card(todo, %{"title" => "Mend the roof", "priority" => "critical", "start_date" => day.(-14), "due_date" => day.(0)})
+  {:ok, t} = Boards.Templates.find_template(nil, "Simple")
   {:ok, sub} = Boards.create_sub_board(crit, t, code: "roofe2e")
   [sub_todo | _] = Boards.get_board!(sub.id).columns
-  {:ok, _} = Boards.create_card(sub_todo, %{"title" => "Buy slates", "start_date" => day.(-3), "due_date" => day.(0)})
+  {:ok, _} = Boards.Cards.create_card(sub_todo, %{"title" => "Buy slates", "start_date" => day.(-3), "due_date" => day.(0)})
   # What the old ?show= did, as named card views the URL names (#2031).
   {:ok, _} = Slipdock.CardViews.create(Slipdock.Repo.get_by!(Slipdock.Accounts.User, email: "e2e@example.com"), %{"name" => "e2e-start", "elements" => Map.new(Slipdock.Swimlanes.Config.facet_keys(), &{&1, &1 in ~w(tags priority flags start_date)})})
   {:ok, _} = Slipdock.CardViews.create(Slipdock.Repo.get_by!(Slipdock.Accounts.User, email: "e2e@example.com"), %{"name" => "e2e-due", "elements" => Map.new(Slipdock.Swimlanes.Config.facet_keys(), &{&1, &1 in ~w(priority due_date)})})

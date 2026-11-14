@@ -14,12 +14,12 @@ mix run -e '
   alias Slipdock.Boards
   board = Boards.get_board!('"$KB"')
   col = hd(board.columns)
-  {:ok, t} = Boards.find_template(nil, "Simple")
+  {:ok, t} = Boards.Templates.find_template(nil, "Simple")
   epic = Enum.reduce(1..260, nil, fn n, acc ->
-    {:ok, c} = Boards.create_card(col, %{"title" => "Card #{String.pad_leading(to_string(n), 3, "0")}"})
+    {:ok, c} = Boards.Cards.create_card(col, %{"title" => "Card #{String.pad_leading(to_string(n), 3, "0")}"})
     acc || c
   end)
   {:ok, sub} = Boards.create_sub_board(epic, t)
-  {:ok, _} = Boards.create_card(hd(Boards.get_board!(sub.id).columns), %{"title" => "Existing child"})
+  {:ok, _} = Boards.Cards.create_card(hd(Boards.get_board!(sub.id).columns), %{"title" => "Existing child"})
 ' > /dev/null
 node tools/e2e/outline-add.mjs "$LINK" "$BASE" "$KB"

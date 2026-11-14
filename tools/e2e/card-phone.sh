@@ -17,9 +17,9 @@ IDS=$(mix run -e '
   board = Boards.get_board!('"$KB"') |> Repo.preload(:columns)
   [first | _] = Enum.sort_by(board.columns, & &1.position)
   long = Enum.map_join(1..12, "\n\n", &"Paragraph #{&1}: the plan, at length, so the description is long.")
-  {:ok, card} = Boards.create_card(first, %{"title" => "Plan the launch of the new site", "description" => long})
-  {:ok, _} = Boards.update_card(card, %{"priority" => "high", "due_date" => Date.add(Date.utc_today(), 9), "assignee_id" => user.id})
-  {:ok, _} = Boards.add_checklist_item(card, "Book the room")
+  {:ok, card} = Boards.Cards.create_card(first, %{"title" => "Plan the launch of the new site", "description" => long})
+  {:ok, _} = Boards.Cards.update_card(card, %{"priority" => "high", "due_date" => Date.add(Date.utc_today(), 9), "assignee_id" => user.id})
+  {:ok, _} = Boards.Checklists.add_checklist_item(card, "Book the room")
   IO.puts("IDS #{card.id}")
 ' | grep '^IDS' | cut -d' ' -f2-)
 
