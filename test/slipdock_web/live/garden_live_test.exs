@@ -293,6 +293,33 @@ defmodule SlipdockWeb.GardenLiveTest do
     assert render(view) =~ "Applied 2."
   end
 
+  test "Apply all says how many couldn't be applied, and applies the rest (#3129)", ctx do
+    a = stray(ctx, "One")
+    b = stray(ctx, "Two")
+    gone = stray(ctx, "Deleted since")
+    {:ok, _} = Gardener.run(ctx.board)
+    {:ok, view, _} = tidy(ctx.conn, ctx)
+
+    # The card goes after the board was looked over: its suggestion is still
+    # open, and applying it is refused.
+    {:ok, _} = Boards.Cards.delete_card(gone)
+
+    [left] =
+      for s <- Gardener.list_open(ctx.board, check: "completed_not_done"),
+          gone.id in Gardener.Suggestion.card_ids(s),
+          do: s
+
+    view |> element("#garden-apply-all-completed_not_done") |> render_click()
+
+    assert Boards.Cards.get_card!(a.id).column_id == ctx.done.id
+    assert Boards.Cards.get_card!(b.id).column_id == ctx.done.id
+    assert Gardener.get_suggestion(left.id).state == "open"
+
+    html = render(view)
+    assert html =~ "Applied 2; 1 couldn&#39;t be applied."
+    refute html =~ "Applied 3."
+  end
+
   describe "Dismiss all in this group (#3048)" do
     test "dismisses each in the group, as the person, and leaves other groups alone", ctx do
       a = stray(ctx, "One")

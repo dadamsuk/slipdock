@@ -1,7 +1,8 @@
 // node --test assets/js
-import {test} from "node:test"
+import {test, beforeEach} from "node:test"
 import assert from "node:assert/strict"
-import {PLACEHOLDER, imageFiles, insertAtCursor, pastedName, replacePlaceholder} from "./paste_image.js"
+import {PLACEHOLDER, PasteImage, imageFiles, insertAtCursor, pastedName, replacePlaceholder} from "./paste_image.js"
+import {fakeDom, mountHook, key} from "./caret_menu_fake_dom.js"
 
 const P = PLACEHOLDER
 
@@ -102,4 +103,120 @@ test("a pasted clipboard image is renamed with a date and its type's extension",
 
 test("a file with a name of its own keeps it", () => {
   assert.equal(pastedName({name: "diagram.png", type: "image/png"}), "diagram.png")
+})
+
+// PasteImage as built: the hook app.js registers, mounted on a wrapper with
+// data-upload, a textarea inside, and LiveView's handleEvent and uploadTo
+// standing in (#3129).
+beforeEach(() => { fakeDom() })
+
+const png = (name = "diagram.png") => new File(["x"], name, {type: "image/png"})
+
+function mountPaste(value, caret = value.length) {
+  const server = {}
+  const uploads = []
+  const extra = {
+    handleEvent: (name, fn) => { server[name] = fn },
+    uploadTo: (el, upload, files) => uploads.push({el, upload, files}),
+  }
+  const {h, ta, el} = mountHook(PasteImage, value, {dataset: {upload: "images"}, extra})
+  ta.selectionStart = ta.selectionEnd = caret
+  return {h, ta, el, server, uploads}
+}
+
+test("PasteImage: a pasted image leaves the placeholder on a line of its own and uploads the file", () => {
+  const {ta, el, uploads} = mountPaste("abcd", 2)
+  const e = key("v")
+  const file = png()
+  el.fire("paste", {...e, clipboardData: {files: [file]}})
+
+  assert.equal(ta.value, `ab\n${P}\ncd`)
+  assert.equal(ta.selectionStart, 3 + P.length + 1)
+  assert.equal(ta.selectionEnd, ta.selectionStart)
+  assert.deepEqual(ta.sent, ["input"])
+  assert.equal(e.prevented, 1)
+  assert.equal(e.stopped, 1)
+  assert.equal(uploads.length, 1)
+  assert.equal(uploads[0].el, el)
+  assert.equal(uploads[0].upload, "images")
+  assert.deepEqual(uploads[0].files, [file])
+})
+
+test("PasteImage: each image of several gets a placeholder line, so the text after starts a new line", () => {
+  const {ta, el, uploads} = mountPaste("after", 0)
+  const files = [png("a.png"), png("b.png")]
+  el.fire("drop", {...key("drop"), dataTransfer: {files}})
+
+  assert.equal(ta.value, `${P}\n${P}\nafter`)
+  assert.equal(ta.selectionStart, 2 * (P.length + 1))
+  assert.deepEqual(ta.sent, ["input", "input"])
+  assert.deepEqual(uploads.map(u => u.files), [files])
+})
+
+test("PasteImage: a clipboard image is uploaded under a dated name, with its type", () => {
+  const {el, uploads} = mountPaste("")
+  el.fire("paste", {...key("v"), clipboardData: {files: [png("image.png")]}})
+
+  const [sent] = uploads[0].files
+  assert.match(sent.name, /^pasted-\d{4}-\d\d-\d\dT\d\d-\d\d-\d\d\.png$/)
+  assert.equal(sent.type, "image/png")
+})
+
+test("PasteImage: text, another kind of file, or a disabled textarea is left to the browser", () => {
+  const pdf = new File(["x"], "notes.pdf", {type: "application/pdf"})
+  for (const data of [{files: []}, {files: [pdf]}, undefined]) {
+    const {ta, el, uploads} = mountPaste("abcd", 2)
+    const e = key("v")
+    el.fire("paste", {...e, clipboardData: data})
+    assert.equal(ta.value, "abcd")
+    assert.deepEqual(ta.sent, [])
+    assert.equal(e.prevented, 0)
+    assert.equal(e.stopped, 0)
+    assert.deepEqual(uploads, [])
+  }
+
+  const {ta, el, uploads} = mountPaste("abcd", 2)
+  ta.disabled = true
+  const e = key("v")
+  el.fire("paste", {...e, clipboardData: {files: [png()]}})
+  assert.equal(ta.value, "abcd")
+  assert.equal(e.prevented, 0)
+  assert.deepEqual(uploads, [])
+})
+
+test("PasteImage: the server's Markdown takes the placeholder's place, for this upload only", () => {
+  const {ta, el, server} = mountPaste("abcd", 2)
+  el.fire("paste", {...key("v"), clipboardData: {files: [png()]}})
+
+  server.image_uploaded({upload: "other", markdown: "![a](/f/1)"})
+  assert.equal(ta.value, `ab\n${P}\ncd`)
+
+  server.image_uploaded({upload: "images", markdown: "![a](/f/1)"})
+  assert.equal(ta.value, "ab\n![a](/f/1)\ncd")
+  assert.equal(ta.selectionStart, "ab\n![a](/f/1)\n".length)
+})
+
+test("PasteImage: a failed upload takes the placeholder and its newline away, for this upload only", () => {
+  const {ta, el, server} = mountPaste("abcd", 2)
+  el.fire("paste", {...key("v"), clipboardData: {files: [png()]}})
+
+  server.image_failed({upload: "other"})
+  assert.equal(ta.value, `ab\n${P}\ncd`)
+
+  server.image_failed({upload: "images"})
+  assert.equal(ta.value, "ab\ncd")
+  assert.equal(ta.selectionStart, 3)
+})
+
+test("PasteImage: dragging a file over is allowed to drop; dragging text is not touched", () => {
+  const {el} = mountPaste("")
+  const file = key("drag")
+  el.fire("dragover", {...file, dataTransfer: {items: [{kind: "string"}, {kind: "file"}]}})
+  assert.equal(file.prevented, 1)
+
+  for (const dataTransfer of [{items: [{kind: "string"}]}, {}, undefined]) {
+    const text = key("drag")
+    el.fire("dragover", {...text, dataTransfer})
+    assert.equal(text.prevented, 0)
+  }
 })

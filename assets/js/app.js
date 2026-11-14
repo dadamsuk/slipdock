@@ -42,8 +42,7 @@ import {ExcalidrawEditor} from "./excalidraw_editor"
 import {MarkdownEditor} from "./markdown_editor"
 import {PageLink} from "./page_link"
 import {Mention} from "./mention"
-import {writeAt} from "./caret_menu"
-import {PLACEHOLDER, imageFiles, insertAtCursor, pastedName, replacePlaceholder} from "./paste_image"
+import {PasteImage} from "./paste_image"
 import {TranscriptPlayer} from "./transcript_player"
 import {typing} from "./typing"
 import {PasskeyLogin, PasskeyRegister} from "./passkey"
@@ -71,6 +70,7 @@ Hooks.ExcalidrawEditor = ExcalidrawEditor
 Hooks.MarkdownEditor = MarkdownEditor
 Hooks.PageLink = PageLink
 Hooks.Mention = Mention
+Hooks.PasteImage = PasteImage
 Hooks.PasskeyLogin = PasskeyLogin
 Hooks.PasskeyRegister = PasskeyRegister
 Hooks.DockDrag = DockDrag
@@ -574,59 +574,6 @@ Hooks.ScrollEnd = {
     this.handleEvent("scroll_end", () => {
       this.el.scrollTo({left: this.el.scrollWidth, behavior: "smooth"})
     })
-  },
-}
-
-// Wraps a textarea and a hidden LiveView file input (named by data-upload).
-// Pasting or dropping an image uploads it through that input; once the server
-// has stored it, an "image_uploaded" event carries back the Markdown to put
-// where a placeholder was left at the cursor.
-Hooks.PasteImage = {
-  mounted() {
-    this.textarea = this.el.querySelector("textarea")
-    this.upload = this.el.dataset.upload
-    this.placeholder = PLACEHOLDER
-    // On the wrapper, and before anything inside it: the Markdown editor
-    // over the textarea would otherwise take a dropped image for text.
-    this.el.addEventListener("paste", e => this.take(e, e.clipboardData), true)
-    this.el.addEventListener("drop", e => this.take(e, e.dataTransfer), true)
-    this.el.addEventListener("dragover", e => {
-      if (Array.from(e.dataTransfer?.items || []).some(i => i.kind === "file")) e.preventDefault()
-    })
-    this.handleEvent("image_uploaded", ({upload, markdown}) => {
-      if (upload !== this.upload) return
-      this.replacePlaceholder(markdown)
-    })
-    this.handleEvent("image_failed", ({upload}) => {
-      if (upload !== this.upload) return
-      this.replacePlaceholder("")
-    })
-  },
-  take(e, data) {
-    const files = imageFiles(data?.files, this.textarea.disabled)
-    if (files.length === 0) return
-    e.preventDefault()
-    e.stopPropagation()
-    files.forEach(() => this.insertAtCursor(this.placeholder + "\n"))
-    this.uploadFiles(files)
-  },
-  insertAtCursor(text) {
-    const ta = this.textarea
-    const {value, caret} = insertAtCursor(ta.value, {start: ta.selectionStart, end: ta.selectionEnd}, text)
-    writeAt(ta, value, caret)
-  },
-  replacePlaceholder(markdown) {
-    const ta = this.textarea
-    const {value, caret} = replacePlaceholder(ta.value, ta.selectionStart, markdown, this.placeholder)
-    writeAt(ta, value, caret)
-  },
-  uploadFiles(files) {
-    const now = new Date()
-    const named = files.map(f => {
-      const name = pastedName(f, now)
-      return name === f.name ? f : new File([f], name, {type: f.type})
-    })
-    this.uploadTo(this.el, this.upload, named)
   },
 }
 
