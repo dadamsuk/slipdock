@@ -246,10 +246,16 @@ defmodule SlipdockWeb.API.CardController do
          :ok <- Authorize.card(conn, card, :write),
          {:ok, board} <- Authorize.fetch_board(conn, ref, :write),
          {:ok, column} <- resolve_column(board, params["column"]),
-         {:ok, summary} <- move_to_board(card, column, Slipdock.Actor.from_conn(conn)) do
+         refusal = Authorize.tags_refusal(conn, board),
+         {:ok, summary} <-
+           move_to_board(card, column,
+             actor: Slipdock.Actor.from_conn(conn),
+             make_tags: is_nil(refusal)
+           ) do
       json(conn, %{
         card: V.card(Authorize.visible(conn, Boards.Cards.get_card!(card.id))),
-        moved: Map.delete(summary, :card)
+        moved:
+          summary |> Map.delete(:card) |> Map.merge(tags_dropped(summary.tags_dropped, refusal))
       })
     end
   end
@@ -267,8 +273,8 @@ defmodule SlipdockWeb.API.CardController do
     end
   end
 
-  defp move_to_board(card, column, actor) do
-    case Boards.Moves.move_card_to_board(card, column, actor: actor) do
+  defp move_to_board(card, column, opts) do
+    case Boards.Moves.move_card_to_board(card, column, opts) do
       {:ok, summary} -> {:ok, summary}
       # A limit on the destination: the fallback answers it with its 402.
       {:error, %Ecto.Changeset{}} = refused -> refused
@@ -306,7 +312,10 @@ defmodule SlipdockWeb.API.CardController do
   attachments, comments or dates. Optional `board` and `column` say where
   (default: straight after the original, in its list), `title` renames the
   copy, and `at` is `top`, `bottom` or `after`. Reading the card is enough to
-  copy it; the list it lands in must be one you can write to.
+  copy it; the list it lands in must be one you can write to. A tag the
+  destination's tree lacks is made on its root only when this request could
+  make it there (`Authorize.tags/2`, #2990); otherwise the copy goes without
+  it, and the reply's `tags_dropped` names it, with `tags_dropped_reason`.
   """
   def copy(conn, %{"id" => id} = params) do
     with {:ok, card} <- fetch_card(id),
@@ -314,17 +323,29 @@ defmodule SlipdockWeb.API.CardController do
          {:ok, board} <- Authorize.fetch_board(conn, params["board"] || card.board_id, :write),
          {:ok, column} <- copy_column(board, card, params["column"]),
          {:ok, at} <- copy_at(params["at"]),
-         {:ok, copy} <-
-           Boards.Cards.copy_card(card, column,
+         refusal = Authorize.tags_refusal(conn, board),
+         {:ok, copy, dropped} <-
+           Boards.Cards.copy_card_reporting(card, column,
              by: conn.assigns.current_user,
              at: at,
-             attrs: Map.take(params, ["title"])
+             attrs: Map.take(params, ["title"]),
+             make_tags: is_nil(refusal)
            ) do
       conn
       |> put_status(:created)
-      |> json(%{card: V.card(Authorize.visible(conn, copy)), copied_from: card.id})
+      |> json(
+        %{card: V.card(Authorize.visible(conn, copy)), copied_from: card.id}
+        |> Map.merge(tags_dropped(dropped, refusal))
+      )
     end
   end
+
+  # What a copy or a move left off for want of the root's write (#2990), and
+  # why: `Authorize.tags_refusal/2`'s words, the token's when it was the token.
+  defp tags_dropped([], _refusal), do: %{tags_dropped: []}
+
+  defp tags_dropped(names, refusal),
+    do: %{tags_dropped: names, tags_dropped_reason: refusal}
 
   defp copy_column(%{id: board_id}, %{board_id: board_id, column_id: column_id}, ref)
        when ref in [nil, ""],
@@ -342,7 +363,13 @@ defmodule SlipdockWeb.API.CardController do
     with {:ok, card} <- fetch_card(id),
          :ok <- Authorize.card(conn, card, :write),
          {:ok, template} <- fetch_template(conn, params["template"]),
-         {:ok, board} <- dependency_result(Boards.create_sub_board(card, template)) do
+         {:ok, board} <-
+           dependency_result(
+             Boards.create_sub_board(card, template,
+               by: conn.assigns.current_user,
+               make_tags: Authorize.tags(conn, Boards.get_board_record!(card.board_id)) == :ok
+             )
+           ) do
       conn
       |> put_status(:created)
       |> json(%{

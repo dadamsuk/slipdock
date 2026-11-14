@@ -422,6 +422,9 @@ defmodule Slipdock.Boards.Cards do
   """
   defdelegate copy_card(card, column \\ nil, opts \\ []), to: Slipdock.Boards.Copy
 
+  defdelegate copy_card_reporting(card, column \\ nil, opts \\ []),
+    to: Slipdock.Boards.Copy
+
   @doc """
   Adds a card to `column`. `opts[:by]` is the person writing it, when known:
   it is who anybody `@mentioned` in the description is told mentioned them

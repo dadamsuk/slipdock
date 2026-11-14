@@ -33,6 +33,7 @@ defmodule SlipdockWeb.API.MoveBoardTest do
 
     assert body["moved"] == %{
              "tags_created" => 1,
+             "tags_dropped" => [],
              "fields_dropped" => 0,
              "milestones_unpinned" => 0
            }

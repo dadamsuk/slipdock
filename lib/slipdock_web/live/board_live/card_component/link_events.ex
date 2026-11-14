@@ -197,7 +197,8 @@ defmodule SlipdockWeb.BoardLive.CardComponent.LinkEvents do
   # Only a template the reader can see: the built-ins and their own.
   def handle_event("create_sub_board", %{"template" => id}, socket) do
     with {:ok, template} <- Boards.Templates.find_template(socket.assigns.current_user, id),
-         {:ok, _} <- Boards.create_sub_board(socket.assigns.card, template) do
+         {:ok, _} <-
+           Boards.create_sub_board(socket.assigns.card, template, by: socket.assigns.current_user) do
       {:noreply, assign(socket, picking_template: false)}
     else
       {:error, :not_found} -> {:noreply, notice(socket, :error, "That template has gone.")}

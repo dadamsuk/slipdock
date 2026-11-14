@@ -174,6 +174,9 @@ MCP, `get_card` shows it and `update_card` takes `recurrence` (an object, or
 `POST /api/cards/:id/copy`, with `board`, `column`, `title` or `at: top`). The
 copy is a new card on the board, so it needs write access to the board itself,
 not only to the card: someone the card alone is shared with doesn't see it.
+Copied into another board tree, a tag that tree lacks is made on its top board
+only by someone who can edit that board; anyone else's copy leaves it off, and
+the reply's `tags_dropped` names it.
 
 ---
 

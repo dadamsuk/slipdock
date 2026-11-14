@@ -33,9 +33,10 @@ defmodule Slipdock.AI.Actions do
   A tag name the board doesn't have, in `add_tags`, `tags`, a `tag`'s `add` or a `create`,
   makes that tag on the board's tree when the step is applied; the step's
   label says so, so nothing is created that the user didn't see first.
-  Making one asks write on the card's board, as `create_tag` does everywhere
-  else: a user who writes the card by a grant alone gets a refused step, and
-  can still add or remove the tags the board has.
+  Making one asks write on the root of the card's board, as `create_tag` does
+  everywhere else: a user who writes the card, or its sub-board, by a grant
+  alone gets a refused step, and can still add or remove the tags the board
+  has.
   """
 
   alias Slipdock.{Access, Boards}
@@ -44,7 +45,7 @@ defmodule Slipdock.AI.Actions do
 
   @edges ~w(border_top border_right border_bottom border_left)
   @colour_keys ~w(cover color colour border borders) ++ @edges
-  @new_tag_refusal "only someone who can edit the board makes a new tag; pick one it has"
+  @new_tag_refusal "only someone who can edit the top board makes a new tag; pick one it has"
 
   @type step :: %{
           label: String.t(),
@@ -1003,10 +1004,11 @@ defmodule Slipdock.AI.Actions do
     end
   end
 
-  # Making a tag changes the board's tag list, so it asks write on the card's
-  # board, the level the card panel, the API and the MCP `create_tag` ask
-  # (#2751): someone who writes the card by a grant alone applies the tags the
-  # board has, and makes none.
+  # Making a tag changes the tree's tag list, which is the root's, so it asks
+  # write on the root of the card's board (`Access.can_edit_tags?/2`), as the
+  # card panel, the API and the MCP `create_tag` do (#2751, #2990): someone who
+  # writes the card, or its sub-board, by a grant alone applies the tags the
+  # tree has, and makes none.
   defp may_make_tag(board_id, scope) do
     board =
       case scope do
@@ -1014,7 +1016,7 @@ defmodule Slipdock.AI.Actions do
         _ -> Boards.get_board!(board_id)
       end
 
-    if Access.can_write?(Access.board_permission(scope[:user], board)),
+    if Access.can_edit_tags?(scope[:user], board),
       do: :ok,
       else: {:error, @new_tag_refusal}
   end

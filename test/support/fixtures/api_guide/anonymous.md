@@ -372,8 +372,11 @@ There are two ways to give them one:
   card's subcards, comments, history and links go with it, its tags travel
   by name (made on the destination where they are new), and its custom
   field values survive only where that board has a field with the same key
-  and kind. The reply's `moved` says what that cost:
-  `{"tags_created": 1, "fields_dropped": 0, "milestones_unpinned": 0}` —
+  and kind. A tag the destination's tree lacks is made only when you can
+  edit that tree's root board; otherwise it is left off and named in
+  `tags_dropped` (with `tags_dropped_reason`). The reply's `moved` says
+  what that cost:
+  `{"tags_created": 1, "tags_dropped": [], "fields_dropped": 0, "milestones_unpinned": 0}` —
   repeat it back to the user rather than letting them find out later. Write
   access is needed on both sides, a card cannot be moved into its own
   subcards, and an archived card must be restored first. Leave `board` out
@@ -495,6 +498,9 @@ There are two ways to give them one:
 - **Copying a card** — `POST /api/cards/:id/copy` makes a copy as it is
   now (checklist unticked, subcards reopened; no comments, dates or
   files), straight after it unless `board`, `column` or `at` say otherwise.
+  Into another tree, a tag it lacks is made on its root only when you can
+  edit that root; otherwise the copy goes without it, and the reply's
+  `tags_dropped` names the ones left off, with `tags_dropped_reason`.
 - Also on a card, and safe to ignore until you need them: `status_updates`
   (a stated `on_track` / `at_risk` / `off_track` with a note), custom
   `fields` and formula `scores`, `votes`, `attachments`, `milestones` on the
@@ -628,10 +634,9 @@ simple board, keep to what the person can see: do not set `--percent`,
 start dates, estimates or dependencies there unless asked to.
 
 
-Tags live on the root board and are shared by the whole tree, so a tag made
-anywhere below it is available everywhere — but a tag must exist before a
-card can wear it (`POST /api/boards/:board/tags`, `slipdock new-tag`, or the MCP
-tool `create_tag`). Renaming an epic renames
+Tags live on the root board, shared by the whole tree. A tag must exist
+before a card can wear it (`POST /api/boards/:board/tags`, `slipdock new-tag`,
+or the MCP tool `create_tag`), and only a writer of the root makes one. Renaming an epic renames
 its sub-board (a board name is at most 80 characters, so a longer title is
 cut short with an ellipsis).
 

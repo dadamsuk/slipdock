@@ -899,7 +899,7 @@ defmodule Slipdock.AITest do
 
     defp tag_names(board), do: Enum.map(Boards.Tags.list_tags(board.id), & &1.name)
 
-    @new_tag_refusal "only someone who can edit the board makes a new tag; pick one it has"
+    @new_tag_refusal "only someone who can edit the top board makes a new tag; pick one it has"
 
     test "add_tags makes no new tag for a card-grant writer, who still adds one the board has",
          ctx do

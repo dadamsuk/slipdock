@@ -227,7 +227,7 @@ defmodule SlipdockWeb.CardTagsLiveTest do
       assert Boards.Cards.get_card!(ctx.card.id).tags == []
 
       assert view |> element("#card-modal #panel-notice[data-callout=error]") |> render() =~
-               "only someone who can edit the board makes a new tag"
+               "only someone who can edit the top board makes a new tag"
     end
 
     test "a name the board has is still put on the card", ctx do
@@ -256,7 +256,7 @@ defmodule SlipdockWeb.CardTagsLiveTest do
         assert Boards.Cards.get_card!(ctx.card.id).tags == []
 
         assert view |> element("#card-modal #panel-notice[data-callout=error]") |> render() =~
-                 "only someone who can edit the board makes a new tag"
+                 "only someone who can edit the top board makes a new tag"
       end
     end
   end

@@ -576,8 +576,11 @@ defmodule SlipdockWeb.API.BoardController do
     end
   end
 
+  # A tag is the tree's root's, so changing the list asks write on the root
+  # too, not just on the board named (#2990).
   def create_tag(conn, %{"board" => ref} = params) do
     with {:ok, board} <- fetch_board(conn, ref, :write),
+         :ok <- Authorize.tags(conn, board),
          {:ok, tag} <- Boards.Tags.create_tag(board, Map.take(params, ~w(name color))) do
       conn |> put_status(:created) |> json(%{tag: V.tag(tag)})
     end
@@ -585,6 +588,7 @@ defmodule SlipdockWeb.API.BoardController do
 
   def delete_tag(conn, %{"board" => ref, "id" => id}) do
     with {:ok, board} <- fetch_board(conn, ref, :write),
+         :ok <- Authorize.tags(conn, board),
          {:ok, tag} <- find(Boards.find_tag(board, id), "tag"),
          {:ok, _} <- Boards.Tags.delete_tag(tag) do
       json(conn, %{ok: true})
