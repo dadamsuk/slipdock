@@ -1,7 +1,8 @@
 defmodule SlipdockWeb.MCP.Tools.CreateTag do
   @moduledoc """
   A new tag on a board, for cards to wear. Tags live on the root of the
-  board tree, so one made on a sub-board is shared by the whole tree.
+  board tree, so one made on a sub-board is shared by the whole tree, and
+  making one asks write on the root (#2990).
   """
   @behaviour SlipdockWeb.MCP.Tool
 
@@ -19,7 +20,8 @@ defmodule SlipdockWeb.MCP.Tools.CreateTag do
   def description,
     do:
       "Adds a tag to a board (shared by its sub-boards), so create_card and update_card " <>
-        "can put it on cards. A tag of that name already there is returned, not doubled."
+        "can put it on cards. A tag of that name already there is returned, not doubled. " <>
+        "Making a new one needs edit access to the tree's root board."
 
   @impl true
   def input_schema do
@@ -55,10 +57,13 @@ defmodule SlipdockWeb.MCP.Tools.CreateTag do
         %{} = tag ->
           {:ok, %{tag: SlipdockWeb.API.JSON.tag(tag), created: false}}
 
+        # A new one changes the tree's list, which is the root's: that asks
+        # write on the root as well (#2990).
         nil ->
           attrs = args |> Map.take(["color"]) |> Map.put("name", name)
 
-          with {:ok, tag} <- Args.refusal(Boards.Tags.create_tag(board, attrs)) do
+          with :ok <- Args.refusal(Authorize.tags(auth, board)),
+               {:ok, tag} <- Args.refusal(Boards.Tags.create_tag(board, attrs)) do
             {:ok, %{tag: SlipdockWeb.API.JSON.tag(tag), created: true}}
           end
       end

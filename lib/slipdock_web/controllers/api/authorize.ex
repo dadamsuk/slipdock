@@ -51,6 +51,31 @@ defmodule SlipdockWeb.API.Authorize do
     end
   end
 
+  @root_tags_refusal {:error, :forbidden,
+                      "a board's tags are its tree's top board's, which you can't edit: " <>
+                        "only someone who can edit the top board changes them"}
+
+  @doc """
+  `:ok` if this request may change `board`'s tag list (#2990). Tags belong
+  to the tree's root, so it asks write on the root as well as on `board`,
+  the user's and the token's: `Slipdock.Access.can_edit_tags?/2` with the
+  token's narrowing on top.
+  """
+  def tags(conn, %Slipdock.Boards.Board{} = board) do
+    with :ok <- board(conn, board, :write), do: root_tags(conn, board.root_id)
+  end
+
+  defp root_tags(_conn, nil), do: :ok
+
+  defp root_tags(conn, root_id) do
+    root = Slipdock.Boards.get_board_record!(root_id)
+
+    case level(conn, Access.board_permission(conn.assigns.current_user, root), root.id) do
+      {_, :scope} = narrowed -> check(narrowed, :write, "board")
+      {level, _} -> if Access.can_write?(level), do: :ok, else: @root_tags_refusal
+    end
+  end
+
   defp verb(:read), do: "read"
   defp verb(:comment), do: "comment on"
   defp verb(:write), do: "edit"

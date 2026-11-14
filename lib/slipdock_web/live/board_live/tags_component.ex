@@ -9,8 +9,10 @@ defmodule SlipdockWeb.BoardLive.TagsComponent do
   tag is one row at the top.
 
   Anyone who can read the board can open the panel; changing anything needs
-  write access, which the component works out for itself from the board it
-  is given. A tag named by id is only ever one of that board's. What goes
+  write access to the tree's root board, which the tags belong to
+  (`Access.can_edit_tags?/2`, #2990), which the component works out for
+  itself from the board it is given. A writer of a sub-board alone sees the
+  list read-only, and is told why. A tag named by id is only ever one of that board's. What goes
   wrong is said inside the panel, never as a toast: a toast dismisses itself
   with a click, which the modal would take as a click-away and close.
   """
@@ -47,15 +49,30 @@ defmodule SlipdockWeb.BoardLive.TagsComponent do
   # over, so every event asks again before it is let through (#2771).
   defp assign_access(socket) do
     %{board: board, current_user: user} = socket.assigns
-    assign(socket, can_write: Access.can_write?(Access.board_permission(user, board)))
+    can_write = Access.can_edit_tags?(user, board)
+
+    # Write on this board but not on the root: a sub-board's writer.
+    sub_writer? =
+      not can_write and board.root_id != nil and
+        Access.can_write?(Access.board_permission(user, board))
+
+    assign(socket, can_write: can_write, sub_writer?: sub_writer?)
   end
 
+  @root_only "Tags belong to the top board, and only someone who can edit it changes them."
+
+  defp root_only, do: @root_only
+
   # A refusal is `:noreply`, as on every panel: the name box's hook reads
-  # no reply as a refusal and puts the saved name back.
+  # no reply as a refusal and puts the saved name back. A sub-board's writer
+  # is told the tags are the top board's (#2990); anyone else read-only.
   use SlipdockWeb.BoardLive.PanelGuard,
     events: @events,
     access: &assign_access/1,
-    refusals: [{:can_write, false, @write_events, :read_only}],
+    refusals: [
+      {:sub_writer?, true, @write_events, @root_only},
+      {:can_write, false, @write_events, :read_only}
+    ],
     say: :error
 
   defp event("pick_tag_color", %{"color" => color}, socket) do
@@ -139,6 +156,9 @@ defmodule SlipdockWeb.BoardLive.TagsComponent do
             </p>
           </div>
           <.callout :if={@error} id="tags-error" kind={:error}>{@error}</.callout>
+          <.callout :if={@sub_writer? and !@error} id="tags-root-only" kind={:info}>
+            {root_only()}
+          </.callout>
           <fieldset disabled={!@can_write} class="min-w-0 space-y-3">
             <.new_tag_row form={@tag_form} color={@new_tag_color} target={@myself} />
             <p :if={@board.tags == []} id="tags-empty" class="text-sm text-base-content/60">

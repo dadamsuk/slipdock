@@ -314,7 +314,10 @@ status updates and votes live and the rest disabled. A single card can be shared
 or anyone who can edit it): the recipient sees that card, listed under
 "Cards shared with you" on the home page, and nothing else on the board. A
 card grant can also raise a board reader to a commenter or an editor on that
-one card. A
+one card. An editor of a card can edit its sub-board too, but a board's tags
+belong to its top board: making, renaming, recolouring or deleting a tag needs
+edit access there, so editing a card or a sub-board alone puts on the tags the
+board has and makes no new ones. A
 saved view can be shared from the Views menu: the recipient opens the board
 only through that view, in the mode it was saved in, sees just the cards it
 selects whatever the address asks for, and can edit them

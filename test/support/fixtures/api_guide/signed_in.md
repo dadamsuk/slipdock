@@ -627,10 +627,9 @@ simple board, keep to what the person can see: do not set `--percent`,
 start dates, estimates or dependencies there unless asked to.
 
 
-Tags live on the root board and are shared by the whole tree, so a tag made
-anywhere below it is available everywhere — but a tag must exist before a
-card can wear it (`POST /api/boards/:board/tags`, `slipdock new-tag`, or the MCP
-tool `create_tag`). Renaming an epic renames
+Tags live on the root board, shared by the whole tree. A tag must exist
+before a card can wear it (`POST /api/boards/:board/tags`, `slipdock new-tag`,
+or the MCP tool `create_tag`), and only a writer of the root makes one. Renaming an epic renames
 its sub-board (a board name is at most 80 characters, so a longer title is
 cut short with an ellipsis).
 

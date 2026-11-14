@@ -55,7 +55,7 @@ so a token can do exactly as much over MCP as over HTTP — no more.
 | `archive_card` | Puts a card away, or with `restore: true` brings it back. |
 | `delete_card` | Deletes a card with its subcards, comments and files. Needs `confirm: true`. |
 | `create_list` | A list at the end of a board, with its category (`todo`, `doing`, `done`, `dropped`, `triage` for a list nothing feeds from, or `scheduled` for where recurring agent work lands) and an optional WIP limit. |
-| `create_tag` | A tag on a board (on its root, so the whole tree shares it), with an optional colour. A tag of that name already there comes back with `created: false` rather than a second one. |
+| `create_tag` | A tag on a board (on its root, so the whole tree shares it), with an optional colour. A tag of that name already there comes back with `created: false` rather than a second one. Making a new one needs edit access to the root board, even when it is asked of a sub-board. |
 | `delete_list` | Deletes an empty list; one holding cards only with `with_cards: true`. |
 | `create_board` | A board of your own, with a template's lists (Backlog, To Do, In Progress, Done by default), or `lists` of its own that `save_template` can keep as a new template. |
 | `update_board` | Changes settings on a board you own, as `PATCH /api/boards/:board` does: `name`, `description`, `color`, `simple`, `default_view`, `handoff_label`, and [Verified work](verified-work.md)'s `bar_required`, `evidence_required`, `verify_work`, `verify_pool` and `ship_via`, and `lanes`, and `wait_routes` ([who gets asked](waiting-on-a-person-waits.md) each kind of question). Only what you send changes. |

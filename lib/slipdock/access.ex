@@ -401,6 +401,21 @@ defmodule Slipdock.Access do
     end
   end
 
+  @doc """
+  Whether `user` may change `board`'s tag list: make, rename, recolour or
+  delete a tag. Tags belong to the root of the board tree, so this asks
+  write on the root, not on `board` (#2990): write on a sub-board, from a
+  grant on the card it hangs from or on the sub-board itself, applies the
+  tags the tree has and changes none of them. Write on the root carries down
+  to every sub-board, so a root writer passes on any board of the tree.
+  """
+  @spec can_edit_tags?(User.t() | nil, Board.t()) :: boolean()
+  def can_edit_tags?(user, %Board{root_id: nil} = board),
+    do: can_write?(board_permission(user, board))
+
+  def can_edit_tags?(user, %Board{root_id: root_id}),
+    do: can_write?(board_permission(user, Repo.get!(Board, root_id)))
+
   def can_read?(level), do: @rank[level] >= @rank[:read]
   def can_comment?(level), do: @rank[level] >= @rank[:comment]
   def can_write?(level), do: @rank[level] >= @rank[:write]

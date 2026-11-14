@@ -132,8 +132,9 @@ defmodule SlipdockWeb.BoardLive.CardComponent.FieldEvents do
   # "New tag" from the card's tag picker (#1727): a tag of that name on the
   # board tree, put on the card. A name the board already has (in any case)
   # is that tag, put on the card if it isn't already, never a second one.
-  # Making a new one changes the board's tag list, so it asks board write,
-  # as the tag manager does; a card writer can still apply one the board has.
+  # Making a new one changes the tree's tag list, which is the root's, so it
+  # asks write on the root board, as the tag manager does (#2751, #2990); a
+  # card writer, or a writer of a sub-board alone, still applies one it has.
   def handle_event("create_tag", %{"name" => name}, socket) do
     %{board: board, card: card, current_user: user} = socket.assigns
     name = String.trim(name)
@@ -147,12 +148,13 @@ defmodule SlipdockWeb.BoardLive.CardComponent.FieldEvents do
         if not on_card?.(tag), do: {:ok, _} = Boards.Tags.toggle_card_tag(card, tag)
         {:noreply, socket}
 
-      not Access.can_write?(Access.board_permission(user, board)) ->
+      not Access.can_edit_tags?(user, board) ->
         {:noreply,
          notice(
            socket,
            :error,
-           "Tag not made: only someone who can edit the board makes a new tag. Pick one it has."
+           "Tag not made: only someone who can edit the top board makes a new tag. " <>
+             "Pick one it has."
          )}
 
       true ->
