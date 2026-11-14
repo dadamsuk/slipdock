@@ -624,7 +624,9 @@ defmodule Slipdock.Tools do
           report: put_in(report, [:added, "files"], files)
         }
       else
-        {:error, %Ecto.Changeset{} = cs} -> Repo.rollback(ChangesetErrors.message(cs))
+        # Every step answers a message: `Blueprint.apply/3` and the files
+        # turn their changesets to text, and the install's version change
+        # has nothing to refuse.
         {:error, message} -> Repo.rollback(message)
       end
     end)

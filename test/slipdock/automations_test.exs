@@ -1084,6 +1084,56 @@ defmodule Slipdock.AutomationsTest do
       assert message == "name: should be at most 120 character(s)"
       refute message =~ "%{"
     end
+
+    test "a rule written from text that the changeset refuses says why, field first (#3124)" do
+      {board, _backlog, doing, _done} = board_with_lists()
+      Slipdock.AIStub.reply_with(emailing_a_stranger(doing))
+
+      assert {:error,
+              "spec: can only email people who can see this board, not stranger@example.com"} =
+               Automations.create_rule_from_text(board, "email a stranger",
+                 created_by: user_fixture("author@example.com")
+               )
+
+      assert Automations.list_rules(board.id) == []
+    end
+
+    test "a rule rewritten into one the changeset refuses says why, field first (#3124)" do
+      {board, _backlog, doing, _done} = board_with_lists()
+      author = user_fixture("author@example.com")
+
+      Slipdock.AIStub.reply_with(%{
+        "name" => "Flag new work",
+        "scope" => "board",
+        "spec" => %{
+          "trigger" => %{"type" => "card_created", "column" => doing.name},
+          "actions" => [%{"type" => "add_flags", "flags" => ["blocked"]}]
+        }
+      })
+
+      {:ok, rule} = Automations.create_rule_from_text(board, "flag new work", created_by: author)
+
+      Slipdock.AIStub.reply_with(emailing_a_stranger(doing))
+
+      assert {:error,
+              "spec: can only email people who can see this board, not stranger@example.com"} =
+               Automations.rewrite_rule(rule, "email a stranger", created_by: author)
+
+      assert Slipdock.Repo.reload(rule).name == "Flag new work"
+    end
+  end
+
+  # A parsed rule the changeset refuses: it emails somebody who can't see
+  # the board.
+  defp emailing_a_stranger(list) do
+    %{
+      "name" => "Tell a stranger",
+      "scope" => "board",
+      "spec" => %{
+        "trigger" => %{"type" => "card_created", "column" => list.name},
+        "actions" => [%{"type" => "email", "to" => "stranger@example.com"}]
+      }
+    }
   end
 
   describe "Parser" do

@@ -56,6 +56,16 @@ defmodule Slipdock.ChangesetErrorsTest do
       assert message == "name: should be at most 120 character(s)"
     end
 
+    test "fills every placeholder in a message, not just the first" do
+      message =
+        %{name: "toolong"}
+        |> changeset()
+        |> Ecto.Changeset.add_error(:name, "between %{min} and %{max}", min: 1, max: 5)
+        |> ChangesetErrors.message()
+
+      assert message == "name between 1 and 5"
+    end
+
     test "is empty for a changeset with no errors" do
       assert %{name: "ok"} |> changeset() |> ChangesetErrors.message() == ""
     end

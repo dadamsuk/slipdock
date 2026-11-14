@@ -27,7 +27,6 @@ defmodule Slipdock.Runners.Setup do
   alias Slipdock.Automations
   alias Slipdock.Automations.Spec
   alias Slipdock.Boards.Board
-  alias Slipdock.ChangesetErrors
   alias Slipdock.Runners.Runner
 
   @scenarios ~w(daemon loop cloud chatgpt)
@@ -279,17 +278,15 @@ defmodule Slipdock.Runners.Setup do
   # "Tell me when a job times out or a card is given up": a rule of its own,
   # raising an alert for the pool's jobs (see the `runner_trouble` preset).
   defp alert_rule(board, params, answers, user) do
+    # `Automations` answers a refused rule as a message already, its
+    # changeset turned to text by `Slipdock.ChangesetErrors`.
     if Enum.member?(["yes", "true", true], params["alert"]) do
-      case Automations.create_rule_from_preset(
-             board,
-             "runner_trouble",
-             %{"pool" => answers["pool"], "notify" => "alert"},
-             created_by: user
-           ) do
-        {:ok, rule} -> {:ok, rule}
-        {:error, %Ecto.Changeset{} = changeset} -> {:error, ChangesetErrors.message(changeset)}
-        {:error, message} -> {:error, message}
-      end
+      Automations.create_rule_from_preset(
+        board,
+        "runner_trouble",
+        %{"pool" => answers["pool"], "notify" => "alert"},
+        created_by: user
+      )
     else
       {:ok, nil}
     end
@@ -307,28 +304,23 @@ defmodule Slipdock.Runners.Setup do
         end
 
       column ->
-        with {:ok, list} <- find_list(board, column) do
-          preset = if params["feed"] == "top", do: "feed_runner", else: "send_to_runner"
+        preset = if params["feed"] == "top", do: "feed_runner", else: "send_to_runner"
 
-          params = %{
-            "column" => list.name,
-            "pool" => answers["pool"],
-            "kind" => kind(answers),
-            "wait" => params["wait"],
-            "requeue" => params["requeue"]
-          }
-
-          case Automations.create_rule_from_preset(board, preset, params, created_by: user) do
-            {:ok, rule} ->
-              scheduled_sibling(board, rule, user)
-
-            {:error, %Ecto.Changeset{} = changeset} ->
-              {:error, ChangesetErrors.message(changeset)}
-
-            {:error, message} ->
-              {:error, message}
-          end
-        end
+        with {:ok, list} <- find_list(board, column),
+             {:ok, rule} <-
+               Automations.create_rule_from_preset(
+                 board,
+                 preset,
+                 %{
+                   "column" => list.name,
+                   "pool" => answers["pool"],
+                   "kind" => kind(answers),
+                   "wait" => params["wait"],
+                   "requeue" => params["requeue"]
+                 },
+                 created_by: user
+               ),
+             do: scheduled_sibling(board, rule, user)
 
       true ->
         {:ok, nil}
