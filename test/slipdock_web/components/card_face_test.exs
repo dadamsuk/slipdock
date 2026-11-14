@@ -409,6 +409,46 @@ defmodule SlipdockWeb.Components.CardFaceTest do
       end
     end
 
+    test "the repeat mark's title says when its series has ended or is paused (#3115)" do
+      series = %Series{rule: "FREQ=DAILY", starts_on: ~D[2026-01-05], next_on: ~D[2026-01-06]}
+      repeats = "Repeats: " <> Series.summary(series)
+
+      for {s, expected} <- [
+            {%{series | ended_at: ~U[2026-02-01 07:00:00Z], paused: true}, repeats <> " — ended"},
+            {%{series | paused: true}, repeats <> " — paused"},
+            {%{series | next_on: nil}, repeats}
+          ],
+          compact <- [false, true] do
+        html = render_card(%{base() | recurrence: s}, nil, compact: compact)
+
+        assert LazyHTML.attribute(
+                 LazyHTML.query(html, ~s([data-role="recurrence-mark"])),
+                 "title"
+               ) ==
+                 [expected]
+      end
+    end
+
+    test "the age chip's title says how long, and whether that is known or usual (#3115)" do
+      for {state, expected} <- [
+            {%CardState{age: 7200, known: false},
+             "In this list for at most 2h (its move here wasn't recorded)"},
+            {%CardState{age: 7200, known: false, usual: 3600},
+             "In this list for at most 2h (its move here wasn't recorded)"},
+            {%CardState{age: 7200, known: true}, "In this list for 2h"},
+            {%CardState{age: 7200, known: true, usual: 86_400},
+             "In this list for 2h; usually 1d"},
+            {%CardState{age: 7200, known: true, usual: 3600, over_usual: 3600},
+             "In this list for 2h · 1h over usual; usually 1h"}
+          ],
+          compact <- [false, true] do
+        html = render_card(%{base() | state: state}, ["age"], compact: compact)
+
+        assert LazyHTML.attribute(LazyHTML.query(html, ~s([data-role="age-chip"])), "title") ==
+                 [expected]
+      end
+    end
+
     test "the snoozed day is read in the reader's timezone" do
       card = %{base() | snoozed_until: ~U[2030-03-04 23:30:00Z]}
 
