@@ -108,34 +108,31 @@ and brought no deploy carries it with `release_requested_at`, `seconds`
 counted from then, and the `text` *Merged 1a634c6 · not shipped 45m
 after its release started*.
 
-**A red release holds releases** (#2838). A failed deploy recorded on a
-batched tree (a release's suite, build or deploy failing: `slipdock
-deploy failed --stage S`) sets the root board's hold: the status's
-`hold` (`reason`, `stage`, `run_url`, `sha`, `deployment_id`,
-`card_ids`, the batch, `fix_card_id`, `held_at` and `text`; null while
-releases run). Slipdock files one card of priority `critical` (origin
-`release`) on top of the root's ready list, naming the batch's cards
-and linking the failing run. Held, *Release now* is refused (`409`,
-the refusal saying why with the run), the age cap asks for nothing, a
-queued follow-up is dropped, and a critical card that isn't the fix
-card asks for nothing (the board's activity says so). When the fix card
-merges the hold lifts and its critical trigger releases. When it is
-accepted with no code (`evidence_no_code`: the cause was outside the
-repository) the hold lifts and nothing is released: the held batch goes
-at the next trigger (*Release now*, a critical merge or the age cap).
-A deploy that
-succeeds to the held environment at the hold's `sha`, or with it among
-its `commits` (the failed run rerun, or a later release), lifts it too
-(#2996), with a line in the board's activity: the fix card is archived
-if it is still in the ready list with no job, else commented on and left
-open. A second red
-release while held keeps the first hold and files no second card. The
-owner lifts it by hand with `DELETE /api/boards/:board/release/hold`
-(`slipdock release B --lift-hold`, MCP `release_now` `lift_hold: true`,
-*Lift hold* on the board's release banner and the Agentic Building
-page): `200` with the hold `lifted`, `409` when nothing is held; it
-releases nothing. A release job that failed to fire, a backfilled
-deploy and a board that releases on merge hold nothing.
+**A red release holds nothing; it files its fix card** (#2838, #3179).
+A failed deploy recorded on a batched tree (a release's suite, build or
+deploy failing: `slipdock deploy failed --stage S`) is recorded on the
+root board as the status's `red_release` (`reason`, `stage`, `run_url`,
+`sha`, `deployment_id`, `card_ids`, the batch, `fix_card_id`,
+`failed_at` and `text`, the warning; null while none stands), and the
+release banner shows it with the failing run. Slipdock files one card
+of priority `critical` (origin `release`) on top of the root's ready
+list, naming the batch's cards and linking the failing run. Nothing is
+refused: *Release now* answers `201` as ever, with a `warning` naming
+the failing run (null when no red release stands), and the age cap, a
+queued follow-up and a critical merge release too, each warning in the
+board's activity. After a failed or timed-out release the age cap counts
+from its end, not the oldest merge. When the fix card merges the failure
+clears and its critical trigger releases. When it is accepted with no
+code (`evidence_no_code`: the cause was outside the repository) it clears
+and nothing is released: the batch goes at the next trigger (*Release
+now*, a critical merge or the age cap). A deploy that succeeds to the
+failed environment at the failed `sha`, or with it among its `commits`
+(the failed run rerun, or a later release), clears it too (#2996), with
+a line in the board's activity: the fix card is archived if it is still
+in the ready list with no job, else commented on and left open. A second
+red release while one stands files no second card. A release job that
+failed to fire, a backfilled deploy and a board that releases on merge
+file no fix card.
 
 Incidents are ordinary cards tagged `incident` (the board's `incident_tag`),
 optionally linked to the deploy that caused them: `POST

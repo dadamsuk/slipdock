@@ -1,10 +1,9 @@
 defmodule SlipdockWeb.API.ReleaseController do
   @moduledoc """
   Batched releases over REST (#2835): `GET /api/boards/:board/release`,
-  where the tree's releases stand, `POST`, *Release now*, and `DELETE
-  /api/boards/:board/release/hold`, lifting the hold a red release left
-  (#2838). Releasing and lifting are the board owner's, as pausing is;
-  reading is any reader's.
+  where the tree's releases stand, and `POST`, *Release now*, which a red
+  release doesn't refuse (#3179). Releasing is the board owner's, as
+  pausing is; reading is any reader's.
   """
   use SlipdockWeb, :controller
 
@@ -40,10 +39,10 @@ defmodule SlipdockWeb.API.ReleaseController do
 
   @doc """
   *Release now*: `201` with `how` (`started`, `queued` behind the one
-  running, or `joined` the follow-up already queued), the `request` and the
-  tree's `release` status. `409` on a board that releases on merge, while
-  its releases are held (#2838, saying why with the run), or when no runner
-  could be given the job.
+  running, or `joined` the follow-up already queued), the `request`, the
+  tree's `release` status and, while a red release stands, a `warning`
+  naming its failing run (#3179; null otherwise). `409` on a board that
+  releases on merge, or when no runner could be given the job.
   """
   def create(conn, %{"board" => ref}) do
     with {:ok, board} <- Authorize.fetch_board(conn, ref, :owner) do
@@ -53,35 +52,7 @@ defmodule SlipdockWeb.API.ReleaseController do
         {:ok, how, request} ->
           conn
           |> put_status(:created)
-          |> json(%{
-            how: how,
-            line: Releases.said(how),
-            request: V.release_request(request),
-            release: V.release_status(Releases.status(board))
-          })
-
-        {:error, reason} ->
-          {:error, :conflict, Releases.refusal(reason)}
-      end
-    end
-  end
-
-  @doc """
-  Lifts the hold a red release left on the tree (#2838): `200` with the
-  hold it `lifted` and the tree's `release` status. It asks for no
-  release. `409` when its releases aren't held. The board owner's.
-  """
-  def lift_hold(conn, %{"board" => ref}) do
-    with {:ok, board} <- Authorize.fetch_board(conn, ref, :owner) do
-      by = Slipdock.Verified.who(Slipdock.Actor.from_conn(conn))
-
-      case Releases.lift_hold(board, by) do
-        {:ok, hold} ->
-          json(conn, %{
-            lifted: V.release_hold(hold),
-            line: "Release hold lifted. Nothing was released.",
-            release: V.release_status(Releases.status(board))
-          })
+          |> json(V.release_now(board, how, request))
 
         {:error, reason} ->
           {:error, :conflict, Releases.refusal(reason)}

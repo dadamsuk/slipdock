@@ -365,7 +365,6 @@ Slipdock.Releases.card_merged/1
 Slipdock.Releases.deployment_recorded/1
 Slipdock.Releases.finish/3
 Slipdock.Releases.job_finished/1
-Slipdock.Releases.lift_hold/2
 Slipdock.Releases.release_now/2
 Slipdock.Releases.request/3
 Slipdock.Releases.tick/1

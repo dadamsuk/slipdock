@@ -136,31 +136,31 @@ defmodule SlipdockWeb.AgenticLive.Index do
   # Release now (#2835): the tree's merged work, in the owner's name.
   def handle_event("release_now", _params, socket) do
     %{board: board, current_user: user} = socket.assigns
-
-    socket =
-      case Slipdock.Releases.release_now(board, Slipdock.Accounts.User.display_name(user)) do
-        {:ok, how, _request} -> put_flash(socket, :info, Slipdock.Releases.said(how))
-        {:error, reason} -> put_flash(socket, :error, Slipdock.Releases.refusal(reason))
-      end
-
-    {:noreply, assign(socket, release: release_status(board, user))}
-  end
-
-  # Lift hold (#2838): a red release's hold, by hand; it releases nothing.
-  def handle_event("lift_release_hold", _params, socket) do
-    %{board: board, current_user: user} = socket.assigns
-    socket = lift_hold(socket, board, user)
+    socket = release_now(socket, board, user)
     {:noreply, assign(socket, release: release_status(board, user))}
   end
 
   def handle_event(_event, _params, socket), do: {:noreply, socket}
 
   @doc false
-  # Lift hold at the web doors (#2838), the board page's banner and this page.
-  def lift_hold(socket, board, user) do
-    case Slipdock.Releases.lift_hold(board, Slipdock.Accounts.User.display_name(user)) do
-      {:ok, _hold} -> put_flash(socket, :info, "Release hold lifted. Nothing was released.")
-      {:error, reason} -> put_flash(socket, :error, Slipdock.Releases.refusal(reason))
+  # Release now at the web doors, the board page's banner and this page.
+  # A red release refuses nothing (#3179): the flash warns, naming its run.
+  def release_now(socket, board, user) do
+    case Slipdock.Releases.release_now(board, Slipdock.Accounts.User.display_name(user)) do
+      {:ok, how, _request} ->
+        said =
+          Enum.join(
+            Enum.filter(
+              [Slipdock.Releases.said(how), Slipdock.Releases.red_warning(board)],
+              & &1
+            ),
+            " "
+          )
+
+        put_flash(socket, :info, said)
+
+      {:error, reason} ->
+        put_flash(socket, :error, Slipdock.Releases.refusal(reason))
     end
   end
 
@@ -642,19 +642,9 @@ defmodule SlipdockWeb.AgenticLive.Index do
                       id="board-release-now"
                       class="btn btn-sm"
                       phx-click="release_now"
-                      data-confirm="Release this board's merged work now?"
+                      data-confirm={SlipdockWeb.BoardLive.BoardView.release_confirm(@release)}
                     >
                       Release now
-                    </button>
-                    <button
-                      :if={@can_manage and @release.hold}
-                      type="button"
-                      id="board-release-lift-hold"
-                      class="btn btn-sm btn-warning"
-                      phx-click="lift_release_hold"
-                      data-confirm="Lift the hold? Releases run again; nothing is released now."
-                    >
-                      Lift hold
                     </button>
                   </div>
                 </div>

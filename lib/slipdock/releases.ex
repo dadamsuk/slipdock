@@ -38,25 +38,27 @@ defmodule Slipdock.Releases do
   follow-up. Each step is a line in the root board's activity (kind
   `release`), naming who or what asked and the cards covered.
 
-  ## A red release holds releases (#2838)
+  ## A red release files its fix card and holds nothing (#2838, #3179)
 
   A failed deploy recorded on a batched tree (a release's suite, build or
-  deploy failing, #2820) holds the tree's releases: the root board's
-  `release_hold` (`hold/1`) says why, at which stage and with which run,
-  and Slipdock files one fix card of priority `critical` on top of the
-  root's ready list, naming the batch's cards and linking the run. While
-  held, *Release now* and the age cap are refused, a queued follow-up is
-  dropped, and a critical card that isn't the fix card asks for nothing.
-  The fix card merging lifts the hold and releases (`card_merged/1`); the
-  fix card accepted with no code (its cause was outside the repository,
-  #2993) lifts the hold and releases nothing, as does the board's owner
-  lifting it by hand (`lift_hold/2`): the held batch then goes at the next
-  trigger. A succeeded deploy of the tree to the held environment at the
-  hold's sha or newer (the failed run rerun, or a later release) lifts it
-  too (#2996): the fix card is archived if nobody has started it, else
-  told. A second red release while held keeps the first hold and files
-  no second card. A release job that failed to fire, a backfilled deploy
-  and a board that releases on merge hold nothing.
+  deploy failing, #2820) is the tree's red release: the root board's
+  `red_release` (`red_release/1`) says why, at which stage and with which
+  run, and Slipdock files one fix card of priority `critical` on top of
+  the root's ready list, naming the batch's cards and linking the run.
+  It refuses nothing (#3179): *Release now*, the age cap, a queued
+  follow-up and a critical merge all release as they would, and each says
+  the last release failed, naming its run (`red_warning/1`). The age cap
+  counts from the failed release's end rather than the oldest merge, so
+  it doesn't fire again the minute a release fails. The red release
+  stands, on the release banner, until the fix card merges (its merge
+  releases, `card_merged/1`) or is accepted with no code (its cause was
+  outside the repository, #2993: that releases nothing), or a succeeded
+  deploy of the tree to the failed environment at the failed sha or newer
+  (the failed run rerun, or a later release) clears it (#2996): the fix
+  card is then archived if nobody has started it, else told. A second red
+  release while one stands keeps the first and files no second card. A
+  release job that failed to fire, a backfilled deploy and a board that
+  releases on merge are no red release.
   """
 
   import Ecto.Query
@@ -198,8 +200,9 @@ defmodule Slipdock.Releases do
   end
 
   @doc """
-  Where `board`'s tree stands: `%{mode, hold, running, queued, last,
-  awaiting, releasing}`: the hold (`hold/1`, or nil), the open requests
+  Where `board`'s tree stands: `%{mode, red_release, running, queued, last,
+  awaiting, releasing}`: the red release standing (`red_release/1`, or
+  nil), the open requests
   (or nil), the last one that ended, the cards awaiting release, and the
   cards the running release takes (#3153: in its order, the archived
   left out; empty while none runs).
@@ -210,7 +213,7 @@ defmodule Slipdock.Releases do
 
     %{
       mode: mode(board),
-      hold: current_hold(root_id),
+      red_release: current_red(root_id),
       running: running,
       queued: open(root_id, "queued"),
       last: last_ended(root_id),
@@ -249,7 +252,10 @@ defmodule Slipdock.Releases do
   """
   def release_now(%Board{} = board, by), do: request(board, "manual", by)
 
-  @doc "What a door says of how `request/3` placed a request."
+  @doc """
+  What a door says of how `request/3` placed a request. Its warning, while
+  a red release stands, is `red_warning/1`'s.
+  """
   def said(:started), do: "Release started: a runner fires the release command next."
   def said(:queued), do: "Release queued: it runs when the release under way has ended."
   def said(:joined), do: "A release is already queued behind the one running; this joined it."
@@ -258,27 +264,25 @@ defmodule Slipdock.Releases do
   def refusal(:not_batched),
     do: "this board releases on merge: set its root board's release mode to batched first"
 
-  def refusal({:held, hold}), do: "releases are held: " <> held_text(hold)
-  def refusal(:not_held), do: "this board's releases aren't held"
   def refusal(message) when is_binary(message), do: message
 
   @doc """
-  Why a hold (`hold/1`) holds, in words: the reason, the run and what lifts
-  it.
+  The warning a release asked for while a red release stands (#3179):
+  that the last release failed, the run that failed and the fix card
+  filed for it. Given a red release (`red_release/1`), a status
+  (`status/1`) or a board; nil when none stands.
   """
-  def held_text(%{} = hold) do
-    run = if(hold["run_url"], do: " (#{hold["run_url"]})", else: "")
+  def red_warning(%Board{} = board), do: red_warning(red_release(board))
+  def red_warning(%{red_release: red}), do: red_warning(red)
+  def red_warning(nil), do: nil
 
-    fix =
-      if(hold["fix_card_id"],
-        do:
-          "; fix card ##{hold["fix_card_id"]} releases when it merges " <>
-            "(accepted with no code, it lifts the hold and releases nothing)",
-        else: ""
-      )
-
-    "#{hold["reason"]}#{run}#{fix}, or the board's owner lifts the hold"
+  def red_warning(%{"reason" => reason} = red) do
+    run = if(red["run_url"], do: " (#{red["run_url"]})", else: " (no run named)")
+    fix = if(red["fix_card_id"], do: "; fix card ##{red["fix_card_id"]} is filed", else: "")
+    "Warning: the last release failed: #{reason}#{run}#{fix}."
   end
+
+  def red_warning(_other), do: nil
 
   @doc """
   One line on where a tree's releases stand (`status/1`), for a banner:
@@ -290,16 +294,16 @@ defmodule Slipdock.Releases do
   @doc """
   As `line/1`; with `awaiting: false` it leaves out the awaiting count,
   for a view that shows it as a list of the cards (#3038,
-  `awaiting_text/1`), and with `hold: false` the hold's reason, for a view
-  that puts the failing run's link beside it (#2995, `hold_text/1`). Nil
-  when nothing is left to say.
+  `awaiting_text/1`), and with `red: false` the red release's reason, for
+  a view that puts the failing run's link beside it (#2995, `red_text/1`).
+  Nil when nothing is left to say.
   """
   def line(%{running: running, queued: queued} = status, opts) do
-    hold = Map.get(status, :hold)
+    red = Map.get(status, :red_release)
 
     [
-      Keyword.get(opts, :hold, true) && hold_text(status),
-      hold && hold["fix_card_id"] && "fix card ##{hold["fix_card_id"]}",
+      Keyword.get(opts, :red, true) && red_text(status),
+      red && red["fix_card_id"] && "fix card ##{red["fix_card_id"]}",
       running && "A release is running (#{length(running.card_ids)} cards)",
       queued && "another is queued",
       Keyword.get(opts, :awaiting, true) && awaiting_text(status)
@@ -312,11 +316,12 @@ defmodule Slipdock.Releases do
   end
 
   @doc """
-  That a tree's releases are held and why (`"Releases held: the release
-  failed at deploy"`), the first part of `line/1`; nil while they aren't.
+  That a tree's last release failed and why (`"Last release failed: the
+  release failed at deploy"`), the first part of `line/1`; nil while no
+  red release stands.
   """
-  def hold_text(%{hold: %{"reason" => reason}}), do: "Releases held: #{reason}"
-  def hold_text(_status), do: nil
+  def red_text(%{red_release: %{"reason" => reason}}), do: "Last release failed: #{reason}"
+  def red_text(_status), do: nil
 
   @doc """
   How many merged cards await release, in words (`"2 merged, awaiting
@@ -329,11 +334,12 @@ defmodule Slipdock.Releases do
 
   @doc """
   A card has merged (#2835): on a batched tree, one of priority `critical`
-  asks for a release. The fix card of a hold (#2838) lifts it first, and
-  asks whatever its priority. Anything else is left for the next trigger,
-  as is a card accepted with no commit (nothing merged): the fix card
-  accepted so (#2993) lifts the hold and asks for nothing, since nothing
-  new merged and a release is a person's or a merge's to start.
+  asks for a release. The fix card of a red release (#2838) clears it
+  first, and asks whatever its priority. Anything else is left for the
+  next trigger, as is a card accepted with no commit (nothing merged): the
+  fix card accepted so (#2993) clears the red release and asks for
+  nothing, since nothing new merged and a release is a person's or a
+  merge's to start.
   """
   def card_merged(%Card{} = card) do
     board = Repo.get!(Board, card.board_id)
@@ -348,25 +354,25 @@ defmodule Slipdock.Releases do
   end
 
   defp fix_card?(board, %Card{id: id}),
-    do: match?(%{"fix_card_id" => ^id}, current_hold(Board.root_id(board)))
+    do: match?(%{"fix_card_id" => ^id}, current_red(Board.root_id(board)))
 
   # Accepted with a commit and no "no code" reason: something merged.
   defp merged?(%Card{} = card),
     do: is_binary(merged_sha(card)) and not Slipdock.Verified.Evidence.no_code?(card)
 
   defp fixed(board, %Card{} = card, true) do
-    _ = lift(root(board), "lifted: fix card ##{card.id} merged", "Its merge releases.")
+    _ = cleared(root(board), "fix card ##{card.id} merged", "Its merge releases.")
     request(board, "critical", "##{card.id} #{card.title}")
   end
 
-  # Nothing merged (#2993): the hold lifts, as *Lift hold* does, and the
-  # held batch waits for the next trigger.
+  # Nothing merged (#2993): the red release clears, and the batch waits
+  # for the next trigger.
   defp fixed(board, %Card{verify_state: "accepted"} = card, false) do
     _ =
-      lift(
+      cleared(
         root(board),
-        "lifted: fix card ##{card.id} accepted with no code",
-        "Nothing was released: the held batch goes at the next trigger."
+        "fix card ##{card.id} accepted with no code",
+        "Nothing was released: the batch goes at the next trigger."
       )
 
     :ok
@@ -386,6 +392,10 @@ defmodule Slipdock.Releases do
     * `{:error, :not_batched}` on a tree that releases on merge, and
       `{:error, message}` when no job could be queued (no runner on the
       tree takes merges or releases, or the queue is full).
+
+  A red release standing refuses nothing (#3179): the request is placed,
+  and the board's activity warns that the last release failed, naming
+  its run (`red_warning/1`), for the doors to say too.
   """
   def request(%Board{} = board, trigger, by \\ nil) when trigger in ~w(critical manual age_cap) do
     root = root(board)
@@ -393,25 +403,18 @@ defmodule Slipdock.Releases do
     entry = entry(trigger, by)
 
     if root.release_mode == "batched",
-      do: root |> locked(fn -> place_unless_held(root, entry) end) |> said_held(root, entry),
+      do: root |> locked(fn -> place(root, entry) end) |> warned(root),
       else: {:error, :not_batched}
   end
 
-  defp place_unless_held(root, entry) do
-    case current_hold(root.id) do
-      nil -> place(root, entry)
-      hold -> {:error, {:held, hold}}
-    end
+  # A release asked for while a red release stands goes ahead (#3179);
+  # the board's activity says what failed last, as the doors do.
+  defp warned({:ok, _how, _request} = placed, root) do
+    if warning = red_warning(current_red(root.id)), do: log(root, warning)
+    placed
   end
 
-  # Held (#2838), nothing is asked. A critical merge has nobody to tell, so
-  # the board's activity says so (after the transaction, which rolled back).
-  defp said_held({:error, {:held, hold}} = refused, root, %{"trigger" => "critical"} = entry) do
-    log(root, "Not released: #{asked(entry)}, but releases are held: #{held_text(hold)}")
-    refused
-  end
-
-  defp said_held(result, _root, _entry), do: result
+  defp warned(result, _root), do: result
 
   defp root(%Board{root_id: nil} = board), do: board
   defp root(%Board{root_id: root_id}), do: Repo.get!(Board, root_id)
@@ -622,12 +625,12 @@ defmodule Slipdock.Releases do
     root = root(Repo.get!(Board, deployment.board_id))
     root_id = root.id
 
-    # Held before the request ends, so its follow-up doesn't start (#2838).
+    # Recorded before the request ends, so its follow-up's warning names it.
     if deployment.status == "failed" and root.release_mode == "batched",
-      do: hold_on(root, deployment, open(root_id, "running"))
+      do: red_on(root, deployment, open(root_id, "running"))
 
-    # Lifted before the request ends, so its follow-up can start (#2996).
-    if deployment.status == "succeeded", do: deployed_past_hold(root, deployment)
+    # Cleared before the request ends, so its follow-up warns of nothing (#2996).
+    if deployment.status == "succeeded", do: deployed_past_red(root, deployment)
 
     case open(root_id, "running") do
       nil ->
@@ -675,24 +678,24 @@ defmodule Slipdock.Releases do
   defp ended("failed"), do: "failed"
   defp ended("timed_out"), do: "timed out"
 
-  # The single follow-up runs once the release before it has ended. One
-  # that can't start (no runner) is dropped, and the board says so.
+  # The single follow-up runs once the release before it has ended, a red
+  # one too (#3179: it warns). One that can't start (no runner) is dropped,
+  # and the board says so.
   defp follow_up(root) do
-    case {open(root.id, "queued"), current_hold(root.id)} do
-      {nil, _hold} ->
-        :ok
-
-      # Held (#2838): the follow-up is dropped; the fix card's merge releases.
-      {%Request{} = queued, %{} = hold} ->
-        Repo.delete!(queued)
-        log(root, "Queued release dropped: releases are held: #{held_text(hold)}")
-
-      {%Request{} = queued, nil} ->
-        with {:error, message} <- start(root, queued) do
-          Repo.delete!(queued)
-          refused(root, message)
-        end
+    case open(root.id, "queued") do
+      nil -> :ok
+      %Request{} = queued -> root |> start(queued) |> followed(root, queued)
     end
+  end
+
+  defp followed({:error, message}, root, queued) do
+    Repo.delete!(queued)
+    refused(root, message)
+  end
+
+  defp followed(started, root, _queued) do
+    if warning = red_warning(current_red(root.id)), do: log(root, warning)
+    started
   end
 
   @doc """
@@ -700,9 +703,10 @@ defmodule Slipdock.Releases do
   has been heard of for `timeout_hours/0` (their job is cancelled), then
   asks for a release on each batched tree whose oldest card awaiting
   release has waited its `release_age_cap_hours`. The age cap asks only
-  when none is running (a follow-up waits only behind one that is) and the
-  tree's last one didn't fail or time out:
-  after one of those, a person or a critical merge releases next. Returns
+  when none is running (a follow-up waits only behind one that is). After
+  a release that failed or timed out it isn't refused (#3179): it counts
+  from that release's end instead of the oldest merge, so a red release
+  isn't retried every minute, and it warns as `request/3` does. Returns
   how many requests it ended or started.
   """
   def tick(now \\ DateTime.utc_now()) do
@@ -739,12 +743,10 @@ defmodule Slipdock.Releases do
 
   defp age_cap(%Board{} = root, now) do
     with nil <- open(root.id, "running"),
-         false <-
-           match?(%Request{status: s} when s in ["failed", "timed_out"], last_ended(root.id)),
          [%Card{} = oldest | _] <- awaiting_on(root.id),
-         true <- waited_hours(oldest, now) >= root.release_age_cap_hours do
-      by =
-        "##{oldest.id} has waited #{waited_hours(oldest, now)}h, cap #{root.release_age_cap_hours}h"
+         waited = waited_hours(oldest, last_ended(root.id), now),
+         true <- waited >= root.release_age_cap_hours do
+      by = "##{oldest.id} has waited #{waited}h, cap #{root.release_age_cap_hours}h"
 
       match?({:ok, _, _}, request(root, "age_cap", by))
     else
@@ -752,31 +754,49 @@ defmodule Slipdock.Releases do
     end
   end
 
-  defp waited_hours(%Card{completed_at: %DateTime{} = at}, now),
-    do: div(DateTime.diff(now, at, :second), 3600)
+  # From the oldest merge, or from the end of a release that failed or
+  # timed out since it (#3179), whichever is later.
+  defp waited_hours(%Card{completed_at: %DateTime{} = at}, last, now) do
+    from =
+      case last do
+        %Request{status: s, finished_at: %DateTime{} = ended} when s in ["failed", "timed_out"] ->
+          if DateTime.compare(ended, at) == :gt, do: ended, else: at
 
-  defp waited_hours(_card, _now), do: 0
+        _ ->
+          at
+      end
 
-  ## Holds (#2838) -------------------------------------------------------------
+    div(DateTime.diff(now, from, :second), 3600)
+  end
+
+  defp waited_hours(_card, _last, _now), do: 0
+
+  ## Red releases (#2838, #3179) ---------------------------------------------
 
   @doc """
-  The hold on `board`'s tree's releases, read from its root (nil when they
-  run): `reason`, `stage`, `run_url`, `sha`, `deployment_id`, `card_ids`
-  (the batch), `fix_card_id` and `held_at`.
+  The red release standing on `board`'s tree, read from its root (nil
+  when none does): `reason`, `stage`, `run_url`, `sha`, `deployment_id`,
+  `card_ids` (the batch), `fix_card_id` and `failed_at`. It holds nothing
+  (#3179): it is what the banner and the warnings say.
   """
-  def hold(%Board{} = board), do: current_hold(Board.root_id(board))
+  def red_release(%Board{} = board), do: current_red(Board.root_id(board))
 
-  defp current_hold(root_id),
-    do: Repo.one(from(b in Board, where: b.id == ^root_id, select: b.release_hold))
+  # Rows written before #3179 say `held_at`: read as `failed_at`.
+  defp current_red(root_id) do
+    case Repo.one(from(b in Board, where: b.id == ^root_id, select: b.red_release)) do
+      %{"held_at" => at} = red -> red |> Map.delete("held_at") |> Map.put_new("failed_at", at)
+      red -> red
+    end
+  end
 
-  # A red release: the tree is held, unless it is already. A second red
-  # release keeps the first hold and files no second card; the same failed
-  # deploy recorded again (release.yml finishes it failed, then its
-  # record-failure job adds the stage and the run to the same row) fills in
-  # what the hold and its fix card say. The hold is set under the root's
-  # lock, and the fix card filed after it, outside.
-  defp hold_on(root, %Deployment{} = deployment, running) do
-    hold = %{
+  # A red release is recorded, unless one stands already. A second keeps
+  # the first and files no second card; the same failed deploy recorded
+  # again (release.yml finishes it failed, then its record-failure job adds
+  # the stage and the run to the same row) fills in what the record and
+  # its fix card say. It is set under the root's lock, and the fix card
+  # filed after it, outside.
+  defp red_on(root, %Deployment{} = deployment, running) do
+    red = %{
       "reason" => reason(deployment.stage),
       "stage" => deployment.stage,
       "run_url" => deployment.run_url,
@@ -784,39 +804,39 @@ defmodule Slipdock.Releases do
       "deployment_id" => deployment.id,
       "card_ids" => Enum.uniq(((running && running.card_ids) || []) ++ deployment.card_ids),
       "fix_card_id" => nil,
-      "held_at" => DateTime.to_iso8601(DateTime.utc_now())
+      "failed_at" => DateTime.to_iso8601(DateTime.utc_now())
     }
 
-    case locked(root, fn -> set_hold(root, hold) end) do
-      :held -> held(root, hold)
-      {:same, hold} -> said_more(root, hold)
-      :kept -> log(root, "Another release failed; the hold stays and no second card is filed.")
+    case locked(root, fn -> set_red(root, red) end) do
+      :recorded -> recorded(root, red)
+      {:same, red} -> said_more(root, red)
+      :kept -> log(root, "Another release failed; the first one's fix card stands, no second.")
     end
   end
 
   defp reason(nil), do: "the release failed"
   defp reason(stage), do: "the release failed at #{stage}"
 
-  defp set_hold(root, hold) do
-    deployment_id = hold["deployment_id"]
+  defp set_red(root, red) do
+    deployment_id = red["deployment_id"]
 
-    case current_hold(root.id) do
+    case current_red(root.id) do
       nil ->
-        put_hold(root, hold)
-        :held
+        put_red(root, red)
+        :recorded
 
       %{"deployment_id" => ^deployment_id} = old ->
-        stage = hold["stage"] || old["stage"]
+        stage = red["stage"] || old["stage"]
 
         same = %{
           old
           | "stage" => stage,
             "reason" => reason(stage),
-            "run_url" => hold["run_url"] || old["run_url"],
-            "card_ids" => Enum.uniq(old["card_ids"] ++ hold["card_ids"])
+            "run_url" => red["run_url"] || old["run_url"],
+            "card_ids" => Enum.uniq(old["card_ids"] ++ red["card_ids"])
         }
 
-        put_hold(root, same)
+        put_red(root, same)
         {:same, same}
 
       _another ->
@@ -824,60 +844,69 @@ defmodule Slipdock.Releases do
     end
   end
 
-  defp put_hold(root, hold),
-    do: Repo.update_all(from(b in Board, where: b.id == ^root.id), set: [release_hold: hold])
+  defp put_red(root, red),
+    do: Repo.update_all(from(b in Board, where: b.id == ^root.id), set: [red_release: red])
 
-  # Newly held: the fix card is filed, then named on the hold as it stands
-  # now (never written back over a lift, or over what was said since).
-  defp held(root, hold) do
-    fix = file_fix_card(root, hold)
+  # Newly recorded: the fix card is filed, then named on the record as it
+  # stands now (never written back over a clearing, or over what was said
+  # since).
+  defp recorded(root, red) do
+    fix = file_fix_card(root, red)
 
-    case fix && locked(root, fn -> name_fix_card(root, hold, fix) end) do
+    case fix && locked(root, fn -> name_fix_card(root, red, fix) end) do
       {:named, now} ->
-        if now != %{hold | "fix_card_id" => fix.id}, do: refresh_fix_card(now)
-        log(root, "Releases held: #{held_text(now)}. Release now and the age cap are refused.")
+        if now != %{red | "fix_card_id" => fix.id}, do: refresh_fix_card(now)
+        log(root, "Release failed: #{red_said(now)}. Releases aren't held.")
 
       _unnamed ->
-        log(root, "Releases held: #{held_text(hold)}. Release now and the age cap are refused.")
+        log(root, "Release failed: #{red_said(red)}. Releases aren't held.")
     end
 
     broadcast(root)
   end
 
-  defp name_fix_card(root, hold, fix) do
-    held_at = hold["held_at"]
+  # A red release in words, for the board's activity: the reason, the run
+  # and the fix card.
+  defp red_said(red) do
+    run = if(red["run_url"], do: " (#{red["run_url"]})", else: "")
+    fix = if(red["fix_card_id"], do: "; fix card ##{red["fix_card_id"]}", else: "")
+    "#{red["reason"]}#{run}#{fix}"
+  end
 
-    case current_hold(root.id) do
-      %{"held_at" => ^held_at} = now ->
+  defp name_fix_card(root, red, fix) do
+    failed_at = red["failed_at"]
+
+    case current_red(root.id) do
+      %{"failed_at" => ^failed_at} = now ->
         now = Map.put(now, "fix_card_id", fix.id)
-        put_hold(root, now)
+        put_red(root, now)
         {:named, now}
 
-      _lifted ->
-        :lifted
+      _cleared ->
+        :cleared
     end
   end
 
   # The same failure, recorded again with its stage or run: the fix card
   # says it too.
-  defp said_more(root, hold) do
-    refresh_fix_card(hold)
+  defp said_more(root, red) do
+    refresh_fix_card(red)
 
     log(
       root,
-      "The failed release is recorded at #{hold["stage"] || "no stage"}: #{held_text(hold)}."
+      "The failed release is recorded at #{red["stage"] || "no stage"}: #{red_said(red)}."
     )
 
     broadcast(root)
   end
 
-  defp refresh_fix_card(%{"fix_card_id" => id} = hold) when is_integer(id) do
+  defp refresh_fix_card(%{"fix_card_id" => id} = red) when is_integer(id) do
     with %Card{} = card <- Repo.get(Card, id) do
-      Boards.Cards.update_card(card, fix_attrs(hold), actor: Slipdock.Actor.automation())
+      Boards.Cards.update_card(card, fix_attrs(red), actor: Slipdock.Actor.automation())
     end
   end
 
-  defp refresh_fix_card(_hold), do: :ok
+  defp refresh_fix_card(_red), do: :ok
 
   defp broadcast(root),
     do: Phoenix.PubSub.broadcast(@pubsub, topic(root.id), {:release_changed, root.id})
@@ -889,13 +918,13 @@ defmodule Slipdock.Releases do
 
   # One card of priority critical, on top of the root's ready list, naming
   # the batch and linking the run.
-  defp file_fix_card(root, hold) do
+  defp file_fix_card(root, red) do
     root = Boards.get_board!(root.id)
     column = Slipdock.Flow.ready_list(root.columns) || List.first(root.columns)
 
     with %{} <- column,
          {:ok, card} <-
-           Boards.Cards.create_card(column, Map.put(fix_attrs(hold), "priority", "critical"),
+           Boards.Cards.create_card(column, Map.put(fix_attrs(red), "priority", "critical"),
              actor: Slipdock.Actor.automation(),
              origin: @kind
            ) do
@@ -906,18 +935,18 @@ defmodule Slipdock.Releases do
     end
   end
 
-  defp fix_attrs(hold) do
-    cards = Repo.all(from(c in Card, where: c.id in ^hold["card_ids"], order_by: c.id))
+  defp fix_attrs(red) do
+    cards = Repo.all(from(c in Card, where: c.id in ^red["card_ids"], order_by: c.id))
 
     %{
-      "title" => "Red release: fix the #{hold["stage"] || "release"} failure",
-      "description" => fix_description(hold, cards)
+      "title" => "Red release: fix the #{red["stage"] || "release"} failure",
+      "description" => fix_description(red, cards)
     }
   end
 
-  defp fix_description(hold, cards) do
-    run = if(hold["run_url"], do: "[the failing run](#{hold["run_url"]})", else: "no run named")
-    sha = if(hold["sha"], do: " of `#{hold["sha"]}`", else: "")
+  defp fix_description(red, cards) do
+    run = if(red["run_url"], do: "[the failing run](#{red["run_url"]})", else: "no run named")
+    sha = if(red["sha"], do: " of `#{red["sha"]}`", else: "")
 
     batch =
       case cards do
@@ -925,31 +954,31 @@ defmodule Slipdock.Releases do
         cards -> Enum.map_join(cards, "\n", &"- ##{&1.id} #{&1.title}")
       end
 
-    "The release#{sha} failed#{if(hold["stage"], do: " at **#{hold["stage"]}**", else: "")}: " <>
-      "#{run}.\n\nReleases on this board are held: Release now and the age cap are " <>
-      "refused until this card merges, which lifts the hold and releases, or the " <>
-      "board's owner lifts it by hand. If the cause is outside the repository and " <>
-      "this card is accepted with no code, that lifts the hold and releases nothing: " <>
-      "the batch goes at the next trigger (Release now, a critical merge or the age " <>
-      "cap).\n\n**The batch**\n\n#{batch}"
+    "The release#{sha} failed#{if(red["stage"], do: " at **#{red["stage"]}**", else: "")}: " <>
+      "#{run}.\n\nReleases on this board aren't held: Release now and the age cap " <>
+      "still release, warning that this one failed, until this card merges, which " <>
+      "releases. If the cause is outside the repository and this card is accepted " <>
+      "with no code, that clears the warning and releases nothing: the batch goes at " <>
+      "the next trigger (Release now, a critical merge or the age cap)." <>
+      "\n\n**The batch**\n\n#{batch}"
   end
 
-  # A succeeded deploy that holds the failed release's tree (#2996): to the
-  # held environment, at the hold's sha or with it among its commits (they
-  # run from the environment's last succeeded deploy, so a later release
-  # names it). It lifts the hold, and the fix card has nothing left to do.
-  defp deployed_past_hold(root, %Deployment{} = deployment) do
-    with %{} = hold <- current_hold(root.id),
-         true <- past_hold?(hold, deployment),
-         {:lifted, hold} <- locked(root, fn -> clear_hold_of(root, hold) end) do
-      fix = fix_card_settled(hold, deployment)
-      at = if(same_sha?(hold["sha"], deployment.sha), do: "at the held sha", else: "past it")
+  # A succeeded deploy past the failed release (#2996): to the failed
+  # environment, at its sha or with it among its commits (they run from
+  # the environment's last succeeded deploy, so a later release names it).
+  # It clears the red release, and the fix card has nothing left to do.
+  defp deployed_past_red(root, %Deployment{} = deployment) do
+    with %{} = red <- current_red(root.id),
+         true <- past_red?(red, deployment),
+         {:cleared, red} <- locked(root, fn -> clear_red_of(root, red) end) do
+      fix = fix_card_settled(red, deployment)
+      at = if(same_sha?(red["sha"], deployment.sha), do: "at the failed sha", else: "past it")
       run = if(deployment.run_url, do: " (#{deployment.run_url})", else: "")
 
       log(
         root,
-        "Release hold lifted: `#{short(deployment.sha)}` deployed to " <>
-          "#{deployment.environment}#{run}, #{at} (#{hold["reason"]}).#{fix}"
+        "Red release cleared: `#{short(deployment.sha)}` deployed to " <>
+          "#{deployment.environment}#{run}, #{at} (#{red["reason"]}).#{fix}"
       )
 
       broadcast(root)
@@ -958,17 +987,17 @@ defmodule Slipdock.Releases do
     end
   end
 
-  defp past_hold?(%{"sha" => sha} = hold, %Deployment{} = deployment) when is_binary(sha) do
-    same_environment?(hold, deployment) and
+  defp past_red?(%{"sha" => sha} = red, %Deployment{} = deployment) when is_binary(sha) do
+    same_environment?(red, deployment) and
       (same_sha?(sha, deployment.sha) or
          Enum.any?(deployment.commits, &same_sha?(sha, &1["sha"])))
   end
 
-  defp past_hold?(_hold, _deployment), do: false
+  defp past_red?(_red, _deployment), do: false
 
-  defp same_environment?(hold, %Deployment{environment: environment}) do
-    case hold["deployment_id"] && Repo.get(Deployment, hold["deployment_id"]) do
-      %Deployment{environment: held} -> held == environment
+  defp same_environment?(red, %Deployment{environment: environment}) do
+    case red["deployment_id"] && Repo.get(Deployment, red["deployment_id"]) do
+      %Deployment{environment: failed} -> failed == environment
       nil -> true
     end
   end
@@ -982,31 +1011,32 @@ defmodule Slipdock.Releases do
   defp short(sha) when is_binary(sha), do: String.slice(sha, 0, 7)
   defp short(_sha), do: "a deploy"
 
-  # Only the hold it judged: one lifted or replaced meanwhile is left alone.
-  defp clear_hold_of(root, %{"held_at" => held_at}) do
-    case current_hold(root.id) do
-      %{"held_at" => ^held_at} -> clear_hold(root)
-      _changed -> {:error, :not_held}
+  # Only the red release it judged: one cleared or replaced meanwhile is
+  # left alone.
+  defp clear_red_of(root, %{"failed_at" => failed_at}) do
+    case current_red(root.id) do
+      %{"failed_at" => ^failed_at} -> clear_red(root)
+      _changed -> {:error, :not_red}
     end
   end
 
-  # The fix card of a lifted hold: archived if it is still waiting in its
+  # The fix card of a cleared red release: archived if it is still waiting in its
   # ready list with no job on it, else told on the card. Says which.
   defp fix_card_settled(%{"fix_card_id" => id}, deployment) when is_integer(id) do
     case Repo.get(Card, id) do
       %Card{completed: false, archived_at: nil} = card ->
         note =
-          "**Release hold lifted.** `#{short(deployment.sha)}` deployed to " <>
+          "**Red release cleared.** `#{short(deployment.sha)}` deployed to " <>
             "#{deployment.environment}" <>
             if(deployment.run_url, do: " ([the run](#{deployment.run_url}))", else: "") <>
-            ", so releases run again."
+            ", so the release this card was filed for is fixed."
 
         if unstarted?(card) do
           comment(card, note <> "\n\nNothing was started on this card, so it is archived.")
           _ = Boards.Cards.archive_card(card, actor: Slipdock.Actor.automation())
           " Fix card ##{id} was archived: nothing had started on it."
         else
-          comment(card, note <> "\n\nThis card isn't needed to lift it any more.")
+          comment(card, note <> "\n\nThis card isn't needed to clear it any more.")
           " Fix card ##{id} is under way, so it was told and left open."
         end
 
@@ -1015,7 +1045,7 @@ defmodule Slipdock.Releases do
     end
   end
 
-  defp fix_card_settled(_hold, _deployment), do: ""
+  defp fix_card_settled(_red, _deployment), do: ""
 
   defp unstarted?(%Card{} = card) do
     board = Boards.get_board!(card.board_id)
@@ -1029,33 +1059,27 @@ defmodule Slipdock.Releases do
   defp comment(card, body),
     do: Boards.Comments.add_comment(card, body)
 
-  @doc """
-  Lifts the hold on `board`'s tree's releases by hand (#2838), in `by`'s
-  name: the board owner's, at every door. It asks for no release.
-  `{:ok, hold}` with the hold it lifted, or `{:error, :not_held}`.
-  """
-  def lift_hold(%Board{} = board, by),
-    do: lift(root(board), "lifted by #{by || "somebody"}", "Nothing was released.")
+  # A red release cleared by its fix card (#2993), `why` and `then` saying
+  # how and what follows. `{:ok, red}`, or `{:error, :not_red}`.
+  defp cleared(root, why, then) do
+    case locked(root, fn -> clear_red(root) end) do
+      {:cleared, red} ->
+        log(root, "Red release cleared: #{why} (#{red["reason"]}). #{then}")
+        {:ok, red}
 
-  defp lift(root, why, then) do
-    case locked(root, fn -> clear_hold(root) end) do
-      {:lifted, hold} ->
-        log(root, "Release hold #{why} (#{hold["reason"]}). #{then}")
-        {:ok, hold}
-
-      {:error, :not_held} = refused ->
-        refused
+      {:error, :not_red} = none ->
+        none
     end
   end
 
-  defp clear_hold(root) do
-    case current_hold(root.id) do
+  defp clear_red(root) do
+    case current_red(root.id) do
       nil ->
-        {:error, :not_held}
+        {:error, :not_red}
 
-      hold ->
-        Repo.update_all(from(b in Board, where: b.id == ^root.id), set: [release_hold: nil])
-        {:lifted, hold}
+      red ->
+        Repo.update_all(from(b in Board, where: b.id == ^root.id), set: [red_release: nil])
+        {:cleared, red}
     end
   end
 

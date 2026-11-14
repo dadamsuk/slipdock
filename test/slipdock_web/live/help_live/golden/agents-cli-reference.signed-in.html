@@ -6204,16 +6204,7 @@ release</span>
 </code>
 </dt>
 <dd class="mt-1 break-words text-sm text-base-content/70">
-Release now, on a board with batched releases: a runner&#39;s release job runs the release command for every merged card awaiting release. One at a time: during a release it queues one follow-up, and more join that. The board owner&#39;s. Refused while a red release holds releases (#2838)</dd>
-<dd class="mt-2 min-w-0">
-<pre class="overflow-x-auto rounded-xl bg-base-200 px-3 py-2 font-mono text-xs leading-relaxed">
---lift-hold                                lift that hold instead (the owner&#39;s); releases
-                                           nothing. The fix card&#39;s merge lifts it too
-                                           (and releases); accepted with no code, the fix
-                                           card lifts it and releases nothing. So does a
-                                           succeeded deploy at the held sha or past it
-                                           (#2996)</pre>
-</dd>
+Release now, on a board with batched releases: a runner&#39;s release job runs the release command for every merged card awaiting release. One at a time: during a release it queues one follow-up, and more join that. The board owner&#39;s. A red release holds nothing (#3179): Release now still releases, with a warning naming the failing run, until its fix card merges (and releases); accepted with no code, the fix card clears it and releases nothing. So does a succeeded deploy at the failed sha or past it (#2996)</dd>
 </div>
 <div class="min-w-0 py-3" data-role="cli-command">
 <dt>

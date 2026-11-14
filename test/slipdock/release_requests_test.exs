@@ -1052,9 +1052,16 @@ defmodule Slipdock.ReleaseRequestsTest do
       assert Releases.tick(at) == 1
       assert Repo.get!(Request, request.id).status == "timed_out"
       assert Repo.get!(Job, id).status == "done"
-      # Timed out: the cap asks for nothing more.
+      # Timed out: the cap counts from its end, not the oldest merge (#3179),
+      # so nothing has waited long enough yet; it isn't refused.
       merged!(ctx.todo, "Old", completed_at: hours_ago(9))
       assert Releases.tick() == 0
+
+      Repo.update_all(from(r in Request, where: r.id == ^request.id),
+        set: [finished_at: hours_ago(5)]
+      )
+
+      assert Releases.tick() == 1
     end
 
     test "no cap, or an on_merge board, never asks", ctx do
