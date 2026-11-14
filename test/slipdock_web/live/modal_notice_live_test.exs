@@ -426,6 +426,96 @@ defmodule SlipdockWeb.ModalNoticeLiveTest do
     end
   end
 
+  # #3131 and #3164: the panels that refused with a flash (list settings,
+  # board settings, automations; sprints in `sprints_live_test.exs` and
+  # `panel_grant_lowered_live_test.exs`) say it in their callout.
+  describe "board settings" do
+    test "an unknown event is a callout, and the next action clears it", ctx do
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/settings")
+
+      view |> with_target("#board-settings") |> render_click("no_such_event", %{})
+
+      assert has_element?(
+               view,
+               "#settings-modal #panel-notice[data-callout=error]",
+               "That isn't something this page can do."
+             )
+
+      refute_flash(view)
+
+      view |> with_target("#board-settings") |> render_click("settings_tab", %{"tab" => "manage"})
+      refute has_element?(view, "#panel-notice")
+    end
+
+    test "a result is said in the panel: a template saved", ctx do
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/settings")
+
+      view |> with_target("#board-settings") |> render_click("save_as_template", %{})
+
+      assert has_element?(
+               view,
+               "#settings-modal #panel-notice[data-callout=info]",
+               "Saved the lists of this board as the"
+             )
+
+      refute_flash(view)
+    end
+  end
+
+  describe "automations" do
+    test "an unknown event is a callout, and a rule removed is said in the panel", ctx do
+      rule =
+        rule_fixture(ctx.board, %{
+          "trigger" => %{"type" => "card_created"},
+          "actions" => [%{"type" => "add_flags", "flags" => ["review"]}]
+        })
+
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/automations")
+
+      view |> with_target("#board-automations") |> render_click("no_such_event", %{})
+
+      assert has_element?(
+               view,
+               "#automations-modal #panel-notice[data-callout=error]",
+               "That isn't something this page can do."
+             )
+
+      refute_flash(view)
+
+      view |> element("#rule-#{rule.id} button[phx-click=delete_rule]") |> render_click()
+
+      assert has_element?(
+               view,
+               "#automations-modal #panel-notice[data-callout=info]",
+               "Removed"
+             )
+
+      refute_flash(view)
+    end
+  end
+
+  describe "list settings" do
+    test "an unknown event in the open dialog is a callout, cleared by the next action", ctx do
+      [column | _] = ctx.board.columns
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}")
+      panel = with_target(view, "#board-column")
+
+      render_hook(panel, "edit_column", %{"id" => "#{column.id}"})
+      render_hook(panel, "no_such_event", %{})
+
+      assert has_element?(
+               view,
+               "#column-modal #panel-notice[data-callout=error]",
+               "That isn't something this page can do."
+             )
+
+      refute_flash(view)
+
+      render_hook(panel, "set_column_color", %{"color" => "rose"})
+      refute has_element?(view, "#panel-notice")
+    end
+  end
+
   test "tags: an unknown event is said in the panel's callout", ctx do
     {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/tags")
 

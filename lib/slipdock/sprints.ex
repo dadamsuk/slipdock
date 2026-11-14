@@ -883,9 +883,6 @@ defmodule Slipdock.Sprints do
   @doc "What went wrong, in a sentence, from either kind of error."
   def error_message(message) when is_binary(message), do: message
 
-  def error_message(%Ecto.Changeset{} = changeset) do
-    changeset
-    |> Ecto.Changeset.traverse_errors(fn {msg, _} -> msg end)
-    |> Enum.map_join("; ", fn {field, msgs} -> "#{field} #{Enum.join(msgs, ", ")}" end)
-  end
+  def error_message(%Ecto.Changeset{} = changeset),
+    do: Slipdock.ChangesetErrors.message(changeset)
 end

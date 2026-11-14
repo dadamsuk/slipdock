@@ -31,14 +31,8 @@ defmodule Slipdock.RegexUnicodeTest do
   """
   use ExUnit.Case, async: true
 
-  @machine_messages "Ecto's own validation messages: `%{key}` names an atom, never user text"
-
   # {file, the regex's source as written} => what it reads instead.
   @bytes %{
-    {"lib/slipdock/boards.ex", "%{(\\w+)}"} => @machine_messages,
-    {"lib/slipdock/portable/import.ex", "%{(\\w+)}"} => @machine_messages,
-    {"lib/slipdock/runners/config.ex", "%{(\\w+)}"} => @machine_messages,
-    {"lib/slipdock_web/controllers/api/json.ex", "%{(\\w+)}"} => @machine_messages,
     {"lib/slipdock/deployments.ex", "#(\\d+)\\b"} =>
       "a deploy's commit messages, not card text; captures ASCII digits only",
     {"lib/slipdock_web/mcp/tools/download_file.ex", "\\A[\\w.-]+\\z"} =>

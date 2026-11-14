@@ -137,9 +137,5 @@ defmodule Slipdock.Automations.ScheduledFeed do
     end
   end
 
-  defp errors(changeset) do
-    changeset
-    |> Ecto.Changeset.traverse_errors(fn {msg, _} -> msg end)
-    |> Enum.map_join("; ", fn {field, msgs} -> "#{field} #{Enum.join(msgs, ", ")}" end)
-  end
+  defp errors(changeset), do: Slipdock.ChangesetErrors.message(changeset)
 end

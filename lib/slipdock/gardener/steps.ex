@@ -507,11 +507,7 @@ defmodule Slipdock.Gardener.Steps do
     end
   end
 
-  defp describe_error(%Ecto.Changeset{} = cs) do
-    cs
-    |> Ecto.Changeset.traverse_errors(fn {msg, _} -> msg end)
-    |> Enum.map_join("; ", fn {k, v} -> "#{k} #{Enum.join(List.wrap(v), ", ")}" end)
-  end
+  defp describe_error(%Ecto.Changeset{} = cs), do: Slipdock.ChangesetErrors.message(cs)
 
   defp describe_error(reason) when is_binary(reason), do: reason
   defp describe_error(reason), do: inspect(reason)

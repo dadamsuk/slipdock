@@ -873,7 +873,9 @@ defmodule SlipdockWeb.SprintsLiveTest do
           assert n > 0
         end)
 
-      assert has_element?(view, "#flash-error", "That board has no lists.")
+      # Said in the open picker's callout, not a flash (UX-29, #3164).
+      assert has_element?(view, "#sprint-picker #panel-notice", "That board has no lists.")
+      refute has_element?(view, "#flash-error")
       refute has_element?(view, "#flash-info")
       refute render(view) =~ "Added"
       assert board_of(a) == work.id

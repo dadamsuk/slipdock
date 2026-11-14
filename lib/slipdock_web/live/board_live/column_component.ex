@@ -7,10 +7,17 @@ defmodule SlipdockWeb.BoardLive.ColumnComponent do
   Opened from the list's own menu, which targets this component
   (`#board-column`). It works out for itself whether the reader may write to
   the board it is given, and only ever acts on a list of that board.
+
+  A refusal while the dialog is open is a `#panel-notice` callout at its
+  top, never a flash (UX-29, #3131); the next action takes it away. One
+  refused before the dialog opens (`edit_column` from a reader) has no
+  panel to say it in, so it is a flash (PanelGuard's `{:notice, key}`).
   """
   use SlipdockWeb, :live_component
 
   import SlipdockWeb.SlipdockComponents
+  import SlipdockWeb.ItemComponents, only: [panel_notice: 1]
+  import SlipdockWeb.BoardLive.Helpers, only: [clear_notice: 1]
 
   alias Slipdock.{Access, Boards, Dates, ListOrder, Palette}
   alias Slipdock.Boards.Column
@@ -31,7 +38,8 @@ defmodule SlipdockWeb.BoardLive.ColumnComponent do
   def events, do: @events
 
   @impl true
-  def mount(socket), do: {:ok, assign(socket, column_modal: nil, column_form: nil)}
+  def mount(socket),
+    do: {:ok, assign(socket, column_modal: nil, column_form: nil, panel_notice: nil)}
 
   @impl true
   def update(%{board: board, current_user: user}, socket) do
@@ -60,8 +68,9 @@ defmodule SlipdockWeb.BoardLive.ColumnComponent do
   use SlipdockWeb.BoardLive.PanelGuard,
     events: @events,
     access: &assign_access/1,
+    prepare: &clear_notice/1,
     refusals: [{:can_write, false, @write_events, :read_only}],
-    say: :flash
+    say: {:notice, :column_modal}
 
   defp event("edit_column", %{"id" => id}, socket) do
     case board_column(socket, id) do
@@ -133,6 +142,7 @@ defmodule SlipdockWeb.BoardLive.ColumnComponent do
         :if={@column_modal}
         column={@column_modal}
         form={@column_form}
+        notice={@panel_notice}
         board={@board}
         can_manage={@can_manage}
         target={@myself}
@@ -143,6 +153,7 @@ defmodule SlipdockWeb.BoardLive.ColumnComponent do
 
   attr :column, Column, required: true
   attr :form, :any, required: true
+  attr :notice, :any, default: nil, doc: "what the last action said, `{kind, message}`"
   attr :board, :any, required: true
   attr :can_manage, :boolean, required: true
   attr :target, :any, required: true
@@ -152,6 +163,7 @@ defmodule SlipdockWeb.BoardLive.ColumnComponent do
     <.modal id="column-modal" on_close={JS.push("close_column", target: @target)} size="sm">
       <div class="space-y-5 p-6">
         <h2 class="section-title">List settings</h2>
+        <.panel_notice notice={@notice} />
         <.form
           phx-target={@target}
           for={@form}

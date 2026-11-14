@@ -109,8 +109,14 @@ defmodule SlipdockWeb.PanelGrantLoweredLiveTest do
         |> with_target("#board-sprints")
         |> render_hook("create_sprint", %{"sprint" => %{"name" => "Sprint 1", "days" => "10"}})
 
-        # A flash is the board's to show, so it is there on the next render.
-        assert render(view) =~ "You have read-only access to this board."
+        # Said in the open dialog's callout, not a flash (UX-29, #3164).
+        assert has_element?(
+                 view,
+                 "#new-sprint-modal #panel-notice",
+                 "You have read-only access to this board."
+               )
+
+        refute has_element?(view, "#flash-error")
         assert Repo.all(from(c in Card, where: c.board_id == ^sprints.id)) == []
 
         # Nor does it offer the form again.
@@ -138,7 +144,14 @@ defmodule SlipdockWeb.PanelGrantLoweredLiveTest do
         lower(unquote(how), ctx, sprints)
 
         render_hook(panel, "sprint_add", %{})
-        assert render(view) =~ "You have read-only access to that sprint."
+
+        assert has_element?(
+                 view,
+                 "#sprint-picker #panel-notice",
+                 "You have read-only access to that sprint."
+               )
+
+        refute has_element?(view, "#flash-error")
         assert Repo.get!(Card, mine.id).board_id == own.id
       end
 

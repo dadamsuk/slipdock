@@ -10,11 +10,20 @@ defmodule SlipdockWeb.PanelNoFlashTest do
   `flash(`/`put_flash(` that is not one of the named exceptions below, and
   on a `{:put_flash, …}` message written out by hand, which is the same
   flash without the helper's name (#2895).
+
+  The panels are found, not listed (#3164): every module that `use`s
+  `SlipdockWeb.BoardLive.PanelGuard` is one, so a new panel is held to
+  UX-29 the day it is written. Its gate says refusals in its callout (the
+  guard's default) and never names `say: :flash`. `@panel_parts` lists
+  the modules a panel is made of that don't `use` the guard themselves.
   """
   use ExUnit.Case, async: true
 
-  @panel_files ~w(
-    lib/slipdock_web/live/board_live/card_component.ex
+  # A module's own `use` of the guard, at the top of its body (not the
+  # guard's moduledoc, which shows one indented further).
+  @guard ~r/^  use SlipdockWeb\.BoardLive\.PanelGuard\b/m
+
+  @panel_parts ~w(
     lib/slipdock_web/live/board_live/card_component/field_events.ex
     lib/slipdock_web/live/board_live/card_component/glance.ex
     lib/slipdock_web/live/board_live/card_component/handoff_events.ex
@@ -32,13 +41,17 @@ defmodule SlipdockWeb.PanelNoFlashTest do
     lib/slipdock_web/live/board_live/card_panel/verify.ex
     lib/slipdock_web/live/board_live/wait_components.ex
     lib/slipdock_web/live/board_live/item_events.ex
-    lib/slipdock_web/live/board_live/page_component.ex
     lib/slipdock_web/components/item_components.ex
-    lib/slipdock_web/live/board_live/runners_component.ex
-    lib/slipdock_web/live/board_live/move_board_component.ex
-    lib/slipdock_web/live/board_live/archive_component.ex
-    lib/slipdock_web/live/board_live/tags_component.ex
   )
+
+  # Every module that `use`s the guard: the board's panels.
+  defp panels do
+    for path <- Path.wildcard("lib/slipdock_web/**/*.ex"),
+        File.read!(path) =~ @guard,
+        do: path
+  end
+
+  defp panel_files, do: Enum.uniq(panels() ++ @panel_parts)
 
   # {file, the text on the line, why it is a flash}. The panel is gone when
   # each of these shows, so there is no modal for the toast to close.
@@ -52,8 +65,29 @@ defmodule SlipdockWeb.PanelNoFlashTest do
     {"lib/slipdock_web/live/board_live/move_board_component.ex", "put_flash(:info, message)",
      "the move done closes the picker and follows the open card to its new board"},
     {"lib/slipdock_web/live/board_live/move_board_component.ex", "flash(socket, :info, message)",
-     "the move done closes the picker, and no card panel is open on that card"}
+     "the move done closes the picker, and no card panel is open on that card"},
+    {"lib/slipdock_web/live/board_live/settings_component.ex",
+     ~s|put_flash(:info, "Board deleted.")|, "deleting the board leaves it for the boards page"},
+    {"lib/slipdock_web/live/board_live/settings_component.ex", "archived. Find it under Archived",
+     "archiving the board leaves it for the boards page"},
+    {"lib/slipdock_web/live/board_live/sprint_component.ex",
+     ~s|flash(socket, :error, "You have read-only access to that sprint.")|,
+     "a refused Add cards… never opens the picker, so there is no dialog to say it in"},
+    {"lib/slipdock_web/live/board_live/sprint_component.ex",
+     ~s|flash(socket, :error, "That card is not a sprint.")|,
+     "a refused Add cards… never opens the picker, so there is no dialog to say it in"},
+    {"lib/slipdock_web/live/board_live/sprint_component.ex", ~r/^\s*\|> flash\($/,
+     "adding the cards closes the picker, and the board shows them in the sprint"},
+    {"lib/slipdock_web/live/board_live/settings_component.ex",
+     "do: flash(socket, :error, message)",
+     "refused to a reader who no longer owns the board: the board reloads without the panel"},
+    {"lib/slipdock_web/live/board_live/automations_component.ex",
+     "do: flash(socket, :error, message)",
+     "refused to a reader who no longer owns the board: the board reloads without the panel"}
   ]
+
+  # `say: :flash` in a panel's gate: its refusals as a toast.
+  defp says_flash?(source), do: source =~ ~r/\bsay:\s*:flash\b/
 
   defp flashes(source) do
     source
@@ -68,7 +102,7 @@ defmodule SlipdockWeb.PanelNoFlashTest do
 
   test "no flash in the board's panels and modals" do
     hits =
-      for path <- @panel_files,
+      for path <- panel_files(),
           {line, n} <- flashes(File.read!(path)),
           not excepted?(path, line),
           do: "#{path}:#{n}: #{String.trim(line)}"
@@ -79,8 +113,38 @@ defmodule SlipdockWeb.PanelNoFlashTest do
              Enum.join(hits, "\n")
   end
 
+  test "no panel's gate says its refusals with a flash (#3131, #3164)" do
+    flashing = Enum.filter(panels(), &says_flash?(File.read!(&1)))
+
+    assert flashing == [],
+           "A panel's refusals go to its callout: drop `say: :flash` (the guard's default is " <>
+             ":notice), or name `{:notice, <the dialog's assign>}` when an event can be " <>
+             "refused before its dialog opens (UX-29):\n" <> Enum.join(flashing, "\n")
+  end
+
+  test "the panels are found: the board's panels are among them" do
+    found = panels()
+
+    for name <- ~w(card column settings automations sprint runners page tags archive move_board
+                   overseer) do
+      assert "lib/slipdock_web/live/board_live/#{name}_component.ex" in found,
+             "#{name}_component.ex no longer uses the guard, so this check doesn't read it"
+    end
+
+    refute "lib/slipdock_web/live/board_live/panel_guard.ex" in found
+  end
+
+  test "the gate scan reads `say: :flash` and nothing else" do
+    assert says_flash?("    say: :flash\n")
+    assert says_flash?("    say: :flash,\n")
+    refute says_flash?("    say: :notice\n")
+    refute says_flash?("    say: {:notice, :column_modal}\n")
+    refute says_flash?("    say: &say/2\n")
+    refute says_flash?("    say: :flashy\n")
+  end
+
   test "every exception still matches a line, and every panel file exists" do
-    for path <- @panel_files, do: assert(File.exists?(path), "#{path} is gone")
+    for path <- @panel_parts, do: assert(File.exists?(path), "#{path} is gone")
 
     for {file, text, _why} <- @exceptions do
       assert Enum.any?(flashes(File.read!(file)), fn {line, _} -> line =~ text end),

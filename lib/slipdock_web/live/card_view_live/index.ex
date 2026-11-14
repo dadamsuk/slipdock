@@ -239,9 +239,7 @@ defmodule SlipdockWeb.CardViewLive.Index do
   defp tab_shows?("front", group), do: group == "front"
   defp tab_shows?(_card, group), do: group != "front"
 
-  defp changeset_error(cs) do
-    Enum.map_join(cs.errors, "; ", fn {field, {msg, _}} -> "#{field} #{msg}" end)
-  end
+  defp changeset_error(cs), do: Slipdock.ChangesetErrors.message(cs)
 
   ## Paths
 

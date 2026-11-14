@@ -9,13 +9,19 @@ defmodule SlipdockWeb.BoardLive.AutomationsComponent do
   unless the reader owns the board, which it works out for itself from the
   board it is given rather than taking the parent's word for it, and every
   rule named by id is looked up on that board.
+
+  What an action says (a refusal, a rule saved, run or removed) is a
+  `#panel-notice` callout at the panel's top, never a flash (UX-29, #3164);
+  the next action takes it away. A reader who no longer owns the board
+  loses the panel as the board reloads, so that refusal is a flash.
   """
   use SlipdockWeb, :live_component
 
   alias SlipdockWeb.LiveAccess
 
   import SlipdockWeb.SlipdockComponents
-  import SlipdockWeb.BoardLive.Helpers, only: [flash: 3]
+  import SlipdockWeb.BoardLive.Helpers, only: [flash: 3, notice: 3, clear_notice: 1]
+  import SlipdockWeb.ItemComponents, only: [panel_notice: 1]
 
   alias Slipdock.{Access, Automations, Runners}
   alias Slipdock.Automations.{Callback, Presets, Rule}
@@ -43,7 +49,8 @@ defmodule SlipdockWeb.BoardLive.AutomationsComponent do
        editing_rule: nil,
        rule_preset: nil,
        rule_preset_params: %{},
-       rule_preset_error: nil
+       rule_preset_error: nil,
+       panel_notice: nil
      )}
   end
 
@@ -88,8 +95,17 @@ defmodule SlipdockWeb.BoardLive.AutomationsComponent do
   use SlipdockWeb.BoardLive.PanelGuard,
     events: @events,
     access: &LiveAccess.refresh_owner/1,
+    prepare: &clear_notice/1,
     refusals: [{:can_manage, false, :all, :owner}],
-    say: :flash
+    say: &say/2
+
+  # A refusal in the panel's callout (UX-29), but for one to a reader who no
+  # longer owns the board: `refresh_owner/1` has told the board, which
+  # reloads without this panel, so there is no panel left to say it in.
+  defp say(%{assigns: %{can_manage: false}} = socket, message),
+    do: flash(socket, :error, message)
+
+  defp say(socket, message), do: notice(socket, :error, message)
 
   defp event("rule_change", %{"text" => text}, socket),
     do: {:noreply, assign(socket, rule_text: text)}
@@ -128,7 +144,7 @@ defmodule SlipdockWeb.BoardLive.AutomationsComponent do
          socket
          |> assign(rule_preset: nil, rule_preset_params: %{}, rule_preset_error: nil)
          |> assign_rules()
-         |> flash(:info, "“#{rule.name}”: #{Rule.summary(rule)}")}
+         |> notice(:info, "“#{rule.name}”: #{Rule.summary(rule)}")}
 
       {:error, message} ->
         {:noreply, assign(socket, rule_preset_params: params, rule_preset_error: message)}
@@ -198,7 +214,7 @@ defmodule SlipdockWeb.BoardLive.AutomationsComponent do
          socket
          |> assign(editing_rule: nil, rule_text: "")
          |> assign_rules()
-         |> flash(:info, "Removed “#{rule.name}”.")}
+         |> notice(:info, "Removed “#{rule.name}”.")}
     end
   end
 
@@ -218,7 +234,7 @@ defmodule SlipdockWeb.BoardLive.AutomationsComponent do
           end
 
         send(self(), :reload_board)
-        {:noreply, socket |> assign_rules() |> flash(:info, message)}
+        {:noreply, socket |> assign_rules() |> notice(:info, message)}
     end
   end
 
@@ -230,7 +246,7 @@ defmodule SlipdockWeb.BoardLive.AutomationsComponent do
      socket
      |> assign(rule_busy: false, rule_text: "", editing_rule: nil)
      |> assign_rules()
-     |> flash(:info, "“#{rule.name}”: #{Rule.summary(rule)}")}
+     |> notice(:info, "“#{rule.name}”: #{Rule.summary(rule)}")}
   end
 
   def handle_async(:rule, {:ok, {:error, message}}, socket),
@@ -272,6 +288,7 @@ defmodule SlipdockWeb.BoardLive.AutomationsComponent do
         preset={@rule_preset}
         preset_params={@rule_preset_params}
         preset_error={@rule_preset_error}
+        notice={@panel_notice}
         runners?={@runners?}
         current_user={@current_user}
         ai?={@ai?}
@@ -474,6 +491,7 @@ defmodule SlipdockWeb.BoardLive.AutomationsComponent do
   attr :editing, :any, default: nil
   attr :preset, :string, default: nil
   attr :preset_params, :map, default: %{}
+  attr :notice, :any, default: nil, doc: "what the last action said, `{kind, message}`"
   attr :preset_error, :string, default: nil
   attr :runners?, :boolean, default: false
   attr :current_user, :any, default: nil
@@ -495,6 +513,7 @@ defmodule SlipdockWeb.BoardLive.AutomationsComponent do
           <h2 class="flex items-center gap-2 section-title">
             <.icon name="hero-cpu-chip" class="size-5 text-primary" /> Automations
           </h2>
+          <.panel_notice notice={@notice} class="mt-3" />
           <p class="mt-1 text-sm text-base-content/60">
             Pick a ready-made rule, or describe what should happen and when in your
             own words. Rules run on <strong class="font-medium">{@board.name}</strong>

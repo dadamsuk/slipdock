@@ -80,8 +80,8 @@ defmodule Slipdock.Deployments.Setup do
         {:error, "environments are letters, digits, dots, slashes, hyphens or underscores"}
 
       Keyword.has_key?(pattern_check.errors, :card_ref_pattern) ->
-        {msg, _} = Keyword.fetch!(pattern_check.errors, :card_ref_pattern)
-        {:error, "card_ref_pattern #{msg}"}
+        error = Keyword.fetch!(pattern_check.errors, :card_ref_pattern)
+        {:error, "card_ref_pattern #{Slipdock.ChangesetErrors.text(error)}"}
 
       true ->
         {:ok, %{a | "environments" => envs, "card_ref_pattern" => pattern}}

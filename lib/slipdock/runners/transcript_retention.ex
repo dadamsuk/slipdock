@@ -236,11 +236,7 @@ defmodule Slipdock.Runners.TranscriptRetention do
   def refusal({:payment_required, code, message}), do: "#{code}: #{message}"
 
   def refusal(%Ecto.Changeset{} = changeset) do
-    errors =
-      Ecto.Changeset.traverse_errors(changeset, fn {msg, _} -> msg end)
-      |> Enum.map_join("; ", fn {field, msgs} -> "#{field} #{Enum.join(msgs, ", ")}" end)
-
-    "the page could not be written: #{errors}"
+    "the page could not be written: #{Slipdock.ChangesetErrors.message(changeset)}"
   end
 
   def refusal(other), do: "the log could not be kept: #{inspect(other)}"

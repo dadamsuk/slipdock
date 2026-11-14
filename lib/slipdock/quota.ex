@@ -643,8 +643,8 @@ defmodule Slipdock.Quota do
   @spec refusal_message(Ecto.Changeset.t()) :: String.t() | nil
   def refusal_message(%Ecto.Changeset{errors: errors}) do
     case Keyword.get(errors, :base) do
-      {message, _opts} -> message
       nil -> nil
+      error -> Slipdock.ChangesetErrors.text(error)
     end
   end
 

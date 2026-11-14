@@ -86,6 +86,17 @@ defmodule SlipdockWeb.ColumnGrantLoweredLiveTest do
 
         assert columns(ctx.board) == before
         refused(view, unquote(how))
+
+        # Said in the open dialog's callout, not a flash (UX-29, #3131).
+        if unquote(how) == :untold do
+          assert has_element?(
+                   view,
+                   "#column-modal #panel-notice",
+                   "You have read-only access to this board."
+                 )
+
+          refute has_element?(view, "#flash-error")
+        end
       end
 
       test "a list's settings no longer open", ctx do

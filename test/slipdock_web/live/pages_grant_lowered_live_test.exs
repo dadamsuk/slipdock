@@ -294,7 +294,9 @@ defmodule SlipdockWeb.PagesGrantLoweredLiveTest do
       hand_over(:untold, ctx)
 
       view |> with_target("#board-settings") |> render_hook("settings_tab", %{"tab" => "sharing"})
-      assert render(view) =~ "Only the board&#39;s owner can do that."
+
+      # The board reloads without the panel, so this one is a flash (#3164).
+      assert has_element?(view, "#flash-error", "Only the board's owner can do that.")
     end
   end
 

@@ -60,6 +60,27 @@ defmodule SlipdockWeb.BoardLive.PanelGuardTest do
     defp event(_, _, socket), do: {:noreply, socket}
   end
 
+  # One that names no `say:`: its refusals go to its callout (#3164).
+  defmodule Defaulting do
+    @behaviour Phoenix.LiveComponent
+    use SlipdockWeb.BoardLive.PanelGuard,
+      events: ~w(write),
+      refusals: [{:can_write, false, :all, :read_only}]
+
+    defp event(_, _, socket), do: {:noreply, socket}
+  end
+
+  # One whose dialog may not be open when an event is refused.
+  defmodule Dialog do
+    @behaviour Phoenix.LiveComponent
+    use SlipdockWeb.BoardLive.PanelGuard,
+      events: ~w(write),
+      refusals: [{:can_write, false, :all, :read_only}],
+      say: {:notice, :dialog}
+
+    defp event(_, _, socket), do: {:noreply, socket}
+  end
+
   defp socket(assigns),
     do: %Phoenix.LiveView.Socket{assigns: Map.merge(%{__changed__: %{}}, Map.new(assigns))}
 
@@ -137,6 +158,31 @@ defmodule SlipdockWeb.BoardLive.PanelGuardTest do
 
       {:noreply, s} = Replying.handle_event("nope", %{}, socket(can_write: true))
       assert s.assigns.said == "That isn't something this page can do."
+    end
+
+    test "with no `say:`, a refusal is the panel's callout, never a flash (UX-29, #3164)" do
+      {:noreply, s} = Defaulting.handle_event("write", %{}, socket(can_write: false))
+      assert s.assigns.panel_notice == {:error, "You have read-only access to this board."}
+      refute_received {:put_flash, _, _}
+
+      {:noreply, s} = Defaulting.handle_event("drop_table", %{}, socket(can_write: true))
+      assert s.assigns.panel_notice == {:error, "That isn't something this page can do."}
+      refute_received {:put_flash, _, _}
+    end
+
+    test "{:notice, key} is the callout while the dialog is open" do
+      {:noreply, s} =
+        Dialog.handle_event("write", %{}, socket(can_write: false, dialog: %{id: 1}))
+
+      assert s.assigns.panel_notice == {:error, "You have read-only access to this board."}
+      refute_received {:put_flash, _, _}
+    end
+
+    test "{:notice, key} is a flash when the dialog isn't open: no panel to say it in" do
+      {:noreply, s} = Dialog.handle_event("write", %{}, socket(can_write: false, dialog: nil))
+
+      refute Map.has_key?(s.assigns, :panel_notice)
+      assert_received {:put_flash, :error, "You have read-only access to this board."}
     end
 
     test "the named handler runs, and `after` runs on what it returns" do

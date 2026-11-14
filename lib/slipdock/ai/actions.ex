@@ -1134,12 +1134,7 @@ defmodule Slipdock.AI.Actions do
   defp normalize_result(:ok), do: :ok
 
   defp normalize_result({:error, %Ecto.Changeset{} = cs}) do
-    msg =
-      cs.errors
-      |> Enum.map(fn {field, {m, _}} -> "#{field} #{m}" end)
-      |> Enum.join(", ")
-
-    {:error, "invalid: #{msg}"}
+    {:error, "invalid: #{Slipdock.ChangesetErrors.message(cs, join: ", ")}"}
   end
 
   defp normalize_result({:error, msg}) when is_binary(msg), do: {:error, msg}

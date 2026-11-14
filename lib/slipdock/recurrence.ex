@@ -539,7 +539,7 @@ defmodule Slipdock.Recurrence do
     message =
       case reason do
         %Ecto.Changeset{} = cs ->
-          Slipdock.Quota.refusal_message(cs) || inspect(cs.errors)
+          Slipdock.Quota.refusal_message(cs) || Slipdock.ChangesetErrors.message(cs)
 
         other ->
           inspect(other)

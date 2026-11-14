@@ -14,13 +14,20 @@ defmodule SlipdockWeb.BoardLive.SprintComponent do
   and target this component (`#board-sprints`). It works out the reader's
   access to the board for itself, and checks every card and sprint named by
   id against what that reader may write.
+
+  What an action says while one of its dialogs is open (a refusal, the
+  sprint made) is a `#panel-notice` callout at that dialog's top, never a
+  flash (UX-29, #3164); the next action takes it away. A refused Add cards…
+  never opens the picker, and adding the cards closes it, so those two say
+  so with a flash: there is no dialog left to say it in.
   """
   use SlipdockWeb, :live_component
 
   import SlipdockWeb.SlipdockComponents
   import SlipdockWeb.SprintChartComponents
   import SlipdockWeb.SprintPlanComponents
-  import SlipdockWeb.BoardLive.Helpers, only: [flash: 3]
+  import SlipdockWeb.BoardLive.Helpers, only: [flash: 3, notice: 3, clear_notice: 1]
+  import SlipdockWeb.ItemComponents, only: [panel_notice: 1]
 
   alias Slipdock.{Access, Boards, Palette, Sprints}
   alias Slipdock.Boards.{Board, Card}
@@ -38,7 +45,14 @@ defmodule SlipdockWeb.BoardLive.SprintComponent do
 
   @impl true
   def mount(socket) do
-    {:ok, assign(socket, new_sprint: nil, sprint_picker: nil, sprint_charts: nil, picking: false)}
+    {:ok,
+     assign(socket,
+       new_sprint: nil,
+       sprint_picker: nil,
+       sprint_charts: nil,
+       picking: false,
+       panel_notice: nil
+     )}
   end
 
   @impl true
@@ -68,7 +82,8 @@ defmodule SlipdockWeb.BoardLive.SprintComponent do
   use SlipdockWeb.BoardLive.PanelGuard,
     events: @events,
     access: &assign_access/1,
-    say: :flash,
+    prepare: &clear_notice/1,
+    say: :notice,
     after: &PanelGuard.tell_board(&1, :sprint_picker, :picking, :sprint_picking)
 
   # On a sprint board (`Board.sprints?/1`) New sprint makes the next sprint
@@ -113,7 +128,7 @@ defmodule SlipdockWeb.BoardLive.SprintComponent do
           {:noreply,
            socket
            |> assign(new_sprint: nil)
-           |> flash(:info, "#{sprint.title} is ready. Pick the cards that go in it.")
+           |> notice(:info, "#{sprint.title} is ready. Pick the cards that go in it.")
            |> open_sprint_picker(sprint)}
 
         {:error, error} ->
@@ -123,7 +138,7 @@ defmodule SlipdockWeb.BoardLive.SprintComponent do
            assign(socket, new_sprint: %{form: form, error: Sprints.error_message(error)})}
       end
     else
-      {:noreply, flash(socket, :error, "You have read-only access to this board.")}
+      {:noreply, notice(socket, :error, "You have read-only access to this board.")}
     end
   end
 
@@ -237,8 +252,8 @@ defmodule SlipdockWeb.BoardLive.SprintComponent do
          sprint_added_message(p.sprint, added, skipped)
        )}
     else
-      false -> {:noreply, flash(socket, :error, "You have read-only access to that sprint.")}
-      {:error, message} -> {:noreply, flash(socket, :error, message)}
+      false -> {:noreply, notice(socket, :error, "You have read-only access to that sprint.")}
+      {:error, message} -> {:noreply, notice(socket, :error, message)}
     end
   end
 
@@ -321,7 +336,7 @@ defmodule SlipdockWeb.BoardLive.SprintComponent do
         {:noreply, assign(socket, sprint_picker: p)}
 
       {:error, message} ->
-        {:noreply, flash(socket, :error, message)}
+        {:noreply, notice(socket, :error, message)}
     end
   end
 
@@ -383,9 +398,25 @@ defmodule SlipdockWeb.BoardLive.SprintComponent do
   def render(assigns) do
     ~H"""
     <div id="board-sprints">
-      <.new_sprint_modal :if={@new_sprint} new_sprint={@new_sprint} board={@board} target={@myself} />
-      <.sprint_picker_modal :if={@sprint_picker} picker={@sprint_picker} target={@myself} />
-      <.sprint_charts_modal :if={@sprint_charts} charts={@sprint_charts} target={@myself} />
+      <.new_sprint_modal
+        :if={@new_sprint}
+        new_sprint={@new_sprint}
+        board={@board}
+        notice={@panel_notice}
+        target={@myself}
+      />
+      <.sprint_picker_modal
+        :if={@sprint_picker}
+        picker={@sprint_picker}
+        notice={@panel_notice}
+        target={@myself}
+      />
+      <.sprint_charts_modal
+        :if={@sprint_charts}
+        charts={@sprint_charts}
+        notice={@panel_notice}
+        target={@myself}
+      />
     </div>
     """
   end
@@ -492,6 +523,7 @@ defmodule SlipdockWeb.BoardLive.SprintComponent do
   end
 
   attr :new_sprint, :map, required: true
+  attr :notice, :any, default: nil, doc: "what the last action said, `{kind, message}`"
   attr :target, :any, required: true
   attr :board, :map, required: true
 
@@ -501,6 +533,7 @@ defmodule SlipdockWeb.BoardLive.SprintComponent do
     ~H"""
     <.modal id="new-sprint-modal" on_close={JS.push("close_new_sprint", target: @target)} size="sm">
       <div class="space-y-4 p-6">
+        <.panel_notice notice={@notice} />
         <div>
           <h2 class="pr-8 section-title">New sprint</h2>
           <p class="mt-0.5 text-sm text-base-content/60">
@@ -546,6 +579,7 @@ defmodule SlipdockWeb.BoardLive.SprintComponent do
   end
 
   attr :charts, :map, required: true
+  attr :notice, :any, default: nil, doc: "what the last action said, `{kind, message}`"
   attr :target, :any, required: true
 
   defp sprint_charts_modal(assigns) do
@@ -556,6 +590,7 @@ defmodule SlipdockWeb.BoardLive.SprintComponent do
       size="md"
     >
       <div class="space-y-6 p-6">
+        <.panel_notice notice={@notice} />
         <h2 class="pr-8 section-title">Sprint charts</h2>
         <.velocity_chart :if={@charts.velocity} velocity={@charts.velocity} />
         <form
@@ -584,6 +619,7 @@ defmodule SlipdockWeb.BoardLive.SprintComponent do
   end
 
   attr :picker, :map, required: true
+  attr :notice, :any, default: nil, doc: "what the last action said, `{kind, message}`"
   attr :target, :any, required: true
 
   # Picking a sprint's cards. With boards to plan from, the plan: every one
@@ -607,6 +643,7 @@ defmodule SlipdockWeb.BoardLive.SprintComponent do
       size={if @mode == "plan", do: "xl", else: "md"}
     >
       <div class="flex max-h-[85vh] flex-col gap-4 p-6">
+        <.panel_notice notice={@notice} />
         <div class="flex flex-wrap items-start gap-2 pr-8">
           <div class="min-w-0 flex-1">
             <h2 class="section-title">
