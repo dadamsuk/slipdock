@@ -180,8 +180,13 @@ you have to read past. A folder is a place, and a place costs nothing.
 **Front matter.** A page imported from a file keeps that file's front matter
 exactly as written. `slipdock page props <page>` prints the YAML; edit it and
 send it back with `--file F` (or `--clear`), with `--message M` saying why
-(the card id), as a page edit does. Never paste front matter into the
-body: it lives beside the body, and a `---` block in the body is just text.
+(the card id), as a page edit does. It lives beside the body: a whole note
+sent as the body (`page new` or `page edit` with `--file note.md`, MCP
+`write_page` `create` and `replace`) has the `---` block at its top split
+off into the front matter, replacing what the page had, and a body without
+one leaves the front matter alone. Sending such a body and `front_matter`
+together is refused. An append or a section write never splits: there a
+`---` block is just text.
 Its `aliases` are other names `[[links]]` find the page by.
 
 ## The wiki: everything as one Obsidian-style tree

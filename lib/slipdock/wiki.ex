@@ -582,14 +582,41 @@ defmodule Slipdock.Wiki do
   page's id to finish the text can do so inside the same transaction. An
   `{:error, message}` writes nothing and answers `{:error, {:finish_body,
   message}}`. The editor uses it for images held for an unsaved page (#1532).
+
+  `:split_front_matter` is for a body sent as a whole note (the API, the CLI
+  and MCP set it; the editor does not): a `---` front matter block at its
+  top is stored as the page's `front_matter`, the way a vault sync stores a
+  file's, and the rest is the body (#2992). Sent with a `front_matter` of its
+  own as well, nothing is written: `{:error, :unprocessable_entity, message}`.
+  `:front_matter_sent` says the request named a `front_matter` that the
+  caller didn't put in `attrs` (a page for a card, a page in a folder), so
+  that write is refused the same way.
   """
   def create_page(%Board{} = board, attrs, opts \\ []) do
-    attrs = stringify(attrs)
-
-    with :ok <- check_shared_create(board, attrs, opts[:user]) do
+    with {:ok, attrs} <- split_front_matter(stringify(attrs), opts),
+         :ok <- check_shared_create(board, attrs, opts[:user]) do
       insert_page(board, attrs, opts)
     end
   end
+
+  # A leading front matter block in the body becomes the page's front
+  # matter. Only a block that sets a key counts (`FrontMatter.lift/1`), and a
+  # write that also names `front_matter` is refused rather than guessed at.
+  defp split_front_matter(%{"body" => body} = attrs, opts) when is_binary(body) do
+    with true <- opts[:split_front_matter] == true,
+         {header, rest} when is_binary(header) <- Slipdock.Wiki.FrontMatter.lift(body) do
+      if Map.has_key?(attrs, "front_matter") or opts[:front_matter_sent] == true,
+        do:
+          {:error, :unprocessable_entity,
+           "the body starts with a front matter block (--- lines) and front_matter was sent " <>
+             "too: send one of them"},
+        else: {:ok, attrs |> Map.put("front_matter", header) |> Map.put("body", rest)}
+    else
+      _ -> {:ok, attrs}
+    end
+  end
+
+  defp split_front_matter(attrs, _opts), do: {:ok, attrs}
 
   # Somebody a folder was shared with makes pages inside it, and only there,
   # and never an encrypted one (#816, `Slipdock.Wiki.Sharing`). A page made
@@ -743,7 +770,8 @@ defmodule Slipdock.Wiki do
     # being quietly rolled back to what this caller last saw.
     page = Repo.get!(Page, page.id)
 
-    with :ok <- check_base_hash(page, opts[:base_hash]),
+    with {:ok, attrs} <- split_front_matter(attrs, opts),
+         :ok <- check_base_hash(page, opts[:base_hash]),
          :ok <- check_shared_change(page, Page.changeset(page, attrs).changes, user) do
       result =
         Repo.transaction(fn ->

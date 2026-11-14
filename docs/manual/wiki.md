@@ -796,7 +796,14 @@ replace it with `slipdock page props <page> [--file F | --clear]`, the API's
 `front_matter` field (the YAML between the `---` lines), or MCP's
 `read_page` and `update_page`. A change to it alone is a revision in the
 page's history like any edit, and `--message M` (the API's `message`) says
-why there.
+why there. A whole note written through the API, the CLI (`page new` or
+`page edit` with `--file note.md`) or MCP's `write_page` (`create`,
+`replace`) is read the way a synced file is: the `---` block at its top,
+when it sets at least one key, becomes the page's front matter, replacing
+what was there, and the rest its body. A body that only opens with a
+horizontal rule stays as written, and one sent together with a
+`front_matter` of its own is refused. The editor keeps what you type in
+the body as body.
 
 **Aliases.** A page whose front matter lists `aliases` (or Obsidian's older
 `alias`) answers to each of them: `[[Retries]]` finds the page whose aliases

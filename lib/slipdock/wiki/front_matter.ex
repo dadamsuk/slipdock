@@ -45,6 +45,20 @@ defmodule Slipdock.Wiki.FrontMatter do
     end
   end
 
+  @doc """
+  Splits a body somebody sent as a whole note (the API, the CLI's `--file`,
+  an agent over MCP) into `{header, body}`, as `split/1` does a file, but
+  only when the block between the `---` lines sets at least one key. A body
+  that merely opens with a horizontal rule is prose, and stays whole.
+  """
+  @spec lift(String.t()) :: {String.t() | nil, String.t()}
+  def lift(text) when is_binary(text) do
+    case split(text) do
+      {nil, _} -> {nil, text}
+      {header, body} -> if keys(yaml(header) || "") == [], do: {nil, text}, else: {header, body}
+    end
+  end
+
   @doc "The YAML inside a header — what sits between the `---` lines."
   @spec yaml(String.t() | nil) :: String.t() | nil
   def yaml(nil), do: nil

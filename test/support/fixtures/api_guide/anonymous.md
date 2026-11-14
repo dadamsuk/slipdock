@@ -3476,7 +3476,13 @@ file's front matter as written — key order, quoting, comments — and a
 page's JSON carries it as `front_matter`, the YAML between the `---`
 lines (null when there is none). Send `front_matter` on create or
 `PATCH /api/pages/:id` to replace it (`""` clears it; a line of `---` or
-`...` is refused). Export patches only Slipdock's own keys into it.
+`...` is refused). A `body` sent on create or `PATCH` is a whole note:
+a `---` front matter block at its top (one that sets at least one key) is
+split off and stored as `front_matter`, replacing what the page had, and
+the rest is the body; a body without one leaves `front_matter` as it was.
+Send such a body and `front_matter` together and the write is refused
+(422). An append or a section write never splits.
+Export patches only Slipdock's own keys into it.
 Its `aliases` (a list, or Obsidian's older `alias`) become the page's
 `aliases`: `[[Alias]]` and `/api/pages/resolve?title=Alias` find the page
 as its title would, a real title winning over an alias.

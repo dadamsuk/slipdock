@@ -1926,6 +1926,8 @@ write a page</dd>
 <dd class="mt-2 min-w-0">
 <pre class="overflow-x-auto rounded-xl bg-base-200 px-3 py-2 font-mono text-xs leading-relaxed">
 --body TEXT | --file F | --body -   (- reads the body from stdin)
+              a --- front matter block at its top is kept as the
+              page&#39;s front matter (see page props), not as text
 --parent P    put it under another page
 --folder F    file it in a folder — a name or a path, made if it is new
 --card N      a page for that card: in its folder, pinned to it
@@ -1951,6 +1953,8 @@ edit</span>
 [--body TEXT|--file F|--body -]</span>
 </code>
 </dt>
+<dd class="mt-1 break-words text-sm text-base-content/70">
+a --- front matter block at the top of the new body replaces the page&#39;s front matter; without one it stays</dd>
 <dd class="mt-2 min-w-0">
 <pre class="overflow-x-auto rounded-xl bg-base-200 px-3 py-2 font-mono text-xs leading-relaxed">
 --message M   why (write one every time)
