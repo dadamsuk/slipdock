@@ -58,6 +58,13 @@ test("no board and no reply still ask and answer: with no pages", async () => {
   assert.deepEqual(await suggestPages(hook, {text: ""}, {fresh: false}), [])
 })
 
+test("a later keystroke in the word is sent as not fresh", async () => {
+  const sent = []
+  const hook = {el: {dataset: {board: "3"}}, pushEvent: (_n, payload, reply) => { sent.push(payload); reply({pages: []}) }}
+  await suggestPages(hook, {text: "Retr"}, {fresh: false})
+  assert.deepEqual(sent, [{q: "Retr", board: "3", fresh: false}])
+})
+
 // PageLink as built, mounted with a pushEvent that answers as the server does.
 let body
 beforeEach(() => { ({body} = fakeDom()) })
@@ -91,6 +98,21 @@ test("PageLink: typing [[ret asks the server and lists its reply", async () => {
   assert.deepEqual(links(menu).map(a => a.children[1].textContent), ["W-7", "W-31"])
   assert.equal(active(menu), 0)
   assert.equal(menu.classList.contains("hidden"), false)
+})
+
+test("PageLink: the rest of a [[ word reuses the pages; a new [[ gathers them afresh", async () => {
+  const {ta, sent} = mountLink("")
+  type(ta, "See [[re")
+  await tick()
+  type(ta, "See [[ret")
+  await tick()
+  type(ta, "See [[ret]] and [[x")
+  await tick()
+  assert.deepEqual(sent.map(s => s.payload), [
+    {q: "re", board: "3", fresh: true},
+    {q: "ret", board: "3", fresh: false},
+    {q: "x", board: "3", fresh: true},
+  ])
 })
 
 test("PageLink: a single bracket asks nothing", async () => {
