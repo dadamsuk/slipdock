@@ -26,7 +26,7 @@
 
 export const TICK_MS = 30_000
 
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+export const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 const formats = new Map()
 
 function dayFormat(zone) {
@@ -54,7 +54,11 @@ function dayNumber({year, month, day}) {
   return Math.round(Date.UTC(year, month - 1, day) / 86_400_000)
 }
 
-function short(d, today) {
+// `SlipdockWeb.Dates.short/2`: "18 Nov", or "18 Nov 2025" when `d` isn't in
+// `today`'s year. Both are {year, month, day}; `today` is the day in the
+// viewer's zone (`localDay/2`). The date field (date_field.js) writes its
+// words with this too.
+export function short(d, today) {
   const text = `${d.day} ${MONTHS[d.month - 1]}`
   return d.year === today.year ? text : `${text} ${d.year}`
 }
