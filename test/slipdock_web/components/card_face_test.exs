@@ -619,6 +619,107 @@ defmodule SlipdockWeb.Components.CardFaceTest do
     end
   end
 
+  describe "the time chip and bar (#3112)" do
+    # A 4h estimate, in minutes, and what is spent against it in each case.
+    @estimate 240
+
+    defp timed(spent, extra \\ %{}),
+      do: Map.merge(%{base() | time_spent: spent, time_estimate: @estimate}, extra)
+
+    defp render_fragment(fun, assigns),
+      do: fun |> render_component(assigns) |> LazyHTML.from_fragment()
+
+    defp badge(card), do: render_fragment(&SlipdockComponents.time_badge/1, card: card)
+    defp bar(percent), do: render_fragment(&SlipdockComponents.time_bar/1, percent: percent)
+
+    defp attr(html, selector, name),
+      do: html |> LazyHTML.query(selector) |> LazyHTML.attribute(name) |> List.first()
+
+    defp classes(html, selector), do: attr(html, selector, "class") |> String.split()
+
+    test "with no estimate, the chip gives the time spent and draws no bar" do
+      html = badge(%{base() | time_spent: 90})
+
+      assert text(html, ".chip") == "1.5h"
+      assert attr(html, ".chip", "title") == "1.5h spent"
+      assert "chip-line" in classes(html, ".chip")
+      refute drawn?(html, ~s([style^="width"]))
+    end
+
+    test "the chip gives spent/estimate, its percentage and its tint at each stage" do
+      for {spent, label, percent, tint, fill} <- [
+            {120, "2h/4h", 50, "chip-line", "bg-success"},
+            {192, "3.2h/4h", 80, "bg-warning/15", "bg-warning"},
+            {240, "4h/4h", 100, "bg-warning/15", "bg-warning"},
+            {360, "6h/4h", 150, "bg-error/15", "bg-error"}
+          ] do
+        html = badge(timed(spent))
+        [shown_spent, _] = String.split(label, "/")
+
+        assert text(html, ".chip") == label
+
+        assert attr(html, ".chip", "title") ==
+                 "#{shown_spent} spent of 4h estimated (#{percent}%)"
+
+        assert tint in classes(html, ".chip"), "#{percent}%: no #{tint}"
+        assert fill in classes(html, ~s([style^="width"])), "#{percent}%: no #{fill}"
+
+        assert attr(html, ~s([style^="width"]), "style") ==
+                 "width: #{min(percent, 100)}%"
+      end
+    end
+
+    test "under 80% the chip has neither the near nor the over tint" do
+      chip = badge(timed(120)) |> classes(".chip")
+      refute "bg-warning/15" in chip
+      refute "bg-error/15" in chip
+    end
+
+    test "a running timer adds its time, says so in the title and pulses the clock" do
+      started = DateTime.add(DateTime.utc_now(), -30 * 60, :second)
+      html = badge(timed(90, %{timer_started_at: started}))
+
+      assert text(html, ".chip") == "2h/4h"
+      assert attr(html, ".chip", "title") == "2h spent of 4h estimated (50%) — timer running"
+      assert "animate-pulse" in classes(html, ".hero-clock")
+    end
+
+    test "a stopped timer neither says it runs nor pulses" do
+      html = badge(timed(120))
+
+      refute attr(html, ".chip", "title") =~ "timer running"
+      refute "animate-pulse" in classes(html, ".hero-clock")
+    end
+
+    test "the bar's fill, status and value at each stage, capped at 100%" do
+      for {percent, status, fill} <- [
+            {50, "under", "bg-success"},
+            {80, "near", "bg-warning"},
+            {100, "near", "bg-warning"},
+            {150, "over", "bg-error"}
+          ] do
+        html = bar(percent)
+
+        assert attr(html, ~s([role="progressbar"]), "data-status") == status
+        assert attr(html, ~s([role="progressbar"]), "aria-valuenow") == "#{percent}"
+        fill_style = "width: #{min(percent, 100)}%"
+        assert attr(html, ~s([style^="width"]), "style") == fill_style
+        assert fill in classes(html, ~s([style^="width"]))
+      end
+    end
+
+    test "only an over-estimate bar draws the tick, at where the estimate fell" do
+      for percent <- [50, 80, 100] do
+        refute drawn?(bar(percent), ~s([title="Estimate"])), "#{percent}% drew a tick"
+      end
+
+      # 100 / 150 of the bar is the estimate: 66.7%.
+      assert attr(bar(150), ~s([title="Estimate"]), "style") == "left: 66.7%"
+      assert attr(bar(200), ~s([title="Estimate"]), "style") == "left: 50.0%"
+      assert attr(bar(400), ~s([title="Estimate"]), "style") == "left: 25.0%"
+    end
+  end
+
   describe "opening an item (#2890)" do
     test "page_path/1 is a placed page's document, on its own board" do
       page = %Slipdock.Wiki.Page{id: 7, board_id: 3, slug: "a-page"}
