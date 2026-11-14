@@ -413,7 +413,9 @@ defmodule Slipdock.Boards do
         # rules as well as lists, so a new board arrives with somewhere to
         # write rather than an empty wiki. The same applier builds a Tool's
         # board (see `Slipdock.Blueprint`).
-        if template, do: apply_template_extras(board, template, opts[:owner_id])
+        if template,
+          do: apply_template_extras(board, template, opts[:owner_id], opts[:make_tags] != false)
+
         Boards.PubSub.broadcast(board.id)
         # Nobody is subscribed to a new tree yet, its owner included. A
         # Knowledge Base is on no list of boards, so nobody's needs redrawing.
@@ -439,12 +441,15 @@ defmodule Slipdock.Boards do
   defp column_category(%{category: category}), do: category
   defp column_category(_), do: nil
 
-  defp apply_template_extras(board, template, owner_id) do
+  defp apply_template_extras(board, template, owner_id, make_tags?) do
     user = owner_id && Repo.get(Slipdock.Accounts.User, owner_id)
 
     # The lists are already made — the template's, or the custom ones given
-    # instead of them — so only the rest of the blueprint is applied.
+    # instead of them — so only the rest of the blueprint is applied. Its
+    # tags go on the tree's root, so they are left out when whoever asked
+    # for the sub-board may not change the root's tags (#2990).
     extras = template |> Slipdock.Blueprint.from_template() |> Map.put("lists", [])
+    extras = if make_tags?, do: extras, else: Map.put(extras, "tags", [])
 
     case Slipdock.Blueprint.apply(board, extras,
            user: user,
@@ -581,9 +586,16 @@ defmodule Slipdock.Boards do
   board's colour, and shares tags with the root board.
 
   Its code comes from the card's title unless `opts[:code]` names one.
+
+  A template's tags go on the tree's root, so they are made only when
+  `opts[:by]` may change the root's tags, or `opts[:make_tags]` (the door's
+  own answer) says so (`Slipdock.Boards.Tags.may_make?/3`, #2990); otherwise
+  the sub-board gets its lists and the rest, and the tree's tags stay as
+  they were. Given neither, as the server's own setup is, they are made.
   """
   def create_sub_board(%Card{} = card, %Template{} = template, opts \\ []) do
     parent = Repo.get!(Board, card.board_id)
+    make_tags? = Boards.Tags.may_make?(parent, opts[:by], opts)
 
     if Repo.exists?(from(b in Board, where: b.parent_card_id == ^card.id)) do
       {:error, "This card already has subcards."}
@@ -614,7 +626,8 @@ defmodule Slipdock.Boards do
              template: template,
              parent_card_id: card.id,
              root_id: Board.root_id(parent),
-             owner_id: parent.owner_id
+             owner_id: parent.owner_id,
+             make_tags: make_tags?
            ) do
         {:ok, board} ->
           Boards.ActivityLog.log(

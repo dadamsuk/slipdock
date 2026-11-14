@@ -14,6 +14,11 @@ defmodule Slipdock.Boards.Copy do
   that silently doubles storage surprises people), links, dependencies,
   custom field values and votes.
 
+  Tags travel by name; one the destination's tree lacks is made on its root
+  only when the person copying can edit that root's tags
+  (`Slipdock.Boards.Tags.may_make?/3`, #2990). Otherwise the copy goes
+  without it, and `copy_card_reporting/3` says which were left off.
+
   All or nothing: the whole copy is one transaction, and its side effects
   (automation rules, mentions) wait until it has committed. A copy the free
   tier's limit stops part-way leaves nothing behind.
@@ -37,30 +42,45 @@ defmodule Slipdock.Boards.Copy do
       (string keys, as `Boards.Cards.create_card/3` takes them), e.g. dates.
     * `:at` — `:top`, `:bottom` (the default) or `:after`, straight after
       the original (only in the original's own list).
+    * `:make_tags` — whether tags the destination's tree lacks may be made
+      there; when left out, whether `:by` can edit that tree's tags.
   """
   def copy_card(%Card{} = card, column \\ nil, opts \\ []) do
+    with {:ok, copy, _dropped} <- copy_card_reporting(card, column, opts), do: {:ok, copy}
+  end
+
+  @doc """
+  `copy_card/3`, answering `{:ok, copy, tags_dropped}`: the names of the
+  tags left off because the destination's tree lacks them and the copier
+  may not make them there (#2990).
+  """
+  def copy_card_reporting(%Card{} = card, column \\ nil, opts \\ []) do
     column = column || Repo.get!(Column, card.column_id)
+    target = Repo.get!(Board, column.board_id)
+    opts = Keyword.put(opts, :make_tags, Boards.Tags.may_make?(target, opts[:by], opts))
 
     {result, effects} =
       Slipdock.Deferred.collect(fn ->
-        Repo.transaction(fn ->
-          case copy_tree(card, column, opts[:attrs] || %{}, opts) do
-            {:ok, copy} -> copy
-            {:error, reason} -> Repo.rollback(reason)
-          end
-        end)
+        Repo.transaction(fn -> copy_or_roll_back(card, column, opts) end)
       end)
 
     case result do
-      {:ok, copy} ->
+      {:ok, {copy, dropped}} ->
         # Let go now — or, inside a caller's own transaction that is holding
         # effects back (a recurring series' tick), handed on to it.
         Enum.each(effects, &Slipdock.Deferred.defer/1)
         place(copy, card, column, opts[:at] || :bottom)
-        {:ok, Boards.Cards.get_card!(copy.id)}
+        {:ok, Boards.Cards.get_card!(copy.id), dropped |> Enum.uniq() |> Enum.sort()}
 
       {:error, _} = error ->
         error
+    end
+  end
+
+  defp copy_or_roll_back(card, column, opts) do
+    case copy_tree(card, column, opts[:attrs] || %{}, opts) do
+      {:ok, copy, dropped} -> {copy, dropped}
+      {:error, reason} -> Repo.rollback(reason)
     end
   end
 
@@ -86,39 +106,47 @@ defmodule Slipdock.Boards.Copy do
 
     with {:ok, copy} <-
            Boards.Cards.create_card(column, attrs, by: opts[:by], origin: opts[:origin]),
-         {:ok, copy} <- copy_tags(copy, card, column),
+         {:ok, copy, dropped} <- copy_tags(copy, card, column, opts[:make_tags]),
          :ok <- copy_checklist(copy, card),
-         :ok <- copy_sub_board(copy, card, opts) do
-      {:ok, copy}
+         {:ok, below} <- copy_sub_board(copy, card, opts) do
+      {:ok, copy, dropped ++ below}
     end
   end
 
   # Tags belong to the root of a board tree; a copy into another tree takes
-  # the tags by name, making any that tree lacks.
-  defp copy_tags(copy, %Card{tags: []}, _column), do: {:ok, copy}
+  # the tags by name, making any that tree lacks when it may (#2990) and
+  # leaving them off when it may not.
+  defp copy_tags(copy, %Card{tags: []}, _column, _make?), do: {:ok, copy, []}
 
-  defp copy_tags(copy, card, column) do
+  defp copy_tags(copy, card, column, make?) do
     target_root = column.board_id |> then(&Repo.get!(Board, &1)) |> Board.root_id()
 
-    tags =
-      Enum.map(card.tags, fn
-        %Tag{board_id: ^target_root} = tag -> tag
-        tag -> tag_in(target_root, tag)
+    {tags, dropped} =
+      Enum.reduce(card.tags, {[], []}, fn
+        %Tag{board_id: ^target_root} = tag, {tags, dropped} ->
+          {[tag | tags], dropped}
+
+        tag, {tags, dropped} ->
+          case tag_in(target_root, tag, make?) do
+            nil -> {tags, [tag.name | dropped]}
+            found -> {[found | tags], dropped}
+          end
       end)
 
-    Boards.Cards.set_card_tags(copy, tags)
+    with {:ok, copy} <- Boards.Cards.set_card_tags(copy, Enum.reverse(tags)),
+         do: {:ok, copy, Enum.reverse(dropped)}
   end
 
-  defp tag_in(root_id, %Tag{name: name, color: color}) do
+  defp tag_in(root_id, %Tag{name: name, color: color}, make?) do
     case Repo.one(from(t in Tag, where: t.board_id == ^root_id and t.name == ^name)) do
-      nil ->
+      nil when make? ->
         {:ok, tag} =
           Boards.Tags.create_tag(Repo.get!(Board, root_id), %{"name" => name, "color" => color})
 
         tag
 
-      tag ->
-        tag
+      found ->
+        found
     end
   end
 
@@ -131,7 +159,7 @@ defmodule Slipdock.Boards.Copy do
     :ok
   end
 
-  defp copy_sub_board(_copy, %Card{sub_board: nil}, _opts), do: :ok
+  defp copy_sub_board(_copy, %Card{sub_board: nil}, _opts), do: {:ok, []}
 
   defp copy_sub_board(copy, %Card{sub_board: source}, opts) do
     parent = Repo.get!(Board, copy.board_id)
@@ -154,9 +182,9 @@ defmodule Slipdock.Boards.Copy do
 
       source.id
       |> subcards()
-      |> Enum.reduce_while(:ok, fn sub, :ok ->
+      |> Enum.reduce_while({:ok, []}, fn sub, {:ok, dropped} ->
         case copy_tree(sub, ready, %{}, opts) do
-          {:ok, _} -> {:cont, :ok}
+          {:ok, _, more} -> {:cont, {:ok, dropped ++ more}}
           error -> {:halt, error}
         end
       end)

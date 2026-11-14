@@ -372,8 +372,11 @@ There are two ways to give them one:
   card's subcards, comments, history and links go with it, its tags travel
   by name (made on the destination where they are new), and its custom
   field values survive only where that board has a field with the same key
-  and kind. The reply's `moved` says what that cost:
-  `{"tags_created": 1, "fields_dropped": 0, "milestones_unpinned": 0}` —
+  and kind. A tag the destination's tree lacks is made only when you can
+  edit that tree's root board; otherwise it is left off and named in
+  `tags_dropped` (with `tags_dropped_reason`). The reply's `moved` says
+  what that cost:
+  `{"tags_created": 1, "tags_dropped": [], "fields_dropped": 0, "milestones_unpinned": 0}` —
   repeat it back to the user rather than letting them find out later. Write
   access is needed on both sides, a card cannot be moved into its own
   subcards, and an archived card must be restored first. Leave `board` out
@@ -495,6 +498,9 @@ There are two ways to give them one:
 - **Copying a card** — `POST /api/cards/:id/copy` makes a copy as it is
   now (checklist unticked, subcards reopened; no comments, dates or
   files), straight after it unless `board`, `column` or `at` say otherwise.
+  Into another tree, a tag it lacks is made on its root only when you can
+  edit that root; otherwise the copy goes without it, and the reply's
+  `tags_dropped` names the ones left off, with `tags_dropped_reason`.
 - Also on a card, and safe to ignore until you need them: `status_updates`
   (a stated `on_track` / `at_risk` / `off_track` with a note), custom
   `fields` and formula `scores`, `votes`, `attachments`, `milestones` on the

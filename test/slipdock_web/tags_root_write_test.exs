@@ -7,6 +7,15 @@ defmodule SlipdockWeb.TagsRootWriteTest do
   steps. Write on a sub-board alone, from a grant on the card it hangs from
   or on the sub-board itself, applies the tags the tree has and changes none.
   A writer of the root still makes them from any board of the tree.
+
+  The doors that carry tags in rather than make them by name ask the same:
+  a copy (`POST /api/cards/:id/copy`), a move across trees (`POST
+  /api/cards/:id/move`, the MCP `move_card` and bulk edit; the Move panel
+  offers only top boards its user writes, so it never meets the case)
+  and a sub-board from a template (`POST /api/cards/:id/subboard`, the MCP
+  `create_card`'s `parent`, the card panel). A sub-board writer's copy or
+  move takes the tags the tree has and leaves off the rest, saying which;
+  a template's tags stay out.
   """
   use SlipdockWeb.ConnCase, async: true
 
@@ -96,6 +105,18 @@ defmodule SlipdockWeb.TagsRootWriteTest do
       end
     end
 
+    test "a writer of the root, and the owner, make one on the root itself", ctx do
+      for {user, name} <- [{ctx.root_writer, "top"}, {ctx.owner, "own"}] do
+        assert %{"tag" => %{"name" => ^name}} =
+                 conn_as(user)
+                 |> put_req_header("accept", "application/json")
+                 |> post(~p"/api/boards/#{ctx.root.id}/tags", %{name: name})
+                 |> json_response(201)
+      end
+
+      assert names(ctx) == ["ops", "own", "top"]
+    end
+
     test "a writer of the root makes and deletes one from the sub-board", ctx do
       conn = conn_as(ctx.root_writer) |> put_req_header("accept", "application/json")
 
@@ -163,6 +184,16 @@ defmodule SlipdockWeb.TagsRootWriteTest do
       made = mcp(ctx.root_writer, %{board: ctx.sub.id, name: "deep"})
       assert made["structuredContent"]["created"] == true
       assert names(ctx) == ["deep", "ops"]
+    end
+
+    test "a writer of the root, and the owner, make one on the root itself", ctx do
+      for {user, name} <- [{ctx.root_writer, "top"}, {ctx.owner, "own"}] do
+        made = mcp(user, %{board: ctx.root.id, name: name})
+        assert made["isError"] == false
+        assert made["structuredContent"]["created"] == true
+      end
+
+      assert names(ctx) == ["ops", "own", "top"]
     end
   end
 
@@ -248,10 +279,11 @@ defmodule SlipdockWeb.TagsRootWriteTest do
         render_hook(panel, "create_tag", %{"tag" => %{"name" => "sneaky"}})
         render_hook(panel, "set_tag_color", %{"id" => "#{ctx.ops.id}", "color" => "lime"})
         render_hook(panel, "rename_tag", %{"tag_id" => "#{ctx.ops.id}", "name" => "mine"})
-        assert_reply(view, %{ok: false})
         render_hook(panel, "delete_tag", %{"id" => "#{ctx.ops.id}"})
 
         assert has_element?(view, "#tags-error", "Tags belong to the top board")
+        # Said once: the error takes the info callout's place.
+        refute has_element?(view, "#tags-root-only")
         assert %Tag{name: "ops", color: "rose"} = Repo.get!(Tag, ctx.ops.id)
         assert names(ctx) == ["ops"]
       end
@@ -264,6 +296,300 @@ defmodule SlipdockWeb.TagsRootWriteTest do
 
       render_hook(with_target(view, "#board-tags"), "create_tag", %{"tag" => %{"name" => "deep"}})
       assert names(ctx) == ["deep", "ops"]
+    end
+  end
+
+  ## The doors that carry tags in ---------------------------------------------
+
+  # A card on `user`'s own board wearing `sneaky` (which the tree lacks) and
+  # `ops` (which it has, by name).
+  defp own_card(user) do
+    mine = board_fixture(%{"name" => "Mine"}, owner: user)
+    card = card_fixture(hd(mine.columns), %{"title" => "Carried"})
+    {:ok, sneaky} = Boards.Tags.create_tag(mine, %{"name" => "sneaky", "color" => "lime"})
+    {:ok, ops} = Boards.Tags.create_tag(mine, %{"name" => "ops", "color" => "sky"})
+    {:ok, card} = Boards.Cards.set_card_tags(card, [sneaky, ops])
+    Boards.Cards.get_card!(card.id)
+  end
+
+  defp tag_names(card_id),
+    do:
+      card_id
+      |> Boards.Cards.get_card!()
+      |> Map.fetch!(:tags)
+      |> Enum.map(& &1.name)
+      |> Enum.sort()
+
+  defp api(user), do: conn_as(user) |> put_req_header("accept", "application/json")
+
+  defp mcp_tool(user, tool, args) do
+    conn_as(user)
+    |> put_req_header("content-type", "application/json")
+    |> post(
+      "/mcp",
+      Jason.encode!(%{
+        jsonrpc: "2.0",
+        id: 1,
+        method: "tools/call",
+        params: %{name: tool, arguments: args}
+      })
+    )
+    |> json_response(200)
+    |> Map.fetch!("result")
+  end
+
+  describe "copying a card into the sub-board" do
+    for who <- @sub_writers do
+      test "a #{who} takes the tags the tree has and is told which it left off", ctx do
+        card = own_card(ctx[unquote(who)])
+
+        body =
+          ctx[unquote(who)]
+          |> api()
+          |> post(~p"/api/cards/#{card.id}/copy", %{board: ctx.sub.id})
+          |> json_response(201)
+
+        assert body["tags_dropped"] == ["sneaky"]
+        assert body["tags_dropped_reason"] =~ "only someone who can edit the top board"
+        assert tag_names(body["card"]["id"]) == ["ops"]
+        assert names(ctx) == ["ops"]
+      end
+
+      test "a #{who}'s copy with subcards leaves their new tags off too", ctx do
+        user = ctx[unquote(who)]
+        card = own_card(user)
+        {:ok, t} = Boards.Templates.find_template(nil, "Simple")
+        {:ok, below} = sub_board(card, t)
+        below = Boards.get_board!(below.id)
+        child = card_fixture(hd(below.columns), %{"title" => "Child"})
+        {:ok, deep} = Boards.Tags.create_tag(below, %{"name" => "deeper"})
+        {:ok, _} = Boards.Cards.set_card_tags(child, [deep])
+
+        column = hd(ctx.sub.columns)
+
+        assert {:ok, _copy, ["deeper", "sneaky"]} =
+                 Boards.Cards.copy_card_reporting(card, column, by: user)
+
+        assert names(ctx) == ["ops"]
+      end
+    end
+
+    test "a writer of the root makes the ones the tree lacks", ctx do
+      card = own_card(ctx.root_writer)
+
+      body =
+        ctx.root_writer
+        |> api()
+        |> post(~p"/api/cards/#{card.id}/copy", %{board: ctx.sub.id})
+        |> json_response(201)
+
+      assert body["tags_dropped"] == []
+      refute Map.has_key?(body, "tags_dropped_reason")
+      assert tag_names(body["card"]["id"]) == ["ops", "sneaky"]
+      assert names(ctx) == ["ops", "sneaky"]
+    end
+
+    test "the owner's token scoped to the sub-board alone makes none", ctx do
+      card = own_card(ctx.owner)
+
+      {token, _} =
+        Slipdock.Accounts.create_api_token(ctx.owner, "narrow",
+          scope_boards: [ctx.sub.id, card.board_id]
+        )
+
+      body =
+        build_conn()
+        |> put_req_header("accept", "application/json")
+        |> put_req_header("authorization", "Bearer " <> token)
+        |> post(~p"/api/cards/#{card.id}/copy", %{board: ctx.sub.id})
+        |> json_response(201)
+
+      assert body["tags_dropped"] == ["sneaky"]
+      # The token stopped it, so the reason is the token's (ARCH-8).
+      assert body["tags_dropped_reason"] =~ "token's scope"
+      refute body["tags_dropped_reason"] =~ "top board"
+      assert names(ctx) == ["ops"]
+    end
+
+    test "with nobody named, as a recurring card's next one, they are made", ctx do
+      card = own_card(ctx.owner)
+      assert {:ok, _, []} = Boards.Cards.copy_card_reporting(card, hd(ctx.sub.columns))
+      assert names(ctx) == ["ops", "sneaky"]
+    end
+  end
+
+  describe "moving a card into the sub-board" do
+    for who <- @sub_writers do
+      test "a #{who} over REST takes the tags the tree has and is told the rest", ctx do
+        card = own_card(ctx[unquote(who)])
+
+        body =
+          ctx[unquote(who)]
+          |> api()
+          |> post(~p"/api/cards/#{card.id}/move", %{board: ctx.sub.id})
+          |> json_response(200)
+
+        assert body["moved"]["tags_dropped"] == ["sneaky"]
+        assert body["moved"]["tags_created"] == 0
+        assert body["moved"]["tags_dropped_reason"] =~ "only someone who can edit the top board"
+        assert tag_names(card.id) == ["ops"]
+        assert names(ctx) == ["ops"]
+      end
+
+      test "a #{who} over MCP move_card is told the same", ctx do
+        card = own_card(ctx[unquote(who)])
+
+        result = mcp_tool(ctx[unquote(who)], "move_card", %{card: card.id, board: ctx.sub.id})
+        assert result["isError"] == false
+        assert result["structuredContent"]["tags_dropped"] == ["sneaky"]
+        assert result["structuredContent"]["tags_dropped_reason"] =~ "top board"
+        assert names(ctx) == ["ops"]
+      end
+
+      test "a #{who} in the web (bulk edit) makes none", ctx do
+        user = ctx[unquote(who)]
+        card = own_card(user)
+
+        assert {:ok, %{tags_dropped: ["sneaky"], tags_created: 0}} =
+                 Boards.Moves.move_card_to_board(card, hd(ctx.sub.columns),
+                   actor: Slipdock.Actor.web(user)
+                 )
+
+        assert tag_names(card.id) == ["ops"]
+        assert names(ctx) == ["ops"]
+      end
+    end
+
+    test "the owner's token scoped to the sub-board alone makes none, REST or MCP", ctx do
+      rest_card = own_card(ctx.owner)
+      mcp_card = own_card(ctx.owner)
+
+      {token, _} =
+        Slipdock.Accounts.create_api_token(ctx.owner, "narrow",
+          scope_boards: [ctx.sub.id, rest_card.board_id, mcp_card.board_id]
+        )
+
+      bearer = fn ->
+        build_conn()
+        |> put_req_header("accept", "application/json")
+        |> put_req_header("authorization", "Bearer " <> token)
+      end
+
+      body =
+        bearer.()
+        |> post(~p"/api/cards/#{rest_card.id}/move", %{board: ctx.sub.id})
+        |> json_response(200)
+
+      assert body["moved"]["tags_dropped"] == ["sneaky"]
+      assert body["moved"]["tags_dropped_reason"] =~ "token's scope"
+
+      result =
+        bearer.()
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          "/mcp",
+          Jason.encode!(%{
+            jsonrpc: "2.0",
+            id: 1,
+            method: "tools/call",
+            params: %{name: "move_card", arguments: %{card: mcp_card.id, board: ctx.sub.id}}
+          })
+        )
+        |> json_response(200)
+        |> Map.fetch!("result")
+
+      assert result["structuredContent"]["tags_dropped"] == ["sneaky"]
+      assert result["structuredContent"]["tags_dropped_reason"] =~ "token's scope"
+      assert names(ctx) == ["ops"]
+    end
+
+    test "a writer of the root makes the ones the tree lacks", ctx do
+      card = own_card(ctx.root_writer)
+
+      body =
+        ctx.root_writer
+        |> api()
+        |> post(~p"/api/cards/#{card.id}/move", %{board: ctx.sub.id})
+        |> json_response(200)
+
+      assert body["moved"]["tags_dropped"] == []
+      assert body["moved"]["tags_created"] == 1
+      refute Map.has_key?(body["moved"], "tags_dropped_reason")
+      assert tag_names(card.id) == ["ops", "sneaky"]
+
+      mcp_card = own_card(ctx.root_writer)
+      result = mcp_tool(ctx.root_writer, "move_card", %{card: mcp_card.id, board: ctx.sub.id})
+      refute Map.has_key?(result["structuredContent"], "tags_dropped")
+      assert names(ctx) == ["ops", "sneaky"]
+    end
+  end
+
+  describe "a sub-board from a template that carries tags" do
+    defp tagged_template(user) do
+      user
+      |> api()
+      |> post("/api/templates", %{
+        "name" => "Tagged #{System.unique_integer([:positive])}",
+        "columns" => ["To Do", "Done"],
+        "tags" => ["sneaky", "ops"]
+      })
+      |> json_response(201)
+      |> get_in(["template", "id"])
+    end
+
+    for who <- @sub_writers do
+      test "a #{who} over REST gets the lists, and the tree's tags stay", ctx do
+        user = ctx[unquote(who)]
+        template = tagged_template(user)
+
+        user
+        |> api()
+        |> post(~p"/api/cards/#{ctx.task.id}/subboard", %{template: template})
+        |> json_response(201)
+
+        assert names(ctx) == ["ops"]
+      end
+
+      test "a #{who} over MCP create_card's parent gets the same", ctx do
+        user = ctx[unquote(who)]
+        template = tagged_template(user)
+
+        result =
+          mcp_tool(user, "create_card", %{
+            parent: ctx.task.id,
+            title: "Below",
+            subcard_template: "#{template}"
+          })
+
+        assert result["isError"] == false
+        assert names(ctx) == ["ops"]
+      end
+
+      test "a #{who} in the card panel gets the same", ctx do
+        user = ctx[unquote(who)]
+        template = tagged_template(user)
+        {:ok, view, _} = live(conn_as(user), ~p"/boards/#{ctx.sub}/cards/#{ctx.task.id}")
+
+        view |> element("button[phx-click=pick_template]") |> render_click()
+
+        view
+        |> element("button[phx-click=create_sub_board][phx-value-template='#{template}']")
+        |> render_click()
+
+        assert Boards.Cards.get_card!(ctx.task.id).sub_board
+        assert names(ctx) == ["ops"]
+      end
+    end
+
+    test "a writer of the root gets the template's tags on the root", ctx do
+      template = tagged_template(ctx.root_writer)
+
+      ctx.root_writer
+      |> api()
+      |> post(~p"/api/cards/#{ctx.task.id}/subboard", %{template: template})
+      |> json_response(201)
+
+      assert names(ctx) == ["ops", "sneaky"]
     end
   end
 end

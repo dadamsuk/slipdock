@@ -75,7 +75,7 @@ GET    /api/card-views/applied ?board= &list= &view=   what applies, each elemen
 GET    /api/cards/:id                      PATCH  /api/cards/:id       DELETE /api/cards/:id
 POST   /api/cards/:id/move   {column, index: "top"|"bottom"|N}
 POST   /api/cards/:id/move   {board, column}   to another board, with its subcards; answers
-                                               `moved: {tags_created, fields_dropped, milestones_unpinned}`
+                                               `moved: {tags_created, tags_dropped, fields_dropped, milestones_unpinned}`
 POST   /api/cards/:id/archive              POST   /api/cards/:id/restore
 POST   /api/cards/:id/timer {action: start|stop}   stopping adds the minutes it ran to time spent
 POST   /api/cards/:id/checklist {text}     POST   /api/checklist/:item_id/toggle   DELETE /api/checklist/:item_id

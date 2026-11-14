@@ -65,6 +65,18 @@ defmodule SlipdockWeb.API.Authorize do
     with :ok <- board(conn, board, :write), do: root_tags(conn, board.root_id)
   end
 
+  @doc """
+  Why this request may not change `board`'s tag list, or `nil` if it may:
+  what a copy or a move that left tags off says (#2990). The token's own
+  refusal when its scope is what stopped it (ARCH-8).
+  """
+  def tags_refusal(conn, %Slipdock.Boards.Board{} = board) do
+    case tags(conn, board) do
+      :ok -> nil
+      {:error, _status, message} -> message
+    end
+  end
+
   defp root_tags(_conn, nil), do: :ok
 
   defp root_tags(conn, root_id) do

@@ -53,9 +53,10 @@ defmodule SlipdockWeb.MCP.Tools.MoveCard do
          :ok <- Args.refusal(Authorize.card(auth, card, :write)),
          {:ok, board} <- Args.refusal(Authorize.fetch_board(auth, ref, :write)),
          {:ok, column} <- Args.refusal(CardWrites.resolve_column(board, column_ref)),
-         {:ok, _summary} <-
-           Args.refusal(Boards.Moves.move_card_to_board(card, column, actor: Actor.mcp(context))) do
-      {:ok, Tools.card_written(Boards.Cards.get_card!(card.id), context.base_url)}
+         refusal = Authorize.tags_refusal(auth, board),
+         {:ok, summary} <- Args.refusal(move_across(card, column, refusal, context)) do
+      written = Tools.card_written(Boards.Cards.get_card!(card.id), context.base_url)
+      {:ok, tags_dropped(written, summary.tags_dropped, refusal)}
     end
   end
 
@@ -76,6 +77,26 @@ defmodule SlipdockWeb.MCP.Tools.MoveCard do
       {:ok, Tools.card_written(Boards.Cards.get_card!(card.id), context.base_url)}
     end
   end
+
+  # A tag the other tree lacks is made there only when this caller may change
+  # that tree's tags, the token's narrowing included (#2990).
+  defp move_across(card, column, refusal, context) do
+    Boards.Moves.move_card_to_board(card, column,
+      actor: Actor.mcp(context),
+      make_tags: is_nil(refusal)
+    )
+  end
+
+  # Tags the destination's tree lacks and this caller may not make there
+  # (#2990): named, with why, so the agent can tell the user.
+  defp tags_dropped(written, [], _refusal), do: written
+
+  defp tags_dropped(written, names, refusal),
+    do:
+      Map.merge(written, %{
+        tags_dropped: names,
+        tags_dropped_reason: refusal
+      })
 
   defp position(p) when p in [nil, "top"], do: {:ok, :top}
   defp position("bottom"), do: {:ok, :bottom}

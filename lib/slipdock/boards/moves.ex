@@ -45,7 +45,11 @@ defmodule Slipdock.Boards.Moves do
       resolving after the move;
     * tags travel by name — matched on the destination tree, created there
       when they are new — for the card and everything under it, because a
-      subcard's tags came from the old root too;
+      subcard's tags came from the old root too. A new one is made only when
+      the mover may change the destination tree's tags
+      (`Slipdock.Boards.Tags.may_make?/3`, `opts[:make_tags]` or the actor's
+      user, #2990); otherwise it is left off, and the summary's
+      `tags_dropped` names it;
     * custom field values travel where the destination tree has a field with
       the same key *and* kind, and are dropped where it does not, because a
       number cannot be stored in a date;
@@ -78,11 +82,19 @@ defmodule Slipdock.Boards.Moves do
 
       true ->
         actor = Slipdock.Actor.resolve(opts)
+        make? = make_tags?(to_column, actor, opts)
 
         with :ok <- reopen_across_boards(card, to_column, actor),
              :ok <- room_for_move(card, to_column),
-             do: do_move_card_to_board(card, to_column, actor)
+             do: do_move_card_to_board(card, to_column, actor, make?)
     end
+  end
+
+  # Whether the move may make the tags the destination's tree lacks (#2990):
+  # the door's answer, else the actor's user's; no user is the server's own.
+  defp make_tags?(%Column{} = to_column, actor, opts) do
+    user = actor[:user_id] && Repo.get(Slipdock.Accounts.User, actor.user_id)
+    Boards.Tags.may_make?(Repo.get!(Board, to_column.board_id), user, opts)
   end
 
   # Done stays done on another board too (#1851): an agent can't take a
@@ -143,7 +155,7 @@ defmodule Slipdock.Boards.Moves do
     end
   end
 
-  defp do_move_card_to_board(%Card{} = card, %Column{} = to_column, actor) do
+  defp do_move_card_to_board(%Card{} = card, %Column{} = to_column, actor, make_tags?) do
     # Back to a board that kept a stand-in for it: the card takes the
     # stand-in's slot, and the stand-in goes.
     slot = stand_in_on(card.id, to_column.board_id)
@@ -159,7 +171,8 @@ defmodule Slipdock.Boards.Moves do
       to_board: to_board,
       from_root: Board.root_id(from_board),
       to_root: Board.root_id(to_board),
-      board_ids: subtree_board_ids(card.id)
+      board_ids: subtree_board_ids(card.id),
+      make_tags?: make_tags?
     }
 
     {:ok, summary} = Repo.transaction(fn -> move_across(card, move, actor) end)
@@ -210,7 +223,7 @@ defmodule Slipdock.Boards.Moves do
 
   # Into another tree: the boards under the card follow it, and what the old
   # tree's root owned is matched on the new one.
-  defp reroot_subtree(%Card{} = moved, %{board_ids: board_ids, to_root: to_root}) do
+  defp reroot_subtree(%Card{} = moved, %{board_ids: board_ids, to_root: to_root} = move) do
     if board_ids != [] do
       to_owner = Repo.one(from(b in Board, where: b.id == ^to_root, select: b.owner_id))
 
@@ -222,10 +235,12 @@ defmodule Slipdock.Boards.Moves do
     end
 
     card_ids = [moved.id | subtree_card_ids(board_ids)]
+    {created, dropped} = remap_tags(card_ids, to_root, move.make_tags?)
 
     %{
       card: moved,
-      tags_created: remap_tags(card_ids, to_root),
+      tags_created: created,
+      tags_dropped: dropped,
       fields_dropped: remap_field_values(card_ids, to_root),
       milestones_unpinned: unpin_milestones(card_ids)
     }
@@ -383,7 +398,13 @@ defmodule Slipdock.Boards.Moves do
   end
 
   defp empty_move_summary(card),
-    do: %{card: card, tags_created: 0, fields_dropped: 0, milestones_unpinned: 0}
+    do: %{
+      card: card,
+      tags_created: 0,
+      tags_dropped: [],
+      fields_dropped: 0,
+      milestones_unpinned: 0
+    }
 
   @doc "The ids of every board beneath `card_id`, however deep."
   def subtree_board_ids(card_id) do
@@ -404,12 +425,16 @@ defmodule Slipdock.Boards.Moves do
 
   # Tags belong to a tree, so a moved card's tags are the wrong rows on the
   # far side. Match on the name, case aside; make the ones that are new.
-  # The tag of that name on the new tree, made there if it has none; `n`
-  # counts the ones made.
-  defp ensure_tag(tag, {n, acc}, to_root) do
+  # The tag of that name on the new tree, made there if it has none and the
+  # mover may make it (#2990); `n` counts the ones made. One it may not make
+  # stays out of the map, so the cards wearing it go without.
+  defp ensure_tag(tag, {n, acc}, to_root, make?) do
     key = String.downcase(tag.name)
 
     case acc[key] do
+      nil when not make? ->
+        {n, acc}
+
       nil ->
         {:ok, made} =
           %Tag{}
@@ -427,20 +452,21 @@ defmodule Slipdock.Boards.Moves do
     end
   end
 
-  defp remap_tags(card_ids, to_root) do
+  defp remap_tags(card_ids, to_root, make?) do
     joins =
       Repo.all(
         from(ct in "card_tags", where: ct.card_id in ^card_ids, select: {ct.card_id, ct.tag_id})
       )
 
     if joins == [] do
-      0
+      {0, []}
     else
       old = Repo.all(from(t in Tag, where: t.id in ^Enum.map(joins, &elem(&1, 1))))
       by_id = Map.new(old, &{&1.id, &1})
       existing = to_root |> Boards.Tags.list_tags() |> Map.new(&{String.downcase(&1.name), &1})
 
-      {created, by_name} = Enum.reduce(old, {0, existing}, &ensure_tag(&1, &2, to_root))
+      {created, by_name} =
+        Enum.reduce(old, {0, existing}, &ensure_tag(&1, &2, to_root, make?))
 
       Repo.delete_all(from(ct in "card_tags", where: ct.card_id in ^card_ids))
 
@@ -452,7 +478,15 @@ defmodule Slipdock.Boards.Moves do
             do: %{card_id: card_id, tag_id: replacement.id}
 
       Repo.insert_all("card_tags", rows)
-      created
+
+      dropped =
+        old
+        |> Enum.reject(&Map.has_key?(by_name, String.downcase(&1.name)))
+        |> Enum.map(& &1.name)
+        |> Enum.uniq_by(&String.downcase/1)
+        |> Enum.sort()
+
+      {created, dropped}
     end
   end
 

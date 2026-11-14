@@ -27,6 +27,24 @@ defmodule Slipdock.Boards.Tags do
     |> Boards.Shared.tap_ok(&Boards.PubSub.broadcast_tree(&1.board_id))
   end
 
+  @doc """
+  Whether a write that carries tags into `board`'s tree (a copy, a move
+  across trees, a sub-board from a template) may make the ones the tree
+  lacks (#2990). Making a tag changes the root's list, so it asks what the
+  tag doors ask, `Slipdock.Access.can_edit_tags?/2`.
+
+  `opts[:make_tags]`, when given, is the door's own answer (REST and MCP
+  give it, so a token's narrowing counts too). Else it is the user's: `nil`
+  (an automation, a recurring card's next instance, the server's own
+  setup) makes them as before.
+  """
+  def may_make?(%Board{} = board, user, opts \\ []) do
+    case Keyword.fetch(opts, :make_tags) do
+      {:ok, make?} -> make? == true
+      :error -> is_nil(user) or Slipdock.Access.can_edit_tags?(user, board)
+    end
+  end
+
   def update_tag(%Tag{} = tag, attrs) do
     tag
     |> Tag.changeset(attrs)

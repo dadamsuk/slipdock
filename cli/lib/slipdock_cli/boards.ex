@@ -1037,7 +1037,11 @@ defmodule SlipdockCLI.Boards do
     body =
       compact(%{"board" => o[:board], "column" => o[:column], "title" => o[:title], "at" => at})
 
-    HTTP.post("/cards/#{enc(id)}/copy", body) |> out(o, &card_ok("copied ##{id} to", &1))
+    HTTP.post("/cards/#{enc(id)}/copy", body)
+    |> out(o, fn reply ->
+      card_ok("copied ##{id} to", reply)
+      note_dropped_tags(reply)
+    end)
   end
 
   def run("archive", ids, o) when ids != [],
@@ -1551,7 +1555,15 @@ defmodule SlipdockCLI.Boards do
     |> Enum.each(fn {n, noun, what} ->
       IO.puts("  #{n} #{noun}#{if n == 1, do: "", else: "s"} #{what}")
     end)
+
+    note_dropped_tags(moved)
   end
+
+  # Tags the destination lacked and this user may not make there (#2990).
+  defp note_dropped_tags(%{"tags_dropped" => [_ | _] = names} = reply),
+    do: IO.puts("  tags left off: #{Enum.join(names, ", ")} (#{reply["tags_dropped_reason"]})")
+
+  defp note_dropped_tags(_), do: :ok
 
   ## Favourites ---------------------------------------------------------------
 

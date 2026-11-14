@@ -120,7 +120,7 @@ defmodule SlipdockWeb.MCP.Tools.CreateCard do
          :ok <- Args.refusal(Authorize.card(auth, card, :write)) do
       case card.sub_board do
         %Boards.Board{} = sub -> {:ok, sub}
-        _ -> make_sub_board(auth.assigns.current_user, card, args["subcard_template"] || "Simple")
+        _ -> make_sub_board(auth, card, args["subcard_template"] || "Simple")
       end
     end
   end
@@ -136,9 +136,15 @@ defmodule SlipdockWeb.MCP.Tools.CreateCard do
 
   defp board_or_parent(other), do: other
 
-  defp make_sub_board(user, card, template_ref) do
+  # A template's tags go on the tree's root, so they come only when this
+  # caller may change the root's tags (#2990).
+  defp make_sub_board(auth, card, template_ref) do
+    user = auth.assigns.current_user
+    make_tags? = Authorize.tags(auth, Boards.get_board_record!(card.board_id)) == :ok
+
     with {:ok, template} <- template(user, template_ref),
-         {:ok, board} <- Args.refusal(Boards.create_sub_board(card, template)) do
+         {:ok, board} <-
+           Args.refusal(Boards.create_sub_board(card, template, by: user, make_tags: make_tags?)) do
       {:ok, board}
     end
   end
