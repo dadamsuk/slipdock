@@ -749,45 +749,74 @@ defmodule SlipdockWeb.BoardLive.BoardView do
   the Agentic Building page (#2995): the hold and why, with its failing
   run in brackets beside the reason (the link is the hold's, not the
   awaiting cards'), then the fix card, the release running with its
-  build, and the cards awaiting (`release_awaiting/1`).
+  build beside it (#3091: before the follow-up queued, not after it),
+  the follow-up queued, and the cards awaiting (`release_awaiting/1`).
   """
   def release_line(assigns) do
     release = assigns.release
     hold = Slipdock.Releases.hold_text(release)
-    rest = Slipdock.Releases.line(release, awaiting: false, hold: false)
     awaiting = Slipdock.Releases.awaiting_text(release)
+
+    # `Releases.line/2` on the status narrowed to one part at a time, so
+    # the running release's build link sits beside it, before the
+    # follow-up queued (#3091).
+    part = fn only ->
+      Slipdock.Releases.line(Map.merge(release, only), awaiting: false, hold: false)
+    end
+
+    texts = [
+      hold: hold,
+      fix: part.(%{running: nil, queued: nil}),
+      running: part.(%{hold: nil, queued: nil}),
+      queued: part.(%{hold: nil, running: nil}),
+      awaiting: awaiting
+    ]
+
+    parts = for {name, text} <- texts, text, do: name
 
     assigns =
       assign(assigns,
-        hold: hold,
-        rest: rest,
+        parts: parts,
+        texts: texts,
         hold_run: hold && release.hold["run_url"],
-        separator: (hold || rest) && awaiting,
-        empty: if(hold || rest || awaiting, do: nil, else: assigns.empty)
+        running_run: release.running && release.running.run_url,
+        empty: if(parts == [], do: assigns.empty)
       )
 
     ~H"""
-    {@hold}
-    <span :if={@hold_run} id={"#{@id}-hold-run-note"} phx-no-format>(<.link
-        id={"#{@id}-hold-run"}
-        href={@hold_run}
-        target="_blank"
-        rel="noopener noreferrer"
-        class="link"
-      >the failing run</.link>)</span>
-    {if @hold && @rest, do: "· "}{@rest}{@empty}
-    <.link
-      :if={@release.running && @release.running.run_url}
-      id={"#{@id}-running-run"}
-      href={@release.running.run_url}
-      target="_blank"
-      rel="noopener noreferrer"
-      class="link"
-    >
-      follow the build
-    </.link>
-    <span :if={@separator}>·</span>
-    <.release_awaiting release={@release} id={"#{@id}-awaiting"} />
+    {@empty}
+    <span :for={{part, i} <- Enum.with_index(@parts)} id={"#{@id}-part-#{part}"}>
+      {if i > 0, do: " · "}
+      <%= case part do %>
+        <% :hold -> %>
+          {@texts[:hold]}
+          <span :if={@hold_run} id={"#{@id}-hold-run-note"} phx-no-format>(<.link
+              id={"#{@id}-hold-run"}
+              href={@hold_run}
+              target="_blank"
+              rel="noopener noreferrer"
+              class="link"
+            >the failing run</.link>)</span>
+        <% :fix -> %>
+          {@texts[:fix]}
+        <% :running -> %>
+          {@texts[:running]}
+          <.link
+            :if={@running_run}
+            id={"#{@id}-running-run"}
+            href={@running_run}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="link"
+          >
+            follow the build
+          </.link>
+        <% :queued -> %>
+          {@texts[:queued]}
+        <% :awaiting -> %>
+          <.release_awaiting release={@release} id={"#{@id}-awaiting"} />
+      <% end %>
+    </span>
     """
   end
 
