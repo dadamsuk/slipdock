@@ -7,7 +7,7 @@
 import {test, mock} from "node:test"
 import assert from "node:assert/strict"
 import {
-  changed, remember, unsentFiles, taken, statusText, collaborators, pointerPayload, POINTER_MS, ExcalidrawEditor,
+  changed, remember, unsentFiles, taken, statusText, collaborators, pointerPayload, POINTER_MS, SEND_MS, ExcalidrawEditor,
 } from "./excalidraw_editor.js"
 
 const el = (id, version, extra = {}) => ({id, version, versionNonce: 7, ...extra})
@@ -251,4 +251,112 @@ test("while disconnected nothing is sent or noted as sent; reconnecting sends it
   h.reconnected()
   assert.equal(h.pushed[0].event, "resync")
   assert.deepEqual(h.pushed[0].payload.elements, [el("a", 2)])
+})
+
+// The failure paths (#3099): a reply with `error`, and a vendor bundle that
+// won't load, each reach the status line rather than leaving it saying
+// "Saved" over work that never got there.
+test("an open reply with an error shows it, and opens no editor", async () => {
+  const h = hook([])
+  h.editor = null
+  h.state.ready = false
+  await h.open("file:///nowhere/", {error: "This drawing can't be read: its scene is missing or damaged."})
+  assert.equal(h.statusEl.textContent, "This drawing can't be read: its scene is missing or damaged.")
+  assert.equal(h.editor, null)
+  assert.equal(h.state.ready, false)
+})
+
+test("a vendor bundle that won't load says so, and opens no editor", async () => {
+  const h = hook([])
+  h.editor = null
+  h.state.ready = false
+  await h.open("file:///nowhere/excalidraw-missing/", {json: JSON.stringify({elements: [el("a", 1)]})})
+  assert.equal(h.statusEl.textContent, "The drawing editor couldn't be loaded.")
+  assert.equal(h.editor, null)
+  assert.equal(h.sent.size, 0, "nothing from the scene noted as sent")
+})
+
+test("a delta reply with an error shows it, and never reads Saved", () => {
+  const h = hook([el("a", 1)])
+  h.editor.scene = [el("a", 2)]
+  h.send()
+  assert.equal(h.statusEl.textContent, "Saving…")
+  h.pushed[0].reply({error: "You can look at this drawing but not change it."})
+  assert.equal(h.statusEl.textContent, "You can look at this drawing but not change it.")
+  assert.equal(h.state.error, "You can look at this drawing but not change it.")
+  assert.notEqual(h.statusEl.textContent, "Saved")
+  assert.equal(h.editor.scene[0].version, 2, "the drawing is left as drawn")
+})
+
+test("a resync reply with an error shows it, and leaves the elements unsent", () => {
+  const h = hook([el("a", 1)], {files: {}})
+  h.editor.scene = [el("a", 3), el("b", 1)]
+  h.editor.sceneFiles = {p: {id: "p", dataURL: "data:x"}}
+  h.reconnected()
+  const {event, reply} = h.pushed[0]
+  assert.equal(event, "resync")
+  reply({error: "This drawing can't be changed from here just now. Reload it."})
+  assert.equal(h.statusEl.textContent, "This drawing can't be changed from here just now. Reload it.")
+  assert.notEqual(h.statusEl.textContent, "Saved")
+  assert.equal(h.sent.get("a"), 1, "the edit is not marked as sent")
+  assert.equal(h.sent.has("b"), false, "the new element is not marked as sent")
+  assert.equal(h.sentFiles.has("p"), false, "the image is not marked as sent")
+  assert.deepEqual(changed(h.editor.elements(), h.sent).map(e => e.id), ["a", "b"], "both go with the next send")
+  assert.deepEqual(h.editor.scene.map(e => e.id), ["a", "b"], "nothing taken in from the failed reply")
+})
+
+test("a notice reaches the status line, and a save clears it", () => {
+  const handlers = {}
+  const h = hook([])
+  h.handleEvent = (name, fn) => (handlers[name] = fn)
+  h.el = {dataset: {vendor: "file:///nowhere/"}, querySelector: () => h.statusEl}
+  globalThis.window = {addEventListener() {}, removeEventListener() {}}
+  globalThis.document = {querySelector: () => true, head: {appendChild() {}}}
+  try {
+    h.pushEvent = () => {}
+    h.mounted()
+    handlers["drawing:notice"]({text: "Saving failed: the server is busy."})
+    assert.equal(h.statusEl.textContent, "Loading the editor…", "not ready yet: the loading line wins")
+    h.state.ready = true
+    handlers["drawing:notice"]({text: "Saving failed: the server is busy."})
+    assert.equal(h.statusEl.textContent, "Saving failed: the server is busy.")
+    handlers["drawing:saved"]()
+    assert.equal(h.statusEl.textContent, "Saved")
+    assert.equal(h.state.error, null)
+  } finally {
+    delete globalThis.window
+    delete globalThis.document
+  }
+})
+
+test("a save that lands while more is waiting to go still reads Saving", () => {
+  mock.timers.enable({apis: ["setTimeout"]})
+  try {
+    const handlers = {}
+    const h = hook([el("a", 1)])
+    h.handleEvent = (name, fn) => (handlers[name] = fn)
+    h.el = {dataset: {vendor: "file:///nowhere/"}, querySelector: () => h.statusEl}
+    globalThis.window = {addEventListener() {}, removeEventListener() {}}
+    globalThis.document = {querySelector: () => true, head: {appendChild() {}}}
+    const pushEvent = h.pushEvent
+    h.pushEvent = () => {}
+    h.mounted()
+    h.pushEvent = pushEvent
+    h.editor = fakeEditor([el("a", 1)])
+    h.state = {ready: true, viewOnly: false, connected: true, unsaved: true, error: "Old trouble"}
+    h.editor.scene = [el("a", 2)]
+    h.schedule()
+    assert.ok(h.timer, "a send is pending")
+    handlers["drawing:saved"]()
+    assert.equal(h.statusEl.textContent, "Saving…", "not Saved while a change waits to go")
+    assert.equal(h.state.error, null)
+    mock.timers.tick(SEND_MS)
+    assert.equal(h.pushed.at(-1).event, "delta")
+    handlers["drawing:saved"]()
+    assert.equal(h.statusEl.textContent, "Saved")
+  } finally {
+    mock.timers.reset()
+    delete globalThis.window
+    delete globalThis.document
+  }
 })
