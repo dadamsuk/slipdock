@@ -110,6 +110,15 @@ defmodule SlipdockWeb.ColorSwatchTest do
       assert "ring-2" in classes(node)
       assert attr(node, "phx-click") == "set_cover"
     end
+
+    test "takes the size its picker gives, as the borders' None does" do
+      default = swatch(%{color: nil})
+      node = swatch(%{color: nil, class: "size-5"})
+
+      assert "size-6" in classes(default)
+      assert "size-5" in classes(node)
+      refute "size-6" in classes(node)
+    end
   end
 
   describe "where it is used" do

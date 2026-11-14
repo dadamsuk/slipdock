@@ -66,6 +66,15 @@ defmodule SlipdockWeb.ColorSwatchLiveTest do
       assert Repo.reload!(ctx.card).border_top == nil
       assert has_element?(view, top <> ~s([aria-pressed="true"]))
     end
+
+    test "each edge's None is the size of the colours in its row", ctx do
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/cards/#{ctx.card.id}")
+      top = ~s([phx-value-edge="top"])
+
+      assert has_element?(view, none("#card-borders", "set_border") <> top <> ".size-5")
+      assert has_element?(view, colour("#card-borders", "set_border", "red") <> top <> ".size-5")
+      refute has_element?(view, "#card-borders button[data-swatch].size-6")
+    end
   end
 
   describe "a list's colour" do
