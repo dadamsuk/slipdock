@@ -196,6 +196,35 @@ defmodule Slipdock.WikiFacetsTest do
       assert "The work" in titles
     end
 
+    # The two id spaces meet in CI's fresh database, where a page and a card
+    # are often both number 2 (#3092). Renumbering the loaded page in memory
+    # makes them meet here without touching a sequence.
+    test "a timeline hangs no subcards under a page numbered like a card", ctx do
+      {:ok, t} = Slipdock.Boards.Templates.find_template(nil, "Simple")
+      {:ok, _} = sub_board(ctx.card, t)
+      sub = Boards.Cards.get_card!(ctx.card.id).sub_board
+      sub = Boards.get_board!(sub.id)
+      card_fixture(hd(sub.columns), %{"title" => "The subtask", "due_date" => "2026-10-07"})
+
+      board = same_number(Boards.get_board!(ctx.board.id), ctx.page, ctx.card.id)
+      config = %{Config.defaults("timeline") | date: "2026-10-05", depth: "all"}
+      bars = Timeline.build(board, config).groups |> Enum.flat_map(& &1.bars)
+      by_title = Map.new(bars, &{&1.card.title, &1})
+
+      assert Enum.map(by_title["The work"].children, & &1.card.title) == ["The subtask"]
+      assert %{children: [], more: 0, sub_board_id: nil} = by_title["The spec"]
+    end
+
+    test "a timeline draws no link from a page numbered like a hidden blocker", ctx do
+      blocker = card_fixture(ctx.todo, %{"title" => "Undated blocker"})
+      {:ok, _} = Boards.Dependencies.add_dependency(ctx.card, blocker)
+
+      board = same_number(Boards.get_board!(ctx.board.id), ctx.page, blocker.id)
+      config = %{Config.defaults("timeline") | date: "2026-10-05"}
+
+      assert Timeline.build(board, config).links == []
+    end
+
     test "a calendar puts it on its day", %{loaded: board} do
       calendar = Calendar.build(board, %{Config.defaults("calendar") | date: "2026-10-05"})
 
@@ -241,5 +270,16 @@ defmodule Slipdock.WikiFacetsTest do
       ops = Swimlanes.move_ops("flag", updated, "none", "review", config)
       assert ops == [{:attrs, %{"flags" => ["review"]}}]
     end
+  end
+
+  # The loaded board with the placed page renumbered to `id`.
+  defp same_number(board, page, id) do
+    columns =
+      Enum.map(board.columns, fn col ->
+        pages = Enum.map(col.pages, &if(&1.id == page.id, do: %{&1 | id: id}, else: &1))
+        %{col | pages: pages}
+      end)
+
+    %{board | columns: columns}
   end
 end
