@@ -203,7 +203,7 @@ defmodule SlipdockWeb.BoardLive.JobLogComponent do
       >
         <span :if={@page} id={"#{@id}-kept"}>
           Kept as
-          <.link navigate={"/boards/#{@page.board_id}/wiki/#{@page.slug}"} class="link">
+          <.link navigate={~p"/boards/#{@page.board_id}/wiki/#{@page.slug}"} class="link">
             {@page.code} {@page.title}
           </.link>
         </span>
