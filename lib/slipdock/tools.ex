@@ -624,9 +624,9 @@ defmodule Slipdock.Tools do
           report: put_in(report, [:added, "files"], files)
         }
       else
-        # Every step answers a message: `Blueprint.apply/3` and the files
-        # turn their changesets to text, and the install's version change
-        # has nothing to refuse.
+        # A board file's folder can be refused as a changeset (a name over
+        # the folder's limit), which `put_board_files/3` passes on as it is.
+        {:error, %Ecto.Changeset{} = cs} -> Repo.rollback(ChangesetErrors.message(cs))
         {:error, message} -> Repo.rollback(message)
       end
     end)
