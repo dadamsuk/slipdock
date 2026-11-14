@@ -75,6 +75,20 @@ defmodule SlipdockWeb.RoadmapLiveTest do
     assert has_element?(tl, ".tl-ms-diamond")
   end
 
+  test "a milestone with no date says it needs one and adds nothing", %{
+    conn: conn,
+    board: board
+  } do
+    {:ok, view, _} = live(conn, ~p"/boards/#{board}/settings")
+
+    view
+    |> form("#milestone-form-0", %{"name" => "Launch", "date" => "", "color" => "rose"})
+    |> render_submit()
+
+    assert render(view) =~ "A milestone needs a name and a date."
+    assert Boards.Milestones.list_milestones(board.id) == []
+  end
+
   test "a published view is readable without signing in, and stops when unpublished", %{
     board: board
   } do
