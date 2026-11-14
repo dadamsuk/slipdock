@@ -1,5 +1,5 @@
 defmodule SlipdockWeb.SlipdockComponents.Chrome do
-  @moduledoc "What surrounds the cards: the modal, the favourite heart, the quick-add row, the view switcher, the filter menu and the support session's links."
+  @moduledoc "What surrounds the cards: the modal, the favourite heart, the quick-add row, a view's nothing-to-show block, the view switcher, the filter menu and the support session's links."
   use Phoenix.Component
 
   use Phoenix.VerifiedRoutes, endpoint: SlipdockWeb.Endpoint, router: SlipdockWeb.Router
@@ -213,6 +213,106 @@ defmodule SlipdockWeb.SlipdockComponents.Chrome do
       />
       <.quick_chips :if={@preview} chips={@preview.chips} unknown={@preview.unknown} />
     </form>
+    """
+  end
+
+  ## Nothing to show ----------------------------------------------------------
+
+  @view_empty_filtered "No cards match the current filters."
+  @view_empty_none "This board has no cards yet."
+
+  # A variant is where the block sits: `fill` takes the view's whole height,
+  # `block` is a fixed height under a toolbar (Prioritise), `strip` is a
+  # bordered line under a grid that is still drawn (the calendar), and
+  # `inline` is a note in a header (the narrative).
+  @view_empty_classes %{
+    "fill" =>
+      "flex h-full flex-col items-center justify-center gap-2 p-8 text-center text-base-content/60",
+    "block" =>
+      "flex h-64 flex-col items-center justify-center gap-2 p-8 text-center text-base-content/60",
+    "strip" =>
+      "flex flex-col items-center gap-2 border-t border-base-300 p-4 text-center text-sm text-base-content/60",
+    "inline" => "rounded-lg bg-base-200/60 p-3 text-sm text-base-content/60"
+  }
+
+  attr :id, :string, default: nil
+  attr :icon, :string, default: nil, doc: "a Heroicon name, `hero-…`; none in a strip or inline"
+
+  attr :shown, :integer,
+    default: 0,
+    doc: "how many cards the filters let through; above 0 the view says why in `:line`"
+
+  attr :hidden, :integer, required: true, doc: "how many cards the filters hide"
+
+  attr :config, Slipdock.Swimlanes.Config,
+    required: true,
+    doc: "the view's config: with a filter set, the block offers to clear them"
+
+  attr :variant, :string, values: ~w(fill block strip inline), default: "fill"
+  attr :class, :any, default: nil
+
+  slot :line,
+    doc:
+      "the view's own line when cards are shown but it has none to draw (nothing in this range, nothing on these axes)"
+
+  slot :inner_block, doc: "what follows the button, such as a quick-add row"
+
+  @doc """
+  What a board view shows with nothing to draw (#2885): why, and the way out.
+
+  One sentence says why: the filters hide every card (`shown == 0` and
+  `hidden > 0`), or the board has none (both 0), or, with cards shown that
+  this view can't place, the caller's `:line`. Under it, a Clear filters
+  button (`swim_clear_filters`) whenever `Config.filtering?/1` says a filter
+  is set, then the inner block.
+
+  ## Examples
+
+      <.view_empty :if={@rows.groups == []} icon="hero-table-cells" hidden={@rows.hidden} config={@config}>
+        <.quick_add_row id="table-add" />
+      </.view_empty>
+
+      <.view_empty icon="hero-chart-bar" shown={@t.shown} hidden={@t.hidden} config={@config}>
+        <:line>Nothing is scheduled in this range</:line>
+      </.view_empty>
+  """
+  def view_empty(assigns) do
+    assigns =
+      assign(assigns,
+        message: view_empty_message(assigns.shown, assigns.hidden),
+        filtering?: Slipdock.Swimlanes.Config.filtering?(assigns.config),
+        classes: Map.fetch!(@view_empty_classes, assigns.variant)
+      )
+
+    ~H"""
+    <div id={@id} data-view-empty={@variant} class={[@classes, @class]}>
+      <%= if @variant == "inline" do %>
+        {@message}{render_slot(@line)}
+        <.view_empty_clear :if={@filtering?} class="btn-xs ml-2" />
+      <% else %>
+        <.icon :if={@icon} name={@icon} class="size-10 opacity-40" />
+        <p :if={@message}>{@message}</p>
+        <p :if={is_nil(@message) and @line != []}>{render_slot(@line)}</p>
+        <.view_empty_clear :if={@filtering?} class="btn-sm" />
+      <% end %>
+      {render_slot(@inner_block)}
+    </div>
+    """
+  end
+
+  # The filters hide everything, the board is empty, or (nil) cards are shown
+  # and the view's own line says why none is drawn.
+  defp view_empty_message(0, hidden) when hidden > 0, do: @view_empty_filtered
+  defp view_empty_message(0, _hidden), do: @view_empty_none
+  defp view_empty_message(_shown, _hidden), do: nil
+
+  attr :class, :string, required: true
+
+  defp view_empty_clear(assigns) do
+    ~H"""
+    <button type="button" class={["btn", @class]} phx-click="swim_clear_filters">
+      Clear filters
+    </button>
     """
   end
 

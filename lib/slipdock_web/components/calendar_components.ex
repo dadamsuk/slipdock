@@ -163,21 +163,12 @@ defmodule SlipdockWeb.CalendarComponents do
         </div>
       </div>
 
-      <div
+      <.view_empty
         :if={@calendar.shown == 0}
-        class="flex flex-col items-center gap-2 border-t border-base-300 p-4 text-center text-sm text-base-content/60"
-      >
-        <p :if={@calendar.hidden > 0}>No cards match the current filters.</p>
-        <p :if={@calendar.hidden == 0}>This board has no cards yet.</p>
-        <button
-          :if={Config.filtering?(@config)}
-          type="button"
-          class="btn btn-sm"
-          phx-click="swim_clear_filters"
-        >
-          Clear filters
-        </button>
-      </div>
+        variant="strip"
+        hidden={@calendar.hidden}
+        config={@config}
+      />
 
       <.dateless_tray
         :if={@calendar.undated != []}

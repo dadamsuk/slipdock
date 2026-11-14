@@ -34,21 +34,12 @@ defmodule SlipdockWeb.TableComponents do
 
     ~H"""
     <div id="table-scroll" class="kanban-scroll h-full overflow-auto">
-      <div
+      <.view_empty
         :if={@rows.groups == []}
-        class="flex h-full flex-col items-center justify-center gap-2 p-8 text-center text-base-content/60"
+        icon="hero-table-cells"
+        hidden={@rows.hidden}
+        config={@config}
       >
-        <.icon name="hero-table-cells" class="size-10 opacity-40" />
-        <p :if={@rows.hidden > 0}>No cards match the current filters.</p>
-        <p :if={@rows.hidden == 0}>This board has no cards yet.</p>
-        <button
-          :if={Config.filtering?(@config)}
-          type="button"
-          class="btn btn-sm"
-          phx-click="swim_clear_filters"
-        >
-          Clear filters
-        </button>
         <.quick_add_row
           :if={@can_write and not is_nil(@first_column) and not Config.filtering?(@config)}
           id="table-add"
@@ -56,7 +47,7 @@ defmodule SlipdockWeb.TableComponents do
           preview={@quick_preview["table-add"]}
           class="justify-center text-sm text-base-content"
         />
-      </div>
+      </.view_empty>
 
       <fieldset :if={@rows.groups != []} disabled={!@can_write} class="contents">
         <table
@@ -208,21 +199,12 @@ defmodule SlipdockWeb.TableComponents do
 
     ~H"""
     <div id="table-scroll" class="kanban-scroll h-full overflow-y-auto">
-      <div
+      <.view_empty
         :if={@rows.groups == []}
-        class="flex h-full flex-col items-center justify-center gap-2 p-8 text-center text-base-content/60"
+        icon="hero-table-cells"
+        hidden={@rows.hidden}
+        config={@config}
       >
-        <.icon name="hero-table-cells" class="size-10 opacity-40" />
-        <p :if={@rows.hidden > 0}>No cards match the current filters.</p>
-        <p :if={@rows.hidden == 0}>This board has no cards yet.</p>
-        <button
-          :if={Config.filtering?(@config)}
-          type="button"
-          class="btn btn-sm"
-          phx-click="swim_clear_filters"
-        >
-          Clear filters
-        </button>
         <.quick_add_row
           :if={@can_write and not is_nil(@first_column) and not Config.filtering?(@config)}
           id="table-add"
@@ -230,7 +212,7 @@ defmodule SlipdockWeb.TableComponents do
           preview={@quick_preview["table-add"]}
           class="justify-center text-sm text-base-content"
         />
-      </div>
+      </.view_empty>
 
       <fieldset :if={@rows.groups != []} disabled={!@can_write} class="contents">
         <div id="card-table">

@@ -221,6 +221,9 @@ defmodule SlipdockWeb.SlipdockComponents do
   @doc "A one-line add-a-card row: type, press Enter, type the next."
   defdelegate quick_add_row(assigns), to: Chrome
 
+  @doc "What a board view shows with nothing to draw: why, and a Clear filters button when a filter is set."
+  defdelegate view_empty(assigns), to: Chrome
+
   @doc false
   defdelegate view_tabs_list(), to: Chrome
 
