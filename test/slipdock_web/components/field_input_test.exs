@@ -195,4 +195,51 @@ defmodule SlipdockWeb.FieldInputTest do
       assert Floki.text(doc) =~ "12"
     end
   end
+
+  describe "fields_section/1" do
+    defp render_section(fields, item, can_write) do
+      html =
+        render_component(&ItemComponents.fields_section/1,
+          board: %{fields: fields},
+          item: item,
+          can_write: can_write
+        )
+
+      {:ok, doc} = Floki.parse_fragment(html)
+      doc
+    end
+
+    test "a formula shows its value once, in the header, with no editor under it" do
+      formula = field("formula", %{id: 7, name: "Score"})
+      number = field("number", %{id: 8, key: "n", name: "Reach"})
+      item = %{computed: %{7 => 12.0}, field_values: [%FieldValue{field_id: 8, number: 3.0}]}
+
+      for can_write <- [true, false] do
+        doc = render_section([formula, number], item, can_write)
+        block = Floki.find(doc, "#card-field-7")
+
+        assert block |> Floki.find("span[title=Computed]") |> Floki.text() |> String.trim() ==
+                 "12"
+
+        # Nothing but the header row: the value is not written a second time.
+        assert Floki.find(block, "p, form, input, button") == []
+        assert block |> Floki.text() |> String.split("12") |> length() == 2
+      end
+
+      # The guard is the formula's alone: a settable field keeps its editor.
+      doc = render_section([formula, number], item, true)
+      assert Floki.find(doc, "#card-field-8 span[title=Computed]") == []
+      assert attr(doc, "#card-field-8 form#field-form-8", "phx-change") == ["set_field"]
+      assert attr(doc, "#card-field-8 input[name=value]", "value") == ["3"]
+    end
+
+    test "a formula with no result shows a dash, once" do
+      doc = render_section([field("formula")], %{computed: %{}, field_values: []}, true)
+      block = Floki.find(doc, "#card-field-7")
+
+      assert block |> Floki.find("span[title=Computed]") |> Floki.text() |> String.trim() == "—"
+      assert Floki.find(block, "p, form, input, button") == []
+      assert block |> Floki.text() |> String.split("—") |> length() == 2
+    end
+  end
 end
