@@ -43,7 +43,10 @@ function element() {
     addEventListener: (t, fn) => { listeners[t] = fn },
     removeEventListener: t => { delete listeners[t] },
     fire(t, e = {}) {
-      const ev = {prevented: false, preventDefault() { ev.prevented = true }, stopPropagation() {}, ...e}
+      const ev = {
+        prevented: false, stopped: false,
+        preventDefault() { ev.prevented = true }, stopPropagation() { ev.stopped = true }, ...e,
+      }
       listeners[t](ev)
       return ev
     },
@@ -121,6 +124,12 @@ test("dragging the handle widens the column live and saves it on release", () =>
   hook.el.fire("pointermove", {clientX: -5000})
   hook.el.fire("pointerup")
   assert.equal(hook.storage.items[LABEL_WIDTH_KEY], String(MIN_LABEL_WIDTH))
+})
+
+test("a press on the handle stops there, so it never starts a bar's drag (#2883)", () => {
+  const hook = mount()
+  assert.ok(hook.el.fire("pointerdown", {button: 0, clientX: 0}).stopped)
+  assert.equal(hook.el.fire("pointerdown", {button: 2, clientX: 0}).stopped, false)
 })
 
 test("other buttons, and moves or releases without a drag, do nothing", () => {
