@@ -22,7 +22,7 @@ mix run -e '
   kb = Boards.get_board!('"$KB"')
   tags =
     for {n, c} <- [{"Design", "sky"}, {"Backend", "lime"}, {"Urgent", "red"}, {"Docs", "amber"}] do
-      {:ok, t} = Boards.create_tag(kb, %{"name" => n, "color" => c})
+      {:ok, t} = Boards.Tags.create_tag(kb, %{"name" => n, "color" => c})
       t
     end
   today = Date.utc_today()
