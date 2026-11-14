@@ -43,6 +43,7 @@ import {MarkdownEditor} from "./markdown_editor"
 import {PageLink} from "./page_link"
 import {Mention} from "./mention"
 import {writeAt} from "./caret_menu"
+import {PLACEHOLDER, imageFiles, insertAtCursor, pastedName, replacePlaceholder} from "./paste_image"
 import {TranscriptPlayer} from "./transcript_player"
 import {typing} from "./typing"
 import {PasskeyLogin, PasskeyRegister} from "./passkey"
@@ -582,7 +583,7 @@ Hooks.PasteImage = {
   mounted() {
     this.textarea = this.el.querySelector("textarea")
     this.upload = this.el.dataset.upload
-    this.placeholder = "![Uploading image…]()"
+    this.placeholder = PLACEHOLDER
     // On the wrapper, and before anything inside it: the Markdown editor
     // over the textarea would otherwise take a dropped image for text.
     this.el.addEventListener("paste", e => this.take(e, e.clipboardData), true)
@@ -600,8 +601,8 @@ Hooks.PasteImage = {
     })
   },
   take(e, data) {
-    const files = Array.from(data?.files || []).filter(f => f.type.startsWith("image/"))
-    if (files.length === 0 || this.textarea.disabled) return
+    const files = imageFiles(data?.files, this.textarea.disabled)
+    if (files.length === 0) return
     e.preventDefault()
     e.stopPropagation()
     files.forEach(() => this.insertAtCursor(this.placeholder + "\n"))
@@ -609,36 +610,19 @@ Hooks.PasteImage = {
   },
   insertAtCursor(text) {
     const ta = this.textarea
-    const start = ta.selectionStart ?? ta.value.length
-    const end = ta.selectionEnd ?? start
-    const before = ta.value.slice(0, start)
-    const pad = before.length > 0 && !before.endsWith("\n") ? "\n" : ""
-    writeAt(ta, before + pad + text + ta.value.slice(end), start + pad.length + text.length)
+    const {value, caret} = insertAtCursor(ta.value, {start: ta.selectionStart, end: ta.selectionEnd}, text)
+    writeAt(ta, value, caret)
   },
   replacePlaceholder(markdown) {
     const ta = this.textarea
-    const at = ta.value.indexOf(this.placeholder)
-    if (at >= 0) {
-      const keep = ta.selectionStart
-      // An image that came to nothing takes the line it was given with it.
-      const gone = this.placeholder.length + (!markdown && ta.value[at + this.placeholder.length] === "\n" ? 1 : 0)
-      ta.value = ta.value.slice(0, at) + markdown + ta.value.slice(at + gone)
-      const shift = markdown.length - gone
-      ta.selectionStart = ta.selectionEnd = keep > at ? keep + shift : keep
-    } else if (markdown) {
-      ta.value = ta.value.replace(/\s*$/, "") + (ta.value.trim() ? "\n" : "") + markdown + "\n"
-    }
-    this.changed()
-  },
-  changed() {
-    this.textarea.dispatchEvent(new Event("input", {bubbles: true}))
+    const {value, caret} = replacePlaceholder(ta.value, ta.selectionStart, markdown, this.placeholder)
+    writeAt(ta, value, caret)
   },
   uploadFiles(files) {
+    const now = new Date()
     const named = files.map(f => {
-      if (f.name && f.name !== "image.png" && f.name !== "blob") return f
-      const ext = (f.type.split("/")[1] || "png").replace("jpeg", "jpg")
-      const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19)
-      return new File([f], `pasted-${stamp}.${ext}`, {type: f.type})
+      const name = pastedName(f, now)
+      return name === f.name ? f : new File([f], name, {type: f.type})
     })
     this.uploadTo(this.el, this.upload, named)
   },
