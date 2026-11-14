@@ -110,6 +110,20 @@ defmodule SlipdockCLI.NowTest do
           loop: nil,
           holds: "waiting",
           age: 2 * 86_400
+        },
+        %{
+          id: 40,
+          title: "The epic",
+          board_id: 3,
+          board: "slipdock",
+          list: "In Progress",
+          parent: nil,
+          state: "In progress",
+          state_kind: nil,
+          loop: nil,
+          holds: "rework_stalled",
+          why: "#61 was rejected, and no job is open on the epic or its rework",
+          age: 1500
         }
       ],
       queued: [
@@ -204,6 +218,20 @@ defmodule SlipdockCLI.NowTest do
 
     sub = Enum.find(lines, &String.starts_with?(&1, "#61 Subcard"))
     assert sub =~ ~r/Epic board › In Progress \(in #40\)\s+Waiting on Dana\s+waiting\s+-\s+2d$/
+  end
+
+  test "now says why a stalled epic's rework holds it (#3184)" do
+    serve(snapshot())
+    out = capture_io(fn -> SlipdockCLI.main(["now", "slipdock"]) end)
+    lines = String.split(out, "\n")
+
+    epic = Enum.find(lines, &String.starts_with?(&1, "#40 The epic"))
+    assert epic =~ ~r/rework_stalled/
+
+    assert out =~
+             "  #40 rework_stalled: #61 was rejected, and no job is open on the epic or its rework"
+
+    refute out =~ "#45 :"
   end
 
   test "now prints the queue, each job with what holds it back" do

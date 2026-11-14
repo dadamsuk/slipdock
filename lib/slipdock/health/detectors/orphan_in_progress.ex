@@ -124,9 +124,13 @@ defmodule Slipdock.Health.Detectors.OrphanInProgress do
     )
   end
 
-  # Where it goes back to: the list its last job's list_top rule feeds, on
-  # its own board, else the board's ready list.
-  defp home(card) do
+  @doc """
+  Where a card goes back to: the list its last job's `list_top` rule feeds,
+  on its own board, else the board's ready list. `{:ok, column}`, or
+  `:error` when it has neither. `Slipdock.Verified.EpicRework` sends an
+  epic again the same way (#3184).
+  """
+  def home(%Card{} = card) do
     board = Boards.get_board!(card.board_id)
 
     rule =

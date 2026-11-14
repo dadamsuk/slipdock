@@ -267,8 +267,8 @@ and MCP) and a link to the page that covers it.
     `POST /api/boards/:board/garden` or MCP `garden` / `garden_decide`.
 - **Health monitor** — [work stuck in ways only a person would notice is found,
   fixed where a safe fix exists, or flagged](the-health-monitor.md):
-  jobs nobody takes, deadlocks, verification and merges that stall, cards and
-  questions nobody is moving. What it can't fix gets the `stuck` flag (or a board
+  jobs nobody takes, deadlocks, verification and merges that stall, cards,
+  an epic's rework and questions nobody is moving. What it can't fix gets the `stuck` flag (or a board
   alert) and a trigger you can attach an email to; `/healthz` reports its pulse.
 - **Right now** — [which runners are doing what, and the cards in progress and
   where they are](right-now.md), on one page a click from the board,

@@ -92,6 +92,9 @@ defmodule SlipdockCLI.Now do
       end)
 
     Render.table(["CARD", "WHERE", "STATE", "HOLDS", "RUNNER", "AGE"], rows)
+
+    # What holds a card, in words, where the hold alone doesn't say (#3184).
+    for c <- cards, not blank?(c["why"]), do: IO.puts("  ##{c["id"]} #{c["holds"]}: #{c["why"]}")
   end
 
   @doc """

@@ -11,7 +11,8 @@ defmodule Slipdock.Verified.Outcome do
 
   # Back to the top of the ready list for rework (#1659), after a rejection
   # or a failed merge (#1657): the handoff points at the reason, the
-  # builder's own assignment comes off and the board's feed runs.
+  # builder's own assignment comes off and the board's feed runs; a
+  # subcard's epic with no job on it is sent again (#3184).
   @doc false
   def send_back(card, next_step, actor, user) do
     # The reason is on the comment and the verification block (and in a
@@ -39,6 +40,10 @@ defmodule Slipdock.Verified.Outcome do
     # A rejection is new information: the card isn't cooling, so the
     # board's feed can send it next.
     Slipdock.Automations.feed_board(card.board_id)
+
+    # A subcard's rework with no job on it or its epic: no feed takes from
+    # a sub-board's list, so the epic goes back on its own (#3184).
+    Slipdock.Verified.EpicRework.send_again(card, actor)
 
     {:ok, Repo.get!(Card, card.id)}
   end

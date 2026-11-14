@@ -162,7 +162,11 @@ submitted it, and **Accept** and **Reject** for anyone who can edit it.
   (`rejection`). The evidence is cleared, the assignment the building agent
   made comes off (one a person made stays), and the card goes back to the
   top of the ready list. The feed's cool-down doesn't hold it, so a runner
-  rule sends it next, and completing it submits it again. The card counts
+  rule sends it next, and completing it submits it again. A subcard goes to
+  the top of its epic's own To Do, where no feed takes from: when no job is
+  open on it or on its epic (an epic's job that ended while it waited for
+  the verdict), an epic an agent put in progress goes back to the top of its feed's list by itself,
+  with a *Sent again* comment, and the feed sends it for the rework. The card counts
   its rejections (*rejected 2×*, `verify_rejections`).
 - **The verdict in parts.** A verifier gives what it found for each check
   as well as the reason, and the reason is lines, its parts left to

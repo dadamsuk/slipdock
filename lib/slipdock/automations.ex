@@ -799,7 +799,8 @@ defmodule Slipdock.Automations do
   `unassigned: true`, nobody's — that pass the rule's conditions. A card
   whose last job from this rule ended under `feed_cooldown_seconds` ago is
   passed over, so one the runner left where it was doesn't go straight back
-  out, unless it was rejected since (#1659); `force: true` ignores that. A
+  out, unless it, or a subcard on its sub-board (#3184), was rejected since
+  (#1659); `force: true` ignores that. A
   card with an open job (queued, claimed or running) from any rule, or from
   none, is passed over too, cool-down or not, so two `list_top` rules on one
   list work it side by side rather than both sending its top card (#1956).
@@ -900,19 +901,36 @@ defmodule Slipdock.Automations do
     # cooling: the retry is meant to go next, and requeue_stuck bounds it.
     # Nor is one whose queued job gave way to an answer (#1750): it goes next.
     # Nor is one rejected since its job ended (#1659): the rejection is new
-    # information, and the rework goes next.
+    # information, and the rework goes next. So is an epic one of whose
+    # subcards was rejected since (#3184): its rework is the epic's job.
     from(j in Slipdock.Runners.Job,
+      as: :job,
       join: c in Card,
+      as: :job_card,
       on: c.id == j.card_id,
       where:
         j.rule_id == ^rule.id and j.finished_at > ^since and
           (is_nil(j.recovery) or j.recovery not in ["requeued", "withdrawn"]) and
           not (c.verify_state == "rejected" and not is_nil(c.verify_at) and
                  c.verify_at >= j.finished_at),
+      where: not exists(subcard_rejected_since_job()),
       select: j.card_id
     )
     |> Repo.all()
     |> MapSet.new()
+  end
+
+  # A subcard on the sub-board of the `:job_card`, rejected since the
+  # `:job` ended (#3184).
+  defp subcard_rejected_since_job do
+    from(s in Card,
+      join: b in Board,
+      on: b.id == s.board_id,
+      where:
+        b.parent_card_id == parent_as(:job_card).id and s.verify_state == "rejected" and
+          not is_nil(s.verify_at) and s.verify_at >= parent_as(:job).finished_at,
+      select: 1
+    )
   end
 
   @doc "How long a card that just had a job from a `list_top` rule is passed over, in seconds."
