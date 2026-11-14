@@ -438,9 +438,9 @@ defmodule SlipdockWeb.CalendarComponents do
   def chip_title(card) do
     dates =
       case {card.start_date, card.due_date} do
-        {%Date{} = s, %Date{} = d} -> "#{fmt(s)} → #{fmt(d)}"
-        {nil, %Date{} = d} -> "Due #{fmt(d)}"
-        {%Date{} = s, nil} -> "Starts #{fmt(s)}"
+        {%Date{} = s, %Date{} = d} -> "#{Dates.weekday_long(s)} → #{Dates.weekday_long(d)}"
+        {nil, %Date{} = d} -> "Due #{Dates.weekday_long(d)}"
+        {%Date{} = s, nil} -> "Starts #{Dates.weekday_long(s)}"
         _ -> "No date"
       end
 
@@ -460,6 +460,4 @@ defmodule SlipdockWeb.CalendarComponents do
 
   defp loaded(list) when is_list(list), do: list
   defp loaded(_), do: []
-
-  defp fmt(d), do: Slipdock.Dates.long(d)
 end

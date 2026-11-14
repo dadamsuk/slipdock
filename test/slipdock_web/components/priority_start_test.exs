@@ -210,6 +210,25 @@ defmodule SlipdockWeb.Components.PriorityStartTest do
       refute title.(nil) =~ "Priority"
     end
 
+    test "the calendar chip's tooltip writes its dates with weekday and year (#2880)" do
+      title = fn start, due ->
+        SlipdockWeb.CalendarComponents.chip_title(%{
+          title: "T",
+          start_date: start,
+          due_date: due,
+          completed: false,
+          priority: "none",
+          flags: [],
+          tags: []
+        })
+      end
+
+      assert title.(~D[2030-01-01], ~D[2030-01-20]) == "T\nTue 1 Jan 2030 → Sun 20 Jan 2030"
+      assert title.(nil, ~D[2030-01-25]) == "T\nDue Fri 25 Jan 2030"
+      assert title.(~D[2030-01-01], nil) == "T\nStarts Tue 1 Jan 2030"
+      assert title.(nil, nil) == "T\nNo date"
+    end
+
     test "the outline: bars with a tooltip, and no medium", ctx do
       {:ok, _view, html} = live(ctx.conn, ~p"/boards/#{ctx.board}/outline")
 

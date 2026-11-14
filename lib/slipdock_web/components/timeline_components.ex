@@ -705,9 +705,14 @@ defmodule SlipdockWeb.TimelineComponents do
 
     dates =
       case kind do
-        :span -> "#{fmt(start)} → #{fmt(due)}"
-        :due -> "Due #{fmt(due)}"
-        :start -> "Starts #{fmt(start)}"
+        :span ->
+          "#{SlipdockWeb.Dates.weekday_long(start)} → #{SlipdockWeb.Dates.weekday_long(due)}"
+
+        :due ->
+          "Due #{SlipdockWeb.Dates.weekday_long(due)}"
+
+        :start ->
+          "Starts #{SlipdockWeb.Dates.weekday_long(start)}"
       end
 
     note =
@@ -726,8 +731,6 @@ defmodule SlipdockWeb.TimelineComponents do
 
     "#{card.title}\n#{dates}#{note}#{precision}"
   end
-
-  defp fmt(d), do: Slipdock.Dates.long(d)
 
   ## Dateless tray -----------------------------------------------------------------
 

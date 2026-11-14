@@ -6,17 +6,18 @@ defmodule SlipdockWeb.Dates do
   Day before month, month abbreviated, no leading zero, and the year only
   when it isn't this one:
 
-  | function     | reads as                       |
-  |--------------|--------------------------------|
-  | `short/2`    | `18 Nov` (`18 Nov 2025`)       |
-  | `long/2`     | `18 Nov 2026`                  |
-  | `weekday/2`  | `Tue 18 Nov`                   |
-  | `full/2`     | `Tuesday 18 November 2026`     |
-  | `datetime/2` | `18 Nov, 11:43`                |
-  | `time/2`     | `11:43`                        |
-  | `exact/2`    | `18 Nov 2026, 11:43 GMT`       |
-  | `range/3`    | `31 Oct → 5 Nov`               |
-  | `relative/2` | `5 min ago`, `yesterday`, …    |
+  | function         | reads as                    |
+  |------------------|-----------------------------|
+  | `short/2`        | `18 Nov` (`18 Nov 2025`)    |
+  | `long/2`         | `18 Nov 2026`               |
+  | `weekday/2`      | `Tue 18 Nov`                |
+  | `weekday_long/2` | `Wed 18 Nov 2026`           |
+  | `full/2`         | `Tuesday 18 November 2026`  |
+  | `datetime/2`     | `18 Nov, 11:43`             |
+  | `time/2`         | `11:43`                     |
+  | `exact/2`        | `18 Nov 2026, 11:43 GMT`    |
+  | `range/3`        | `31 Oct → 5 Nov`            |
+  | `relative/2`     | `5 min ago`, `yesterday`, … |
 
   Every function takes a `Date`, a `DateTime` or a `NaiveDateTime` (taken as
   UTC), and `nil`, which reads as `""`. A time of day is shown in the
@@ -68,6 +69,15 @@ defmodule SlipdockWeb.Dates do
   def weekday(value, opts) do
     d = local_date(value, opts)
     Calendar.strftime(d, "%a ") <> short(d, opts)
+  end
+
+  @doc "`Wed 18 Nov 2026`: the weekday and always the year, for a tooltip."
+  def weekday_long(value, opts \\ [])
+  def weekday_long(nil, _opts), do: ""
+
+  def weekday_long(value, opts) do
+    d = local_date(value, opts)
+    Calendar.strftime(d, "%a ") <> long(d, opts)
   end
 
   @doc "`Tue`: the day of the week alone, for a date in the coming week."

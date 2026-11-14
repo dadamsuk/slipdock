@@ -28,6 +28,7 @@ defmodule SlipdockWeb.DatesTest do
       assert Dates.short(nil) == ""
       assert Dates.long(nil) == ""
       assert Dates.weekday(nil) == ""
+      assert Dates.weekday_long(nil) == ""
       assert Dates.full(nil) == ""
       assert Dates.datetime(nil) == ""
       assert Dates.time(nil) == ""
@@ -39,6 +40,18 @@ defmodule SlipdockWeb.DatesTest do
   test "long/2 always has the year" do
     assert Dates.long(~D[2026-11-18]) == "18 Nov 2026"
     assert Dates.long(~U[2025-03-04 10:00:00Z]) == "4 Mar 2025"
+  end
+
+  test "weekday_long/2 has the weekday and always the year (#2880)" do
+    assert Dates.weekday_long(~D[2026-11-18]) == "Wed 18 Nov 2026"
+    assert Dates.weekday_long(~D[2025-03-04]) == "Tue 4 Mar 2025"
+    # A moment is read on the viewer's calendar: late on the 18th in UTC is
+    # already Thursday the 19th in Auckland.
+    assert Dates.weekday_long(~U[2026-11-18 23:30:00Z], zone: "Pacific/Auckland") ==
+             "Thu 19 Nov 2026"
+
+    assert Dates.weekday_long(~U[2026-11-18 23:30:00Z], zone: "Etc/UTC") == "Wed 18 Nov 2026"
+    assert Dates.weekday_long(~N[2026-11-18 09:00:00]) == "Wed 18 Nov 2026"
   end
 
   test "weekday/2 and full/2" do
