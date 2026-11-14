@@ -178,12 +178,17 @@ defmodule Slipdock.MixProject do
   `mix pre_push --prune` runs no checks: it drops the test databases of
   checkouts that no longer exist (`pre_push_prune/2`), which is all a removed
   worktree leaves behind (#2604). `prune` is what it calls.
+
+  It takes no test files, nor any other argument but those two: anything else
+  is refused before a step runs (#3132), since `credo diff` would read it as
+  its git ref or its file list and lint something other than what CI lints.
   """
   def pre_push(args, run \\ &pre_push_run/3, prune \\ &pre_push_prune/0)
 
   def pre_push(["--prune"], _run, prune), do: prune.()
 
   def pre_push(args, run, _prune) do
+    unless pre_push_args?(args), do: Mix.raise(pre_push_usage(args))
     started = System.monotonic_time(:millisecond)
 
     for step <- pre_push_steps(args) do
@@ -199,6 +204,17 @@ defmodule Slipdock.MixProject do
     end
 
     Mix.shell().info([:green, "==> pre_push: all checks passed in #{seconds(started)} s", :reset])
+  end
+
+  defp pre_push_args?([]), do: true
+  defp pre_push_args?(["--from-git-ref", "-" <> _]), do: false
+  defp pre_push_args?(["--from-git-ref", _ref]), do: true
+  defp pre_push_args?(_args), do: false
+
+  defp pre_push_usage(args) do
+    "pre_push takes no test files or other arguments (given: #{Enum.join(args, " ")}). " <>
+      "Its only options are --prune and --from-git-ref <ref>. " <>
+      "Run your tests as a command of their own: mix test <files>."
   end
 
   @doc """

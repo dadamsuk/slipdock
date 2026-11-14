@@ -80,6 +80,54 @@ defmodule Slipdock.PrePushAliasTest do
              project().pre_push_steps() |> Enum.drop(-1)
   end
 
+  describe "arguments it doesn't take (#3132)" do
+    for args <- [
+          ["test/slipdock/pre_push_alias_test.exs"],
+          ["test/a_test.exs", "test/b_test.exs"],
+          ["--from-git-ref"],
+          ["--from-git-ref", "--prune"],
+          ["--from-git-ref", "main", "test/a_test.exs"],
+          ["--prune", "test/a_test.exs"],
+          ["--all"]
+        ] do
+      @args args
+      test "#{inspect(args)} is refused with its options named, and runs no checks" do
+        me = self()
+
+        error =
+          assert_raise Mix.Error, fn ->
+            project().pre_push(@args, recorder(), fn -> send(me, :pruned) end)
+          end
+
+        assert error.message =~ "takes no test files"
+        assert error.message =~ "--prune"
+        assert error.message =~ "--from-git-ref <ref>"
+        assert error.message =~ Enum.join(@args, " ")
+        assert ran() == []
+        refute_received :pruned
+      end
+    end
+
+    test "--from-git-ref <ref> still runs every check, with the ref as credo's base" do
+      me = self()
+
+      capture_io(fn ->
+        project().pre_push(["--from-git-ref", "main~1"], fn task, argv, _opts ->
+          send(me, {:ran, task, argv})
+          0
+        end)
+      end)
+
+      assert_received {:ran, "credo", ["diff", "--from-git-ref", "main~1" | _]}
+      assert_received {:ran, "compile", _}
+    end
+
+    test "no arguments still runs every check" do
+      capture_io(fn -> project().pre_push([], recorder()) end)
+      assert ran() == Enum.map(project().pre_push_steps(), &elem(&1, 0))
+    end
+  end
+
   test "builds in a root of its own, so it can run beside mix test" do
     root = project().pre_push_build_root()
     assert Path.dirname(root) == Path.join(@root, "_build")

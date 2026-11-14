@@ -31,9 +31,11 @@ holds the detail behind each rule.
    passed. It runs the static checks, the format and compile checks, the
    daemon's `go vet` and `go test -race`, and the repo's own rule tests; a
    pull request's CI doesn't run the static checks, so this is where a change
-   meets them first. It takes about 4 minutes, so start it beside the few
-   test files you changed, not a whole directory (beside a directory's run it
-   can time out). Its options and its workings are in `CONTRIBUTING.md`
+   meets them first. It takes no test files: run your tests yourself with
+   `mix test <the files you changed>` in another terminal while it runs, a
+   few files, not a whole directory (a directory's run at the same time can
+   time out). It takes about 4 minutes. Its only options, `--prune` and
+   `--from-git-ref <ref>`, and its workings are in `CONTRIBUTING.md`
    §More about `mix pre_push`.
 5. **Ship the way the card's board says.** Commit with the card's id in the
    message (`#123`). By push (the default), push to `main`, which deploys. By
