@@ -1121,6 +1121,7 @@ WRITE
                                                  --push (needs --commit), --move-done,
                                                  --complete, --percent-100; the shell runners
                                                  (server, windows) were retired: refused
+  runner ls <board>                              the board's runners, as `runners <board>`
   runner show <board> <runner>                   one runner in full: who made it, its job now,
                                                  how its jobs ended, its latest jobs, its rules
   runner setup <board> <runner>                  a runner with a token of its own (a retired

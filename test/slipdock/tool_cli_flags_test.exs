@@ -40,61 +40,8 @@ defmodule Slipdock.ToolCliFlagsTest do
   end
 
   @doc false
-  # The flags each command's help entry names: %{["page", "section"] => set}.
-  # An entry starts on a line at indent 0 or 2 with the command's name
-  # (`  page section <page> <path>`, `  finding <id> dismiss|promote|reopen`)
-  # and runs on over the more deeply indented lines under it. A command
-  # with several entries reads the flags of them all.
-  def help_flags(help) do
-    help
-    |> String.split("\n")
-    |> Enum.chunk_while(
-      nil,
-      fn line, acc ->
-        cond do
-          entry?(line) and acc != nil -> {:cont, acc, {line, [line]}}
-          entry?(line) -> {:cont, {line, [line]}}
-          acc != nil and continuation?(line) -> {:cont, put_elem(acc, 1, [line | elem(acc, 1)])}
-          acc != nil -> {:cont, acc, nil}
-          true -> {:cont, nil}
-        end
-      end,
-      fn
-        nil -> {:cont, nil}
-        acc -> {:cont, acc, nil}
-      end
-    )
-    |> Enum.reduce(%{}, fn {head, lines}, map ->
-      flags = lines |> Enum.join("\n") |> flags_in() |> MapSet.new()
-
-      head
-      |> entry_names()
-      |> Enum.reduce(map, fn name, map ->
-        Map.update(map, name, flags, &MapSet.union(&1, flags))
-      end)
-    end)
-  end
-
-  defp entry?(line), do: Regex.match?(~r/^ {0,2}[a-z]/, line)
-  defp continuation?(line), do: Regex.match?(~r/^ {3,}\S/, line)
-
-  # `finding <id> dismiss|promote|reopen  …` => [~w(finding dismiss), ~w(finding promote), …]:
-  # its literal words up to the first flag, option group or the gap before
-  # the description, the placeholders (`<id>`) left out.
-  defp entry_names(head) do
-    [usage | _] = head |> String.trim() |> String.split(~r/\s{2,}/, parts: 2)
-
-    usage
-    |> String.split()
-    |> Enum.take_while(&(not String.starts_with?(&1, ["--", "[", "("])))
-    |> Enum.filter(&Regex.match?(~r/^[a-z][a-z-]*(\|[a-z][a-z-]*)*$/, &1))
-    |> Enum.map(&String.split(&1, "|"))
-    |> Enum.reduce([[]], fn alts, acc -> for name <- acc, alt <- alts, do: name ++ [alt] end)
-  end
-
-  defp flags_in(text) do
-    for [_, flag] <- Regex.scan(~r/(?:^|[\s\[(|`])--([a-z][a-z-]*)/, text), uniq: true, do: flag
-  end
+  # The flags each command's help entry names (Slipdock.CLIHelp).
+  defdelegate help_flags(help), to: Slipdock.CLIHelp
 
   @doc false
   # Each `slipdock …` span of a card's text and each bare one that starts
@@ -136,12 +83,7 @@ defmodule Slipdock.ToolCliFlagsTest do
 
   @doc false
   # The help entry a span's words name: the longest one they start with.
-  def command(words, help) do
-    help
-    |> Map.keys()
-    |> Enum.filter(&(&1 != [] and List.starts_with?(words, &1)))
-    |> Enum.max_by(&length/1, fn -> nil end)
-  end
+  defdelegate command(words, help), to: Slipdock.CLIHelp
 
   @doc false
   # What is wrong with one card's flags, as messages; [] when nothing is.
@@ -177,7 +119,7 @@ defmodule Slipdock.ToolCliFlagsTest do
     end
   end
 
-  defp help, do: help_flags(File.read!(Path.join(@root, "cli/help.txt")))
+  defp help, do: help_flags(Slipdock.CLIHelp.read!())
 
   defp descriptions do
     [Slipdock.Sweep.blueprint(), Slipdock.Handbook.blueprint()]

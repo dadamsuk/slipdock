@@ -185,6 +185,7 @@ test/slipdock/origin_docs_test.exs
 
 # A Tool's card names only flags the CLI parses (#2779)
 test/slipdock/tool_cli_flags_test.exs
+test/slipdock/feature_digest_commands_test.exs
 
 # A lane worktree's deps and _build symlinks are ignored (#2902)
 test/slipdock/gitignore_links_test.exs
