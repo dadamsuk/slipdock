@@ -94,7 +94,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel.Attachments do
               {a.filename}
             </a>
             <p class="text-xs text-base-content/50">
-              {human_size(a.size)} · {relative_time(a.inserted_at)}
+              {file_size(a.size)} · {relative_time(a.inserted_at)}
             </p>
             <label
               :if={Attachment.image?(a)}

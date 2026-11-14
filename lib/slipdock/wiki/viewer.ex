@@ -16,7 +16,7 @@ defmodule Slipdock.Wiki.Viewer do
   alias Slipdock.Wiki.{Files, WikiFile}
 
   @audio ~w(.mp3 .m4a .wav .ogg .oga .opus .aac .flac)
-  @max_text 2_000_000
+  @max_text 2 * 1024 * 1024
   @max_rows 1_000
   @max_nodes 5_000
 

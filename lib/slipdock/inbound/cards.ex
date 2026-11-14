@@ -368,7 +368,7 @@ defmodule Slipdock.Inbound.Cards do
   def left_off_comment(files) do
     lines =
       Enum.map(files, fn {file, why} ->
-        "- `#{file.filename}` (#{size(byte_size(file.data))}): #{why_left_off(why)}"
+        "- `#{file.filename}` (#{Quota.humanise_bytes(byte_size(file.data))}): #{why_left_off(why)}"
       end)
 
     Enum.join(
@@ -381,10 +381,6 @@ defmodule Slipdock.Inbound.Cards do
   defp why_left_off(:items), do: "the account's item limit is reached"
   defp why_left_off(:trial), do: "the free trial has run out"
   defp why_left_off(_), do: "it couldn't be stored"
-
-  defp size(bytes) when bytes < 1024, do: "#{bytes} B"
-  defp size(bytes) when bytes < 1024 * 1024, do: "#{Float.round(bytes / 1024, 1)} KB"
-  defp size(bytes), do: "#{Float.round(bytes / (1024 * 1024), 1)} MB"
 
   ## Plumbing ------------------------------------------------------------------
 

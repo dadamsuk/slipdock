@@ -50,6 +50,25 @@ defmodule SlipdockWeb.ToolLiveTest do
     assert has_element?(view, "#tool-not-installed")
   end
 
+  # #2876: a Tool's sizes are file_size/1's, with MB where they were always KB.
+  test "a board file and a skill's binary file are given with their sizes", %{
+    conn: conn,
+    user: user
+  } do
+    name = unique_name()
+
+    overrides = %{
+      "files/guide.md" => :binary.copy("x", 1_500_000),
+      "skills/#{name}/references/blob.bin" => :binary.copy(<<255>>, 1536)
+    }
+
+    {:ok, _} = Tools.publish(user, package(name, "1.0.0", overrides))
+    {:ok, view, _html} = live(conn, ~p"/tools/#{name}")
+
+    assert has_element?(view, "#tool-board", "guide.md (1.4 MB)")
+    assert has_element?(view, "#tool-skill-#{name} pre", "(1.5 KB of binary data)")
+  end
+
   test "somebody it's shared with sees the page, without the sharing controls", %{
     user: user,
     tool: tool,

@@ -733,23 +733,16 @@ defmodule SlipdockWeb.CoreComponents do
     """
   end
 
-  @doc "A byte count as people read it: `512 B`, `12.5 KB`, `3.2 MB`."
-  def file_size(bytes) when is_integer(bytes) and bytes < 1024, do: "#{bytes} B"
+  @doc """
+  A byte count as people read it: `512 B`, `12.5 KB`, `3.2 MB`, `2 GB`, and
+  an empty string for anything that isn't a count. The words are
+  `Slipdock.Quota.humanise_bytes/1`'s, the app's one file-size formatter
+  (#2876).
+  """
+  def file_size(bytes) when is_integer(bytes) and bytes >= 0,
+    do: Slipdock.Quota.humanise_bytes(bytes)
 
-  def file_size(bytes) when is_integer(bytes) and bytes < 1024 * 1024,
-    do: "#{one_place(bytes / 1024)} KB"
-
-  def file_size(bytes) when is_integer(bytes), do: "#{one_place(bytes / (1024 * 1024))} MB"
   def file_size(_), do: ""
-
-  # 12.5, and 10 rather than 10.0.
-  defp one_place(x) do
-    rounded = Float.round(x, 1)
-
-    if rounded == trunc(rounded),
-      do: Integer.to_string(trunc(rounded)),
-      else: Float.to_string(rounded)
-  end
 
   @doc """
   What a file picker takes, in words, from an upload's (or an input's)

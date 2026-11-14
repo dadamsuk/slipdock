@@ -67,7 +67,7 @@ defmodule SlipdockWeb.FileLive do
             <.icon name="hero-arrow-left" class="size-4" /> Shared with me
           </.link>
           <h1 class="min-w-0 flex-1 truncate text-sm font-semibold">{@file.name}</h1>
-          <span class="text-xs text-base-content/60">{FileViewer.size(@file.size)}</span>
+          <span id="file-size" class="text-xs text-base-content/60">{file_size(@file.size)}</span>
           <a href={Files.url(@file)} class="btn btn-ghost btn-sm" id="file-download" download>
             <.icon name="hero-arrow-down-tray" class="size-4" /> Download
           </a>

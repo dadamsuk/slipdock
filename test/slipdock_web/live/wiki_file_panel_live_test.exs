@@ -51,6 +51,18 @@ defmodule SlipdockWeb.WikiFilePanelLiveTest do
     refute panel =~ "lg:w-["
   end
 
+  # #2876: the same words as on a card and in the upload picker (1024s), where
+  # this header once counted in 1000s and read "1.5 MB".
+  test "the panel's header gives the file's size as file_size/1 writes it",
+       %{conn: conn, board: board, page: page} do
+    file = stored(board, "dump.bin", :binary.copy(<<0>>, 1_500_000))
+    {:ok, view, _} = live(conn, ~p"/boards/#{board}/wiki/#{page.slug}")
+
+    open_file(view, file.id)
+
+    assert view |> element("#wiki-file-size") |> render() =~ ~r/>\s*1\.4 MB\s*</
+  end
+
   test "a .vtt file opened from the tree reads as a transcript in the panel (#774)",
        %{conn: conn, board: board, page: page} do
     file =

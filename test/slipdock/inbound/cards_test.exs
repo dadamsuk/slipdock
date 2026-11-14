@@ -281,7 +281,7 @@ defmodule Slipdock.Inbound.CardsTest do
 
       assert uid == ctx.user.id
       assert body =~ "**Not attached.**"
-      assert body =~ "`huge.log` (1.0 MB): the account's storage is full"
+      assert body =~ "`huge.log` (1 MB): the account's storage is full"
       refute body =~ "small.txt"
     end
 

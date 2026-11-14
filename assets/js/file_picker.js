@@ -3,13 +3,15 @@
 // does, so this hook writes the file's name and size into the picker's row
 // and its × empties the input again.
 
-// The same words file_size/1 writes on the server: 512 B, 12.5 KB, 3.2 MB.
+// The same words file_size/1 writes on the server: 512 B, 12.5 KB, 3.2 MB,
+// 2 GB. Both are held to file_size_cases.json (#2876).
 export function fileSize(bytes) {
   if (typeof bytes !== "number" || !isFinite(bytes) || bytes < 0) return ""
   if (bytes < 1024) return `${bytes} B`
   const round = n => String(Math.round(n * 10) / 10)
-  if (bytes < 1024 * 1024) return `${round(bytes / 1024)} KB`
-  return `${round(bytes / (1024 * 1024))} MB`
+  if (bytes < 1024 ** 2) return `${round(bytes / 1024)} KB`
+  if (bytes < 1024 ** 3) return `${round(bytes / 1024 ** 2)} MB`
+  return `${round(bytes / 1024 ** 3)} GB`
 }
 
 // Shows the chosen file (or none) in the picker `el`.

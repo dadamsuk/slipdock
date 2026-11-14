@@ -53,7 +53,7 @@ defmodule SlipdockWeb.FileViewer do
         parsed(kind, text, file.name)
 
       {:error, :too_large} ->
-        %{problem: "It is too big to show here (over #{size(Viewer.max_text())})."}
+        %{problem: "It is too big to show here (over #{file_size(Viewer.max_text())})."}
 
       {:error, :not_text} ->
         %{problem: "It isn't text this viewer can read."}
@@ -82,11 +82,6 @@ defmodule SlipdockWeb.FileViewer do
       {:error, message} -> %{problem: message, text: text}
     end
   end
-
-  @doc "A file's size, the way the viewer's header gives it."
-  def size(bytes) when bytes < 1_000, do: "#{bytes} bytes"
-  def size(bytes) when bytes < 1_000_000, do: "#{Float.round(bytes / 1_000, 1)} KB"
-  def size(bytes), do: "#{Float.round(bytes / 1_000_000, 1)} MB"
 
   defp inline_url(file), do: Files.url(file) <> "?view=inline"
 

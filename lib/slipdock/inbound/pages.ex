@@ -157,8 +157,13 @@ defmodule Slipdock.Inbound.Pages do
 
       body =
         case left_off do
-          [] -> Cards.description(message, cid)
-          files -> String.trim(Cards.description(message, cid) <> "\n\n" <> left_off_note(files))
+          [] ->
+            Cards.description(message, cid)
+
+          files ->
+            String.trim(
+              Cards.description(message, cid) <> "\n\n" <> Cards.left_off_comment(files)
+            )
         end
 
       text =
@@ -320,7 +325,7 @@ defmodule Slipdock.Inbound.Pages do
     body =
       case left_off do
         [] -> body
-        files -> String.trim_trailing(body || "") <> "\n\n" <> left_off_note(files)
+        files -> String.trim_trailing(body || "") <> "\n\n" <> Cards.left_off_comment(files)
       end
 
     if body != page.body do
@@ -379,28 +384,6 @@ defmodule Slipdock.Inbound.Pages do
       File.rm(path)
     end
   end
-
-  @doc false
-  def left_off_note(files) do
-    lines =
-      Enum.map(files, fn {file, why} ->
-        "- `#{file.filename}` (#{size(byte_size(file.data))}): #{why_left_off(why)}"
-      end)
-
-    Enum.join(
-      ["**Not attached.** These files came with the email but weren't kept:", "" | lines],
-      "\n"
-    )
-  end
-
-  defp why_left_off(:storage), do: "the account's storage is full"
-  defp why_left_off(:items), do: "the account's item limit is reached"
-  defp why_left_off(:trial), do: "the free trial has run out"
-  defp why_left_off(_), do: "it couldn't be stored"
-
-  defp size(bytes) when bytes < 1024, do: "#{bytes} B"
-  defp size(bytes) when bytes < 1024 * 1024, do: "#{Float.round(bytes / 1024, 1)} KB"
-  defp size(bytes), do: "#{Float.round(bytes / (1024 * 1024), 1)} MB"
 
   @doc false
   def inline_images?(%Message{attachments: a}),

@@ -272,5 +272,32 @@ defmodule Slipdock.ToolsPublishTest do
 
       assert message =~ "of storage left on this server"
     end
+
+    test "the refusal gives the package's size and the room left, each in file-size words (#2876)" do
+      {:ok, _} =
+        Settings.complete_setup(%{"admin_email" => "admin@example.com", "storage_limit_mb" => 1})
+
+      user = user_fixture()
+      name = unique_name()
+
+      # The first package is padded to leave exactly 500,000 bytes of the 1 MB.
+      base = files(name) |> Map.values() |> Enum.map(&byte_size/1) |> Enum.sum()
+      guide = byte_size(files(name)["files/guide.md"])
+      pad = :binary.copy("x", 1_048_576 - 500_000 - base + guide)
+
+      {:ok, v} = publish(user, %{"files/guide.md" => pad}, name: name)
+      assert v.size == 548_576
+
+      # The second unpacks to exactly 1,500,000 bytes.
+      other = unique_name()
+      base = files(other) |> Map.values() |> Enum.map(&byte_size/1) |> Enum.sum()
+      big = :crypto.strong_rand_bytes(1_500_000 - base + guide)
+
+      assert {:error, :payment_required, "storage_limit_reached", message} =
+               publish(user, %{"files/guide.md" => big}, name: other)
+
+      assert message =~
+               "This package unpacks to 1.4 MB, and you have 488.3 KB of storage left on this server."
+    end
   end
 end
