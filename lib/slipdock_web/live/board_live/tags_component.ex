@@ -16,6 +16,7 @@ defmodule SlipdockWeb.BoardLive.TagsComponent do
   """
   use SlipdockWeb, :live_component
 
+  import SlipdockWeb.BoardLive.Helpers, only: [tag_by_id: 2]
   import SlipdockWeb.SlipdockComponents
 
   alias Slipdock.{Access, Boards, Palette}
@@ -77,7 +78,7 @@ defmodule SlipdockWeb.BoardLive.TagsComponent do
   end
 
   defp event("set_tag_color", %{"id" => id, "color" => color}, socket) do
-    with %Tag{} = tag <- board_tag(socket, id),
+    with %Tag{} = tag <- tag_by_id(socket.assigns.board, id),
          {:ok, _} <- Boards.Tags.update_tag(tag, %{"color" => color}) do
       {:noreply, assign(socket, error: nil)}
     else
@@ -88,7 +89,7 @@ defmodule SlipdockWeb.BoardLive.TagsComponent do
   # Sent by the name box when it loses focus or takes Enter. The reply tells
   # the box whether to keep what was typed or put the saved name back.
   defp event("rename_tag", %{"tag_id" => id, "name" => name}, socket) do
-    case board_tag(socket, id) do
+    case tag_by_id(socket.assigns.board, id) do
       nil ->
         {:reply, %{ok: false}, assign(socket, error: "That tag has gone.")}
 
@@ -108,7 +109,7 @@ defmodule SlipdockWeb.BoardLive.TagsComponent do
   end
 
   defp event("delete_tag", %{"id" => id}, socket) do
-    if tag = board_tag(socket, id), do: {:ok, _} = Boards.Tags.delete_tag(tag)
+    if tag = tag_by_id(socket.assigns.board, id), do: {:ok, _} = Boards.Tags.delete_tag(tag)
     {:noreply, assign(socket, error: nil)}
   end
 
@@ -127,10 +128,6 @@ defmodule SlipdockWeb.BoardLive.TagsComponent do
         "“#{old}” couldn't be renamed."
     end
   end
-
-  # A tag of this board's tree (they live on the root), or nil.
-  defp board_tag(socket, id),
-    do: Enum.find(socket.assigns.board.tags, &(to_string(&1.id) == to_string(id)))
 
   defp new_tag_form, do: to_form(Tag.changeset(%Tag{}, %{}))
 

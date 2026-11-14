@@ -302,6 +302,25 @@ defmodule SlipdockWeb.BoardTenancyLiveTest do
       assert Repo.preload(Repo.get!(Card, ctx.my_card.id), :tags).tags == []
     end
 
+    test "the board's own tag goes on the card and comes off, by the string id the event carries (#2889)",
+         ctx do
+      mine = tag_fixture(ctx.mine, "mine", "rose")
+      view = card_view(ctx.conn, ctx.mine, ctx.my_card)
+
+      tags = fn ->
+        Repo.preload(Repo.get!(Card, ctx.my_card.id), :tags).tags |> Enum.map(& &1.id)
+      end
+
+      render_hook(card_panel(view), "toggle_tag", %{"id" => "#{mine.id}"})
+      assert tags.() == [mine.id]
+
+      render_hook(card_panel(view), "toggle_tag", %{"id" => "not an id"})
+      assert tags.() == [mine.id]
+
+      render_hook(card_panel(view), "toggle_tag", %{"id" => "#{mine.id}"})
+      assert tags.() == []
+    end
+
     test "remove_assignee needs write access to the card, and an open one", ctx do
       {:ok, _} = Boards.Cards.update_card(ctx.their_card, %{"assignee_id" => ctx.victim.id})
       {:ok, _} = Access.grant(ctx.theirs, ctx.user, "read", ctx.victim)
@@ -647,6 +666,29 @@ defmodule SlipdockWeb.BoardTenancyLiveTest do
     test "won't open another board's page", ctx do
       {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.mine}?#{[page: ctx.their_page.id]}")
       refute has_element?(view, "#page-panel")
+    end
+  end
+
+  describe "a placed page's own board's tag (#2889)" do
+    test "goes on the page and comes off, by the string id the event carries", ctx do
+      page = page_fixture(ctx.mine, %{"title" => "My page"}, user: ctx.user)
+      {:ok, _} = Slipdock.Wiki.place(page, ctx.my_col)
+      mine = tag_fixture(ctx.mine, "mine", "rose")
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.mine}?#{[page: page.id]}")
+      panel = with_target(view, "#board-page")
+
+      tags = fn ->
+        Slipdock.Wiki.get_page!(page.id) |> Slipdock.Wiki.tags() |> Enum.map(& &1.id)
+      end
+
+      render_hook(panel, "page_toggle_tag", %{"id" => "#{mine.id}"})
+      assert tags.() == [mine.id]
+
+      render_hook(panel, "page_toggle_tag", %{"id" => "not an id"})
+      assert tags.() == [mine.id]
+
+      render_hook(panel, "page_toggle_tag", %{"id" => "#{mine.id}"})
+      assert tags.() == []
     end
   end
 

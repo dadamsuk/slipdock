@@ -12,6 +12,31 @@ defmodule SlipdockWeb.BoardLive.HelpersTest do
     Enum.reduce(errors, base, fn {field, msg, opts}, cs -> add_error(cs, field, msg, opts) end)
   end
 
+  describe "tag_by_id/2 (#2889)" do
+    @board %{tags: [%{id: 7, name: "bug"}, %{id: 12, name: "chore"}]}
+
+    test "finds a tag by the integer id a filter holds" do
+      assert Helpers.tag_by_id(@board, 12).name == "chore"
+    end
+
+    test "finds a tag by the string id an event carries" do
+      assert Helpers.tag_by_id(@board, "7").name == "bug"
+      assert Helpers.tag_by_id(@board, " 12 ").name == "chore"
+    end
+
+    test "an id no tag of the board has finds nothing" do
+      assert Helpers.tag_by_id(@board, 8) == nil
+      assert Helpers.tag_by_id(@board, "8") == nil
+      assert Helpers.tag_by_id(%{tags: []}, "7") == nil
+    end
+
+    test "a value that isn't an id finds nothing, and doesn't raise" do
+      for value <- ["", "7abc", "bug", "0", "-7", 0, nil, 7.0, %{"id" => 7}] do
+        assert Helpers.tag_by_id(@board, value) == nil
+      end
+    end
+  end
+
   describe "changeset_message/1 (#2873)" do
     test "fills a %{count} placeholder from the error's opts" do
       cs = changeset([{:name, "at most %{count}", count: 3}])
