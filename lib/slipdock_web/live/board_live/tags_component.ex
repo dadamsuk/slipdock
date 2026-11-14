@@ -50,18 +50,14 @@ defmodule SlipdockWeb.BoardLive.TagsComponent do
     assign(socket, can_write: Access.can_write?(Access.board_permission(user, board)))
   end
 
-  @impl true
-  def handle_event(event, _params, socket) when event not in @events,
-    do: {:noreply, assign(socket, error: "That isn't something this page can do.")}
-
-  def handle_event(event, params, socket), do: guarded(event, params, assign_access(socket))
-
-  defp guarded(event, _params, %{assigns: %{can_write: false}} = socket)
-       when event in @write_events,
-       do:
-         {:reply, %{ok: false}, assign(socket, error: "You have read-only access to this board.")}
-
-  defp guarded(event, params, socket), do: event(event, params, socket)
+  # A refusal answers the push: the name box's hook reads `reply.ok` to put
+  # the saved name back, and a `:noreply` leaves it no reply to read.
+  use SlipdockWeb.BoardLive.PanelGuard,
+    events: @events,
+    access: &assign_access/1,
+    refusals: [{:can_write, false, @write_events, :read_only}],
+    say: :error,
+    reply: %{ok: false}
 
   defp event("pick_tag_color", %{"color" => color}, socket) do
     color = if Enum.member?(Palette.names(), color), do: color, else: socket.assigns.new_tag_color

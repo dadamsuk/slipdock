@@ -11,7 +11,6 @@ defmodule SlipdockWeb.BoardLive.ColumnComponent do
   use SlipdockWeb, :live_component
 
   import SlipdockWeb.SlipdockComponents
-  import SlipdockWeb.BoardLive.Helpers, only: [flash: 3]
 
   alias Slipdock.{Access, Boards, Dates, ListOrder, Palette}
   alias Slipdock.Boards.Column
@@ -58,17 +57,11 @@ defmodule SlipdockWeb.BoardLive.ColumnComponent do
     )
   end
 
-  @impl true
-  def handle_event(event, _params, socket) when event not in @events,
-    do: {:noreply, flash(socket, :error, "That isn't something this page can do.")}
-
-  def handle_event(event, params, socket), do: guarded(event, params, assign_access(socket))
-
-  defp guarded(event, _params, %{assigns: %{can_write: false}} = socket)
-       when event in @write_events,
-       do: {:noreply, flash(socket, :error, "You have read-only access to this board.")}
-
-  defp guarded(event, params, socket), do: event(event, params, socket)
+  use SlipdockWeb.BoardLive.PanelGuard,
+    events: @events,
+    access: &assign_access/1,
+    refusals: [{:can_write, false, @write_events, :read_only}],
+    say: :flash
 
   defp event("edit_column", %{"id" => id}, socket) do
     case board_column(socket, id) do

@@ -93,17 +93,14 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
 
   ## Events ------------------------------------------------------------------
 
-  @impl true
   # Who owns the board is read again before the guard (#2998): `update/2`
   # runs only when the board hands the panel something new.
-  def handle_event(event, params, socket),
-    do: event(event, params, socket |> clear_notice() |> LiveAccess.refresh_owner())
-
-  defp event(event, _params, socket) when event not in @events,
-    do: {:noreply, notice(socket, :error, "That isn't something this page can do.")}
-
-  defp event(_event, _params, %{assigns: %{can_manage: false}} = socket),
-    do: {:noreply, notice(socket, :error, "Only the board's owner can do that.")}
+  use SlipdockWeb.BoardLive.PanelGuard,
+    events: @events,
+    access: &LiveAccess.refresh_owner/1,
+    prepare: &clear_notice/1,
+    refusals: [{:can_manage, false, :all, :owner}],
+    say: :notice
 
   defp event("open_wizard", params, socket) do
     # The daemon is offered first (#2572).

@@ -116,19 +116,13 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
   defp open_tab(%{assigns: %{url_tab: tab}} = socket, tab), do: socket
   defp open_tab(socket, tab), do: assign(socket, tab: tab(tab), url_tab: tab)
 
-  @impl true
-  def handle_event(event, _params, socket) when event not in @events,
-    do: {:noreply, flash(socket, :error, "That isn't something this page can do.")}
-
   # Who owns the board is read again before the guard (#2998): `update/2`
   # runs only when the board hands the panel something new.
-  def handle_event(event, params, socket),
-    do: guarded(event, params, LiveAccess.refresh_owner(socket))
-
-  defp guarded(_event, _params, %{assigns: %{can_manage: false}} = socket),
-    do: {:noreply, flash(socket, :error, "Only the board's owner can do that.")}
-
-  defp guarded(event, params, socket), do: event(event, params, socket)
+  use SlipdockWeb.BoardLive.PanelGuard,
+    events: @events,
+    access: &LiveAccess.refresh_owner/1,
+    refusals: [{:can_manage, false, :all, :owner}],
+    say: :flash
 
   # Sharing the board. Who it is shared with decides who can be put on its
   # cards, so the board is told to look again.

@@ -744,7 +744,9 @@ defmodule SlipdockWeb.BoardTenancyLiveTest do
           {"card_component/field_events.ex card_component/handoff_events.ex " <>
              "card_component/link_events.ex card_component/repeat_events.ex " <>
              "card_component/wait_events.ex", SlipdockWeb.BoardLive.CardComponent},
-          {"page_component.ex", SlipdockWeb.BoardLive.PageComponent}
+          {"page_component.ex", SlipdockWeb.BoardLive.PageComponent},
+          {"runners_component.ex", SlipdockWeb.BoardLive.RunnersComponent},
+          {"overseer_component.ex", SlipdockWeb.BoardLive.OverseerComponent}
         ] do
       test "every handle_event clause in #{file} is in its event list" do
         assert handled_events(unquote(file)) -- unquote(module).events() == []

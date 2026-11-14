@@ -111,26 +111,22 @@ defmodule SlipdockWeb.BoardLive.PageComponent do
     load(socket)
   end
 
-  @impl true
-  def handle_event(event, _params, socket) when event not in @events,
-    do: {:noreply, notice(socket, :error, "That isn't something this page can do.")}
-
-  def handle_event(event, params, socket), do: guarded(event, params, assign_access(socket))
-
-  defp guarded(event, _params, %{assigns: %{item: nil}} = socket) when event != "close_page",
-    do: {:noreply, socket}
-
-  defp guarded(event, params, %{assigns: %{can_comment: true}} = socket)
-       when event in @comment_events,
-       do: dispatch(event, params, clear_notice(socket))
-
-  defp guarded(event, _params, %{assigns: %{can_write: false}} = socket)
-       when event not in @read_events,
-       do: {:noreply, notice(socket, :error, "You have read-only access to that page.")}
-
-  defp guarded(event, params, socket), do: dispatch(event, params, clear_notice(socket))
+  # A page gone from the reader's sight takes nothing but closing; a
+  # commenter's events pass before the read-only refusal would stop them.
+  use SlipdockWeb.BoardLive.PanelGuard,
+    events: @events,
+    access: &assign_access/1,
+    refusals: [
+      {:item, nil, {:except, ~w(close_page)}, :quiet},
+      {:can_comment, true, @comment_events, :pass},
+      {:can_write, false, {:except, @read_events}, "You have read-only access to that page."}
+    ],
+    say: :notice,
+    then: :dispatch
 
   defp dispatch(event, params, socket) do
+    socket = clear_notice(socket)
+
     if Enum.member?(@own_events, event),
       do: event(event, params, socket),
       else: ItemEvents.handle(event, params, socket, &load/1)

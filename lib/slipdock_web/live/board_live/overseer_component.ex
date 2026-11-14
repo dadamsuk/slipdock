@@ -19,6 +19,12 @@ defmodule SlipdockWeb.BoardLive.OverseerComponent do
   alias Slipdock.{Access, Overseer}
   alias Slipdock.Overseer.Settings
 
+  @events ~w(validate save)
+
+  @doc false
+  # For the test that every `handle_event/3` clause is in the list.
+  def events, do: @events
+
   @impl true
   def mount(socket), do: {:ok, assign(socket, notice: nil)}
 
@@ -50,16 +56,16 @@ defmodule SlipdockWeb.BoardLive.OverseerComponent do
     )
   end
 
-  @impl true
   # Who owns the board is read again before the guard (#2998): `update/2`
   # runs only when the board hands the panel something new.
-  def handle_event(event, params, socket),
-    do: event(event, params, LiveAccess.refresh_owner(socket))
+  use SlipdockWeb.BoardLive.PanelGuard,
+    events: @events,
+    access: &LiveAccess.refresh_owner/1,
+    refusals: [{:can_manage, false, :all, :owner}],
+    say: &say/2
 
-  defp event(_event, _params, %{assigns: %{can_manage: false}} = socket),
-    do:
-      {:noreply,
-       assign(socket, notice: {:error, "Only the board's owner can change the overseer."})}
+  # The panel's own callout, above its form.
+  defp say(socket, message), do: assign(socket, notice: {:error, message})
 
   defp event("validate", %{"overseer" => params}, socket) do
     form =
