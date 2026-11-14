@@ -11,11 +11,12 @@ defmodule SlipdockWeb.SlipdockComponents do
 
   alias SlipdockWeb.SlipdockComponents.CardFace
   alias SlipdockWeb.SlipdockComponents.Chrome
+  alias SlipdockWeb.SlipdockComponents.Fields
   alias SlipdockWeb.SlipdockComponents.Marks
   alias SlipdockWeb.SlipdockComponents.Progress
   alias SlipdockWeb.SlipdockComponents.Schedule
 
-  @sources [Marks, Schedule, Progress, CardFace, Chrome]
+  @sources [Marks, Schedule, Progress, CardFace, Chrome, Fields]
 
   @doc false
   # The declarations of the components delegated below, private ones left out.
@@ -244,4 +245,9 @@ defmodule SlipdockWeb.SlipdockComponents do
 
   @doc "A board's handles as a tooltip: its code (for the CLI and `[[links]]`), its switcher key (b, then it) and the reader's own Ctrl+Shift digit, after an optional first line (the description, say)."
   defdelegate board_handles_title(board, lead \\ nil, hotkey \\ nil), to: Chrome
+
+  ## Settings fields ---------------------------------------------------------
+
+  @doc "A setting switched on or off: a checkbox, its title and a hint under it (see `SlipdockWeb.SlipdockComponents.Fields.switch_field/1`)."
+  defdelegate switch_field(assigns), to: Fields
 end

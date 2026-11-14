@@ -14,7 +14,7 @@ defmodule SlipdockWeb.BoardLive.OverseerComponent do
 
   alias SlipdockWeb.LiveAccess
 
-  import SlipdockWeb.SlipdockComponents, only: [timestamp: 1]
+  import SlipdockWeb.SlipdockComponents, only: [switch_field: 1, timestamp: 1]
 
   alias Slipdock.{Access, Overseer}
   alias Slipdock.Overseer.Settings
@@ -123,24 +123,14 @@ defmodule SlipdockWeb.BoardLive.OverseerComponent do
         phx-submit="save"
         class="space-y-3"
       >
-        <input type="hidden" name={@form[:enabled].name} value="false" />
-        <label class="flex cursor-pointer items-start gap-2 text-sm">
-          <input
-            type="checkbox"
-            id="overseer-enabled"
-            name={@form[:enabled].name}
-            value="true"
-            checked={Phoenix.HTML.Form.normalize_value("checkbox", @form[:enabled].value)}
-            class="checkbox mt-0.5"
-          />
-          <span>
-            <span class="font-medium">Watch this board</span>
-            <span class="block text-xs text-base-content/60">
-              Checks every minute for work going round, waiting on you while nothing runs,
-              slow cards and jobs, idle runners, and epics with no way forward.
-            </span>
-          </span>
-        </label>
+        <.switch_field
+          field={@form[:enabled]}
+          id="overseer-enabled"
+          label="Watch this board"
+        >
+          Checks every minute for work going round, waiting on you while nothing runs,
+          slow cards and jobs, idle runners, and epics with no way forward.
+        </.switch_field>
         <div class="flex flex-wrap gap-3">
           <.input field={@form[:pool]} label="Runner pool" class="input field field-mono w-32" />
           <.input
@@ -169,18 +159,11 @@ defmodule SlipdockWeb.BoardLive.OverseerComponent do
             class="input field w-24"
           />
         </div>
-        <input type="hidden" name={@form[:email].name} value="false" />
-        <label class="flex cursor-pointer items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            id="overseer-email"
-            name={@form[:email].name}
-            value="true"
-            checked={Phoenix.HTML.Form.normalize_value("checkbox", @form[:email].value)}
-            class="checkbox"
-          />
-          <span>Email me each new condition, as well as the alert</span>
-        </label>
+        <.switch_field
+          field={@form[:email]}
+          id="overseer-email"
+          label="Email me each new condition, as well as the alert"
+        />
         <p class="text-xs text-base-content/60">
           Passes go to a runner whose config has <code>job_overseer</code>; give it a cheap,
           fast model.
