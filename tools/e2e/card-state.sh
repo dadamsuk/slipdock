@@ -27,16 +27,16 @@ IDS=$(mix run -e '
 
   start = DateTime.add(DateTime.utc_now(), -3 * 86_400)
   for _ <- 1..8 do
-    {:ok, c} = Boards.create_card(done, %{"title" => "Old"})
+    {:ok, c} = Boards.Cards.create_card(done, %{"title" => "Old"})
     Repo.delete_all(from m in CardMove, where: m.card_id == ^c.id)
     Repo.insert!(%CardMove{card_id: c.id, kind: "created", board_id: board.id, to_column_id: doing.id, inserted_at: start})
     Repo.insert!(%CardMove{card_id: c.id, kind: "moved", board_id: board.id, from_column_id: doing.id, to_column_id: done.id, inserted_at: DateTime.add(start, 7200)})
   end
 
-  {:ok, slow} = Boards.create_card(doing, %{"title" => "Slow"})
+  {:ok, slow} = Boards.Cards.create_card(doing, %{"title" => "Slow"})
   Repo.update_all(from(m in CardMove, where: m.card_id == ^slow.id), set: [inserted_at: DateTime.add(DateTime.utc_now(), -(3 * 3600 + 30))])
 
-  {:ok, build} = Boards.create_card(doing, %{"title" => "Build"})
+  {:ok, build} = Boards.Cards.create_card(doing, %{"title" => "Build"})
   {:ok, _} = Runners.queue(build, %{pool: "dev", kind: "claude", prompt: "go"})
   job = Runners.claim(runner)
   {:ok, :ok} = Runners.heartbeat(runner, job.id)

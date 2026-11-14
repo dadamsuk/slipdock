@@ -13,6 +13,6 @@ e2e_start
 mix run -e '
   alias Slipdock.Boards
   board = Boards.get_board!('"$KB"')
-  {:ok, _} = Boards.create_card(hd(board.columns), %{"title" => "Draft the brief"})
+  {:ok, _} = Boards.Cards.create_card(hd(board.columns), %{"title" => "Draft the brief"})
 ' > /dev/null
 node tools/e2e/display-prefs.mjs "$LINK" "$BASE" "$KB"

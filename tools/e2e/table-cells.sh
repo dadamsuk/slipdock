@@ -27,16 +27,16 @@ IDS=$(mix run -e '
     end
 
   {:ok, many} =
-    Boards.create_card(todo, %{"title" => "Many tags", "priority" => "high",
+    Boards.Cards.create_card(todo, %{"title" => "Many tags", "priority" => "high",
       "due_date" => Date.to_iso8601(Date.add(today, -3))})
-  {:ok, many} = Boards.update_card(many, %{"assignee_id" => user.id})
-  for tag <- tags, do: Boards.toggle_card_tag(many, tag)
+  {:ok, many} = Boards.Cards.update_card(many, %{"assignee_id" => user.id})
+  for tag <- tags, do: Boards.Tags.toggle_card_tag(many, tag)
 
-  {:ok, soon} = Boards.create_card(todo, %{"title" => "Due soon",
+  {:ok, soon} = Boards.Cards.create_card(todo, %{"title" => "Due soon",
     "due_date" => Date.to_iso8601(Date.add(today, 1))})
-  Boards.toggle_card_tag(soon, hd(tags))
+  Boards.Tags.toggle_card_tag(soon, hd(tags))
 
-  {:ok, bare} = Boards.create_card(todo, %{"title" => "Nothing set"})
+  {:ok, bare} = Boards.Cards.create_card(todo, %{"title" => "Nothing set"})
   IO.puts("IDS #{many.id} #{soon.id} #{bare.id} #{todo.id}")
 ' | grep '^IDS' | cut -d' ' -f2-)
 

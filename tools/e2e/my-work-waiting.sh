@@ -23,8 +23,8 @@ CARDS=$(mix run -e '
           {"Pick a region", %{"needs" => "Which region?", "choices" => ["eu", "us"]}},
           {"Size it", %{"needs" => "How big?"}}
         ] do
-      {:ok, card} = Boards.create_card(first, %{"title" => title})
-      {:ok, _} = Boards.open_wait(card, agent, Map.put(attrs, "on_user_id", user.id))
+      {:ok, card} = Boards.Cards.create_card(first, %{"title" => title})
+      {:ok, _} = Boards.Waits.open_wait(card, agent, Map.put(attrs, "on_user_id", user.id))
       card.id
     end
 
@@ -37,8 +37,8 @@ node tools/e2e/my-work-waiting.mjs "$LINK" "$BASE" "$KB" "$CHOICE" "$WORDS" "${S
 mix run -e '
   alias Slipdock.Boards
   card = &%Boards.Card{id: &1}
-  a = Boards.last_wait(card.('"$CHOICE"'))
-  b = Boards.last_wait(card.('"$WORDS"'))
+  a = Boards.Waits.last_wait(card.('"$CHOICE"'))
+  b = Boards.Waits.last_wait(card.('"$WORDS"'))
   if {a.close_reason, a.choice} != {"answered", 2}, do: raise("choice: #{inspect({a.close_reason, a.choice})}")
   if {b.close_reason, b.answer} != {"answered", "Large"}, do: raise("words: #{inspect({b.close_reason, b.answer})}")
   IO.puts("ok: the database agrees (choice 2, \"Large\")")

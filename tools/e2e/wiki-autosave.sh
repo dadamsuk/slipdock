@@ -17,7 +17,7 @@ mix run -e '
   alias Slipdock.{Boards, Repo, Wiki}
   page = Repo.one!(from p in Wiki.Page, where: p.title == "Pasted first")
   [attachment] = Wiki.attachments(page)
-  if page.body =~ "autosave-files" or not (page.body =~ Boards.attachment_url(attachment)),
+  if page.body =~ "autosave-files" or not (page.body =~ Boards.Attachments.attachment_url(attachment)),
     do: raise("body is #{page.body}")
   if Repo.aggregate(Wiki.Autosave, :count) != 0, do: raise("an auto-save was left behind")
   IO.puts("ok: the database agrees (one attachment, its link in the body, nothing held)")

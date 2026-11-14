@@ -21,7 +21,7 @@ mix run -e '
   doing = Enum.find(b.columns, &(&1.category == "doing"))
   done = List.last(b.columns)
   now = DateTime.utc_now(:second)
-  {:ok, card} = Boards.create_card(doing, %{"title" => "Being built"})
+  {:ok, card} = Boards.Cards.create_card(doing, %{"title" => "Being built"})
   {:ok, r, _} = Runners.create_runner(b, %{"name" => "Studio", "pool" => "dev"})
   Repo.update!(Ecto.Changeset.change(r, last_seen_at: now))
   {:ok, r2, _} = Runners.create_runner(b, %{"name" => "Laptop", "pool" => "dev"})
@@ -30,7 +30,7 @@ mix run -e '
   for t <- ["Seed data needs a fresh migration", "mix format can need two passes"],
     do: Repo.insert!(%Slipdock.Findings.Finding{board_id: b.id, card_id: card.id, kind: "gotcha", source: "agent", text: t, by: "Builder"})
   for t <- ["Agentic tiles", "Ledger bars", "Back links"] do
-    {:ok, c} = Boards.create_card(done, %{"title" => t})
+    {:ok, c} = Boards.Cards.create_card(done, %{"title" => t})
     Repo.update_all(from(x in Card, where: x.id == ^c.id), set: [completed: true, completed_at: DateTime.add(now, -3600, :second)])
   end
   Repo.insert!(%Slipdock.Health.Incident{board_id: b.id, card_id: card.id, detector: "hung_job", fingerprint: "e2e", summary: "Job #1 has not reported for an hour", status: "flagged"})

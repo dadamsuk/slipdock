@@ -15,7 +15,7 @@ e2e_start
 CARD=$(mix run -e '
   alias Slipdock.Boards
   kb = Boards.get_board!('"$KB"')
-  {:ok, card} = Boards.create_card(hd(kb.columns), %{"title" => "Book the venue"})
+  {:ok, card} = Boards.Cards.create_card(hd(kb.columns), %{"title" => "Book the venue"})
   IO.puts("ID #{card.id}")
 ' | grep '^ID' | cut -d' ' -f2)
 export CARD

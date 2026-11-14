@@ -17,18 +17,18 @@ ids=$(mix run -e '
   [todo, doing | _] = kb.columns
   day = fn n -> Date.utc_today() |> Date.add(n) |> Date.to_iso8601() end
   {:ok, tag} = Boards.Tags.create_tag(kb, %{"name" => "Design", "color" => "sky"})
-  {:ok, full} = Boards.create_card(todo, %{"title" => "Repaint the shed before the rain", "priority" => "high",
+  {:ok, full} = Boards.Cards.create_card(todo, %{"title" => "Repaint the shed before the rain", "priority" => "high",
     "start_date" => day.(10), "due_date" => day.(20), "description" => "Two coats.", "percent_complete" => 40})
-  {:ok, _} = Boards.set_card_tags(full, [tag])
-  {:ok, _} = Boards.add_comment(full, "Green, not blue", by: user)
-  {:ok, _} = Boards.add_checklist_item(full, "Buy paint")
-  {:ok, late} = Boards.create_card(todo, %{"title" => "Renew the insurance", "due_date" => day.(-3), "priority" => "medium"})
-  {:ok, soon} = Boards.create_card(todo, %{"title" => "Book the skip", "due_date" => day.(1), "flags" => ["flagged"]})
-  {:ok, blocker} = Boards.create_card(todo, %{"title" => "Get the quote"})
-  {:ok, blocked} = Boards.create_card(todo, %{"title" => "Pay the builder"})
-  {:ok, _} = Boards.add_dependency(blocked, blocker)
-  {:ok, waiting} = Boards.create_card(doing, %{"title" => "Pick a colour"})
-  {:ok, _} = Boards.open_wait(waiting, Actor.web(user), %{"needs" => "Which green?"})
+  {:ok, _} = Boards.Cards.set_card_tags(full, [tag])
+  {:ok, _} = Boards.Comments.add_comment(full, "Green, not blue", by: user)
+  {:ok, _} = Boards.Checklists.add_checklist_item(full, "Buy paint")
+  {:ok, late} = Boards.Cards.create_card(todo, %{"title" => "Renew the insurance", "due_date" => day.(-3), "priority" => "medium"})
+  {:ok, soon} = Boards.Cards.create_card(todo, %{"title" => "Book the skip", "due_date" => day.(1), "flags" => ["flagged"]})
+  {:ok, blocker} = Boards.Cards.create_card(todo, %{"title" => "Get the quote"})
+  {:ok, blocked} = Boards.Cards.create_card(todo, %{"title" => "Pay the builder"})
+  {:ok, _} = Boards.Dependencies.add_dependency(blocked, blocker)
+  {:ok, waiting} = Boards.Cards.create_card(doing, %{"title" => "Pick a colour"})
+  {:ok, _} = Boards.Waits.open_wait(waiting, Actor.web(user), %{"needs" => "Which green?"})
   # What the old ?show= did, as a named card view the URL names (#2031).
   {:ok, _} = Slipdock.CardViews.create(Slipdock.Repo.get_by!(Slipdock.Accounts.User, email: "e2e@example.com"), %{"name" => "e2e-range", "elements" => Map.new(Slipdock.Swimlanes.Config.facet_keys(), &{&1, &1 in ~w(tags priority start_date due_date)})})
   IO.puts("IDS #{full.id} #{late.id} #{soon.id} #{blocked.id} #{waiting.id}")

@@ -27,7 +27,7 @@ mix run -e '
   alias Slipdock.{Boards, Repo, Wiki}
   page = Repo.one!(from p in Wiki.Page, where: p.title == "Their plan")
   [attachment] = Wiki.attachments(page)
-  if not (page.body =~ "Typed in the browser" and page.body =~ Boards.attachment_url(attachment)),
+  if not (page.body =~ "Typed in the browser" and page.body =~ Boards.Attachments.attachment_url(attachment)),
     do: raise("body is #{page.body}")
   if Repo.aggregate(Wiki.Autosave, :count) != 0, do: raise("an auto-save was left behind")
   IO.puts("ok: the database agrees (text and image saved, nothing left behind)")

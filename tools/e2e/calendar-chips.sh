@@ -20,14 +20,14 @@ BOARD=$(mix run -e '
   today = Date.utc_today()
   # The worst case: a long title carrying every decoration a chip can have.
   {:ok, card} =
-    Boards.create_card(todo, %{
+    Boards.Cards.create_card(todo, %{
       "title" => "Reconcile quarterly invoices with the ledger export",
       "priority" => "critical",
       "flags" => ["flagged", "blocked"],
       "start_date" => Date.add(today, -1),
       "due_date" => Date.add(today, 1)
     })
-  for tag <- Enum.take(board.tags, 3), do: Boards.toggle_card_tag(card, tag)
+  for tag <- Enum.take(board.tags, 3), do: Boards.Tags.toggle_card_tag(card, tag)
   IO.puts("BOARD #{board.id}")
 ' | grep '^BOARD' | cut -d' ' -f2)
 node tools/e2e/calendar-chips.mjs "$LINK" "$BASE" "$BOARD"

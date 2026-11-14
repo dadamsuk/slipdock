@@ -15,10 +15,10 @@ CARD=$(mix run -e '
   [list | _] = Enum.sort_by(board.columns, & &1.position)
   {:ok, _} = Slipdock.Fields.install_preset(board, "rice")
   board = Slipdock.Boards.get_board!(board.id) |> Slipdock.Repo.preload(:fields)
-  {:ok, card} = Slipdock.Boards.create_card(list, %{"title" => "Dark mode for the dashboard"})
-  {:ok, _} = Slipdock.Boards.create_card(list, %{"title" => "Faster search"})
+  {:ok, card} = Slipdock.Boards.Cards.create_card(list, %{"title" => "Dark mode for the dashboard"})
+  {:ok, _} = Slipdock.Boards.Cards.create_card(list, %{"title" => "Faster search"})
   values = %{"Reach" => "4000", "Impact" => "3", "Confidence" => "80", "Effort" => "3"}
-  for f <- board.fields, v = values[f.name], do: {:ok, _} = Slipdock.Fields.set_value(Slipdock.Boards.get_card!(card.id), f, v)
+  for f <- board.fields, v = values[f.name], do: {:ok, _} = Slipdock.Fields.set_value(Slipdock.Boards.Cards.get_card!(card.id), f, v)
   IO.puts("CARD #{card.id}")
 ' | grep '^CARD' | cut -d' ' -f2)
 node tools/e2e/prioritise-units.mjs "$LINK" "$BASE" "$KB" "$CARD"

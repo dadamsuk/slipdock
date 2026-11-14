@@ -30,7 +30,7 @@ mix run -e '
   ship = fn title, lead, done_ago, steps, fields ->
     start = ago.(done_ago + lead)
     at = fn s -> DateTime.add(start, s, :second) end
-    {:ok, c} = Boards.create_card(done, %{"title" => title})
+    {:ok, c} = Boards.Cards.create_card(done, %{"title" => title})
     Repo.update_all(from(x in Card, where: x.id == ^c.id),
       set: [completed: true, completed_at: ago.(done_ago), inserted_at: start] ++ fields)
     for step <- steps do

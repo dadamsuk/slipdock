@@ -20,8 +20,8 @@ CARD=$(mix run -e '
   alias Slipdock.{Boards, Repo}
   board = Boards.get_board!('"$KB"') |> Repo.preload(:columns)
   [first | _] = Enum.sort_by(board.columns, & &1.position)
-  {:ok, card} = Boards.create_card(first, %{"title" => "Wire up billing"})
-  {:ok, _} = Boards.add_comment(card, "Webhook signature check fails on staging")
+  {:ok, card} = Boards.Cards.create_card(first, %{"title" => "Wire up billing"})
+  {:ok, _} = Boards.Comments.add_comment(card, "Webhook signature check fails on staging")
   IO.puts("CARD #{card.id}")
 ' | grep '^CARD' | cut -d' ' -f2)
 
@@ -31,7 +31,7 @@ grep -q "Webhook signature check fails on staging" "$AI_LOG" || { echo "FAIL: th
 echo "ok: the model was told the card's recent comment"
 
 mix run -e '
-  h = Slipdock.Boards.current_handoff('"$CARD"')
+  h = Slipdock.Boards.Handoffs.current_handoff('"$CARD"')
   unless h && h.next_step == "Fix the webhook signature check today", do: raise("saved #{inspect(h && h.next_step)}")
   unless h.body =~ "Gotchas: staging secret differs", do: raise("body #{inspect(h.body)}")
   IO.puts("ok: the database has the edited draft, as saved")

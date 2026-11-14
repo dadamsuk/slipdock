@@ -15,8 +15,8 @@ IDS=$(mix run -e '
   alias Slipdock.{Boards, Repo}
   board = Boards.get_board!('"$KB"') |> Repo.preload(:columns)
   doing = Enum.find(board.columns, &(&1.category == "doing"))
-  {:ok, a} = Boards.create_card(doing, %{"title" => "Finished thing", "completed" => true})
-  {:ok, b} = Boards.create_card(doing, %{"title" => "Stuck thing"})
+  {:ok, a} = Boards.Cards.create_card(doing, %{"title" => "Finished thing", "completed" => true})
+  {:ok, b} = Boards.Cards.create_card(doing, %{"title" => "Stuck thing"})
   old = DateTime.add(DateTime.utc_now(:second), -30 * 86_400)
   Repo.update_all(from(c in Boards.Card, where: c.id == ^b.id), set: [updated_at: old])
   Repo.update_all(from(x in Boards.Activity, where: x.card_id == ^b.id), set: [inserted_at: old])

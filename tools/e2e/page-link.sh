@@ -14,7 +14,7 @@ read -r CARD SPEC SPEC_CODE <<<"$(mix run -e '
   alias Slipdock.{Accounts, Boards, Wiki}
   {:ok, user} = Accounts.get_or_create_user_by_email("e2e@example.com")
   board = Boards.get_board!('"$KB"')
-  {:ok, card} = Boards.create_card(hd(board.columns), %{"title" => "Link card"})
+  {:ok, card} = Boards.Cards.create_card(hd(board.columns), %{"title" => "Link card"})
   {:ok, spec} = Wiki.create_page(board, %{"title" => "Billing spec", "body" => "Rates.", "folder_id" => '"$SPECS"'}, user: user)
   IO.puts("IDS #{card.id} #{spec.id} #{spec.code}")
 ' | grep '^IDS' | cut -d' ' -f2-)"
@@ -25,7 +25,7 @@ mix run -e '
   alias Slipdock.{Boards, Repo, Wiki}
   page = Repo.get!(Wiki.Page, '"$PAGE"')
   unless page.body =~ "See [[Billing spec]] now", do: raise("page body: #{inspect(page.body)}")
-  card = Boards.get_card!('"$CARD"')
+  card = Boards.Cards.get_card!('"$CARD"')
   unless card.description =~ "Per [[Acme call]]", do: raise("description: #{inspect(card.description)}")
   ids = card |> Wiki.pages_for_card() |> Enum.map(& &1.page.id)
   unless '"$SPEC"' in ids, do: raise("attached: #{inspect(ids)}")

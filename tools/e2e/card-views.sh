@@ -14,8 +14,8 @@ ids=$(mix run -e '
   alias Slipdock.Boards
   kb = Boards.get_board!('"$KB"')
   [todo, doing | _] = kb.columns
-  {:ok, a} = Boards.create_card(todo, %{"title" => "Paint the fence", "priority" => "high", "description" => "Two coats."})
-  {:ok, b} = Boards.create_card(doing, %{"title" => "Fix the gate", "priority" => "high", "description" => "New hinge."})
+  {:ok, a} = Boards.Cards.create_card(todo, %{"title" => "Paint the fence", "priority" => "high", "description" => "Two coats."})
+  {:ok, b} = Boards.Cards.create_card(doing, %{"title" => "Fix the gate", "priority" => "high", "description" => "New hinge."})
   IO.puts("IDS #{a.id} #{b.id} #{todo.id}")
 ' | grep '^IDS' | cut -d' ' -f2-)
 read -r A B TODO <<<"$ids"

@@ -14,8 +14,8 @@ CARD=$(mix run -e '
   alias Slipdock.{Boards, Repo}
   board = Boards.get_board!('"$KB"') |> Repo.preload(:columns)
   [backlog | _] = Enum.sort_by(board.columns, & &1.position)
-  {:ok, card} = Boards.create_card(backlog, %{"title" => "Review invoices", "due_date" => "2027-01-12"})
-  {:ok, _} = Boards.add_checklist_item(card, "Open the inbox")
+  {:ok, card} = Boards.Cards.create_card(backlog, %{"title" => "Review invoices", "due_date" => "2027-01-12"})
+  {:ok, _} = Boards.Checklists.add_checklist_item(card, "Open the inbox")
   IO.puts("CARD #{card.id}")
 ' | grep '^CARD' | cut -d' ' -f2)
 
