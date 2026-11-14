@@ -14,7 +14,7 @@ defmodule SlipdockWeb.BoardLiveResyncTest do
   import Phoenix.LiveViewTest
   import Slipdock.Fixtures
 
-  alias Slipdock.Boards.{Card, Column}
+  alias Slipdock.Boards.{Board, Card, Column}
   alias Slipdock.Boards.PubSub
   alias Slipdock.Repo
 
@@ -67,6 +67,14 @@ defmodule SlipdockWeb.BoardLiveResyncTest do
     render_hook(view, "resync", %{})
     assert_reply(view, %{resynced: true})
     assert render(view) =~ "Renamed"
+  end
+
+  test "the board renamed without a broadcast is caught", ctx do
+    view = open(ctx.conn, ctx.board)
+
+    Repo.update_all(from(b in Board, where: b.id == ^ctx.board.id), set: [name: "Renamed board"])
+    render_hook(view, "resync", %{})
+    assert_reply(view, %{resynced: true})
   end
 
   test "nothing changed: nothing is drawn again, and nothing is logged", ctx do
@@ -139,6 +147,21 @@ defmodule SlipdockWeb.BoardLiveResyncTest do
 
       Repo.update_all(from(c in Column, where: c.id == ^ctx.done.id), set: [position: 50])
       refute PubSub.fingerprint(ctx.board.id) == after_add
+    end
+
+    test "moves with the board's own row: its name and when it last changed", ctx do
+      base = PubSub.fingerprint(ctx.board.id)
+      q = from(b in Board, where: b.id == ^ctx.board.id)
+
+      for change <- [[name: "Renamed board"], [updated_at: ~U[2030-01-01 00:00:00Z]]] do
+        Repo.transaction(fn ->
+          Repo.update_all(q, set: change)
+          refute PubSub.fingerprint(ctx.board.id) == base, inspect(change)
+          Repo.rollback(:undo)
+        end)
+      end
+
+      assert PubSub.fingerprint(ctx.board.id) == base
     end
 
     test "a card on another board doesn't move it", ctx do

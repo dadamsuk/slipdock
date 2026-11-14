@@ -112,9 +112,12 @@ test("it asks when the tab comes back into view, online and from the back-forwar
 })
 
 test("once a minute while in view, never while hidden", () => {
+  assert.equal(PROBE_EVERY, 60_000, "about once a minute (bar 2)")
   const {h} = hook()
   h.mounted()
-  mock.timers.tick(PROBE_EVERY)
+  mock.timers.tick(59_999)
+  assert.equal(h.pushed.length, 0, "not before the minute is up")
+  mock.timers.tick(1)
   assert.equal(h.pushed.length, 1)
   document.visibilityState = "hidden"
   mock.timers.tick(PROBE_EVERY * 3)

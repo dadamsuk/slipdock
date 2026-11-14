@@ -137,9 +137,9 @@ defmodule Slipdock.Boards.PubSub do
   end
 
   @doc """
-  A hash of the rows a board page draws its lists from: the board, its
-  lists and its cards (where each is, whether it is done or archived, when
-  it last changed). A page keeps the one it drew from and asks again now and
+  A hash of the rows a board page draws its lists from: the board (its name
+  and when it last changed), its lists and its cards (where each is, whether
+  it is done or archived, when it last changed). A page keeps the one it drew from and asks again now and
   then (`resync` in `SlipdockWeb.BoardLive.Show`, #2918): a different answer
   means it missed a change, whether the broadcast never reached it or its
   connection stopped answering.
@@ -155,7 +155,7 @@ defmodule Slipdock.Boards.PubSub do
       Repo.query!(
         """
         SELECT md5(concat(
-          (SELECT updated_at FROM boards WHERE id = $1), '|',
+          (SELECT concat(name, ':', updated_at) FROM boards WHERE id = $1), '|',
           (SELECT string_agg(concat(id, ':', position, ':', name, ':', updated_at), ',' ORDER BY id)
              FROM columns WHERE board_id = $1), '|',
           (SELECT string_agg(concat(id, ':', column_id, ':', position, ':', completed, ':',
