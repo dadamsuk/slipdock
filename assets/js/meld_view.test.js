@@ -3,7 +3,7 @@
 import {test, beforeEach} from "node:test"
 import assert from "node:assert/strict"
 import {readFileSync} from "node:fs"
-import {session, unlockCipher, showPlain, relock, relockAll, hintOf, installMeld, unlockWith} from "./meld_view.js"
+import {session, unlockCipher, showPlain, relock, relockAll, hintOf, installMeld, unlockWith, askPassphrase} from "./meld_view.js"
 
 const vectors = JSON.parse(readFileSync(new URL("../../test/support/fixtures/meld_vectors.json", import.meta.url)))
 const v2 = vectors.inline[0]
@@ -187,4 +187,172 @@ test("nothing in the view can send, store or log what it decrypts", () => {
       assert.ok(!source.includes(leak), `${file} mentions ${leak}`)
     }
   }
+})
+
+// The root layout's #meld-dialog, as little of it as askPassphrase touches. A
+// submit runs the form's listeners as the browser would; one not prevented
+// closes the dialog with the button's value, as method="dialog" does.
+function fakeDialog() {
+  const field = () => ({value: "", checked: false, hidden: false, textContent: "", focused: false, focus() { this.focused = true }})
+  const sels = ["[data-meld-passphrase]", "[data-meld-confirm]", "[data-meld-new-hint]", "[data-meld-remember]", "[data-meld-text]",
+    "[data-meld-error]", "#meld-dialog-title", "[data-meld-ok]", "[data-meld-hint]", "[data-meld-text-row]", "[data-meld-text-label]",
+    "[data-meld-pass-rows]", "[data-meld-confirm-row]", "[data-meld-hint-row]", "[data-meld-remove]"]
+  const els = Object.fromEntries(sels.map(s => [s, field()]))
+  const submitListeners = new Set()
+  els["[data-meld-form]"] = {
+    addEventListener: (type, fn) => type === "submit" && submitListeners.add(fn),
+    removeEventListener: (type, fn) => type === "submit" && submitListeners.delete(fn),
+  }
+  let onClose = null
+  const dialog = {
+    returnValue: "x",
+    open: false,
+    querySelector: sel => els[sel] ?? assert.fail(`unexpected selector ${sel}`),
+    addEventListener: (type, fn, opts) => {
+      assert.equal(type, "close")
+      assert.deepEqual(opts, {once: true})
+      onClose = fn
+    },
+    showModal() { this.open = true },
+    close(value) {
+      this.open = false
+      this.returnValue = value
+      const fn = onClose
+      onClose = null
+      fn && fn()
+    },
+  }
+  // Presses a button: true when the dialog closed, false when the submit was refused.
+  const press = value => {
+    let prevented = false
+    const e = {submitter: {value}, preventDefault: () => (prevented = true)}
+    for (const fn of submitListeners) fn(e)
+    if (!prevented) dialog.close(value)
+    return !prevented
+  }
+  const el = name => els[`[data-meld-${name}]`]
+  return {dialog, els, el, press, submitListeners}
+}
+
+for (const [label, mode, fill, message] of [
+  ["empty text on insert", "insert", {text: "", pass: "pw", confirm: "pw"}, "Type the text to encrypt."],
+  ["an empty passphrase", "encrypt", {pass: "", confirm: ""}, "Enter a passphrase."],
+  ["an empty passphrase on insert", "insert", {text: "secret", pass: "", confirm: ""}, "Enter a passphrase."],
+  ["passphrases that differ", "encrypt", {pass: "pw", confirm: "pW"}, "The two passphrases don't match."],
+  ["passphrases that differ on insert", "insert", {text: "secret", pass: "pw", confirm: "pw "}, "The two passphrases don't match."],
+  ["a hint with a line break", "encrypt", {pass: "pw", confirm: "pw", hint: "a\nb"}, "The hint can't hold 💡, 🔐 or a line break."],
+  ["a hint with 🔐", "insert", {text: "secret", pass: "pw", confirm: "pw", hint: "lock 🔐"}, "The hint can't hold 💡, 🔐 or a line break."],
+]) {
+  test(`askPassphrase refuses ${label}: the submit is prevented and says why`, async () => {
+    const {dialog, el, press} = fakeDialog()
+    const answer = askPassphrase(dialog, {mode})
+    assert.equal(el("error").hidden, true, "no error before the submit")
+    if (fill.text !== undefined) el("text").value = fill.text
+    el("passphrase").value = fill.pass
+    el("confirm").value = fill.confirm
+    el("new-hint").value = fill.hint ?? ""
+    assert.equal(press("ok"), false, "the submit was prevented")
+    assert.equal(dialog.open, true, "the dialog stays open")
+    assert.equal(el("error").textContent, message)
+    assert.equal(el("error").hidden, false)
+    // Put right, the same dialog then closes with the answer.
+    el("text").value = "secret"
+    el("passphrase").value = el("confirm").value = "pw"
+    el("new-hint").value = "fine"
+    assert.equal(press("ok"), true)
+    assert.deepEqual(await answer, {action: "ok", passphrase: "pw", remember: false, hint: "fine", text: "secret"})
+  })
+}
+
+test("askPassphrase checks nothing but an encrypting OK: decrypt, edit and cancel pass straight through", async () => {
+  for (const mode of ["decrypt", "edit"]) {
+    const {dialog, press, el} = fakeDialog()
+    const answer = askPassphrase(dialog, {mode})
+    assert.equal(press("ok"), true, `${mode} is not checked`)
+    await answer
+    assert.equal(el("error").textContent, "")
+  }
+  const {dialog, press} = fakeDialog()
+  const answer = askPassphrase(dialog, {mode: "insert"})
+  assert.equal(press("cancel"), true, "cancel is never refused")
+  assert.equal(await answer, null)
+})
+
+test("askPassphrase: cancel resolves null, and every typed field is wiped on close", async () => {
+  for (const mode of ["decrypt", "encrypt", "insert", "edit"]) {
+    const {dialog, el, submitListeners} = fakeDialog()
+    const answer = askPassphrase(dialog, {mode, text: "old secret"})
+    el("passphrase").value = "pw"
+    el("confirm").value = "pw"
+    el("text").value = "new secret"
+    dialog.close("") // Escape, or the Cancel button
+    assert.equal(await answer, null, `${mode}: cancel gives null`)
+    assert.equal(el("passphrase").value, "", `${mode}: passphrase wiped`)
+    assert.equal(el("confirm").value, "", `${mode}: confirm wiped`)
+    assert.equal(el("text").value, "", `${mode}: text wiped`)
+    assert.equal(submitListeners.size, 0, `${mode}: the submit guard is removed`)
+  }
+})
+
+test("askPassphrase: an answer is read before the wipe, and the wipe still happens", async () => {
+  const {dialog, el, press} = fakeDialog()
+  const answer = askPassphrase(dialog, {mode: "insert"})
+  el("text").value = "the secret"
+  el("passphrase").value = el("confirm").value = "pw"
+  el("remember").checked = true
+  assert.equal(press("ok"), true)
+  assert.deepEqual(await answer, {action: "ok", passphrase: "pw", remember: true, hint: "", text: "the secret"})
+  assert.equal(el("passphrase").value, "")
+  assert.equal(el("confirm").value, "")
+  assert.equal(el("text").value, "")
+})
+
+test("askPassphrase: OK with no passphrase is null, except in edit mode", async () => {
+  {
+    const {dialog} = fakeDialog()
+    const answer = askPassphrase(dialog, {mode: "decrypt"})
+    dialog.close("ok")
+    assert.equal(await answer, null)
+  }
+  {
+    const {dialog} = fakeDialog()
+    const answer = askPassphrase(dialog, {mode: "edit", text: "changed"})
+    dialog.close("ok")
+    assert.deepEqual(await answer, {action: "ok", passphrase: "", remember: false, hint: "", text: "changed"})
+  }
+})
+
+test("askPassphrase: remove resolves only in edit mode", async () => {
+  for (const mode of ["decrypt", "encrypt", "insert"]) {
+    const {dialog, el} = fakeDialog()
+    const answer = askPassphrase(dialog, {mode})
+    el("passphrase").value = el("confirm").value = "pw"
+    el("text").value = "secret"
+    dialog.close("remove")
+    assert.equal(await answer, null, `${mode}: remove is not an answer`)
+  }
+  const {dialog, el} = fakeDialog()
+  const answer = askPassphrase(dialog, {mode: "edit", text: "plain"})
+  assert.equal(el("remove").hidden, false, "Remove shows in edit mode")
+  dialog.close("remove")
+  assert.deepEqual(await answer, {action: "remove", passphrase: "", remember: false, hint: "", text: "plain"})
+  assert.equal(el("text").value, "", "the decrypted text is wiped after Remove too")
+})
+
+test("askPassphrase opens on a clean dialog: fields cleared, error and hint shown, focus placed", async () => {
+  const {dialog, el, els} = fakeDialog()
+  el("passphrase").value = el("confirm").value = el("new-hint").value = "left over"
+  const answer = askPassphrase(dialog, {mode: "decrypt", hint: "pet", error: "That passphrase doesn't open it."})
+  assert.equal(dialog.open, true)
+  assert.equal(dialog.returnValue, "")
+  assert.equal(el("passphrase").value, "")
+  assert.equal(el("confirm").value, "")
+  assert.equal(el("new-hint").value, "")
+  assert.equal(el("hint").textContent, "Hint: pet")
+  assert.equal(el("error").textContent, "That passphrase doesn't open it.")
+  assert.equal(el("error").hidden, false)
+  assert.equal(els["#meld-dialog-title"].textContent, "Decrypt")
+  assert.equal(el("passphrase").focused, true)
+  dialog.close("")
+  await answer
 })
