@@ -41,6 +41,7 @@ import {ExcalidrawEditor} from "./excalidraw_editor"
 import {MarkdownEditor} from "./markdown_editor"
 import {PageLink} from "./page_link"
 import {TranscriptPlayer} from "./transcript_player"
+import {typing} from "./typing"
 import {PasskeyLogin, PasskeyRegister} from "./passkey"
 import {DockDrag} from "./dock_drag"
 import {AutoDismiss} from "./auto_dismiss"
@@ -831,22 +832,6 @@ Hooks.QuickAdd = {
   },
 }
 
-// The header's quick add: "c" anywhere outside a field opens the box, the
-// same way the boards' own quick add rows are reached by clicking them.
-Hooks.QuickAddKey = {
-  mounted() {
-    document.addEventListener("keydown", this.onKey = (e) => {
-      if (e.key !== "c" || e.metaKey || e.ctrlKey || e.altKey) return
-      const el = document.activeElement
-      if (el && (el.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(el.tagName))) return
-      if (document.getElementById("quick-add-panel")) return
-      e.preventDefault()
-      this.pushEvent("toggle_quick_add", {})
-    })
-  },
-  destroyed() { document.removeEventListener("keydown", this.onKey) },
-}
-
 // Keyboard shortcuts. Two hooks share the keyboard: `Keys` rides in the
 // layout and answers the ones that work on any page, `BoardKeys` rides on a
 // board and answers the ones that need cards and lists. They keep out of each
@@ -899,18 +884,6 @@ function onScreen(selector) {
     }
     return true
   })
-}
-
-// Is the user typing into something, rather than at the page?
-// Somewhere keys are being typed into, or a widget that takes the keyboard
-// for itself while it has focus (the wiki's tree, marked data-own-keys).
-function typing() {
-  const el = document.activeElement
-  return !!el && (
-    el.isContentEditable ||
-    ["INPUT", "TEXTAREA", "SELECT"].includes(el.tagName) ||
-    !!(el.closest && el.closest("[data-own-keys]"))
-  )
 }
 
 // A shifted "j". Some layouts and synthetic events report the unshifted

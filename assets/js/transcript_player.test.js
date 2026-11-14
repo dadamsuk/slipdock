@@ -1,7 +1,7 @@
 // node --test assets/js — the parts of the transcript player that are not the DOM.
 import {test} from "node:test"
 import assert from "node:assert/strict"
-import {clock, currentTurn, nextSpeed, matches, problemMessage, problemLink, keyAction, typing, speakerRename, SPEEDS} from "./transcript_player.js"
+import {clock, currentTurn, nextSpeed, matches, problemMessage, problemLink, keyAction, speakerRename, SPEEDS} from "./transcript_player.js"
 
 test("times read as minutes and seconds, and hours when they need them", () => {
   assert.equal(clock(65_000), "1:05")
@@ -76,8 +76,17 @@ test("keys act on the player, but not while typing or with a modifier", () => {
   assert.equal(keyAction({key: " ", target: {tagName: "INPUT"}}), null)
   assert.equal(keyAction({key: " ", target: {tagName: "DIV", isContentEditable: true}}), null)
   assert.equal(keyAction({key: "ArrowLeft", metaKey: true, target: body}), null)
-  assert.equal(typing(null), false)
-  assert.equal(typing({tagName: "TEXTAREA"}), true)
+  assert.equal(keyAction({key: " ", target: {tagName: "TEXTAREA"}}), null)
+  assert.equal(keyAction({key: " ", target: null}), "toggle")
+})
+
+test("keys the wiki's tree keeps for itself don't reach the player", () => {
+  const row = {tagName: "A", closest: selector => (selector === "[data-own-keys]" ? {} : null)}
+  for (const key of [" ", "ArrowLeft", "ArrowRight", "[", "]"]) {
+    assert.equal(keyAction({key, target: row}), null, key)
+  }
+  const elsewhere = {tagName: "A", closest: () => null}
+  assert.equal(keyAction({key: " ", target: elsewhere}), "toggle")
 })
 
 test("naming a voice asks for a change only when there is one", () => {

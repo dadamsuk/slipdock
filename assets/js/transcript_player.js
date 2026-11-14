@@ -27,6 +27,8 @@
 // transcript (somebody saved the page) cannot stop it playing: `updated`
 // puts the bar back and the highlight with it.
 
+import {typing} from "./typing.js"
+
 export const SPEEDS = [0.75, 1, 1.25, 1.5, 2]
 export const SKIP_MS = 10_000
 
@@ -114,14 +116,8 @@ export function problemLink(reason, help = {}) {
   return null
 }
 
-// Keys belong to whatever is being typed in.
-export function typing(target) {
-  if (!target) return false
-  const tag = (target.tagName || "").toLowerCase()
-  return tag === "input" || tag === "textarea" || tag === "select" || target.isContentEditable === true
-}
-
-// What a key does to the player, or null.
+// What a key does to the player, or null: keys belong to whatever is being
+// typed in, and to a widget that keeps them for itself (see typing.js).
 export function keyAction(e) {
   if (e.metaKey || e.ctrlKey || e.altKey || typing(e.target)) return null
   return {" ": "toggle", ArrowLeft: "back", ArrowRight: "forward", "[": "slower", "]": "faster"}[e.key] || null
