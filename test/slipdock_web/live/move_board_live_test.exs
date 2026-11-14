@@ -4,7 +4,7 @@ defmodule SlipdockWeb.MoveBoardLiveTest do
   import Phoenix.LiveViewTest
   import Slipdock.Fixtures
 
-  alias Slipdock.{Access, Boards}
+  alias Slipdock.{Access, Boards, Quota, Settings}
 
   setup do
     from = board_fixture(%{"name" => "Plan"})
@@ -172,6 +172,52 @@ defmodule SlipdockWeb.MoveBoardLiveTest do
     refute has_element?(view, "#move-board-modal")
     assert Boards.Cards.get_card!(other_card.id).board_id == theirs.id
     assert card.board_id
+  end
+
+  # #3117: a board whose owner is full refuses the card, and the picker
+  # stays open saying why, to pick somewhere else or close.
+  test "a move refused at the owner's limit says so and leaves the card", %{
+    conn: conn,
+    from: from,
+    todo: todo,
+    card: card,
+    user: user
+  } do
+    owner = user_fixture("full@example.com")
+    theirs = board_fixture(%{"name" => "Full house"}, owner: owner)
+    [column | _] = theirs.columns
+    card_fixture(column, %{"title" => "Already here"})
+    {:ok, _} = Access.grant(theirs, user, "write", owner)
+
+    {:ok, _} =
+      Settings.complete_setup(%{
+        "admin_email" => "admin@example.com",
+        "free_card_limit" => Quota.status(owner).used
+      })
+
+    {:ok, view, _} = live(conn, ~p"/boards/#{from}")
+    open_picker(view, card)
+
+    view
+    |> element("button[phx-click=move_board_pick][phx-value-id='#{theirs.id}']")
+    |> render_click()
+
+    view
+    |> element("button[phx-click=move_card_board][phx-value-column='#{column.id}']")
+    |> render_click()
+
+    assert view |> element("#move-board-modal #panel-notice[data-callout=error]") |> render() =~
+             "has used all #{Quota.status(owner).limit} of their cards, pages and files"
+
+    assert has_element?(view, "#move-board-modal")
+
+    assert has_element?(
+             view,
+             "button[phx-click=move_card_board][phx-value-column='#{column.id}']"
+           )
+
+    unmoved = Boards.Cards.get_card!(card.id)
+    assert unmoved.board_id == from.id and unmoved.column_id == todo.id
   end
 
   test "only boards you can write to are offered", %{conn: conn, from: from, card: card} do
