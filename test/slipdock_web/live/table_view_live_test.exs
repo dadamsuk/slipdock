@@ -409,6 +409,41 @@ defmodule SlipdockWeb.TableViewLiveTest do
       assert has_element?(view, "thead button[phx-value-sort=title].text-primary .hero-arrow-up")
     end
 
+    test "on a phone a reader folds a group: its toggle is outside every disabled fieldset (#3087)",
+         %{conn: conn, board: board, card: card} do
+      {:ok, view, _} = live(phone(conn), ~p"/boards/#{board}/table?rows=priority")
+
+      toggle = "div#card-table section button[type=button][phx-click=swim_toggle_row]"
+      row = "div#card-table li[id$='-#{card.id}']"
+
+      assert has_element?(view, "#{toggle}[aria-expanded=true]")
+      refute has_element?(view, "fieldset[disabled] [phx-click=swim_toggle_row]")
+      refute has_element?(view, "fieldset[disabled] section")
+
+      # The card's own fields are still disabled for a reader, all of them.
+      assert has_element?(view, "#{row} > fieldset[disabled] #prio-#{card.id} select")
+      assert has_element?(view, "#{row} > fieldset[disabled] [phx-click]")
+      refute has_element?(view, "#{row} > :not(fieldset)")
+      refute has_element?(view, "form[id^=table-add]")
+
+      view |> element(toggle) |> render_click()
+      assert has_element?(view, "#{toggle}[aria-expanded=false]")
+      refute has_element?(view, row)
+
+      view |> element(toggle) |> render_click()
+      assert has_element?(view, "#{toggle}[aria-expanded=true]")
+      assert has_element?(view, row)
+    end
+
+    test "on a phone a writer's card fields are not disabled", %{conn: conn} do
+      board = board_fixture(%{"name" => "Mine, pocket"})
+      card = card_fixture(hd(board.columns), %{"title" => "Thumb me"})
+
+      {:ok, view, _} = live(phone(conn), ~p"/boards/#{board}/table")
+      assert has_element?(view, "div#card-table li#row-all-#{card.id} > fieldset")
+      refute has_element?(view, "fieldset[disabled]")
+    end
+
     test "a writer's cells are not disabled", %{conn: conn} do
       board = board_fixture(%{"name" => "Mine"})
       card = card_fixture(hd(board.columns), %{"title" => "Touch me"})

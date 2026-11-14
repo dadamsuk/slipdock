@@ -200,44 +200,46 @@ defmodule SlipdockWeb.TableComponents do
         />
       </.view_empty>
 
-      <fieldset :if={@rows.groups != []} disabled={!@can_write} class="contents">
-        <div id="card-table">
-          <section :for={group <- @rows.groups} id={"group-#{group.key}"}>
-            <% collapsed = MapSet.member?(@collapsed, group.key) %>
-            <button
-              :if={@rows.grouped}
-              type="button"
-              class={[
-                "sticky top-0 z-20 flex w-full items-center gap-2 border-y border-base-300 bg-base-100 px-3 py-2 text-left text-sm font-semibold",
-                group.tone == :current && "text-primary",
-                group.tone == :past && "text-error/80"
-              ]}
-              phx-click="swim_toggle_row"
-              phx-value-key={group.key}
-              aria-expanded={to_string(!collapsed)}
-            >
-              <.icon
-                name={if collapsed, do: "hero-chevron-right", else: "hero-chevron-down"}
-                class="size-4 shrink-0 text-base-content/50"
-              />
-              <span
-                :if={group.color}
-                class={["size-2.5 shrink-0 rounded-full", Palette.dot(group.color)]}
-              ></span>
-              <span class="truncate">{group.label}</span>
-              <span :if={group.tone == :current} class="badge badge-primary badge-xs">now</span>
-              <span class="badge badge-ghost badge-sm ml-auto font-mono">{group.count}</span>
-            </button>
+      <%!-- Each card's controls sit in a fieldset of their own, disabled for
+            a reader, so a group's toggle stays a live button (#3087). --%>
+      <div :if={@rows.groups != []} id="card-table">
+        <section :for={group <- @rows.groups} id={"group-#{group.key}"}>
+          <% collapsed = MapSet.member?(@collapsed, group.key) %>
+          <button
+            :if={@rows.grouped}
+            type="button"
+            class={[
+              "sticky top-0 z-20 flex w-full items-center gap-2 border-y border-base-300 bg-base-100 px-3 py-2 text-left text-sm font-semibold",
+              group.tone == :current && "text-primary",
+              group.tone == :past && "text-error/80"
+            ]}
+            phx-click="swim_toggle_row"
+            phx-value-key={group.key}
+            aria-expanded={to_string(!collapsed)}
+          >
+            <.icon
+              name={if collapsed, do: "hero-chevron-right", else: "hero-chevron-down"}
+              class="size-4 shrink-0 text-base-content/50"
+            />
+            <span
+              :if={group.color}
+              class={["size-2.5 shrink-0 rounded-full", Palette.dot(group.color)]}
+            ></span>
+            <span class="truncate">{group.label}</span>
+            <span :if={group.tone == :current} class="badge badge-primary badge-xs">now</span>
+            <span class="badge badge-ghost badge-sm ml-auto font-mono">{group.count}</span>
+          </button>
 
-            <ul :if={not collapsed} class="divide-y divide-base-300/60">
-              <li
-                :for={card <- group.cards}
-                id={"row-#{group.key}-#{SlipdockWeb.SlipdockComponents.item_id(card)}"}
-                class={[
-                  "space-y-1.5 px-3 py-2.5",
-                  (card.completed or Slipdock.Boards.Card.snoozed?(card)) && "opacity-60"
-                ]}
-              >
+          <ul :if={not collapsed} class="divide-y divide-base-300/60">
+            <li
+              :for={card <- group.cards}
+              id={"row-#{group.key}-#{SlipdockWeb.SlipdockComponents.item_id(card)}"}
+              class={[
+                "px-3 py-2.5",
+                (card.completed or Slipdock.Boards.Card.snoozed?(card)) && "opacity-60"
+              ]}
+            >
+              <fieldset disabled={!@can_write} class="min-w-0 space-y-1.5">
                 <div class="flex items-start gap-2">
                   <span :if={@done_field} class="pt-0.5">
                     <.cell field="completed" card={card} board={@board} />
@@ -257,27 +259,27 @@ defmodule SlipdockWeb.TableComponents do
                     <dd class="min-w-0"><.cell field={key} card={card} board={@board} /></dd>
                   </div>
                 </dl>
-              </li>
-              <li :if={@group_add?} class="px-3 py-1">
-                <.quick_add_row
-                  id={"table-add-#{group.key}"}
-                  params={%{"group" => group.key}}
-                  placeholder={"Add a card to #{group.label}…"}
-                  preview={@quick_preview["table-add-#{group.key}"]}
-                />
-              </li>
-            </ul>
-          </section>
+              </fieldset>
+            </li>
+            <li :if={@group_add?} class="px-3 py-1">
+              <.quick_add_row
+                id={"table-add-#{group.key}"}
+                params={%{"group" => group.key}}
+                placeholder={"Add a card to #{group.label}…"}
+                preview={@quick_preview["table-add-#{group.key}"]}
+              />
+            </li>
+          </ul>
+        </section>
 
-          <div :if={@can_write and not @group_add? and not is_nil(@first_column)} class="px-3 py-2">
-            <.quick_add_row
-              id="table-add"
-              placeholder={"Add a card to #{@first_column.name}…"}
-              preview={@quick_preview["table-add"]}
-            />
-          </div>
+        <div :if={@can_write and not @group_add? and not is_nil(@first_column)} class="px-3 py-2">
+          <.quick_add_row
+            id="table-add"
+            placeholder={"Add a card to #{@first_column.name}…"}
+            preview={@quick_preview["table-add"]}
+          />
         </div>
-      </fieldset>
+      </div>
     </div>
     """
   end
