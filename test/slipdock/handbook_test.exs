@@ -530,6 +530,8 @@ defmodule Slipdock.HandbookTest do
       assert card.bar == Handbook.triage_bar(code, card.id)
       assert is_nil(card.bar_locked_at)
       refute "Triage findings (updated: bar)" in result.report.added["cards"]
+      # A fresh install is not an upgrade: the bar came with the card it made.
+      refute result.upgraded
 
       [findings, descriptions, numbers, log] = String.split(card.bar, "\n")
 
