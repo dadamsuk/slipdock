@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/dadamsuk/slipdock/daemon/internal/machine"
 )
@@ -323,9 +324,7 @@ func (c *Client) Finish(ctx context.Context, runnerID, jobID int64, exit int, st
 // runners hold off until, and why. The server puts the job back in the
 // queue; one older than requeue reads it as failed.
 func (c *Client) Requeue(ctx context.Context, runnerID, jobID int64, exit int, kind string, until time.Time, reason string, tail []byte, sleep func(time.Duration)) error {
-	if len(reason) > 200 {
-		reason = reason[:200]
-	}
+	reason = clip(reason, 200)
 	q := url.Values{"exit": {strconv.Itoa(exit)}, "status": {"requeue"}, "trouble": {kind},
 		"until": {until.UTC().Format(time.RFC3339)}, "reason": {reason}}
 	return c.finish(ctx, runnerID, jobID, q, tail, sleep)
@@ -458,4 +457,15 @@ func firstLine(s string) string {
 		s = s[:200]
 	}
 	return s
+}
+
+// clip cuts s to at most n bytes, never inside a character.
+func clip(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	for n > 0 && !utf8.RuneStart(s[n]) {
+		n--
+	}
+	return s[:n]
 }

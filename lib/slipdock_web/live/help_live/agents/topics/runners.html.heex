@@ -118,6 +118,19 @@
     back with its next heartbeat and the agent carries on where it was; if one has, the
     woken runner stops its copy.
   </p>
+  <p id="help-machine-hold">
+    When the agent can't run at all (its account has hit a usage limit, or it can't sign
+    in) the daemon reads that as the machine's trouble, not the card's: the agent's limit
+    message (<em>You've hit your weekly limit · resets Nov 15, 6pm</em>), or an agent that
+    exits non-zero within a minute before a single tool call. The job goes back in the
+    queue as though it had never been claimed, and its card is left as it was: no
+    failure, no handoff, no blocked flag. Every runner on the machine with that agent
+    then takes no job until the reset the message states (an hour when it states none),
+    or, after a quick exit, for a minute, doubling to 30, until a job runs normally; one
+    already waiting in its claim gives the job it is handed back unrun. The board gets
+    one warning alert for the machine (<em>Runners on build-box stopped: …</em>), not
+    one a job. Restart the daemon to try sooner, once the account is mended.
+  </p>
   <p id="help-machine-page">
     Each machine has a page of its own, opened from that list: whether it is online, the
     ceiling and executors it reported, its runners and what each is working on, and the

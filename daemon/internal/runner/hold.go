@@ -105,10 +105,13 @@ func resetTime(line string, now time.Time) time.Time {
 	if m[1] != "" {
 		month, ok := months[strings.ToLower(m[1])[:3]]
 		day, _ := strconv.Atoi(m[2])
-		if !ok || day < 1 || day > 31 {
+		if !ok {
 			return time.Time{}
 		}
 		at = time.Date(now.Year(), month, day, hour, minute, 0, 0, where)
+		if at.Day() != day {
+			return time.Time{} // no such day in the month (Nov 31)
+		}
 		if at.Before(now) {
 			at = at.AddDate(1, 0, 0)
 		}
@@ -134,13 +137,16 @@ func toolCalled(transcript []byte) bool {
 type Holds struct {
 	mu    sync.Mutex
 	until map[string]time.Time
+	// why is the trouble that set each agent's hold, for a job given back
+	// while it lasts.
+	why map[string]trouble
 	// backoff is the next quick exit's wait, per agent.
 	backoff map[string]time.Duration
 }
 
 // NewHolds makes an empty set of holds.
 func NewHolds() *Holds {
-	return &Holds{until: map[string]time.Time{}, backoff: map[string]time.Duration{}}
+	return &Holds{until: map[string]time.Time{}, why: map[string]trouble{}, backoff: map[string]time.Duration{}}
 }
 
 // Until is when the agent's hold ends: zero, or a time already past, when
@@ -151,9 +157,23 @@ func (h *Holds) Until(agent string) time.Time {
 	return h.until[agent]
 }
 
+// Held is the agent's hold, if it holds at now: the trouble that set it,
+// with until when.
+func (h *Holds) Held(agent string, now time.Time) (trouble, bool) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	until := h.until[agent]
+	if !until.After(now) {
+		return trouble{}, false
+	}
+	tr := h.why[agent]
+	tr.until = until
+	return tr, true
+}
+
 // Limit holds the agent until at (limitHold from now when at is zero), or
-// longer when it is held longer already.
-func (h *Holds) Limit(agent string, at, now time.Time) time.Time {
+// longer when it is held longer already, for reason.
+func (h *Holds) Limit(agent string, at, now time.Time, reason string) time.Time {
 	if at.IsZero() {
 		at = now.Add(limitHold)
 	}
@@ -161,13 +181,14 @@ func (h *Holds) Limit(agent string, at, now time.Time) time.Time {
 	defer h.mu.Unlock()
 	if at.After(h.until[agent]) {
 		h.until[agent] = at
+		h.why[agent] = trouble{kind: "limit", reason: reason}
 	}
 	return h.until[agent]
 }
 
 // QuickExit backs the agent off, each one in a row twice as long as the
-// last, from firstBackoff to maxBackoff, and answers until when.
-func (h *Holds) QuickExit(agent string, now time.Time) time.Time {
+// last, from firstBackoff to maxBackoff, for reason, and answers until when.
+func (h *Holds) QuickExit(agent string, now time.Time, reason string) time.Time {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	wait := h.backoff[agent]
@@ -177,6 +198,7 @@ func (h *Holds) QuickExit(agent string, now time.Time) time.Time {
 	h.backoff[agent] = min(wait*2, maxBackoff)
 	if at := now.Add(wait); at.After(h.until[agent]) {
 		h.until[agent] = at
+		h.why[agent] = trouble{kind: "quick_exit", reason: reason}
 	}
 	return h.until[agent]
 }

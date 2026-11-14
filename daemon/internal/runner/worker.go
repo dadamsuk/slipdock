@@ -313,11 +313,37 @@ func (w *Worker) Run(ctx context.Context) error {
 			}
 		default:
 			backoff = time.Second
+			if w.giveBack(ctx, job) {
+				continue
+			}
 			w.runJob(ctx, job)
 			w.sums = driftSums{} // read the skills and the CLI again
 		}
 	}
 	return nil
+}
+
+// giveBack hands back, unrun, an agent job claimed while the agent is held
+// (#2920): a sibling runner hit the limit while this one waited in its
+// claim. The job goes back to the queue as the hold's trouble, and the
+// backoff isn't touched, since the agent wasn't run. Merges, releases and
+// probes don't run the agent, so they run.
+func (w *Worker) giveBack(ctx context.Context, job *Job) bool {
+	if job.Kind == "merge" || job.Kind == ReleaseKind || job.Kind == ProbeKind {
+		return false
+	}
+	tr, held := w.Holds.Held(w.Runner.Config.Agent, w.Now())
+	if !held {
+		return false
+	}
+	w.say("job #%d: given back unrun: the %s runners take no job until %s", job.ID, w.Runner.Config.Agent, tr.until.Format(time.RFC3339))
+	text := fmt.Sprintf("slipdock-runner: given back unrun, as the agent %s is held on this machine until %s (%s); its card untouched",
+		w.Runner.Config.Agent, tr.until.Format(time.RFC3339), tr.reason)
+	sleep := func(d time.Duration) { _ = w.Sleep(ctx, d) }
+	if err := w.Client.Requeue(ctx, w.Runner.ID, job.ID, 0, tr.kind, tr.until, tr.reason, []byte(text), sleep); err != nil {
+		w.say("warn: job #%d: could not give it back: %v", job.ID, err)
+	}
+	return true
 }
 
 func (w *Worker) skillsDir() string {
@@ -686,12 +712,13 @@ func (w *Worker) runAgent(ctx context.Context, j *jobRun) {
 func (w *Worker) trouble(j *jobRun, started time.Time, rc int, tx *transcript) *trouble {
 	now, agent := w.Now(), w.Runner.Config.Agent
 	if ok, line, at := limitIn(w.tail(j), now); ok {
-		return &trouble{kind: "limit", until: w.Holds.Limit(agent, at, now), reason: "the agent's limit: " + line}
+		reason := "the agent's limit: " + line
+		return &trouble{kind: "limit", until: w.Holds.Limit(agent, at, now, reason), reason: reason}
 	}
 	took := now.Sub(started)
 	if w.QuickExit > 0 && took < w.QuickExit && !w.toolCalled(tx) {
-		return &trouble{kind: "quick_exit", until: w.Holds.QuickExit(agent, now),
-			reason: fmt.Sprintf("the agent exited %d after %s, before a tool call", rc, took.Round(time.Second))}
+		reason := fmt.Sprintf("the agent exited %d after %s, before a tool call", rc, took.Round(time.Second))
+		return &trouble{kind: "quick_exit", until: w.Holds.QuickExit(agent, now, reason), reason: reason}
 	}
 	return nil
 }

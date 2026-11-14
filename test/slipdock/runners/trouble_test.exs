@@ -221,4 +221,55 @@ defmodule Slipdock.Runners.TroubleTest do
 
     assert length(alerts(ctx.board)) == 2
   end
+
+  test "the card's watchers and the pool's waiting runners hear of it", ctx do
+    job = Runners.claim(ctx.runner)
+    Runners.subscribe_board(ctx.board.id)
+    Phoenix.PubSub.subscribe(Slipdock.PubSub, "runner_queue:#{job.root_board_id}:loop")
+
+    {:ok, _} = Runners.finish(ctx.runner, job.id, @limit)
+
+    assert_receive {:jobs_changed, card_id}
+    assert card_id == ctx.a.id
+    assert_receive :job_queued
+  end
+
+  test "a trouble kind it doesn't know reads as the agent can't start", ctx do
+    job = Runners.claim(ctx.runner)
+    {:ok, _} = Runners.finish(ctx.runner, job.id, %{@limit | trouble: "bogus"})
+
+    assert [alert] = alerts(ctx.board)
+    assert alert.title =~ "the agent can't start"
+    assert alert.body =~ "exited before it started work"
+  end
+
+  test "a finish with no log keeps the job's", ctx do
+    job = Runners.claim(ctx.runner)
+    Repo.update_all(from(j in Job, where: j.id == ^job.id), set: [output: "what it said before"])
+
+    {:ok, requeued} = Runners.finish(ctx.runner, job.id, %{@limit | output: ""})
+
+    assert requeued.output == "what it said before"
+  end
+
+  test "the alert quotes at most 200 characters of the reason", ctx do
+    job = Runners.claim(ctx.runner)
+    reason = String.duplicate("é", 250)
+    {:ok, _} = Runners.finish(ctx.runner, job.id, %{@limit | reason: "  " <> reason})
+
+    assert [alert] = alerts(ctx.board)
+    assert alert.body =~ "“" <> String.duplicate("é", 200) <> "”"
+  end
+
+  test "a job with no card goes back without an activity line", ctx do
+    job = Runners.claim(ctx.runner)
+    Repo.update_all(from(j in Job, where: j.id == ^job.id), set: [card_id: nil])
+    job = Repo.get!(Job, job.id)
+
+    assert {:ok, requeued} = Trouble.requeue(ctx.runner, job, @limit)
+
+    assert requeued.status == "queued"
+    refute Repo.exists?(from(a in Boards.Activity, where: like(a.message, "%couldn't run job%")))
+    assert [_] = alerts(ctx.board)
+  end
 end

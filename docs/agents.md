@@ -986,8 +986,9 @@ heartbeat, `job_progress` or finish (a machine that slept, a session that
 went quiet), at no cost to the job's three tries. A runner whose agent
 can't run at all (a usage limit, a failed sign-in) finishes its job
 `requeue` (#2920): the job goes back in the queue uncounted, its card
-untouched, the machine's runners hold off until the stated reset, and
-the board gets one alert. `job_progress` with `step` (`slipdock job-progress --step`) says what a
+untouched, the machine's runners with that agent hold off until the
+stated reset (one already waiting in its claim gives back, unrun, the job
+it is handed), and the board gets one alert. `job_progress` with `step` (`slipdock job-progress --step`) says what a
 job is doing now on the job alone, never as a comment on the card (a subcard
 an epic's job names in its step shows that job as its loop): a verify job reports each
 step that way, and every runner job's prompt asks for its milestones too (on

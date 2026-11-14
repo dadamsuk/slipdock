@@ -218,7 +218,10 @@ and its card is left as it is, with no failure, no handoff, no
 a line in its activity. Every runner on the machine with the same agent
 then takes no job until the reset the message states (an hour when it
 states none), or, after a quick exit, for a minute, doubling each time to
-30 minutes, until a job runs normally. The board gets one warning alert a
+30 minutes, until a job runs normally. A runner already waiting in its
+claim when the hold starts gives the job it is then handed back unrun, so
+the requeued job doesn't go round the machine's runners one at a time.
+The board gets one warning alert a
 machine (*Runners on build-box stopped: the agent hit its usage limit*),
 not one a job. Restarting the daemon ends the hold sooner, once the
 account is mended. A job asked to cancel, or with an open wait, ends

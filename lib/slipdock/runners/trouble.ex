@@ -30,14 +30,9 @@ defmodule Slipdock.Runners.Trouble do
   alias Slipdock.Automations.Alert
   alias Slipdock.Runners.{Job, Runner}
 
-  @kinds ~w(limit quick_exit)
-
   # One alert a machine says it; another is raised only once this long has
   # gone by since the last, should the trouble outlast it.
   @alert_every 6 * 3600
-
-  @doc "The trouble kinds a runner may report."
-  def kinds, do: @kinds
 
   @doc """
   Puts `job`, held by `runner`, back in the queue, uncounted, and raises the
@@ -76,7 +71,8 @@ defmodule Slipdock.Runners.Trouble do
         set: [current_job_id: nil]
       )
 
-      kind = kind(attrs[:trouble])
+      # `limit`, or anything else as the agent not starting (`quick_exit`).
+      kind = attrs[:trouble]
       until = until(attrs[:until])
 
       if job.card_id do
@@ -151,9 +147,6 @@ defmodule Slipdock.Runners.Trouble do
 
   defp describe("limit"), do: "the agent's usage limit"
   defp describe(_), do: "the agent exited before it started work"
-
-  defp kind(kind) when kind in @kinds, do: kind
-  defp kind(_), do: "quick_exit"
 
   defp until(text) when is_binary(text) do
     case DateTime.from_iso8601(text) do
