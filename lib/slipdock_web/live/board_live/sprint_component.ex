@@ -286,7 +286,7 @@ defmodule SlipdockWeb.BoardLive.SprintComponent do
          %{"id" => id},
          %{assigns: %{sprint_picker: %{plan: %{}} = p}} = socket
        ) do
-    card = p |> shown_cards() |> Enum.find(&(to_string(&1.id) == id and &1.sub_board_id))
+    card = p |> plan_cards() |> Enum.find(&(to_string(&1.id) == id and &1.sub_board_id))
 
     expanded =
       cond do
@@ -472,7 +472,7 @@ defmodule SlipdockWeb.BoardLive.SprintComponent do
       Map.new(p.expanded, fn {id, children} ->
         case children do
           [first | _] ->
-            sub = Enum.find(shown_cards(p), &(&1.id == id))
+            sub = Enum.find(plan_cards(p), &(&1.id == id))
 
             {id,
              if(sub,
@@ -488,15 +488,27 @@ defmodule SlipdockWeb.BoardLive.SprintComponent do
     %{p | expanded: expanded}
   end
 
-  # Every list on screen, in either view.
+  # Every list on screen, in either view: the plan's first, so a card that
+  # is in both finds the plan's entry, with its estimate and ancestors, not
+  # the browse list's (#3157).
   defp shown_lists(%{plan: %{boards: boards}, lists: lists}),
-    do: lists ++ Enum.flat_map(boards, & &1.lists)
+    do: Enum.flat_map(boards, & &1.lists) ++ lists
 
   defp shown_lists(%{lists: lists}), do: lists
 
   # Every card on screen: the lists', and the subcards opened in the plan.
   defp shown_cards(p),
     do: Enum.flat_map(shown_lists(p), & &1.cards) ++ Enum.concat(Map.values(p.expanded))
+
+  # The plan's own cards and the subcards opened in it, never the browse
+  # lists behind it: a card there carries no :ancestors, and with one other
+  # board the picker reads that board's lists too (#3157).
+  defp plan_cards(%{plan: %{boards: boards}} = p),
+    do:
+      Enum.flat_map(boards, fn board -> Enum.flat_map(board.lists, & &1.cards) end) ++
+        Enum.concat(Map.values(p.expanded))
+
+  defp plan_cards(_p), do: []
 
   # What a tick keeps of its card: enough to add up the selection.
   defp pick(card),
