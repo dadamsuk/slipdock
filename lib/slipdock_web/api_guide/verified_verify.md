@@ -63,7 +63,10 @@ job's prompt carries it too; the handoff only points there), the
 evidence is cleared, the builder's own assignment comes off, its
 `verify_rejections` counts one more, and it goes back to the top of
 the ready list, next for the runners, so whoever takes it next fixes
-what the reason says and completes it again. The second rejection, or
+what the reason says and completes it again. A subcard goes to its
+epic's own ready list, which no feed takes from: with no build job open
+on it or on any card above it, the epic goes back to the top of its
+feed's list (*Sent again* on the epic) and is sent for the rework. The second rejection, or
 one for a rule id an earlier one named, keeps the card flagged
 `review` until it is accepted, comments *Going round in circles* with
 the rounds, alerts and emails the owner, and puts it first in their

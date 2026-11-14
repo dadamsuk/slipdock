@@ -131,6 +131,32 @@ defmodule SlipdockWeb.NowTest do
       refute has_element?(view, "#now-card-#{ctx.card.id} .badge-warning")
     end
 
+    test "an epic whose rejected subcard has no job is red, saying why (#3184)", ctx do
+      epic = card_fixture(ctx.todo, %{"title" => "Policies"})
+      agent = %{Slipdock.Actor.unknown() | kind: "agent", via: "runner", user_id: ctx.user.id}
+      :ok = Boards.Cards.move_card_to_index(epic, ctx.doing, :top, actor: agent)
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
+      {:ok, sub} = sub_board(epic, t)
+      [sub_todo | _] = Boards.get_board!(sub.id).columns
+      subcard = card_fixture(sub_todo, %{"title" => "Policy 1"})
+
+      Repo.update_all(from(c in Boards.Card, where: c.id == ^subcard.id),
+        set: [verify_state: "rejected", verify_at: DateTime.utc_now(:second)]
+      )
+
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/now")
+
+      assert has_element?(view, "#now-card-#{epic.id}-holds.badge-error", "Rework, no job")
+
+      assert has_element?(
+               view,
+               "#now-card-#{epic.id}-why",
+               "##{subcard.id} was rejected, and no job is open on the epic or its rework"
+             )
+
+      refute has_element?(view, "#now-card-#{ctx.card.id}-why")
+    end
+
     test "a card a runner builds outside a doing list shows, its list named (#2633)", ctx do
       slipped = card_fixture(ctx.todo, %{"title" => "Slipped through"})
 
@@ -350,7 +376,7 @@ defmodule SlipdockWeb.NowTest do
       assert [card] = body["in_progress"]
 
       assert Map.keys(card) |> Enum.sort() ==
-               ~w(age board board_id holds id in_doing list loop parent state state_kind title)
+               ~w(age board board_id holds id in_doing list loop parent state state_kind title why)
 
       assert card["loop"] == nil or Map.keys(card["loop"]) -- ~w(job_id kind runner) == []
       assert [%{"held" => _} = queued] = body["queued"]

@@ -28,8 +28,10 @@ queue, flags and comments; nothing is deleted, merged or closed.
 each runner (`online`, `session`) and the jobs it holds with their latest
 `step`; every card in progress with its `board`, `list`, `parent` epic,
 state line, `loop` and what `holds` it (`waiting`, `verifying`, `merging`,
-`blocked`, `review`, `stuck` for the health monitor's flag, `over_usual`
-for a card merely past its list's usual stay); the jobs `queued` and why
+`blocked`, `review`, `rework_stalled` for an epic whose rejected subcard
+has no job on it or the epic, with `why` naming the subcards, `stuck` for
+the health monitor's flag, `over_usual` for a card merely past its list's
+usual stay); the jobs `queued` and why
 each is `held`;
 and the `counts`. Read access to the board and its tree's root. The
 board's Right now page (`/boards/:id/now`) shows the same, and so does

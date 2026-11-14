@@ -25,8 +25,11 @@ defmodule Slipdock.Now do
       holds it, `%{id, title, board_id}` or nil), `state` (`Slipdock.CardState`'s line)
       and `state_kind`, `loop` (the runner and kind holding it), `holds` (what
       it waits on: `"waiting"`, `"verifying"`, `"merging"`, `"blocked"`,
-      `"review"`, `"stuck"`, the health monitor's flag, and last
-      `"over_usual"`, only past its list's usual stay, #2131), `age` (seconds
+      `"review"`, `"rework_stalled"` (an epic whose rejected subcard waits
+      with no job open on it or the epic, #3184), `"stuck"`, the health
+      monitor's flag, and last `"over_usual"`, only past its list's usual
+      stay, #2131), `why` (what holds it, in words, for `"rework_stalled"`;
+      nil otherwise), `age` (seconds
       in the list, nil when unknown) and `in_doing` (false for a card a build
       job holds outside a doing list, so a card that slipped through shows);
     * `queued` — the jobs queued for a runner, oldest first, each with
@@ -219,15 +222,21 @@ defmodule Slipdock.Now do
       |> preload([:column, wait: ^{from(w in Wait, where: is_nil(w.closed_at)), [:on_user]}])
       |> Repo.all()
 
+    # An epic in progress whose rework nobody is on (#3184).
+    stalled =
+      for(c <- cards, Slipdock.Flow.doing_list?(c.column), do: c.id)
+      |> Slipdock.Verified.EpicRework.stalled()
+
     cards
     |> Enum.group_by(& &1.board_id)
     |> Enum.flat_map(fn {board_id, cards} -> CardState.put(cards, boards[board_id], now: now) end)
-    |> Enum.map(&card(&1, boards[&1.board_id]))
+    |> Enum.map(&card(&1, boards[&1.board_id], stalled[&1.id]))
     |> Enum.sort_by(&{-(&1.age || 0), &1.id})
   end
 
-  defp card(%Card{} = c, %Board{} = b) do
+  defp card(%Card{} = c, %Board{} = b, stalled) do
     state = c.state || %CardState{}
+    holds = holds(c, state, stalled)
 
     %{
       id: c.id,
@@ -239,7 +248,8 @@ defmodule Slipdock.Now do
       state: state.line,
       state_kind: state.kind,
       loop: state.loop,
-      holds: holds(c, state),
+      holds: holds,
+      why: why(holds, stalled),
       age: state.age,
       in_doing: Slipdock.Flow.doing_list?(c.column)
     }
@@ -254,7 +264,7 @@ defmodule Slipdock.Now do
   # monitor's flag alone, an incident for a person; a card merely past its
   # list's usual stay is `over_usual`, a note rather than a hold, and comes
   # last (#2131).
-  def holds(%Card{} = c, %CardState{} = state) do
+  def holds(%Card{} = c, %CardState{} = state, stalled \\ nil) do
     flag? = &Enum.member?(c.flags || [], &1)
 
     Enum.find_value(
@@ -264,10 +274,15 @@ defmodule Slipdock.Now do
         {"verifying", c.verify_state == "pending"},
         {"blocked", flag?.("blocked")},
         {"review", flag?.("review")},
+        {"rework_stalled", not Enum.member?([nil, []], stalled)},
         {"stuck", flag?.("stuck")},
         {"over_usual", state.stuck}
       ],
       fn {hold, on?} -> if on?, do: hold end
     )
   end
+
+  # Why a card is held, where the hold alone doesn't say (#3184).
+  defp why("rework_stalled", stalled), do: Slipdock.Verified.EpicRework.why(stalled)
+  defp why(_holds, _stalled), do: nil
 end

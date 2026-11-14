@@ -67,12 +67,14 @@ defmodule SlipdockWeb.NowLive.Index do
   defp hold_label("review"), do: "In review"
   defp hold_label("stuck"), do: "Stuck"
   defp hold_label("over_usual"), do: "Past usual stay"
+  defp hold_label("rework_stalled"), do: "Rework, no job"
 
   # Red is for what needs a person: a block, or the health monitor's stuck
   # flag. Past the usual stay is amber, as the tile's age chip is (#2131).
   defp hold_class("waiting"), do: "badge-warning"
   defp hold_class("blocked"), do: "badge-error"
   defp hold_class("stuck"), do: "badge-error"
+  defp hold_class("rework_stalled"), do: "badge-error"
   defp hold_class("over_usual"), do: "badge-warning"
   defp hold_class(_), do: "badge-info"
 
@@ -221,7 +223,12 @@ defmodule SlipdockWeb.NowLive.Index do
                   <.link navigate={~p"/boards/#{c.board_id}/cards/#{c.id}"} class="link min-w-0">
                     #{c.id} {c.title}
                   </.link>
-                  <span :if={c.holds} class={["badge badge-sm", hold_class(c.holds)]}>
+                  <span
+                    :if={c.holds}
+                    id={"now-card-#{c.id}-holds"}
+                    class={["badge badge-sm", hold_class(c.holds)]}
+                    title={c[:why]}
+                  >
                     {hold_label(c.holds)}
                   </span>
                   <span :if={c.loop} class="badge badge-ghost badge-sm gap-1">
@@ -249,6 +256,9 @@ defmodule SlipdockWeb.NowLive.Index do
                   <span :if={c.age}>· {Pulse.duration(c.age)} there</span>
                 </p>
                 <p :if={c.state} class="text-xs text-base-content/70">{c.state}</p>
+                <p :if={c[:why]} id={"now-card-#{c.id}-why"} class="text-xs text-error">
+                  {c[:why]}
+                </p>
               </li>
             </ul>
           </section>

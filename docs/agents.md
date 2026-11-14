@@ -1051,8 +1051,10 @@ in a doing list, and each card a runner is building, a claimed or running
 job other than a verify, merge, overseer or probe, wherever it sits, with
 `in_doing: false` when that is outside a doing list, #2633) with its board,
 list, parent epic and what holds it (`waiting`, `verifying`, `merging`,
-`blocked`, `review`, `stuck` for the health monitor's flag, or `over_usual`
-for one merely past its list's usual stay), and the jobs queued with why each
+`blocked`, `review`, `rework_stalled` for an epic whose rejected subcard
+has no job on it or the epic, with `why` saying which, `stuck` for the health
+monitor's flag, or `over_usual` for one merely past its list's usual stay),
+and the jobs queued with why each
 is held — is the board's Right now page (`/boards/:id/now`, one click from the
 board page's pulse line, or its own line, with Agentic Building on),
 `slipdock now <board>` (`--json` for the JSON), `GET /api/boards/:board/now`
@@ -1271,7 +1273,11 @@ round in circles* comment lists the rounds and the parts each failed, a
 warning alert goes up on the root board and the board's owner (and whoever
 `release` questions go to) is emailed, and it heads the owner's `slipdock
 work` (reason `circling`) and counts in `whoami`'s waiting. The runners still
-send it for rework; the flag isn't a stop. A failed merge counts towards the
+send it for rework; the flag isn't a stop. A rejected subcard goes back to
+the top of its epic's own ready list, which no feed takes from: when no build
+job is open on it or on any card above it (the epic's job ended while it
+waited for the verdict), the epic goes back to the top of its feed's list by
+itself, with a *Sent again* comment, and the feed sends it (#3184). A failed merge counts towards the
 two (not one that finds the pull request already merged), but only a
 verifier's rejection fires it. A board's `verify_rejection_limit` (2 by default, 0 never;
 `slipdock set-board --verify-rejection-limit`) sends the rejection after that
