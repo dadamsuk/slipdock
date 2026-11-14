@@ -166,9 +166,9 @@ defmodule Slipdock.Handbook do
   @spike """
   ## Spike
 
-  - **Asks:** of the brief's open questions, which pass all three: only building answers it (not a person, not reading); a "no" changes the spec (say how); a late "no" costs more than the spike, counting flow time as well as rework. One that fails only the third gets its card first in build order instead. None pass: the stage is skipped, and the agent says why.
+  - **Asks:** of the brief's open questions, which pass all three: only building answers it (not a person, not reading); a "no" changes the spec (say how); a late "no" costs more than the spike, counting flow time and lane contention as well as rework. One that fails only the third gets its card first in build order instead. None pass: the stage is skipped, and the agent says why.
   - **Skill:** the plan skill's Spike. The agent proposes the candidates and a person confirms them; unattended, they go to a person as one `product` wait on the epic.
-  - **Produces:** one card tagged `spike` per confirmed question, one sitting each, its bar the question and what counts as an answer. A spike merges nothing: its answer is a page, its prototype stays on a branch.
+  - **Produces:** one card tagged `spike` per confirmed question, one sitting each, its bar the question and what counts as an answer. A spike holds no lane and merges nothing: its answer is a page, its prototype stays on a branch.
   - **Writes to:** the epic's sub-board; each answer to a page pinned to the epic. Planning stops there and resumes at Spec once every spike is accepted, from their answers.
   """
 
