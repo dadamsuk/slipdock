@@ -311,4 +311,38 @@ defmodule Slipdock.PolicyCardsTest do
       end
     end
   end
+
+  describe "remove_link/1 takes either end" do
+    # A link shows on both its cards, so a writer of either may take it off.
+    setup ctx do
+      writer = ctx |> person(nil)
+      own = board_fixture(%{"name" => "Writer's own"}, owner: writer)
+      mine = card_fixture(hd(own.columns), %{"title" => "Mine"})
+      theirs = card(ctx, "Theirs")
+      %{writer: writer, mine: mine, theirs: theirs}
+    end
+
+    defp link(from, to) do
+      {:ok, link} = fixture(fn -> Boards.Links.add_link(from, to, "relates") end)
+      link
+    end
+
+    test "from its own end", ctx do
+      as(ctx.writer)
+      assert {:ok, _} = Boards.Links.remove_link(link(ctx.mine, ctx.theirs))
+    end
+
+    test "from the other end", ctx do
+      as(ctx.writer)
+      assert {:ok, _} = Boards.Links.remove_link(link(ctx.theirs, ctx.mine))
+    end
+
+    test "and neither is refused", ctx do
+      stranger = person(ctx, nil)
+      as(stranger)
+
+      assert {:error, %Refused{action: :edit_link, by: :user}} =
+               Boards.Links.remove_link(link(ctx.mine, ctx.theirs))
+    end
+  end
 end
