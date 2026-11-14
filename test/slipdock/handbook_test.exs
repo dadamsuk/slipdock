@@ -1496,6 +1496,63 @@ defmodule Slipdock.HandbookTest do
       assert proposals(board) == []
     end
 
+    test "installing over an unedited 1.9.3 Playbook seed assumes what the board answers (#3050)",
+         %{user: user, board: board} do
+      {:ok, _} = Handbook.install(user, board)
+      play = page_titled(board, "Playbook")
+      seeded = play.body
+      assert seeded =~ "marks each such answer *(assumed)*"
+
+      # 1.9.3's seed differs from today's in the Grill's Asks line only.
+      old = Handbook.seed_body("playbook", "1.9.3")
+
+      assert [{:ins, [asks]}] =
+               String.split(old, "\n")
+               |> List.myers_difference(String.split(String.trim(seeded), "\n"))
+               |> Enum.filter(&(elem(&1, 0) == :ins))
+
+      assert asks =~ "- **Asks:** in numbered rounds."
+      assert asks =~ "only the person's decisions go into the one wait"
+      assert old =~ "With nobody there, a round goes into one wait, a question each."
+      refute old =~ "(assumed)"
+
+      {:ok, _} = Wiki.update_page(Repo.get!(Page, play.id), %{"body" => old})
+      {:ok, again} = Handbook.install(user, board)
+      assert again.report.added["pages"] == ["Playbook (seed updated)"]
+      refute Enum.any?(again.report.skipped["pages"], &(&1 =~ "edited"))
+      assert Repo.get!(Page, play.id).body == seeded
+
+      # Once it holds today's seed, installing again changes nothing.
+      {:ok, third} = Handbook.install(user, board)
+      assert third.report.added["pages"] == []
+      assert Repo.get!(Page, play.id).body == seeded
+      assert proposals(board) == []
+    end
+
+    test "an edited 1.9.3 Playbook keeps its Grill and gets no proposal (#3050)",
+         %{user: user, board: board} do
+      {:ok, _} = Handbook.install(user, board)
+      play = page_titled(board, "Playbook")
+
+      ours =
+        String.replace(
+          Handbook.seed_body("playbook", "1.9.3"),
+          "\n## Decide",
+          "\nWe grill over coffee.\n\n## Decide"
+        )
+
+      {:ok, _} = Wiki.update_page(Repo.get!(Page, play.id), %{"body" => ours})
+      {:ok, again} = Handbook.install(user, board)
+
+      assert again.report.added["pages"] == []
+      assert "Playbook (edited: left alone)" in again.report.skipped["pages"]
+      body = Repo.get!(Page, play.id).body
+      assert body == ours
+      assert body =~ "With nobody there, a round goes into one wait, a question each."
+      refute body =~ "(assumed)"
+      assert proposals(board) == []
+    end
+
     test "an edited 1.8.0 or 1.5.0 Playbook keeps asking one at a time (#2065)",
          %{user: user, board: board} do
       {:ok, _} = Handbook.install(user, board)

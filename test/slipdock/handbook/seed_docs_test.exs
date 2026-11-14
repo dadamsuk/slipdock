@@ -108,6 +108,25 @@ defmodule Slipdock.Handbook.SeedDocsTest do
     refute skill =~ "mattpocock"
   end
 
+  test "the Playbook's Grill, unattended, assumes what the board answers and waits for the person's (#3050)" do
+    {:ok, grill} = Slipdock.Wiki.Section.read(seeded("Playbook").body, "Playbook/Grill")
+    [asks] = Regex.run(~r/^- \*\*Asks:\*\*.*$/m, grill)
+    [_, nobody] = String.split(asks, "With nobody there, ", parts: 2)
+    [nobody, _] = String.split(nobody, " It stops when", parts: 2)
+
+    assert nobody ==
+             "it answers what the board answers (the card, the handbook, a Decision) " <>
+               "and marks each such answer *(assumed)* where it writes it; " <>
+               "only the person's decisions go into the one wait, as a numbered round, " <>
+               "a question each with its recommended answer, and it never answers those itself."
+
+    # The old line, every question of a round into the wait, is gone.
+    refute asks =~ "a round goes into one wait, a question each."
+    # The rest of the stage stands: the rounds and the stop rule.
+    assert asks =~ "- **Asks:** in numbered rounds."
+    assert_states(asks, "It stops when the next answer wouldn't change the plan")
+  end
+
   test "the manual describes the seed and the upgrade from the skeleton" do
     manual =
       Path.expand("../../../docs/manual.md", __DIR__)
@@ -143,6 +162,23 @@ defmodule Slipdock.Handbook.SeedDocsTest do
     assert_states(manual, "and so (#2601) does one still holding the 1.7.0 seed")
     assert_states(manual, "names the skill enabled on the board from the skills registry first")
     refute manual =~ "gets the 1.7.0 one"
+
+    # The upgrade to a Grill that assumes what the board answers (#3050).
+    assert_states(
+      manual,
+      "And so (#3050, 1.9.4) does one still holding the seed as 1.9.3 left it"
+    )
+
+    assert_states(
+      manual,
+      "whose Grill said only that with nobody there a round goes into one wait"
+    )
+
+    assert manual =~ "like the `slipdock-plan` skill's"
+    assert_states(manual, "answer what the board answers (the card, the handbook, a Decision)")
+    assert manual =~ "mark each such answer *(assumed)*"
+    assert_states(manual, "only the person's decisions go into the one wait, as a numbered round")
+    assert manual =~ "it never answers those itself"
 
     # The upgrade to a Grill that asks in numbered rounds (#2065).
     assert_states(manual, "So (#2065) does one still holding the seed as it stood until then")

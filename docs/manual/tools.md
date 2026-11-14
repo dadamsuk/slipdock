@@ -159,7 +159,13 @@ recommended answer that a yes accepts, and stops when the next answer
 wouldn't change the plan. With nobody there a round goes into one wait
 (`slipdock wait --question Q --question Q`), not a wait per question. Its
 Skill line gives a name as an entry's front matter has it (`grilling`),
-with no collection's prefix. An edited
+with no collection's prefix. And so (#3050, 1.9.4) does one still holding
+the seed as 1.9.3 left it, whose Grill said only that with nobody there a
+round goes into one wait: the current seed's Grill, like the
+`slipdock-plan` skill's, has the agent answer what the board answers (the
+card, the handbook, a Decision) and mark each such answer *(assumed)*;
+only the person's decisions go into the one wait, as a numbered round, and
+it never answers those itself. An edited
 one is left alone; if it has no Spike stage it also gets a gardener
 proposal adding the section after its Grill, reported as
 `(edited: left alone; Spike stage proposed)`, and only once. The seed card leaves

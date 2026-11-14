@@ -366,6 +366,30 @@ defmodule SlipdockWeb.PlanSkillDocsTest do
       assert unattended =~ "never answers those itself."
       refute manual =~ "it puts its questions in a wait"
     end
+
+    test "the Playbook seed's Grill says the same as the skill's (#3050)" do
+      {:ok, seed} = Slipdock.Wiki.Section.read(seed_playbook(), "Playbook/Grill")
+      seed = flat(seed)
+      skill = flat(skill() |> section("### Grill")) <> " " <> nobody_there()
+
+      for said <- [
+            "what the board answers",
+            "the handbook, a Decision",
+            "such answer *(assumed)*",
+            "the person's decisions",
+            "one wait",
+            "numbered round",
+            "never answer"
+          ] do
+        assert seed =~ said, "the seed's Grill no longer says " <> inspect(said)
+        assert skill =~ said, "slipdock-plan no longer says " <> inspect(said)
+      end
+
+      # In the seed too, the assumption comes before the wait.
+      {assumed, _} = :binary.match(seed, "*(assumed)*")
+      {wait, _} = :binary.match(seed, "go into the one wait")
+      assert assumed < wait
+    end
   end
 
   describe "the Spike stage (#2353)" do
