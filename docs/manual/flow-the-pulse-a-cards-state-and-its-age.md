@@ -132,4 +132,4 @@ chat's `card_lead_time`.
 
 ---
 
-← [Waiting on a person (waits)](waiting-on-a-person-waits.md) · [Contents](../manual.md) · [Visualise: flow, velocity, runners and delivery](visualise-flow-velocity-runners-and-delivery.md) →
+← [Flags](flags.md) · [Contents](../manual.md) · [Visualise: flow, velocity, runners and delivery](visualise-flow-velocity-runners-and-delivery.md) →

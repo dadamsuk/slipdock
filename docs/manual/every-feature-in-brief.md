@@ -6,7 +6,7 @@ Each feature in a paragraph: what it is, its doors (the app, the CLI, the API
 and MCP) and a link to the page that covers it.
 
 - **Boards, lists and cards** — drag and drop, priorities, six flags (each
-  [filled when a person has to act, outline only when it clears itself](features.md#who-clears-a-flag)), due
+  [filled when a person has to act, outline only when it clears itself](flags.md#who-clears-a-flag)), due
   dates, tags, checklists (dragged into a new order by their handle, or
   `slipdock move-check`). Each board has a short code (`qvm-v1-rem`) that addresses it
   everywhere.

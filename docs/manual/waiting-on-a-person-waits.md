@@ -269,4 +269,4 @@ nothing to set: a toast needs a browser, and the setting lives in it.
 
 ---
 
-← [Profiles](profiles.md) · [Contents](../manual.md) · [Flow: the pulse, a card's state and its age](flow-the-pulse-a-cards-state-and-its-age.md) →
+← [Profiles](profiles.md) · [Contents](../manual.md) · [Flags](flags.md) →

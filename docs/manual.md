@@ -8,7 +8,6 @@ way in: what it is, the pictures, and how to get it running.
 The manual is in parts, one page each. Every section and what it covers:
 
 - [Features](manual/features.md)
-  - [Who clears a flag](manual/features.md#who-clears-a-flag)
 - [Every feature in brief](manual/every-feature-in-brief.md)
   - [Run an agent against a board](manual/every-feature-in-brief.md#run-an-agent-against-a-board)
   - [Tools](manual/every-feature-in-brief.md#tools)
@@ -35,6 +34,8 @@ The manual is in parts, one page each. Every section and what it covers:
   - [The verifier's spend](manual/profiles.md#the-verifiers-spend)
 - [Waiting on a person (waits)](manual/waiting-on-a-person-waits.md)
   - [Desktop notifications](manual/waiting-on-a-person-waits.md#desktop-notifications)
+- [Flags](manual/flags.md)
+  - [Who clears a flag](manual/flags.md#who-clears-a-flag)
 - [Flow: the pulse, a card's state and its age](manual/flow-the-pulse-a-cards-state-and-its-age.md)
   - [Its lead time and cost](manual/flow-the-pulse-a-cards-state-and-its-age.md#its-lead-time-and-cost)
 - [Visualise: flow, velocity, runners and delivery](manual/visualise-flow-velocity-runners-and-delivery.md)
