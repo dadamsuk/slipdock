@@ -26,11 +26,14 @@ edit `## Rules` directly, only to file or correct the proposal. Then
 evidence, its parts in `--check`; `POST /api/cards/:id/verify {"decision":
 "accept"|"reject", "reason": "…", "commit": "…"}`). Accepting completes
 it and moves it to the done list. Rejecting needs the reason, citing the check it fails (`bar 2: …`,
-`the ask: …`, a rule id such as `ARCH-3: …`, or `Handbook line: …`) and
+`the ask: …` or a rule id such as `ARCH-3: …`) and
 giving the verdict in parts as `checks` (`ask=ok|misses`, `bar:2=fail:why`,
 `rule:UX-4=pre-existing:lib/x.ex:42` for a rule broken only in lines
 the diff didn't change, never a rejection and kept as a `rule` finding,
 `suite=412:0`, `rule:UX-4=broken`, `handbook_line=ok|disputed`,
+`evidence=ok|disputed` (the evidence's format; it and the Handbook line are
+paperwork: kept as a finding, and when they are all that fails the verdict
+accepts, a rejection too),
 `mutant:killed|survived|pre-existing=<file>:<line>:<mutation>[:note]`,
 `mutants=n/a:<why>`; kept as
 `verify_checks`, and refused without a failing part, or on an accept

@@ -175,6 +175,7 @@ Slipdock.Findings.Signals.health_flagged/3
 Slipdock.Findings.Signals.incident/2
 Slipdock.Findings.Signals.job_ended/1
 Slipdock.Findings.Signals.merge_failed/3
+Slipdock.Findings.Signals.paperwork/3
 Slipdock.Findings.Signals.pre_existing/3
 Slipdock.Findings.Signals.pre_existing_mutants/3
 Slipdock.Findings.Signals.rejected/4

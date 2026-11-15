@@ -3154,6 +3154,7 @@ defmodule SlipdockCLI.Render do
          checks["handbook_line"],
          carried_note(notes["handbook_line"], carried["handbook_line"])
        ) ++
+       check_part("the evidence", checks["evidence"], notes["evidence"]) ++
        defect_parts(checks["defect_review"]) ++
        mutant_parts(checks["mutants"]) ++ not_verified_part(checks["not_verified"]))
     |> Enum.map(&check_line/1)

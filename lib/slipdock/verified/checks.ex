@@ -11,7 +11,8 @@ defmodule Slipdock.Verified.Checks do
         "rules" => [%{"id" => "UX-4", "result" => "ok" | "broken" | "n/a",
                       "severity" => "must" | "should" | nil, "note" => …}],
         "handbook_line" => "ok" | "disputed",
-        "notes" => %{"ask" => …, "handbook_line" => …},
+        "evidence" => "ok" | "disputed",   # the evidence's format (#3182)
+        "notes" => %{"ask" => …, "handbook_line" => …, "evidence" => …},
         "from_reason" => true,  # read from a rejection's reason, given no parts
         "judged_at" => "abc1234", # the commit the verdict judged (#1944)
         "decision" => "reject" | "accept",
@@ -31,9 +32,16 @@ defmodule Slipdock.Verified.Checks do
       suite=412:0            (passed:failed)
       rule:UX-4=broken:hex colour in card.ex
       handbook_line=disputed:W-3 wasn't edited
+      evidence=disputed:the Findings block is one paragraph
       bar:1=carried          (passed at the last verdict's commit; #1944)
       rule:UX-4=pre-existing:lib/card.ex:42:hex colour
                              (broken only in lines the diff didn't change; #1945)
+
+  The Handbook line and the evidence's format are **paperwork** (#3182):
+  a disputed one is a failing part, but not a blocking one. An acceptance
+  may carry it, and an agent's rejection whose only failing parts are
+  paperwork is decided as an acceptance (`paperwork_only?/1`), the gap
+  kept as a finding.
 
   A defect review (#1953), asked of the verifier on a `schema` or `security`
   card, is a list of findings, each with its severity and where it is:
@@ -85,7 +93,8 @@ defmodule Slipdock.Verified.Checks do
     "ask" => ~w(ok misses carried),
     "bar" => ~w(ok fail carried),
     "rule" => ~w(ok broken n/a carried pre-existing),
-    "handbook_line" => ~w(ok disputed carried)
+    "handbook_line" => ~w(ok disputed carried),
+    "evidence" => ~w(ok disputed)
   }
 
   @carried "carried"
@@ -204,6 +213,10 @@ defmodule Slipdock.Verified.Checks do
     with :ok <- result_ok("handbook_line", result), do: {:ok, {:handbook_line, result, note}}
   end
 
+  defp build("evidence", nil, result, note) do
+    with :ok <- result_ok("evidence", result), do: {:ok, {:evidence, result, note}}
+  end
+
   defp build("bar", key, result, note) when is_binary(key) and key != "" do
     with :ok <- result_ok("bar", result),
          do: {:ok, {:bar, %{"item" => key, "result" => result, "note" => note}}}
@@ -280,7 +293,7 @@ defmodule Slipdock.Verified.Checks do
   defp build(part, _key, _result, _note),
     do:
       {:error,
-       "unknown check `#{part}`: use ask, bar:<n>, suite, rule:<id>, handbook_line, " <>
+       "unknown check `#{part}`: use ask, bar:<n>, suite, rule:<id>, handbook_line, evidence, " <>
          "defect:<severity>, mutant:<result> or mutants=n/a"}
 
   # A mutant (#2354): `<file>:<line>:<mutation>[:note]`, the place kept as
@@ -351,6 +364,8 @@ defmodule Slipdock.Verified.Checks do
   defp from_map("handbook_line", v) when is_binary(v),
     do: one(build("handbook_line", nil, v, nil))
 
+  defp from_map("evidence", v) when is_binary(v), do: one(build("evidence", nil, v, nil))
+
   defp from_map("suite", %{} = v) do
     v = Map.new(v, fn {k, x} -> {to_string(k), x} end)
 
@@ -402,7 +417,9 @@ defmodule Slipdock.Verified.Checks do
 
   defp from_map("notes", %{} = notes) do
     {:ok,
-     for {k, v} <- notes, Enum.member?(~w(ask handbook_line), to_string(k)), is_binary(v) do
+     for {k, v} <- notes,
+         Enum.member?(~w(ask handbook_line evidence), to_string(k)),
+         is_binary(v) do
        {:note, to_string(k), v}
      end}
   end
@@ -524,7 +541,7 @@ defmodule Slipdock.Verified.Checks do
 
   defp put_part(acc, {:suite, suite}), do: Map.put(acc, "suite", suite)
 
-  defp put_part(acc, {part, result, note}) when part in [:ask, :handbook_line] do
+  defp put_part(acc, {part, result, note}) when part in [:ask, :handbook_line, :evidence] do
     acc = Map.put(acc, to_string(part), result)
     if note, do: put_note(acc, to_string(part), note), else: acc
   end
@@ -657,12 +674,13 @@ defmodule Slipdock.Verified.Checks do
   @doc """
   The parts a rejection's reason cites when no checks were given (#1777's
   citations): `bar 2:`, `the ask:`, `Handbook line:` or a rule id such as
-  `UX-4:`, at the start of a line. `%{}` when it cites none.
+  `UX-4:`, or `the evidence:` (its format, #3182), at the start of a line.
+  `%{}` when it cites none.
   """
   def from_reason(reason) when is_binary(reason) do
     lines =
       Regex.scan(
-        ~r/^[ \t>*_-]*(bar\s+(\d+)|the ask|handbook line|([A-Z][A-Z0-9]*-\d+))\s*:/im,
+        ~r/^[ \t>*_-]*(bar\s+(\d+)|the ask|the evidence|handbook line|([A-Z][A-Z0-9]*-\d+))\s*:/im,
         reason
       )
 
@@ -676,6 +694,7 @@ defmodule Slipdock.Verified.Checks do
       [_, cited | _], acc ->
         case String.downcase(cited) do
           "the ask" -> Map.put(acc, "ask", "misses")
+          "the evidence" -> Map.put(acc, "evidence", "disputed")
           _ -> Map.put(acc, "handbook_line", "disputed")
         end
     end)
@@ -732,20 +751,41 @@ defmodule Slipdock.Verified.Checks do
 
   defp failing_suite(_), do: []
 
-  defp failing_line(%{"handbook_line" => "disputed"}), do: ["the Handbook line"]
-  defp failing_line(_), do: []
+  defp failing_line(checks), do: paperwork(checks)
+
+  @doc """
+  The failing paperwork parts of `checks` (#3182), as short labels: the
+  Handbook line and the evidence's format, when disputed. A gap in them is
+  noted as a finding, never a rejection on its own.
+  """
+  def paperwork(%{} = checks) do
+    if(checks["handbook_line"] == "disputed", do: ["the Handbook line"], else: []) ++
+      if checks["evidence"] == "disputed", do: ["the evidence's format"], else: []
+  end
+
+  def paperwork(_), do: []
+
+  @doc """
+  Whether paperwork (`paperwork/1`) is all that fails in `checks`: some
+  does, and nothing else does (a broken `should` rule aside, as for an
+  acceptance).
+  """
+  def paperwork_only?(checks), do: paperwork(checks) != [] and blocking(checks) == []
 
   @doc """
   The failing parts an acceptance can't carry: every one but a broken
-  `should` rule (a rule the handbook doesn't know counts as a `must`).
+  `should` rule (a rule the handbook doesn't know counts as a `must`) and
+  paperwork (#3182).
   """
   def blocking(%{} = checks) do
     should =
       for %{"result" => "broken", "severity" => "should", "id" => id} <- checks["rules"] || [],
           do: id
 
-    failing(checks) -- should
+    failing(checks) -- (should ++ paperwork(checks))
   end
+
+  def blocking(_), do: []
 
   @doc """
   The parts as lines for the card and the CLI, in check order: `[{label,
@@ -770,6 +810,7 @@ defmodule Slipdock.Verified.Checks do
         checks["handbook_line"],
         carried_note(notes["handbook_line"], carried["handbook_line"])
       ) ++
+      one_line("the evidence", checks["evidence"], notes["evidence"]) ++
       for(
         d <- checks["defect_review"] || [],
         do: {"defect", d["severity"], defect_note(d)}

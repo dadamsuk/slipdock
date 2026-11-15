@@ -51,7 +51,9 @@ defmodule SlipdockWeb.MCP.Tools.VerifyCard do
           items: %{type: "string"},
           description:
             "The verdict in parts, one each: ask=ok|misses, bar:2=ok|fail[:why], " <>
-              "suite=412:0, rule:UX-4=ok|broken|n/a[:why], handbook_line=ok|disputed; " <>
+              "suite=412:0, rule:UX-4=ok|broken|n/a[:why], handbook_line=ok|disputed, " <>
+              "evidence=ok|disputed (the evidence's format; it and the Handbook line are " <>
+              "paperwork, kept as a finding: when they are all that fails, it accepts); " <>
               "a rule broken in several places: one rule:UX-4=broken:<file>:<line>[:why] " <>
               "per instance, every one found, all in this rejection (listed under the rule); " <>
               "rule:UX-4=pre-existing:<file>:<line> for a rule broken only in unchanged lines " <>

@@ -202,9 +202,12 @@ defmodule SlipdockWeb.VerifyProgressTest do
 
       assert_states(
         prompt,
-        "A rejection cites what it fails: a bar item (`bar 2: …`), the ask (`the ask: …`), " <>
-          "a rule id (`ARCH-3: …`) or the Handbook line (`Handbook line: …`)."
+        "A rejection cites what it fails: a bar item (`bar 2: …`), the ask (`the ask: …`) " <>
+          "or a rule id (`ARCH-3: …`)."
       )
+
+      assert prompt =~ "`--check handbook_line=disputed:<what is missing>`"
+      assert_states(prompt, "Paperwork is noted, not rejected")
     end
 
     test "on a sub-board the rules come from the root board's handbook", ctx do

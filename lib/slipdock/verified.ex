@@ -610,7 +610,9 @@ defmodule Slipdock.Verified do
   The verifier judges, in order (#1777): the ask (does the bar cover what
   the card asks for?), the bar, and on a board with a handbook the rules for
   the diff's paths and the closing `Handbook:` line. A rejection cites the
-  check it fails: a bar item, the ask, a rule id or the Handbook line.
+  check it fails: a bar item, the ask or a rule id. The Handbook line and
+  the evidence's format are paperwork (#3182): noted as findings, never a
+  rejection on their own.
   """
   defdelegate verify_prompt(card, board), to: Prompts
   defdelegate verify_prompt(card, board, opts), to: Prompts
