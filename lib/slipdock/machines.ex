@@ -205,7 +205,7 @@ defmodule Slipdock.Machines do
   defp no_runners_on(machine, removed) do
     case Enum.filter(
            Slipdock.Runners.MachineRunners.list_runners(machine),
-           &(&1.board_id in removed)
+           &Enum.member?(removed, &1.board_id)
          ) do
       [] ->
         :ok

@@ -507,13 +507,10 @@ defmodule SlipdockWeb.API.MachineController do
     name? = Map.has_key?(params, "name")
 
     with {:ok, machine} <-
-           if(boards?, do: change_boards(machine, user, params), else: {:ok, machine}),
-         {:ok, machine} <-
-           if(name? or not boards?,
-             do: Machines.rename_machine(machine, params["name"]),
-             else: {:ok, machine}
-           ) do
-      {:ok, machine}
+           if(boards?, do: change_boards(machine, user, params), else: {:ok, machine}) do
+      if name? or not boards?,
+        do: Machines.rename_machine(machine, params["name"]),
+        else: {:ok, machine}
     end
   end
 
