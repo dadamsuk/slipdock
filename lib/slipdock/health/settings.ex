@@ -9,7 +9,7 @@ defmodule Slipdock.Health.Settings do
 
   import Ecto.Query
 
-  alias Slipdock.Repo
+  alias Slipdock.{Policy, Repo}
 
   schema "health_settings" do
     field :settings, :map, default: %{}
@@ -40,6 +40,11 @@ defmodule Slipdock.Health.Settings do
   numbers) are taken. `{:ok, settings}` or `{:error, reason}`.
   """
   def put(root_id, detector, attrs) when is_map(attrs) do
+    with :ok <- Policy.authorize(:update_board, %Slipdock.Boards.Board{id: root_id}),
+         do: put_now(root_id, detector, attrs)
+  end
+
+  defp put_now(root_id, detector, attrs) do
     defaults = Map.merge(@base, detector.defaults())
     attrs = Map.new(attrs, fn {k, v} -> {to_string(k), v} end)
 

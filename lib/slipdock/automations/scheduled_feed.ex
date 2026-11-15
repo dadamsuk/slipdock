@@ -128,7 +128,12 @@ defmodule Slipdock.Automations.ScheduledFeed do
       "enabled" => rule.enabled
     }
 
-    case Automations.create_rule(attrs, created_by: by) do
+    # A sibling of a feed rule already on the board, made when a Scheduled
+    # list is added (that write asked) or a runner is set up: the server's
+    # (`Slipdock.Policy`, #3174).
+    case Slipdock.Policy.as_system("a Scheduled list's feed rule, beside one already there", fn ->
+           Automations.create_rule(attrs, created_by: by)
+         end) do
       {:ok, sibling} ->
         {:ok, sibling}
 

@@ -854,8 +854,12 @@ defmodule Slipdock.Handbook do
   # An edited page is the board's own. An edited Playbook with no Spike
   # stage gets one proposed instead (#2352), for a person to apply.
   defp left_alone(page, user, report) do
+    # An install that has asked files it (`system_writes.txt`, #3174).
     note =
-      case key(page) == "playbook" and propose_spike(page, user) do
+      case key(page) == "playbook" and
+             Slipdock.Policy.as_system("an install files its Spike proposal", fn ->
+               propose_spike(page, user)
+             end) do
         {:ok, _suggestion} -> "edited: left alone; Spike stage proposed"
         _ -> "edited: left alone"
       end

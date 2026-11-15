@@ -31,6 +31,7 @@ defmodule Slipdock.Gardener do
 
   alias Slipdock.Access
   alias Slipdock.Boards
+  alias Slipdock.Policy
   alias Slipdock.Boards.Board
   alias Slipdock.Gardener.{Context, Run, Settings, Steps, Suggestion}
   alias Slipdock.Repo
@@ -98,24 +99,14 @@ defmodule Slipdock.Gardener do
   all (`"total"`), how many are new this run (`"new"`), and per check.
   """
   def run(%Board{} = board, opts \\ []) do
+    with :ok <- Policy.authorize(:run_board_check, board), do: run_checks(board, opts)
+  end
+
+  defp run_checks(board, opts) do
     now = (opts[:now] || DateTime.utc_now()) |> DateTime.truncate(:second)
-    trigger = opts[:trigger] || "manual"
     board = Repo.get!(Board, board.id)
-
-    checks =
-      (opts[:checks] || checks())
-      |> Enum.filter(&(is_nil(opts[:only]) or Enum.member?(List.wrap(opts[:only]), &1.key())))
-      |> Enum.filter(&Settings.enabled?(board, &1))
-
-    {:ok, run} =
-      %Run{
-        board_id: board.id,
-        user_id: opts[:user] && opts[:user].id,
-        trigger: trigger,
-        started_at: now
-      }
-      |> Repo.insert()
-
+    checks = checks_for(board, opts)
+    {:ok, run} = start_run(board, opts, now)
     ctx = Context.new(board, now)
 
     findings =
@@ -124,26 +115,47 @@ defmodule Slipdock.Gardener do
           do: {check.key(), finding}
 
     found = Map.new(findings, fn {key, f} -> {fingerprint(key, f), {key, f}} end)
-    known = known_states(board.id, Map.keys(found))
-
-    new =
-      for {fp, {key, f}} <- found,
-          not Enum.member?(~w(open dismissed applied), Map.get(known, fp)) do
-        Repo.insert!(%Suggestion{
-          run_id: run.id,
-          board_id: board.id,
-          check: key,
-          subject: f.subject,
-          fingerprint: fp,
-          proposal: f.proposal,
-          alternatives: Map.get(f, :alternatives, %{}),
-          explanation: f.explanation,
-          state: "open"
-        })
-      end
-
+    new = insert_new(run, board, found, known_states(board.id, Map.keys(found)))
     expire_missing(board.id, Enum.map(checks, & &1.key()), Map.keys(found), now)
+    finish_run(run, board, new)
+  end
 
+  defp checks_for(board, opts) do
+    only = opts[:only] && List.wrap(opts[:only])
+
+    Enum.filter(
+      opts[:checks] || checks(),
+      &((is_nil(only) or Enum.member?(only, &1.key())) and Settings.enabled?(board, &1))
+    )
+  end
+
+  defp start_run(board, opts, now) do
+    Repo.insert(%Run{
+      board_id: board.id,
+      user_id: opts[:user] && opts[:user].id,
+      trigger: opts[:trigger] || "manual",
+      started_at: now
+    })
+  end
+
+  defp insert_new(run, board, found, known) do
+    for {fp, {key, f}} <- found,
+        not Enum.member?(~w(open dismissed applied), Map.get(known, fp)) do
+      Repo.insert!(%Suggestion{
+        run_id: run.id,
+        board_id: board.id,
+        check: key,
+        subject: f.subject,
+        fingerprint: fp,
+        proposal: f.proposal,
+        alternatives: Map.get(f, :alternatives, %{}),
+        explanation: f.explanation,
+        state: "open"
+      })
+    end
+  end
+
+  defp finish_run(run, board, new) do
     open = list_open(board)
 
     counts =
@@ -248,7 +260,7 @@ defmodule Slipdock.Gardener do
   def apply(%Suggestion{} = suggestion, user, opts \\ []) do
     with :ok <- open(suggestion),
          :ok <- a_persons(suggestion, opts[:actor], "apply"),
-         :ok <- can_write(user, suggestion),
+         :ok <- may_decide(user, suggestion, opts),
          {:ok, steps} <- chosen_steps(suggestion, opts[:choice]),
          {:ok, steps} <- Steps.resolve_picks(steps, opts[:keep]),
          :ok <- Steps.authorize(steps, user),
@@ -275,7 +287,7 @@ defmodule Slipdock.Gardener do
   def dismiss(%Suggestion{} = suggestion, user, opts \\ []) do
     with :ok <- open(suggestion),
          :ok <- a_persons(suggestion, opts[:actor], "dismiss"),
-         :ok <- can_write(user, suggestion) do
+         :ok <- may_decide(user, suggestion, opts) do
       suggestion
       |> Ecto.Changeset.change(
         state: "dismissed",
@@ -299,7 +311,7 @@ defmodule Slipdock.Gardener do
     inverse = (suggestion.undo || %{})["steps"] || []
 
     with :ok <- a_persons(suggestion, opts[:actor], "undo"),
-         :ok <- can_write(user, suggestion),
+         :ok <- may_decide(user, suggestion, opts),
          :ok <- Steps.authorize(inverse, user),
          :ok <- Steps.undo_all(inverse, user) do
       log(suggestion, "undone via gardener: #{suggestion.explanation}")
@@ -436,6 +448,21 @@ defmodule Slipdock.Gardener do
       else: :ok
   end
 
+  # The policy, after the function's own refusals (`a_persons/3` gives the
+  # Tidy-up page's link): write on the board, and for a person-only
+  # suggestion a person in the web app (`Slipdock.Policy`, #3174).
+  defp may_decide(user, suggestion, opts) do
+    with :ok <- can_write(user, suggestion), do: asks(suggestion, opts)
+  end
+
+  defp asks(suggestion, opts) do
+    with :ok <- Policy.authorize(:decide_suggestion, suggestion, actor: opts[:actor]) do
+      if person_only?(suggestion),
+        do: Policy.authorize(:decide_in_person, suggestion, actor: opts[:actor]),
+        else: :ok
+    end
+  end
+
   @doc "The Tidy-up page of the board `suggestion` is on."
   def tidy_url(%Suggestion{board_id: board_id}),
     do: "#{Slipdock.Automations.Runner.base_url()}/boards/#{board_id}/tidy"
@@ -473,6 +500,7 @@ defmodule Slipdock.Gardener do
     with {:ok, explanation} <- explanation(attrs["explanation"]),
          {:ok, steps} <- proposal_steps(attrs["steps"]),
          :ok <- can_write(user, %Suggestion{board_id: board.id}),
+         :ok <- Policy.authorize(:propose_edit, board, actor: opts[:actor]),
          :ok <- Steps.authorize(steps, user),
          {:ok, findings} <- ids(attrs["findings"], "findings"),
          {:ok, cards} <- ids(attrs["cards"], "cards") do

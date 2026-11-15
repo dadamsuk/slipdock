@@ -337,7 +337,7 @@ defmodule Slipdock.FindingsTest do
 
       # A person dismisses the proposal: the finding is open for triage again.
       {:ok, _} =
-        Slipdock.Gardener.dismiss(proposal, owner, actor: %{kind: "human", via: "web"})
+        Slipdock.Gardener.dismiss(proposal, owner, actor: Slipdock.Actor.web(owner))
 
       assert {:ok, [_, _]} = Findings.list(board)
       assert {:ok, []} = Findings.list(board, %{"status" => "waiting"})

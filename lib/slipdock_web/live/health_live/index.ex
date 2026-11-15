@@ -61,11 +61,21 @@ defmodule SlipdockWeb.HealthLive.Index do
   def handle_info({:health_changed, _root_id}, socket), do: {:noreply, load(socket)}
   def handle_info(_message, socket), do: {:noreply, socket}
 
+  # A write the context refuses (`Slipdock.Policy`) is said in a flash,
+  # whatever the handler made of it (`SlipdockWeb.Refusals`, #3174).
   @impl true
-  def handle_event("run", _params, %{assigns: %{can_write: false}} = socket),
+  def handle_event(event, params, socket) do
+    SlipdockWeb.Refusals.said(
+      socket,
+      fn -> handle_event(event, params, socket, :said) end,
+      &put_flash(&1, :error, &2)
+    )
+  end
+
+  defp handle_event("run", _params, %{assigns: %{can_write: false}} = socket, :said),
     do: {:noreply, put_flash(socket, :error, "You have read-only access to this board.")}
 
-  def handle_event("run", _params, socket) do
+  defp handle_event("run", _params, socket, :said) do
     {:ok, counts} = Health.run(socket.assigns.board)
 
     message =
@@ -77,7 +87,7 @@ defmodule SlipdockWeb.HealthLive.Index do
     {:noreply, socket |> put_flash(:info, message) |> load()}
   end
 
-  def handle_event(_event, _params, socket), do: {:noreply, socket}
+  defp handle_event(_event, _params, socket, :said), do: {:noreply, socket}
 
   defp label(labels, key), do: Map.get(labels, key, key)
 

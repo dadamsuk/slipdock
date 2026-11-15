@@ -18,8 +18,18 @@ defmodule SlipdockWeb.ToolLive.Review do
   defp load(socket),
     do: assign(socket, queue: Tools.listing_queue(), listed: Tools.list_listed())
 
+  # A write the context refuses (`Slipdock.Policy`) is said in a flash,
+  # whatever the handler made of it (`SlipdockWeb.Refusals`, #3174).
   @impl true
-  def handle_event("approve", %{"id" => id}, socket) do
+  def handle_event(event, params, socket) do
+    SlipdockWeb.Refusals.said(
+      socket,
+      fn -> handle_event(event, params, socket, :said) end,
+      &put_flash(&1, :error, &2)
+    )
+  end
+
+  defp handle_event("approve", %{"id" => id}, socket, :said) do
     version = Tools.get_version!(id)
 
     case Tools.approve_listing(socket.assigns.current_user, version) do
@@ -31,7 +41,7 @@ defmodule SlipdockWeb.ToolLive.Review do
     end
   end
 
-  def handle_event("decline", %{"version_id" => id} = params, socket) do
+  defp handle_event("decline", %{"version_id" => id} = params, socket, :said) do
     version = Tools.get_version!(id)
 
     case Tools.decline_listing(socket.assigns.current_user, version, params["reason"]) do
@@ -40,7 +50,7 @@ defmodule SlipdockWeb.ToolLive.Review do
     end
   end
 
-  def handle_event("unlist", %{"id" => id}, socket) do
+  defp handle_event("unlist", %{"id" => id}, socket, :said) do
     tool = Tools.get_tool!(id)
     {:ok, _} = Tools.unlist(socket.assigns.current_user, tool)
     {:noreply, socket |> put_flash(:info, "#{tool.name} is no longer listed.") |> load()}

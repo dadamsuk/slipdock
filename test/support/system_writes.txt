@@ -6,6 +6,9 @@
 # asking `Slipdock.Policy`; one that calls a write that asks wraps it in
 # `Policy.as_system/2` with the same reason. Policy 8 (#3175) adds the check
 # that no door calls these.
+Slipdock.AI.Actions.prepare/2 the assistant preparing its steps: the only write is a missing tag made through Boards.Tags.create_tag/2, which asks (the assistant as a door is Policy 8's, #3175)
+Slipdock.AI.Assistant.chat/4 a read for the assistant: its only write is the card record's, which fills the job-cost cache (AI.CardRecord.call/4)
+Slipdock.AI.CardRecord.call/4 a read for the assistant: its only write fills the job-cost cache (LeadTime, Runners.JobCost.count/1)
 Slipdock.Accounts.DeviceFlow.poll_device_authorization/1 a device code polled by the client that holds it: no person is signed in on that side yet (#3172)
 Slipdock.Accounts.DeviceFlow.purge_expired_device_authorizations/0 the clock forgets device codes that have expired
 Slipdock.Accounts.DeviceFlow.request_device_authorization/1 a client asking for a device code before anybody has signed in (#3172)
@@ -30,6 +33,20 @@ Slipdock.Accounts.touch_last_signed_in/1 records that somebody has just signed i
 Slipdock.Accounts.verify_magic_link/1 spending a sign-in link: nobody is signed in until it has checked (#3172)
 Slipdock.Accounts.verify_sign_in_code/2 spending a sign-in code: nobody is signed in until it has checked (#3172)
 Slipdock.Accounts.write_agentic_login/2 a test server's sign-in link written to a file, asked for before anybody is signed in
+Slipdock.Automations.Notifier.call/4 a rule's notify action, sent as the rule's own (automation depth)
+Slipdock.Automations.Runner.run/3 a rule's runner action queues its job, as the rule's own (automation depth)
+Slipdock.Automations.ScheduledFeed.ensure/2 a Scheduled list's feed rule, made beside one already there when a list is added or a runner set up (that write asked)
+Slipdock.Automations.Scheduler.handle_call/3 the scheduler's clock: each job runs under as_system/2 with its label
+Slipdock.Automations.Scheduler.handle_info/2 the scheduler's clock: each job runs under as_system/2 with its label
+Slipdock.Automations.Scheduler.jobs/0 the scheduler's clock: each job runs under as_system/2 with its label
+Slipdock.Automations.clear_fires/1 a time-based rule forgets what it acted on, for a Run now that has asked (run_rule_now/2)
+Slipdock.Automations.delete_alert/1 an alert taken away with the rule that raised it, once its removal has asked
+Slipdock.Automations.dispatch/1 an event that has happened (its write asked) handed to the board's rules, which run as the rule's own
+Slipdock.Automations.feed/2 a feed rule sends a card to the runners, from the clock or a Run now that has asked
+Slipdock.Automations.log_callback/1 the log of a webhook a rule called
+Slipdock.Automations.raise_alert/1 a rule's or the health monitor's alert, raised as the server's
+Slipdock.Automations.run_now/2 a rule run once: from an event that asked, or a Run now that has asked (run_rule_now/2)
+Slipdock.Automations.run_scheduled/1 the clock runs the time-based rules
 Slipdock.Boards.Attachments.backfill_attachment_hashes/0 run at boot: hashes files stored before the hash was kept (#1015)
 Slipdock.Boards.Attachments.update_attachment_transcript/2 the transcription server records where a transcript has got to
 Slipdock.Boards.Cards.follow_stand_ins/3 a card reaching done takes its stand-ins on other boards to their done lists
@@ -44,6 +61,34 @@ Slipdock.Boards.Templates.create_system_template/1 a built-in template the demo 
 Slipdock.Boards.Waits.close_wait/4 closes a wait once an answer, a withdrawal, a completion or an archive has asked
 Slipdock.Boards.Waits.default_wait/2 the scheduler answers an approval wait left past its board's time with its default (#2096)
 Slipdock.Boards.Waits.move_wait/3 a routed person has left the board, so their wait goes to the next person (#1949)
+Slipdock.Findings.Group.check/1 the daily triage groups findings, as the server's
+Slipdock.Findings.Group.consider/1 the daily triage groups findings, as the server's
+Slipdock.Findings.Promote.check/1 the daily triage promotes findings to proposals for a person to decide
+Slipdock.Findings.Promote.consider/1 a finding seen often enough is drafted as a proposal for a person to decide
+Slipdock.Findings.Promote.decided/2 a proposal a person decided (Gardener.apply/3 or dismiss/3 asked) settles its findings
+Slipdock.Findings.Promote.reopened/1 a finding triage reopened (Findings.triage/3 asked) takes its closed proposal back
+Slipdock.Findings.Promote.settled/2 a finding triage settled (Findings.triage/3 asked) closes its proposal
+Slipdock.Findings.Signals.accepted/1 a finding the verifier's acceptance records, after the verdict has asked
+Slipdock.Findings.Signals.audit_disagreed/5 a finding an audit's disagreement records, after the verdict has asked
+Slipdock.Findings.Signals.gave_up/2 a finding the server records when a job gives up on a card
+Slipdock.Findings.Signals.health_flagged/3 a finding the health monitor records when it flags a card
+Slipdock.Findings.Signals.incident/2 a finding the health monitor records for an incident
+Slipdock.Findings.Signals.job_ended/1 a finding the server records when a runner job ends
+Slipdock.Findings.Signals.merge_failed/3 a finding the server records when a merge fails
+Slipdock.Findings.Signals.paperwork/3 a finding the server records for a completion's missing paperwork
+Slipdock.Findings.Signals.pre_existing/3 a finding a verdict's pre-existing rule break records, after the verdict has asked
+Slipdock.Findings.Signals.pre_existing_mutants/3 a finding a verdict's pre-existing mutants record, after the verdict has asked
+Slipdock.Findings.Signals.rejected/4 a finding a rejection records, after the verdict has asked
+Slipdock.Findings.Signals.requeued/3 a finding the server records when a job is put back in the queue
+Slipdock.Findings.comment_deleted/1 a comment deleted (that delete asked) takes the findings it carried with it
+Slipdock.Findings.dedupe/2 the daily triage merges findings that say the same thing
+Slipdock.Findings.dedupe_named/2 the daily triage merges findings that say the same thing
+Slipdock.Findings.from_comment/2 a comment's Findings block, kept once the comment has asked
+Slipdock.Findings.record/1 a finding the server records, from a comment or an event that has asked
+Slipdock.Gardener.Steps.apply_all/2 a suggestion's steps, once its decision has asked (Gardener.apply/3); each step's own write asks too
+Slipdock.Gardener.Steps.undo_all/3 a suggestion's steps undone, once the undo has asked (Gardener.undo/3); each step's own write asks too
+Slipdock.Gardener.close/2 the server closes a proposal triage has decided (Findings.Promote.settled/2)
+Slipdock.Gardener.reopen_closed/1 the server reopens a proposal it closed, when triage reopens its finding
 Slipdock.Google.Drive.child/3 a read of the person's Drive: its only write refreshes their stored access token (Google.access_token/2)
 Slipdock.Google.Drive.download/4 a read of the person's Drive: its only write refreshes their stored access token (Google.access_token/2)
 Slipdock.Google.Drive.file/2 a read of the person's Drive: its only write refreshes their stored access token (Google.access_token/2)
@@ -51,6 +96,13 @@ Slipdock.Google.access_token/2 a read: trades a stale access token for a fresh o
 Slipdock.Handbook.propose_spike/2 an install that has asked (Handbook.install/3) files its Spike proposal for the board's own Playbook
 Slipdock.HeaderLinks.resolve/2 a read: its only write makes the person's vault the first time it is wanted (Vaults.root/1)
 Slipdock.HeaderLinks.resolve/3 a read: its only write makes the person's vault the first time it is wanted (Vaults.root/1)
+Slipdock.Health.Detectors.Deadlock.resolve/2 the health monitor's own fix for a deadlock it found
+Slipdock.Health.Detectors.HungJob.cancel/1 the health monitor cancels a job that has hung
+Slipdock.Health.Detectors.HungJob.resolve/2 the health monitor's own fix for a job that has hung
+Slipdock.Health.Detectors.IdleFeed.resolve/2 the health monitor's own fix for a feed left idle
+Slipdock.Health.Detectors.OrphanInProgress.resolve/2 the health monitor's own fix for a card in progress with nobody on it
+Slipdock.Health.Detectors.StalledRework.resolve/2 the health monitor's own fix for rework that has stalled
+Slipdock.Health.Pulse.beat/2 the health monitor's own heartbeat
 Slipdock.LeadTime.brief/2 a read: its only write fills the job-cost cache (Runners.JobCost.count/1)
 Slipdock.LeadTime.for_card/2 a read: its only write fills the job-cost cache (Runners.JobCost.count/1)
 Slipdock.LeadTime.for_epic/2 a read: its only write fills the job-cost cache (Runners.JobCost.count/1)
@@ -68,6 +120,13 @@ Slipdock.OCR.sweep/1 the scheduler puts back what a restart cut off and queues a
 Slipdock.Onboarding.build!/1 the getting-started board the server builds for a new account
 Slipdock.Onboarding.build/1 the getting-started board the server builds for a new account
 Slipdock.Onboarding.ensure_for/1 the getting-started board the server builds for a new account, the first time it is missing
+Slipdock.Overseer.Housekeeping.maybe_digest/3 the overseer's own digest, from the clock
+Slipdock.Overseer.Pass.finished/1 the overseer records its own pass ending
+Slipdock.Overseer.Pass.maybe_queue/3 the overseer queues its own pass, from the clock
+Slipdock.Overseer.Watch.run/4 the overseer's own watch, from the clock
+Slipdock.Overseer.ensure_card/2 the overseer's own card, made when it is turned on (put_settings/2 asked) or found missing
+Slipdock.Overseer.job_finished/1 the overseer hears its job has ended
+Slipdock.Overseer.tick/1 the overseer's clock
 Slipdock.Recordings.check_folder/2 a read of the person's Drive: its only write refreshes their stored access token
 Slipdock.Recordings.for_page/1 a read: its only write makes the board owner's vault the first time it is wanted (Vaults.root/1)
 Slipdock.Recordings.forget/2 Drive says a remembered recording has gone, so the cache of where it was is dropped
@@ -76,6 +135,11 @@ Slipdock.Recordings.resolve/3 a read: its only writes cache where a recording is
 Slipdock.Recurrence.card_archived/1 archiving a series' current instance pauses the series, with a comment saying so
 Slipdock.Recurrence.completion_changed/1 completing or reopening an after-done instance sets when the next is made
 Slipdock.Recurrence.tick/1 the scheduler's clock makes each series' next instance
+Slipdock.Settings.allowlisted?/1 a read at the sign-in page: its only write makes the server's settings row the first time it is read
+Slipdock.Settings.complete_setup/1 the setup wizard or the command line, before anybody can sign in
+Slipdock.Settings.ensure_setup_token/0 the setup wizard's token, made the first time an unclaimed server is visited
+Slipdock.Settings.seed/0 seeds the server's settings from its environment at boot
+Slipdock.SkillRegistry.Seeds.run/0 the skill sources a new server starts with, at boot
 Slipdock.Transcription.Voiceprints.from_page/3 after a voice is named (Wiki.rename_speaker/4 has asked) its clip goes to the server; the only write caches the recording
 Slipdock.Transcription.Voiceprints.page_named/3 after a voice is named (Wiki.rename_speaker/4 has asked) its clip goes to the server; the only write caches the recording
 Slipdock.TransferLinks.claim/2 spends an upload or download link: the token that made it (TransferLinks.mint/3 asked) is behind it

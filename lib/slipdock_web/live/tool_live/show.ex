@@ -83,14 +83,24 @@ defmodule SlipdockWeb.ToolLive.Show do
 
   ## Events ---------------------------------------------------------------------
 
+  # A write the context refuses (`Slipdock.Policy`) is said in a flash,
+  # whatever the handler made of it (`SlipdockWeb.Refusals`, #3174).
   @impl true
-  def handle_event("client", %{"client" => client}, socket) when client in @clients,
+  def handle_event(event, params, socket) do
+    SlipdockWeb.Refusals.said(
+      socket,
+      fn -> handle_event(event, params, socket, :said) end,
+      &put_flash(&1, :error, &2)
+    )
+  end
+
+  defp handle_event("client", %{"client" => client}, socket, :said) when client in @clients,
     do: {:noreply, assign(socket, client: client)}
 
   # A client there is no such thing as (a hand-made event) changes nothing.
-  def handle_event("client", _params, socket), do: {:noreply, socket}
+  defp handle_event("client", _params, socket, :said), do: {:noreply, socket}
 
-  def handle_event("install", _params, socket) do
+  defp handle_event("install", _params, socket, :said) do
     %{current_user: user, tool: tool, version: version} = socket.assigns
 
     case Tools.install_board(user, tool, version: version.version) do
@@ -116,7 +126,7 @@ defmodule SlipdockWeb.ToolLive.Show do
     end
   end
 
-  def handle_event("request_listing", _params, socket) do
+  defp handle_event("request_listing", _params, socket, :said) do
     %{current_user: user, version: version} = socket.assigns
 
     case Tools.request_listing(user, version) do
@@ -131,7 +141,7 @@ defmodule SlipdockWeb.ToolLive.Show do
     end
   end
 
-  def handle_event("unlist", _params, socket) do
+  defp handle_event("unlist", _params, socket, :said) do
     %{current_user: user, tool: tool} = socket.assigns
 
     case Tools.unlist(user, tool) do
@@ -147,7 +157,7 @@ defmodule SlipdockWeb.ToolLive.Show do
     end
   end
 
-  def handle_event("share", %{"email" => email}, socket) do
+  defp handle_event("share", %{"email" => email}, socket, :said) do
     %{current_user: user, tool: tool} = socket.assigns
 
     case Tools.share(user, tool, String.trim(email)) do
@@ -166,14 +176,14 @@ defmodule SlipdockWeb.ToolLive.Show do
     end
   end
 
-  def handle_event("validate_package", _params, socket),
+  defp handle_event("validate_package", _params, socket, :said),
     do: {:noreply, assign(socket, publish_error: nil)}
 
-  def handle_event("cancel_package", %{"ref" => ref}, socket),
+  defp handle_event("cancel_package", %{"ref" => ref}, socket, :said),
     do: {:noreply, cancel_upload(socket, :package, ref)}
 
   # Only this Tool's next version: `as:` refuses a package of another one.
-  def handle_event("publish_package", _params, %{assigns: %{owner?: true}} = socket) do
+  defp handle_event("publish_package", _params, %{assigns: %{owner?: true}} = socket, :said) do
     case Publish.consume(socket, socket.assigns.current_user, as: socket.assigns.tool.slug) do
       {:ok, version} ->
         {:noreply,
@@ -188,9 +198,9 @@ defmodule SlipdockWeb.ToolLive.Show do
   end
 
   # Nobody but the owner has the form.
-  def handle_event("publish_package", _params, socket), do: {:noreply, socket}
+  defp handle_event("publish_package", _params, socket, :said), do: {:noreply, socket}
 
-  def handle_event("unshare", %{"id" => id}, socket) do
+  defp handle_event("unshare", %{"id" => id}, socket, :said) do
     %{current_user: user, tool: tool} = socket.assigns
 
     case unshare(user, tool, SlipdockWeb.Params.id(id)) do

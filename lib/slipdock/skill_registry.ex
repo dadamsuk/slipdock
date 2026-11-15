@@ -26,7 +26,7 @@ defmodule Slipdock.SkillRegistry do
 
   alias Slipdock.Accounts
   alias Slipdock.Accounts.User
-  alias Slipdock.Repo
+  alias Slipdock.{Policy, Repo}
   alias Slipdock.SkillRegistry.{Entry, Fetch, GitHub, Parse, Pins, Source}
 
   @max_file_bytes 256_000
@@ -90,8 +90,15 @@ defmodule Slipdock.SkillRegistry do
   @spec add_source(User.t() | nil, String.t(), keyword()) ::
           {:ok, Source.t()} | {:error, String.t()}
   def add_source(user, url, opts \\ []) do
-    if opts[:seed], do: add_seed(user, url), else: add_own(user, url)
+    if opts[:seed],
+      do: add_seed(user, url),
+      else: with(:ok <- asks_source(user && user.id), do: add_own(user, url))
   end
+
+  # A source is its owner's; a seed, owned by no one, an admin's
+  # (`Slipdock.Policy`, #3174).
+  defp asks_source(nil), do: Policy.authorize(:administer, %{user_id: nil})
+  defp asks_source(owner_id), do: Policy.authorize(:own_source, %{user_id: owner_id})
 
   defp add_own(user, url) when is_binary(url) do
     url = String.trim(url)
@@ -115,7 +122,7 @@ defmodule Slipdock.SkillRegistry do
   @spec add_seed(User.t(), String.t()) :: {:ok, Source.t()} | {:error, String.t()}
   def add_seed(%User{} = user, url) do
     if Accounts.admin?(user),
-      do: add_own(nil, url),
+      do: with(:ok <- asks_source(nil), do: add_own(nil, url)),
       else: {:error, "Only an admin can add a source for everyone."}
   end
 
@@ -144,6 +151,7 @@ defmodule Slipdock.SkillRegistry do
           {:ok, Source.t(), changes} | {:error, String.t()}
   def refresh_source(user, %Source{} = source) do
     with :ok <- manage(user, source),
+         :ok <- asks_source(source.owner_id),
          {:ok, fetched} <- fetch(source.url) do
       Repo.transaction(fn ->
         source = Repo.preload(source, :entries, force: true)
@@ -167,7 +175,8 @@ defmodule Slipdock.SkillRegistry do
   @doc "Deletes `source` and its entries. Refused for a user who can't manage it."
   @spec remove_source(User.t(), Source.t()) :: {:ok, Source.t()} | {:error, String.t()}
   def remove_source(user, %Source{} = source) do
-    with :ok <- manage(user, source) do
+    with :ok <- manage(user, source),
+         :ok <- asks_source(source.owner_id) do
       case Repo.delete(source) do
         {:ok, source} -> {:ok, source}
         {:error, _} -> {:error, "#{source.name} could not be removed."}
@@ -185,9 +194,16 @@ defmodule Slipdock.SkillRegistry do
   @spec enable(User.t(), Slipdock.Boards.Board.t(), integer() | String.t(), String.t()) ::
           {:ok, Slipdock.SkillRegistry.Enablement.t()} | {:error, String.t()}
   def enable(user, board, entry_id, seen_hash) do
+    # The function's own refusals first, then the policy (`Slipdock.Policy`,
+    # #3174); `Pins.enable/4` asks again.
     case get_entry(user, entry_id) do
-      nil -> {:error, "That skill isn't one you can see."}
-      entry -> Pins.enable(user, board, entry, seen_hash)
+      nil ->
+        {:error, "That skill isn't one you can see."}
+
+      entry ->
+        with :ok <- Pins.may_change(user, board),
+             :ok <- Policy.authorize(:enable_skill, board),
+             do: Pins.enable(user, board, entry, seen_hash)
     end
   end
 

@@ -27,7 +27,7 @@ defmodule Slipdock.Findings do
   alias Slipdock.Accounts.User
   alias Slipdock.Boards.{Board, Card, Comment}
   alias Slipdock.Findings.{Awaiting, Block, Finding, Group, Lesson, Promote}
-  alias Slipdock.Repo
+  alias Slipdock.{Policy, Repo}
   alias Slipdock.Runners.Job
 
   # Kinds judged per card: never merged into another card's finding.
@@ -669,6 +669,11 @@ defmodule Slipdock.Findings do
   reopens its own proposal if that was how it closed (`Promote.reopened/1`).
   """
   def triage(%Finding{} = finding, action, params \\ %{}) do
+    with :ok <- Policy.authorize(:triage_finding, finding),
+         do: change_finding(finding, action, params)
+  end
+
+  defp change_finding(finding, action, params) do
     note = params["note"] || params[:note]
 
     case action do

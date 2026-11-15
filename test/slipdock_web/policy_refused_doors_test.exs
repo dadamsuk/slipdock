@@ -545,4 +545,73 @@ defmodule SlipdockWeb.PolicyRefusedDoorsTest do
       assert json_response(conn, 403)["error"] =~ "Your own sign-ins"
     end
   end
+
+  describe "owner and admin writes (#3174), when the context refuses what the door let through" do
+    setup %{conn: conn} do
+      owner = user_fixture("doors7.owner@example.com")
+      board = board_fixture(%{"name" => "Doors seven"}, owner: owner)
+      %{conn: conn, owner: owner, board: board}
+    end
+
+    defp nobody_in_7(view) do
+      :sys.replace_state(view.pid, fn state ->
+        Actor.put(nil)
+        Policy.forbid_nobody()
+        state
+      end)
+    end
+
+    defp call_as_nobody(conn, controller, action, params, user) do
+      Actor.put(nil)
+      Policy.forbid_nobody()
+
+      conn
+      |> Map.put(:params, params)
+      |> Plug.Conn.assign(:current_user, user)
+      |> Phoenix.Controller.put_format("json")
+      |> controller.call(controller.init(action))
+    end
+
+    test "Tidy-up says a refused run in a flash", c do
+      {:ok, view, _} = live(log_in_user(c.conn, c.owner), ~p"/boards/#{c.board.id}/tidy")
+      nobody_in_7(view)
+
+      view |> element("#garden-run") |> render_click()
+      assert render(view) =~ "Running the board&#39;s checks was asked with nobody acting"
+    end
+
+    test "REST: running the health checks answers 403", c do
+      conn =
+        call_as_nobody(
+          c.conn,
+          SlipdockWeb.API.HealthController,
+          :create,
+          %{"board" => "#{c.board.id}"},
+          c.owner
+        )
+
+      assert json_response(conn, 403)["error"] =~ "Running the board's checks"
+    end
+
+    test "REST: the gardener's run answers 403", c do
+      conn =
+        call_as_nobody(
+          c.conn,
+          SlipdockWeb.API.GardenController,
+          :create,
+          %{"board" => "#{c.board.id}"},
+          c.owner
+        )
+
+      assert json_response(conn, 403)["error"] =~ "Running the board's checks"
+    end
+
+    test "a refusal drawn as words is its message" do
+      refused = %Refused{action: :edit_rule, by: :user, message: "Not yours <b>."}
+      assert to_string(refused) == "Not yours <b>."
+
+      assert Phoenix.HTML.safe_to_string(Phoenix.HTML.html_escape(refused)) ==
+               "Not yours &lt;b&gt;."
+    end
+  end
 end

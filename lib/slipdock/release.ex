@@ -210,6 +210,13 @@ defmodule Slipdock.Release do
     end)
   end
 
+  # The server's own command line, before anybody can sign in (#3174).
+  defp allow_first(allow) do
+    Slipdock.Policy.as_system("setup from the command line names who may sign up", fn ->
+      for entry <- allow, do: Slipdock.Settings.add_allowlist_entry(entry)
+    end)
+  end
+
   defp do_setup(email, rest) do
     if Slipdock.Settings.setup_complete?() do
       puts("""
@@ -221,7 +228,8 @@ defmodule Slipdock.Release do
 
       case Slipdock.Settings.complete_setup(attrs) do
         {:ok, settings} ->
-          for entry <- allow, do: Slipdock.Settings.add_allowlist_entry(entry)
+          allow_first(allow)
+
           {:ok, user} = Slipdock.Accounts.get_or_create_user_by_email(settings.admin_email)
           {:ok, _} = promote_first_admin(user)
 

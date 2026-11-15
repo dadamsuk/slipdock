@@ -50,8 +50,18 @@ defmodule SlipdockWeb.SkillRegistryLive.Index do
   def handle_params(_params, _uri, socket),
     do: {:noreply, socket |> assign(entry: nil, page_title: "Skills") |> load()}
 
+  # A write the context refuses (`Slipdock.Policy`) is said in a flash,
+  # whatever the handler made of it (`SlipdockWeb.Refusals`, #3174).
   @impl true
-  def handle_event("add", %{"url" => url} = params, socket) do
+  def handle_event(event, params, socket) do
+    SlipdockWeb.Refusals.said(
+      socket,
+      fn -> handle_event(event, params, socket, :said) end,
+      &put_flash(&1, :error, &2)
+    )
+  end
+
+  defp handle_event("add", %{"url" => url} = params, socket, :said) do
     user = socket.assigns.current_user
     seed = params["seed"] == "true"
 
@@ -64,7 +74,7 @@ defmodule SlipdockWeb.SkillRegistryLive.Index do
      )}
   end
 
-  def handle_event("refresh", %{"id" => id}, socket) do
+  defp handle_event("refresh", %{"id" => id}, socket, :said) do
     user = socket.assigns.current_user
 
     case SkillRegistry.get_source(user, id) do
@@ -82,7 +92,7 @@ defmodule SlipdockWeb.SkillRegistryLive.Index do
     end
   end
 
-  def handle_event("remove", %{"id" => id}, socket) do
+  defp handle_event("remove", %{"id" => id}, socket, :said) do
     user = socket.assigns.current_user
 
     with %{} = source <- SkillRegistry.get_source(user, id),
@@ -99,10 +109,10 @@ defmodule SlipdockWeb.SkillRegistryLive.Index do
 
   ## An entry on boards (#2062) ----------------------------------------------
 
-  def handle_event("enable", %{"board_id" => board_id, "hash" => hash}, socket),
+  defp handle_event("enable", %{"board_id" => board_id, "hash" => hash}, socket, :said),
     do: {:noreply, enable(socket, board_id, hash)}
 
-  def handle_event("repin", %{"id" => id, "hash" => hash}, socket) do
+  defp handle_event("repin", %{"id" => id, "hash" => hash}, socket, :said) do
     user = socket.assigns.current_user
 
     {:noreply,
@@ -117,7 +127,7 @@ defmodule SlipdockWeb.SkillRegistryLive.Index do
      end)}
   end
 
-  def handle_event("disable", %{"id" => id}, socket) do
+  defp handle_event("disable", %{"id" => id}, socket, :said) do
     user = socket.assigns.current_user
 
     {:noreply,

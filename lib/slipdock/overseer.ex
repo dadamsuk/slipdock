@@ -33,7 +33,7 @@ defmodule Slipdock.Overseer do
   alias Slipdock.Boards
   alias Slipdock.Boards.{Board, Card}
   alias Slipdock.Overseer.{Pass, Settings, Watch}
-  alias Slipdock.Repo
+  alias Slipdock.{Policy, Repo}
 
   require Logger
 
@@ -60,6 +60,10 @@ defmodule Slipdock.Overseer do
   `{:error, changeset}`.
   """
   def put_settings(%Board{} = board, attrs) do
+    with :ok <- Policy.authorize(:update_board, board), do: put_now(board, attrs)
+  end
+
+  defp put_now(board, attrs) do
     root = root(board)
     before = settings(root)
     attrs = Map.new(attrs, fn {k, v} -> {to_string(k), v} end)

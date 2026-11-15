@@ -35,14 +35,13 @@ defmodule SlipdockWeb.API.GardenController do
   def create(conn, %{"board" => ref} = params) do
     with {:ok, board} <- Authorize.fetch_board(conn, ref, :write),
          :ok <- known(params, ~w(board check)),
-         {:ok, check} <- check_param(params["check"]) do
-      {:ok, _run} =
-        Gardener.run(board,
-          trigger: "manual",
-          user: conn.assigns.current_user,
-          only: check && [check]
-        )
-
+         {:ok, check} <- check_param(params["check"]),
+         {:ok, _run} <-
+           Gardener.run(board,
+             trigger: "manual",
+             user: conn.assigns.current_user,
+             only: check && [check]
+           ) do
       answer(conn, board, check)
     end
   end

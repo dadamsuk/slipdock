@@ -126,18 +126,28 @@ defmodule SlipdockWeb.FindingsLive.Index do
     end
   end
 
+  # A write the context refuses (`Slipdock.Policy`) is said in a flash,
+  # whatever the handler made of it (`SlipdockWeb.Refusals`, #3174).
   @impl true
-  def handle_event("filter", %{"filters" => params}, socket) do
+  def handle_event(event, params, socket) do
+    SlipdockWeb.Refusals.said(
+      socket,
+      fn -> handle_event(event, params, socket, :said) end,
+      &put_flash(&1, :error, &2)
+    )
+  end
+
+  defp handle_event("filter", %{"filters" => params}, socket, :said) do
     filters = Map.new(@filters, &{&1, String.trim(params[&1] || "")})
     {:noreply, push_patch(socket, to: findings_path(socket.assigns.board, filters, nil))}
   end
 
-  def handle_event(event, _params, %{assigns: %{can_write: false}} = socket)
-      when event in ~w(promote dismiss merge reopen),
-      do: {:noreply, put_flash(socket, :error, "You have read-only access to this board.")}
+  defp handle_event(event, _params, %{assigns: %{can_write: false}} = socket, :said)
+       when event in ~w(promote dismiss merge reopen),
+       do: {:noreply, put_flash(socket, :error, "You have read-only access to this board.")}
 
-  def handle_event(action, %{"id" => id} = params, socket)
-      when action in ~w(promote dismiss merge reopen) do
+  defp handle_event(action, %{"id" => id} = params, socket, :said)
+       when action in ~w(promote dismiss merge reopen) do
     with %Finding{} = finding <- triage_finding(socket.assigns.root, Params.id(id)),
          {:ok, _} <- Findings.triage(finding, action, triage_params(action, params)) do
       {:noreply,
@@ -151,7 +161,7 @@ defmodule SlipdockWeb.FindingsLive.Index do
     end
   end
 
-  def handle_event(_event, _params, socket), do: {:noreply, socket}
+  defp handle_event(_event, _params, socket, :said), do: {:noreply, socket}
 
   # The panel's forms post `promote[note]` and `merge[into]`; a row's buttons
   # (and the API's shape) post them flat.

@@ -6,7 +6,7 @@ defmodule Slipdock.Gardener.Settings do
   """
 
   alias Slipdock.Boards.Board
-  alias Slipdock.Repo
+  alias Slipdock.{Policy, Repo}
 
   @doc "The settings `check` runs with on `board`: its defaults, with the board's changes over them."
   def for(%Board{gardening: gardening}, check) do
@@ -22,6 +22,10 @@ defmodule Slipdock.Gardener.Settings do
   positive number. `{:ok, board}` or `{:error, reason}`.
   """
   def put(%Board{} = board, check, attrs) when is_map(attrs) do
+    with :ok <- Policy.authorize(:update_board, board), do: put_now(board, check, attrs)
+  end
+
+  defp put_now(board, check, attrs) do
     defaults = check.defaults()
     attrs = Map.new(attrs, fn {k, v} -> {to_string(k), v} end)
 

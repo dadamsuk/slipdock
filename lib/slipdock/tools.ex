@@ -19,7 +19,7 @@ defmodule Slipdock.Tools do
   alias Slipdock.Accounts.User
   alias Slipdock.ChangesetErrors
   alias Slipdock.Quota
-  alias Slipdock.Repo
+  alias Slipdock.{Policy, Repo}
   alias Slipdock.Blueprint
   alias Slipdock.Boards
   alias Slipdock.Tools.{Install, Package, Tool}
@@ -41,7 +41,10 @@ defmodule Slipdock.Tools do
   so a new version uploaded there can't land on another Tool.
   """
   def publish(%User{} = user, bytes, opts \\ []) when is_binary(bytes) do
-    with {:ok, package} <- Package.read(bytes),
+    # A person's own Tools (`Slipdock.Policy`, #3174); a new version of one
+    # is its owner's (`tool_for/2`).
+    with :ok <- Policy.authorize(:own_tool, user),
+         {:ok, package} <- Package.read(bytes),
          :ok <- named(package.manifest, opts[:as]),
          {:ok, tool} <- tool_for(user, package.manifest),
          :ok <- newer(tool, package.manifest["version"]),
@@ -200,14 +203,18 @@ defmodule Slipdock.Tools do
         {:error, "#{tool.slug} #{version.version} is already approved"}
 
       true ->
-        version
-        |> Ecto.Changeset.change(
-          listing_requested_at: now(),
-          declined_at: nil,
-          declined_reason: nil
-        )
-        |> Repo.update()
+        with :ok <- Policy.authorize(:share_tool, tool), do: ask_listing(version)
     end
+  end
+
+  defp ask_listing(version) do
+    version
+    |> Ecto.Changeset.change(
+      listing_requested_at: now(),
+      declined_at: nil,
+      declined_reason: nil
+    )
+    |> Repo.update()
   end
 
   @doc "Versions waiting for an admin to decide on listing them, oldest request first."
@@ -227,6 +234,12 @@ defmodule Slipdock.Tools do
   in its turn; until it is, this one stays the listed one.
   """
   def approve_listing(%User{admin: true} = admin, %ToolVersion{} = version) do
+    with :ok <- Policy.authorize(:administer, admin), do: approve(admin, version)
+  end
+
+  def approve_listing(_user, _version), do: {:error, "only an admin can approve a listing"}
+
+  defp approve(admin, version) do
     Repo.transaction(fn ->
       {:ok, version} =
         version
@@ -245,13 +258,13 @@ defmodule Slipdock.Tools do
     end)
   end
 
-  def approve_listing(_user, _version), do: {:error, "only an admin can approve a listing"}
-
   @doc "An admin declines listing `version`, with a reason the owner sees."
-  def decline_listing(%User{admin: true}, %ToolVersion{} = version, reason) do
-    version
-    |> Ecto.Changeset.change(declined_at: now(), declined_reason: blank_to_nil(reason))
-    |> Repo.update()
+  def decline_listing(%User{admin: true} = admin, %ToolVersion{} = version, reason) do
+    with :ok <- Policy.authorize(:administer, admin) do
+      version
+      |> Ecto.Changeset.change(declined_at: now(), declined_reason: blank_to_nil(reason))
+      |> Repo.update()
+    end
   end
 
   def decline_listing(_user, _version, _reason),
@@ -259,9 +272,15 @@ defmodule Slipdock.Tools do
 
   @doc "The owner (or an admin) takes the Tool off the listing; shares are kept."
   def unlist(%User{} = user, %Tool{} = tool) do
-    if owner?(user, tool) or user.admin,
-      do: tool |> Ecto.Changeset.change(listed_version_id: nil) |> Repo.update(),
-      else: {:error, "only the Tool's owner can unlist it"}
+    cond do
+      owner?(user, tool) -> with(:ok <- Policy.authorize(:share_tool, tool), do: take_off(tool))
+      user.admin -> with(:ok <- Policy.authorize(:administer, user), do: take_off(tool))
+      true -> {:error, "only the Tool's owner can unlist it"}
+    end
+  end
+
+  defp take_off(tool) do
+    tool |> Ecto.Changeset.change(listed_version_id: nil) |> Repo.update()
   end
 
   @doc "The version listed for everyone, or nil."
@@ -304,14 +323,16 @@ defmodule Slipdock.Tools do
   they can see and install it. Only its owner can share it.
   """
   def share(%User{} = owner, %Tool{} = tool, subject) do
-    if owner?(owner, tool),
-      do: Slipdock.Access.grant(tool, subject, "read", owner),
-      else: {:error, "only the Tool's owner can share it"}
+    # Asked here too, as the owner named (`Slipdock.Policy`, #3174).
+    with :ok <- (owner?(owner, tool) && :ok) || {:error, "only the Tool's owner can share it"},
+         :ok <- Policy.authorize(:share_tool, tool, actor: Slipdock.Actor.web(owner)),
+         do: Slipdock.Access.grant(tool, subject, "read", owner)
   end
 
   @doc "Takes back the share `grant_id` on `tool`. Owner only."
   def unshare(%User{} = owner, %Tool{} = tool, grant_id) do
     with true <- owner?(owner, tool) || {:error, "only the Tool's owner can share it"},
+         :ok <- Policy.authorize(:share_tool, tool, actor: Slipdock.Actor.web(owner)),
          %Slipdock.Access.Grant{} = grant <-
            Repo.get_by(Slipdock.Access.Grant, id: grant_id, tool_id: tool.id) ||
              {:error, "that share is not on this Tool"} do
@@ -554,7 +575,10 @@ defmodule Slipdock.Tools do
   `{:error, message}`.
   """
   def install_board(%User{} = user, %Tool{} = tool, opts \\ []) do
-    with %ToolVersion{} = version <-
+    # A person's own installs (`Slipdock.Policy`, #3174); the board it makes
+    # or upgrades asks for itself as well.
+    with :ok <- Policy.authorize(:own_tool, user),
+         %ToolVersion{} = version <-
            visible_version(user, tool, opts[:version]) || {:error, :not_found} do
       case current_install(user, tool) do
         %Install{board: %Boards.Board{} = board} = install ->

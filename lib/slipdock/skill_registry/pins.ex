@@ -23,7 +23,7 @@ defmodule Slipdock.SkillRegistry.Pins do
 
   import Ecto.Query
 
-  alias Slipdock.{Access, Boards, Handbook, Repo, Skills}
+  alias Slipdock.{Access, Boards, Handbook, Policy, Repo, Skills}
   alias Slipdock.Accounts.User
   alias Slipdock.Boards.Board
   alias Slipdock.SkillRegistry.{Enablement, Entry}
@@ -141,6 +141,7 @@ defmodule Slipdock.SkillRegistry.Pins do
     with %Board{} = board <- Repo.reload(board) || {:error, "That board has gone."},
          root = root(board),
          :ok <- writer(user, root),
+         :ok <- Policy.authorize(:enable_skill, root),
          :ok <- seen(entry, seen_hash),
          :ok <- free(root, entry) do
       %Enablement{board_id: root.id}
@@ -161,6 +162,7 @@ defmodule Slipdock.SkillRegistry.Pins do
     enablement = Repo.preload(enablement, [:board, entry: :source], force: true)
 
     with :ok <- writer(user, enablement.board),
+         :ok <- Policy.authorize(:enable_skill, enablement.board),
          %Entry{} = entry <- enablement.entry || {:error, gone(enablement)},
          :ok <- seen(entry, seen_hash) do
       enablement
@@ -175,7 +177,8 @@ defmodule Slipdock.SkillRegistry.Pins do
   def disable(%User{} = user, %Enablement{} = enablement) do
     enablement = Repo.preload(enablement, :board)
 
-    with :ok <- writer(user, enablement.board) do
+    with :ok <- writer(user, enablement.board),
+         :ok <- Policy.authorize(:enable_skill, enablement.board) do
       case Repo.delete(enablement) do
         {:ok, gone} -> {:ok, gone}
         {:error, _} -> {:error, "#{enablement.name} could not be disabled."}
@@ -288,6 +291,17 @@ defmodule Slipdock.SkillRegistry.Pins do
 
   defp root(%Board{root_id: nil} = board), do: board
   defp root(%Board{root_id: id}), do: Boards.get_board!(id)
+
+  @doc """
+  `:ok` when `user` may change the skills of `board`'s tree (write on its
+  root, read now), else `{:error, sentence}`.
+  """
+  def may_change(user, %Board{} = board) do
+    case Repo.reload(board) do
+      %Board{} = board -> writer(user, root(board))
+      nil -> {:error, "That board has gone."}
+    end
+  end
 
   defp writer(user, board) do
     if Access.can_write?(Access.board_permission(user, board)),

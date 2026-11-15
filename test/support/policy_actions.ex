@@ -80,4 +80,20 @@ defmodule Slipdock.PolicyActions do
       administer: :owner
     ]
   end
+
+  @doc "Policy 7 (#3174): owner and admin writes, with the level each needs."
+  def owner_admin do
+    [
+      edit_rule: :owner,
+      own_alert: :owner,
+      triage_finding: :write,
+      decide_suggestion: :write,
+      decide_in_person: :write,
+      propose_edit: :write,
+      run_board_check: :write,
+      enable_skill: :write,
+      own_source: :owner,
+      own_tool: :owner
+    ]
+  end
 end

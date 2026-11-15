@@ -25,8 +25,8 @@ defmodule SlipdockWeb.API.HealthController do
   end
 
   def create(conn, %{"board" => ref}) do
-    with {:ok, board} <- Authorize.fetch_board(conn, ref, :write) do
-      {:ok, _counts} = Health.run(board)
+    with {:ok, board} <- Authorize.fetch_board(conn, ref, :write),
+         {:ok, _counts} <- Health.run(board) do
       answer(conn, board)
     end
   end
