@@ -285,3 +285,39 @@ func TestDiffNamesEachFieldThatChanged(t *testing.T) {
 		t.Fatal(got)
 	}
 }
+
+// A ceiling narrowed while the daemon runs from its cache, before the
+// server has answered (#3249): an accepted runner it now leaves out is
+// dropped and reported refused, as Load drops one at the start.
+func TestSetCeilingDropsACachedRunnerItLeavesOut(t *testing.T) {
+	r := newRig(t)
+	on5 := r.listed(25, 1, "default")
+	on5.BoardID = 5
+	wide := r.ceiling()
+	wide.Boards = []int64{3, 5}
+	r.k.Ceiling = wide
+	r.k.Apply(&runner.Listing{Version: 1, Runners: []runner.Listed{r.listed(21, 1, "default"), on5}})
+	r.k.Flush(context.Background())
+
+	k := r.keeper(wide)
+	if ok, err := k.Load(); !ok || err != nil {
+		t.Fatalf("load: %v %v", ok, err)
+	}
+	running := k.SetCeiling(r.ceiling())
+	if len(running) != 1 || running[0].ID != 21 {
+		t.Fatalf("running %v, want runner 21 alone", running)
+	}
+	k.Flush(context.Background())
+	for _, want := range []string{"ceiling changed at this machine: boards [3 5] → [3]",
+		"runner builder (#25) v1 is outside this machine's ceiling now: it finishes the job it holds, then stops: board #5 is not one this machine serves"} {
+		if !strings.Contains(r.changes(), want) {
+			t.Errorf("the change log doesn't say %q:\n%s", want, r.changes())
+		}
+	}
+	if last := r.srv.reports[len(r.srv.reports)-1]; last != "25 v1 rejected: board #5 is not one this machine serves" {
+		t.Errorf("last report %q, want runner 25 refused", last)
+	}
+	if k.Listed() != 1 {
+		t.Errorf("Listed %d, want the one cached runner", k.Listed())
+	}
+}

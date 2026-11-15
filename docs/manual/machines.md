@@ -9,7 +9,8 @@ added and changed from the board, not from a shell on the machine, and the
 machine's own **ceiling** limits what the board may set.
 
 The daemon is being built in steps (epic #2569). What is here today:
-enrolling a machine, its ceiling, `show`, `doctor`, `status`, `log` and
+enrolling a machine, its ceiling (and `boards`, which changes the boards in
+it), `show`, `doctor`, `status`, `log` and
 `config` (the machine read from its own files), the service, signed
 releases that it updates itself from, running its runners' jobs, and the
 Machines page where its runners are set, taking changes made there while
@@ -148,7 +149,9 @@ slipdock-runner init --server https://slipdock.example.com --key sdk_…
 ```
 
 Rename a machine on its page (the Name field), or with `slipdock machine rename
-<id> <name>`. Its hostname, as the daemon reported it, stays as it was.
+<id> <name>`. Its hostname, as the daemon reported it, stays as it was. The
+boards it serves can change later too: see
+[Changing the boards a machine serves](#changing-the-boards-a-machine-serves).
 
 A machine that is already enrolled refuses a second `init`; `--replace`
 enrols it again (revoke the old one on the Machines page).
@@ -198,7 +201,7 @@ writes; only someone at the machine changes it.
 | `agents` | the agents a runner may run: `claude`, `codex`, or a custom command defined on the machine | `claude` |
 | `max_permission_mode` | the highest permission mode (`plan`, `default`, `acceptEdits`, `bypassPermissions`) | `acceptEdits` |
 | `max_timeout_minutes` | the longest a job may run | 60 |
-| `boards` | the boards the machine serves | the ones chosen on the approval page |
+| `boards` | the boards the machine serves | the ones chosen on the approval page; `slipdock-runner boards add\|remove` changes them later |
 | `executors` | who a runner's jobs may run as (below) | `user` with a dedicated account; `me` and `confined` without one (`me` only on Windows) |
 | `container_images` | the images a `container` runner may run (below) | none: no image runs until you list one |
 
@@ -207,6 +210,46 @@ them as it writes the file (`--root` and `--agent` repeat). `init --replace`
 keeps a ceiling already there unless one of those flags is given. A setting
 from the board outside the ceiling is refused on the machine, and the runner
 keeps its last accepted settings.
+
+A running daemon reads `ceiling.json` again within a minute of it changing,
+with no restart: a runner the new ceiling allows starts, one it leaves out
+takes no more jobs once the one it holds has finished, and the change goes
+into `changes.log` (`ceiling changed at this machine: boards [3] → [3 5]`).
+An edit that isn't a valid ceiling is logged and ignored, and the one in use
+stays.
+
+#### Changing the boards a machine serves
+
+A machine's boards can change after it is enrolled, without enrolling it
+again or touching its other runners (#3249). Two places say which boards it
+serves, and both must list a board before the machine takes its jobs:
+
+- **The server.** On the machine's page, under **Boards**, **Add board**
+  offers the boards you could choose at approval (top-level boards you own
+  or can write to), and **Remove** takes one off. Or `slipdock machine
+  boards <id> --add <board> --remove <board>` (each repeatable, ids or
+  codes), or `PATCH /api/machines/:id` with `add_boards` and
+  `remove_boards`. Only the machine's owner changes them. A board that still
+  has runners on the machine is refused, naming them: remove those first
+  (each finishes the job it holds). The last board can't be removed: revoke
+  the machine instead. Each change is in the machine's **changes**.
+- **The machine.** The ceiling is the machine's own, so the server can't
+  add a board to it. A board added on the server is marked *not in the
+  ceiling* on the page, with the command to run at the machine, and its
+  runners are refused there until someone runs it:
+
+  ```sh
+  slipdock-runner boards              # the boards in the ceiling
+  slipdock-runner boards add 115      # add one (or several)
+  slipdock-runner boards remove 3     # take one out; the last stays
+  ```
+
+  It edits `ceiling.json` and keeps every other field as it was. A running
+  daemon picks it up within a minute.
+
+Removing a board on the server alone is enough: the server sends nothing
+for it. The page notes a board still in the ceiling, with the `remove` line
+to tidy it.
 
 ### Who jobs run as: executors
 
@@ -488,6 +531,8 @@ people that serve a board you're on. Each opens its own page, which shows:
 
 - whether it is **online** (heard from in the last two minutes), its system,
   and when it was last seen;
+- the **boards** it serves, each marked *not in the ceiling* where the
+  machine's own ceiling doesn't list it yet, with the command to run there;
 - its **ceiling** and the **executors** it offers, as the machine reported
   them: read-only, since only someone at the machine changes them;
 - its **runners**: name, board, pool, agent, directory, permission mode,
@@ -497,7 +542,8 @@ people that serve a board you're on. Each opens its own page, which shows:
   how it ended and the log it sent;
 - a **refusal** in full: the setting the machine refused, its reason, the
   limit it crossed, and the version it still runs;
-- the **changes**: every setting the machine accepted or refused.
+- the **changes**: every setting the machine accepted or refused, and each
+  board added or removed.
 
 On your own machine you can:
 
@@ -516,6 +562,8 @@ On your own machine you can:
   it holds finishes.
 - **Remove** a runner: the machine finishes the job it holds, then stops
   it.
+- **Add** and **Remove** the boards it serves (see
+  [Changing the boards a machine serves](#changing-the-boards-a-machine-serves)).
 - **Update now**: the machine looks for a newer signed release at once,
   rather than waiting for its next check.
 - **Revoke** the machine: its key stops working at once.
@@ -526,6 +574,7 @@ runners of their boards, and none of the buttons. From the command line:
 ```sh
 slipdock machines
 slipdock machine show 4
+slipdock machine boards 4 --add my-other-board
 slipdock machine add-runner 4 my-board --pool build --dir ~/src/app --timeout-minutes 30
 slipdock machine set-runner 4 build-box-build --permission-mode plan
 slipdock machine pause-runner 4 build-box-build

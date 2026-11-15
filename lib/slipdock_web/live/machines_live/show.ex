@@ -10,8 +10,10 @@ defmodule SlipdockWeb.MachinesLive.Show do
   (`SlipdockWeb.TrustContract`, #2581).
 
   Its owner adds, changes, pauses, probes and removes runners here, renames
-  the machine (#2666; its hostname stays as the daemon reported it), asks it
-  to update now, and revokes it. A field set outside the ceiling is marked
+  the machine (#2666; its hostname stays as the daemon reported it), adds
+  and removes the boards it serves (#3249, `Machines.change_boards/3`;
+  a board its ceiling doesn't list yet is marked, with the command to run
+  at the machine), asks it to update now, and revokes it. A field set outside the ceiling is marked
   with the limit; the page still saves it, since the daemon is what
   refuses (`Slipdock.Runners.Ceiling`), and its refusal then shows here.
   A member of a board the machine serves sees the page and changes nothing.
@@ -77,6 +79,8 @@ defmodule SlipdockWeb.MachinesLive.Show do
         |> Enum.filter(&(socket.assigns.role == :owner or Enum.member?(runner_ids, &1.runner_id))),
       board_names: Map.new(reachable, &{&1.id, &1.name}),
       boards: serving(machine, socket.assigns.current_user),
+      addable: addable(socket.assigns.role, machine, socket.assigns.current_user),
+      mismatch: Machines.ceiling_mismatch(machine),
       setup_prompt: setup_prompt(socket, machine)
     )
   end
@@ -94,6 +98,16 @@ defmodule SlipdockWeb.MachinesLive.Show do
     |> Machines.servable_boards(archived: :all)
     |> Enum.filter(&Enum.member?(machine.board_ids, &1.id))
   end
+
+  # The boards its owner could add (#3249): those they may have a machine
+  # serve that it doesn't yet.
+  defp addable(:owner, %{revoked_at: nil} = machine, user) do
+    user
+    |> Machines.servable_boards()
+    |> Enum.reject(&Enum.member?(machine.board_ids, &1.id))
+  end
+
+  defp addable(_role, _machine, _user), do: []
 
   defp visible(runners, :owner, _board_ids), do: runners
 
@@ -224,6 +238,12 @@ defmodule SlipdockWeb.MachinesLive.Show do
     end
   end
 
+  def handle_event("add_board", %{"board" => ref}, socket),
+    do: change_boards(socket, [add: [ref]], "added")
+
+  def handle_event("remove_board", %{"id" => id}, socket),
+    do: change_boards(socket, [remove: [id]], "removed")
+
   def handle_event("revoke", _params, socket) do
     {:ok, machine} = Machines.revoke_machine(socket.assigns.machine)
 
@@ -231,6 +251,19 @@ defmodule SlipdockWeb.MachinesLive.Show do
      socket
      |> notice(:info, "#{machine.name} is revoked: its key no longer works.")
      |> load(machine)}
+  end
+
+  defp change_boards(socket, change, done) do
+    case Machines.change_boards(socket.assigns.machine, socket.assigns.current_user, change) do
+      {:ok, machine} ->
+        {:noreply,
+         socket
+         |> notice(:info, "Board #{done}. The machine has it within seconds.")
+         |> load(machine)}
+
+      {:error, :invalid, message} ->
+        {:noreply, notice(socket, :error, message)}
+    end
   end
 
   # The form's values so far with the new ones. The browser's `_unused_`
@@ -319,6 +352,14 @@ defmodule SlipdockWeb.MachinesLive.Show do
   end
 
   defp board_name(names, id), do: Map.get(names, id, "board ##{id}")
+
+  defp outcome_tone("rejected"), do: "text-error"
+  defp outcome_tone(outcome) when outcome in ["board_added", "board_removed"], do: "text-info"
+  defp outcome_tone(_), do: "text-success"
+
+  defp outcome_text("board_added"), do: "board added"
+  defp outcome_text("board_removed"), do: "board removed"
+  defp outcome_text(outcome), do: outcome
 
   ## Render ------------------------------------------------------------------------
 
@@ -506,6 +547,88 @@ defmodule SlipdockWeb.MachinesLive.Show do
               </div>
             </div>
           </details>
+
+          <section
+            id="machine-boards"
+            class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10"
+          >
+            <h2 class="section-title">Boards</h2>
+            <p class="mt-1 text-sm text-base-content/60">
+              The boards this server lets the machine serve. The machine's own ceiling must list a
+              board too before it takes that board's jobs.
+            </p>
+            <ul class="mt-3 divide-y divide-base-content/10 text-sm">
+              <li
+                :for={id <- @machine.board_ids}
+                id={"machine-board-#{id}"}
+                class="flex items-center gap-2 py-1.5"
+              >
+                <span>{board_name(@board_names, id)}</span>
+                <span
+                  :if={id in @mismatch.missing}
+                  data-role="not-in-ceiling"
+                  class="rounded bg-warning/15 px-1.5 py-0.5 text-2xs font-medium text-warning"
+                >not in the ceiling</span>
+                <span class="flex-1" />
+                <button
+                  :if={@role == :owner and !@revoked and length(@machine.board_ids) > 1}
+                  type="button"
+                  class="btn btn-ghost btn-error btn-xs"
+                  phx-click="remove_board"
+                  phx-value-id={id}
+                  data-confirm={"Stop #{@machine.name} serving #{board_name(@board_names, id)}?"}
+                >Remove</button>
+              </li>
+            </ul>
+            <form
+              :if={@addable != []}
+              id="machine-add-board"
+              phx-submit="add_board"
+              class="field-row mt-3 gap-2 text-sm"
+            >
+              <label class="block">
+                <span class="field-label">Board to add</span>
+                <select name="board" id="machine-add-board-select" class="select field">
+                  <option :for={b <- @addable} value={b.id}>{b.name}</option>
+                </select>
+              </label>
+              <button type="submit" class="btn btn-sm">Add board</button>
+            </form>
+            <.callout
+              :if={@mismatch.missing != []}
+              id="machine-boards-ceiling"
+              kind={:warning}
+              class="mt-3"
+            >
+              <p>
+                Not in the machine's ceiling yet: {Enum.map_join(
+                  @mismatch.missing,
+                  ", ",
+                  &board_name(@board_names, &1)
+                )}. The machine refuses those boards' runners until someone at it runs:
+              </p>
+              <pre
+                id="machine-boards-ceiling-command"
+                class="field-mono mt-1 whitespace-pre-wrap rounded bg-base-200 p-2"
+              >slipdock-runner boards add {Enum.join(@mismatch.missing, " ")}</pre>
+              <p class="mt-1 text-base-content/60">
+                A running daemon picks the change up without a restart. The server never changes the ceiling.
+              </p>
+            </.callout>
+            <p
+              :if={@mismatch.extra != []}
+              id="machine-boards-extra"
+              class="mt-3 text-xs text-base-content/60"
+            >
+              Still in the machine's ceiling, though not served from here: {Enum.map_join(
+                @mismatch.extra,
+                ", ",
+                &board_name(@board_names, &1)
+              )}. Nothing is sent
+              for them; <code>slipdock-runner boards remove {Enum.join(@mismatch.extra, " ")}</code>
+              at the machine tidies the ceiling.
+            </p>
+          </section>
 
           <section
             id="machine-ceiling"
@@ -696,12 +819,12 @@ defmodule SlipdockWeb.MachinesLive.Show do
           >
             <h2 class="section-title">Changes</h2>
             <p class="mt-1 text-sm text-base-content/60">
-              What the machine said of each setting it was sent.
+              What the machine said of each setting it was sent, and each board added or removed.
             </p>
             <ul class="mt-3 space-y-1 text-sm">
               <li :for={c <- @changes} class="flex flex-wrap gap-2">
-                <span class={if c.outcome == "rejected", do: "text-error", else: "text-success"}>{c.outcome}</span>
-                <span>{c.runner_name} v{c.version}</span>
+                <span class={outcome_tone(c.outcome)}>{outcome_text(c.outcome)}</span>
+                <span :if={c.runner_name}>{c.runner_name} v{c.version}</span>
                 <span :if={c.reason} class="text-base-content/70">— {c.reason}</span>
                 <span class="text-xs text-base-content/60"><.timestamp at={c.inserted_at} /></span>
               </li>

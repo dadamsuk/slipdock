@@ -240,6 +240,40 @@ defmodule Slipdock.Runners.MachineRunners do
     end
   end
 
+  @doc """
+  Sets the boards `machine` serves to `ids` (#3249), with `added` and
+  `removed` the boards that changed: `Slipdock.Machines.change_boards/3`
+  checks them first and is the door to use. In one transaction it saves
+  them, bumps the machine's config version (so the daemon's long-poll
+  wakes and its config carries the new boards) and logs a line per board
+  in the machine's changes. Returns `{:ok, machine}`.
+  """
+  def set_boards(%Machine{} = machine, ids, added, removed) do
+    names =
+      Map.new(Repo.all(from(b in Board, where: b.id in ^(added ++ removed))), &{&1.id, &1.name})
+
+    Repo.transaction(fn ->
+      {1, [version]} =
+        Repo.update_all(
+          from(m in Machine, where: m.id == ^machine.id, select: m.config_version),
+          inc: [config_version: 1],
+          set: [board_ids: ids, updated_at: DateTime.utc_now(:second)]
+        )
+
+      for {outcome, list} <- [{"board_added", added}, {"board_removed", removed}], id <- list do
+        Repo.insert!(%ConfigReport{
+          machine_id: machine.id,
+          version: version,
+          outcome: outcome,
+          reason: "#{Map.get(names, id, "board")} (##{id})"
+        })
+      end
+
+      Repo.get!(Machine, machine.id)
+    end)
+    |> after_change(machine)
+  end
+
   defp live(%Machine{revoked_at: nil}), do: :ok
   defp live(%Machine{}), do: {:error, :invalid, "the machine is revoked"}
 
@@ -290,7 +324,8 @@ defmodule Slipdock.Runners.MachineRunners do
 
   @doc """
   What the daemon runs: the machine's config version, when *update now*
-  was last asked for, and each runner's id, name, board, pool, config,
+  was last asked for, the boards the server lets it serve (#3249: its own
+  ceiling still decides), and each runner's id, name, board, pool, config,
   config version and whether it is paused.
   """
   def config_for(%Machine{id: id}) do
@@ -299,6 +334,7 @@ defmodule Slipdock.Runners.MachineRunners do
     %{
       version: machine.config_version,
       update_requested_at: machine.update_requested_at,
+      boards: machine.board_ids,
       runners:
         Enum.map(list_runners(machine), fn r ->
           %{

@@ -88,13 +88,7 @@ defmodule Slipdock.Machines do
     refs = Enum.reject(refs, &(&1 == ""))
     boards = servable_boards(user, archived: :all)
 
-    {found, missing} =
-      Enum.reduce(refs, {[], []}, fn ref, {found, missing} ->
-        case Enum.find(boards, &(Integer.to_string(&1.id) == ref or &1.code == ref)) do
-          nil -> {found, [ref | missing]}
-          board -> {[board.id | found], missing}
-        end
-      end)
+    {found, missing} = find_boards(boards, refs)
 
     cond do
       refs == [] ->
@@ -107,6 +101,149 @@ defmodule Slipdock.Machines do
       true ->
         {:ok, found |> Enum.reverse() |> Enum.uniq()}
     end
+  end
+
+  @doc """
+  Changes the boards an enrolled machine serves (#3249), without
+  re-enrolling it: `add:` and `remove:` each a list of board refs (ids or
+  codes). `user` is the machine's owner; the doors check that before
+  calling. A board added must be one `user` may have a machine serve
+  (`servable_board_ids/2`); a board removed is any the machine serves now,
+  even one `user` can no longer reach, since removing only narrows.
+
+  Refused with `{:error, :invalid, message}`: a revoked machine, nothing
+  named, a board both added and removed, a board removed that the machine
+  doesn't serve, a board removed that still has runners on this machine
+  (naming them: remove those first, each finishing the job it holds), and
+  removing the last board (revoke the machine instead). Its other runners
+  are untouched.
+
+  The change goes out with the machine's config (`MachineRunners`), and
+  each board added or removed is a line in the machine's changes. The
+  machine's own ceiling still decides what it serves: a board added here
+  is refused there until someone at the machine adds it to `ceiling.json`
+  (`ceiling_mismatch/1`). Asking for what is already so changes nothing.
+  Returns `{:ok, machine}`.
+  """
+  def change_boards(%Machine{} = machine, %User{} = user, opts) do
+    add = opts |> Keyword.get(:add) |> refs()
+    remove = opts |> Keyword.get(:remove) |> refs()
+
+    with :ok <- live(machine),
+         :ok <- something(add, remove),
+         {:ok, add_ids} <- adding(user, add),
+         {:ok, remove_ids} <- removing(machine, remove),
+         :ok <- not_both(add_ids, remove_ids),
+         added = add_ids -- machine.board_ids,
+         removed = Enum.filter(remove_ids, &Enum.member?(machine.board_ids, &1)),
+         :ok <- no_runners_on(machine, removed),
+         ids = (machine.board_ids -- removed) ++ added,
+         :ok <- not_empty(ids) do
+      if added == [] and removed == [],
+        do: {:ok, machine},
+        else: Slipdock.Runners.MachineRunners.set_boards(machine, ids, added, removed)
+    end
+  end
+
+  defp refs(nil), do: []
+
+  defp refs(refs),
+    do:
+      refs
+      |> List.wrap()
+      |> Enum.flat_map(&String.split(to_string(&1), ","))
+      |> Enum.map(&String.trim/1)
+      |> Enum.reject(&(&1 == ""))
+
+  defp live(%Machine{revoked_at: nil}), do: :ok
+  defp live(%Machine{}), do: {:error, :invalid, "the machine is revoked"}
+
+  defp something([], []), do: {:error, :invalid, "name a board to add or to remove"}
+  defp something(_, _), do: :ok
+
+  defp adding(_user, []), do: {:ok, []}
+  defp adding(user, refs), do: servable_board_ids(user, refs)
+
+  defp removing(_machine, []), do: {:ok, []}
+
+  defp removing(%Machine{board_ids: ids}, refs) do
+    boards = Repo.all(from(b in Slipdock.Boards.Board, where: b.id in ^ids))
+
+    {found, missing} = find_boards(boards, refs)
+
+    if missing == [],
+      do: {:ok, found |> Enum.reverse() |> Enum.uniq()},
+      else:
+        {:error, :invalid,
+         "the machine doesn't serve #{missing |> Enum.reverse() |> Enum.join(", ")}: nothing to remove"}
+  end
+
+  defp not_both(add_ids, remove_ids) do
+    case Enum.filter(add_ids, &Enum.member?(remove_ids, &1)) do
+      [] ->
+        :ok
+
+      both ->
+        {:error, :invalid, "board #{Enum.join(both, ", ")} is both added and removed: choose one"}
+    end
+  end
+
+  defp no_runners_on(_machine, []), do: :ok
+
+  defp no_runners_on(machine, removed) do
+    case Enum.filter(
+           Slipdock.Runners.MachineRunners.list_runners(machine),
+           &Enum.member?(removed, &1.board_id)
+         ) do
+      [] ->
+        :ok
+
+      runners ->
+        names = Enum.map_join(runners, ", ", &"#{&1.name} (##{&1.id})")
+
+        {:error, :invalid,
+         "#{board_label(runners)} still has runners on this machine: #{names}. " <>
+           "Remove them first (each finishes the job it holds), then the board"}
+    end
+  end
+
+  defp board_label(runners) do
+    case runners |> Enum.map(& &1.board_id) |> Enum.uniq() do
+      [id] -> "board ##{id}"
+      ids -> "boards " <> Enum.map_join(ids, ", ", &"##{&1}")
+    end
+  end
+
+  defp not_empty([]),
+    do:
+      {:error, :invalid,
+       "a machine serves at least one board: to stop it serving any, revoke it instead"}
+
+  defp not_empty(_), do: :ok
+
+  @doc """
+  Where the boards the server lets `machine` serve and the boards its own
+  ceiling lists disagree (#3249): `missing`, allowed here but not in the
+  ceiling, so the machine refuses their runners until someone there adds
+  them (`slipdock-runner boards add`); `extra`, in the ceiling but no longer
+  allowed here, which the server simply sends nothing for. Both empty when
+  they agree or the machine hasn't reported a ceiling.
+  """
+  def ceiling_mismatch(%Machine{ceiling: %{"boards" => ceiling}, board_ids: ids})
+      when is_list(ceiling),
+      do: %{missing: ids -- ceiling, extra: ceiling -- ids}
+
+  def ceiling_mismatch(%Machine{}), do: %{missing: [], extra: []}
+
+  # The ids `refs` (ids or codes) name among `boards`, and the refs that
+  # name none, each in reverse order.
+  defp find_boards(boards, refs) do
+    Enum.reduce(refs, {[], []}, fn ref, {found, missing} ->
+      case Enum.find(boards, &(Integer.to_string(&1.id) == ref or &1.code == ref)) do
+        nil -> {found, [ref | missing]}
+        board -> {[board.id | found], missing}
+      end
+    end)
   end
 
   @doc "The boards a machine may serve that `user` can still reach, for showing."

@@ -1,6 +1,7 @@
 package machine
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -180,20 +181,69 @@ func SaveCeiling(dir string, c Ceiling) error {
 
 // LoadCeiling reads and checks the ceiling.
 func LoadCeiling(dir string) (Ceiling, error) {
-	var c Ceiling
 	path := filepath.Join(dir, CeilingFile)
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return c, err
+		return Ceiling{}, err
 	}
-	dec := json.NewDecoder(strings.NewReader(string(data)))
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(&c); err != nil {
-		return c, fmt.Errorf("%s: %w", path, err)
+	return ParseCeiling(path, data)
+}
+
+// ParseCeiling checks data, the ceiling file at path, as LoadCeiling does:
+// no field it doesn't know, and a valid ceiling.
+func ParseCeiling(path string, data []byte) (Ceiling, error) {
+	c, err := decodeCeiling(path, data)
+	if err != nil {
+		return c, err
 	}
 	if err := c.Validate(); err != nil {
 		return c, fmt.Errorf("%s: %w", path, err)
 	}
 	c.Executors = c.Offered()
+	return c, nil
+}
+
+func decodeCeiling(path string, data []byte) (Ceiling, error) {
+	var c Ceiling
+	dec := json.NewDecoder(bytes.NewReader(data))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&c); err != nil {
+		return c, fmt.Errorf("%s: %w", path, err)
+	}
+	return c, nil
+}
+
+// EditCeiling changes the ceiling in place (#3249): it reads the file as
+// written, lets change edit it, checks the result and writes it back
+// whole, atomically, with the file's own permissions. Every field change
+// leaves alone stays as it was (an executors list left out stays left out).
+// A change that leaves the ceiling invalid writes nothing.
+func EditCeiling(dir string, change func(*Ceiling) error) (Ceiling, error) {
+	path := filepath.Join(dir, CeilingFile)
+	fi, err := os.Stat(path)
+	if err != nil {
+		return Ceiling{}, err
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return Ceiling{}, err
+	}
+	c, err := decodeCeiling(path, data)
+	if err != nil {
+		return c, err
+	}
+	if err := change(&c); err != nil {
+		return c, err
+	}
+	if err := c.Validate(); err != nil {
+		return c, fmt.Errorf("the ceiling wouldn't be valid: %w", err)
+	}
+	out, err := json.MarshalIndent(c, "", "  ")
+	if err != nil {
+		return c, err
+	}
+	if err := writeFile(path, append(out, '\n'), fi.Mode().Perm()); err != nil {
+		return c, err
+	}
 	return c, nil
 }

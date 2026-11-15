@@ -2,7 +2,7 @@ defmodule SlipdockCLI.Machines do
   @moduledoc false
 
   # Machines running the runner daemon (#2570): the account's own, listed,
-  # shown, renamed (#2666) and revoked; a machine's enrolment looked up, approved or refused
+  # shown, renamed (#2666), their boards changed (#3249) and revoked; a machine's enrolment looked up, approved or refused
   # by the code `slipdock-runner init` shows (as the approval page does);
   # and the one-time enrolment keys for a machine with nobody at its screen.
   # A machine's runners (#2572): added, changed, paused, resumed and removed,
@@ -21,6 +21,7 @@ defmodule SlipdockCLI.Machines do
   @usage "usage: slipdock machines | machine show|revoke|update|setup-prompt <id> | " <>
            "machine enrolment <code> | machine approve <code> <board>... | " <>
            "machine rename <id> <name> | " <>
+           "machine boards <id> [--add B] [--remove B] | " <>
            "machine refuse <code> | machine enrol-key <board>... [--label NAME] | " <>
            "machine add-runner <id> <board> --pool P --dir D [config] | " <>
            "machine set-runner <id> <runner> [config] | " <>
@@ -70,6 +71,21 @@ defmodule SlipdockCLI.Machines do
      fn %{"machine" => m} ->
        IO.puts("machine ##{m["id"]} is now #{m["name"]} (hostname #{m["hostname"]})")
      end}
+  end
+
+  # The boards it serves (#3249): listed, or --add and --remove (each
+  # repeatable, ids or codes) changed. The machine's own ceiling must list a
+  # board too, and what it lacks is said with the command to run there.
+  def plan(["boards", id], o) do
+    add = Keyword.get_values(o, :add_board)
+    remove = Keyword.get_values(o, :remove_board)
+
+    if add == [] and remove == [] do
+      {:ok, :get, "/machines/#{enc(id)}", &boards(&1["machine"])}
+    else
+      {:ok, :patch, "/machines/#{enc(id)}", %{"add_boards" => add, "remove_boards" => remove},
+       &boards(&1["machine"])}
+    end
   end
 
   def plan(["enrolment", code], _o),
@@ -321,9 +337,30 @@ defmodule SlipdockCLI.Machines do
     ])
 
     ceiling(m["ceiling"])
+    ceiling_mismatch(m["ceiling_mismatch"])
     runners(m["runners"] || [])
     changes(m["changes"] || [])
   end
+
+  @doc false
+  def boards(m) do
+    IO.puts(
+      "machine ##{m["id"]} #{m["name"]} serves boards #{Enum.join(m["boards"] || [], ", ")}"
+    )
+
+    ceiling_mismatch(m["ceiling_mismatch"])
+  end
+
+  defp ceiling_mismatch(%{"missing" => [_ | _] = missing}) do
+    IO.puts(
+      Render.yellow(
+        "not in the machine's ceiling yet: #{Enum.join(missing, ", ")}: it refuses their runners " <>
+          "until someone at the machine runs `slipdock-runner boards add #{Enum.join(missing, " ")}`"
+      )
+    )
+  end
+
+  defp ceiling_mismatch(_), do: :ok
 
   defp ceiling(nil), do: :ok
 
@@ -401,9 +438,16 @@ defmodule SlipdockCLI.Machines do
     IO.puts("\n" <> Render.bold("Changes"))
 
     for c <- Enum.take(list, 10) do
-      reason = if c["reason"], do: ": #{c["reason"]}", else: ""
-      IO.puts("  #{c["at"]}  #{c["runner"]} v#{c["version"]} #{c["outcome"]}#{reason}")
+      IO.puts("  #{c["at"]}  #{change_line(c)}")
     end
+  end
+
+  # A board added or removed (#3249) has no runner: the board is its reason.
+  defp change_line(%{"outcome" => "board_" <> done} = c), do: "board #{done}: #{c["reason"]}"
+
+  defp change_line(c) do
+    reason = if c["reason"], do: ": #{c["reason"]}", else: ""
+    "#{c["runner"]} v#{c["version"]} #{c["outcome"]}#{reason}"
   end
 
   @doc false

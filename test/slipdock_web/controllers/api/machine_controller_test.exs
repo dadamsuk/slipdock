@@ -362,6 +362,105 @@ defmodule SlipdockWeb.API.MachineControllerTest do
       assert Repo.get!(Machine, machine.id).name == "Silverbox"
     end
 
+    test "its owner adds and removes boards (#3249); the answer says what the ceiling lacks",
+         ctx do
+      {_, machine} = enrolled(ctx)
+      second = board_fixture(%{"name" => "Second", "code" => unique_code()}, owner: ctx.user)
+
+      {:ok, _} =
+        Slipdock.Runners.MachineRunners.record_ceiling(machine, %{
+          "roots" => ["/srv"],
+          "agents" => ["claude"],
+          "executors" => ["user"],
+          "boards" => [ctx.board.id],
+          "max_permission_mode" => "acceptEdits",
+          "max_timeout_minutes" => 60
+        })
+
+      assert %{
+               "machine" => %{
+                 "boards" => boards,
+                 "ceiling_mismatch" => mismatch,
+                 "name" => "build-box"
+               }
+             } =
+               ctx.conn
+               |> patch(~p"/api/machines/#{machine.id}", %{add_boards: [second.code]})
+               |> json_response(200)
+
+      assert boards == [ctx.board.id, second.id]
+      assert mismatch == %{"missing" => [second.id], "extra" => []}
+
+      # The detail carries it too, with the change in the machine's changes.
+      assert %{"machine" => %{"ceiling_mismatch" => %{"missing" => [_]}, "changes" => [change]}} =
+               ctx.conn |> get(~p"/api/machines/#{machine.id}") |> json_response(200)
+
+      assert %{"outcome" => "board_added", "runner" => nil} = change
+
+      # A board with a runner on it is refused, naming the runner.
+      {:ok, runner} =
+        Slipdock.Runners.MachineRunners.add_runner(Repo.get!(Machine, machine.id), second, %{
+          "pool" => "build",
+          "name" => "builder",
+          "config" => %{"directory" => "/srv/app"}
+        })
+
+      assert %{"error" => error} =
+               ctx.conn
+               |> patch(~p"/api/machines/#{machine.id}", %{remove_boards: [second.id]})
+               |> json_response(422)
+
+      assert error =~ "still has runners on this machine: builder (##{runner.id})"
+
+      {:ok, _} = Slipdock.Runners.MachineRunners.remove_runner(runner)
+
+      assert %{"machine" => %{"boards" => [only]}} =
+               ctx.conn
+               |> patch(~p"/api/machines/#{machine.id}", %{remove_boards: [second.id]})
+               |> json_response(200)
+
+      assert only == ctx.board.id
+
+      # Boards and a name together: a refused board change renames nothing.
+      theirs = board_fixture(%{}, owner: user_fixture("stranger@example.com"))
+
+      assert %{"error" => "not a top-level board you can write to" <> _} =
+               ctx.conn
+               |> patch(~p"/api/machines/#{machine.id}", %{name: "Other", add_boards: [theirs.id]})
+               |> json_response(422)
+
+      assert Repo.get!(Machine, machine.id).name == "build-box"
+      assert Repo.get!(Machine, machine.id).board_ids == [ctx.board.id]
+    end
+
+    test "a member, a stranger and a board-scoped token can't change its boards", ctx do
+      {_, machine} = enrolled(ctx)
+      second = board_fixture(%{"name" => "Second"}, owner: ctx.user)
+      member = user_fixture("boards-member@example.com")
+      {:ok, _} = Slipdock.Access.grant(ctx.board, member, "write", ctx.user)
+      {:ok, _} = Slipdock.Access.grant(second, member, "write", ctx.user)
+
+      assert %{"error" => "only the machine's owner changes it" <> _} =
+               member
+               |> conn_as()
+               |> patch(~p"/api/machines/#{machine.id}", %{add_boards: [second.id]})
+               |> json_response(403)
+
+      conn_as(user_fixture("boards-stranger@example.com"))
+      |> patch(~p"/api/machines/#{machine.id}", %{add_boards: [second.id]})
+      |> json_response(404)
+
+      {token, _} = Accounts.create_api_token(ctx.user, "scoped", scope_boards: [ctx.board.id])
+
+      assert %{"error" => "this API token is limited to some boards" <> _} =
+               anon()
+               |> put_req_header("authorization", "Bearer " <> token)
+               |> patch(~p"/api/machines/#{machine.id}", %{add_boards: [second.id]})
+               |> json_response(403)
+
+      assert Repo.get!(Machine, machine.id).board_ids == [ctx.board.id]
+    end
+
     test "an enrolment key is shown once, for boards the caller can reach", ctx do
       assert %{"enrolment_key" => "sde_" <> _, "boards" => [b], "valid_hours" => 24} =
                ctx.conn

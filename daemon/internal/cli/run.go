@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -8,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"time"
@@ -227,23 +229,51 @@ func runRunners(ctx context.Context, d string, st machine.State, key string, cei
 			logf("config version %d: no runner starts, as the daemon restarts for an update", keeper.Version())
 			return
 		}
-		workers, _ := runner.Build(&runner.MachineConfig{Version: keeper.Version(), Runners: running}, ceil, base)
+		workers, _ := runner.Build(&runner.MachineConfig{Version: keeper.Version(), Runners: running}, keeper.Ceiling, base)
 		pool.Apply(workers)
 		logf("config version %d: %d of %d runners running", keeper.Version(), len(workers), listed)
 	}
 
 	// The ceiling's report ends before runRunners returns (#2644): it logs,
-	// and nothing it writes may land after the run has finished.
-	reportCtx, stopReport := context.WithCancel(ctx)
-	reported := make(chan struct{})
-	go func() {
-		defer close(reported)
-		reportCeiling(reportCtx, client, ceil, wakeable(pause, conns), logf)
-	}()
+	// and nothing it writes may land after the run has finished. A new
+	// ceiling (#3249) ends the report of the old one and starts its own.
+	var stopReport context.CancelFunc
+	var reported chan struct{}
+	report := func(c machine.Ceiling) {
+		if stopReport != nil {
+			stopReport()
+			<-reported
+		}
+		reportCtx, stop := context.WithCancel(ctx)
+		done := make(chan struct{})
+		stopReport, reported = stop, done
+		go func() {
+			defer close(done)
+			reportCeiling(reportCtx, client, c, wakeable(pause, conns), logf)
+		}()
+	}
+	report(ceil)
 	defer func() {
 		stopReport()
 		<-reported
 	}()
+
+	// The ceiling is this loop's alone (keeper.Ceiling): read again from
+	// ceiling.json on every turn, as a person at the machine may change it
+	// (#3249), and handed to the report by value, so no other goroutine
+	// shares it.
+	watch := &ceilingWatch{path: filepath.Join(d, machine.CeilingFile)}
+	reload := func(started bool) {
+		c, ok := watch.changed(keeper.Ceiling, logf)
+		if !ok {
+			return
+		}
+		running := keeper.SetCeiling(c)
+		if started {
+			apply(running, keeper.Listed())
+		}
+		report(c)
+	}
 
 	cached, err := keeper.Load()
 	if err != nil {
@@ -251,6 +281,7 @@ func runRunners(ctx context.Context, d string, st machine.State, key string, cei
 	}
 	since, wait, started := int64(-1), 0, false
 	for {
+		reload(started)
 		woken := conns.Woken()
 		l, err := client.FetchConfig(ctx, since, wait)
 		switch {
@@ -286,6 +317,44 @@ func runRunners(ctx context.Context, d string, st machine.State, key string, cei
 	}
 }
 
+// ceilingWatch notices ceiling.json changed while the daemon runs (#3249):
+// its bytes are read on every turn of the config loop, which comes at
+// least every configWait seconds, and compared with the last read.
+type ceilingWatch struct {
+	path string
+	seen []byte
+	// failed is the last read error logged, so it is logged once.
+	failed string
+}
+
+// changed answers the file's ceiling when it differs from cur. A file that
+// can't be read, or isn't a valid ceiling, is logged once and ignored:
+// cur stays.
+func (w *ceilingWatch) changed(cur machine.Ceiling, logf func(string, ...any)) (machine.Ceiling, bool) {
+	data, err := os.ReadFile(w.path)
+	if err != nil {
+		if err.Error() != w.failed {
+			w.failed = err.Error()
+			logf("error: can't read the ceiling, so keeping the one in use: %v", err)
+		}
+		return cur, false
+	}
+	w.failed = ""
+	if bytes.Equal(data, w.seen) {
+		return cur, false
+	}
+	w.seen = data
+	c, err := machine.ParseCeiling(w.path, data)
+	if err != nil {
+		logf("error: the ceiling changed but isn't valid, so keeping the one in use: %v", err)
+		return cur, false
+	}
+	if reflect.DeepEqual(c, cur) {
+		return cur, false
+	}
+	return c, true
+}
+
 // linkMade, when set, is given the link cmdRun makes: a test's way to
 // wake it as a machine waking from sleep would.
 var linkMade func(*link.Link)
@@ -312,11 +381,11 @@ func wakeable(pause func(context.Context, time.Duration) error, conns *link.Link
 }
 
 // reportCeiling tells the server the machine's ceiling and the executors it
-// offers (#2615), trying again until it is sent. The ceiling is the one
-// this run read at the start: changed at the machine, it takes effect when
-// the daemon restarts, and the restarted run reports it then. A refusal
-// (the key revoked, the ceiling found invalid) is logged and not retried:
-// the same ceiling would be refused again. It ends when ctx does.
+// offers (#2615), trying again until it is sent. runRunners reports the
+// ceiling it starts with, and each one a person at the machine writes
+// after (#3249). A refusal (the key revoked, the ceiling found invalid) is
+// logged and not retried: the same ceiling would be refused again. It ends
+// when ctx does.
 func reportCeiling(ctx context.Context, client *runner.Client, ceil machine.Ceiling,
 	pause func(context.Context, time.Duration) error, logf func(string, ...any)) {
 	wait := configRetry
@@ -330,7 +399,7 @@ func reportCeiling(ctx context.Context, client *runner.Client, ceil machine.Ceil
 		case ctx.Err() != nil:
 			return
 		case errors.As(err, &refused):
-			logf("error: the server refused the ceiling, so not reporting it again until the daemon restarts: %v", err)
+			logf("error: the server refused the ceiling, so not reporting it again until it changes or the daemon restarts: %v", err)
 			return
 		}
 		logf("warn: can't report the ceiling, trying again in %s: %v", wait, err)
