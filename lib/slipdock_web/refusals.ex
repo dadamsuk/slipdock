@@ -78,3 +78,9 @@ defmodule SlipdockWeb.Refusals do
       (match?({:error, _}, notice.(after_socket)) and notice.(after_socket) != notice.(before))
   end
 end
+
+# A refusal drawn where a door draws its own error's words (a flash, a
+# notice) is its message, not a crash in the render (#3174).
+defimpl Phoenix.HTML.Safe, for: Slipdock.Policy.Refused do
+  def to_iodata(%{message: message}), do: Phoenix.HTML.Engine.html_escape(message)
+end

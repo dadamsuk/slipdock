@@ -148,11 +148,21 @@ defmodule SlipdockWeb.GardenLive.Index do
   def handle_info({:garden_changed, _board_id}, socket), do: {:noreply, load(socket)}
   def handle_info(_message, socket), do: {:noreply, socket}
 
+  # A write the context refuses (`Slipdock.Policy`) is said in a flash,
+  # whatever the handler made of it (`SlipdockWeb.Refusals`, #3174).
   @impl true
-  def handle_event(_event, _params, %{assigns: %{can_write: false}} = socket),
+  def handle_event(event, params, socket) do
+    SlipdockWeb.Refusals.said(
+      socket,
+      fn -> handle_event(event, params, socket, :said) end,
+      &put_flash(&1, :error, &2)
+    )
+  end
+
+  defp handle_event(_event, _params, %{assigns: %{can_write: false}} = socket, :said),
     do: {:noreply, put_flash(socket, :error, "You have read-only access to this board.")}
 
-  def handle_event("run", _params, socket) do
+  defp handle_event("run", _params, socket, :said) do
     {:ok, run} =
       Gardener.run(socket.assigns.board, trigger: "manual", user: socket.assigns.current_user)
 
@@ -165,7 +175,7 @@ defmodule SlipdockWeb.GardenLive.Index do
     {:noreply, socket |> put_flash(:info, message) |> load()}
   end
 
-  def handle_event("apply", %{"id" => id} = params, socket) do
+  defp handle_event("apply", %{"id" => id} = params, socket, :said) do
     with_suggestion(socket, id, fn s ->
       Gardener.apply(s, socket.assigns.current_user,
         choice: params["choice"],
@@ -175,7 +185,7 @@ defmodule SlipdockWeb.GardenLive.Index do
     end)
   end
 
-  def handle_event("dismiss", %{"id" => id}, socket),
+  defp handle_event("dismiss", %{"id" => id}, socket, :said),
     do:
       with_suggestion(
         socket,
@@ -183,7 +193,7 @@ defmodule SlipdockWeb.GardenLive.Index do
         &Gardener.dismiss(&1, socket.assigns.current_user, actor: in_person(socket))
       )
 
-  def handle_event("undo", %{"id" => id}, socket),
+  defp handle_event("undo", %{"id" => id}, socket, :said),
     do:
       with_suggestion(
         socket,
@@ -193,7 +203,7 @@ defmodule SlipdockWeb.GardenLive.Index do
 
   # Every suggestion of one check, each on its own: one that can't be
   # applied (it wants a pick, or something moved on) is left, and said.
-  def handle_event("apply_group", %{"check" => check}, socket) do
+  defp handle_event("apply_group", %{"check" => check}, socket, :said) do
     user = socket.assigns.current_user
 
     results =
@@ -215,7 +225,7 @@ defmodule SlipdockWeb.GardenLive.Index do
   # Every suggestion of one check, dismissed each on its own (#3048). One
   # only a person decides (a handbook edit) is left to be decided by itself,
   # and said.
-  def handle_event("dismiss_group", %{"check" => check}, socket) do
+  defp handle_event("dismiss_group", %{"check" => check}, socket, :said) do
     user = socket.assigns.current_user
 
     {kept, mine} =
@@ -235,7 +245,7 @@ defmodule SlipdockWeb.GardenLive.Index do
     {:noreply, load(socket)}
   end
 
-  def handle_event(_event, _params, socket), do: {:noreply, socket}
+  defp handle_event(_event, _params, socket, :said), do: {:noreply, socket}
 
   defp with_suggestion(socket, id, fun) do
     board_id = socket.assigns.board.id

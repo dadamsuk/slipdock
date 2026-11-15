@@ -27,7 +27,7 @@ defmodule Slipdock.Automations do
 
   require Logger
 
-  alias Slipdock.Repo
+  alias Slipdock.{Policy, Repo}
   alias Slipdock.Accounts.User
   alias Slipdock.ChangesetErrors
 
@@ -130,25 +130,29 @@ defmodule Slipdock.Automations do
   friendlier way in.
   """
   def create_rule(attrs, opts \\ []) do
-    %Rule{created_by_id: opts[:created_by] && opts[:created_by].id}
-    |> Rule.changeset(attrs)
-    |> check_rule_count()
-    |> check_recipients()
-    |> check_feed_list()
-    |> check_doing_list()
-    |> Repo.insert()
-    |> tap_ok(&log_rule(&1, "added automation “#{&1.name}”"))
-    |> tap_ok(&feed_rule/1)
+    with :ok <- Policy.authorize(:edit_rule, %Board{id: attrs["board_id"] || attrs[:board_id]}) do
+      %Rule{created_by_id: opts[:created_by] && opts[:created_by].id}
+      |> Rule.changeset(attrs)
+      |> check_rule_count()
+      |> check_recipients()
+      |> check_feed_list()
+      |> check_doing_list()
+      |> Repo.insert()
+      |> tap_ok(&log_rule(&1, "added automation “#{&1.name}”"))
+      |> tap_ok(&feed_rule/1)
+    end
   end
 
   def update_rule(%Rule{} = rule, attrs) do
-    rule
-    |> Rule.changeset(attrs)
-    |> check_recipients()
-    |> check_feed_list()
-    |> check_doing_list()
-    |> Repo.update()
-    |> tap_ok(&feed_rule/1)
+    with :ok <- Policy.authorize(:edit_rule, rule) do
+      rule
+      |> Rule.changeset(attrs)
+      |> check_recipients()
+      |> check_feed_list()
+      |> check_doing_list()
+      |> Repo.update()
+      |> tap_ok(&feed_rule/1)
+    end
   end
 
   @doc "How many rules one board may have."
@@ -264,14 +268,18 @@ defmodule Slipdock.Automations do
   end
 
   def delete_rule(%Rule{} = rule) do
-    Repo.delete(rule) |> tap_ok(&log_rule(&1, "removed automation “#{&1.name}”"))
+    with :ok <- Policy.authorize(:edit_rule, rule) do
+      Repo.delete(rule) |> tap_ok(&log_rule(&1, "removed automation “#{&1.name}”"))
+    end
   end
 
   def toggle_rule(%Rule{} = rule) do
-    rule
-    |> Ecto.Changeset.change(enabled: !rule.enabled)
-    |> Repo.update()
-    |> tap_ok(&feed_rule/1)
+    with :ok <- Policy.authorize(:edit_rule, rule) do
+      rule
+      |> Ecto.Changeset.change(enabled: !rule.enabled)
+      |> Repo.update()
+      |> tap_ok(&feed_rule/1)
+    end
   end
 
   @doc """
@@ -279,6 +287,10 @@ defmodule Slipdock.Automations do
   spec. Returns `{:ok, rule}` or `{:error, message}`.
   """
   def create_rule_from_text(%Board{} = board, text, opts \\ []) do
+    with :ok <- Policy.authorize(:edit_rule, board), do: from_text(board, text, opts)
+  end
+
+  defp from_text(board, text, opts) do
     with {:ok, ai_opts} <- parser_opts(opts),
          {:ok, %{"name" => name, "spec" => spec} = parsed} <-
            Parser.parse(board, text, ai_opts) do
@@ -303,6 +315,10 @@ defmodule Slipdock.Automations do
   or `{:error, message}`.
   """
   def create_rule_from_preset(%Board{} = board, key, params, opts \\ []) do
+    with :ok <- Policy.authorize(:edit_rule, board), do: from_preset(board, key, params, opts)
+  end
+
+  defp from_preset(board, key, params, opts) do
     with {:ok, attrs} <- Presets.build(key, params, user: opts[:created_by]) do
       case create_rule(Map.put(attrs, "board_id", board.id), opts) do
         {:ok, rule} -> {:ok, rule}
@@ -330,6 +346,10 @@ defmodule Slipdock.Automations do
   model of whoever is asking (`:created_by`, required).
   """
   def rewrite_rule(%Rule{} = rule, text, opts \\ []) do
+    with :ok <- Policy.authorize(:edit_rule, rule), do: rewrite_now(rule, text, opts)
+  end
+
+  defp rewrite_now(rule, text, opts) do
     board = Repo.get!(Board, rule.board_id) |> Repo.preload([:columns, :tags])
 
     with {:ok, ai_opts} <- parser_opts(opts),
@@ -458,6 +478,10 @@ defmodule Slipdock.Automations do
   times it fired.
   """
   def run_rule_now(%Rule{} = rule, now \\ DateTime.utc_now()) do
+    with :ok <- Policy.authorize(:edit_rule, rule), do: run_rule(rule, now)
+  end
+
+  defp run_rule(rule, now) do
     cond do
       Spec.scheduled?(rule.spec) ->
         clear_fires(rule)
@@ -1210,26 +1234,30 @@ defmodule Slipdock.Automations do
 
   @doc "Marks one alert as read by this person. Others still see it."
   def dismiss_alert(%User{} = user, alert_id) do
-    Repo.insert_all(
-      Dismissal,
-      [%{alert_id: to_int(alert_id), user_id: user.id, inserted_at: DateTime.utc_now(:second)}],
-      on_conflict: :nothing
-    )
+    with :ok <- Policy.authorize(:own_alert, user) do
+      Repo.insert_all(
+        Dismissal,
+        [%{alert_id: to_int(alert_id), user_id: user.id, inserted_at: DateTime.utc_now(:second)}],
+        on_conflict: :nothing
+      )
 
-    broadcast_alerts()
+      broadcast_alerts()
+    end
   end
 
   @doc "Dismisses every alert this person can currently see."
   def dismiss_all_alerts(%User{} = user) do
-    now = DateTime.utc_now(:second)
+    with :ok <- Policy.authorize(:own_alert, user) do
+      now = DateTime.utc_now(:second)
 
-    rows =
-      user
-      |> list_alerts()
-      |> Enum.map(&%{alert_id: &1.id, user_id: user.id, inserted_at: now})
+      rows =
+        user
+        |> list_alerts()
+        |> Enum.map(&%{alert_id: &1.id, user_id: user.id, inserted_at: now})
 
-    if rows != [], do: Repo.insert_all(Dismissal, rows, on_conflict: :nothing)
-    broadcast_alerts()
+      if rows != [], do: Repo.insert_all(Dismissal, rows, on_conflict: :nothing)
+      broadcast_alerts()
+    end
   end
 
   @doc "Deletes an alert outright, for everyone (used when its rule is removed)."

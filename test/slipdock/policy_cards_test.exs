@@ -269,6 +269,7 @@ defmodule Slipdock.PolicyCardsTest do
         &(&1 in Keyword.keys(Slipdock.PolicyActions.boards()) or
             &1 in Keyword.keys(Slipdock.PolicyActions.wiki()) or
             &1 in Keyword.keys(Slipdock.PolicyActions.own()) or
+            &1 in Keyword.keys(Slipdock.PolicyActions.owner_admin()) or
             &1 in Slipdock.PolicyActions.tags())
       )
 

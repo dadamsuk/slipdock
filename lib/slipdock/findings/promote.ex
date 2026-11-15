@@ -352,7 +352,11 @@ defmodule Slipdock.Findings.Promote do
       "cards" => cards
     }
 
-    case Gardener.propose(root, owner, attrs, round: {finding.id, finding.count}) do
+    # The server files it for the board's owner to decide (`Slipdock.Policy`,
+    # #3174): nobody is behind a finding's promotion.
+    case Slipdock.Policy.as_system("a finding promoted to a proposal for the board's owner", fn ->
+           Gardener.propose(root, owner, attrs, round: {finding.id, finding.count})
+         end) do
       {:ok, %Suggestion{state: "open"} = suggestion, _new_or_exists} ->
         finding
         |> Ecto.Changeset.change(

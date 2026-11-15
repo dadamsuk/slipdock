@@ -44,6 +44,19 @@ defmodule Slipdock.UncheckedWritesTest do
     assert Enum.filter(system_funs(), &(&1 in UncheckedWrites.read_list(@list))) == []
   end
 
+  # Policy 7 (#3174): the owner and admin writes ask, or are the server's own
+  # (the clock, the health monitor, the overseer, triage, a rule's actions).
+  test "the owner and admin contexts ask for every write, or are listed as the server's" do
+    owner_admin =
+      ~r/^Slipdock\.(Automations|Settings|Tools|Health|Gardener|SkillRegistry|Findings|Overseer|AI)[.\/]/
+
+    assert @root
+           |> UncheckedWrites.unchecked()
+           |> Enum.filter(&(&1 =~ owner_admin))
+           |> Enum.sort() ==
+             system_funs() |> Enum.filter(&(&1 =~ owner_admin)) |> Enum.sort()
+  end
+
   # Policy 5 (#3172): a person's own rows and the server's accounts ask, or
   # are the server's own (signing in, before anybody is).
   test "the account and personal contexts ask for every write, or are listed as the server's" do

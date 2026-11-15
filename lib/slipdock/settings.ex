@@ -43,7 +43,7 @@ defmodule Slipdock.Settings do
 
   require Logger
 
-  alias Slipdock.Repo
+  alias Slipdock.{Policy, Repo}
   alias Slipdock.Settings.{AllowlistEntry, Instance}
 
   # The singleton's id: one row, always id 1. Read through config only so the
@@ -109,11 +109,13 @@ defmodule Slipdock.Settings do
   """
   @spec update(map()) :: {:ok, Instance.t()} | {:error, Ecto.Changeset.t()}
   def update(attrs) do
-    stored()
-    |> Kernel.||(%Instance{id: row_id()})
-    |> Instance.changeset(attrs)
-    |> Repo.insert_or_update()
-    |> tap_clear_cache()
+    with :ok <- Policy.authorize(:administer, %{user_id: nil}) do
+      stored()
+      |> Kernel.||(%Instance{id: row_id()})
+      |> Instance.changeset(attrs)
+      |> Repo.insert_or_update()
+      |> tap_clear_cache()
+    end
   end
 
   @doc """
@@ -306,9 +308,14 @@ defmodule Slipdock.Settings do
 
   @doc "Records that a test message really did reach the SMTP server."
   def mark_smtp_verified do
-    case stored() do
-      nil -> {:error, :not_configured}
-      instance -> instance |> Instance.verified_changeset() |> Repo.update() |> tap_clear_cache()
+    with :ok <- Policy.authorize(:administer, %{user_id: nil}) do
+      case stored() do
+        nil ->
+          {:error, :not_configured}
+
+        instance ->
+          instance |> Instance.verified_changeset() |> Repo.update() |> tap_clear_cache()
+      end
     end
   end
 
@@ -414,21 +421,27 @@ defmodule Slipdock.Settings do
   twice is not an error.
   """
   def add_allowlist_entry(entry, added_by \\ nil) do
-    attrs = %{"entry" => entry, "added_by_id" => added_by && added_by.id}
+    with :ok <- Policy.authorize(:administer, %{user_id: nil}) do
+      attrs = %{"entry" => entry, "added_by_id" => added_by && added_by.id}
 
-    %AllowlistEntry{}
-    |> AllowlistEntry.changeset(attrs)
-    |> Repo.insert(on_conflict: :nothing, conflict_target: :entry)
+      %AllowlistEntry{}
+      |> AllowlistEntry.changeset(attrs)
+      |> Repo.insert(on_conflict: :nothing, conflict_target: :entry)
+    end
   end
 
-  def remove_allowlist_entry(%AllowlistEntry{} = entry), do: Repo.delete(entry)
+  def remove_allowlist_entry(%AllowlistEntry{} = entry),
+    do: with(:ok <- admin(), do: Repo.delete(entry))
 
   def remove_allowlist_entry(id) when is_integer(id) or is_binary(id) do
     case Repo.get(AllowlistEntry, id) do
       nil -> {:error, :not_found}
-      entry -> Repo.delete(entry)
+      entry -> remove_allowlist_entry(entry)
     end
   end
+
+  # This server's own settings are its admins' (`Slipdock.Policy`, #3174).
+  defp admin, do: Policy.authorize(:administer, %{user_id: nil})
 
   @doc """
   Whether `email` matches the allowlist — as the whole address, or as its
@@ -476,6 +489,11 @@ defmodule Slipdock.Settings do
   """
   @spec seed() :: :ok
   def seed do
+    # At boot, from the environment, before anybody can sign in (#3174).
+    Policy.as_system("seeding this server's settings from its environment", &seed_now/0)
+  end
+
+  defp seed_now do
     if stored() do
       :ok
     else

@@ -38,7 +38,7 @@ defmodule Slipdock.Health do
 
   require Logger
 
-  alias Slipdock.{Automations, Boards, Repo}
+  alias Slipdock.{Automations, Boards, Policy, Repo}
   alias Slipdock.Automations.Rule
   alias Slipdock.Boards.{Board, Card}
   alias Slipdock.Health.{Context, Incident, Pulse, Settings}
@@ -176,14 +176,15 @@ defmodule Slipdock.Health do
   "flagged" => n, "cleared" => n, "handled" => n}}`.
   """
   def run(%Board{} = board, opts \\ []) do
+    with :ok <- Policy.authorize(:run_board_check, board), do: run_board(board, opts)
+  end
+
+  defp run_board(board, opts) do
     now = (opts[:now] || DateTime.utc_now()) |> DateTime.truncate(:second)
     root = Repo.get!(Board, Board.root_id(board))
     changes = Settings.changes(root.id)
 
-    enabled =
-      (opts[:detectors] || detectors())
-      |> Enum.map(&{&1, Settings.for(changes, &1)})
-      |> Enum.filter(fn {_, s} -> s["enabled"] == true end)
+    enabled = enabled(opts[:detectors] || detectors(), changes)
 
     counts = %{"handled" => release_handled(root.id, now)}
     ctx = Context.new(root, now)
@@ -194,26 +195,39 @@ defmodule Slipdock.Health do
           into: %{},
           do: {fingerprint(detector.key(), finding), {detector, settings, finding}}
 
-    counts =
-      Enum.reduce(found, counts, fn {fp, {detector, settings, finding}}, acc ->
-        root.id
-        |> step(fp, detector, settings, finding, now)
-        |> Enum.reduce(acc, &Map.update(&2, &1, 1, fn n -> n + 1 end))
-      end)
-
+    counts = steps(root, found, counts, now)
     keys = Enum.map(enabled, fn {d, _} -> d.key() end)
     cleared = clear_missing(root.id, keys, Map.keys(found), now)
 
+    finished(root, counts, map_size(found), cleared)
+  end
+
+  defp enabled(detectors, changes) do
+    detectors
+    |> Enum.map(&{&1, Settings.for(changes, &1)})
+    |> Enum.filter(fn {_, s} -> s["enabled"] == true end)
+  end
+
+  defp finished(root, counts, found, cleared) do
     counts =
       Map.merge(
         %{"opened" => 0, "fixed" => 0, "tried" => 0, "flagged" => 0},
-        Map.merge(counts, %{"found" => map_size(found), "cleared" => cleared})
+        Map.merge(counts, %{"found" => found, "cleared" => cleared})
       )
 
     if Enum.any?(~w(opened fixed tried flagged cleared handled), &(counts[&1] > 0)),
       do: broadcast(root.id)
 
     {:ok, counts}
+  end
+
+  # Each finding's step, counted.
+  defp steps(root, found, counts, now) do
+    Enum.reduce(found, counts, fn {fp, {detector, settings, finding}}, acc ->
+      root.id
+      |> step(fp, detector, settings, finding, now)
+      |> Enum.reduce(acc, &Map.update(&2, &1, 1, fn n -> n + 1 end))
+    end)
   end
 
   defp safe_detect(detector, ctx, settings) do

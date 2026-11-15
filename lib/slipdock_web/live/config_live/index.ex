@@ -158,8 +158,18 @@ defmodule SlipdockWeb.ConfigLive.Index do
 
   ## Settings
 
+  # A write the context refuses (`Slipdock.Policy`) is said in a flash,
+  # whatever the handler made of it (`SlipdockWeb.Refusals`, #3174).
   @impl true
-  def handle_event("save-settings", %{"settings" => attrs}, socket) do
+  def handle_event(event, params, socket) do
+    SlipdockWeb.Refusals.said(
+      socket,
+      fn -> handle_event(event, params, socket, :said) end,
+      &put_flash(&1, :error, &2)
+    )
+  end
+
+  defp handle_event("save-settings", %{"settings" => attrs}, socket, :said) do
     # Only what these forms show. The admin's own address is changed through
     # its own flow, which verifies the new one first — otherwise a typo sends
     # every approval notice and lock-out warning into the void — and the mail
@@ -180,7 +190,7 @@ defmodule SlipdockWeb.ConfigLive.Index do
   # The server's endpoint, asked with the shared key or, failing that, the
   # admin's own — not the admin's own endpoint, whose models are no use as
   # everybody's default.
-  def handle_event("list-models", _params, socket) do
+  defp handle_event("list-models", _params, socket, :said) do
     user = socket.assigns.current_user
     key = AI.shared_key_for(user) || Keys.get(user)
 
@@ -199,14 +209,14 @@ defmodule SlipdockWeb.ConfigLive.Index do
 
   # Save, or try the address first. The token is never sent to the page: a
   # blank box keeps the one stored, and "Forget the token" is how to clear it.
-  def handle_event("transcription", %{"transcription" => params} = all, socket) do
+  defp handle_event("transcription", %{"transcription" => params} = all, socket, :said) do
     case all["step_action"] do
       "test" -> {:noreply, test_transcription(params, socket)}
       _ -> {:noreply, save_transcription(params, socket)}
     end
   end
 
-  def handle_event("add-allow", %{"allow" => %{"entry" => entry}}, socket) do
+  defp handle_event("add-allow", %{"allow" => %{"entry" => entry}}, socket, :said) do
     case Settings.add_allowlist_entry(entry, socket.assigns.current_user) do
       {:ok, _} ->
         {:noreply, socket |> put_flash(:info, "Added #{entry}.") |> load()}
@@ -216,14 +226,14 @@ defmodule SlipdockWeb.ConfigLive.Index do
     end
   end
 
-  def handle_event("remove-allow", %{"id" => id}, socket) do
+  defp handle_event("remove-allow", %{"id" => id}, socket, :said) do
     if id = SlipdockWeb.Params.id(id), do: Settings.remove_allowlist_entry(id)
     {:noreply, load(socket)}
   end
 
   ## Mail
 
-  def handle_event("mail", %{"step_action" => "test", "settings" => attrs}, socket) do
+  defp handle_event("mail", %{"step_action" => "test", "settings" => attrs}, socket, :said) do
     attrs = with_typed_password(attrs, socket)
     recipient = String.trim(attrs["test_to"] || socket.assigns.current_user.email)
 
@@ -244,7 +254,7 @@ defmodule SlipdockWeb.ConfigLive.Index do
     end
   end
 
-  def handle_event("mail", %{"settings" => attrs}, socket) do
+  defp handle_event("mail", %{"settings" => attrs}, socket, :said) do
     # Only the mail fields: anything else riding along would be saved on the
     # strength of a test message that says nothing about it.
     attrs = attrs |> with_typed_password(socket) |> Map.take(@mail_fields)
@@ -289,7 +299,12 @@ defmodule SlipdockWeb.ConfigLive.Index do
 
   ## The admin address
 
-  def handle_event("change-admin-email", %{"settings" => %{"admin_email" => email}}, socket) do
+  defp handle_event(
+         "change-admin-email",
+         %{"settings" => %{"admin_email" => email}},
+         socket,
+         :said
+       ) do
     case Accounts.request_admin_email_change(email, socket.assigns.current_user) do
       {:ok, :sent} ->
         {:noreply,
@@ -309,7 +324,7 @@ defmodule SlipdockWeb.ConfigLive.Index do
     end
   end
 
-  def handle_event("confirm-admin-email", %{"confirm" => %{"code" => code}}, socket) do
+  defp handle_event("confirm-admin-email", %{"confirm" => %{"code" => code}}, socket, :said) do
     case Accounts.confirm_admin_email_change(code, socket.assigns.current_user) do
       {:ok, email} ->
         {:noreply, socket |> put_flash(:info, "The admin address is now #{email}.") |> load()}

@@ -49,6 +49,12 @@ defmodule Slipdock.Policy do
     (no actor was set). `need` is the level the action needs on `scope`.
     """
     defexception [:action, :scope, :need, :by, :message]
+
+    # A door that says `{:error, message}` as words says a refusal's own
+    # (#3174): interpolated, or drawn in a flash (`SlipdockWeb.Refusals`).
+    defimpl String.Chars do
+      def to_string(%{message: message}), do: message
+    end
   end
 
   # {action, whose level counts, the level it needs, what it is, for the
@@ -163,7 +169,18 @@ defmodule Slipdock.Policy do
     {:own_group, :self, :owner, "Your own groups"},
     {:own_sign_in, :self, :owner, "Your own sign-ins and API tokens"},
     {:own_transfer_link, :self, :read, "A link to upload or download a file"},
-    {:administer, :admin, :owner, "Running this server's accounts"}
+    {:administer, :admin, :owner, "Running this server's accounts"},
+    # Owner and admin writes (#3174)
+    {:edit_rule, :board, :owner, "Changing the board's automations"},
+    {:own_alert, :self, :owner, "Your own alerts"},
+    {:triage_finding, :board, :write, "Triaging a finding"},
+    {:decide_suggestion, :board, :write, "Deciding a gardener suggestion"},
+    {:decide_in_person, :in_person, :write, "Deciding a proposed handbook edit"},
+    {:propose_edit, :board, :write, "Proposing a change"},
+    {:run_board_check, :board, :write, "Running the board's checks"},
+    {:enable_skill, :tree_root, :write, "Enabling a skill on the board"},
+    {:own_source, :self, :owner, "Your own skill sources"},
+    {:own_tool, :self, :owner, "Your own Tools and installs"}
   ]
 
   @rules Map.new(@table, fn {action, scope, level, _} -> {action, {scope, level}} end)
@@ -180,7 +197,8 @@ defmodule Slipdock.Policy do
     wiki: "that place in the wiki",
     account: "your account",
     self: "the person's own rows",
-    admin: "this server's administration"
+    admin: "this server's administration",
+    in_person: "the board, signed in on its Tidy-up page"
   }
 
   @system {__MODULE__, :system}
@@ -208,6 +226,9 @@ defmodule Slipdock.Policy do
 
     cond do
       Process.get(@system) -> :ok
+      # A person-only decision (#2668) is a person's in the web app: no rule,
+      # token or agent passes it, whatever its level (#3174).
+      scope == :in_person and not in_person?(actor) -> refuse(action, scope, need, :user)
       actor.kind == "automation" -> :ok
       true -> decide(action, scope, need, subject, actor)
     end
@@ -225,6 +246,11 @@ defmodule Slipdock.Policy do
   end
 
   defp actor(_opts), do: Actor.current()
+
+  # A person in the web app: the signed-in, CSRF-guarded browser session,
+  # which `Actor.web/1` names (`Slipdock.Gardener.in_person?/1`).
+  defp in_person?(%{kind: "human", via: "web"}), do: true
+  defp in_person?(_actor), do: false
 
   @doc """
   The id of the person this process (or `opts[:actor]`) acts for, or nil:
@@ -374,6 +400,9 @@ defmodule Slipdock.Policy do
     end
   end
 
+  # The board's level, once `check/3` has seen the actor is in person.
+  defp level(:in_person, user, subject), do: level(:board, user, subject)
+
   defp level(:board, user, subject) do
     case board_of(subject) do
       nil -> {:none, nil}
@@ -501,6 +530,9 @@ defmodule Slipdock.Policy do
   defp board_of(%Card{} = card),
     do: with(%Card{board_id: id} <- card_of(card), do: Repo.get(Board, id))
 
+  # Anything else kept on a board: a rule, a finding, a gardener suggestion
+  # (#3174).
+  defp board_of(%{board_id: id}) when is_integer(id), do: Repo.get(Board, id)
   defp board_of(_), do: nil
 
   # Read again: the root a struct names can have moved (a board moved into

@@ -46,8 +46,11 @@ defmodule Slipdock.SkillRegistry.Seeds do
   def seeded, do: from(s in "skill_seeds", select: s.url) |> Repo.all() |> MapSet.new()
 
   defp seed(url) do
+    # The seeds a new server starts with are the server's (#3174).
     outcome =
-      case SkillRegistry.add_source(nil, url) do
+      case Slipdock.Policy.as_system("the skill sources a new server starts with", fn ->
+             SkillRegistry.add_source(nil, url)
+           end) do
         {:ok, _source} -> :added
         {:error, reason} -> if seed_exists?(url), do: :already, else: {:error, reason}
       end

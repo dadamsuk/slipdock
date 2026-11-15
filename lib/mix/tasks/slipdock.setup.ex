@@ -123,13 +123,7 @@ defmodule Mix.Tasks.Slipdock.Setup do
 
     case Settings.complete_setup(attrs) do
       {:ok, settings} ->
-        for entry <- Keyword.get_values(opts, :allow), do: Settings.add_allowlist_entry(entry)
-        {:ok, user} = Accounts.get_or_create_user_by_email(settings.admin_email)
-        # The server's own command line, before anybody can sign in (#3172).
-        {:ok, _} =
-          Slipdock.Policy.as_system("setup from the command line makes the first admin", fn ->
-            Accounts.promote(user)
-          end)
+        first_admin(settings.admin_email, Keyword.get_values(opts, :allow))
 
         Mix.shell().info("""
         Set up. #{settings.admin_email} is the admin, registration is #{settings.signup_mode}#{limit_note(settings)}.
@@ -142,6 +136,16 @@ defmodule Mix.Tasks.Slipdock.Setup do
       {:error, changeset} ->
         Mix.raise("Could not set up: #{errors(changeset)}")
     end
+  end
+
+  # The server's own command line, before anybody can sign in (#3172, #3174):
+  # who may sign up, and the first admin.
+  defp first_admin(email, allow) do
+    Slipdock.Policy.as_system("setup from the command line makes the first admin", fn ->
+      for entry <- allow, do: Settings.add_allowlist_entry(entry)
+      {:ok, user} = Accounts.get_or_create_user_by_email(email)
+      {:ok, _} = Accounts.promote(user)
+    end)
   end
 
   # The answer to "this server is set up and nobody can get in": makes the

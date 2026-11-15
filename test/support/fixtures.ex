@@ -262,16 +262,18 @@ defmodule Slipdock.Fixtures do
   """
   def rule_fixture(board, spec, attrs \\ %{}) do
     {:ok, rule} =
-      Slipdock.Automations.create_rule(
-        Map.merge(
-          %{
-            "name" => "Rule #{System.unique_integer([:positive])}",
-            "spec" => spec,
-            "board_id" => board.id
-          },
-          attrs
+      Slipdock.Policy.as_system("a test fixture", fn ->
+        Slipdock.Automations.create_rule(
+          Map.merge(
+            %{
+              "name" => "Rule #{System.unique_integer([:positive])}",
+              "spec" => spec,
+              "board_id" => board.id
+            },
+            attrs
+          )
         )
-      )
+      end)
 
     rule
   end
