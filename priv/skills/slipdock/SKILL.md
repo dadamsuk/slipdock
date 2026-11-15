@@ -569,6 +569,7 @@ slipdock machine update <id>                  # its daemon looks for a newer sig
 slipdock machine revoke <id>                  # its key stops working at once
 slipdock machine enrol-key <board>... [--label NAME]  # one-time key for `slipdock-runner init --key`; NAME names the machine (else its hostname)
 slipdock machine rename <id> <name>           # what the pages show; the hostname stays
+slipdock machine boards <id> [--add B] [--remove B]  # the boards it serves, changed without re-enrolling; the machine's ceiling must list a board too (`slipdock-runner boards add` there)
 slipdock machine setup-prompt <id>            # the *Set up this machine with Claude* prompt, to paste into Claude Code on it
 slipdock jobs <board> [--status open|queued|running|done|failed|cancelled|timeout]
 slipdock jobs --card ID                       # one card's jobs

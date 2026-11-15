@@ -40,6 +40,8 @@ defmodule SlipdockCLI do
     from: :string,
     scope: :string,
     remove: :boolean,
+    add_board: :keep,
+    remove_board: :keep,
     rotate: :boolean,
     ack: :string,
     key: :string,
@@ -424,6 +426,19 @@ defmodule SlipdockCLI do
   # `job <id> --keep` (#1872): --keep is also garden's `--keep N`, a value.
   def wait_on(["job" | rest]),
     do: ["job" | Enum.map(rest, &if(&1 == "--keep", do: "--keep-log", else: &1))]
+
+  # `machine boards <id> --add B --remove B` (#3249): --remove is also a
+  # yes/no switch elsewhere (`url --remove`), so here both take a board.
+  def wait_on(["machine", "boards" | rest]) do
+    [
+      "machine",
+      "boards"
+      | Enum.map(
+          rest,
+          &Map.get(%{"--add" => "--add-board", "--remove" => "--remove-board"}, &1, &1)
+        )
+    ]
+  end
 
   def wait_on(argv), do: argv
 

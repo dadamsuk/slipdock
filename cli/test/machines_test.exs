@@ -120,6 +120,53 @@ defmodule SlipdockCLI.MachinesTest do
     assert out =~ "machine #4 is now Silver box (hostname #{@machine["hostname"]})"
   end
 
+  describe "machine boards (#3249)" do
+    defp parse(argv) do
+      {o, ["machine" | args], []} =
+        OptionParser.parse(SlipdockCLI.wait_on(argv), strict: SlipdockCLI.switches())
+
+      {args, o}
+    end
+
+    test "--add and --remove, repeatable, take a board each; --remove stays a switch elsewhere" do
+      {args, o} =
+        parse(~w(machine boards 4 --add 115 --add slipdock --remove 3))
+
+      assert args == ["boards", "4"]
+      assert Keyword.get_values(o, :add_board) == ["115", "slipdock"]
+      assert Keyword.get_values(o, :remove_board) == ["3"]
+
+      assert {:ok, :patch, "/machines/4", body, _} = Machines.plan(args, o)
+      assert body == %{"add_boards" => ["115", "slipdock"], "remove_boards" => ["3"]}
+
+      assert {[remove: true], [], []} =
+               OptionParser.parse(SlipdockCLI.wait_on(["--remove"]),
+                 strict: SlipdockCLI.switches()
+               )
+    end
+
+    test "with neither it lists the boards; a change says what the ceiling lacks" do
+      assert {:ok, :get, "/machines/4", _} = Machines.plan(["boards", "4"], [])
+
+      changed =
+        Map.merge(@machine, %{
+          "boards" => [3, 9, 115],
+          "ceiling_mismatch" => %{"missing" => [115], "extra" => []}
+        })
+
+      serve([{200, JSON.encode!(%{"machine" => changed})}])
+
+      out =
+        capture_io(fn -> Machines.run("machine", ["boards", "4"], add_board: "115") end)
+
+      assert_received {:request, "PATCH", "/api/machines/4", body}
+      assert JSON.decode!(body) == %{"add_boards" => ["115"], "remove_boards" => []}
+      assert out =~ "machine #4 build-box serves boards 3, 9, 115"
+      assert out =~ "not in the machine's ceiling yet: 115"
+      assert out =~ "slipdock-runner boards add 115"
+    end
+  end
+
   test "machine enrolment shows the machine to check before approving" do
     enrolment = %{
       "hostname" => "build-box",
@@ -482,6 +529,7 @@ defmodule SlipdockCLI.MachinesTest do
           ["refuse"],
           ["rename"],
           ["rename", "4"],
+          ["boards"],
           ["enrolment"],
           ["show"],
           ["probe", "4"],

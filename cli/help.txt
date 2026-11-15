@@ -1122,6 +1122,13 @@ WRITE
                                                  refusals and changes
   machine rename <id> <name>                     rename a machine: the name the pages and the
                                                  board show (its hostname stays)
+  machine boards <id> [--add B] [--remove B]     the boards it serves, or change them (each
+                                                 repeatable, ids or codes) without re-enrolling;
+                                                 a board with runners here is removed only
+                                                 after them, and the last only by revoking. The
+                                                 machine's ceiling must list a board too: what
+                                                 it lacks is printed with the command to run
+                                                 there (`slipdock-runner boards add`)
   machine revoke <id>                            revoke a machine: its key stops working at once
   machine update <id>                            ask its daemon to look for a newer signed
                                                  release now

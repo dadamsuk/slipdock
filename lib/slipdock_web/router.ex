@@ -540,7 +540,7 @@ defmodule SlipdockWeb.Router do
     post "/machines/enrolment/refuse", MachineController, :refuse
     get "/machines/:id", MachineController, :show
     # Renamed by its owner (#2666): `name`, what the pages show.
-    patch "/machines/:id", MachineController, :rename
+    patch "/machines/:id", MachineController, :update
     delete "/machines/:id", MachineController, :revoke
     # A machine's runners, configured as typed data (#2571).
     post "/machines/:id/runners", MachineController, :add_runner

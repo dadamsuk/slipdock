@@ -135,7 +135,11 @@
     Each machine has a page of its own, opened from that list: whether it is online, the
     ceiling and executors it reported, its runners and what each is working on, and the
     log of settings it accepted or refused. There you add, change, pause and remove its
-    runners, rename the machine (its hostname stays), ask it to update now, and revoke it.
+    runners, rename the machine (its hostname stays), add or remove the boards it serves
+    without enrolling it again, ask it to update now, and revoke it. A board added there
+    is marked <em>not in the ceiling</em> until someone at the machine runs
+    <code>slipdock-runner boards add</code> with its number; a board with runners on
+    the machine comes off once they are removed.
     A setting outside the machine's ceiling
     is marked with the limit; if you save it anyway the machine refuses it, and the page
     shows the refusal with its reason and the limit. People who share a board with the

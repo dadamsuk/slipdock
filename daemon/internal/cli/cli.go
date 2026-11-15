@@ -1,5 +1,5 @@
 // Package cli is slipdock-runner's commands: init, setup, show, status,
-// log, config, doctor, service, run, update and version. Everything outside the process (the terminal, the
+// log, config, boards, doctor, service, run, update and version. Everything outside the process (the terminal, the
 // environment, the network, the clock, other programs) comes in through
 // Env, so each command can be tested on its own.
 package cli
@@ -158,6 +158,8 @@ Usage:
                                           the daemon's log, or a runner's job log
   slipdock-runner config [--effective | --json]
                                           the ceiling, local.json and each runner's accepted settings
+  slipdock-runner boards [add|remove ID...]
+                                          the boards this machine serves (its ceiling), or change them
   slipdock-runner doctor                  check this machine is ready to run jobs
   slipdock-runner service install|uninstall|print
   slipdock-runner run [--log FILE] [--log-level debug|info|warn|error]
@@ -201,6 +203,8 @@ func Main(args []string, env Env) int {
 		err = cmdConfig(rest, env)
 	case "doctor":
 		err = cmdDoctor(rest, env)
+	case "boards":
+		err = cmdBoards(rest, env)
 	case "service":
 		err = cmdService(rest, env)
 	case "run":

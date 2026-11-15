@@ -37,7 +37,7 @@ defmodule SlipdockWeb.API.MachineController do
               :index,
               :show,
               :create_key,
-              :rename,
+              :update,
               :revoke,
               :enrolment,
               :approve,
@@ -476,17 +476,53 @@ defmodule SlipdockWeb.API.MachineController do
   end
 
   @doc """
-  PATCH /api/machines/:id — rename it (#2666): `name`, what the pages, the
-  CLI and the board show. The hostname it reported is kept as it was.
+  PATCH /api/machines/:id — rename it (#2666), change the boards it serves
+  (#3249), or both: `name`, what the pages, the CLI and the board show (the
+  hostname it reported is kept as it was); `add_boards` and
+  `remove_boards`, lists of board ids or codes
+  (`Slipdock.Machines.change_boards/3`). The owner's alone. The answer
+  carries `ceiling_mismatch`: boards allowed here that the machine's own
+  ceiling doesn't list yet (`missing`), and the reverse (`extra`).
   """
-  def rename(conn, %{"id" => id} = params) do
+  def update(conn, %{"id" => id} = params) do
     with {:ok, machine} <- fetch(conn, id) do
-      case Machines.rename_machine(machine, params["name"]) do
-        {:ok, machine} -> json(conn, %{machine: MachineJSON.machine(machine)})
-        {:error, :invalid, message} -> unprocessable(conn, message)
+      case update_machine(machine, conn.assigns.current_user, params) do
+        {:ok, machine} ->
+          json(conn, %{
+            machine:
+              machine
+              |> MachineJSON.machine()
+              |> Map.put(:ceiling_mismatch, Machines.ceiling_mismatch(machine))
+          })
+
+        {:error, :invalid, message} ->
+          unprocessable(conn, message)
       end
     end
   end
+
+  # The boards first, then the name: a refused board change renames nothing.
+  defp update_machine(machine, user, params) do
+    boards? = Map.has_key?(params, "add_boards") or Map.has_key?(params, "remove_boards")
+    name? = Map.has_key?(params, "name")
+
+    with {:ok, machine} <-
+           if(boards?, do: change_boards(machine, user, params), else: {:ok, machine}),
+         {:ok, machine} <-
+           if(name? or not boards?,
+             do: Machines.rename_machine(machine, params["name"]),
+             else: {:ok, machine}
+           ) do
+      {:ok, machine}
+    end
+  end
+
+  defp change_boards(machine, user, params),
+    do:
+      Machines.change_boards(machine, user,
+        add: params["add_boards"],
+        remove: params["remove_boards"]
+      )
 
   @doc "DELETE /api/machines/:id — revoke it: its key stops working at once."
   def revoke(conn, %{"id" => id}) do

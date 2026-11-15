@@ -65,7 +65,11 @@ defmodule SlipdockWeb.API.MachineJSON do
 
     m
     |> machine()
-    |> Map.merge(%{runners: runners, changes: Enum.map(changes, &report/1)})
+    |> Map.merge(%{
+      runners: runners,
+      changes: Enum.map(changes, &report/1),
+      ceiling_mismatch: Slipdock.Machines.ceiling_mismatch(m)
+    })
   end
 
   @doc """

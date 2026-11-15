@@ -1530,12 +1530,21 @@ one-time `enrolment_key` (`POST /api/machines/enrolment-keys` with
 machine's description on the same token endpoint; the key's `label` is
 the name the machine enrols under (its hostname without one), and `PATCH
 /api/machines/:id` with `name` renames it later, keeping its hostname
-(#2666). The key reaches `GET /api/machine` and is
+(#2666). The same `PATCH` with `add_boards` and `remove_boards` (board ids
+or codes) changes the boards it serves without re-enrolling (#3249): a board
+added must be one you could choose at approval; a board with runners on the
+machine is refused, naming them, until they are removed; the last board
+goes only by revoking. Each change is in the machine's `changes`
+(`board_added`, `board_removed`), and the answer and `GET
+/api/machines/:id` carry `ceiling_mismatch`: `missing`, boards allowed here
+that the machine's own ceiling doesn't list yet (it refuses their runners
+until someone there runs `slipdock-runner boards add`), and `extra`. The
+key reaches `GET /api/machine` and is
 no API token: every other route refuses it, and revoking the machine
 (`DELETE /api/machines/:id`, or Account › Machines) refuses it at once.
 `GET /api/machines` lists yours; a token confined to some boards is
 refused them. CLI: `slipdock machines`, `machine
-show|rename|revoke|enrolment|approve|refuse|enrol-key`.
+show|rename|boards|revoke|enrolment|approve|refuse|enrol-key`.
 Not over MCP: enrolling and revoking a machine is the account's owner's
 call, made where they sign in, not an agent's.
 

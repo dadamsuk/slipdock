@@ -66,6 +66,9 @@ type Keeper struct {
 	accepted map[int64]runner.Listed
 	reported map[int64]Report
 	pending  map[int64]Report
+	// last is the server's listing last taken in, checked again when the
+	// ceiling changes (#3249); nil until the server has answered.
+	last *runner.Listing
 }
 
 func (k *Keeper) init() {
@@ -147,10 +150,88 @@ func (k *Keeper) Apply(l *runner.Listing) []runner.Runner {
 		}
 	}
 	k.version = l.Version
+	k.last = l
 	if err := k.save(); err != nil {
 		k.Logf("error: can't cache the accepted config: %v", err)
 	}
 	return k.Running()
+}
+
+// Listed is how many runners the server's last listing named: the
+// cached runners' count until it has answered.
+func (k *Keeper) Listed() int {
+	if k.last != nil {
+		return len(k.last.Runners)
+	}
+	return len(k.accepted)
+}
+
+// SetCeiling takes in a new ceiling, written by a person at the machine
+// while the daemon runs (#3249), and answers the runners to run under it.
+// The change is logged field by field. Each runner the server last listed
+// is checked again: one the old ceiling refused and the new one allows is
+// accepted; an accepted one the new ceiling leaves out is dropped, as a
+// cached one is at the start, so it finishes the job it holds and stops.
+// Each outcome is queued to report, as Apply's are.
+func (k *Keeper) SetCeiling(c machine.Ceiling) []runner.Runner {
+	k.init()
+	k.change("ceiling changed at this machine: " + ceilingDiff(k.Ceiling, c))
+	k.Ceiling = c
+	listed := map[int64]runner.Listed{}
+	if k.last != nil {
+		for _, r := range k.last.Runners {
+			listed[r.ID] = r
+		}
+	}
+	dropped := map[int64]bool{}
+	for id, old := range k.accepted {
+		if old.Check(c) == nil {
+			continue
+		}
+		delete(k.accepted, id)
+		cur, ok := listed[id]
+		if ok && cur.Check(c) == nil {
+			continue // its listed config is inside the new ceiling: take accepts it below
+		}
+		if !ok {
+			cur = old
+		}
+		err := cur.Check(c)
+		k.change(fmt.Sprintf("runner %s (#%d) v%d is outside this machine's ceiling now: it finishes the job it holds, then stops: %v",
+			cur.Name, id, cur.ConfigVersion, err))
+		k.queue(id, Report{Version: cur.ConfigVersion, Outcome: "rejected", Reason: err.Error()})
+		dropped[id] = true
+	}
+	if k.last != nil {
+		for _, r := range k.last.Runners {
+			if !dropped[r.ID] {
+				k.take(r)
+			}
+		}
+	}
+	if err := k.save(); err != nil {
+		k.Logf("error: can't cache the accepted config: %v", err)
+	}
+	return k.Running()
+}
+
+// ceilingDiff lists each ceiling field that differs, by its JSON name, as
+// diff does a runner's.
+func ceilingDiff(a, b machine.Ceiling) string {
+	var out []string
+	va, vb := reflect.ValueOf(a), reflect.ValueOf(b)
+	t := va.Type()
+	for i := 0; i < t.NumField(); i++ {
+		x, y := va.Field(i).Interface(), vb.Field(i).Interface()
+		if !reflect.DeepEqual(x, y) {
+			name := strings.Split(t.Field(i).Tag.Get("json"), ",")[0]
+			out = append(out, fmt.Sprintf("%s %s → %s", name, show(x), show(y)))
+		}
+	}
+	if len(out) == 0 {
+		return "no field changed"
+	}
+	return strings.Join(out, "; ")
 }
 
 // take checks one listed runner against the ceiling and keeps it, or keeps

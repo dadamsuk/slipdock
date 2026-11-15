@@ -348,6 +348,57 @@ defmodule SlipdockWeb.MachinesLiveTest do
       assert Repo.get!(Machine, ctx.machine.id).name == "Silverbox"
     end
 
+    test "adds a board, shows the ceiling lacks it with the command, and removes it (#3249)",
+         ctx do
+      second =
+        board_fixture(%{"name" => "Second board", "code" => unique_code()}, owner: ctx.user)
+
+      {:ok, view, _html} = page(ctx)
+
+      assert has_element?(view, "#machine-board-#{ctx.board.id}", "Served board")
+      # The only board has no Remove: the last goes only by revoking.
+      refute has_element?(view, "#machine-board-#{ctx.board.id} button")
+      refute has_element?(view, "#machine-boards-ceiling")
+
+      view |> form("#machine-add-board", %{board: second.id}) |> render_submit()
+
+      assert has_element?(view, "#machine-notice", "Board added")
+      assert Repo.get!(Machine, ctx.machine.id).board_ids == [ctx.board.id, second.id]
+      assert has_element?(view, "#machine-board-#{second.id} [data-role=not-in-ceiling]")
+      refute has_element?(view, "#machine-board-#{ctx.board.id} [data-role=not-in-ceiling]")
+
+      assert has_element?(
+               view,
+               "#machine-boards-ceiling-command",
+               "slipdock-runner boards add #{second.id}"
+             )
+
+      assert has_element?(view, "#machine-log", "board added")
+      assert has_element?(view, "#machine-log", "Second board (##{second.id})")
+      # Added already, it isn't offered again.
+      refute has_element?(view, "#machine-add-board option[value='#{second.id}']")
+
+      # A board with a runner is refused, naming it; the runner stays.
+      {:ok, on_second} =
+        MachineRunners.add_runner(Repo.get!(Machine, ctx.machine.id), second, %{
+          "pool" => "build",
+          "name" => "second-builder",
+          "config" => %{"directory" => @dir}
+        })
+
+      view |> element("#machine-board-#{second.id} button", "Remove") |> render_click()
+      assert has_element?(view, "#machine-notice", "second-builder (##{on_second.id})")
+      assert second.id in Repo.get!(Machine, ctx.machine.id).board_ids
+
+      {:ok, _} = MachineRunners.remove_runner(on_second)
+      view |> element("#machine-board-#{second.id} button", "Remove") |> render_click()
+
+      assert has_element?(view, "#machine-notice", "Board removed")
+      refute has_element?(view, "#machine-board-#{second.id}")
+      assert Repo.get!(Machine, ctx.machine.id).board_ids == [ctx.board.id]
+      refute has_element?(view, "#machine-boards-ceiling")
+    end
+
     test "update now and revoke", ctx do
       {:ok, view, _html} = page(ctx)
 
@@ -478,6 +529,12 @@ defmodule SlipdockWeb.MachinesLiveTest do
       refute has_element?(view, "#machine-update-now")
       refute has_element?(view, "#machine-revoke")
       refute has_element?(view, "#machine-rename")
+      refute has_element?(view, "#machine-add-board")
+      refute has_element?(view, "#machine-boards button")
+      # A forged board change is refused (#3249).
+      render_hook(view, "add_board", %{"board" => to_string(private.id)})
+      render_hook(view, "remove_board", %{"id" => to_string(private.id)})
+      assert Repo.get!(Machine, ctx.machine.id).board_ids == [ctx.board.id, private.id]
       # A forged rename is refused too.
       render_hook(view, "rename", %{"name" => "theirs now"})
       assert Repo.get!(Machine, ctx.machine.id).name == "build-box"
