@@ -23,7 +23,7 @@ defmodule Slipdock.Wiki.Autosaves do
   alias Slipdock.Accounts.User
   alias Slipdock.Boards
   alias Slipdock.Boards.{Attachment, Board}
-  alias Slipdock.{Access, Quota, Repo, Wiki}
+  alias Slipdock.{Access, Policy, Quota, Repo, Wiki}
   alias Slipdock.Wiki.{Autosave, AutosaveFile, Page, Sharing}
 
   @ttl_days 30
@@ -111,7 +111,13 @@ defmodule Slipdock.Wiki.Autosaves do
   Keeps the form as it stands: one row a page per person, however often it is
   called. `autosave` is the row for a new page, nil before there is one.
   """
-  def save(%User{} = user, %Board{} = board, %Page{} = page, _autosave, attrs, base_hash) do
+  def save(%User{} = user, %Board{} = board, page, autosave, attrs, base_hash) do
+    # The person's own drafts, nobody else's (`Slipdock.Policy`, `:own_draft`).
+    with :ok <- Policy.authorize(:own_draft, user),
+         do: keep(user, board, page, autosave, attrs, base_hash)
+  end
+
+  defp keep(%User{} = user, %Board{} = board, %Page{} = page, _autosave, attrs, base_hash) do
     %Autosave{user_id: user.id, board_id: board.id, page_id: page.id}
     |> Autosave.changeset(%{attrs: attrs, base_hash: base_hash})
     |> Repo.insert(
@@ -121,15 +127,15 @@ defmodule Slipdock.Wiki.Autosaves do
     )
   end
 
-  def save(%User{} = user, %Board{} = board, nil, %Autosave{} = autosave, attrs, _base_hash) do
+  defp keep(%User{} = user, %Board{} = board, nil, %Autosave{} = autosave, attrs, _base_hash) do
     case autosave |> Autosave.changeset(%{attrs: attrs}) |> Repo.update(stale_error_field: :id) do
       {:ok, saved} -> {:ok, saved}
       # Discarded in another tab, and this one is still being typed in.
-      {:error, _} -> save(user, board, nil, nil, attrs, nil)
+      {:error, _} -> keep(user, board, nil, nil, attrs, nil)
     end
   end
 
-  def save(%User{} = user, %Board{} = board, nil, nil, attrs, _base_hash) do
+  defp keep(%User{} = user, %Board{} = board, nil, nil, attrs, _base_hash) do
     %Autosave{user_id: user.id, board_id: board.id}
     |> Autosave.changeset(%{attrs: attrs})
     |> Repo.insert()
@@ -141,6 +147,10 @@ defmodule Slipdock.Wiki.Autosaves do
   too much, or it is not an image.
   """
   def add_file(%Autosave{} = autosave, %User{} = user, meta, source) do
+    with :ok <- Policy.authorize(:own_draft, autosave), do: hold(autosave, user, meta, source)
+  end
+
+  defp hold(autosave, user, meta, source) do
     size = Map.get(meta, :size) || File.stat!(source).size
     key = Path.join("autosaves/#{autosave.id}", Ecto.UUID.generate() <> ext(meta[:filename]))
 
@@ -219,6 +229,11 @@ defmodule Slipdock.Wiki.Autosaves do
   message}`. One taken out of the text again is left behind to be discarded.
   """
   def adopt(%Autosave{} = autosave, %Page{} = page, body) do
+    # The draft's owner's; each file then asks to be attached to the page.
+    with :ok <- Policy.authorize(:own_draft, autosave), do: attach_held(autosave, page, body)
+  end
+
+  defp attach_held(autosave, page, body) do
     autosave
     |> files()
     |> Enum.filter(&String.contains?(body, file_url(&1)))
@@ -243,7 +258,11 @@ defmodule Slipdock.Wiki.Autosaves do
   @doc "Throws it away, with anything it was holding."
   def discard(nil), do: :ok
 
-  def discard(%Autosave{id: id} = autosave) do
+  def discard(%Autosave{} = autosave) do
+    with :ok <- Policy.authorize(:own_draft, autosave), do: throw_away(autosave)
+  end
+
+  defp throw_away(%Autosave{id: id} = autosave) do
     keys = Repo.all(from(f in AutosaveFile, where: f.autosave_id == ^id, select: f.key))
     Repo.delete(autosave, stale_error_field: :id)
     Boards.Attachments.remove_files(keys)

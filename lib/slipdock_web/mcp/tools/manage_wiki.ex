@@ -120,6 +120,7 @@ defmodule SlipdockWeb.MCP.Tools.ManageWiki do
   defp set_shortcut(wiki, shortcut) do
     case Vaults.set_shortcut(wiki, shortcut) do
       {:ok, wiki} -> {:ok, wiki}
+      {:error, %Slipdock.Policy.Refused{}} = refused -> Args.refusal(refused)
       {:error, %Ecto.Changeset{} = cs} -> {:error, "shortcut #{changeset_error(cs, :shortcut)}"}
     end
   end
@@ -127,6 +128,7 @@ defmodule SlipdockWeb.MCP.Tools.ManageWiki do
   defp set_recordings(wiki, folder) do
     case Vaults.set_recordings_folder(wiki, folder) do
       {:ok, wiki} -> {:ok, wiki}
+      {:error, %Slipdock.Policy.Refused{}} = refused -> Args.refusal(refused)
       {:error, reason} -> {:error, "recordings_folder: #{reason}"}
     end
   end

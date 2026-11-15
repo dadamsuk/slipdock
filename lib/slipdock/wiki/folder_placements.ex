@@ -25,7 +25,7 @@ defmodule Slipdock.Wiki.FolderPlacements do
 
   import Ecto.Query, warn: false
 
-  alias Slipdock.{Access, Repo, Vaults, Wiki}
+  alias Slipdock.{Access, Actor, Policy, Repo, Vaults, Wiki}
   alias Slipdock.Accounts.User
   alias Slipdock.Boards.Board
   alias Slipdock.Wiki.{Changes, Folder, FolderPlacement}
@@ -68,7 +68,7 @@ defmodule Slipdock.Wiki.FolderPlacements do
       Slipdock.Wiki.SharedPlacements.cross_owner?(folder.board_id, target.board_id) and
         Access.can_read?(Access.share_permission(user, folder)) and
           writer?(user, target.board_id) ->
-        insert(folder, target)
+        file_in(folder, target, user)
 
       Slipdock.Wiki.SharedPlacements.cross_owner?(folder.board_id, target.board_id) and
           Access.can_read?(Access.share_permission(user, folder)) ->
@@ -92,8 +92,15 @@ defmodule Slipdock.Wiki.FolderPlacements do
          "“#{folder.name}” cannot be filed in #{Wiki.folder_path(target)}: #{how}"}
 
       true ->
-        insert(folder, target)
+        file_in(folder, target, user)
     end
+  end
+
+  # Asked of `user`, once the filing's own refusals have had their say: write
+  # on the board it is filed on (`Slipdock.Policy`, `:file_also`).
+  defp file_in(folder, target, user) do
+    with :ok <- Policy.authorize(:file_also, target, actor: Actor.web(user)),
+         do: insert(folder, target)
   end
 
   defp insert(folder, target) do
@@ -125,20 +132,34 @@ defmodule Slipdock.Wiki.FolderPlacements do
   @doc "Takes `folder` out of a folder it was also filed in. The folder itself is untouched."
   def remove(%Folder{} = folder, %Folder{} = target, %User{} = user) do
     if writer?(user, folder.board_id) or writer?(user, target.board_id) do
-      case Repo.delete_all(
-             from(pl in FolderPlacement,
-               where: pl.folder_id == ^folder.id and pl.in_folder_id == ^target.id
-             )
-           ) do
-        {0, _} ->
-          {:error, :not_found, "placement of “#{folder.name}” in #{Wiki.folder_path(target)}"}
-
-        _ ->
-          touched(folder, target)
-          {:ok, folders(folder)}
-      end
+      with :ok <- either_end(folder, target, user), do: unfile(folder, target)
     else
       {:error, :forbidden, "you don't edit this folder"}
+    end
+  end
+
+  # Either end's writer (`Slipdock.Policy`, `:file_also`), as `user`: asked
+  # of the folder's board quietly first, so the target's refusal is the answer.
+  defp either_end(folder, target, user) do
+    as = [actor: Actor.web(user)]
+
+    if Policy.can?(:file_also, folder, as),
+      do: :ok,
+      else: Policy.authorize(:file_also, target, as)
+  end
+
+  defp unfile(folder, target) do
+    case Repo.delete_all(
+           from(pl in FolderPlacement,
+             where: pl.folder_id == ^folder.id and pl.in_folder_id == ^target.id
+           )
+         ) do
+      {0, _} ->
+        {:error, :not_found, "placement of “#{folder.name}” in #{Wiki.folder_path(target)}"}
+
+      _ ->
+        touched(folder, target)
+        {:ok, folders(folder)}
     end
   end
 

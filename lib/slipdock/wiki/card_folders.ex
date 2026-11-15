@@ -31,9 +31,20 @@ defmodule Slipdock.Wiki.CardFolders do
 
   @doc "The card's folder, made along with `Cards` if need be: `{:ok, folder}`."
   def ensure(%Card{} = card) do
+    # The card's writer's (`Slipdock.Policy`, `:write_up_card`): the folder
+    # and the `Cards` folder above it are then the card's own, made for it.
+    with :ok <- Slipdock.Policy.authorize(:write_up_card, card), do: find_or_make(card)
+  end
+
+  defp find_or_make(card) do
     case find(card) do
-      %Folder{} = folder -> {:ok, folder}
-      nil -> create(card)
+      %Folder{} = folder ->
+        {:ok, folder}
+
+      nil ->
+        Slipdock.Policy.as_system("a card's folder, once its writer has asked", fn ->
+          create(card)
+        end)
     end
   end
 

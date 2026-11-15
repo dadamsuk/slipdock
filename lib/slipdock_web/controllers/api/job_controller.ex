@@ -289,6 +289,7 @@ defmodule SlipdockWeb.API.JobController do
   defp keep_log(conn, job) do
     case TranscriptRetention.keep(job, conn.assigns.current_user, via: "api") do
       {:ok, page, job} -> {:ok, page, job}
+      {:error, %Slipdock.Policy.Refused{}} = refused -> refused
       {:error, {:payment_required, code, message}} -> {:error, :payment_required, code, message}
       {:error, reason} -> {:error, :unprocessable_entity, TranscriptRetention.refusal(reason)}
     end

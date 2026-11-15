@@ -54,6 +54,9 @@ defmodule SlipdockWeb.API.VaultController do
       {:ok, vault} ->
         {:ok, vault}
 
+      {:error, %Slipdock.Policy.Refused{}} = refused ->
+        refused
+
       {:error, cs} ->
         error = cs.errors[:shortcut] || {"is invalid", []}
         {:error, :unprocessable_entity, "shortcut #{Slipdock.ChangesetErrors.text(error)}"}
@@ -87,6 +90,9 @@ defmodule SlipdockWeb.API.VaultController do
     case Vaults.set_recordings_folder(vault, folder) do
       {:ok, vault} ->
         {:ok, vault}
+
+      {:error, %Slipdock.Policy.Refused{}} = refused ->
+        refused
 
       {:error, :not_connected} ->
         {:error, :conflict, "connect Google Drive first (Account → Preferences)"}

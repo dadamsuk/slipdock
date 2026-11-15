@@ -62,7 +62,14 @@ defmodule Slipdock.Wiki.FolderMove do
   `preview/4` describes. `{:ok, %{folder: moved_or_nil, report: report}}`.
   """
   def to_board(%Folder{} = folder, %Board{} = target, %User{} = user, opts \\ []) do
-    with {:ok, plan} <- plan(folder, target, user, opts) do
+    # Asked of `user`, once the move's own refusals have had their say: write
+    # on the board it leaves and on the one it joins (`Slipdock.Policy`,
+    # `:move_wiki_out`, `:move_wiki_in`).
+    as = [actor: Slipdock.Actor.web(user)]
+
+    with {:ok, plan} <- plan(folder, target, user, opts),
+         :ok <- Slipdock.Policy.authorize(:move_wiki_out, folder, as),
+         :ok <- Slipdock.Policy.authorize(:move_wiki_in, target, as) do
       report = report(plan)
 
       # All of it or none of it: a failure part-way rolls every row back.

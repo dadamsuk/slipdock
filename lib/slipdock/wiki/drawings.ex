@@ -159,6 +159,13 @@ defmodule Slipdock.Wiki.Drawings do
   way the plugin names one: `Drawing 2026-10-13 09.41.07`.
   """
   def create(%Board{} = board, folder, opts \\ []) do
+    # Write where it goes (`Slipdock.Policy`, `:create_wiki_item`), as any
+    # new page asks.
+    with :ok <- Slipdock.Policy.authorize(:create_wiki_item, folder || board),
+         do: new_drawing(board, folder, opts)
+  end
+
+  defp new_drawing(board, folder, opts) do
     now = Keyword.get_lazy(opts, :now, fn -> DateTime.utc_now() end)
     title = "Drawing " <> Calendar.strftime(now, "%Y-%m-%d %H.%M.%S")
 

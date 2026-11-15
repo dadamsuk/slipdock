@@ -407,6 +407,11 @@ defmodule Slipdock.Vaults do
   its name. A key a board or another vault has is refused.
   """
   def set_shortcut(%Vault{} = vault, value) do
+    # The vault's own person's (`Slipdock.Policy`, `:own_vault`).
+    with :ok <- Slipdock.Policy.authorize(:own_vault, vault), do: put_shortcut(vault, value)
+  end
+
+  defp put_shortcut(vault, value) do
     key = Slipdock.Boards.Board.sanitize_shortcut(value || "")
 
     key =
@@ -430,23 +435,27 @@ defmodule Slipdock.Vaults do
   def switchable(%User{id: user_id}) do
     from(v in Vault, where: v.user_id == ^user_id, order_by: [asc: fragment("lower(?)", v.name)])
     |> Repo.all()
-    |> Enum.map(fn
-      %Vault{shortcut: nil} = vault ->
-        case set_shortcut(vault, nil) do
-          {:ok, vault} -> vault
-          _ -> vault
-        end
-
-      vault ->
-        vault
-    end)
+    |> Enum.map(&keyed/1)
   end
 
   def switchable(_), do: []
 
+  # Made before vaults had keys: given one as it is listed, by the server.
+  defp keyed(%Vault{shortcut: nil} = vault) do
+    Slipdock.Policy.as_system("a vault made before keys, given one as it is listed", fn ->
+      case put_shortcut(vault, nil) do
+        {:ok, vault} -> vault
+        _ -> vault
+      end
+    end)
+  end
+
+  defp keyed(vault), do: vault
+
   @doc "Renames a vault."
   def update_vault(%Vault{} = vault, attrs) do
-    vault |> Vault.changeset(attrs) |> Repo.update() |> preloaded()
+    with :ok <- Slipdock.Policy.authorize(:own_vault, vault),
+         do: vault |> Vault.changeset(attrs) |> Repo.update() |> preloaded()
   end
 
   @doc """
@@ -458,10 +467,14 @@ defmodule Slipdock.Vaults do
   `{:ok, vault}`, or `{:error, reason}`: `:not_connected`, `:revoked`,
   `:invalid`, `:not_found`, `:unavailable` (see `Slipdock.Recordings`).
   """
-  def set_recordings_folder(%Vault{} = vault, path) when path in [nil, ""],
+  def set_recordings_folder(%Vault{} = vault, path) do
+    with :ok <- Slipdock.Policy.authorize(:own_vault, vault), do: recordings_folder(vault, path)
+  end
+
+  defp recordings_folder(%Vault{} = vault, path) when path in [nil, ""],
     do: save_recordings_folder(vault, nil)
 
-  def set_recordings_folder(%Vault{} = vault, path) when is_binary(path) do
+  defp recordings_folder(%Vault{} = vault, path) when is_binary(path) do
     if String.trim(path) == "" do
       save_recordings_folder(vault, nil)
     else

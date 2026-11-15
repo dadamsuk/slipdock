@@ -70,6 +70,11 @@ defmodule Slipdock.OCR do
   image, `{:error, :running}` while it is being read.
   """
   def retry(%Attachment{} = attachment) do
+    # Write on the card or page it hangs from (`Slipdock.Policy`, `:reread_file`).
+    with :ok <- Slipdock.Policy.authorize(:reread_file, attachment), do: read_again(attachment)
+  end
+
+  defp read_again(attachment) do
     if readable?(attachment) do
       enqueue(attachment)
       query = from(t in Text, where: t.attachment_id == ^attachment.id)
@@ -89,6 +94,7 @@ defmodule Slipdock.OCR do
   end
 
   @doc "A reason from `retry/1`, as a person reads it."
+  def describe(%Slipdock.Policy.Refused{message: message}), do: message
   def describe(:not_readable), do: "Only PDFs and images are read for text."
   def describe(:running), do: "It is being read already."
 

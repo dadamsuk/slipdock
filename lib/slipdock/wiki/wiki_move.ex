@@ -48,25 +48,38 @@ defmodule Slipdock.Wiki.WikiMove do
   rewrites: [%{source:, raw:, rewrite:}], unverified: [...]}`.
   """
   def run(%User{} = user, %Board{} = source, %Board{} = target, folder, opts \\ []) do
-    with :ok <- check(user, source, target, folder) do
-      Repo.transaction(
-        fn ->
-          case move(user, source, target, String.trim(folder)) do
-            {:ok, report} ->
-              report = Map.put(report, :dry_run, opts[:dry_run] == true)
-              if opts[:dry_run], do: Repo.rollback({:dry_run, report}), else: report
+    as = [actor: Slipdock.Actor.web(user)]
 
-            {:error, reason} ->
-              Repo.rollback(reason)
-          end
-        end,
-        timeout: :infinity
-      )
-      |> case do
-        {:ok, report} -> {:ok, report}
-        {:error, {:dry_run, report}} -> {:ok, report}
-        {:error, reason} -> {:error, reason}
-      end
+    # Asked of `user`, whom the task names (`Slipdock.Policy`); what the move
+    # then writes, pages, folders, files and links, is that move's own.
+    with :ok <- check(user, source, target, folder),
+         :ok <- Slipdock.Policy.authorize(:move_wiki_out, source, as),
+         :ok <- Slipdock.Policy.authorize(:move_wiki_in, target, as) do
+      Slipdock.Policy.as_system("a wiki move, asked of the person who owns both boards", fn ->
+        move_all(user, source, target, folder, opts)
+      end)
+    end
+  end
+
+  defp move_all(user, source, target, folder, opts) do
+    Repo.transaction(fn -> moved_or_rolled_back(user, source, target, folder, opts) end,
+      timeout: :infinity
+    )
+    |> case do
+      {:ok, report} -> {:ok, report}
+      {:error, {:dry_run, report}} -> {:ok, report}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp moved_or_rolled_back(user, source, target, folder, opts) do
+    case move(user, source, target, String.trim(folder)) do
+      {:ok, report} ->
+        report = Map.put(report, :dry_run, opts[:dry_run] == true)
+        if opts[:dry_run], do: Repo.rollback({:dry_run, report}), else: report
+
+      {:error, reason} ->
+        Repo.rollback(reason)
     end
   end
 

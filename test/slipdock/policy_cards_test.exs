@@ -260,12 +260,14 @@ defmodule Slipdock.PolicyCardsTest do
       assert {_scope, ^need} = Policy.rules()[action], "#{action} needs #{need} in the table"
     end
 
-    # Policy 1's tag rows and Policy 3's board rows are tested beside theirs.
+    # Policy 1's tag rows, Policy 3's board rows and Policy 4's wiki rows are
+    # tested beside theirs.
     card_rows =
       Policy.rules()
       |> Map.keys()
       |> Enum.reject(
         &(&1 in Keyword.keys(Slipdock.PolicyActions.boards()) or
+            &1 in Keyword.keys(Slipdock.PolicyActions.wiki()) or
             &1 in Slipdock.PolicyActions.tags())
       )
 

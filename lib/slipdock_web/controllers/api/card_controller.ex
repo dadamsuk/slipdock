@@ -727,6 +727,9 @@ defmodule SlipdockWeb.API.CardController do
          :ok <- Authorize.card(conn, card, :write),
          %{} = attachment <- attachment_of(card, attachment_id) do
       case Slipdock.OCR.retry(attachment) do
+        {:error, %Slipdock.Policy.Refused{}} = refused ->
+          refused
+
         {:ok, _} ->
           attachment =
             attachment.id
@@ -752,6 +755,9 @@ defmodule SlipdockWeb.API.CardController do
          :ok <- Authorize.card(conn, card, :write),
          %{} = attachment <- attachment_of(card, attachment_id) do
       case Slipdock.Transcription.transcribe_attachment(attachment, conn.assigns.current_user) do
+        {:error, %Slipdock.Policy.Refused{}} = refused ->
+          refused
+
         {:ok, _} ->
           # Inline in the tests, so read it back rather than trust the copy
           # that set off.

@@ -50,22 +50,28 @@ defmodule SlipdockWeb.GoogleController do
         back(conn, :error, "Google said no: #{params["error"]}.")
 
       true ->
-        case Google.connect(conn.assigns.current_user, params["code"], redirect_uri()) do
-          {:ok, connection} ->
-            back(conn, :info, "Google Drive connected#{as(connection.email)}.")
-
-          {:error, :invalid_grant} ->
-            back(conn, :error, "Google turned down that sign-in. Try connecting again.")
-
-          {:error, message} when is_binary(message) ->
-            back(conn, :error, message)
-        end
+        connected(conn, Google.connect(conn.assigns.current_user, params["code"], redirect_uri()))
     end
   end
 
+  defp connected(conn, {:ok, connection}),
+    do: back(conn, :info, "Google Drive connected#{as(connection.email)}.")
+
+  defp connected(conn, {:error, :invalid_grant}),
+    do: back(conn, :error, "Google turned down that sign-in. Try connecting again.")
+
+  # The context's refusal (`Slipdock.Policy`): somebody else's connection.
+  defp connected(conn, {:error, %Slipdock.Policy.Refused{message: message}}),
+    do: back(conn, :error, message)
+
+  defp connected(conn, {:error, message}) when is_binary(message),
+    do: back(conn, :error, message)
+
   def disconnect(conn, _params) do
-    Google.disconnect(conn.assigns.current_user)
-    back(conn, :info, "Google Drive disconnected.")
+    case Google.disconnect(conn.assigns.current_user) do
+      :ok -> back(conn, :info, "Google Drive disconnected.")
+      {:error, %Slipdock.Policy.Refused{message: message}} -> back(conn, :error, message)
+    end
   end
 
   defp as(nil), do: ""

@@ -35,7 +35,7 @@ defmodule Slipdock.Wiki.DrawingSession do
 
   require Logger
 
-  alias Slipdock.{Config, Repo, Wiki}
+  alias Slipdock.{Actor, Config, Policy, Repo, Wiki}
   alias Slipdock.Accounts.User
   alias Slipdock.Wiki.{Drawings, Excalidraw, Files, Page, WikiFile}
   alias Slipdock.Wiki.Excalidraw.Reconcile
@@ -366,18 +366,22 @@ defmodule Slipdock.Wiki.DrawingSession do
     source = if Excalidraw.parse_markdown(current && current.body) == :error, do: state.good_body
 
     with %Page{} <- current,
+         :ok <- as_drawer(state, :edit_page, current),
          {:ok, body} <- Excalidraw.write_markdown(source || current.body, json),
          {:ok, saved} <-
-           Wiki.update_page(current, %{"body" => body},
-             user: List.first(state.drew),
-             via: "web",
-             base_hash: state.base,
-             message: drawn_by(state.drew),
-             drawing_session: true
-           ) do
+           drawers_write(fn ->
+             Wiki.update_page(current, %{"body" => body},
+               user: List.first(state.drew),
+               via: "web",
+               base_hash: state.base,
+               message: drawn_by(state.drew),
+               drawing_session: true
+             )
+           end) do
       {:ok, saved.content_hash, saved, saved.body}
     else
       nil -> {:error, "The drawing is no longer there."}
+      {:error, %Policy.Refused{message: message}} -> {:error, message}
       :error -> {:error, "The drawing couldn't be written back into its note."}
       {:error, :conflict, _} -> :conflict
       {:error, _status, message} when is_binary(message) -> {:error, message}
@@ -387,12 +391,13 @@ defmodule Slipdock.Wiki.DrawingSession do
 
   defp write_once(%{drawing: %WikiFile{id: id}} = state) do
     with %WikiFile{} = current <- Repo.get(WikiFile, id),
-         true <- current.sha256 == state.base || :conflict do
+         true <- current.sha256 == state.base || :conflict,
+         :ok <- as_drawer(state, :edit_file, current) do
       path = Path.join(System.tmp_dir!(), "drawing-#{System.unique_integer([:positive])}")
       File.write!(path, Jason.encode!(state.scene, pretty: true))
 
       try do
-        case Files.replace(current, %{}, path, drawing_session: true) do
+        case drawers_write(fn -> Files.replace(current, %{}, path, drawing_session: true) end) do
           {:ok, saved} -> {:ok, saved.sha256, saved, nil}
           {:error, _} -> {:error, "The drawing couldn't be saved."}
         end
@@ -402,8 +407,18 @@ defmodule Slipdock.Wiki.DrawingSession do
     else
       nil -> {:error, "The drawing is no longer there."}
       :conflict -> :conflict
+      {:error, %Policy.Refused{message: message}} -> {:error, message}
     end
   end
+
+  # The session's process is nobody: a save is asked of whoever drew last
+  # (`Slipdock.Policy`, #3171), at the level they have now, and the write
+  # it then makes is that save's own.
+  defp as_drawer(state, action, drawing),
+    do: Policy.authorize(action, drawing, actor: Actor.web(List.first(state.drew)))
+
+  defp drawers_write(fun),
+    do: Policy.as_system("a drawing session's save, asked of who drew last", fun)
 
   defp drawn_by(users) when length(users) < 2, do: nil
 

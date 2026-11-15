@@ -728,7 +728,11 @@ defmodule Slipdock.Handbook do
   def install(%User{} = user, %Board{} = board, _opts \\ []) do
     root = root(board)
 
-    with :ok <- can_write(user, root) do
+    # Asked of `user`, who installs it: write on the tree's root
+    # (`Slipdock.Policy`, `:install_handbook`); its pages ask as they are made.
+    with :ok <- can_write(user, root),
+         :ok <-
+           Slipdock.Policy.authorize(:install_handbook, root, actor: Slipdock.Actor.web(user)) do
       created = is_nil(find(root))
 
       case Blueprint.apply(root, scheduled_cards(blueprint(), root),

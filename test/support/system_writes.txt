@@ -20,11 +20,76 @@ Slipdock.Boards.Templates.create_system_template/1 a built-in template the demo 
 Slipdock.Boards.Waits.close_wait/4 closes a wait once an answer, a withdrawal, a completion or an archive has asked
 Slipdock.Boards.Waits.default_wait/2 the scheduler answers an approval wait left past its board's time with its default (#2096)
 Slipdock.Boards.Waits.move_wait/3 a routed person has left the board, so their wait goes to the next person (#1949)
+Slipdock.Google.Drive.child/3 a read of the person's Drive: its only write refreshes their stored access token (Google.access_token/2)
+Slipdock.Google.Drive.download/4 a read of the person's Drive: its only write refreshes their stored access token (Google.access_token/2)
+Slipdock.Google.Drive.file/2 a read of the person's Drive: its only write refreshes their stored access token (Google.access_token/2)
+Slipdock.Google.access_token/2 a read: trades a stale access token for a fresh one, or marks a connection Google refused
+Slipdock.Handbook.propose_spike/2 an install that has asked (Handbook.install/3) files its Spike proposal for the board's own Playbook
 Slipdock.LeadTime.brief/2 a read: its only write fills the job-cost cache (Runners.JobCost.count/1)
 Slipdock.LeadTime.for_card/2 a read: its only write fills the job-cost cache (Runners.JobCost.count/1)
 Slipdock.LeadTime.for_epic/2 a read: its only write fills the job-cost cache (Runners.JobCost.count/1)
 Slipdock.LeadTime.worked_brief/2 a read: its only write fills the job-cost cache (Runners.JobCost.count/1)
 Slipdock.Ledger.since/2 a read: its only write fills the job-cost cache (Runners.JobCost.count/1)
+Slipdock.OCR.Worker.handle_cast/2 the reading worker reads queued files' text; nobody is behind it
+Slipdock.OCR.enqueue/1 a file stored by a write that has asked is queued to have its text read
+Slipdock.OCR.requeue/1 a file's new bytes, from a write that has asked, are queued to be read again
+Slipdock.OCR.run_next/0 the reading worker takes the next queued file; nobody is behind it
+Slipdock.OCR.sweep/1 the scheduler puts back what a restart cut off and queues a few unread files
+Slipdock.Recordings.check_folder/2 a read of the person's Drive: its only write refreshes their stored access token
+Slipdock.Recordings.for_page/1 a read: its only write makes the board owner's vault the first time it is wanted (Vaults.root/1)
+Slipdock.Recordings.forget/2 Drive says a remembered recording has gone, so the cache of where it was is dropped
+Slipdock.Recordings.forget_all/1 a vault's recordings folder changed by a write that has asked (Vaults.set_recordings_folder/2) empties its cache
+Slipdock.Recordings.resolve/3 a read: its only writes cache where a recording is on Drive and refresh the access token
 Slipdock.Recurrence.card_archived/1 archiving a series' current instance pauses the series, with a comment saying so
 Slipdock.Recurrence.completion_changed/1 completing or reopening an after-done instance sets when the next is made
 Slipdock.Recurrence.tick/1 the scheduler's clock makes each series' next instance
+Slipdock.Transcription.Voiceprints.from_page/3 after a voice is named (Wiki.rename_speaker/4 has asked) its clip goes to the server; the only write caches the recording
+Slipdock.Transcription.Voiceprints.page_named/3 after a voice is named (Wiki.rename_speaker/4 has asked) its clip goes to the server; the only write caches the recording
+Slipdock.Vaults.for_board/1 a read: its only write makes the board owner's vault the first time it is wanted (Vaults.root/1)
+Slipdock.Vaults.get_vault/2 a read: its only write makes the person's vault the first time it is wanted (Vaults.root/1)
+Slipdock.Vaults.in_vault?/1 a read: its only write makes the board owner's vault the first time it is wanted (Vaults.root/1)
+Slipdock.Vaults.list_vaults/1 a read: its only write makes the person's vault the first time it is wanted (Vaults.root/1)
+Slipdock.Vaults.root/1 a person's one vault, made the first time anything reads it, as the Knowledge Base is
+Slipdock.Vaults.switchable/1 a read: a vault made before vaults had keys is given one as it is listed
+Slipdock.Vaults.touch_mirror/2 notes which token has just synced a vault, as the sync's own read
+Slipdock.Wiki.Autosaves.prune/1 the scheduler lets go of drafts nobody has touched for weeks
+Slipdock.Wiki.CardFolders.archived/2 a card archived or restored by a write that has asked tells the change feed its directory went
+Slipdock.Wiki.CardFolders.find/1 a read: its only write lets go of the folder of a card that has moved board
+Slipdock.Wiki.CardFolders.renamed/1 a card renamed by a write that has asked keeps its folder's name on its title
+Slipdock.Wiki.CardFolders.tracking/2 runs a card's rename, which has asked, recording what it moved in the change feed
+Slipdock.Wiki.Changes.prune/1 the scheduler drops change-feed rows older than the feed keeps
+Slipdock.Wiki.Changes.prune_hourly/1 the scheduler drops change-feed rows older than the feed keeps
+Slipdock.Wiki.Changes.record/4 the change feed's row for a write that has asked
+Slipdock.Wiki.Changes.record_pages/3 the change feed's rows for a write that has asked (an archive takes its children)
+Slipdock.Wiki.Changes.tracking/2 runs a rename that has asked, recording in the change feed what it moved
+Slipdock.Wiki.Drawings.resolve/3 a read: its only write makes the board owner's vault the first time it is wanted (Vaults.root/1)
+Slipdock.Wiki.Drawings.scene/2 a read: its only write makes the board owner's vault the first time it is wanted (Vaults.root/1)
+Slipdock.Wiki.Drawings.svg/2 a read: its only write makes the board owner's vault the first time it is wanted (Vaults.root/1)
+Slipdock.Wiki.Embeds.files/2 a read: its only write makes the board owner's vault the first time it is wanted (Vaults.root/1)
+Slipdock.Wiki.Embeds.published?/2 a read: its only write makes the board owner's vault the first time it is wanted (Vaults.root/1)
+Slipdock.Wiki.Embeds.reaches?/3 a read: its only write makes the board owner's vault the first time it is wanted (Vaults.root/1)
+Slipdock.Wiki.Embeds.vouched?/2 a read: its only write makes the board owner's vault the first time it is wanted (Vaults.root/1)
+Slipdock.Wiki.Files.find/3 a read: its only write makes the board owner's vault the first time it is wanted (Vaults.root/1)
+Slipdock.Wiki.Files.resolve/3 a read: its only write makes the board owner's vault the first time it is wanted (Vaults.root/1)
+Slipdock.Wiki.FolderMove.preview/4 a read of what a move would do: its only write makes a vault the first time it is wanted (Vaults.root/1)
+Slipdock.Wiki.FolderPlacements.delete_ids/1 a folder move that has asked drops the filings it would strand between vaults
+Slipdock.Wiki.FolderPlacements.drop_home/1 a folder moved by a write that has asked is no longer also filed where it now lives
+Slipdock.Wiki.FolderPlacements.stranded_by_move/2 a read: its only write makes a vault the first time it is wanted (Vaults.root/1)
+Slipdock.Wiki.KnowledgeBase.ensure/1 a person's Knowledge Base, made the first time it is asked for, by a read as often as a write
+Slipdock.Wiki.Links.reconcile/1 a page's links worked out again from its words, after a write that has asked
+Slipdock.Wiki.Links.reconcile_comment/1 a comment's links worked out again from its words, after its write has asked
+Slipdock.Wiki.Links.reconcile_status/1 a status update's links worked out again from its words, after its write has asked
+Slipdock.Wiki.Links.record/2 a card made from a page's passage, which has asked, is recorded on the page when the passage can't be marked
+Slipdock.Wiki.Links.resolve/3 a read: its only write makes the board owner's vault the first time it is wanted (Vaults.root/1)
+Slipdock.Wiki.Move.preview/3 a read of what a move would do: its only write makes a vault the first time it is wanted (Vaults.root/1)
+Slipdock.Wiki.Move.refield/2 a page or folder move that has asked carries its pages' field values across
+Slipdock.Wiki.Move.retag/2 a page or folder move that has asked carries its pages' tags across
+Slipdock.Wiki.Move.unpin/1 a page or folder move that has asked unpins what can't follow it
+Slipdock.Wiki.NoteTags.refresh/1 a page's note tags worked out again from its words, after a write that has asked
+Slipdock.Wiki.NoteTags.refresh_board/1 works every page's note tags out again on a board, a backfill no request makes
+Slipdock.Wiki.Placements.drop_home/1 a page filed by a write that has asked is no longer also filed where it now lives
+Slipdock.Wiki.QuickNote.vault/1 a read: its only write makes the person's vault the first time it is wanted (Vaults.root/1)
+Slipdock.Wiki.SharedPlacements.cleanup/1 a share taken back (Access.revoke/2 has asked) takes away what it let somebody file in their own folders
+Slipdock.Wiki.Switcher.linkable_pool/2 a read: its only write makes the person's vault the first time it is wanted (Vaults.root/1)
+Slipdock.Wiki.Switcher.pool/2 a read: its only write makes the board owner's vault the first time it is wanted (Vaults.root/1)
+Slipdock.Wiki.resolve_waiting/2 a page or file arriving by a write that has asked brings other pages' waiting links to life

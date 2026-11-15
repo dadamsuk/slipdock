@@ -132,20 +132,37 @@ defmodule SlipdockWeb.MCP.Tools do
         {:error, unknown}
 
       true ->
-        tool.call(args, context)
+        args |> tool.call(context) |> refused()
     end
   rescue
+    # A write the context refused (`Slipdock.Policy`, #3171), which the tool
+    # matched as a success: the refusal, as every tool answers one.
     e ->
-      require Logger
-
-      Logger.error(
-        "MCP tool #{tool.name()} crashed: " <> Exception.format(:error, e, __STACKTRACE__)
-      )
-
-      {:error, "#{tool.name()} failed on the server. Not worth retrying with the same arguments."}
+      case refusal_in(e) do
+        %Slipdock.Policy.Refused{} = refused -> SlipdockWeb.MCP.Args.refusal({:error, refused})
+        nil -> crashed(tool, e, __STACKTRACE__)
+      end
   end
 
   def call(_tool, _args, _context), do: {:error, "arguments must be an object"}
+
+  defp crashed(tool, e, stacktrace) do
+    require Logger
+
+    Logger.error("MCP tool #{tool.name()} crashed: " <> Exception.format(:error, e, stacktrace))
+
+    {:error, "#{tool.name()} failed on the server. Not worth retrying with the same arguments."}
+  end
+
+  # A tool that hands a context's refusal back as it came is answered as one.
+  defp refused({:error, %Slipdock.Policy.Refused{}} = refused),
+    do: SlipdockWeb.MCP.Args.refusal(refused)
+
+  defp refused(result), do: result
+
+  defp refusal_in(%{term: {:error, %Slipdock.Policy.Refused{} = refused}}), do: refused
+  defp refusal_in(%{term: %Slipdock.Policy.Refused{} = refused}), do: refused
+  defp refusal_in(_), do: nil
 
   # A schema that says additionalProperties: false means it: an argument it
   # doesn't name is refused before the tool runs, so a typo (archved for

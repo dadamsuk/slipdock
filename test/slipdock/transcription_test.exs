@@ -307,6 +307,34 @@ defmodule Slipdock.TranscriptionTest do
       refute Transcription.available_to?(user)
     end
 
+    # #3171: write on the card it hangs from, asked of the person named, a
+    # token narrowing them (`Slipdock.Policy`, `:transcribe_file`).
+    test "needs write on the card: a reader and a read-only token are refused", %{audio: audio} do
+      {:ok, _} = Settings.update(%{transcription_server_url: @url})
+      card = Boards.Cards.get_card!(audio.card_id)
+      board = Boards.get_board!(card.board_id)
+      owner = Slipdock.Accounts.get_user!(board.owner_id)
+      reader = user_fixture("transcribe.reader@example.com")
+
+      {:ok, _} =
+        Slipdock.Policy.as_system("a test fixture", fn ->
+          Slipdock.Access.grant(board, reader, "read", owner)
+        end)
+
+      assert {:error, %Slipdock.Policy.Refused{action: :transcribe_file, by: :user} = refused} =
+               Transcription.transcribe_attachment(audio, reader)
+
+      assert Transcription.describe(refused) =~ "Transcribing a recording needs write access"
+
+      {_plain, token} = Slipdock.Accounts.create_api_token(owner, "reader", scope: "read")
+      Slipdock.Actor.put(Slipdock.Actor.web(owner), nil, {owner, token})
+
+      assert {:error, %Slipdock.Policy.Refused{action: :transcribe_file, by: :token}} =
+               Transcription.transcribe_attachment(audio, owner)
+
+      assert Boards.Attachments.get_attachment!(audio.id).transcript_status == nil
+    end
+
     # #1206: only the people an admin has let use it, and admins.
     test "needs the person to be allowed it", %{audio: audio, user: user} do
       {:ok, _} = Settings.update(%{transcription_server_url: @url})

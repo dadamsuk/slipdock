@@ -35,7 +35,7 @@ defmodule Slipdock.Wiki.Sharing do
 
   import Ecto.Query, only: [from: 2]
 
-  alias Slipdock.{Access, Repo}
+  alias Slipdock.{Access, Actor, Repo}
   alias Slipdock.Accounts.User
   alias Slipdock.Boards.Board
   alias Slipdock.Wiki.{Folder, Page, WikiFile}
@@ -212,8 +212,11 @@ defmodule Slipdock.Wiki.Sharing do
   again changes the level.
   """
   def share(user, item, who, level) do
+    # Asked of `user`, who is sharing (`Slipdock.Policy`, `:share_page` or
+    # `:share_folder`), once the sharee's own refusals have had their say.
     with :ok <- may_share(user, item),
          :ok <- level_ok(level),
+         :ok <- Slipdock.Policy.authorize(Access.share_action(item), item, actor: Actor.web(user)),
          {:ok, subject} <- subject(user, who),
          {:ok, grant} <- Access.grant(item, subject, level, user) do
       {:ok, grant}
@@ -226,6 +229,7 @@ defmodule Slipdock.Wiki.Sharing do
   @doc "Takes back what `who` was given on `item`."
   def unshare(user, item, who) do
     with :ok <- may_share(user, item),
+         :ok <- Slipdock.Policy.authorize(Access.share_action(item), item, actor: Actor.web(user)),
          {:ok, subject} <- existing_subject(user, who) do
       case Enum.find(Access.list_grants(item), &holds?(&1, subject)) do
         nil -> {:error, :not_found, "a share of it with #{describe(subject)}"}
