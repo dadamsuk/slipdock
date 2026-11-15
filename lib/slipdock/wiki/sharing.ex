@@ -229,7 +229,7 @@ defmodule Slipdock.Wiki.Sharing do
          {:ok, subject} <- existing_subject(user, who) do
       case Enum.find(Access.list_grants(item), &holds?(&1, subject)) do
         nil -> {:error, :not_found, "a share of it with #{describe(subject)}"}
-        grant -> Access.revoke(grant)
+        grant -> Access.revoke(grant, actor: Slipdock.Actor.web(user))
       end
     end
   end

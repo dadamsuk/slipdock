@@ -12,8 +12,11 @@ Slipdock.Boards.Cards.follow_stand_ins/3 a card reaching done takes its stand-in
 Slipdock.Boards.Cards.infer_profile/2 an agent starting a card gives it a profile (#1951), after the move has asked
 Slipdock.Boards.Cards.leave_stand_in/2 a card carried to another sprint leaves a stand-in where it was
 Slipdock.Boards.Checklists.log_checklist/2 one activity line for checklist changes that have each asked
+Slipdock.Boards.Columns.repack/2 renumbers a list's positions after a move or a delete that has asked
+Slipdock.Boards.Columns.repack_column/1 renumbers a list's positions after a move or a delete that has asked
 Slipdock.Boards.Dependencies.unblock_dependents/2 a blocker done or put away unblocks its dependents, on whatever board they are
 Slipdock.Boards.Moves.record_move/5 the movement ledger's row for a create, move, archive or restore that has asked
+Slipdock.Boards.Templates.create_system_template/1 a built-in template the demo or onboarding makes when it is missing; never from a request
 Slipdock.Boards.Waits.close_wait/4 closes a wait once an answer, a withdrawal, a completion or an archive has asked
 Slipdock.Boards.Waits.default_wait/2 the scheduler answers an approval wait left past its board's time with its default (#2096)
 Slipdock.Boards.Waits.move_wait/3 a routed person has left the board, so their wait goes to the next person (#1949)

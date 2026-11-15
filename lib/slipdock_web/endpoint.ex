@@ -89,9 +89,18 @@ defmodule SlipdockWeb.Endpoint do
 
   # `/mcp` reads its own body. JSON-RPC has its own answer to a body that is
   # not JSON (`-32700`), and `Plug.Parsers` would raise a 400 HTML page first.
+  # In tests a request runs in the test's own process, which goes on to make
+  # its fixtures, so the request's actor is forgotten again as the response
+  # goes (`config/test.exs`); a server's request ends with its process, or
+  # the next one forgets it first.
+  @forget_after Application.compile_env(:slipdock, :forget_actor_after_request, false)
+
   defp forget_actor(conn, _opts) do
     Slipdock.Actor.put(nil)
-    conn
+
+    if @forget_after,
+      do: Plug.Conn.register_before_send(conn, &tap(&1, fn _ -> Slipdock.Actor.put(nil) end)),
+      else: conn
   end
 
   defp parse_body(%Plug.Conn{path_info: ["mcp"]} = conn, _opts), do: conn

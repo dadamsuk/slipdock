@@ -117,7 +117,9 @@ defmodule Slipdock.Sprints do
     attrs = Map.new(attrs, fn {k, v} -> {to_string(k), v} end)
     next = next_sprint(board)
 
-    with :ok <- check_sprint_board(board),
+    # Write on the sprint board (`Slipdock.Policy`, `:edit_sprint`).
+    with :ok <- Slipdock.Policy.authorize(:edit_sprint, board, opts),
+         :ok <- check_sprint_board(board),
          {:ok, column} <- landing_column(Boards.get_board!(board.id)),
          {:ok, start} <- date(attrs["start"], next.start),
          {:ok, days} <- days(attrs["days"]) do
@@ -172,7 +174,9 @@ defmodule Slipdock.Sprints do
   `{:error, message}` when the sprint itself will not do.
   """
   def add_cards(%Card{} = sprint, cards, opts \\ []) when is_list(cards) do
-    with true <- sprint?(sprint) || {:error, "That card is not a sprint."},
+    # Write on the sprint's card (`:add_to_sprint`); each card's move asks too.
+    with :ok <- Slipdock.Policy.authorize(:add_to_sprint, sprint, opts),
+         true <- sprint?(sprint) || {:error, "That card is not a sprint."},
          {:ok, board} <- sprint_board(sprint),
          {:ok, column} <- landing_column(board) do
       inside = MapSet.new(Boards.Moves.subtree_board_ids(sprint.id))
@@ -406,6 +410,7 @@ defmodule Slipdock.Sprints do
   def put_sources(%Board{} = board, user, sources) when is_list(sources) do
     with :ok <- check_sprint_board(board),
          :ok <- check_board_write(board, user),
+         :ok <- Slipdock.Policy.authorize(:update_board, board),
          {:ok, stored} <- resolve_sources(board, user, sources) do
       board
       |> Ecto.Changeset.change(sprint_sources: stored)

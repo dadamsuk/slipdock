@@ -227,4 +227,53 @@ defmodule SlipdockWeb.PolicyRefusedDoorsTest do
       assert Actor.principal() == {nil, nil}
     end
   end
+
+  describe "a board's own writes (#3170), when the context refuses what the door let through" do
+    setup %{conn: conn} do
+      owner = user_fixture("doors3.owner@example.com")
+      board = board_fixture(%{"name" => "Doors three"}, owner: owner)
+      %{conn: log_in_user(conn, owner), owner: owner, board: board}
+    end
+
+    defp nobody_in_page(view) do
+      :sys.replace_state(view.pid, fn state ->
+        Actor.put(nil)
+        Policy.forbid_nobody()
+        state
+      end)
+    end
+
+    test "the board page says a refused new list in a flash", %{conn: conn, board: board} do
+      {:ok, view, _} = live(conn, ~p"/boards/#{board.id}")
+      nobody_in_page(view)
+
+      render_hook(view, "add_column", %{"name" => "Later"})
+
+      assert render(view) =~ "Changing the board&#39;s lists was asked with nobody acting"
+      refute Enum.any?(Boards.get_board!(board.id).columns, &(&1.name == "Later"))
+    end
+
+    test "the board index says a refused archive in a flash", %{conn: conn, board: board} do
+      {:ok, view, _} = live(conn, ~p"/")
+      nobody_in_page(view)
+
+      render_hook(view, "archive", %{"id" => "#{board.id}"})
+
+      assert render(view) =~ "Archiving a board was asked with nobody acting"
+      refute Boards.get_board!(board.id).archived_at
+    end
+
+    test "MCP's archive_board answers the refusal as a tool error", %{owner: owner, board: board} do
+      Actor.put(nil)
+      Policy.forbid_nobody()
+
+      assert {:error, "forbidden: Archiving a board was asked with nobody acting" <> _} =
+               SlipdockWeb.MCP.Tools.ArchiveBoard.call(%{"board" => board.id}, %{
+                 user: owner,
+                 token: nil
+               })
+
+      refute Boards.get_board!(board.id).archived_at
+    end
+  end
 end

@@ -171,3 +171,8 @@ config :slipdock, :config_overrides, true
 
 # The health monitor runs only when a test asks (see `Slipdock.Health`).
 config :slipdock, :health, interval: :manual
+
+# A request in a test runs in the test's own process: forget its actor as the
+# response goes, so the test's own writes after it are its fixtures, as they
+# would be in another process (`SlipdockWeb.Endpoint`, #3170).
+config :slipdock, forget_actor_after_request: true

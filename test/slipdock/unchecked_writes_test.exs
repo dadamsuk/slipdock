@@ -44,6 +44,15 @@ defmodule Slipdock.UncheckedWritesTest do
     assert Enum.filter(system_funs(), &(&1 in UncheckedWrites.read_list(@list))) == []
   end
 
+  # Policy 3 (#3170): the board contexts and grants ask, or are the server's own.
+  test "the board contexts and grants ask for every write, or are listed as the server's" do
+    boards =
+      ~r/^Slipdock\.(Boards|Boards\.(Columns|Arrangement|Templates|SavedViews)|Sprints|Access)\.[a-z_]+[!?]?\//
+
+    assert @root |> UncheckedWrites.unchecked() |> Enum.filter(&(&1 =~ boards)) |> Enum.sort() ==
+             system_funs() |> Enum.filter(&(&1 =~ boards)) |> Enum.sort()
+  end
+
   # Policy 2 (#3169): the card contexts ask, or are the server's own.
   test "the card contexts ask for every write, or are listed as the server's" do
     cards =

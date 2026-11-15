@@ -980,7 +980,14 @@ defmodule Slipdock.Access do
   email address, which creates the user if needed). Re-granting updates the level.
   """
   def grant(resource, subject, level, %User{} = granted_by) when level in @grant_levels do
-    with {:ok, subject} <- resolve_subject(subject, granted_by, resource) do
+    # Asked as `granted_by`, who the door says is sharing (`Slipdock.Policy`,
+    # #3170): a board's or view's owner, a card's writer, a page's, a
+    # folder's, a tool's owner.
+    with :ok <-
+           Slipdock.Policy.authorize(share_action(resource), resource,
+             actor: Slipdock.Actor.web(granted_by)
+           ),
+         {:ok, subject} <- resolve_subject(subject, granted_by, resource) do
       subject_clause = subject_clause(subject)
       attrs = Map.merge(resource_attrs(resource), subject_attrs(subject))
 
@@ -1005,17 +1012,36 @@ defmodule Slipdock.Access do
     end
   end
 
-  def revoke(%Grant{} = grant) do
-    resource =
-      case Grant.resource_type(grant) do
-        :board -> Repo.get!(Board, grant.board_id)
-        :card -> Repo.get!(Card, grant.card_id)
-        :page -> Repo.get!(Page, grant.page_id)
-        :folder -> Repo.get!(Folder, grant.folder_id)
-        :view -> Repo.get!(SavedView, grant.saved_view_id)
-        :tool -> Repo.get!(Slipdock.Tools.Tool, grant.tool_id)
-      end
+  def revoke(%Grant{} = grant, opts \\ []) do
+    resource = grant_resource(grant)
 
+    # Taking a share back asks what making it does, of whoever is acting:
+    # `opts[:actor]`, or this process's (`Slipdock.Policy`, #3170).
+    with :ok <- Slipdock.Policy.authorize(share_action(resource), resource, opts),
+         do: drop_grant(grant, resource)
+  end
+
+  @doc false
+  # What sharing `resource` is, in `Slipdock.Policy`'s table.
+  def share_action(%Board{}), do: :share_board
+  def share_action(%SavedView{}), do: :share_view
+  def share_action(%Card{}), do: :share_card
+  def share_action(%Page{}), do: :share_page
+  def share_action(%Folder{}), do: :share_folder
+  def share_action(%Slipdock.Tools.Tool{}), do: :share_tool
+
+  defp grant_resource(grant) do
+    case Grant.resource_type(grant) do
+      :board -> Repo.get!(Board, grant.board_id)
+      :card -> Repo.get!(Card, grant.card_id)
+      :page -> Repo.get!(Page, grant.page_id)
+      :folder -> Repo.get!(Folder, grant.folder_id)
+      :view -> Repo.get!(SavedView, grant.saved_view_id)
+      :tool -> Repo.get!(Slipdock.Tools.Tool, grant.tool_id)
+    end
+  end
+
+  defp drop_grant(grant, resource) do
     Repo.delete(grant)
     |> tap(fn _ ->
       # What the share let somebody file in their own folders goes too (#818).
@@ -1071,6 +1097,11 @@ defmodule Slipdock.Access do
   """
   @spec discard_board(User.t(), Board.t()) :: {:ok, level} | {:error, :owner}
   def discard_board(%User{} = user, %Board{} = board) do
+    # The person's own grants, nobody else's (`Slipdock.Policy`, `:arrange_own`).
+    with :ok <- Slipdock.Policy.authorize(:arrange_own, user), do: discard(user, board)
+  end
+
+  defp discard(user, board) do
     if board.owner_id == user.id do
       {:error, :owner}
     else

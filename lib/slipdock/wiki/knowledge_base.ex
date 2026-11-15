@@ -37,8 +37,18 @@ defmodule Slipdock.Wiki.KnowledgeBase do
   @doc "`user`'s Knowledge Base, made now if they have none: `{:ok, board}`."
   def ensure(%User{} = user) do
     case get(user) do
-      %Board{} = board -> {:ok, board}
-      nil -> Boards.create_board(%{"name" => @name}, owner_id: user.id, wiki: true)
+      %Board{} = board ->
+        {:ok, board}
+
+      # Made the first time it is asked for, by a read as often as a write:
+      # the server's own setup for the person (`Slipdock.Policy`, #3170).
+      nil ->
+        Slipdock.Policy.as_system(
+          "a person's Knowledge Base, made the first time it is asked for",
+          fn ->
+            Boards.create_board(%{"name" => @name}, owner_id: user.id, wiki: true)
+          end
+        )
     end
   end
 

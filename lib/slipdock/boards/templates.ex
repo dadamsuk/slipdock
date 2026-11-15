@@ -76,7 +76,12 @@ defmodule Slipdock.Boards.Templates do
     do: authorize_template(user, template, :write) == :ok
 
   @doc "Makes a template owned by `user`; `attrs` can't make it anybody else's, or built in."
-  def create_template(%{id: user_id}, attrs) do
+  def create_template(%{id: user_id} = user, attrs) do
+    # As that person, nobody else (`Slipdock.Policy`, `:own_template`).
+    with :ok <- Slipdock.Policy.authorize(:own_template, user), do: insert(user_id, attrs)
+  end
+
+  defp insert(user_id, attrs) do
     %Template{owner_id: user_id, system: false}
     |> Template.changeset(attrs)
     |> reserve_built_in_names(Repo)
@@ -97,7 +102,8 @@ defmodule Slipdock.Boards.Templates do
 
   @doc "Changes `user`'s own template; see `authorize_template/3` for the refusals."
   def update_template(user, %Template{} = template, attrs) do
-    with :ok <- authorize_template(user, template, :write) do
+    with :ok <- Slipdock.Policy.authorize(:own_template, user),
+         :ok <- authorize_template(user, template, :write) do
       template
       |> Template.changeset(attrs)
       |> reserve_built_in_names(Repo)
@@ -108,7 +114,8 @@ defmodule Slipdock.Boards.Templates do
 
   @doc "Deletes `user`'s own template; see `authorize_template/3` for the refusals."
   def delete_template(user, %Template{} = template) do
-    with :ok <- authorize_template(user, template, :write) do
+    with :ok <- Slipdock.Policy.authorize(:own_template, user),
+         :ok <- authorize_template(user, template, :write) do
       Repo.delete(template)
       |> Boards.Shared.tap_ok(fn _ -> Boards.PubSub.broadcast_templates() end)
     end

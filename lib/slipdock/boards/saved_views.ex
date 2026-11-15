@@ -41,7 +41,12 @@ defmodule Slipdock.Boards.SavedViews do
     Repo.all(from(v in SavedView, where: v.board_id == ^board_id, order_by: [asc: v.name]))
   end
 
+  @doc "Saves a view of `board`: write on it (`Slipdock.Policy`, `:edit_view`)."
   def create_saved_view(%Board{} = board, attrs) do
+    with :ok <- Slipdock.Policy.authorize(:edit_view, board), do: insert(board, attrs)
+  end
+
+  defp insert(board, attrs) do
     %SavedView{board_id: board.id}
     |> SavedView.changeset(Map.put(attrs, "board_id", board.id))
     |> Repo.insert()
@@ -52,6 +57,10 @@ defmodule Slipdock.Boards.SavedViews do
   end
 
   def update_saved_view(%SavedView{} = view, attrs) do
+    with :ok <- Slipdock.Policy.authorize(:edit_view, view), do: save(view, attrs)
+  end
+
+  defp save(view, attrs) do
     view
     |> SavedView.changeset(attrs)
     |> Repo.update()
@@ -59,6 +68,10 @@ defmodule Slipdock.Boards.SavedViews do
   end
 
   def delete_saved_view(%SavedView{} = view) do
+    with :ok <- Slipdock.Policy.authorize(:edit_view, view), do: drop(view)
+  end
+
+  defp drop(view) do
     Repo.delete(view)
     |> Boards.Shared.tap_ok(fn v ->
       Boards.ActivityLog.log(Repo, v.board_id, nil, "view", "deleted view “#{v.name}”")
@@ -70,6 +83,11 @@ defmodule Slipdock.Boards.SavedViews do
 
   @doc "Gives the view a public token so anyone with the link can read it."
   def publish_saved_view(%SavedView{} = view) do
+    # Its board's owner (`:publish_view`), as the board page asks.
+    with :ok <- Slipdock.Policy.authorize(:publish_view, view), do: publish(view)
+  end
+
+  defp publish(view) do
     token = :crypto.strong_rand_bytes(18) |> Base.url_encode64(padding: false)
 
     view
@@ -80,6 +98,10 @@ defmodule Slipdock.Boards.SavedViews do
 
   @doc "Withdraws the view's public link."
   def unpublish_saved_view(%SavedView{} = view) do
+    with :ok <- Slipdock.Policy.authorize(:publish_view, view), do: unpublish(view)
+  end
+
+  defp unpublish(view) do
     view
     |> Ecto.Changeset.change(public_token: nil)
     |> Repo.update()

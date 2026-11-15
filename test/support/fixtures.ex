@@ -106,11 +106,13 @@ defmodule Slipdock.Fixtures do
         }
 
     {:ok, board} =
-      Boards.create_board(
-        Map.merge(defaults, attrs),
-        template: opts[:template],
-        owner_id: owner.id
-      )
+      Slipdock.Policy.as_system("a test fixture", fn ->
+        Boards.create_board(
+          Map.merge(defaults, attrs),
+          template: opts[:template],
+          owner_id: owner.id
+        )
+      end)
 
     Boards.get_board!(board.id)
   end
@@ -158,7 +160,11 @@ defmodule Slipdock.Fixtures do
     owner = Accounts.get_user!(board.owner_id)
 
     for user <- List.wrap(users),
-        do: {:ok, _} = Slipdock.Access.grant(board, user, level, owner)
+        do:
+          {:ok, _} =
+            Slipdock.Policy.as_system("a test fixture", fn ->
+              Slipdock.Access.grant(board, user, level, owner)
+            end)
 
     board
   end
@@ -302,7 +308,10 @@ defmodule Slipdock.Fixtures do
   wait on each other's `epic`. Use the real thing in a test about the code.
   """
   def sub_board(card, template),
-    do: Boards.create_sub_board(card, template, code: unique_code())
+    do:
+      Slipdock.Policy.as_system("a test fixture", fn ->
+        Boards.create_sub_board(card, template, code: unique_code())
+      end)
 
   @doc """
   A three-level tree for rollup tests, as of 15 Jan 2030:
@@ -320,7 +329,9 @@ defmodule Slipdock.Fixtures do
     epic = card_fixture(backlog, %{"title" => "Epic", "due_date" => "2030-01-15"})
 
     {:ok, sub} =
-      Boards.create_sub_board(epic, t, code: unique_code())
+      Slipdock.Policy.as_system("a test fixture", fn ->
+        Boards.create_sub_board(epic, t, code: unique_code())
+      end)
 
     sub = Boards.get_board!(sub.id)
 
@@ -339,7 +350,9 @@ defmodule Slipdock.Fixtures do
       })
 
     {:ok, subsub} =
-      Boards.create_sub_board(c, t, code: unique_code())
+      Slipdock.Policy.as_system("a test fixture", fn ->
+        Boards.create_sub_board(c, t, code: unique_code())
+      end)
 
     subsub = Boards.get_board!(subsub.id)
     d = card_fixture(hd(subsub.columns), %{"title" => "D", "completed" => true})

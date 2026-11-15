@@ -33,6 +33,7 @@ defmodule Slipdock.Boards do
   alias Slipdock.Boards.Template
   alias Slipdock.CardState
   alias Slipdock.Importers
+  alias Slipdock.Policy
   alias Slipdock.Quota
   alias Slipdock.Repo
   alias Slipdock.Rollup
@@ -374,6 +375,12 @@ defmodule Slipdock.Boards do
   are what forms send.
   """
   def create_board(attrs, opts \\ []) do
+    # Anybody signed in makes boards of their own (`Slipdock.Policy`,
+    # `:create_board`); a sub-board's card has asked already.
+    with :ok <- Policy.authorize(:create_board, nil, opts), do: new_board(attrs, opts)
+  end
+
+  defp new_board(attrs, opts) do
     template = opts[:template]
     custom = custom_columns(opts[:columns])
 
@@ -383,50 +390,52 @@ defmodule Slipdock.Boards do
 
     attrs = attrs |> put_code() |> put_shortcut(nil, opts)
 
-    result =
-      Multi.new()
-      |> Multi.insert(
-        :board,
-        %Board{
-          template_id: template && template.id,
-          kind: if(opts[:wiki], do: "wiki", else: template_kind(template, opts))
-        }
-        |> Board.changeset(attrs)
-        |> vault_key_check()
-        |> Ecto.Changeset.change(Keyword.take(opts, [:parent_card_id, :root_id, :owner_id]))
-        |> validate_custom_columns(custom)
-        |> enforce_board_limit()
-      )
-      |> Multi.run(:columns, fn repo, %{board: board} -> insert_columns(repo, board, columns) end)
-      |> Multi.run(:saved, fn repo, %{board: board} ->
-        save_board_template(repo, board, attrs, opts[:save_template], columns)
-      end)
-      |> Multi.run(:activity, fn repo, %{board: board} ->
-        Boards.ActivityLog.log(repo, board.id, nil, "board", "created board “#{board.name}”")
-      end)
-      |> Repo.transaction()
-
-    case result do
-      {:ok, %{saved: board}} ->
-        if board.template_id && !template, do: Boards.PubSub.broadcast_templates()
-        # A template may carry a documentation skeleton, folders, tags and
-        # rules as well as lists, so a new board arrives with somewhere to
-        # write rather than an empty wiki. The same applier builds a Tool's
-        # board (see `Slipdock.Blueprint`).
-        if template,
-          do: apply_template_extras(board, template, opts[:owner_id], opts[:make_tags] != false)
-
-        Boards.PubSub.broadcast(board.id)
-        # Nobody is subscribed to a new tree yet, its owner included. A
-        # Knowledge Base is on no list of boards, so nobody's needs redrawing.
-        if is_nil(board.parent_card_id) and not Board.wiki?(board),
-          do: Boards.PubSub.notify_users_boards_changed([board.owner_id])
-
-        {:ok, board}
-
-      {:error, step, changeset, _} when step in [:board, :saved] ->
-        {:error, changeset}
+    case insert_board(attrs, template, custom, columns, opts) do
+      {:ok, %{saved: board}} -> {:ok, board_made(board, template, opts)}
+      {:error, step, changeset, _} when step in [:board, :saved] -> {:error, changeset}
     end
+  end
+
+  defp insert_board(attrs, template, custom, columns, opts) do
+    Multi.new()
+    |> Multi.insert(
+      :board,
+      %Board{
+        template_id: template && template.id,
+        kind: if(opts[:wiki], do: "wiki", else: template_kind(template, opts))
+      }
+      |> Board.changeset(attrs)
+      |> vault_key_check()
+      |> Ecto.Changeset.change(Keyword.take(opts, [:parent_card_id, :root_id, :owner_id]))
+      |> validate_custom_columns(custom)
+      |> enforce_board_limit()
+    )
+    |> Multi.run(:columns, fn repo, %{board: board} -> insert_columns(repo, board, columns) end)
+    |> Multi.run(:saved, fn repo, %{board: board} ->
+      save_board_template(repo, board, attrs, opts[:save_template], columns)
+    end)
+    |> Multi.run(:activity, fn repo, %{board: board} ->
+      Boards.ActivityLog.log(repo, board.id, nil, "board", "created board “#{board.name}”")
+    end)
+    |> Repo.transaction()
+  end
+
+  defp board_made(board, template, opts) do
+    if board.template_id && !template, do: Boards.PubSub.broadcast_templates()
+    # A template may carry a documentation skeleton, folders, tags and
+    # rules as well as lists, so a new board arrives with somewhere to
+    # write rather than an empty wiki. The same applier builds a Tool's
+    # board (see `Slipdock.Blueprint`).
+    if template,
+      do: apply_template_extras(board, template, opts[:owner_id], opts[:make_tags] != false)
+
+    Boards.PubSub.broadcast(board.id)
+    # Nobody is subscribed to a new tree yet, its owner included. A
+    # Knowledge Base is on no list of boards, so nobody's needs redrawing.
+    if is_nil(board.parent_card_id) and not Board.wiki?(board),
+      do: Boards.PubSub.notify_users_boards_changed([board.owner_id])
+
+    board
   end
 
   # A template's Scheduled list (#2100) is for a root board, where the
@@ -588,6 +597,12 @@ defmodule Slipdock.Boards do
   they were. Given neither, as the server's own setup is, they are made.
   """
   def create_sub_board(%Card{} = card, %Template{} = template, opts \\ []) do
+    # Write on the card the board hangs from (`:edit_sub_board`).
+    with :ok <- Policy.authorize(:edit_sub_board, card, opts),
+         do: new_sub_board(card, template, opts)
+  end
+
+  defp new_sub_board(card, template, opts) do
     parent = Repo.get!(Board, card.board_id)
     make_tags? = Boards.Tags.may_make?(parent, opts[:by], opts)
 
@@ -639,8 +654,12 @@ defmodule Slipdock.Boards do
     end
   end
 
-  @doc "Removes a card's sub-board and everything on it."
+  @doc "Removes a card's sub-board and everything on it: write on the card."
   def delete_sub_board(%Card{} = card) do
+    with :ok <- Policy.authorize(:edit_sub_board, card), do: drop_sub_board(card)
+  end
+
+  defp drop_sub_board(card) do
     case Repo.one(from(b in Board, where: b.parent_card_id == ^card.id)) do
       nil ->
         {:error, "This card has no subcards."}
@@ -661,7 +680,16 @@ defmodule Slipdock.Boards do
     end
   end
 
+  @doc """
+  Changes a board's own settings: write on that board, whatever it points at
+  (`Slipdock.Policy`, `:update_board`, #2746). A door may ask more on top
+  (the settings panel is the owner's).
+  """
   def update_board(%Board{} = board, attrs) do
+    with :ok <- Policy.authorize(:update_board, board), do: save_board(board, attrs)
+  end
+
+  defp save_board(board, attrs) do
     changeset =
       board
       |> Board.changeset(attrs |> put_code(board) |> put_shortcut(board))
@@ -682,13 +710,22 @@ defmodule Slipdock.Boards do
   `Slipdock.WaitRoutes.set/2`: a question kind => user ids.
   """
   def set_wait_routes(%Board{} = board, routes) do
+    with :ok <- Policy.authorize(:update_board, board), do: save_routes(board, routes)
+  end
+
+  defp save_routes(board, routes) do
     board
     |> Board.wait_routes_changeset(routes)
     |> Repo.update()
     |> Boards.Shared.tap_ok(&Boards.PubSub.broadcast(&1.id))
   end
 
+  @doc "Deletes a board and everything on it: its owner only (`:delete_board`)."
   def delete_board(%Board{} = board) do
+    with :ok <- Policy.authorize(:delete_board, board), do: drop_board(board)
+  end
+
+  defp drop_board(board) do
     keys =
       Boards.Attachments.file_keys(
         from(b in Board, where: b.id == ^board.id or b.root_id == ^board.id)

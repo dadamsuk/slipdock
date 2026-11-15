@@ -10,6 +10,7 @@ defmodule Slipdock.Boards.Columns do
   alias Slipdock.Boards.Board
   alias Slipdock.Boards.Card
   alias Slipdock.Boards.Column
+  alias Slipdock.Policy
   alias Slipdock.Repo
 
   ## Columns
@@ -45,7 +46,12 @@ defmodule Slipdock.Boards.Columns do
     )
   end
 
+  @doc "Adds a list to `board`: write on it (`Slipdock.Policy`, `:edit_list`)."
   def create_column(%Board{} = board, attrs) do
+    with :ok <- Policy.authorize(:edit_list, board), do: insert_column(board, attrs)
+  end
+
+  defp insert_column(board, attrs) do
     position = Boards.Shared.next_position(from(c in Column, where: c.board_id == ^board.id))
 
     %Column{board_id: board.id, position: position}
@@ -59,6 +65,10 @@ defmodule Slipdock.Boards.Columns do
   end
 
   def update_column(%Column{} = column, attrs) do
+    with :ok <- Policy.authorize(:edit_list, column), do: save_column(column, attrs)
+  end
+
+  defp save_column(column, attrs) do
     column
     |> Column.changeset(attrs)
     |> Repo.update()
@@ -104,6 +114,10 @@ defmodule Slipdock.Boards.Columns do
   end
 
   def delete_column(%Column{} = column) do
+    with :ok <- Policy.authorize(:edit_list, column), do: drop_column(column)
+  end
+
+  defp drop_column(column) do
     # The cards go with the list by a cascade, archived ones too; their files
     # and everything beneath them have to be gathered first.
     keys =
@@ -139,6 +153,11 @@ defmodule Slipdock.Boards.Columns do
   of the board when `before_id` is nil.
   """
   def move_column(board_id, column_id, before_id) do
+    with :ok <- Policy.authorize(:edit_list, %Board{id: board_id}),
+         do: place_column(board_id, column_id, before_id)
+  end
+
+  defp place_column(board_id, column_id, before_id) do
     ids =
       Repo.all(
         from(c in Column, where: c.board_id == ^board_id, order_by: c.position, select: c.id)
@@ -195,6 +214,16 @@ defmodule Slipdock.Boards.Columns do
   """
   @spec reorder(item_ref, integer | nil, integer, term) :: :ok
   def reorder(ref, from_column_id, to_column_id, before \\ nil) do
+    # Write on the board of the list it joins (`:place_in_list`): a card's
+    # move has asked for the card already.
+    with :ok <- Policy.authorize(:place_in_list, %Column{board_id: board_of_column(to_column_id)}),
+         do: place(ref, from_column_id, to_column_id, before)
+  end
+
+  defp board_of_column(id),
+    do: Repo.one(from(c in Column, where: c.id == ^id, select: c.board_id))
+
+  defp place(ref, from_column_id, to_column_id, before) do
     same_column? = from_column_id == to_column_id
     before_ref = item_ref(before)
 
