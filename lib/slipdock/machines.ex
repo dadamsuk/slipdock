@@ -88,13 +88,7 @@ defmodule Slipdock.Machines do
     refs = Enum.reject(refs, &(&1 == ""))
     boards = servable_boards(user, archived: :all)
 
-    {found, missing} =
-      Enum.reduce(refs, {[], []}, fn ref, {found, missing} ->
-        case Enum.find(boards, &(Integer.to_string(&1.id) == ref or &1.code == ref)) do
-          nil -> {found, [ref | missing]}
-          board -> {[board.id | found], missing}
-        end
-      end)
+    {found, missing} = find_boards(boards, refs)
 
     cond do
       refs == [] ->
@@ -175,13 +169,7 @@ defmodule Slipdock.Machines do
   defp removing(%Machine{board_ids: ids}, refs) do
     boards = Repo.all(from(b in Slipdock.Boards.Board, where: b.id in ^ids))
 
-    {found, missing} =
-      Enum.reduce(refs, {[], []}, fn ref, {found, missing} ->
-        case Enum.find(boards, &(Integer.to_string(&1.id) == ref or &1.code == ref)) do
-          nil -> {found, [ref | missing]}
-          board -> {[board.id | found], missing}
-        end
-      end)
+    {found, missing} = find_boards(boards, refs)
 
     if missing == [],
       do: {:ok, found |> Enum.reverse() |> Enum.uniq()},
@@ -246,6 +234,17 @@ defmodule Slipdock.Machines do
       do: %{missing: ids -- ceiling, extra: ceiling -- ids}
 
   def ceiling_mismatch(%Machine{}), do: %{missing: [], extra: []}
+
+  # The ids `refs` (ids or codes) name among `boards`, and the refs that
+  # name none, each in reverse order.
+  defp find_boards(boards, refs) do
+    Enum.reduce(refs, {[], []}, fn ref, {found, missing} ->
+      case Enum.find(boards, &(Integer.to_string(&1.id) == ref or &1.code == ref)) do
+        nil -> {found, [ref | missing]}
+        board -> {[board.id | found], missing}
+      end
+    end)
+  end
 
   @doc "The boards a machine may serve that `user` can still reach, for showing."
   def boards_for(%Machine{board_ids: ids}, %User{} = user) do
