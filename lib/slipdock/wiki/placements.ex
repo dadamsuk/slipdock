@@ -24,7 +24,7 @@ defmodule Slipdock.Wiki.Placements do
 
   import Ecto.Query, warn: false
 
-  alias Slipdock.{Access, Repo, Vaults, Wiki}
+  alias Slipdock.{Access, Actor, Policy, Repo, Vaults, Wiki}
   alias Slipdock.Accounts.User
   alias Slipdock.Boards.Board
   alias Slipdock.Vaults.Layout
@@ -55,7 +55,7 @@ defmodule Slipdock.Wiki.Placements do
       # with you, filed in a folder of your own. Reading it is enough, as
       # long as you write where it goes.
       shared_into_own?(page, folder, user) ->
-        insert(page, folder)
+        file_in(page, folder, user)
 
       Slipdock.Wiki.SharedPlacements.cross_owner?(page.board_id, folder.board_id) and
           Access.can_read?(Access.share_permission(user, page)) ->
@@ -69,8 +69,16 @@ defmodule Slipdock.Wiki.Placements do
         {:error, :forbidden, "you need to be able to edit both the page's board and the folder's"}
 
       true ->
-        insert(page, folder)
+        file_in(page, folder, user)
     end
+  end
+
+  # Asked of `user`, who the door says is filing it, once the filing's own
+  # refusals have had their say: write on the board it is filed on
+  # (`Slipdock.Policy`, `:file_also`).
+  defp file_in(page, folder, user) do
+    with :ok <- Policy.authorize(:file_also, folder, actor: Actor.web(user)),
+         do: insert(page, folder)
   end
 
   defp insert(page, folder) do
@@ -112,16 +120,27 @@ defmodule Slipdock.Wiki.Placements do
         {:error, :forbidden, "you don't edit this page"}
 
       true ->
-        case Repo.delete_all(
-               from(pl in Placement, where: pl.page_id == ^page.id and pl.folder_id == ^folder.id)
-             ) do
-          {0, _} ->
-            {:error, :not_found, "a placement of #{page.code} in #{Wiki.folder_path(folder)}"}
+        with :ok <- either_end(page, folder, user), do: unfile(page, folder)
+    end
+  end
 
-          _ ->
-            touched(page, folder)
-            {:ok, folders(page)}
-        end
+  # Either end's writer (`Slipdock.Policy`, `:file_also`), as `user`: asked
+  # of the page's board quietly first, so the folder's refusal is the answer.
+  defp either_end(page, folder, user) do
+    as = [actor: Actor.web(user)]
+    if Policy.can?(:file_also, page, as), do: :ok, else: Policy.authorize(:file_also, folder, as)
+  end
+
+  defp unfile(page, folder) do
+    case Repo.delete_all(
+           from(pl in Placement, where: pl.page_id == ^page.id and pl.folder_id == ^folder.id)
+         ) do
+      {0, _} ->
+        {:error, :not_found, "a placement of #{page.code} in #{Wiki.folder_path(folder)}"}
+
+      _ ->
+        touched(page, folder)
+        {:ok, folders(page)}
     end
   end
 
@@ -155,12 +174,18 @@ defmodule Slipdock.Wiki.Placements do
           {:error, :unprocessable_entity, "#{path} is a board's wiki, not a folder in it"}
 
         may_make?(opts, item, board.id) ->
-          Folders.ensure_path(board, folder, segments)
+          make_path(board, folder, segments)
 
         true ->
           Folders.at_path(board, folder, segments)
       end
     end
+  end
+
+  # Made as the person acting, where they are made (`:create_wiki_item`).
+  defp make_path(board, folder, segments) do
+    with :ok <- Policy.authorize(:create_wiki_item, folder || board),
+         do: Folders.ensure_path(board, folder, segments)
   end
 
   defp place(vault, path) do

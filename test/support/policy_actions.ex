@@ -32,4 +32,39 @@ defmodule Slipdock.PolicyActions do
       share_tool: :owner
     ]
   end
+
+  @doc "Policy 4 (#3171): the wiki, vaults and recordings, with the level each needs."
+  def wiki do
+    [
+      create_wiki_item: :write,
+      edit_page: :write,
+      archive_page: :write,
+      delete_page: :owner,
+      purge_revisions: :owner,
+      publish_page: :write,
+      place_page: :write,
+      pin_page: :write,
+      pin_to_card: :write,
+      link_page: :read,
+      write_up_card: :write,
+      arrange_wiki: :write,
+      edit_folder: :write,
+      delete_folder: :write,
+      purge_folder: :owner,
+      file_also: :write,
+      edit_file: :write,
+      archive_file: :write,
+      delete_file: :owner,
+      move_wiki_out: :write,
+      move_wiki_in: :write,
+      adopt_knowledge_base: :owner,
+      install_handbook: :write,
+      reread_file: :write,
+      transcribe_file: :write,
+      own_draft: :owner,
+      own_tree_state: :owner,
+      own_vault: :owner,
+      own_google: :owner
+    ]
+  end
 end

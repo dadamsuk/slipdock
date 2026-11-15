@@ -276,4 +276,158 @@ defmodule SlipdockWeb.PolicyRefusedDoorsTest do
       refute Boards.get_board!(board.id).archived_at
     end
   end
+
+  describe "the wiki's own writes (#3171), when the context refuses what the door let through" do
+    setup %{conn: conn} do
+      owner = user_fixture("doors4.owner@example.com")
+      board = board_fixture(%{"name" => "Doors four"}, owner: owner)
+
+      {:ok, folder} =
+        Policy.as_system("a test fixture", fn ->
+          Slipdock.Wiki.create_folder(board, %{"name" => "Shared"})
+        end)
+
+      page =
+        page_fixture(
+          board,
+          %{"title" => "Shared page", "body" => "Before.", "folder_id" => folder.id},
+          user: owner
+        )
+
+      sharee = user_fixture("doors4.sharee@example.com")
+
+      {:ok, _} =
+        Policy.as_system("a test fixture", fn ->
+          Slipdock.Access.grant(folder, sharee, "write", owner)
+        end)
+
+      %{conn: conn, owner: owner, board: board, folder: folder, page: page, sharee: sharee}
+    end
+
+    defp nobody_on_page(view) do
+      :sys.replace_state(view.pid, fn state ->
+        Actor.put(nil)
+        Policy.forbid_nobody()
+        state
+      end)
+    end
+
+    test "Shared with me says a refused save in a flash, and the page keeps its words", c do
+      {:ok, view, _} = live(log_in_user(c.conn, c.sharee), ~p"/shared/pages/#{c.page.id}/edit")
+      nobody_on_page(view)
+
+      view
+      |> form("#shared-edit-form", page: %{title: "Shared page", body: "After."})
+      |> render_submit()
+
+      assert render(view) =~ "Changing a page was asked with nobody acting"
+      assert Slipdock.Wiki.get_page!(c.page.id).body == "Before."
+    end
+
+    test "Shared with me says a refused new page in a flash", c do
+      {:ok, view, _} = live(log_in_user(c.conn, c.sharee), ~p"/shared/folders/#{c.folder.id}")
+      nobody_on_page(view)
+
+      view |> form("#shared-new-page", %{title: "From nobody"}) |> render_submit()
+
+      assert render(view) =~ "Making a page, file or folder there was asked with nobody acting"
+      refute Enum.any?(Slipdock.Wiki.list_pages(c.board), &(&1.title == "From nobody"))
+    end
+
+    test "the wiki says a refused archive in a flash", c do
+      {:ok, view, _} =
+        live(log_in_user(c.conn, c.owner), ~p"/boards/#{c.board.id}/wiki/#{c.page.slug}")
+
+      nobody_on_page(view)
+      render_hook(view, "archive", %{})
+
+      assert render(view) =~ "That page couldn&#39;t be archived."
+      refute Slipdock.Wiki.get_page!(c.page.id).archived_at
+    end
+
+    # The door asks write on the page, which the folder's share gives; the
+    # list it goes in is the board's, which it doesn't (`Boards.Columns.reorder/4`).
+    test "REST answers 403 when a folder sharee puts the page in a list", c do
+      {plain, _} = Slipdock.Accounts.create_api_token(c.sharee, "w", scope: "write")
+      column = hd(c.board.columns)
+
+      body =
+        c.conn
+        |> put_req_header("authorization", "Bearer " <> plain)
+        |> post("/api/pages/#{c.page.id}/place", %{column: column.id})
+        |> json_response(403)
+
+      assert body["error"] =~ "forbidden: Placing something in a list needs write access"
+      refute Slipdock.Wiki.get_page!(c.page.id).column_id
+    end
+
+    test "MCP's update_page answers a refused archive as a tool error", c do
+      {_plain, token} = Slipdock.Accounts.create_api_token(c.owner, "agent", scope: "write")
+      Actor.put(nil)
+      Policy.forbid_nobody()
+
+      assert {:error,
+              "forbidden: Archiving or restoring a page was asked with nobody acting" <> _} =
+               SlipdockWeb.MCP.Tools.call(
+                 SlipdockWeb.MCP.Tools.UpdatePage,
+                 %{"page" => c.page.code, "archived" => true},
+                 %{user: c.owner, token: token}
+               )
+
+      refute Slipdock.Wiki.get_page!(c.page.id).archived_at
+    end
+  end
+
+  # One place answers every MCP tool's refusal (#3171): a tool that hands the
+  # context's refusal back as it came, or crashes matching it as a success.
+  describe "MCP, for a tool that doesn't answer a refusal itself" do
+    defmodule Handed do
+      def name, do: "handed"
+      def input_schema, do: %{type: "object", properties: %{}}
+
+      def call(_args, _context),
+        do:
+          {:error,
+           %Refused{action: :edit_page, by: :user, message: "Changing a page needs write."}}
+    end
+
+    defmodule Crashed do
+      def name, do: "crashed"
+      def input_schema, do: %{type: "object", properties: %{}}
+
+      # Read at run time, so the compiler can't see the match fail.
+      def call(_args, _context) do
+        {:ok, _} =
+          Process.get(
+            {__MODULE__, :answer},
+            {:error,
+             %Refused{action: :edit_page, by: :user, message: "Changing a page needs write."}}
+          )
+      end
+    end
+
+    defmodule Broken do
+      def name, do: "broken"
+      def input_schema, do: %{type: "object", properties: %{}}
+
+      def call(_args, _context),
+        do: {:ok, _} = Process.get({__MODULE__, :answer}, {:error, :something_else})
+    end
+
+    test "is answered as one, whichever way it came back" do
+      context = %{user: nil, token: nil}
+
+      assert SlipdockWeb.MCP.Tools.call(Handed, %{}, context) ==
+               {:error, "forbidden: Changing a page needs write."}
+
+      assert SlipdockWeb.MCP.Tools.call(Crashed, %{}, context) ==
+               {:error, "forbidden: Changing a page needs write."}
+
+      assert {:error, "broken failed on the server" <> _} =
+               ExUnit.CaptureLog.with_log(fn ->
+                 SlipdockWeb.MCP.Tools.call(Broken, %{}, context)
+               end)
+               |> elem(0)
+    end
+  end
 end

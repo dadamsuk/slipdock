@@ -247,6 +247,27 @@ defmodule Slipdock.Wiki.DrawingSessionTest do
       refute_receive {:drawing_session, :saved, _}, 50
     end
 
+    # #3171: the session's process is nobody, so a save is asked of whoever
+    # drew last (`Slipdock.Policy`), at the level they have when it is made.
+    test "a save is asked of who drew last: lowered since, nothing is written",
+         %{board: board, owner: owner, page: page, json_file: file} do
+      for {key, written} <- [
+            {{:page, page.id}, fn -> Repo.get!(Page, page.id).body end},
+            {{:file, file.id}, fn -> Repo.get!(WikiFile, file.id).sha256 end}
+          ] do
+        {writer, _grant} = other(board, owner, "write")
+        before = written.()
+        {:ok, session, _} = DrawingSession.join(key, writer)
+        DrawingSession.push(session, [el("box1", 9, %{"x" => 5})])
+        {:ok, _} = Access.grant(board, writer, "read", owner)
+        :ok = DrawingSession.flush(session)
+
+        assert_receive {:drawing_session, :error, message}
+        assert message =~ "needs write access"
+        assert written.() == before
+      end
+    end
+
     test "a .excalidraw file is saved as JSON", %{owner: owner, json_file: file} do
       {:ok, session, snapshot} = DrawingSession.join({:file, file.id}, owner)
       assert snapshot.base == file.sha256

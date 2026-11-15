@@ -30,6 +30,7 @@ defmodule Slipdock.Wiki do
   alias Slipdock.Accounts.User
   alias Slipdock.Boards
   alias Slipdock.Boards.{Activity, Attachment, Board, Card, Column, Tag}
+  alias Slipdock.Policy
   alias Slipdock.Quota
   alias Slipdock.Wiki.Meld
   alias Slipdock.Search.Indexer
@@ -296,6 +297,18 @@ defmodule Slipdock.Wiki do
   board with nil (W-103 R11.9): one of `Slipdock.Wiki.Folder.sorts/0`.
   """
   def set_tree_sort(%Board{} = board, nil, sort) do
+    # The board's tree is its writers' (`Slipdock.Policy`, `:arrange_wiki`).
+    with :ok <- Policy.authorize(:arrange_wiki, board), do: sort_board(board, sort)
+  end
+
+  # The folder's own setting: `Folders.update/3` asks write on it.
+  def set_tree_sort(%Board{id: board_id}, %Folder{board_id: board_id} = folder, sort),
+    do: sort_folder(folder, sort)
+
+  def set_tree_sort(_board, _folder, _sort),
+    do: {:error, :unprocessable_entity, "that folder is not on this board"}
+
+  defp sort_board(board, sort) do
     if Enum.member?(Folder.sorts(), sort) do
       Repo.update_all(from(b in Board, where: b.id == ^board.id), set: [wiki_sort: sort])
       broadcast(board.id)
@@ -305,7 +318,7 @@ defmodule Slipdock.Wiki do
     end
   end
 
-  def set_tree_sort(%Board{id: board_id}, %Folder{board_id: board_id} = folder, sort) do
+  defp sort_folder(folder, sort) do
     case Folders.update(folder, %{"sort" => sort}) do
       {:ok, folder} ->
         {:ok, folder}
@@ -319,15 +332,16 @@ defmodule Slipdock.Wiki do
     end
   end
 
-  def set_tree_sort(_board, _folder, _sort),
-    do: {:error, :unprocessable_entity, "that folder is not on this board"}
-
   @doc """
   Whether the wiki's tree shows folders' and pages' icons and colours (#792).
   The board's choice, for everyone reading it; the main page shows them
   either way.
   """
   def set_tree_icons(%Board{} = board, on) when is_boolean(on) do
+    with :ok <- Policy.authorize(:arrange_wiki, board), do: show_icons(board, on)
+  end
+
+  defp show_icons(board, on) do
     Repo.update_all(from(b in Board, where: b.id == ^board.id), set: [wiki_tree_icons: on])
     broadcast(board.id)
     {:ok, %{board | wiki_tree_icons: on}}
@@ -595,9 +609,28 @@ defmodule Slipdock.Wiki do
   that write is refused the same way.
   """
   def create_page(%Board{} = board, attrs, opts \\ []) do
+    # Write where it goes: the folder it is filed in (a share of it
+    # counting), else the board (`Slipdock.Policy`, `:create_wiki_item`),
+    # once a sharee's own refusals have had their say.
     with {:ok, attrs} <- split_front_matter(stringify(attrs), opts),
-         :ok <- check_shared_create(board, attrs, opts[:user]) do
+         :ok <- check_shared_create(board, attrs, opts[:user]),
+         :ok <- Policy.authorize(:create_wiki_item, made_in(board, attrs["folder_id"])) do
       insert_page(board, attrs, opts)
+    end
+  end
+
+  # Where a new page is made, for the policy: its folder when that is on the
+  # board, else the board.
+  defp made_in(%Board{id: board_id} = board, folder_ref) do
+    case shared_folder_ref(folder_ref) do
+      nil ->
+        board
+
+      id ->
+        case Repo.get(Folder, id) do
+          %Folder{board_id: ^board_id} = folder -> folder
+          _ -> board
+        end
     end
   end
 
@@ -640,6 +673,7 @@ defmodule Slipdock.Wiki do
     end
   end
 
+  defp shared_folder_ref(%Folder{id: id}), do: id
   defp shared_folder_ref(id) when is_integer(id), do: id
 
   defp shared_folder_ref(id) when is_binary(id) do
@@ -772,9 +806,13 @@ defmodule Slipdock.Wiki do
     # being quietly rolled back to what this caller last saw.
     page = Repo.get!(Page, page.id)
 
+    # Write on the page, a share counting (`Slipdock.Policy`, `:edit_page`),
+    # once what a sharee may change has been narrowed (`Sharing`), and
+    # before the page's text is answered to a conflict.
     with {:ok, attrs} <- split_front_matter(attrs, opts),
-         :ok <- check_base_hash(page, opts[:base_hash]),
-         :ok <- check_shared_change(page, Page.changeset(page, attrs).changes, user) do
+         :ok <- check_shared_change(page, Page.changeset(page, attrs).changes, user),
+         :ok <- Policy.authorize(:edit_page, page),
+         :ok <- check_base_hash(page, opts[:base_hash]) do
       result =
         Repo.transaction(fn ->
           changeset =
@@ -902,6 +940,7 @@ defmodule Slipdock.Wiki do
   top; `position` is an integer among the new siblings, or `:top` / `:bottom`.
   """
   def move_page(%Page{} = page, parent, position \\ :bottom, opts \\ []) do
+    # Asked by `update_page/3`, write on the page (`:edit_page`).
     parent_id =
       case parent do
         %Page{id: id} -> id
@@ -965,6 +1004,12 @@ defmodule Slipdock.Wiki do
 
   @doc "Puts a page away. Its children go with it, as a card's subcards do."
   def archive_page(%Page{} = page) do
+    # Its board's writers only: a sharee archives nothing (`Sharing`,
+    # `Slipdock.Policy` `:archive_page`).
+    with :ok <- Policy.authorize(:archive_page, page), do: put_away(page)
+  end
+
+  defp put_away(page) do
     at = DateTime.utc_now() |> DateTime.truncate(:second)
     ids = [page.id | Enum.map(descendants(page), & &1.id)]
 
@@ -984,6 +1029,10 @@ defmodule Slipdock.Wiki do
   are not counted. `{:error, changeset}` when they have not.
   """
   def unarchive_page(%Page{} = page) do
+    with :ok <- Policy.authorize(:archive_page, page), do: bring_back(page)
+  end
+
+  defp bring_back(page) do
     ids = [page.id | Enum.map(descendants(page), & &1.id)]
 
     returning =
@@ -1005,6 +1054,11 @@ defmodule Slipdock.Wiki do
   the tree rather than going silently with it.
   """
   def delete_page(%Page{} = page) do
+    # The board's owner's (`Slipdock.Policy`, `:delete_page`).
+    with :ok <- Policy.authorize(:delete_page, page), do: purge(page)
+  end
+
+  defp purge(page) do
     board_id = page.board_id
     # The rows go by cascade; the images pasted into it are bytes on a disk.
     keys = Repo.all(from(a in Attachment, where: a.page_id == ^page.id, select: a.key))
@@ -1094,31 +1148,37 @@ defmodule Slipdock.Wiki do
       ids == [] ->
         {:ok, 0}
 
+      # The person acting is asked too (`Slipdock.Policy`, `:purge_revisions`),
+      # whoever `opts[:user]` names.
       true ->
-        newest =
-          from(r in Revision,
-            where: r.page_id == ^page.id,
-            order_by: [desc: r.inserted_at, desc: r.id],
-            limit: 1,
-            select: r.id
-          )
-          |> Repo.one()
-
-        {count, _} =
-          from(r in Revision, where: r.page_id == ^page.id and r.id in ^ids and r.id != ^newest)
-          |> Repo.delete_all()
-
-        if count > 0 do
-          log(
-            page.board_id,
-            page,
-            "page_revisions_purged",
-            "purged #{count} earlier #{if count == 1, do: "revision", else: "revisions"} of “#{page.title}” that held text since encrypted"
-          )
-        end
-
-        {:ok, count}
+        with :ok <- Policy.authorize(:purge_revisions, page), do: drop_revisions(page, ids)
     end
+  end
+
+  defp drop_revisions(page, ids) do
+    newest =
+      from(r in Revision,
+        where: r.page_id == ^page.id,
+        order_by: [desc: r.inserted_at, desc: r.id],
+        limit: 1,
+        select: r.id
+      )
+      |> Repo.one()
+
+    {count, _} =
+      from(r in Revision, where: r.page_id == ^page.id and r.id in ^ids and r.id != ^newest)
+      |> Repo.delete_all()
+
+    if count > 0 do
+      log(
+        page.board_id,
+        page,
+        "page_revisions_purged",
+        "purged #{count} earlier #{if count == 1, do: "revision", else: "revisions"} of “#{page.title}” that held text since encrypted"
+      )
+    end
+
+    {:ok, count}
   end
 
   defp to_id(id) when is_integer(id) and id > 0, do: [id]
@@ -1139,6 +1199,7 @@ defmodule Slipdock.Wiki do
   own edit straight away would otherwise overwrite the very revision undone.
   """
   def revert_page(%Page{} = page, %Revision{} = revision, opts \\ []) do
+    # A save, asked by `update_page/3` (`:edit_page`).
     message = opts[:message] || "reverted to the version of #{format_stamp(revision.inserted_at)}"
 
     update_page(
@@ -1162,7 +1223,9 @@ defmodule Slipdock.Wiki do
   def rename_speaker(%Page{} = page, from, to, opts \\ []) do
     current = Repo.get!(Page, page.id)
 
-    with {:ok, body, _cues} <- TranscriptSpeakers.rename(current.body || "", from, to) do
+    # Asked first, so a voice that isn't there is nobody else's to learn.
+    with :ok <- Policy.authorize(:edit_page, current),
+         {:ok, body, _cues} <- TranscriptSpeakers.rename(current.body || "", from, to) do
       message = opts[:message] || "named the voice “#{String.trim(from)}” “#{String.trim(to)}”"
 
       current
@@ -1439,12 +1502,7 @@ defmodule Slipdock.Wiki do
   A reference the prose actually makes is unpinned rather than removed: the
   page does mention it, and the next save would write the row back.
   """
-  def unlink(%Page{} = page, target) do
-    with {:ok, link} <- Links.unlink(page, target) do
-      broadcast(page.board_id)
-      {:ok, link}
-    end
-  end
+  defdelegate unlink(page, target), to: Links
 
   defdelegate backlinks(page, reader \\ nil), to: Links
   defdelegate wanted(board), to: Links
@@ -1458,12 +1516,7 @@ defmodule Slipdock.Wiki do
   takes the mark off. `target` is `{:card, card}`, `{:page, page}`,
   `{:board, board}` or `{:view, view}`.
   """
-  def pin(%Page{} = page, target, pinned \\ true) do
-    with {:ok, link} <- Links.pin(page, target, pinned) do
-      broadcast(page.board_id)
-      {:ok, link}
-    end
-  end
+  defdelegate pin(page, target, pinned \\ true), to: Links
 
   defp renamed?(%Page{} = before, %Page{} = now),
     do: before.title != now.title or before.slug != now.slug
@@ -1588,12 +1641,20 @@ defmodule Slipdock.Wiki do
   def append(%Page{} = page, text, opts \\ []) do
     opts = Keyword.delete(opts, :base_hash)
     current = Repo.get!(Page, page.id)
+
+    # A save, asked by `update_page/3` (`:edit_page`).
     update_page(current, %{"body" => Section.append(current.body, text)}, opts)
   end
 
   defp write_section(%Page{} = page, opts, fun, path) do
     current = Repo.get!(Page, page.id)
 
+    # Asked first, so the page's headings are only told to its writers.
+    with :ok <- Policy.authorize(:edit_page, current),
+         do: section_written(current, opts, fun, path)
+  end
+
+  defp section_written(current, opts, fun, path) do
     case fun.(current.body) do
       {:ok, body, note} ->
         case update_page(current, %{"body" => body}, opts) do
@@ -1632,6 +1693,12 @@ defmodule Slipdock.Wiki do
   the placeholders may use and which the new page is pinned to.
   """
   def create_from_template(%Board{} = board, %Page{} = template, values \\ %{}, opts \\ []) do
+    # Asked by `create_page/3`, write where it goes (`:create_wiki_item`);
+    # a card's folder is asked of the card's writer (`CardFolders.ensure/1`).
+    from_template(board, template, values, opts)
+  end
+
+  defp from_template(board, template, values, opts) do
     bindings = bindings(board, opts[:card], values)
     now = opts[:now] || DateTime.utc_now()
 
@@ -1668,11 +1735,35 @@ defmodule Slipdock.Wiki do
   """
   def create_page_from_card(%Card{} = card, opts \\ []) do
     board = Repo.get!(Board, card.board_id)
-    opts = Keyword.put(opts, :card, card)
 
+    # The card's writer writes it up (`Slipdock.Policy`, `:write_up_card`),
+    # in the card's folder; filed anywhere else, they write there too. The
+    # page, its folder and its pin are then the write-up's own.
+    with :ok <- Policy.authorize(:write_up_card, card),
+         :ok <- told_place(board, opts) do
+      Policy.as_system("a card's write-up, once its writer has asked", fn ->
+        write_up(card, board, Keyword.put(opts, :card, card))
+      end)
+    end
+  end
+
+  defp told_place(board, opts) do
+    cond do
+      opts[:folder] != nil ->
+        Policy.authorize(:create_wiki_item, made_in(board, folder_id(board, opts[:folder])))
+
+      opts[:parent] != nil ->
+        Policy.authorize(:create_wiki_item, board)
+
+      true ->
+        :ok
+    end
+  end
+
+  defp write_up(card, board, opts) do
     case opts[:template] && find_template(board, opts[:template]) do
       %Page{} = template ->
-        create_from_template(board, template, opts[:values] || %{}, opts)
+        from_template(board, template, opts[:values] || %{}, opts)
 
       _ ->
         attrs = %{
@@ -1819,6 +1910,13 @@ defmodule Slipdock.Wiki do
   recorded anyway rather than lost.
   """
   def create_card_from_selection(%Page{} = page, %Column{} = column, selection, opts \\ []) do
+    # The card is made on the list's board (`:create_card`); the page notes
+    # it only if the person writes the page too.
+    with :ok <- Policy.authorize(:create_card, column),
+         do: card_from_selection(page, column, selection, opts)
+  end
+
+  defp card_from_selection(page, column, selection, opts) do
     {title, rest} = split_selection(selection)
 
     description =
@@ -1844,7 +1942,8 @@ defmodule Slipdock.Wiki do
     current = Repo.get!(Page, page.id)
     passage = selection |> to_string() |> String.trim()
 
-    if passage != "" and String.contains?(current.body, passage) do
+    if passage != "" and String.contains?(current.body, passage) and
+         Policy.can?(:edit_page, current) do
       body = String.replace(current.body, passage, passage <> " (##{card.id})", global: false)
       update_page(current, %{"body" => body}, Keyword.put_new(opts, :message, "made ##{card.id}"))
     else
@@ -1876,9 +1975,11 @@ defmodule Slipdock.Wiki do
   """
   @spec place(Page.t(), Column.t() | integer, term) :: {:ok, Page.t()} | {:error, term}
   def place(%Page{} = page, column, before \\ nil) do
-    with {:ok, column} <- placeable_column(page, column) do
-      Boards.Columns.reorder({:page, page.id}, page.column_id, column.id, before)
-
+    # Write on the page (`:place_page`); the list's board is asked as well
+    # (`Boards.Columns.reorder/4`).
+    with :ok <- Policy.authorize(:place_page, page),
+         {:ok, column} <- placeable_column(page, column),
+         :ok <- Boards.Columns.reorder({:page, page.id}, page.column_id, column.id, before) do
       placed = Repo.get!(Page, page.id)
 
       if page.column_id != column.id do
@@ -1896,6 +1997,10 @@ defmodule Slipdock.Wiki do
   def unplace(%Page{column_id: nil} = page), do: {:ok, page}
 
   def unplace(%Page{} = page) do
+    with :ok <- Policy.authorize(:place_page, page), do: take_off(page)
+  end
+
+  defp take_off(page) do
     column_id = page.column_id
 
     Repo.update_all(from(p in Page, where: p.id == ^page.id),
@@ -1974,35 +2079,43 @@ defmodule Slipdock.Wiki do
   open web.
   """
   def publish(%Page{} = page, opts \\ []) do
-    cond do
-      Page.draft?(page) ->
-        {:error, :unprocessable_entity, "a draft cannot be published; publish the page first"}
+    # A public link passes the page on: its board's writers only, never a
+    # sharee (`Sharing`, `Slipdock.Policy` `:publish_page`).
+    with :ok <- Policy.authorize(:publish_page, page), do: make_public(page, opts)
+  end
 
-      true ->
-        token =
-          page.public_token || :crypto.strong_rand_bytes(18) |> Base.url_encode64(padding: false)
+  defp make_public(page, opts) do
+    if Page.draft?(page) do
+      {:error, :unprocessable_entity, "a draft cannot be published; publish the page first"}
+    else
+      token =
+        page.public_token || :crypto.strong_rand_bytes(18) |> Base.url_encode64(padding: false)
 
-        page
-        |> Ecto.Changeset.change(
-          public_token: token,
-          frozen: freeze(page, opts),
-          published_at: DateTime.utc_now() |> DateTime.truncate(:second)
-        )
-        |> Repo.update()
-        |> case do
-          {:ok, published} ->
-            log(published.board_id, published, "page_published", "published “#{published.title}”")
-            broadcast(published.board_id)
-            {:ok, published}
+      page
+      |> Ecto.Changeset.change(
+        public_token: token,
+        frozen: freeze(page, opts),
+        published_at: DateTime.utc_now() |> DateTime.truncate(:second)
+      )
+      |> Repo.update()
+      |> case do
+        {:ok, published} ->
+          log(published.board_id, published, "page_published", "published “#{published.title}”")
+          broadcast(published.board_id)
+          {:ok, published}
 
-          other ->
-            other
-        end
+        other ->
+          other
+      end
     end
   end
 
   @doc "Withdraws a page's public link, and the answers frozen with it."
   def unpublish(%Page{} = page) do
+    with :ok <- Policy.authorize(:publish_page, page), do: withdraw(page)
+  end
+
+  defp withdraw(page) do
     page
     |> Ecto.Changeset.change(public_token: nil, frozen: nil, published_at: nil)
     |> Repo.update()
@@ -2145,6 +2258,10 @@ defmodule Slipdock.Wiki do
 
   @doc "Replaces a page's tags with the given list of the board tree's `%Tag{}`s."
   def set_tags(%Page{} = page, tags) when is_list(tags) do
+    with :ok <- Policy.authorize(:edit_page, page), do: tag(page, tags)
+  end
+
+  defp tag(page, tags) do
     page
     |> Repo.preload(:tags)
     |> Ecto.Changeset.change()
@@ -2182,6 +2299,10 @@ defmodule Slipdock.Wiki do
   image into a page body works the way pasting one into a description does.
   """
   def add_attachment(%Page{} = page, meta, source) do
+    with :ok <- Policy.authorize(:attach_file, page), do: attach(page, meta, source)
+  end
+
+  defp attach(page, meta, source) do
     Slipdock.Boards.Attachments.store_attachment(
       %{page_id: page.id},
       "pages/#{page.id}",

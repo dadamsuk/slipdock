@@ -303,10 +303,14 @@ defmodule Slipdock.Wiki.Archive do
   `{path, body}` pairs `files/2` produces and hands them to `import_files/3`,
   so there is one importer rather than two.
   """
-  @spec import_folder(Board.t(), String.t(), keyword) :: {:ok, map} | {:error, String.t()}
+  @spec import_folder(Board.t(), String.t(), keyword) ::
+          {:ok, map} | {:error, String.t() | Exception.t()}
   def import_folder(%Board{} = board, dir, opts \\ []) do
     if File.dir?(dir) do
-      {:ok, board |> import_files(read_folder(dir), opts)}
+      case import_files(board, read_folder(dir), opts) do
+        %{} = result -> {:ok, result}
+        refused -> refused
+      end
     else
       {:error, "#{inspect(dir)} is not a folder"}
     end
@@ -344,8 +348,18 @@ defmodule Slipdock.Wiki.Archive do
   without one it is a wiki folder and the files in it are filed there.
   Shallowest first, so a child always has a parent to hang off.
   """
-  @spec import_files(Board.t(), [{String.t(), String.t()}], keyword) :: map
+  @spec import_files(Board.t(), [{String.t(), String.t()}], keyword) ::
+          map | {:error, Exception.t()}
   def import_files(%Board{} = board, files, opts \\ []) do
+    # Write on the board it is read into (`Slipdock.Policy`,
+    # `:create_wiki_item`); each page and folder asks again as it is made.
+    case Slipdock.Policy.authorize(:create_wiki_item, board) do
+      :ok -> read_in(board, files, opts)
+      refused -> refused
+    end
+  end
+
+  defp read_in(board, files, opts) do
     # Which directories in this set are pages: the ones with an index file.
     page_dirs =
       for {path, _body} <- files, index?(path), into: MapSet.new(), do: Path.dirname(path)
@@ -354,26 +368,30 @@ defmodule Slipdock.Wiki.Archive do
     |> Enum.sort_by(fn {path, _body} ->
       {length(Path.split(path)), (index?(path) && 0) || 1, path}
     end)
-    |> Enum.reduce(%{created: [], skipped: [], parents: %{}, folders: %{}}, fn {path, body},
-                                                                               acc ->
-      dir = Path.dirname(path)
-      # A page's own file sits beside its children, so its parent and its
-      # folder are read from the directory above it.
-      from = if index?(path), do: Path.dirname(dir), else: dir
-
-      parent = acc.parents[nearest_page_dir(from, page_dirs)]
-      {folder, acc} = ensure_folder(board, from, page_dirs, acc)
-
-      case write(board, path, body, parent, folder, opts) do
-        {:ok, page} ->
-          parents = if index?(path), do: Map.put(acc.parents, dir, page), else: acc.parents
-          %{acc | created: acc.created ++ [page], parents: parents}
-
-        {:skip, reason} ->
-          %{acc | skipped: acc.skipped ++ [%{path: path, reason: reason}]}
-      end
-    end)
+    |> Enum.reduce(
+      %{created: [], skipped: [], parents: %{}, folders: %{}},
+      &read_one(board, &1, &2, page_dirs, opts)
+    )
     |> Map.drop([:parents, :folders])
+  end
+
+  defp read_one(board, {path, body}, acc, page_dirs, opts) do
+    dir = Path.dirname(path)
+    # A page's own file sits beside its children, so its parent and its
+    # folder are read from the directory above it.
+    from = if index?(path), do: Path.dirname(dir), else: dir
+
+    parent = acc.parents[nearest_page_dir(from, page_dirs)]
+    {folder, acc} = ensure_folder(board, from, page_dirs, acc)
+
+    case write(board, path, body, parent, folder, opts) do
+      {:ok, page} ->
+        parents = if index?(path), do: Map.put(acc.parents, dir, page), else: acc.parents
+        %{acc | created: acc.created ++ [page], parents: parents}
+
+      {:skip, reason} ->
+        %{acc | skipped: acc.skipped ++ [%{path: path, reason: reason}]}
+    end
   end
 
   defp index?(path), do: Enum.member?(["index.md", "index.markdown"], Path.basename(path))

@@ -577,16 +577,15 @@ defmodule SlipdockWeb.API.PageController do
   """
   def import_files(conn, %{"board" => ref} = params) do
     with {:ok, board} <- Authorize.fetch_board(conn, ref, :write),
-         {:ok, files} <- read_files(params["files"]) do
-      result =
-        Archive.import_files(board, files,
-          user: conn.assigns.current_user,
-          via: via(conn),
-          agent: agent(conn),
-          message: params["message"] || "imported",
-          overwrite: params["overwrite"] == true
-        )
-
+         {:ok, files} <- read_files(params["files"]),
+         %{} = result <-
+           Archive.import_files(board, files,
+             user: conn.assigns.current_user,
+             via: via(conn),
+             agent: agent(conn),
+             message: params["message"] || "imported",
+             overwrite: params["overwrite"] == true
+           ) do
       json(conn, %{
         created: Enum.map(result.created, &V.page_summary/1),
         skipped: Enum.map(result.skipped, &%{path: &1.path, reason: &1.reason})
@@ -857,6 +856,10 @@ defmodule SlipdockWeb.API.PageController do
           conn
           |> put_status(:forbidden)
           |> json(%{error: "only the board's owner can purge a page's revisions"})
+
+        # The context's own refusal (`Slipdock.Policy`): a 403 from the fallback.
+        refused ->
+          refused
       end
     end
   end
@@ -1208,14 +1211,7 @@ defmodule SlipdockWeb.API.PageController do
       if truthy?(params["dry_run"]) do
         json(conn, %{dry_run: true, plan: Enum.map(plan, &organise_entry/1)})
       else
-        {:ok, result} = Wiki.AutoOrganise.apply_plan(board, plan)
-
-        json(conn, %{
-          plan: Enum.map(plan, &organise_entry/1),
-          moved: result.moved,
-          folders_made: result.folders,
-          skipped: Enum.map(result.skipped, fn {title, why} -> %{title: title, reason: why} end)
-        })
+        organised(conn, plan, Wiki.AutoOrganise.apply_plan(board, plan))
       end
     else
       {:plan, {:error, message}} -> {:error, :unprocessable_entity, message}
@@ -1225,6 +1221,18 @@ defmodule SlipdockWeb.API.PageController do
 
   def organise_folder(_conn, _params),
     do: {:error, :bad_request, "organising needs a folder and a mode (date, ai, tag or flatten)"}
+
+  # The context's answer: what it filed, or its refusal for the fallback.
+  defp organised(conn, plan, {:ok, result}) do
+    json(conn, %{
+      plan: Enum.map(plan, &organise_entry/1),
+      moved: result.moved,
+      folders_made: result.folders,
+      skipped: Enum.map(result.skipped, fn {title, why} -> %{title: title, reason: why} end)
+    })
+  end
+
+  defp organised(_conn, _plan, refused), do: refused
 
   defp organise_entry(entry), do: Map.take(entry, [:key, :kind, :id, :title, :from, :to])
 

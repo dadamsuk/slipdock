@@ -401,6 +401,12 @@ defmodule Slipdock.Wiki.AutoOrganise do
   Returns `{:ok, %{moved: n, folders: n, skipped: [{title, reason}]}}`.
   """
   def apply_plan(%Board{} = board, entries) do
+    # The board's tree, its writers' (`Slipdock.Policy`, `:arrange_wiki`);
+    # each folder made and each item filed asks again.
+    with :ok <- Slipdock.Policy.authorize(:arrange_wiki, board), do: file_all(board, entries)
+  end
+
+  defp file_all(board, entries) do
     result =
       entries
       |> Enum.group_by(& &1.to)

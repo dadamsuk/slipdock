@@ -38,11 +38,30 @@ defmodule Slipdock.Wiki.Files do
   def create(%Board{} = board, attrs, source, user \\ nil) do
     folder_id = attrs[:folder_id] || attrs["folder_id"]
 
-    # Somebody a folder was shared with adds files inside it, and only there
-    # (#816); they count against the board owner's quota like any other.
+    # Write where it goes: its folder (a share counting), else the board
+    # (`Slipdock.Policy`, `:create_wiki_item`). Somebody a folder was shared
+    # with adds files inside it, and only there (#816); they count against
+    # the board owner's quota like any other.
     with :ok <- Sharing.check(user, {:create, folder_id}, board),
+         :ok <- Slipdock.Policy.authorize(:create_wiki_item, made_in(board, folder_id)),
          do: insert(board, attrs, source, user)
   end
+
+  defp made_in(%Board{id: board_id} = board, folder_id) when is_integer(folder_id) do
+    case Repo.get(Slipdock.Wiki.Folder, folder_id) do
+      %{board_id: ^board_id} = folder -> folder
+      _ -> board
+    end
+  end
+
+  defp made_in(board, folder_id) when is_binary(folder_id) do
+    case Integer.parse(folder_id) do
+      {id, ""} -> made_in(board, id)
+      _ -> board
+    end
+  end
+
+  defp made_in(board, _folder_id), do: board
 
   defp insert(board, attrs, source, user) do
     name = attrs[:name] || attrs["name"]
@@ -82,6 +101,12 @@ defmodule Slipdock.Wiki.Files do
   save (`Slipdock.Wiki.DrawingSession`).
   """
   def replace(%WikiFile{} = file, attrs, source, opts \\ []) do
+    # Write on the file, a share of a folder above it counting (`:edit_file`).
+    with :ok <- Slipdock.Policy.authorize(:edit_file, file),
+         do: new_bytes(file, attrs, source, opts)
+  end
+
+  defp new_bytes(file, attrs, source, opts) do
     {sha, size} = digest(source)
     name = attrs[:name] || file.name
     key = key(%Board{id: file.board_id}, name)
@@ -116,6 +141,7 @@ defmodule Slipdock.Wiki.Files do
   @doc "Renames a file or files it elsewhere: `name`, `folder_id`."
   def move(%WikiFile{} = file, attrs, opts \\ []) do
     with :ok <- check_shared_move(file, attrs, opts[:user]),
+         :ok <- Slipdock.Policy.authorize(:edit_file, file),
          {:ok, moved} <-
            file
            |> WikiFile.changeset(%{
@@ -152,6 +178,11 @@ defmodule Slipdock.Wiki.Files do
 
   @doc "Puts a file away. The bytes stay, so it can come back."
   def archive(%WikiFile{} = file) do
+    # Its board's writers: a sharee archives nothing (`:archive_file`).
+    with :ok <- Slipdock.Policy.authorize(:archive_file, file), do: put_away(file)
+  end
+
+  defp put_away(file) do
     at = DateTime.utc_now() |> DateTime.truncate(:second)
 
     with {:ok, archived} <- file |> Ecto.Changeset.change(archived_at: at) |> Repo.update() do
@@ -168,7 +199,9 @@ defmodule Slipdock.Wiki.Files do
   its copy away too.
   """
   def delete(%WikiFile{} = file) do
-    with {:ok, deleted} <- Repo.delete(file) do
+    # For good: the board's owner's (`:delete_file`).
+    with :ok <- Slipdock.Policy.authorize(:delete_file, file),
+         {:ok, deleted} <- Repo.delete(file) do
       Boards.Attachments.remove_files([file.key])
       Changes.record(file.board_id, "file", file.id, "deleted")
       Wiki.broadcast_board(file.board_id)

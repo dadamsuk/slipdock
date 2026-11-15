@@ -75,8 +75,15 @@ defmodule Slipdock.Wiki.Move do
   says it carries. `{:ok, page}` with the page as it now is.
   """
   def to_board(%Page{} = page, %Board{} = target, folder, %User{} = user, opts \\ []) do
+    # Asked of `user`, who the door says is moving it, once the move's own
+    # refusals have had their say: write on the board it leaves and on the
+    # one it joins (`Slipdock.Policy`, `:move_wiki_out`, `:move_wiki_in`).
+    as = [actor: Slipdock.Actor.web(user)]
+
     with :ok <- check(page, target, user),
-         :ok <- check_folder(folder, target) do
+         :ok <- check_folder(folder, target),
+         :ok <- Slipdock.Policy.authorize(:move_wiki_out, page, as),
+         :ok <- Slipdock.Policy.authorize(:move_wiki_in, target, as) do
       source_id = page.board_id
       pages = [page | Wiki.descendants(page)]
       ids = Enum.map(pages, & &1.id)

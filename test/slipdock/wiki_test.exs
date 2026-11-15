@@ -58,7 +58,12 @@ defmodule Slipdock.WikiTest do
           sandbox = Ecto.Adapters.SQL.Sandbox.start_owner!(Slipdock.Repo)
           Slipdock.BoardKeyClaims.register_test(self(), sandbox)
           owner = user_fixture()
-          {:ok, page} = Wiki.create_page(board_fixture(%{}, owner: owner), %{"title" => "Held"})
+          # Another process: its write is the test's fixture (`Slipdock.Policy`).
+          {:ok, page} =
+            Slipdock.Policy.as_system("a test fixture", fn ->
+              Wiki.create_page(board_fixture(%{}, owner: owner), %{"title" => "Held"})
+            end)
+
           send(test, {:held, page.code, sandbox})
 
           receive do

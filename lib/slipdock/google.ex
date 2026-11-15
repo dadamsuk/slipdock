@@ -67,7 +67,9 @@ defmodule Slipdock.Google do
   `{:error, message}` in words the account page can show.
   """
   def connect(%User{} = user, code, redirect_uri) when is_binary(code) do
-    with {:ok, tokens} <-
+    # The person's own, nobody else's (`Slipdock.Policy`, `:own_google`).
+    with :ok <- Slipdock.Policy.authorize(:own_google, user),
+         {:ok, tokens} <-
            token_request(%{
              "grant_type" => "authorization_code",
              "code" => code,
@@ -222,13 +224,17 @@ defmodule Slipdock.Google do
         :ok
 
       %Connection{} = c ->
-        with {:ok, token} <- decrypt(c.refresh_token) do
-          Req.post(req(), url: api_url(@revoke_url), form: [token: token])
-        end
-
-        Repo.delete!(c)
-        :ok
+        with :ok <- Slipdock.Policy.authorize(:own_google, c), do: revoke(c)
     end
+  end
+
+  defp revoke(c) do
+    with {:ok, token} <- decrypt(c.refresh_token) do
+      Req.post(req(), url: api_url(@revoke_url), form: [token: token])
+    end
+
+    Repo.delete!(c)
+    :ok
   end
 
   # Both grants go to the same endpoint, with the client's credentials in the

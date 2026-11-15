@@ -292,6 +292,12 @@ defmodule SlipdockWeb.SharedLive do
     })
   end
 
+  defp uploaded(socket, {:error, %Slipdock.Policy.Refused{message: message}}) do
+    socket
+    |> put_flash(:error, message)
+    |> Helpers.image_failed(:page_image)
+  end
+
   defp uploaded(socket, _other) do
     socket
     |> put_flash(:error, "That image could not be stored.")
@@ -306,8 +312,19 @@ defmodule SlipdockWeb.SharedLive do
     |> Map.update("body", nil, &Helpers.strip_upload_placeholder/1)
   end
 
+  # A write the context refuses (`Slipdock.Policy`) is said in a flash,
+  # whatever the handler made of it (`SlipdockWeb.Refusals`, #3171): the
+  # writes here are pages, folders, files and drafts.
   @impl true
-  def handle_event("validate", %{"page" => params}, socket) do
+  def handle_event(event, params, socket) do
+    SlipdockWeb.Refusals.said(
+      socket,
+      fn -> event(event, params, socket) end,
+      &put_flash(&1, :error, &2)
+    )
+  end
+
+  defp event("validate", %{"page" => params}, socket) do
     if socket.assigns.form && socket.assigns.can_write do
       # An upload refused (too big, not an image) would otherwise sit in the
       # form with its error, and LiveView won't submit a form with one in it.
@@ -320,7 +337,7 @@ defmodule SlipdockWeb.SharedLive do
   end
 
   # Cancel means it: what was typed goes, auto-save and all.
-  def handle_event("cancel_edit", _params, socket) do
+  defp event("cancel_edit", _params, socket) do
     {:noreply,
      socket
      |> clear_autosave()
@@ -328,7 +345,7 @@ defmodule SlipdockWeb.SharedLive do
   end
 
   # From the banner over a restored editor: start again from the page.
-  def handle_event("discard_autosave", params, socket) when not is_map_key(params, "id") do
+  defp event("discard_autosave", params, socket) when not is_map_key(params, "id") do
     {:noreply,
      socket
      |> clear_autosave()
@@ -336,7 +353,7 @@ defmodule SlipdockWeb.SharedLive do
   end
 
   # From the list of unsaved work.
-  def handle_event("discard_autosave", %{"id" => id}, socket) do
+  defp event("discard_autosave", %{"id" => id}, socket) do
     socket.assigns.current_user
     |> Autosaves.shared_with()
     |> Enum.find(&(to_string(&1.id) == id))
@@ -345,10 +362,10 @@ defmodule SlipdockWeb.SharedLive do
     {:noreply, assign_unsaved(socket)}
   end
 
-  def handle_event("dismiss_conflict", _params, socket),
+  defp event("dismiss_conflict", _params, socket),
     do: {:noreply, assign(socket, conflict: nil)}
 
-  def handle_event("save", %{"page" => params}, socket) do
+  defp event("save", %{"page" => params}, socket) do
     %{page: page, current_user: user, base_hash: base} = socket.assigns
     params = form_params(params)
 
@@ -379,7 +396,7 @@ defmodule SlipdockWeb.SharedLive do
     end
   end
 
-  def handle_event("new_page", %{"title" => title}, socket) do
+  defp event("new_page", %{"title" => title}, socket) do
     with true <- socket.assigns.can_write,
          %Folder{} = folder <- socket.assigns.folder,
          {:ok, page} <-
@@ -396,7 +413,7 @@ defmodule SlipdockWeb.SharedLive do
     end
   end
 
-  def handle_event("new_folder", %{"name" => name}, socket) do
+  defp event("new_folder", %{"name" => name}, socket) do
     with true <- socket.assigns.can_write,
          %Folder{} = folder <- socket.assigns.folder,
          {:ok, made} <-
@@ -412,7 +429,7 @@ defmodule SlipdockWeb.SharedLive do
     end
   end
 
-  def handle_event("new_drawing", _params, socket) do
+  defp event("new_drawing", _params, socket) do
     with true <- socket.assigns.can_write,
          %Folder{} = folder <- socket.assigns.folder,
          {:ok, page} <-
@@ -426,13 +443,13 @@ defmodule SlipdockWeb.SharedLive do
     end
   end
 
-  def handle_event("also_open", _params, socket),
+  defp event("also_open", _params, socket),
     do: {:noreply, assign(socket, also_targets: also_targets(socket))}
 
-  def handle_event("also_close", _params, socket),
+  defp event("also_close", _params, socket),
     do: {:noreply, assign(socket, also_targets: nil)}
 
-  def handle_event("also_file", %{"folder" => ref}, socket) do
+  defp event("also_file", %{"folder" => ref}, socket) do
     user = socket.assigns.current_user
 
     with %Folder{} = target <- Wiki.get_folder(ref),
@@ -444,6 +461,7 @@ defmodule SlipdockWeb.SharedLive do
        |> put_flash(:info, "Also filed in #{Wiki.folder_path(target)}.")}
     else
       {:error, _status, message} -> {:noreply, put_flash(socket, :error, message)}
+      {:error, %Slipdock.Policy.Refused{message: m}} -> {:noreply, put_flash(socket, :error, m)}
       _ -> {:noreply, put_flash(socket, :error, "Couldn't file it there.")}
     end
   end
@@ -472,6 +490,7 @@ defmodule SlipdockWeb.SharedLive do
   defp board_of(%Folder{board_id: id}), do: Boards.get_board!(id)
 
   defp refusal({:error, :shared, _code, message}), do: message
+  defp refusal({:error, %Slipdock.Policy.Refused{message: message}}), do: message
 
   defp refusal({:error, %Ecto.Changeset{} = cs}) do
     case SlipdockWeb.API.JSON.errors(cs) do

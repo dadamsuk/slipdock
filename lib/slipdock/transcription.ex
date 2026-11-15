@@ -157,17 +157,27 @@ defmodule Slipdock.Transcription do
       running?(attachment) ->
         {:error, :running}
 
+      # Asked of `user`: write on the card or page it hangs from
+      # (`Slipdock.Policy`, `:transcribe_file`).
       true ->
-        {:ok, attachment} =
-          Boards.Attachments.update_attachment_transcript(attachment, %{
-            transcript_status: "running",
-            transcript_error: nil,
-            transcript_started_at: DateTime.utc_now(:second)
-          })
-
-        run(fn -> finish(attachment) end)
-        {:ok, attachment}
+        with :ok <-
+               Slipdock.Policy.authorize(:transcribe_file, attachment,
+                 actor: Slipdock.Actor.web(user)
+               ),
+             do: start(attachment)
     end
+  end
+
+  defp start(attachment) do
+    {:ok, attachment} =
+      Boards.Attachments.update_attachment_transcript(attachment, %{
+        transcript_status: "running",
+        transcript_error: nil,
+        transcript_started_at: DateTime.utc_now(:second)
+      })
+
+    run(fn -> finish(attachment) end)
+    {:ok, attachment}
   end
 
   @doc """
@@ -182,6 +192,7 @@ defmodule Slipdock.Transcription do
   def running?(_), do: false
 
   @doc "A reason from `transcribe_attachment/2`, as a person reads it."
+  def describe(%Slipdock.Policy.Refused{message: message}), do: message
   def describe(:not_configured), do: "No transcription server is set up on this Slipdock."
 
   def describe(:not_allowed),

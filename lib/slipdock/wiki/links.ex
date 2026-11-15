@@ -24,7 +24,7 @@ defmodule Slipdock.Wiki.Links do
 
   import Ecto.Query, warn: false
 
-  alias Slipdock.{Access, Boards, Repo, Vaults}
+  alias Slipdock.{Access, Boards, Policy, Repo, Vaults}
   alias Slipdock.Vaults.Index
   alias Slipdock.Accounts.User
   alias Slipdock.Boards.{Board, Card, Comment, SavedView, StatusUpdate}
@@ -719,6 +719,10 @@ defmodule Slipdock.Wiki.Links do
   def pin(%Page{} = page, target, false), do: unlink(page, target)
 
   def pin(%Page{} = page, target, true) do
+    with :ok <- may_pin(page, target), do: page |> mark(target) |> told(page)
+  end
+
+  defp mark(page, target) do
     clause = target_clause(target)
 
     case Repo.one(from(l in Link, where: l.page_id == ^page.id, where: ^clause)) do
@@ -733,6 +737,26 @@ defmodule Slipdock.Wiki.Links do
         link |> Link.changeset(%{pinned: true}) |> Repo.update()
     end
   end
+
+  # Who pins (`Slipdock.Policy`, #3171): the page's writer, who may point at
+  # what it pins; or, for a card, the card's writer, who may read the page
+  # (the card panel attaches a page its reader can open). Asked of the page
+  # first, quietly, so the card's refusal is the answer when both say no.
+  defp may_pin(page, {:card, %Card{} = card}) do
+    if Policy.can?(:pin_page, page),
+      do: Policy.authorize(:link_to_card, card),
+      else:
+        with(:ok <- Policy.authorize(:pin_to_card, card), do: Policy.authorize(:link_page, page))
+  end
+
+  defp may_pin(page, _target), do: Policy.authorize(:pin_page, page)
+
+  defp told({:ok, _} = result, page) do
+    Slipdock.Wiki.broadcast_board(page.board_id)
+    result
+  end
+
+  defp told(other, _page), do: other
 
   @doc """
   Records that a page relates to something, without claiming it is *the* page
@@ -756,6 +780,11 @@ defmodule Slipdock.Wiki.Links do
   nothing in the prose accounts for goes.
   """
   def unlink(%Page{} = page, target) do
+    # Taken off by whoever may pin it (`may_pin/2`).
+    with :ok <- may_pin(page, target), do: page |> drop(target) |> told(page)
+  end
+
+  defp drop(page, target) do
     clause = target_clause(target)
 
     case Repo.one(from(l in Link, where: l.page_id == ^page.id, where: ^clause)) do

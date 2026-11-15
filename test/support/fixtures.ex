@@ -269,11 +269,13 @@ defmodule Slipdock.Fixtures do
     user = opts[:user] || user_fixture()
 
     {:ok, page} =
-      Slipdock.Wiki.create_page(
-        board,
-        Map.merge(%{"title" => "Page #{System.unique_integer([:positive])}"}, attrs),
-        Keyword.merge([user: user, via: "web"], Keyword.delete(opts, :user))
-      )
+      Slipdock.Policy.as_system("a test fixture", fn ->
+        Slipdock.Wiki.create_page(
+          board,
+          Map.merge(%{"title" => "Page #{System.unique_integer([:positive])}"}, attrs),
+          Keyword.merge([user: user, via: "web"], Keyword.delete(opts, :user))
+        )
+      end)
 
     page
   end

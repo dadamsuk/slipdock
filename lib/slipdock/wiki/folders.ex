@@ -14,6 +14,7 @@ defmodule Slipdock.Wiki.Folders do
 
   alias Slipdock.Repo
   alias Slipdock.Boards.Board
+  alias Slipdock.Policy
   alias Slipdock.Wiki.{Changes, Folder, Page, Sharing}
 
   ## Reading ------------------------------------------------------------------
@@ -173,6 +174,12 @@ defmodule Slipdock.Wiki.Folders do
 
   @doc "As `at_path/3`, making whichever levels are missing."
   def ensure_path(%Board{} = board, parent, segments) do
+    # Write where they are made (`Slipdock.Policy`, `:create_wiki_item`).
+    with :ok <- Policy.authorize(:create_wiki_item, parent || board),
+         do: make_path(board, parent, segments)
+  end
+
+  defp make_path(board, parent, segments) do
     Enum.reduce_while(segments, {:ok, parent}, fn segment, {:ok, parent} ->
       case ensure(board, parent && parent.id, segment) do
         {:ok, folder} -> {:cont, {:ok, folder}}
@@ -238,16 +245,32 @@ defmodule Slipdock.Wiki.Folders do
   def create(%Board{} = board, attrs, opts \\ []) do
     attrs = stringify(attrs)
 
+    # Write where it is made: the folder it goes in, a share of it
+    # counting, else the board (`Slipdock.Policy`, `:create_wiki_item`).
     # Made by somebody a folder was shared with: only inside it (#816).
     with :ok <- Sharing.check(opts[:user], {:create, parent_of(attrs)}, board),
+         :ok <- Policy.authorize(:create_wiki_item, made_in(board, attrs)),
          do: create_checked(board, attrs)
+  end
+
+  # The folder a new one goes in, when it is on the board; else the board.
+  defp made_in(%Board{id: board_id} = board, attrs) do
+    case parent_of(attrs) && get(parent_of(attrs)) do
+      %Folder{board_id: ^board_id} = parent -> parent
+      _ -> board
+    end
   end
 
   @doc """
   Makes a folder with exactly this name, a slash being part of it: for a name
   nobody typed as a path, such as a card's title.
   """
-  def create_literal(%Board{} = board, attrs), do: insert(board, stringify(attrs))
+  def create_literal(%Board{} = board, attrs) do
+    attrs = stringify(attrs)
+
+    with :ok <- Policy.authorize(:create_wiki_item, made_in(board, attrs)),
+         do: insert(board, attrs)
+  end
 
   defp create_checked(board, attrs) do
     case String.split(to_string(attrs["name"] || ""), "/", trim: true) do
@@ -342,8 +365,11 @@ defmodule Slipdock.Wiki.Folders do
   def update(%Folder{} = folder, attrs, opts \\ []) do
     attrs = stringify(attrs)
 
+    # Write on the folder, a share counting (`Slipdock.Policy`,
+    # `:edit_folder`), once a sharee's moves have been narrowed.
     with :ok <- check_shared_move(folder, attrs, opts[:user]),
-         :ok <- check_cycle(folder, attrs) do
+         :ok <- check_cycle(folder, attrs),
+         :ok <- Policy.authorize(:edit_folder, folder) do
       attrs =
         if attrs["name"] && Folder.sanitize_slug(attrs["name"]) != folder.slug do
           Map.put_new_lazy(attrs, "slug", fn ->
@@ -415,6 +441,10 @@ defmodule Slipdock.Wiki.Folders do
   made later never has to out-number one made before it.
   """
   def move(%Folder{} = folder, parent, before \\ nil) do
+    with :ok <- Policy.authorize(:edit_folder, folder), do: place(folder, parent, before)
+  end
+
+  defp place(folder, parent, before) do
     parent_id =
       case parent do
         %Folder{id: id} -> id
@@ -489,6 +519,17 @@ defmodule Slipdock.Wiki.Folders do
   def delete(folder, strategy \\ :keep)
 
   def delete(%Folder{} = folder, :purge) do
+    # Everything in it, history and all: the board's owner's, as purging a
+    # page is (`Slipdock.Policy`, `:purge_folder`).
+    with :ok <- Policy.authorize(:purge_folder, folder), do: purge(folder)
+  end
+
+  def delete(%Folder{} = folder, :keep) do
+    # Its board's writers: a sharee deletes nothing (`:delete_folder`).
+    with :ok <- Policy.authorize(:delete_folder, folder), do: drop(folder)
+  end
+
+  defp purge(folder) do
     ids = [folder.id | Enum.map(descendants(folder), & &1.id)]
 
     from(p in Page, where: p.folder_id in ^ids)
@@ -501,7 +542,7 @@ defmodule Slipdock.Wiki.Folders do
     {:ok, folder}
   end
 
-  def delete(%Folder{} = folder, :keep) do
+  defp drop(folder) do
     # Its pages go back to the root, and a sync has to move their files.
     refiled = Repo.all(from(p in Page, where: p.folder_id == ^folder.id, select: p.id))
     children = Repo.all(from(f in Folder, where: f.parent_id == ^folder.id, select: f.id))
@@ -537,6 +578,10 @@ defmodule Slipdock.Wiki.Folders do
   parent page, its place in a list on the board, and its history.
   """
   def put_page(%Page{} = page, folder) do
+    with :ok <- Policy.authorize(:edit_page, page), do: file(page, folder)
+  end
+
+  defp file(page, folder) do
     folder_id =
       case folder do
         %Folder{id: id} -> id

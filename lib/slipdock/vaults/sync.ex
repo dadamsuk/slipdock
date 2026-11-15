@@ -379,7 +379,8 @@ defmodule Slipdock.Vaults.Sync do
          :ok <- check_base(layout, current, params["base"]),
          :ok <- path_free(layout, path, current, user),
          {where, stem} = location(layout, path, current),
-         {:ok, board, parent_id, folder_ref} <- target(layout, where, user, opts) do
+         {:ok, board, parent_id, folder_ref} <- target(layout, where, user, opts),
+         :ok <- own(vault, user) do
       attrs = attrs(content, stem, current, layout)
 
       result =
@@ -440,6 +441,7 @@ defmodule Slipdock.Vaults.Sync do
 
     with {:ok, page} <- vault_page(layout, id, user, :write, opts),
          :ok <- check_base(layout, page, base),
+         :ok <- own(vault, user),
          {:ok, archived} <- Wiki.archive_page(page) do
       {:ok, %{kind: "page", id: archived.id, archived: true}}
     end
@@ -541,6 +543,7 @@ defmodule Slipdock.Vaults.Sync do
          :ok <- check_file_base(layout, current, params["base"]),
          :ok <- file_path_free(layout, path, current),
          {:ok, board, folder_ref} <- file_target(layout, path, user, opts),
+         :ok <- own(vault, user),
          {:ok, folder_id} <- ensure_folder(board, folder_ref) do
       attrs = %{name: Path.basename(path), folder_id: folder_id}
 
@@ -582,6 +585,7 @@ defmodule Slipdock.Vaults.Sync do
          :ok <- check_file_base(layout, file, params["base"]),
          :ok <- file_path_free(layout, path, file),
          {:ok, board, folder_ref} <- file_target(layout, path, user, opts),
+         :ok <- own(vault, user),
          {:ok, folder_id} <- ensure_folder(board, folder_ref) do
       attrs = %{name: Path.basename(path), folder_id: folder_id}
 
@@ -607,6 +611,7 @@ defmodule Slipdock.Vaults.Sync do
 
     with {:ok, file} <- vault_file(layout, id, user, :write, opts),
          :ok <- check_file_base(layout, file, base),
+         :ok <- own(vault, user),
          {:ok, archived} <- Files.archive(file) do
       {:ok, %{kind: "file", id: archived.id, archived: true}}
     end
@@ -622,6 +627,7 @@ defmodule Slipdock.Vaults.Sync do
 
     with {:ok, file} <- vault_file(layout, id, user, :owner, opts),
          :ok <- check_file_base(layout, file, base),
+         :ok <- own(vault, user),
          {:ok, deleted} <- Files.delete(file) do
       {:ok, %{kind: "file", id: deleted.id, deleted: true}}
     end
@@ -932,6 +938,12 @@ defmodule Slipdock.Vaults.Sync do
   defp summary(_), do: nil
 
   defp write_opts(user), do: [user: user, via: "sync", message: "synced"]
+
+  # A sync writes as the person whose vault it is (`Slipdock.Policy`,
+  # `:own_vault`, a read-only token refused); each page and file it writes
+  # then asks the board it is on.
+  defp own(vault, user),
+    do: Slipdock.Policy.authorize(:own_vault, vault, actor: Slipdock.Actor.web(user))
 
   # What `reader` may do on each board of the vault, narrowed by the token.
   defp levels(vault, reader, token) do

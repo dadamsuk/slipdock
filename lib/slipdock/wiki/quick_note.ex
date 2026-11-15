@@ -92,6 +92,9 @@ defmodule Slipdock.Wiki.QuickNote do
     with :ok <- written(text),
          {:ok, _} <- Slipdock.Wiki.KnowledgeBase.ensure(user),
          vault = vault(user),
+         # The person's own vault (`Slipdock.Policy`, `:own_vault`); the page
+         # asks write where it goes, as any new page does.
+         :ok <- Slipdock.Policy.authorize(:own_vault, vault),
          {:ok, places} <- writable(vault, user, opts) do
       fallback = home(user, vault, places)
       suggestion = suggest(user, vault, places, text)

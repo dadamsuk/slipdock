@@ -74,7 +74,13 @@ defmodule Slipdock.Wiki.KnowledgeBase do
       true ->
         name = opts[:name] || @name
 
-        with {:ok, adopted} <-
+        # The board's owner's, as `user`, read from the row now
+        # (`Slipdock.Policy`, `:adopt_knowledge_base`).
+        with :ok <-
+               Slipdock.Policy.authorize(:adopt_knowledge_base, board,
+                 actor: Slipdock.Actor.web(user)
+               ),
+             {:ok, adopted} <-
                board
                |> Ecto.Changeset.change(kind: "wiki", name: name, archived_at: nil)
                |> Repo.update() do

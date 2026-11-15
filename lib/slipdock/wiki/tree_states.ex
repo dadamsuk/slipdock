@@ -47,7 +47,14 @@ defmodule Slipdock.Wiki.TreeStates do
   Keeps what `user` has open in the tree `scope`, replacing what was kept.
   Keys the tree does not use are dropped, and the list is cut at #{@max}.
   """
-  def put(%User{id: user_id}, scope, keys) when is_binary(scope) and is_list(keys) do
+  def put(%User{} = user, scope, keys) when is_binary(scope) and is_list(keys) do
+    # The person's own, nobody else's (`Slipdock.Policy`, `:own_tree_state`).
+    with :ok <- Slipdock.Policy.authorize(:own_tree_state, user), do: keep(user, scope, keys)
+  end
+
+  def put(_user, _scope, _keys), do: {:error, :invalid}
+
+  defp keep(%User{id: user_id}, scope, keys) do
     open =
       keys
       |> Enum.filter(&(is_binary(&1) and Regex.match?(@key, &1)))
@@ -65,6 +72,4 @@ defmodule Slipdock.Wiki.TreeStates do
 
     {:ok, open}
   end
-
-  def put(_user, _scope, _keys), do: {:error, :invalid}
 end

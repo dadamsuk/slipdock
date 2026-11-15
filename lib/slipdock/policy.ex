@@ -36,7 +36,9 @@ defmodule Slipdock.Policy do
   alias Slipdock.Boards.Card
   alias Slipdock.Boards.Column
   alias Slipdock.Repo
+  alias Slipdock.Wiki.Folder
   alias Slipdock.Wiki.Page
+  alias Slipdock.Wiki.WikiFile
 
   defmodule Refused do
     @moduledoc """
@@ -54,7 +56,9 @@ defmodule Slipdock.Policy do
   # fields and milestones are the tree's, DATA-9); `:board` is the board
   # itself (a column's, a card's); `:card` is the card itself, raised by a
   # grant on it; `:owner` is the card or the wiki page a row hangs off
-  # (`Boards.Owned`), a page's share counting.
+  # (`Boards.Owned`), a page's share counting; `:wiki` is a page, folder or
+  # file at its own level (a share on it or a folder above its home
+  # counting), or a board's wiki (#3171).
   @table [
     # Tags (#3168)
     {:create_tag, :tree_root, :write, "Making a tag"},
@@ -116,7 +120,37 @@ defmodule Slipdock.Policy do
     {:share_card, :card, :write, "Sharing a card"},
     {:share_page, :page, :write, "Sharing a page"},
     {:share_folder, :folder, :write, "Sharing a folder"},
-    {:share_tool, :tool, :owner, "Sharing a tool"}
+    {:share_tool, :tool, :owner, "Sharing a tool"},
+    # The wiki, vaults and recordings (#3171)
+    {:create_wiki_item, :wiki, :write, "Making a page, file or folder there"},
+    {:edit_page, :page, :write, "Changing a page"},
+    {:archive_page, :board, :write, "Archiving or restoring a page"},
+    {:delete_page, :board, :owner, "Deleting a page for good"},
+    {:purge_revisions, :page, :owner, "Purging a page's earlier revisions"},
+    {:publish_page, :board, :write, "Publishing a page"},
+    {:place_page, :page, :write, "Putting a page in a list"},
+    {:pin_page, :page, :write, "Pinning a page"},
+    {:pin_to_card, :card, :write, "Pinning a page to a card"},
+    {:link_page, :page, :read, "Pointing at a page"},
+    {:write_up_card, :card, :write, "Writing a card up in the wiki"},
+    {:arrange_wiki, :board, :write, "Arranging the wiki's tree"},
+    {:edit_folder, :wiki, :write, "Changing a folder"},
+    {:delete_folder, :board, :write, "Deleting a folder"},
+    {:purge_folder, :board, :owner, "Deleting a folder and everything in it"},
+    {:file_also, :board, :write, "Filing it in another folder too"},
+    {:edit_file, :wiki, :write, "Changing a file"},
+    {:archive_file, :board, :write, "Archiving a file"},
+    {:delete_file, :board, :owner, "Deleting a file for good"},
+    {:move_wiki_out, :board, :write, "Moving it to another board"},
+    {:move_wiki_in, :board, :write, "Moving it onto a board"},
+    {:adopt_knowledge_base, :board, :owner, "Making a board your Knowledge Base"},
+    {:install_handbook, :tree_root, :write, "Installing the handbook"},
+    {:reread_file, :owner, :write, "Reading a file's text again"},
+    {:transcribe_file, :owner, :write, "Transcribing a recording"},
+    {:own_draft, :self, :owner, "Your own unsaved drafts"},
+    {:own_tree_state, :self, :owner, "Your own wiki tree's open folders"},
+    {:own_vault, :self, :owner, "Your own vault"},
+    {:own_google, :self, :owner, "Your own Google connection"}
   ]
 
   @rules Map.new(@table, fn {action, scope, level, _} -> {action, {scope, level}} end)
@@ -130,6 +164,7 @@ defmodule Slipdock.Policy do
     page: "the page",
     folder: "the folder",
     tool: "the tool",
+    wiki: "that place in the wiki",
     account: "your account",
     self: "the person's own rows"
   }
@@ -357,10 +392,23 @@ defmodule Slipdock.Policy do
     end
   end
 
-  defp level(:folder, user, %Slipdock.Wiki.Folder{id: id}) do
-    case Repo.get(Slipdock.Wiki.Folder, id) do
+  defp level(:folder, user, %Folder{id: id}) do
+    case Repo.get(Folder, id) do
       nil -> {:none, nil}
       folder -> {Access.folder_permission(user, folder), folder.board_id}
+    end
+  end
+
+  # A page, folder or file at its own level, read again (a share on it, or on
+  # a folder above its home, counts); a board at its wiki's, where a board
+  # reached only through a saved view reaches no page (#3171).
+  defp level(:wiki, user, subject) do
+    case wiki_item(subject) do
+      %Page{} = page -> {Access.page_permission(user, page), page.board_id}
+      %Folder{} = folder -> {Access.folder_permission(user, folder), folder.board_id}
+      %WikiFile{} = file -> {Access.file_permission(user, file), file.board_id}
+      %Board{} = board -> {wiki_level(Access.board_permission(user, board)), board.id}
+      nil -> {:none, nil}
     end
   end
 
@@ -383,6 +431,15 @@ defmodule Slipdock.Policy do
   defp level(:self, user, %{user_id: id}),
     do: {if(id == user.id, do: :owner, else: :none), :account}
 
+  defp wiki_item(%Page{id: id}), do: Repo.get(Page, id)
+  defp wiki_item(%Folder{id: id}), do: Repo.get(Folder, id)
+  defp wiki_item(%WikiFile{id: id}), do: Repo.get(WikiFile, id)
+  defp wiki_item(%Board{} = board), do: board_of(board)
+  defp wiki_item(_), do: nil
+
+  defp wiki_level(:view), do: :none
+  defp wiki_level(level), do: level
+
   defp card_level(user, card) do
     case Access.card_permission(user, card) do
       :none -> Access.view_card_level(user, card)
@@ -403,6 +460,10 @@ defmodule Slipdock.Policy do
   defp board_of(%Board{id: id}), do: Repo.get(Board, id)
   defp board_of(%Column{board_id: id}), do: Repo.get(Board, id)
   defp board_of(%Slipdock.Boards.SavedView{board_id: id}), do: Repo.get(Board, id)
+
+  # A page, folder or file read again: it may have moved to another board.
+  defp board_of(%mod{} = item) when mod in [Page, Folder, WikiFile],
+    do: with(%{board_id: id} <- wiki_item(item), do: Repo.get(Board, id))
 
   defp board_of(%Card{} = card),
     do: with(%Card{board_id: id} <- card_of(card), do: Repo.get(Board, id))

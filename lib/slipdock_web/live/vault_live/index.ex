@@ -49,6 +49,9 @@ defmodule SlipdockWeb.VaultLive.Index do
 
       {:noreply, socket |> flash(:info, message) |> load()}
     else
+      {:error, %Slipdock.Policy.Refused{message: message}} ->
+        {:noreply, flash(socket, :error, message)}
+
       {:error, %Ecto.Changeset{} = cs} ->
         {:noreply, flash(socket, :error, "Shortcut key #{shortcut_error(cs)}.")}
 
@@ -70,6 +73,9 @@ defmodule SlipdockWeb.VaultLive.Index do
 
       {:noreply, socket |> flash(:info, message) |> load()}
     else
+      {:error, %Slipdock.Policy.Refused{message: message}} ->
+        {:noreply, flash(socket, :error, message)}
+
       {:error, reason} when is_atom(reason) ->
         {:noreply, flash(socket, :error, folder_error(reason, folder))}
 

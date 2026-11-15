@@ -234,6 +234,7 @@ defmodule Slipdock.Runners.TranscriptRetention do
   def refusal(:no_log), do: "this job has no log to keep: none was sent, or it has expired"
   def refusal(:no_card), do: "the job's card is gone, so there is no folder to keep its log in"
   def refusal({:payment_required, code, message}), do: "#{code}: #{message}"
+  def refusal(%Slipdock.Policy.Refused{message: message}), do: message
 
   def refusal(%Ecto.Changeset{} = changeset) do
     "the page could not be written: #{Slipdock.ChangesetErrors.message(changeset)}"

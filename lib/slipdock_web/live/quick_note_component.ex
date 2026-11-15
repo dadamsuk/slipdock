@@ -66,6 +66,7 @@ defmodule SlipdockWeb.QuickNoteComponent do
   end
 
   defp message({:error, _status, text}) when is_binary(text), do: text
+  defp message({:error, %Slipdock.Policy.Refused{message: text}}), do: text
 
   defp message({:error, %Ecto.Changeset{} = changeset}) do
     case Slipdock.Quota.limit_kind(changeset) do
