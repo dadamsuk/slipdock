@@ -226,4 +226,89 @@ defmodule Slipdock.PolicyBoardsTest do
       assert {:ok, _} = Access.revoke(grant)
     end
   end
+
+  # The verifier's survivors on #3170: each write below asks a level or a
+  # subject the table's sweep above doesn't reach through that function.
+  describe "a view's other writes" do
+    setup ctx do
+      {:ok, view} =
+        fixture(fn -> Boards.SavedViews.create_saved_view(ctx.root, %{"name" => "V"}) end)
+
+      {:ok, view} = fixture(fn -> Boards.SavedViews.publish_saved_view(view) end)
+      %{view: view}
+    end
+
+    test "unpublishing is the owner's: a write-level person is refused", ctx do
+      writer = ctx |> person("write") |> elem(0)
+      as(writer)
+
+      assert refused?(
+               Boards.SavedViews.unpublish_saved_view(ctx.view),
+               :publish_view,
+               :user
+             )
+
+      assert Repo.get!(Boards.SavedView, ctx.view.id).public_token
+
+      as(ctx.owner)
+      assert {:ok, %{public_token: nil}} = Boards.SavedViews.unpublish_saved_view(ctx.view)
+    end
+
+    test "deleting asks write on its board", ctx do
+      commenter = ctx |> person("comment") |> elem(0)
+      as(commenter)
+      assert refused?(Boards.SavedViews.delete_saved_view(ctx.view), :edit_view, :user)
+
+      {_plain, token} = Accounts.create_api_token(ctx.owner, "reader", scope: "read")
+      as(ctx.owner, token)
+      assert refused_by?(Boards.SavedViews.delete_saved_view(ctx.view), :token)
+      assert Repo.get(Boards.SavedView, ctx.view.id)
+
+      writer = ctx |> person("write") |> elem(0)
+      as(writer)
+      assert {:ok, _} = Boards.SavedViews.delete_saved_view(ctx.view)
+      refute Repo.get(Boards.SavedView, ctx.view.id)
+    end
+  end
+
+  describe "placing in a list on another board" do
+    # A card's move between boards asks for the card itself first; the list
+    # step asks the board of the list it joins, not the one it leaves.
+    setup do
+      other = board_fixture(%{"name" => "Other board"}, owner: stranger())
+      %{other: other}
+    end
+
+    test "into a list on a board the actor can't write is refused", ctx do
+      as(ctx.owner)
+      from = hd(ctx.root.columns)
+      to = hd(ctx.other.columns)
+
+      assert refused?(
+               Boards.Columns.reorder({:card, ctx.card.id}, from.id, to.id),
+               :place_in_list,
+               :user
+             )
+    end
+
+    test "out of a board the actor can't write, into one they can, passes", ctx do
+      as(ctx.owner)
+      card = fixture(fn -> card_fixture(hd(ctx.other.columns), %{"title" => "Theirs"}) end)
+      from = hd(ctx.other.columns)
+      to = hd(ctx.root.columns)
+      assert :ok = Boards.Columns.reorder({:card, card.id}, from.id, to.id)
+    end
+  end
+
+  describe "discarding a shared board" do
+    test "is the person's own: another person is refused, the person passes", ctx do
+      {user, _grant} = person(ctx, "read")
+      as(stranger())
+      assert refused?(Access.discard_board(user, ctx.root), :arrange_own, :user)
+      assert Access.board_permission(user, ctx.root) == :read
+
+      as(user)
+      assert {:ok, :none} = Access.discard_board(user, ctx.root)
+    end
+  end
 end
