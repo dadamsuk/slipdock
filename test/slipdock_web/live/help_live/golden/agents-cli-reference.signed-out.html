@@ -230,7 +230,7 @@ Tools</a>
 Write</a>
 <span class="text-xs text-base-content/50">
 
-          139
+          140
         </span>
 </li>
 <li>
@@ -5878,6 +5878,24 @@ rename</span>
 </dt>
 <dd class="mt-1 break-words text-sm text-base-content/70">
 rename a machine: the name the pages and the board show (its hostname stays)</dd>
+</div>
+<div class="min-w-0 py-3" data-role="cli-command">
+<dt>
+<code class="break-words font-mono text-sm font-medium text-base-content" data-role="cli-usage">
+<span class="inline-block max-w-full">
+machine</span>
+<span class="inline-block max-w-full">
+boards</span>
+<span class="inline-block max-w-full">
+&lt;id&gt;</span>
+<span class="inline-block max-w-full">
+[--add B]</span>
+<span class="inline-block max-w-full">
+[--remove B]</span>
+</code>
+</dt>
+<dd class="mt-1 break-words text-sm text-base-content/70">
+the boards it serves, or change them (each repeatable, ids or codes) without re-enrolling; a board with runners here is removed only after them, and the last only by revoking. The machine&#39;s ceiling must list a board too: what it lacks is printed with the command to run there (`slipdock-runner boards add`)</dd>
 </div>
 <div class="min-w-0 py-3" data-role="cli-command">
 <dt>
