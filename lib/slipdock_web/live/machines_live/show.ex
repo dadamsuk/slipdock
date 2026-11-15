@@ -586,9 +586,12 @@ defmodule SlipdockWeb.MachinesLive.Show do
               phx-submit="add_board"
               class="field-row mt-3 gap-2 text-sm"
             >
-              <select name="board" id="machine-add-board-select" class="select select-sm">
-                <option :for={b <- @addable} value={b.id}>{b.name}</option>
-              </select>
+              <label class="block">
+                <span class="field-label">Board to add</span>
+                <select name="board" id="machine-add-board-select" class="select field">
+                  <option :for={b <- @addable} value={b.id}>{b.name}</option>
+                </select>
+              </label>
               <button type="submit" class="btn btn-sm">Add board</button>
             </form>
             <.callout
