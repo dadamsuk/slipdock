@@ -87,21 +87,31 @@ defmodule SlipdockWeb.UsersLive.Index do
 
   ## People
 
+  # A write the context refuses (`Slipdock.Policy`) is said in a flash,
+  # whatever the handler made of it (`SlipdockWeb.Refusals`, #3172).
   @impl true
-  def handle_event("promote", %{"id" => id}, socket),
+  def handle_event(event, params, socket) do
+    SlipdockWeb.Refusals.said(
+      socket,
+      fn -> event(event, params, socket) end,
+      &put_flash(&1, :error, &2)
+    )
+  end
+
+  defp event("promote", %{"id" => id}, socket),
     do: {:noreply, standing(socket, id, :promote)}
 
-  def handle_event("demote", %{"id" => id}, socket), do: {:noreply, standing(socket, id, :demote)}
+  defp event("demote", %{"id" => id}, socket), do: {:noreply, standing(socket, id, :demote)}
 
-  def handle_event("disable", %{"id" => id}, socket) do
+  defp event("disable", %{"id" => id}, socket) do
     if yourself?(socket, id),
       do: {:noreply, say(socket, :error, "You can't disable your own account.")},
       else: {:noreply, standing(socket, id, :disable)}
   end
 
-  def handle_event("enable", %{"id" => id}, socket), do: {:noreply, standing(socket, id, :enable)}
+  defp event("enable", %{"id" => id}, socket), do: {:noreply, standing(socket, id, :enable)}
 
-  def handle_event("set-limit", %{"user_id" => id, "limit" => limit}, socket) do
+  defp event("set-limit", %{"user_id" => id, "limit" => limit}, socket) do
     with_user(socket, id, fn user ->
       value = if String.trim(limit) == "", do: nil, else: limit
 
@@ -114,7 +124,7 @@ defmodule SlipdockWeb.UsersLive.Index do
 
   # Paid up to a date, which is what takes somebody off the free tier and off
   # the trial clock. Blank puts them back on it.
-  def handle_event("set-paid-until", %{"user_id" => id, "paid_until" => until}, socket) do
+  defp event("set-paid-until", %{"user_id" => id, "paid_until" => until}, socket) do
     with_user(socket, id, fn user ->
       value = if String.trim(until) == "", do: nil, else: until
 
@@ -127,7 +137,7 @@ defmodule SlipdockWeb.UsersLive.Index do
 
   # Off the free tier with no date: a named person the allowance and the
   # trial should never reach. The guardrails still do.
-  def handle_event("toggle-unlimited", %{"id" => id}, socket) do
+  defp event("toggle-unlimited", %{"id" => id}, socket) do
     with_user(socket, id, fn user ->
       {:ok, _} = Accounts.update_standing(user, %{"unlimited" => !user.unlimited})
       {:noreply, socket |> load() |> say(:info, "Saved.")}
@@ -136,7 +146,7 @@ defmodule SlipdockWeb.UsersLive.Index do
 
   # Recording transcription and voiceprints, for this one person (#1206).
   # Admins always have them, so there is nothing to switch for one.
-  def handle_event("toggle-transcription", %{"id" => id}, socket) do
+  defp event("toggle-transcription", %{"id" => id}, socket) do
     with_user(socket, id, fn user ->
       {:ok, _} =
         Accounts.update_standing(user, %{"transcription_access" => !user.transcription_access})
@@ -147,7 +157,7 @@ defmodule SlipdockWeb.UsersLive.Index do
 
   ## Adding somebody, and their address
 
-  def handle_event("add-user", %{"email" => email}, socket) do
+  defp event("add-user", %{"email" => email}, socket) do
     case Accounts.add_user(email, socket.assigns.current_user) do
       {:ok, user, delivery} ->
         {:noreply, socket |> put_flash(:info, added_message(user, delivery)) |> load()}
@@ -160,14 +170,14 @@ defmodule SlipdockWeb.UsersLive.Index do
     end
   end
 
-  def handle_event("edit-email", %{"user_id" => id}, socket) do
+  defp event("edit-email", %{"user_id" => id}, socket) do
     with_user(socket, id, fn user -> {:noreply, assign(socket, editing_email: user.id)} end)
   end
 
-  def handle_event("cancel-email", _params, socket),
+  defp event("cancel-email", _params, socket),
     do: {:noreply, assign(socket, editing_email: nil)}
 
-  def handle_event("set-email", %{"user_id" => id, "email" => email}, socket) do
+  defp event("set-email", %{"user_id" => id, "email" => email}, socket) do
     with_user(socket, id, fn user ->
       case Accounts.change_email(user, email, socket.assigns.current_user) do
         {:ok, updated} ->
@@ -184,16 +194,16 @@ defmodule SlipdockWeb.UsersLive.Index do
 
   ## Closing an account
 
-  def handle_event("confirm-delete", %{"user_id" => id}, socket) do
+  defp event("confirm-delete", %{"user_id" => id}, socket) do
     if yourself?(socket, id),
       do: {:noreply, say(socket, :error, "You can't close your own account.")},
       else: preview_delete(socket, id)
   end
 
-  def handle_event("cancel-delete", _params, socket),
+  defp event("cancel-delete", _params, socket),
     do: {:noreply, assign(socket, deleting: nil, deleting_preview: nil)}
 
-  def handle_event("delete", %{"user_id" => id, "email" => typed}, socket) do
+  defp event("delete", %{"user_id" => id, "email" => typed}, socket) do
     if yourself?(socket, id),
       do: {:noreply, say(socket, :error, "You can't close your own account.")},
       else: with_user(socket, id, &delete_user(socket, &1, typed))
@@ -201,11 +211,11 @@ defmodule SlipdockWeb.UsersLive.Index do
 
   ## Support access
 
-  def handle_event("support", %{"user_id" => id, "reason" => reason}, socket) do
+  defp event("support", %{"user_id" => id, "reason" => reason}, socket) do
     with_user(socket, id, &open_support(socket, &1, reason))
   end
 
-  def handle_event("end-support", %{"id" => id}, socket) do
+  defp event("end-support", %{"id" => id}, socket) do
     case Accounts.get_support_session(Params.id(id)) do
       nil ->
         gone(socket)
@@ -218,7 +228,7 @@ defmodule SlipdockWeb.UsersLive.Index do
 
   ## Signups
 
-  def handle_event("approve", %{"id" => id}, socket) do
+  defp event("approve", %{"id" => id}, socket) do
     with %{} = request <- Accounts.get_signup_request(Params.id(id)),
          {:ok, user} <-
            Accounts.approve_signup(request, socket.assigns.current_user, &url(~p"/login/#{&1}")) do
@@ -229,7 +239,7 @@ defmodule SlipdockWeb.UsersLive.Index do
     end
   end
 
-  def handle_event("reject", %{"id" => id}, socket) do
+  defp event("reject", %{"id" => id}, socket) do
     case Accounts.get_signup_request(Params.id(id)) do
       nil ->
         gone(socket)

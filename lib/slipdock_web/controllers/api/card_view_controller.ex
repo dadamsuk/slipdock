@@ -174,6 +174,7 @@ defmodule SlipdockWeb.API.CardViewController do
 
   defp result({:ok, _} = ok), do: ok
   defp result({:error, %Ecto.Changeset{}} = error), do: error
+  defp result({:error, %Slipdock.Policy.Refused{}} = refused), do: refused
   defp result({:error, :not_found}), do: {:error, :not_found, "card view"}
 
   defp result({:error, message}) when is_binary(message),

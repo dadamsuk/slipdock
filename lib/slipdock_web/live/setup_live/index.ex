@@ -207,7 +207,12 @@ defmodule SlipdockWeb.SetupLive.Index do
   # most often leaves somebody stranded.
   defp claim(email) do
     {:ok, user} = Accounts.get_or_create_user_by_email(email)
-    {:ok, user} = Accounts.promote(user)
+    # The wizard runs before anybody can sign in: claiming it makes the first
+    # admin, as the server (`Slipdock.Policy`, #3172).
+    {:ok, user} =
+      Slipdock.Policy.as_system("the setup wizard makes the first admin", fn ->
+        Accounts.promote(user)
+      end)
 
     case Accounts.deliver_sign_in(user, &url(~p"/login/#{&1}")) do
       {:ok, :emailed} -> %{email: email, delivery: :emailed}

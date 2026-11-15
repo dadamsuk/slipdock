@@ -300,6 +300,10 @@ defmodule SlipdockWeb.ConfigLive.Index do
              "until then everything still goes to the old one."
          )}
 
+      # The context refused it (`Slipdock.Policy`, #3172).
+      {:error, %Slipdock.Policy.Refused{message: message}} ->
+        {:noreply, put_flash(socket, :error, message)}
+
       {:error, message} ->
         {:noreply, put_flash(socket, :error, message)}
     end
@@ -309,6 +313,9 @@ defmodule SlipdockWeb.ConfigLive.Index do
     case Accounts.confirm_admin_email_change(code, socket.assigns.current_user) do
       {:ok, email} ->
         {:noreply, socket |> put_flash(:info, "The admin address is now #{email}.") |> load()}
+
+      {:error, %Slipdock.Policy.Refused{message: message}} ->
+        {:noreply, put_flash(socket, :error, message)}
 
       {:error, :too_many_attempts} ->
         {:noreply,

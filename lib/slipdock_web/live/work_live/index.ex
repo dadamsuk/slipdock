@@ -97,12 +97,22 @@ defmodule SlipdockWeb.WorkLive.Index do
 
   def handle_info(_, socket), do: {:noreply, socket}
 
+  # A write the context refuses (`Slipdock.Policy`) is said in a flash,
+  # whatever the handler made of it (`SlipdockWeb.Refusals`, #3172).
   @impl true
-  def handle_event("toggle_done", _, socket) do
+  def handle_event(event, params, socket) do
+    SlipdockWeb.Refusals.said(
+      socket,
+      fn -> event(event, params, socket) end,
+      &put_flash(&1, :error, &2)
+    )
+  end
+
+  defp event("toggle_done", _, socket) do
     {:noreply, socket |> assign(show_done: not socket.assigns.show_done) |> load()}
   end
 
-  def handle_event("toggle_complete", %{"id" => id}, socket) do
+  defp event("toggle_complete", %{"id" => id}, socket) do
     SlipdockWeb.Refusals.said(
       socket,
       fn ->
@@ -121,7 +131,7 @@ defmodule SlipdockWeb.WorkLive.Index do
   end
 
   # Off my own list (#2069): held on the item's cause, so a new one shows.
-  def handle_event("dismiss_waiting", %{"card" => id}, socket) do
+  defp event("dismiss_waiting", %{"card" => id}, socket) do
     case Work.dismiss(socket.assigns.current_user, Boards.Cards.get_card!(id)) do
       {:ok, item} ->
         {:noreply,
@@ -134,12 +144,12 @@ defmodule SlipdockWeb.WorkLive.Index do
     end
   end
 
-  def handle_event("undismiss_waiting", %{"card" => id}, socket) do
+  defp event("undismiss_waiting", %{"card" => id}, socket) do
     Work.undismiss(socket.assigns.current_user, Boards.Cards.get_card!(id))
     {:noreply, load(socket)}
   end
 
-  def handle_event("unmute_waiting", %{"board" => id}, socket) do
+  defp event("unmute_waiting", %{"board" => id}, socket) do
     user = socket.assigns.current_user
 
     socket.assigns.muted_boards
@@ -149,11 +159,11 @@ defmodule SlipdockWeb.WorkLive.Index do
     {:noreply, load(socket)}
   end
 
-  def handle_event("toggle_hidden", _, socket),
+  defp event("toggle_hidden", _, socket),
     do: {:noreply, assign(socket, show_hidden: not socket.assigns.show_hidden)}
 
   # A wait answered from here: by choice button or in words.
-  def handle_event("answer_wait", %{"card" => id} = params, socket) do
+  defp event("answer_wait", %{"card" => id} = params, socket) do
     SlipdockWeb.Refusals.said(
       socket,
       fn ->

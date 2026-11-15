@@ -23,7 +23,7 @@ defmodule Slipdock.Favourites do
   alias Slipdock.Boards.{Board, Card, Column, SavedView}
   alias Slipdock.Favourites.Favourite
   alias Slipdock.Wiki.Page
-  alias Slipdock.{Access, Repo, Wiki}
+  alias Slipdock.{Access, Policy, Repo, Wiki}
 
   @kinds Favourite.kinds()
 
@@ -108,7 +108,9 @@ defmodule Slipdock.Favourites do
   when the thing is gone or was never theirs to see.
   """
   def toggle(%User{} = user, kind, id) when kind in @kinds do
-    with {:ok, resource} <- fetch(kind, id),
+    # The person's own favourites, nobody else's (`Slipdock.Policy`, #3172).
+    with :ok <- Policy.authorize(:own_view, user),
+         {:ok, resource} <- fetch(kind, id),
          true <- readable_resource?(user, kind, resource) do
       case one(user, kind, id) do
         nil ->
@@ -124,6 +126,7 @@ defmodule Slipdock.Favourites do
           {:ok, :removed}
       end
     else
+      {:error, %Policy.Refused{}} = refused -> refused
       _ -> {:error, :not_found}
     end
   end
@@ -135,9 +138,11 @@ defmodule Slipdock.Favourites do
 
   @doc "Takes `{kind, id}` off `user`'s favourites; a no-op if it was not one."
   def remove(%User{} = user, kind, id) when kind in @kinds do
-    case one(user, kind, id) do
-      nil -> {:ok, :unchanged}
-      favourite -> Repo.delete(favourite) && {:ok, :removed}
+    with :ok <- Policy.authorize(:own_view, user) do
+      case one(user, kind, id) do
+        nil -> {:ok, :unchanged}
+        favourite -> Repo.delete(favourite) && {:ok, :removed}
+      end
     end
   end
 

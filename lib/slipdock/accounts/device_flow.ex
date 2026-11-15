@@ -10,7 +10,7 @@ defmodule Slipdock.Accounts.DeviceFlow do
   """
   import Ecto.Query, warn: false
 
-  alias Slipdock.Repo
+  alias Slipdock.{Policy, Repo}
   alias Slipdock.Accounts
   alias Slipdock.Accounts.{DeviceAuthorization, User}
 
@@ -66,12 +66,19 @@ defmodule Slipdock.Accounts.DeviceFlow do
   as if the code had gone, which for them it has.
   """
   def approve_device_authorization(%DeviceAuthorization{} = request, %User{} = user) do
-    decide_device_authorization(request, approved_at: DateTime.utc_now(:second), user_id: user.id)
+    with :ok <- Policy.authorize(:own_sign_in, user) do
+      decide_device_authorization(request,
+        approved_at: DateTime.utc_now(:second),
+        user_id: user.id
+      )
+    end
   end
 
   @doc "Refuses a pending request. The client is told, rather than left polling."
   def deny_device_authorization(%DeviceAuthorization{} = request) do
-    decide_device_authorization(request, denied_at: DateTime.utc_now(:second))
+    with :ok <- Policy.authorize(:own_sign_in, %{user_id: Policy.user_id()}) do
+      decide_device_authorization(request, denied_at: DateTime.utc_now(:second))
+    end
   end
 
   defp decide_device_authorization(request, changes) do
@@ -107,6 +114,20 @@ defmodule Slipdock.Accounts.DeviceFlow do
     end
   end
 
+  # The client polling has no session: the person approved this code
+  # (`approve_device_authorization/2` asked), so the mint is the server's
+  # (`Slipdock.Policy`, #3172). A refusal is a 2-tuple too, so the caller's
+  # match names the row.
+  defp mint_approved(user, request) do
+    Policy.as_system("minting the token a person approved for a device", fn ->
+      Accounts.create_api_token(user, request.client_label || "Device",
+        scope: request.scope,
+        scope_boards: request.scope_boards,
+        expires_at: Accounts.expiry_in_days(90)
+      )
+    end)
+  end
+
   defp mint_from_device_authorization(request) do
     Repo.transaction(fn ->
       # Consume it first. Whoever deletes the row is the one who gets to mint,
@@ -115,12 +136,7 @@ defmodule Slipdock.Accounts.DeviceFlow do
         {1, _} ->
           user = Accounts.get_user!(request.user_id)
 
-          {token, _row} =
-            Accounts.create_api_token(user, request.client_label || "Device",
-              scope: request.scope,
-              scope_boards: request.scope_boards,
-              expires_at: Accounts.expiry_in_days(90)
-            )
+          {token, %Accounts.UserToken{}} = mint_approved(user, request)
 
           token
 

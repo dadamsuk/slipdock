@@ -259,7 +259,11 @@ defmodule Slipdock.PolicyBoardsTest do
       as(commenter)
       assert refused?(Boards.SavedViews.delete_saved_view(ctx.view), :edit_view, :user)
 
-      {_plain, token} = Accounts.create_api_token(ctx.owner, "reader", scope: "read")
+      # The owner's own token, made as a fixture: the commenter is acting
+      # (`:own_sign_in`, #3172).
+      {_plain, %Accounts.UserToken{} = token} =
+        fixture(fn -> Accounts.create_api_token(ctx.owner, "reader", scope: "read") end)
+
       as(ctx.owner, token)
       assert refused_by?(Boards.SavedViews.delete_saved_view(ctx.view), :token)
       assert Repo.get(Boards.SavedView, ctx.view.id)

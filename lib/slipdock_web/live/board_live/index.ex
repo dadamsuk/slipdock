@@ -171,8 +171,18 @@ defmodule SlipdockWeb.BoardLive.Index do
 
   def handle_info(_, socket), do: {:noreply, socket}
 
+  # A write the context refuses (`Slipdock.Policy`) is said in a flash,
+  # whatever the handler made of it (`SlipdockWeb.Refusals`, #3172).
   @impl true
-  def handle_event("start_create", _, socket) do
+  def handle_event(event, params, socket) do
+    SlipdockWeb.Refusals.said(
+      socket,
+      fn -> event(event, params, socket) end,
+      &put_flash(&1, :error, &2)
+    )
+  end
+
+  defp event("start_create", _, socket) do
     {:noreply,
      assign(socket,
        creating: true,
@@ -184,13 +194,13 @@ defmodule SlipdockWeb.BoardLive.Index do
      )}
   end
 
-  def handle_event("cancel_create", _, socket), do: {:noreply, assign(socket, creating: false)}
+  defp event("cancel_create", _, socket), do: {:noreply, assign(socket, creating: false)}
 
-  def handle_event("pick_color", %{"color" => color}, socket) do
+  defp event("pick_color", %{"color" => color}, socket) do
     {:noreply, assign(socket, new_color: color)}
   end
 
-  def handle_event("validate", %{"board" => params} = all, socket) do
+  defp event("validate", %{"board" => params} = all, socket) do
     {params, auto_code} = sync_code(params, socket.assigns.auto_code)
     form = %Board{} |> Boards.change_board(params) |> Map.put(:action, :validate) |> to_form()
 
@@ -201,7 +211,7 @@ defmodule SlipdockWeb.BoardLive.Index do
      |> put_sources(all)}
   end
 
-  def handle_event("create", %{"board" => params} = all, socket) do
+  defp event("create", %{"board" => params} = all, socket) do
     template =
       case all["template"] do
         id when id in [nil, "", "custom"] -> nil
@@ -230,7 +240,7 @@ defmodule SlipdockWeb.BoardLive.Index do
     end
   end
 
-  def handle_event("delete", %{"id" => id}, socket) do
+  defp event("delete", %{"id" => id}, socket) do
     with_owned_board(socket, id, fn board ->
       Boards.delete_board(board)
       load_boards(socket)
@@ -239,11 +249,11 @@ defmodule SlipdockWeb.BoardLive.Index do
 
   ## The reader's own view of the index ----------------------------------------
 
-  def handle_event("set_layout", %{"layout" => layout}, socket) do
+  defp event("set_layout", %{"layout" => layout}, socket) do
     {:noreply, save_view(socket, %{"board_layout" => layout})}
   end
 
-  def handle_event("set_sort", %{"sort" => sort}, socket) do
+  defp event("set_sort", %{"sort" => sort}, socket) do
     socket = socket |> save_view(%{"board_sort" => sort}) |> load_boards()
 
     {:noreply,
@@ -251,7 +261,7 @@ defmodule SlipdockWeb.BoardLive.Index do
   end
 
   # Only the admin holding it may end it from here; the Users page ends anybody's.
-  def handle_event("end_support", %{"id" => id}, socket) do
+  defp event("end_support", %{"id" => id}, socket) do
     user = socket.assigns.current_user
 
     case Accounts.get_support_session(SlipdockWeb.Params.id(id)) do
@@ -264,13 +274,13 @@ defmodule SlipdockWeb.BoardLive.Index do
     end
   end
 
-  def handle_event("toggle_archived", _, socket) do
+  defp event("toggle_archived", _, socket) do
     {:noreply, update(socket, :show_archived, &(not &1))}
   end
 
   ## Archiving and ordering ----------------------------------------------------
 
-  def handle_event("archive", %{"id" => id}, socket) do
+  defp event("archive", %{"id" => id}, socket) do
     with_owned_board(socket, id, fn board ->
       case Boards.Arrangement.archive_board(board) do
         {:ok, board} ->
@@ -284,7 +294,7 @@ defmodule SlipdockWeb.BoardLive.Index do
     end)
   end
 
-  def handle_event("unarchive", %{"id" => id}, socket) do
+  defp event("unarchive", %{"id" => id}, socket) do
     with_owned_board(socket, id, fn board ->
       case Boards.Arrangement.unarchive_board(board) do
         {:ok, board} ->
@@ -298,7 +308,7 @@ defmodule SlipdockWeb.BoardLive.Index do
 
   # A drag in the compact list: the board lands in front of `before`, or at the
   # end when it was dropped last.
-  def handle_event("reorder", %{"id" => id, "before" => before}, socket) do
+  defp event("reorder", %{"id" => id, "before" => before}, socket) do
     case find_tile(socket, id) do
       nil ->
         {:noreply, socket}
@@ -318,7 +328,7 @@ defmodule SlipdockWeb.BoardLive.Index do
   # Reorder mode (#1485): every tile is its own drag handle, with its links
   # and menus out of the way. Only "My order" can be rearranged, so entering
   # it switches to that sort, and saves it the way the sort control does.
-  def handle_event("toggle_reorder", _, socket) do
+  defp event("toggle_reorder", _, socket) do
     if socket.assigns.reordering do
       {:noreply, assign(socket, reordering: false)}
     else
@@ -331,10 +341,10 @@ defmodule SlipdockWeb.BoardLive.Index do
     end
   end
 
-  def handle_event("exit_reorder", _, socket), do: {:noreply, assign(socket, reordering: false)}
+  defp event("exit_reorder", _, socket), do: {:noreply, assign(socket, reordering: false)}
 
   # The same move without a mouse, from the board's own menu.
-  def handle_event("nudge", %{"id" => id, "dir" => dir}, socket) do
+  defp event("nudge", %{"id" => id, "dir" => dir}, socket) do
     direction = if dir == "up", do: :up, else: :down
 
     case find_tile(socket, id) do
@@ -354,7 +364,7 @@ defmodule SlipdockWeb.BoardLive.Index do
   end
 
   # A saved multiboard's colour and its deletion, from its own menu (#1482).
-  def handle_event("multiboard_color", %{"id" => id, "color" => color}, socket) do
+  defp event("multiboard_color", %{"id" => id, "color" => color}, socket) do
     with %SavedMultiboard{} = m <- find_tile(socket, "multiboard-" <> id) do
       Slipdock.Multiboard.update_saved(m, %{"color" => color})
     end
@@ -362,7 +372,7 @@ defmodule SlipdockWeb.BoardLive.Index do
     {:noreply, load_boards(socket)}
   end
 
-  def handle_event("delete_multiboard", %{"id" => id}, socket) do
+  defp event("delete_multiboard", %{"id" => id}, socket) do
     case find_tile(socket, "multiboard-" <> id) do
       %SavedMultiboard{} = m ->
         {:ok, _} = Slipdock.Multiboard.delete_saved(m)

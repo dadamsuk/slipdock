@@ -7,7 +7,8 @@ defmodule SlipdockWeb.Refusals do
   refuses a write, whatever the door checked first. A LiveView's handler
   may match the answer itself and say it, but one written before the
   context asked may ignore it, or crash matching `{:ok, _}`. `said/3` runs
-  the handler so neither happens: a crash on a refusal is caught, and a
+  the handler so neither happens: a crash on a refusal (or on what the
+  handler made of one) is caught, and a
   refusal the handler didn't say is said, in the door's own words place
   (the panel's notice, the page's flash). REST and MCP turn one into a 403
   and a tool error (`SlipdockWeb.API.FallbackController`,
@@ -30,8 +31,12 @@ defmodule SlipdockWeb.Refusals do
       try do
         handler.()
       rescue
-        e in [MatchError, CaseClauseError, WithClauseError] ->
-          case refusal_in(e) do
+        # A crash on the refusal itself (matching `{:ok, _}`), or on anything
+        # the handler then did with it (`changeset.errors` of a refusal, say,
+        # #3172): the context refused while it ran, so the refusal is what to
+        # say. A crash with no refusal behind it is the handler's own.
+        e ->
+          case refusal_in(e) || Process.get({Policy, :refusal}) do
             %Refused{} = refused ->
               Process.put({Policy, :refusal}, refused)
               {:noreply, socket}

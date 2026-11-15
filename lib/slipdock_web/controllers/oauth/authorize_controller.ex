@@ -40,8 +40,7 @@ defmodule SlipdockWeb.OAuth.AuthorizeController do
     with {:ok, request} <- validate(conn, params) do
       case params["decision"] do
         "approve" ->
-          code = OAuth.issue_code(conn.assigns.current_user, request, params["granted_scope"])
-          back(conn, request.redirect_uri, request.state, code: code)
+          approve(conn, request, params["granted_scope"])
 
         _ ->
           back(conn, request.redirect_uri, request.state,
@@ -49,6 +48,21 @@ defmodule SlipdockWeb.OAuth.AuthorizeController do
             error_description: "the person refused"
           )
       end
+    end
+  end
+
+  # The context may refuse it (`Slipdock.Policy`, #3172): the client is told
+  # the person's approval didn't stand.
+  defp approve(conn, request, scope) do
+    case OAuth.issue_code(conn.assigns.current_user, request, scope) do
+      {:error, %Slipdock.Policy.Refused{message: message}} ->
+        back(conn, request.redirect_uri, request.state,
+          error: "access_denied",
+          error_description: message
+        )
+
+      code ->
+        back(conn, request.redirect_uri, request.state, code: code)
     end
   end
 

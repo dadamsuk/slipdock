@@ -11,8 +11,18 @@ defmodule SlipdockWeb.GroupLive.Index do
 
   defp load(socket), do: assign(socket, groups: Accounts.list_groups(socket.assigns.current_user))
 
+  # A write the context refuses (`Slipdock.Policy`) is said in a flash,
+  # whatever the handler made of it (`SlipdockWeb.Refusals`, #3172).
   @impl true
-  def handle_event("create", %{"name" => name}, socket) do
+  def handle_event(event, params, socket) do
+    SlipdockWeb.Refusals.said(
+      socket,
+      fn -> event(event, params, socket) end,
+      &put_flash(&1, :error, &2)
+    )
+  end
+
+  defp event("create", %{"name" => name}, socket) do
     case Accounts.create_group(socket.assigns.current_user, %{"name" => name}) do
       {:ok, _} ->
         {:noreply, socket |> update(:form_key, &(&1 + 1)) |> load()}
@@ -27,7 +37,7 @@ defmodule SlipdockWeb.GroupLive.Index do
     end
   end
 
-  def handle_event("rename", %{"group_id" => id, "name" => name}, socket) do
+  defp event("rename", %{"group_id" => id, "name" => name}, socket) do
     with {:ok, group} <- owned_group(socket, id),
          {:ok, _} <- Accounts.update_group(group, %{"name" => name}) do
       {:noreply, load(socket)}
@@ -36,7 +46,7 @@ defmodule SlipdockWeb.GroupLive.Index do
     end
   end
 
-  def handle_event("delete", %{"id" => id}, socket) do
+  defp event("delete", %{"id" => id}, socket) do
     with {:ok, group} <- owned_group(socket, id) do
       {:ok, _} = Accounts.delete_group(group)
     end
@@ -44,7 +54,7 @@ defmodule SlipdockWeb.GroupLive.Index do
     {:noreply, load(socket)}
   end
 
-  def handle_event("add_member", %{"group_id" => id, "email" => email}, socket) do
+  defp event("add_member", %{"group_id" => id, "email" => email}, socket) do
     with {:ok, group} <- owned_group(socket, id),
          {:ok, _} <- Accounts.add_group_member(group, email) do
       {:noreply, socket |> update(:form_key, &(&1 + 1)) |> load()}
@@ -53,7 +63,7 @@ defmodule SlipdockWeb.GroupLive.Index do
     end
   end
 
-  def handle_event("remove_member", %{"id" => id, "user_id" => user_id}, socket) do
+  defp event("remove_member", %{"id" => id, "user_id" => user_id}, socket) do
     with {:ok, group} <- owned_group(socket, id),
          %{} = user <- Accounts.get_user(SlipdockWeb.Params.id(user_id)) do
       {:ok, _} = Accounts.remove_group_member(group, user)

@@ -6,6 +6,30 @@
 # asking `Slipdock.Policy`; one that calls a write that asks wraps it in
 # `Policy.as_system/2` with the same reason. Policy 8 (#3175) adds the check
 # that no door calls these.
+Slipdock.Accounts.DeviceFlow.poll_device_authorization/1 a device code polled by the client that holds it: no person is signed in on that side yet (#3172)
+Slipdock.Accounts.DeviceFlow.purge_expired_device_authorizations/0 the clock forgets device codes that have expired
+Slipdock.Accounts.DeviceFlow.request_device_authorization/1 a client asking for a device code before anybody has signed in (#3172)
+Slipdock.Accounts.Passkeys.authenticate/2 signing in with a passkey: nobody is signed in until it has answered (#3172)
+Slipdock.Accounts.Signups.deliver_invitation/3 the invitation an asked-for add or share sends to the person it names
+Slipdock.Accounts.Signups.invite_user/3 a share or group member that has asked invites the person it names (Access.grant/4, Groups.add_group_member/2)
+Slipdock.Accounts.Signups.purge_signup_requests/1 the clock forgets old decided signup requests
+Slipdock.Accounts.Signups.request_signup/2 somebody asking for an account: they have none to sign in with yet (#3172)
+Slipdock.Accounts.Signups.signup_allowed?/1 a read at the sign-in page: its only write makes the server's settings row the first time it is read
+Slipdock.Accounts.accept_terms/1 the sign-in that has just checked the person records their accepting the terms, before a session is theirs
+Slipdock.Accounts.adopt_browser_timezone/2 the browser's timezone kept once at mount for somebody who has none, before the page's actor is set
+Slipdock.Accounts.create_sign_in_token/1 a sign-in code for an address, asked for before anybody is signed in (#3172)
+Slipdock.Accounts.delete_session_token/1 signing out spends the session token the browser holds
+Slipdock.Accounts.deliver_magic_link/2 a sign-in link mailed to an address, asked for before anybody is signed in (#3172)
+Slipdock.Accounts.deliver_magic_link_later/2 a sign-in link mailed to an address, asked for before anybody is signed in (#3172)
+Slipdock.Accounts.deliver_sign_in/2 a sign-in code or link for an account, sent before anybody is signed in or for an approval that has asked
+Slipdock.Accounts.generate_session_token/1 the session a sign-in that has just checked the person starts
+Slipdock.Accounts.get_api_token/2 a read: its only write stamps when and where the token was last used
+Slipdock.Accounts.get_or_create_user_by_email/1 signing in or registering makes the account for an address that has proved itself (#3172)
+Slipdock.Accounts.touch_api_token/2 stamps when and where a token was last used, at most once a minute
+Slipdock.Accounts.touch_last_signed_in/1 records that somebody has just signed in, for the admin's users list
+Slipdock.Accounts.verify_magic_link/1 spending a sign-in link: nobody is signed in until it has checked (#3172)
+Slipdock.Accounts.verify_sign_in_code/2 spending a sign-in code: nobody is signed in until it has checked (#3172)
+Slipdock.Accounts.write_agentic_login/2 a test server's sign-in link written to a file, asked for before anybody is signed in
 Slipdock.Boards.Attachments.backfill_attachment_hashes/0 run at boot: hashes files stored before the hash was kept (#1015)
 Slipdock.Boards.Attachments.update_attachment_transcript/2 the transcription server records where a transcript has got to
 Slipdock.Boards.Cards.follow_stand_ins/3 a card reaching done takes its stand-ins on other boards to their done lists
@@ -25,16 +49,25 @@ Slipdock.Google.Drive.download/4 a read of the person's Drive: its only write re
 Slipdock.Google.Drive.file/2 a read of the person's Drive: its only write refreshes their stored access token (Google.access_token/2)
 Slipdock.Google.access_token/2 a read: trades a stale access token for a fresh one, or marks a connection Google refused
 Slipdock.Handbook.propose_spike/2 an install that has asked (Handbook.install/3) files its Spike proposal for the board's own Playbook
+Slipdock.HeaderLinks.resolve/2 a read: its only write makes the person's vault the first time it is wanted (Vaults.root/1)
+Slipdock.HeaderLinks.resolve/3 a read: its only write makes the person's vault the first time it is wanted (Vaults.root/1)
 Slipdock.LeadTime.brief/2 a read: its only write fills the job-cost cache (Runners.JobCost.count/1)
 Slipdock.LeadTime.for_card/2 a read: its only write fills the job-cost cache (Runners.JobCost.count/1)
 Slipdock.LeadTime.for_epic/2 a read: its only write fills the job-cost cache (Runners.JobCost.count/1)
 Slipdock.LeadTime.worked_brief/2 a read: its only write fills the job-cost cache (Runners.JobCost.count/1)
 Slipdock.Ledger.since/2 a read: its only write fills the job-cost cache (Runners.JobCost.count/1)
+Slipdock.OAuth.exchange_code/2 the token endpoint spends a code a person approved (OAuth.issue_code/3 asked), for a client with no session
+Slipdock.OAuth.purge_unused_clients/0 the clock forgets OAuth clients that registered over a day ago and hold no token
+Slipdock.OAuth.refresh/1 the token endpoint trades a refresh token for a new one: the refresh token is behind it, not a session
+Slipdock.OAuth.register_client/1 dynamic client registration (RFC 7591): a client registers before any person approves it
 Slipdock.OCR.Worker.handle_cast/2 the reading worker reads queued files' text; nobody is behind it
 Slipdock.OCR.enqueue/1 a file stored by a write that has asked is queued to have its text read
 Slipdock.OCR.requeue/1 a file's new bytes, from a write that has asked, are queued to be read again
 Slipdock.OCR.run_next/0 the reading worker takes the next queued file; nobody is behind it
 Slipdock.OCR.sweep/1 the scheduler puts back what a restart cut off and queues a few unread files
+Slipdock.Onboarding.build!/1 the getting-started board the server builds for a new account
+Slipdock.Onboarding.build/1 the getting-started board the server builds for a new account
+Slipdock.Onboarding.ensure_for/1 the getting-started board the server builds for a new account, the first time it is missing
 Slipdock.Recordings.check_folder/2 a read of the person's Drive: its only write refreshes their stored access token
 Slipdock.Recordings.for_page/1 a read: its only write makes the board owner's vault the first time it is wanted (Vaults.root/1)
 Slipdock.Recordings.forget/2 Drive says a remembered recording has gone, so the cache of where it was is dropped
@@ -45,6 +78,8 @@ Slipdock.Recurrence.completion_changed/1 completing or reopening an after-done i
 Slipdock.Recurrence.tick/1 the scheduler's clock makes each series' next instance
 Slipdock.Transcription.Voiceprints.from_page/3 after a voice is named (Wiki.rename_speaker/4 has asked) its clip goes to the server; the only write caches the recording
 Slipdock.Transcription.Voiceprints.page_named/3 after a voice is named (Wiki.rename_speaker/4 has asked) its clip goes to the server; the only write caches the recording
+Slipdock.TransferLinks.claim/2 spends an upload or download link: the token that made it (TransferLinks.mint/3 asked) is behind it
+Slipdock.TransferLinks.release/1 hands a claimed link back after a use that was refused, until it expires
 Slipdock.Vaults.for_board/1 a read: its only write makes the board owner's vault the first time it is wanted (Vaults.root/1)
 Slipdock.Vaults.get_vault/2 a read: its only write makes the person's vault the first time it is wanted (Vaults.root/1)
 Slipdock.Vaults.in_vault?/1 a read: its only write makes the board owner's vault the first time it is wanted (Vaults.root/1)

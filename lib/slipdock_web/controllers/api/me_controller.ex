@@ -106,6 +106,9 @@ defmodule SlipdockWeb.API.MeController do
       {:ok, user} ->
         json(conn, %{tree_names: user.tree_names})
 
+      {:error, %Slipdock.Policy.Refused{}} = refused ->
+        SlipdockWeb.API.FallbackController.call(conn, refused)
+
       {:error, _changeset} ->
         conn
         |> put_status(:unprocessable_entity)

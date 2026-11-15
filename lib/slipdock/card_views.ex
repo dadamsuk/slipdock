@@ -29,7 +29,7 @@ defmodule Slipdock.CardViews do
   alias Slipdock.Accounts.User
   alias Slipdock.Boards.{Board, Column}
   alias Slipdock.CardViews.{CardView, Elements, Level}
-  alias Slipdock.{Access, Repo}
+  alias Slipdock.{Access, Policy, Repo}
 
   @pubsub Slipdock.PubSub
 
@@ -101,11 +101,13 @@ defmodule Slipdock.CardViews do
   (lists of elements, or comma-joined strings).
   """
   def create(%User{} = user, attrs) do
-    with {:ok, elements} <- changes(%{}, attrs) do
-      %CardView{user_id: user.id}
-      |> CardView.changeset(%{name: attr(attrs, :name), elements: elements})
-      |> Repo.insert()
-      |> changed(user)
+    with :ok <- Policy.authorize(:own_view, user) do
+      with {:ok, elements} <- changes(%{}, attrs) do
+        %CardView{user_id: user.id}
+        |> CardView.changeset(%{name: attr(attrs, :name), elements: elements})
+        |> Repo.insert()
+        |> changed(user)
+      end
     end
   end
 
@@ -114,6 +116,12 @@ defmodule Slipdock.CardViews do
   plus `inherit` (elements it stops stating) and `reset` (start from none).
   """
   def update(%User{} = user, %CardView{user_id: owner} = view, attrs) when owner == user.id do
+    with :ok <- Policy.authorize(:own_view, user), do: update_view(user, view, attrs)
+  end
+
+  def update(_user, _view, _attrs), do: {:error, :not_found}
+
+  defp update_view(user, view, attrs) do
     with {:ok, elements} <- changes(view.elements, attrs) do
       params = %{elements: elements}
       params = if name = attr(attrs, :name), do: Map.put(params, :name, name), else: params
@@ -125,8 +133,6 @@ defmodule Slipdock.CardViews do
     end
   end
 
-  def update(_user, _view, _attrs), do: {:error, :not_found}
-
   @doc "How many of `user`'s levels apply `view`: what deleting it puts back to inheriting."
   def levels_using(%User{id: user_id}, %CardView{id: id}) do
     Repo.aggregate(
@@ -137,7 +143,9 @@ defmodule Slipdock.CardViews do
 
   @doc "Deletes a named card view. The levels that applied it keep their own elements."
   def delete(%User{} = user, %CardView{user_id: owner} = view) when owner == user.id do
-    view |> Repo.delete() |> changed(user)
+    with :ok <- Policy.authorize(:own_view, user) do
+      view |> Repo.delete() |> changed(user)
+    end
   end
 
   def delete(_user, _view), do: {:error, :not_found}
@@ -217,22 +225,26 @@ defmodule Slipdock.CardViews do
   on a board's level `show_all`. A level left stating nothing is removed.
   """
   def update_level(%User{} = user, scope, attrs) do
-    level = level(user, scope)
+    with :ok <- Policy.authorize(:own_settings, user) do
+      level = level(user, scope)
 
-    with {:ok, elements} <- changes(level.elements, attrs),
-         {:ok, view_id} <- view_ref(user, level, attrs),
-         {:ok, show_all} <- show_all(scope, level, attrs) do
-      level
-      |> Level.changeset(%{elements: elements, card_view_id: view_id, show_all: show_all})
-      |> save_level()
-      |> changed(user)
+      with {:ok, elements} <- changes(level.elements, attrs),
+           {:ok, view_id} <- view_ref(user, level, attrs),
+           {:ok, show_all} <- show_all(scope, level, attrs) do
+        level
+        |> Level.changeset(%{elements: elements, card_view_id: view_id, show_all: show_all})
+        |> save_level()
+        |> changed(user)
+      end
     end
   end
 
   @doc "Clears a level: it states nothing, and inherits everything."
   def clear_level(%User{} = user, scope) do
-    {count, _} = user |> level_query(scope) |> Repo.delete_all()
-    changed({:ok, count}, user)
+    with :ok <- Policy.authorize(:own_settings, user) do
+      {count, _} = user |> level_query(scope) |> Repo.delete_all()
+      changed({:ok, count}, user)
+    end
   end
 
   @doc "Turns a board's Show all switch on or off for `user`."

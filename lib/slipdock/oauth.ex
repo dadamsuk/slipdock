@@ -18,7 +18,7 @@ defmodule Slipdock.OAuth do
 
   alias Slipdock.Accounts.{User, UserToken}
   alias Slipdock.OAuth.{Client, Code}
-  alias Slipdock.Repo
+  alias Slipdock.{Policy, Repo}
 
   @code_seconds 60
   @access_seconds 3600
@@ -163,22 +163,24 @@ defmodule Slipdock.OAuth do
   than was asked for but never more.
   """
   def issue_code(%User{} = user, request, scope \\ nil) do
-    purge_old_codes()
-    raw = :crypto.strong_rand_bytes(32)
-    scope = if request.scope == "write" and scope != "read", do: "write", else: "read"
+    with :ok <- Policy.authorize(:own_sign_in, user) do
+      purge_old_codes()
+      raw = :crypto.strong_rand_bytes(32)
+      scope = if request.scope == "write" and scope != "read", do: "write", else: "read"
 
-    Repo.insert!(%Code{
-      code_hash: hash(raw),
-      client_id: request.client.id,
-      user_id: user.id,
-      redirect_uri: request.redirect_uri,
-      code_challenge: request.code_challenge,
-      scope: scope,
-      resource: request.resource,
-      expires_at: DateTime.utc_now(:second) |> DateTime.add(@code_seconds, :second)
-    })
+      Repo.insert!(%Code{
+        code_hash: hash(raw),
+        client_id: request.client.id,
+        user_id: user.id,
+        redirect_uri: request.redirect_uri,
+        code_challenge: request.code_challenge,
+        scope: scope,
+        resource: request.resource,
+        expires_at: DateTime.utc_now(:second) |> DateTime.add(@code_seconds, :second)
+      })
 
-    encode(raw)
+      encode(raw)
+    end
   end
 
   defp purge_old_codes do

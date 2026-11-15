@@ -14,7 +14,7 @@ defmodule Slipdock.Accounts do
   import Ecto.Query, warn: false
 
   require Logger
-  alias Slipdock.Repo
+  alias Slipdock.{Actor, Policy, Repo}
 
   alias Slipdock.Accounts.{
     DeviceFlow,
@@ -63,7 +63,9 @@ defmodule Slipdock.Accounts do
   end
 
   def update_profile(%User{} = user, attrs) do
-    user |> User.profile_changeset(attrs) |> Repo.update()
+    with :ok <- Policy.authorize(:own_settings, user) do
+      user |> User.profile_changeset(attrs) |> Repo.update()
+    end
   end
 
   @doc """
@@ -86,19 +88,25 @@ defmodule Slipdock.Accounts do
   the chosen board is dropped rather than saved as a mismatch.
   """
   def update_quick_add(%User{} = user, attrs) do
-    user |> User.quick_add_changeset(attrs) |> Repo.update()
+    with :ok <- Policy.authorize(:own_settings, user) do
+      user |> User.quick_add_changeset(attrs) |> Repo.update()
+    end
   end
 
   @doc "Where quick notes land. The caller has checked the vault is theirs."
   def update_quick_note(%User{} = user, attrs) do
-    user |> User.quick_note_changeset(attrs) |> Repo.update()
+    with :ok <- Policy.authorize(:own_settings, user) do
+      user |> User.quick_note_changeset(attrs) |> Repo.update()
+    end
   end
 
   def change_quick_add(%User{} = user, attrs \\ %{}), do: User.quick_add_changeset(user, attrs)
 
   @doc "Inbound mail settings (#1249): `inbound_ack`, a link back for each card mail makes."
   def update_inbound(%User{} = user, attrs) do
-    user |> User.inbound_changeset(attrs) |> Repo.update()
+    with :ok <- Policy.authorize(:own_settings, user) do
+      user |> User.inbound_changeset(attrs) |> Repo.update()
+    end
   end
 
   @doc """
@@ -107,17 +115,23 @@ defmodule Slipdock.Accounts do
   anyone else who can see the same boards.
   """
   def update_board_view(%User{} = user, attrs) do
-    user |> User.board_view_changeset(attrs) |> Repo.update()
+    with :ok <- Policy.authorize(:own_settings, user) do
+      user |> User.board_view_changeset(attrs) |> Repo.update()
+    end
   end
 
   @doc "Saves what this person's multiboard overview shows (#1479)."
   def update_multiboard(%User{} = user, prefs) when is_map(prefs) do
-    user |> User.multiboard_changeset(%{multiboard: prefs}) |> Repo.update()
+    with :ok <- Policy.authorize(:own_settings, user) do
+      user |> User.multiboard_changeset(%{multiboard: prefs}) |> Repo.update()
+    end
   end
 
   @doc "Saves this person's display preferences (see `User.display_changeset/2`)."
   def update_display(%User{} = user, attrs) do
-    user |> User.display_changeset(attrs) |> Repo.update()
+    with :ok <- Policy.authorize(:own_settings, user) do
+      user |> User.display_changeset(attrs) |> Repo.update()
+    end
   end
 
   @doc """
@@ -125,7 +139,9 @@ defmodule Slipdock.Accounts do
   `User.waiting_notice_changeset/2`).
   """
   def update_waiting_notice(%User{} = user, attrs) do
-    user |> User.waiting_notice_changeset(attrs) |> Repo.update()
+    with :ok <- Policy.authorize(:own_settings, user) do
+      user |> User.waiting_notice_changeset(attrs) |> Repo.update()
+    end
   end
 
   def change_profile(%User{} = user, attrs \\ %{}), do: User.profile_changeset(user, attrs)
@@ -208,17 +224,20 @@ defmodule Slipdock.Accounts do
   @spec update_standing(User.t(), map()) ::
           {:ok, User.t()} | {:error, :last_admin | Ecto.Changeset.t()}
   def update_standing(%User{} = user, attrs) do
-    update = fn -> user |> User.standing_changeset(attrs) |> Repo.update() end
+    with :ok <- Policy.authorize(:administer, user), do: put_standing(user, attrs)
+  end
 
-    if attrs_say_not_admin?(attrs) do
-      with {:ok, updated} <- unless_last_admin(user, update) do
-        # An open admin page re-checks on every event, but disconnecting makes
-        # every other tab they have open remount and find out too.
-        if user.admin, do: disconnect_sessions(updated)
-        {:ok, updated}
-      end
-    else
-      update.()
+  defp put_standing(user, attrs) do
+    update = fn -> user |> User.standing_changeset(attrs) |> Repo.update() end
+    if attrs_say_not_admin?(attrs), do: lower_standing(user, update), else: update.()
+  end
+
+  defp lower_standing(user, update) do
+    with {:ok, updated} <- unless_last_admin(user, update) do
+      # An open admin page re-checks on every event, but disconnecting makes
+      # every other tab they have open remount and find out too.
+      if user.admin, do: disconnect_sessions(updated)
+      {:ok, updated}
     end
   end
 
@@ -234,6 +253,11 @@ defmodule Slipdock.Accounts do
   @spec change_email(User.t(), String.t(), User.t()) ::
           {:ok, User.t()} | {:error, Ecto.Changeset.t()}
   def change_email(%User{} = user, email, %User{} = by) when is_binary(email) do
+    with :ok <- Policy.authorize(:administer, user, actor: Actor.web(by)),
+         do: put_email(user, email, by)
+  end
+
+  defp put_email(user, email, by) do
     old = user.email
 
     with {:ok, updated} <- user |> User.email_changeset(%{"email" => email}) |> Repo.update() do
@@ -254,7 +278,11 @@ defmodule Slipdock.Accounts do
   locked out as it was.
   """
   def restore_admin(%User{} = user) do
-    with {:ok, user} <- enable(user), do: promote(user)
+    # Run from the server's own command line or its seeding, before anybody
+    # can sign in (`system_writes.txt`, #3172).
+    Policy.as_system("the recovery route makes an admin who can sign in", fn ->
+      with {:ok, user} <- enable(user), do: promote(user)
+    end)
   end
 
   @doc "Takes somebody's admin rights away, unless they are the last admin."
@@ -269,6 +297,10 @@ defmodule Slipdock.Accounts do
   """
   @spec disable(User.t()) :: {:ok, User.t()} | {:error, :last_admin | Ecto.Changeset.t()}
   def disable(%User{} = user) do
+    with :ok <- Policy.authorize(:administer, user), do: disable_now(user)
+  end
+
+  defp disable_now(user) do
     with {:ok, user} <-
            unless_last_admin(user, fn ->
              user
@@ -277,14 +309,16 @@ defmodule Slipdock.Accounts do
            end) do
       # Being disabled has to take effect now, not at the end of a 30-day
       # session — and not at the next page load in a tab that is already open.
-      delete_all_sessions(user)
+      drop_sessions(user)
       {:ok, user}
     end
   end
 
   @doc "Lets a disabled account back in. They will need to sign in again."
   def enable(%User{} = user) do
-    user |> Ecto.Changeset.change(disabled_at: nil) |> Repo.update()
+    with :ok <- Policy.authorize(:administer, user) do
+      user |> Ecto.Changeset.change(disabled_at: nil) |> Repo.update()
+    end
   end
 
   @doc "Records that somebody signed in, for the admin users list."
@@ -498,6 +532,10 @@ defmodule Slipdock.Accounts do
   """
   @spec delete_user(User.t()) :: {:ok, map()} | {:error, :last_admin}
   def delete_user(%User{} = user) do
+    with :ok <- Policy.authorize(:administer, user), do: delete_now(user)
+  end
+
+  defp delete_now(user) do
     email = user.email
     # Their live sockets are keyed by session token, which the delete takes
     # with it.
@@ -652,31 +690,33 @@ defmodule Slipdock.Accounts do
   """
   @spec request_admin_email_change(String.t(), User.t()) :: {:ok, :sent} | {:error, String.t()}
   def request_admin_email_change(email, %User{} = by) do
-    email = Slipdock.Email.normalize(email)
+    with :ok <- Policy.authorize(:administer, by, actor: Actor.web(by)) do
+      email = Slipdock.Email.normalize(email)
 
-    cond do
-      not Slipdock.Email.valid?(email) ->
-        {:error, "That doesn't look like an email address."}
+      cond do
+        not Slipdock.Email.valid?(email) ->
+          {:error, "That doesn't look like an email address."}
 
-      email == Settings.get().admin_email ->
-        {:error, "That is already the admin address."}
+        email == Settings.get().admin_email ->
+          {:error, "That is already the admin address."}
 
-      not Settings.smtp_configured?() ->
-        {:error,
-         "Set up a mail server first — a new admin address has to prove it can " <>
-           "receive mail before it becomes the one everything is sent to."}
+        not Settings.smtp_configured?() ->
+          {:error,
+           "Set up a mail server first — a new admin address has to prove it can " <>
+             "receive mail before it becomes the one everything is sent to."}
 
-      true ->
-        code = UserToken.generate_code()
+        true ->
+          code = UserToken.generate_code()
 
-        {_token, user_token} =
-          UserToken.build_hashed_token(by, "admin_email", sent_to: email, code: code)
+          {_token, user_token} =
+            UserToken.build_hashed_token(by, "admin_email", sent_to: email, code: code)
 
-        Repo.insert!(user_token)
+          Repo.insert!(user_token)
 
-        UserNotifier.deliver_admin_email_change(email, code, by)
-        warn_old_admin_address(email, by)
-        {:ok, :sent}
+          UserNotifier.deliver_admin_email_change(email, code, by)
+          warn_old_admin_address(email, by)
+          {:ok, :sent}
+      end
     end
   end
 
@@ -687,12 +727,14 @@ defmodule Slipdock.Accounts do
   @spec confirm_admin_email_change(String.t(), User.t()) ::
           {:ok, String.t()} | {:error, :invalid | :too_many_attempts}
   def confirm_admin_email_change(code, %User{} = by) do
-    # Eight digits is a lot of guesses, but not so many that an unmetered
-    # form can't be ground through. Whoever is guessing is already an admin;
-    # what they would win is the address every warning goes to.
-    case RateLimit.hit("admin_email:confirm:#{by.id}", @admin_email_attempts, :timer.hours(1)) do
-      :ok -> do_confirm_admin_email_change(code, by)
-      {:error, _} -> {:error, :too_many_attempts}
+    with :ok <- Policy.authorize(:administer, by, actor: Actor.web(by)) do
+      # Eight digits is a lot of guesses, but not so many that an unmetered
+      # form can't be ground through. Whoever is guessing is already an admin;
+      # what they would win is the address every warning goes to.
+      case RateLimit.hit("admin_email:confirm:#{by.id}", @admin_email_attempts, :timer.hours(1)) do
+        :ok -> do_confirm_admin_email_change(code, by)
+        {:error, _} -> {:error, :too_many_attempts}
+      end
     end
   end
 
@@ -925,17 +967,19 @@ defmodule Slipdock.Accounts do
   `:expires_at`. The plaintext token is returned once and never stored.
   """
   def create_api_token(%User{} = user, label, opts \\ []) do
-    scope = api_token_scope(user, opts[:scope])
+    with :ok <- Policy.authorize(:own_sign_in, user) do
+      scope = api_token_scope(user, opts[:scope])
 
-    {token, user_token} =
-      UserToken.build_hashed_token(user, "api",
-        label: label,
-        scope: scope,
-        scope_boards: opts[:scope_boards] || [],
-        expires_at: opts[:expires_at]
-      )
+      {token, user_token} =
+        UserToken.build_hashed_token(user, "api",
+          label: label,
+          scope: scope,
+          scope_boards: opts[:scope_boards] || [],
+          expires_at: opts[:expires_at]
+        )
 
-    {token, Repo.insert!(user_token)}
+      {token, Repo.insert!(user_token)}
+    end
   end
 
   # An admin-scope token is only ever minted for somebody who is an admin now.
@@ -1027,11 +1071,20 @@ defmodule Slipdock.Accounts do
   end
 
   def delete_api_token(%User{} = user, id) do
-    Repo.delete_all(from(t in UserToken.by_user_and_contexts(user, ["api"]), where: t.id == ^id))
-    :ok
+    with :ok <- Policy.authorize(:own_sign_in, user) do
+      Repo.delete_all(
+        from(t in UserToken.by_user_and_contexts(user, ["api"]), where: t.id == ^id)
+      )
+
+      :ok
+    end
   end
 
   def delete_all_sessions(%User{} = user) do
+    with :ok <- Policy.authorize(:own_sign_in, user), do: drop_sessions(user)
+  end
+
+  defp drop_sessions(user) do
     sockets = live_socket_ids(user)
     Repo.delete_all(UserToken.by_user_and_contexts(user, ["session"]))
     broadcast_disconnect(sockets)

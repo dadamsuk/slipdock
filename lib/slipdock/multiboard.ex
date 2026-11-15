@@ -18,7 +18,7 @@ defmodule Slipdock.Multiboard do
   """
   import Ecto.Query
 
-  alias Slipdock.{Access, Accounts, Boards, Repo}
+  alias Slipdock.{Access, Accounts, Boards, Policy, Repo}
   alias Slipdock.Accounts.User
   alias Slipdock.Boards.{Card, Column}
   alias Slipdock.Multiboard.Saved
@@ -111,7 +111,9 @@ defmodule Slipdock.Multiboard do
 
   @doc "Remembers a view as this user's own."
   def save_prefs(%User{} = user, %{lists: lists, top: top, by: by}) do
-    Accounts.update_multiboard(user, %{"lists" => lists, "top" => top, "by" => by})
+    with :ok <- Policy.authorize(:own_settings, user) do
+      Accounts.update_multiboard(user, %{"lists" => lists, "top" => top, "by" => by})
+    end
   end
 
   ## Saved multiboards (#1482) ----------------------------------------------
@@ -145,24 +147,30 @@ defmodule Slipdock.Multiboard do
   `user`'s, which goes on their home page.
   """
   def create_saved(%User{} = user, attrs, view) do
-    %Saved{user_id: user.id}
-    |> Saved.changeset(attrs)
-    |> Saved.view_changeset(normalize(stringify(view)))
-    |> Repo.insert()
-    |> notify(user.id)
+    with :ok <- Policy.authorize(:own_view, user) do
+      %Saved{user_id: user.id}
+      |> Saved.changeset(attrs)
+      |> Saved.view_changeset(normalize(stringify(view)))
+      |> Repo.insert()
+      |> notify(user.id)
+    end
   end
 
   @doc "Renames or recolours a saved multiboard."
   def update_saved(%Saved{} = saved, attrs) do
-    saved |> Saved.changeset(attrs) |> Repo.update() |> notify(saved.user_id)
+    with :ok <- Policy.authorize(:own_view, saved) do
+      saved |> Saved.changeset(attrs) |> Repo.update() |> notify(saved.user_id)
+    end
   end
 
   @doc "Changes the view a saved multiboard shows."
   def save_view(%Saved{} = saved, view) do
-    saved
-    |> Saved.view_changeset(normalize(stringify(view)))
-    |> Repo.update()
-    |> notify(saved.user_id)
+    with :ok <- Policy.authorize(:own_view, saved) do
+      saved
+      |> Saved.view_changeset(normalize(stringify(view)))
+      |> Repo.update()
+      |> notify(saved.user_id)
+    end
   end
 
   @doc "The board each of these lists is on, as a map of list id to board id."
@@ -175,7 +183,10 @@ defmodule Slipdock.Multiboard do
   end
 
   @doc "Deletes a saved multiboard: only the view goes, nothing on the boards."
-  def delete_saved(%Saved{} = saved), do: saved |> Repo.delete() |> notify(saved.user_id)
+  def delete_saved(%Saved{} = saved) do
+    with :ok <- Policy.authorize(:own_view, saved),
+         do: saved |> Repo.delete() |> notify(saved.user_id)
+  end
 
   defp stringify(view), do: Map.new(view, fn {k, v} -> {to_string(k), v} end)
 

@@ -114,7 +114,7 @@ defmodule Slipdock.AccountsTest do
           "smtp_from_email" => Slipdock.Fixtures.fixture_email("mail@example.com")
         })
 
-      admin = Slipdock.Fixtures.user_fixture("boss@example.com")
+      {:ok, admin} = Accounts.promote(Slipdock.Fixtures.user_fixture("boss@example.com"))
       user = Slipdock.Fixtures.user_fixture("moving@example.com")
       old = user.email
       token = Accounts.create_sign_in_token(user)
@@ -133,7 +133,7 @@ defmodule Slipdock.AccountsTest do
     end
 
     test "an unchanged address sends nothing" do
-      admin = Slipdock.Fixtures.user_fixture("boss2@example.com")
+      {:ok, admin} = Accounts.promote(Slipdock.Fixtures.user_fixture("boss2@example.com"))
       user = Slipdock.Fixtures.user_fixture("staying@example.com")
 
       assert {:ok, _} = Accounts.change_email(user, user.email, admin)
@@ -144,7 +144,7 @@ defmodule Slipdock.AccountsTest do
   describe "add_user/2" do
     test "is not gated on invites_create_accounts, and refuses an existing address" do
       {:ok, _} = Slipdock.Settings.update(%{"invites_create_accounts" => false})
-      admin = Slipdock.Fixtures.user_fixture("boss3@example.com")
+      {:ok, admin} = Accounts.promote(Slipdock.Fixtures.user_fixture("boss3@example.com"))
       email = Slipdock.Fixtures.fixture_email("added@example.com")
 
       assert {:ok, %User{invited_by_id: invited_by}, _delivery} = Accounts.add_user(email, admin)

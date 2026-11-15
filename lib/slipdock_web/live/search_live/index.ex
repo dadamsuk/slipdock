@@ -126,22 +126,32 @@ defmodule SlipdockWeb.SearchLive.Index do
 
   ## Events -------------------------------------------------------------------
 
+  # A write the context refuses (`Slipdock.Policy`) is said in a flash,
+  # whatever the handler made of it (`SlipdockWeb.Refusals`, #3172).
+  @impl true
+  def handle_event(event, params, socket) do
+    SlipdockWeb.Refusals.said(
+      socket,
+      fn -> event(event, params, socket) end,
+      &put_flash(&1, :error, &2)
+    )
+  end
+
   # Shift-Alt-S, here already (see `SlipdockWeb.ShortcutsHook`): the box, with
   # what is in it picked. From Ask it is the toggle, carrying the query across.
-  @impl true
-  def handle_event("search_everything", _, %{assigns: %{mode: :ask}} = socket) do
+  defp event("search_everything", _, %{assigns: %{mode: :ask}} = socket) do
     {:noreply,
      socket
      |> push_patch(to: mode_path(:search, socket.assigns.query))
      |> push_event("focus_search", %{})}
   end
 
-  def handle_event("search_everything", _, socket),
+  defp event("search_everything", _, socket),
     do: {:noreply, push_event(socket, "focus_search", %{})}
 
   # The box, typed in. Search runs as you type (an embedding call, cheap and
   # quick); Ask waits for Enter, because a model call should be asked for.
-  def handle_event("typed", %{"q" => q}, socket) do
+  defp event("typed", %{"q" => q}, socket) do
     q = String.trim(q)
     socket = assign(socket, query: q)
 
@@ -153,7 +163,7 @@ defmodule SlipdockWeb.SearchLive.Index do
     end
   end
 
-  def handle_event("submit", %{"q" => q}, socket) do
+  defp event("submit", %{"q" => q}, socket) do
     q = String.trim(q)
 
     cond do
@@ -164,7 +174,7 @@ defmodule SlipdockWeb.SearchLive.Index do
     end
   end
 
-  def handle_event("suggest", %{"text" => text}, socket) do
+  defp event("suggest", %{"text" => text}, socket) do
     cond do
       socket.assigns.busy -> {:noreply, socket}
       socket.assigns.mode == :ask -> {:noreply, socket |> assign(query: text) |> ask(text)}
@@ -176,7 +186,7 @@ defmodule SlipdockWeb.SearchLive.Index do
   # it saves that one. Ask clears its box on submit, so the thread is the only
   # place left to press it — and the honest place, since whether a question is
   # worth keeping is something you know once you have seen the answer.
-  def handle_event("toggle_saved", params, socket) do
+  defp event("toggle_saved", params, socket) do
     %{current_user: user, mode: mode, query: query} = socket.assigns
     text = String.trim(params["text"] || query)
 
@@ -188,12 +198,12 @@ defmodule SlipdockWeb.SearchLive.Index do
     end
   end
 
-  def handle_event("unsave", %{"id" => id}, socket) do
+  defp event("unsave", %{"id" => id}, socket) do
     if id = SlipdockWeb.Params.id(id), do: SavedQueries.delete(socket.assigns.current_user, id)
     {:noreply, load_saved(socket)}
   end
 
-  def handle_event("clear", _, socket) do
+  defp event("clear", _, socket) do
     {:noreply,
      assign(socket,
        query: "",
@@ -204,7 +214,7 @@ defmodule SlipdockWeb.SearchLive.Index do
      )}
   end
 
-  def handle_event("reset", _, socket) do
+  defp event("reset", _, socket) do
     {:noreply,
      assign(socket,
        messages: [],
@@ -215,15 +225,15 @@ defmodule SlipdockWeb.SearchLive.Index do
      )}
   end
 
-  def handle_event("toggle_archived", _, socket) do
+  defp event("toggle_archived", _, socket) do
     socket = assign(socket, archived: not socket.assigns.archived)
     {:noreply, rerun(socket)}
   end
 
-  def handle_event("set_board", %{"board" => ""}, socket),
+  defp event("set_board", %{"board" => ""}, socket),
     do: {:noreply, socket |> assign(board_id: nil) |> rerun()}
 
-  def handle_event("set_board", %{"board" => id}, socket),
+  defp event("set_board", %{"board" => id}, socket),
     do: {:noreply, socket |> assign(board_id: SlipdockWeb.Params.id(id)) |> rerun()}
 
   ## Running ------------------------------------------------------------------

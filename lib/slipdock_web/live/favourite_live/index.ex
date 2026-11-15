@@ -56,8 +56,18 @@ defmodule SlipdockWeb.FavouriteLive.Index do
 
   def handle_info(_, socket), do: {:noreply, socket}
 
+  # A write the context refuses (`Slipdock.Policy`) is said in a flash,
+  # whatever the handler made of it (`SlipdockWeb.Refusals`, #3172).
   @impl true
-  def handle_event("toggle_favourite", %{"kind" => kind, "id" => id}, socket) do
+  def handle_event(event, params, socket) do
+    SlipdockWeb.Refusals.said(
+      socket,
+      fn -> event(event, params, socket) end,
+      &put_flash(&1, :error, &2)
+    )
+  end
+
+  defp event("toggle_favourite", %{"kind" => kind, "id" => id}, socket) do
     with {:ok, kind} <- Favourites.kind(kind),
          id when is_integer(id) <- SlipdockWeb.Params.id(id),
          {:ok, _} <- Favourites.toggle(socket.assigns.current_user, kind, id) do

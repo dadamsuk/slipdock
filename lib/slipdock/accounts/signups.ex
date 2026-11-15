@@ -11,7 +11,7 @@ defmodule Slipdock.Accounts.Signups do
   import Ecto.Query, warn: false
 
   require Logger
-  alias Slipdock.Repo
+  alias Slipdock.{Actor, Policy, Repo}
   alias Slipdock.Accounts
   alias Slipdock.Accounts.{SignupRequest, User, UserNotifier}
   alias Slipdock.Settings
@@ -182,7 +182,9 @@ defmodule Slipdock.Accounts.Signups do
         {:error, :exists}
 
       nil ->
-        with {:ok, user} <- insert_invited(email, admin) do
+        # Asked as the admin named (`Slipdock.Policy`, #3172).
+        with :ok <- Policy.authorize(:administer, admin, actor: Actor.web(admin)),
+             {:ok, user} <- insert_invited(email, admin) do
           {:ok, user, deliver_invitation(user, admin)}
         end
     end
@@ -295,7 +297,8 @@ defmodule Slipdock.Accounts.Signups do
   @spec approve_signup(SignupRequest.t(), User.t(), (String.t() -> String.t())) ::
           {:ok, User.t()} | {:error, term()}
   def approve_signup(%SignupRequest{} = request, %User{} = admin, url_fun) do
-    with {:ok, user} <- Accounts.get_or_create_user_by_email(request.email),
+    with :ok <- Policy.authorize(:administer, admin, actor: Actor.web(admin)),
+         {:ok, user} <- Accounts.get_or_create_user_by_email(request.email),
          {:ok, _} <-
            request |> SignupRequest.decision_changeset("approved", admin) |> Repo.update() do
       # If this fails they still have an account and can ask for a link
@@ -307,7 +310,9 @@ defmodule Slipdock.Accounts.Signups do
 
   @doc "Turns a request down. They cannot simply ask again."
   def reject_signup(%SignupRequest{} = request, %User{} = admin) do
-    request |> SignupRequest.decision_changeset("rejected", admin) |> Repo.update()
+    with :ok <- Policy.authorize(:administer, admin, actor: Actor.web(admin)) do
+      request |> SignupRequest.decision_changeset("rejected", admin) |> Repo.update()
+    end
   end
 
   @doc """

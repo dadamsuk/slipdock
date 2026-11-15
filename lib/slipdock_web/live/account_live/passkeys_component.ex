@@ -23,20 +23,30 @@ defmodule SlipdockWeb.AccountLive.PasskeysComponent do
   defp load(socket),
     do: assign(socket, passkeys: Passkeys.list(socket.assigns.current_user))
 
+  # A write the context refuses (`Slipdock.Policy`) is said in a flash,
+  # whatever the handler made of it (`SlipdockWeb.Refusals`, #3172).
   @impl true
-  def handle_event("passkey_support", %{"supported" => supported}, socket),
+  def handle_event(event, params, socket) do
+    SlipdockWeb.Refusals.said(
+      socket,
+      fn -> event(event, params, socket) end,
+      &SlipdockWeb.ComponentFlash.flash(&1, :error, &2)
+    )
+  end
+
+  defp event("passkey_support", %{"supported" => supported}, socket),
     do: {:noreply, assign(socket, supported?: supported == true)}
 
-  def handle_event("passkey_added", %{"name" => name}, socket) do
+  defp event("passkey_added", %{"name" => name}, socket) do
     {:noreply,
      socket |> load() |> flash(:info, "Passkey “#{name}” added. You can sign in with it now.")}
   end
 
-  def handle_event("passkey_failed", %{"message" => message}, socket) do
+  defp event("passkey_failed", %{"message" => message}, socket) do
     {:noreply, flash(socket, :error, String.slice(to_string(message), 0, 200))}
   end
 
-  def handle_event("delete_passkey", %{"id" => id}, socket) do
+  defp event("delete_passkey", %{"id" => id}, socket) do
     with id when is_integer(id) <- SlipdockWeb.Params.id(id),
          :ok <- Passkeys.delete(socket.assigns.current_user, id) do
       flash(socket, :info, "Passkey removed. It can't sign in any more.")

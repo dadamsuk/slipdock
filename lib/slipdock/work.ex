@@ -17,7 +17,7 @@ defmodule Slipdock.Work do
 
   require Slipdock.Flow.DoingList, as: DoingList
 
-  alias Slipdock.{Access, Boards, Repo}
+  alias Slipdock.{Access, Boards, Policy, Repo}
   alias Slipdock.Accounts.User
   alias Slipdock.Boards.{Activity, Board, Card, CardMove, Column, Wait}
   alias Slipdock.Work.{Dismissal, Mute}
@@ -769,15 +769,17 @@ defmodule Slipdock.Work do
   list. Nobody else's list changes.
   """
   def dismiss(%User{} = user, %Card{} = card) do
-    case Enum.find(waiting(user, board_id: card.board_id).items, &(&1.card.id == card.id)) do
-      nil ->
-        {:error, :not_waiting}
+    with :ok <- Policy.authorize(:own_work, user) do
+      case Enum.find(waiting(user, board_id: card.board_id).items, &(&1.card.id == card.id)) do
+        nil ->
+          {:error, :not_waiting}
 
-      item ->
-        %Dismissal{user_id: user.id, card_id: card.id, reason: item.reason, cause: item.cause}
-        |> Repo.insert!(on_conflict: :nothing, conflict_target: [:user_id, :card_id, :cause])
+        item ->
+          %Dismissal{user_id: user.id, card_id: card.id, reason: item.reason, cause: item.cause}
+          |> Repo.insert!(on_conflict: :nothing, conflict_target: [:user_id, :card_id, :cause])
 
-        {:ok, item}
+          {:ok, item}
+      end
     end
   end
 
@@ -786,11 +788,13 @@ defmodule Slipdock.Work do
   `{:error, :not_dismissed}` when they had none.
   """
   def undismiss(%User{} = user, %Card{} = card) do
-    case Repo.delete_all(
-           from(d in Dismissal, where: d.user_id == ^user.id and d.card_id == ^card.id)
-         ) do
-      {0, _} -> {:error, :not_dismissed}
-      {n, _} -> {:ok, n}
+    with :ok <- Policy.authorize(:own_work, user) do
+      case Repo.delete_all(
+             from(d in Dismissal, where: d.user_id == ^user.id and d.card_id == ^card.id)
+           ) do
+        {0, _} -> {:error, :not_dismissed}
+        {n, _} -> {:ok, n}
+      end
     end
   end
 
@@ -802,19 +806,23 @@ defmodule Slipdock.Work do
   Muting again is a no-op.
   """
   def mute(%User{} = user, %Board{} = board) do
-    %Mute{user_id: user.id, board_id: board.id}
-    |> Repo.insert!(on_conflict: :nothing, conflict_target: [:user_id, :board_id])
+    with :ok <- Policy.authorize(:own_work, user) do
+      %Mute{user_id: user.id, board_id: board.id}
+      |> Repo.insert!(on_conflict: :nothing, conflict_target: [:user_id, :board_id])
 
-    {:ok, board}
+      {:ok, board}
+    end
   end
 
   @doc "Lifts `user`'s mute of the board: `{:ok, board}` or `{:error, :not_muted}`."
   def unmute(%User{} = user, %Board{} = board) do
-    case Repo.delete_all(
-           from(m in Mute, where: m.user_id == ^user.id and m.board_id == ^board.id)
-         ) do
-      {0, _} -> {:error, :not_muted}
-      _ -> {:ok, board}
+    with :ok <- Policy.authorize(:own_work, user) do
+      case Repo.delete_all(
+             from(m in Mute, where: m.user_id == ^user.id and m.board_id == ^board.id)
+           ) do
+        {0, _} -> {:error, :not_muted}
+        _ -> {:ok, board}
+      end
     end
   end
 

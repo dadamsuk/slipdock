@@ -29,13 +29,25 @@ defmodule Slipdock.Fixtures do
 
   @doc "`user` let use recording transcription and voiceprints (#1206)."
   def allow_transcription(user) do
-    {:ok, user} = Accounts.update_standing(user, %{"transcription_access" => true})
+    # A fixture, whoever the test has set acting: the standing is an admin's
+    # (`Slipdock.Policy`, #3172).
+    {:ok, user} =
+      Slipdock.Policy.as_system("a test fixture", fn ->
+        Accounts.update_standing(user, %{"transcription_access" => true})
+      end)
+
     user
   end
 
   @doc "`user` without recording transcription and voiceprints (#1206)."
   def no_transcription(user) do
-    {:ok, user} = Accounts.update_standing(user, %{"transcription_access" => false})
+    # A fixture, whoever the test has set acting: the standing is an admin's
+    # (`Slipdock.Policy`, #3172).
+    {:ok, user} =
+      Slipdock.Policy.as_system("a test fixture", fn ->
+        Accounts.update_standing(user, %{"transcription_access" => false})
+      end)
+
     user
   end
 

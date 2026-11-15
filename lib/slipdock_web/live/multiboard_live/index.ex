@@ -124,15 +124,25 @@ defmodule SlipdockWeb.MultiboardLive.Index do
 
   def handle_info(_, socket), do: {:noreply, socket}
 
+  # A write the context refuses (`Slipdock.Policy`) is said in a flash,
+  # whatever the handler made of it (`SlipdockWeb.Refusals`, #3172).
   @impl true
-  def handle_event("toggle_picker", _, socket),
+  def handle_event(event, params, socket) do
+    SlipdockWeb.Refusals.said(
+      socket,
+      fn -> event(event, params, socket) end,
+      &put_flash(&1, :error, &2)
+    )
+  end
+
+  defp event("toggle_picker", _, socket),
     do: {:noreply, assign(socket, picking: not socket.assigns.picking)}
 
-  def handle_event("set_by", %{"by" => by}, socket),
+  defp event("set_by", %{"by" => by}, socket),
     do: {:noreply, patch(socket, %{socket.assigns.view | by: by})}
 
   # The picker's checkboxes and the top N, as one form.
-  def handle_event("pick", params, socket) do
+  defp event("pick", params, socket) do
     view =
       Multiboard.normalize(
         %{
@@ -146,20 +156,20 @@ defmodule SlipdockWeb.MultiboardLive.Index do
     {:noreply, patch(socket, view)}
   end
 
-  def handle_event("clear", _, socket),
+  defp event("clear", _, socket),
     do: {:noreply, patch(socket, %{socket.assigns.view | lists: []})}
 
   # Saving (#1482): on the bare page it names the view as a new multiboard;
   # on a saved one it renames and recolours it.
-  def handle_event("toggle_save", _, socket) do
+  defp event("toggle_save", _, socket) do
     color = if socket.assigns.saved, do: socket.assigns.saved.color, else: "indigo"
     {:noreply, assign(socket, saving: not socket.assigns.saving, save_color: color)}
   end
 
-  def handle_event("save_color", %{"color" => color}, socket),
+  defp event("save_color", %{"color" => color}, socket),
     do: {:noreply, assign(socket, save_color: color)}
 
-  def handle_event("save", %{"name" => name}, socket) do
+  defp event("save", %{"name" => name}, socket) do
     attrs = %{"name" => name, "color" => socket.assigns.save_color}
 
     result =
@@ -183,7 +193,7 @@ defmodule SlipdockWeb.MultiboardLive.Index do
     end
   end
 
-  def handle_event("delete_saved", _, socket) do
+  defp event("delete_saved", _, socket) do
     case socket.assigns.saved do
       nil ->
         {:noreply, socket}
