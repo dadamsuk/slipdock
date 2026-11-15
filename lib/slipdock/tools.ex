@@ -315,7 +315,7 @@ defmodule Slipdock.Tools do
          %Slipdock.Access.Grant{} = grant <-
            Repo.get_by(Slipdock.Access.Grant, id: grant_id, tool_id: tool.id) ||
              {:error, "that share is not on this Tool"} do
-      Slipdock.Access.revoke(grant)
+      Slipdock.Access.revoke(grant, actor: Slipdock.Actor.web(owner))
     end
   end
 

@@ -96,7 +96,27 @@ defmodule Slipdock.Policy do
     {:set_field_value, :owner, :write, "Setting a custom field"},
     {:edit_recurrence, :card, :write, "Changing how a card repeats"},
     {:snooze_card, :card, :write, "Snoozing a card"},
-    {:vote, :owner, :read, "Voting"}
+    {:vote, :owner, :read, "Voting"},
+    # Boards, lists, views, sprints and grants (#3170)
+    {:create_board, :account, :owner, "Making a board"},
+    {:update_board, :board, :write, "Changing a board's settings"},
+    {:delete_board, :board, :owner, "Deleting a board"},
+    {:archive_board, :board, :owner, "Archiving a board"},
+    {:edit_sub_board, :card, :write, "Changing a card's subcards board"},
+    {:edit_list, :board, :write, "Changing the board's lists"},
+    {:place_in_list, :board, :write, "Placing something in a list"},
+    {:edit_view, :board, :write, "Changing a saved view"},
+    {:publish_view, :board, :owner, "Publishing a saved view"},
+    {:edit_sprint, :board, :write, "Changing a sprint"},
+    {:add_to_sprint, :card, :write, "Adding cards to a sprint"},
+    {:arrange_own, :self, :owner, "Your own board list"},
+    {:own_template, :self, :owner, "Your own templates"},
+    {:share_board, :board, :owner, "Sharing a board"},
+    {:share_view, :board, :owner, "Sharing a saved view"},
+    {:share_card, :card, :write, "Sharing a card"},
+    {:share_page, :page, :write, "Sharing a page"},
+    {:share_folder, :folder, :write, "Sharing a folder"},
+    {:share_tool, :tool, :owner, "Sharing a tool"}
   ]
 
   @rules Map.new(@table, fn {action, scope, level, _} -> {action, {scope, level}} end)
@@ -106,7 +126,12 @@ defmodule Slipdock.Policy do
     tree_root: "the top board of its tree",
     board: "the board",
     card: "the card",
-    owner: "the card or page"
+    owner: "the card or page",
+    page: "the page",
+    folder: "the folder",
+    tool: "the tool",
+    account: "your account",
+    self: "the person's own rows"
   }
 
   @system {__MODULE__, :system}
@@ -225,7 +250,7 @@ defmodule Slipdock.Policy do
       %User{} = user ->
         token = token_for(user)
         {level, board_id} = level(scope, user, subject)
-        {narrowed, reason} = Access.narrow(level, token, board_id)
+        {narrowed, reason} = narrow(level, token, board_id)
 
         cond do
           rank(narrowed) >= rank(need) -> :ok
@@ -258,6 +283,14 @@ defmodule Slipdock.Policy do
     File.write!(log, "#{action} #{Enum.join(frames, " < ")}\n", [:append])
     false
   end
+
+  # A write on no board (`:account`) is narrowed by the token's read scope
+  # alone (ARCH-8).
+  defp narrow(level, token, :account) when is_map(token),
+    do: Access.narrow(level, Map.put(token, :scope_boards, []), nil)
+
+  defp narrow(level, token, :account), do: Access.narrow(level, token, nil)
+  defp narrow(level, token, board_id), do: Access.narrow(level, token, board_id)
 
   @ranks ~w(none view read comment write owner)a
   defp rank(level), do: Enum.find_index(@ranks, &(&1 == level)) || 0
@@ -317,6 +350,39 @@ defmodule Slipdock.Policy do
     end
   end
 
+  defp level(:page, user, subject) do
+    case page_of(subject) do
+      nil -> {:none, nil}
+      page -> {Access.page_permission(user, page), page.board_id}
+    end
+  end
+
+  defp level(:folder, user, %Slipdock.Wiki.Folder{id: id}) do
+    case Repo.get(Slipdock.Wiki.Folder, id) do
+      nil -> {:none, nil}
+      folder -> {Access.folder_permission(user, folder), folder.board_id}
+    end
+  end
+
+  defp level(:tool, user, %Slipdock.Tools.Tool{id: id}) do
+    case Repo.get(Slipdock.Tools.Tool, id) do
+      %{owner_id: owner_id} when owner_id == user.id -> {:owner, nil}
+      _ -> {:none, nil}
+    end
+  end
+
+  # Anybody signed in may make a board of their own. It is in no tree yet,
+  # so a token's list of boards doesn't narrow it; its read scope does.
+  defp level(:account, _user, _subject), do: {:owner, :account}
+
+  # A person's own rows (their board order, their templates, a board off
+  # their list): theirs to change, nobody else's.
+  defp level(:self, user, %Slipdock.Accounts.User{id: id}),
+    do: {if(id == user.id, do: :owner, else: :none), :account}
+
+  defp level(:self, user, %{user_id: id}),
+    do: {if(id == user.id, do: :owner, else: :none), :account}
+
   defp card_level(user, card) do
     case Access.card_permission(user, card) do
       :none -> Access.view_card_level(user, card)
@@ -332,8 +398,11 @@ defmodule Slipdock.Policy do
   defp page_of(%{page_id: id}) when is_integer(id), do: Repo.get(Page, id)
   defp page_of(_), do: nil
 
+  defp board_of(%{board_id: nil}), do: nil
+  defp board_of(%Board{id: nil}), do: nil
   defp board_of(%Board{id: id}), do: Repo.get(Board, id)
   defp board_of(%Column{board_id: id}), do: Repo.get(Board, id)
+  defp board_of(%Slipdock.Boards.SavedView{board_id: id}), do: Repo.get(Board, id)
 
   defp board_of(%Card{} = card),
     do: with(%Card{board_id: id} <- card_of(card), do: Repo.get(Board, id))

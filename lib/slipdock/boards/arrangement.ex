@@ -13,6 +13,7 @@ defmodule Slipdock.Boards.Arrangement do
   alias Slipdock.Boards.Board
   alias Slipdock.Boards.BoardOrder
   alias Slipdock.Multiboard.Saved, as: SavedMultiboard
+  alias Slipdock.Policy
   alias Slipdock.Quota
   alias Slipdock.Repo
   alias Slipdock.Vaults.Vault
@@ -29,6 +30,12 @@ defmodule Slipdock.Boards.Arrangement do
   off, and goes away with it.
   """
   def archive_board(%Board{} = board) do
+    # Its owner only (`Slipdock.Policy`, `:archive_board`; ownership read
+    # again from the row, #2998).
+    with :ok <- Policy.authorize(:archive_board, board), do: archive(board)
+  end
+
+  defp archive(board) do
     cond do
       Board.sub_board?(board) -> {:error, :sub_board}
       Board.archived?(board) -> {:ok, board}
@@ -41,6 +48,10 @@ defmodule Slipdock.Boards.Arrangement do
   room for another board, since an archived one is not counted.
   """
   def unarchive_board(%Board{} = board) do
+    with :ok <- Policy.authorize(:archive_board, board), do: unarchive(board)
+  end
+
+  defp unarchive(board) do
     if Board.archived?(board), do: set_archived(board, nil, "restored"), else: {:ok, board}
   end
 
@@ -107,6 +118,11 @@ defmodule Slipdock.Boards.Arrangement do
   theirs, are ignored.
   """
   def reorder_boards(%User{} = user, ids) do
+    # The person's own list, nobody else's (`:arrange_own`).
+    with :ok <- Policy.authorize(:arrange_own, user), do: reorder(user, ids)
+  end
+
+  defp reorder(user, ids) do
     keys = keep_unnamed(user, Enum.map(ids, &order_key/1))
     placeable = placeable(user, keys)
 

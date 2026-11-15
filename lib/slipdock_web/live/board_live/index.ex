@@ -418,8 +418,14 @@ defmodule SlipdockWeb.BoardLive.Index do
 
     # Of the board's row as it is now (#2999): who owns it is on the row, and
     # the one this list drew can be somebody else's since.
+    # The context asks again (`Slipdock.Policy`); a refusal it answers is
+    # said in a flash (`SlipdockWeb.Refusals`, #3170).
     if board && Access.board_permission_now(socket.assigns.current_user, board) == :owner do
-      {:noreply, fun.(board)}
+      SlipdockWeb.Refusals.said(
+        socket,
+        fn -> {:noreply, fun.(board)} end,
+        &put_flash(&1, :error, &2)
+      )
     else
       {:noreply, put_flash(socket, :error, "Only the board's owner can do that.")}
     end

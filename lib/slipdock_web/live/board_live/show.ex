@@ -1103,6 +1103,9 @@ defmodule SlipdockWeb.BoardLive.Show do
          |> assign(adding_column: false)
          |> push_event("scroll_end", %{})}
 
+      {:error, %Slipdock.Policy.Refused{message: message}} ->
+        {:noreply, put_flash(socket, :error, message)}
+
       {:error, _} ->
         {:noreply, put_flash(socket, :error, "List name can't be blank.")}
     end
@@ -1122,15 +1125,17 @@ defmodule SlipdockWeb.BoardLive.Show do
       {:noreply, assign(socket, renaming_column: nil)}
     else
       nil -> {:noreply, assign(socket, renaming_column: nil)}
+      {:error, %Slipdock.Policy.Refused{message: m}} -> {:noreply, put_flash(socket, :error, m)}
       {:error, _} -> {:noreply, put_flash(socket, :error, "List name can't be blank.")}
     end
   end
 
   def handle_event("move_column", %{"id" => id} = params, socket) do
-    if id = Params.id(id),
-      do: Boards.Columns.move_column(socket.assigns.board.id, id, to_int(params["before"]))
+    moved =
+      if id = Params.id(id),
+        do: Boards.Columns.move_column(socket.assigns.board.id, id, to_int(params["before"]))
 
-    {:noreply, socket}
+    {:noreply, refused(socket, moved)}
   end
 
   ## Events: cards -----------------------------------------------------------
