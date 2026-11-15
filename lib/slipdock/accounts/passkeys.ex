@@ -28,7 +28,7 @@ defmodule Slipdock.Accounts.Passkeys do
   require Logger
 
   alias Slipdock.Accounts.{Passkey, User}
-  alias Slipdock.Repo
+  alias Slipdock.{Policy, Repo}
 
   # A challenge is good for this long. Long enough to find a phone and unlock
   # it, short enough that a stale page is not a standing invitation.
@@ -52,9 +52,11 @@ defmodule Slipdock.Accounts.Passkeys do
   @doc "Removes one of the account's passkeys. Another person's id is `:not_found`."
   @spec delete(User.t(), integer()) :: :ok | {:error, :not_found}
   def delete(%User{id: user_id}, id) do
-    case Repo.delete_all(from(p in Passkey, where: p.id == ^id and p.user_id == ^user_id)) do
-      {1, _} -> :ok
-      {0, _} -> {:error, :not_found}
+    with :ok <- Policy.authorize(:own_sign_in, %User{id: user_id}) do
+      case Repo.delete_all(from(p in Passkey, where: p.id == ^id and p.user_id == ^user_id)) do
+        {1, _} -> :ok
+        {0, _} -> {:error, :not_found}
+      end
     end
   end
 
@@ -118,6 +120,13 @@ defmodule Slipdock.Accounts.Passkeys do
   def register(_user, nil, _response, _name), do: {:error, :no_challenge}
 
   def register(%User{} = user, %Wax.Challenge{type: :attestation} = challenge, response, name) do
+    with :ok <- Policy.authorize(:own_sign_in, user),
+         do: add_passkey(user, challenge, response, name)
+  end
+
+  def register(_user, _wrong_kind_of_challenge, _response, _name), do: {:error, :invalid}
+
+  defp add_passkey(user, challenge, response, name) do
     with {:ok, attestation} <- decode_field(response, "attestationObject"),
          {:ok, client_data} <- decode_field(response, "clientDataJSON"),
          :ok <- room_for_another(user),
@@ -136,19 +145,17 @@ defmodule Slipdock.Accounts.Passkeys do
         name: default_name(name, user)
       })
       |> Repo.insert()
-      |> case do
-        {:ok, passkey} ->
-          {:ok, passkey}
-
-        {:error, %Ecto.Changeset{errors: errors} = changeset} ->
-          if Keyword.has_key?(errors, :credential_id),
-            do: {:error, :already_added},
-            else: {:error, changeset}
-      end
+      |> added()
     end
   end
 
-  def register(_user, _wrong_kind_of_challenge, _response, _name), do: {:error, :invalid}
+  defp added({:ok, passkey}), do: {:ok, passkey}
+
+  defp added({:error, %Ecto.Changeset{errors: errors} = changeset}) do
+    if Keyword.has_key?(errors, :credential_id),
+      do: {:error, :already_added},
+      else: {:error, changeset}
+  end
 
   @doc """
   Starts a passkey sign-in. Nobody is named: the authenticator offers the

@@ -162,6 +162,7 @@ defmodule Slipdock.SignInFallbackTest do
 
     test "the admin-address code", %{user: user} do
       smtp_on()
+      {:ok, user} = Accounts.promote(user)
 
       log =
         capture_info(fn ->

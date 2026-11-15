@@ -28,6 +28,8 @@ defmodule Slipdock.Policy do
   `test/slipdock/unchecked_writes_test.exs` holds the rest to asking.
   """
 
+  import Ecto.Query, only: [from: 2]
+
   alias Slipdock.Access
   alias Slipdock.Accounts
   alias Slipdock.Accounts.User
@@ -58,7 +60,10 @@ defmodule Slipdock.Policy do
   # grant on it; `:owner` is the card or the wiki page a row hangs off
   # (`Boards.Owned`), a page's share counting; `:wiki` is a page, folder or
   # file at its own level (a share on it or a folder above its home
-  # counting), or a board's wiki (#3171).
+  # counting), or a board's wiki (#3171); `:self` is the actor's own rows
+  # (a user, or a row's `user_id`, a group's `owner_id`), nobody's once the
+  # account is disabled; `:admin` is an admin of this server, read now
+  # (#3172).
   @table [
     # Tags (#3168)
     {:create_tag, :tree_root, :write, "Making a tag"},
@@ -150,7 +155,15 @@ defmodule Slipdock.Policy do
     {:own_draft, :self, :owner, "Your own unsaved drafts"},
     {:own_tree_state, :self, :owner, "Your own wiki tree's open folders"},
     {:own_vault, :self, :owner, "Your own vault"},
-    {:own_google, :self, :owner, "Your own Google connection"}
+    {:own_google, :self, :owner, "Your own Google connection"},
+    # A person's own rows, and the server's accounts (#3172)
+    {:own_settings, :self, :owner, "Your own settings"},
+    {:own_view, :self, :owner, "Your own saved views, searches and links"},
+    {:own_work, :self, :owner, "Your own My work list"},
+    {:own_group, :self, :owner, "Your own groups"},
+    {:own_sign_in, :self, :owner, "Your own sign-ins and API tokens"},
+    {:own_transfer_link, :self, :read, "A link to upload or download a file"},
+    {:administer, :admin, :owner, "Running this server's accounts"}
   ]
 
   @rules Map.new(@table, fn {action, scope, level, _} -> {action, {scope, level}} end)
@@ -166,7 +179,8 @@ defmodule Slipdock.Policy do
     tool: "the tool",
     wiki: "that place in the wiki",
     account: "your account",
-    self: "the person's own rows"
+    self: "the person's own rows",
+    admin: "this server's administration"
   }
 
   @system {__MODULE__, :system}
@@ -424,12 +438,31 @@ defmodule Slipdock.Policy do
   defp level(:account, _user, _subject), do: {:owner, :account}
 
   # A person's own rows (their board order, their templates, a board off
-  # their list): theirs to change, nobody else's.
-  defp level(:self, user, %Slipdock.Accounts.User{id: id}),
-    do: {if(id == user.id, do: :owner, else: :none), :account}
+  # their list, their settings, their groups): theirs to change, nobody
+  # else's, and nobody's once the account is disabled, read now (#3172).
+  defp level(:self, user, subject),
+    do:
+      {if(owner_id(subject) == user.id and standing(user) != :disabled, do: :owner, else: :none),
+       :account}
 
-  defp level(:self, user, %{user_id: id}),
-    do: {if(id == user.id, do: :owner, else: :none), :account}
+  # An admin of this server, read now: admin rights taken away, or the account
+  # disabled, while a page is open stops the write (#3172).
+  defp level(:admin, user, _subject),
+    do: {if(standing(user) == :admin, do: :owner, else: :none), :account}
+
+  defp owner_id(%Slipdock.Accounts.User{id: id}), do: id
+  defp owner_id(%Slipdock.Accounts.Group{owner_id: id}), do: id
+  defp owner_id(%{user_id: id}), do: id
+  defp owner_id(_), do: nil
+
+  defp standing(%User{id: id}) do
+    case Repo.one(from(u in User, where: u.id == ^id, select: {u.admin, u.disabled_at})) do
+      {_admin, %DateTime{}} -> :disabled
+      {true, nil} -> :admin
+      {false, nil} -> :person
+      nil -> :disabled
+    end
+  end
 
   defp wiki_item(%Page{id: id}), do: Repo.get(Page, id)
   defp wiki_item(%Folder{id: id}), do: Repo.get(Folder, id)

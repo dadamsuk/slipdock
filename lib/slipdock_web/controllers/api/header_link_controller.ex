@@ -85,6 +85,7 @@ defmodule SlipdockWeb.API.HeaderLinkController do
   defp add(user, target, icon) do
     case HeaderLinks.add(user, target, icon) do
       {:ok, link} -> {:ok, link}
+      {:error, %Slipdock.Policy.Refused{}} = refused -> refused
       {:error, message} -> {:error, :unprocessable_entity, message}
     end
   end

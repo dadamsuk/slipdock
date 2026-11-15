@@ -125,7 +125,11 @@ defmodule Mix.Tasks.Slipdock.Setup do
       {:ok, settings} ->
         for entry <- Keyword.get_values(opts, :allow), do: Settings.add_allowlist_entry(entry)
         {:ok, user} = Accounts.get_or_create_user_by_email(settings.admin_email)
-        {:ok, _} = Accounts.promote(user)
+        # The server's own command line, before anybody can sign in (#3172).
+        {:ok, _} =
+          Slipdock.Policy.as_system("setup from the command line makes the first admin", fn ->
+            Accounts.promote(user)
+          end)
 
         Mix.shell().info("""
         Set up. #{settings.admin_email} is the admin, registration is #{settings.signup_mode}#{limit_note(settings)}.

@@ -11,7 +11,7 @@ defmodule Slipdock.Accounts.Support do
   import Ecto.Query, warn: false
 
   require Logger
-  alias Slipdock.Repo
+  alias Slipdock.{Actor, Policy, Repo}
   alias Slipdock.Accounts
   alias Slipdock.Accounts.{SupportSession, User, UserNotifier}
   alias Slipdock.Settings
@@ -27,41 +27,49 @@ defmodule Slipdock.Accounts.Support do
   @spec open_support_session(User.t(), User.t(), String.t(), keyword()) ::
           {:ok, SupportSession.t()} | {:error, Ecto.Changeset.t() | :not_admin | :self}
   def open_support_session(%User{} = admin, %User{} = subject, reason, opts \\ []) do
+    # Its own refusals first, then the policy, asked as the admin named
+    # (`Slipdock.Policy`, #3172).
+    with :ok <- refuse_early(admin, subject),
+         :ok <- Policy.authorize(:administer, admin, actor: Actor.web(admin)),
+         do: open_now(admin, subject, reason, opts)
+  end
+
+  defp open_now(admin, subject, reason, opts) do
+    attrs = %{
+      "admin_id" => admin.id,
+      "subject_id" => subject.id,
+      "reason" => reason,
+      "expires_at" => opts[:expires_at]
+    }
+
+    with {:ok, session} <- %SupportSession{} |> SupportSession.changeset(attrs) |> Repo.insert() do
+      Logger.info(
+        "Support access: #{admin.email} may read #{subject.email}'s boards until " <>
+          "#{session.expires_at} — #{session.reason}"
+      )
+
+      notify_of_support_session(session, admin, subject)
+      {:ok, session}
+    end
+  end
+
+  # You can already see your own boards; a record saying otherwise would be
+  # noise in the one list that has to stay readable.
+  defp refuse_early(admin, subject) do
     cond do
-      not Accounts.admin?(admin) ->
-        {:error, :not_admin}
-
-      admin.id == subject.id ->
-        # You can already see your own boards; a record saying otherwise would
-        # be noise in the one list that has to stay readable.
-        {:error, :self}
-
-      true ->
-        attrs = %{
-          "admin_id" => admin.id,
-          "subject_id" => subject.id,
-          "reason" => reason,
-          "expires_at" => opts[:expires_at]
-        }
-
-        with {:ok, session} <-
-               %SupportSession{} |> SupportSession.changeset(attrs) |> Repo.insert() do
-          Logger.info(
-            "Support access: #{admin.email} may read #{subject.email}'s boards until " <>
-              "#{session.expires_at} — #{session.reason}"
-          )
-
-          notify_of_support_session(session, admin, subject)
-          {:ok, session}
-        end
+      not Accounts.admin?(admin) -> {:error, :not_admin}
+      admin.id == subject.id -> {:error, :self}
+      true -> :ok
     end
   end
 
   @doc "Ends one early. Expiry does the same thing on its own."
   def end_support_session(%SupportSession{} = session) do
-    session
-    |> Ecto.Changeset.change(ended_at: DateTime.utc_now(:second))
-    |> Repo.update()
+    with :ok <- Policy.authorize(:administer, %{user_id: Policy.user_id()}) do
+      session
+      |> Ecto.Changeset.change(ended_at: DateTime.utc_now(:second))
+      |> Repo.update()
+    end
   end
 
   @doc """

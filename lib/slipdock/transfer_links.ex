@@ -19,7 +19,7 @@ defmodule Slipdock.TransferLinks do
 
   alias Slipdock.Accounts.{User, UserToken}
   alias Slipdock.Boards.{Attachment, Card}
-  alias Slipdock.Repo
+  alias Slipdock.{Policy, Repo}
   alias Slipdock.TransferLinks.Link
   alias Slipdock.Wiki.Page
 
@@ -36,20 +36,22 @@ defmodule Slipdock.TransferLinks do
   URL and is not kept.
   """
   def mint(%User{} = user, %UserToken{} = user_token, target) do
-    sweep()
-    secret = :crypto.strong_rand_bytes(32) |> Base.url_encode64(padding: false)
-    expires_at = DateTime.add(DateTime.utc_now(:second), @ttl_seconds)
+    with :ok <- Policy.authorize(:own_transfer_link, user) do
+      sweep()
+      secret = :crypto.strong_rand_bytes(32) |> Base.url_encode64(padding: false)
+      expires_at = DateTime.add(DateTime.utc_now(:second), @ttl_seconds)
 
-    attrs =
-      Map.merge(target_attrs(target), %{
-        token_hash: hash(secret),
-        user_id: user.id,
-        user_token_id: user_token.id,
-        expires_at: expires_at
-      })
+      attrs =
+        Map.merge(target_attrs(target), %{
+          token_hash: hash(secret),
+          user_id: user.id,
+          user_token_id: user_token.id,
+          expires_at: expires_at
+        })
 
-    {:ok, _link} = Repo.insert(struct(Link, attrs))
-    {:ok, secret, expires_at}
+      {:ok, _link} = Repo.insert(struct(Link, attrs))
+      {:ok, secret, expires_at}
+    end
   end
 
   defp target_attrs({:card, %Card{id: id}}), do: %{kind: "upload", card_id: id}

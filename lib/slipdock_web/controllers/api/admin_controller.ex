@@ -221,6 +221,9 @@ defmodule SlipdockWeb.API.AdminController do
 
             {:error, :last_admin} ->
               {:error, :conflict, Accounts.last_admin_message(user)}
+
+            {:error, %Slipdock.Policy.Refused{}} = refused ->
+              refused
           end
       end
     end

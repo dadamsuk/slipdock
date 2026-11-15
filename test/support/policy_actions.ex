@@ -67,4 +67,17 @@ defmodule Slipdock.PolicyActions do
       own_google: :owner
     ]
   end
+
+  @doc "Policy 5 (#3172): a person's own rows and the server's accounts, with the level each needs."
+  def own do
+    [
+      own_settings: :owner,
+      own_view: :owner,
+      own_work: :owner,
+      own_group: :owner,
+      own_sign_in: :owner,
+      own_transfer_link: :read,
+      administer: :owner
+    ]
+  end
 end

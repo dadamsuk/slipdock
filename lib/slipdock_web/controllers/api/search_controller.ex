@@ -122,8 +122,8 @@ defmodule SlipdockWeb.API.SearchController do
   def unsave(conn, %{"id" => id} = params) do
     case Integer.parse(to_string(id)) do
       {id, ""} ->
-        :ok = SavedQueries.delete(conn.assigns.current_user, id)
-        saved(conn, Map.take(params, ["mode"]))
+        with :ok <- SavedQueries.delete(conn.assigns.current_user, id),
+             do: saved(conn, Map.take(params, ["mode"]))
 
       _ ->
         {:error, :bad_request, "id must be a number"}
@@ -132,8 +132,8 @@ defmodule SlipdockWeb.API.SearchController do
 
   def unsave(conn, params) do
     with {:ok, text} <- required(params["q"] || params["text"], "q"),
-         {:ok, mode} <- required_mode(params["mode"]) do
-      :ok = SavedQueries.remove(conn.assigns.current_user, mode, text)
+         {:ok, mode} <- required_mode(params["mode"]),
+         :ok <- SavedQueries.remove(conn.assigns.current_user, mode, text) do
       saved(conn, %{"mode" => mode})
     end
   end

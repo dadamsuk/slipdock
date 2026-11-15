@@ -133,34 +133,44 @@ defmodule SlipdockWeb.CardViewLive.Index do
   def handle_info({:card_views_changed, _}, socket), do: {:noreply, load(socket)}
   def handle_info(_, socket), do: {:noreply, socket}
 
+  # A write the context refuses (`Slipdock.Policy`) is said in a flash,
+  # whatever the handler made of it (`SlipdockWeb.Refusals`, #3172).
   @impl true
+  def handle_event(event, params, socket) do
+    SlipdockWeb.Refusals.said(
+      socket,
+      fn -> event(event, params, socket) end,
+      &put_flash(&1, :error, &2)
+    )
+  end
+
   # `to`, not `value`: a clicked button sends its own (empty) value (#553).
-  def handle_event("set", %{"key" => key, "to" => value}, socket)
-      when value in ~w(show hide inherit) do
+  defp event("set", %{"key" => key, "to" => value}, socket)
+       when value in ~w(show hide inherit) do
     change = %{"elements" => %{key => value}}
     {:noreply, save(socket, change)}
   end
 
-  def handle_event("tab", %{"tab" => tab}, socket) when tab in ~w(front card),
+  defp event("tab", %{"tab" => tab}, socket) when tab in ~w(front card),
     do: {:noreply, assign(socket, tab: tab)}
 
-  def handle_event("apply_view", %{"apply" => %{"card_view" => ref}}, socket),
+  defp event("apply_view", %{"apply" => %{"card_view" => ref}}, socket),
     do: {:noreply, save(socket, %{"card_view" => ref})}
 
-  def handle_event("reset", _params, %{assigns: %{editing: :level}} = socket) do
+  defp event("reset", _params, %{assigns: %{editing: :level}} = socket) do
     %{current_user: user, board: board, column: column} = socket.assigns
     {:ok, _} = CardViews.clear_level(user, scope(board, column))
     {:noreply, load(socket)}
   end
 
-  def handle_event("reset", _params, socket), do: {:noreply, save(socket, %{"reset" => true})}
+  defp event("reset", _params, socket), do: {:noreply, save(socket, %{"reset" => true})}
 
-  def handle_event("toggle_show_all", _params, %{assigns: %{board: %{}, column: nil}} = socket) do
+  defp event("toggle_show_all", _params, %{assigns: %{board: %{}, column: nil}} = socket) do
     on? = not (socket.assigns.level && socket.assigns.level.show_all)
     {:noreply, save(socket, %{"show_all" => on?})}
   end
 
-  def handle_event("new_view", %{"card_view" => %{"name" => name}}, socket) do
+  defp event("new_view", %{"card_view" => %{"name" => name}}, socket) do
     user = socket.assigns.current_user
     # A new view starts as what the reader sees at this level, stated in full.
     elements = Map.new(socket.assigns.explained, fn {k, %{shown: v}} -> {k, v} end)
@@ -177,21 +187,21 @@ defmodule SlipdockWeb.CardViewLive.Index do
     end
   end
 
-  def handle_event("start_rename", _params, socket),
+  defp event("start_rename", _params, socket),
     do: {:noreply, assign(socket, renaming: true)}
 
-  def handle_event(
-        "rename",
-        %{"rename" => %{"name" => name}},
-        %{assigns: %{editing: %CardView{}}} = socket
-      ) do
+  defp event(
+         "rename",
+         %{"rename" => %{"name" => name}},
+         %{assigns: %{editing: %CardView{}}} = socket
+       ) do
     case CardViews.update(socket.assigns.current_user, socket.assigns.editing, %{"name" => name}) do
       {:ok, view} -> {:noreply, socket |> assign(editing: view, renaming: false) |> load()}
       {:error, %Ecto.Changeset{} = cs} -> {:noreply, assign(socket, error: changeset_error(cs))}
     end
   end
 
-  def handle_event("delete_view", _params, %{assigns: %{editing: %CardView{} = view}} = socket) do
+  defp event("delete_view", _params, %{assigns: %{editing: %CardView{} = view}} = socket) do
     user = socket.assigns.current_user
     used = CardViews.levels_using(user, view)
     {:ok, _} = CardViews.delete(user, view)
@@ -202,7 +212,7 @@ defmodule SlipdockWeb.CardViewLive.Index do
      |> push_patch(to: editor_path(socket.assigns, :level))}
   end
 
-  def handle_event(_event, _params, socket), do: {:noreply, socket}
+  defp event(_event, _params, socket), do: {:noreply, socket}
 
   defp save(%{assigns: assigns} = socket, change) do
     result =

@@ -430,4 +430,119 @@ defmodule SlipdockWeb.PolicyRefusedDoorsTest do
                |> elem(0)
     end
   end
+
+  describe "a person's own rows and the server's accounts (#3172), when the context refuses what the door let through" do
+    setup %{conn: conn} do
+      owner = user_fixture("doors5.owner@example.com")
+      board = board_fixture(%{"name" => "Doors five"}, owner: owner)
+      %{conn: conn, owner: owner, board: board}
+    end
+
+    defp nobody_here(view) do
+      :sys.replace_state(view.pid, fn state ->
+        Actor.put(nil)
+        Policy.forbid_nobody()
+        state
+      end)
+    end
+
+    # The controller called as the door calls it, with nobody acting: the
+    # pipeline's own checks are behind it, and only the context refuses.
+    defp as_nobody(conn, controller, action, params, user) do
+      Actor.put(nil)
+      Policy.forbid_nobody()
+
+      conn
+      |> Map.put(:params, params)
+      |> Map.put(:body_params, params)
+      |> Plug.Conn.assign(:current_user, user)
+      |> Phoenix.Controller.put_format("json")
+      |> controller.call(controller.init(action))
+    end
+
+    test "Groups says a refused new group in a flash, and makes none", c do
+      {:ok, view, _} = live(log_in_user(c.conn, c.owner), ~p"/groups")
+      nobody_here(view)
+
+      view |> form("#new-group-0", %{"name" => "Crew"}) |> render_submit()
+
+      assert render(view) =~ "Your own groups was asked with nobody acting"
+      assert Slipdock.Accounts.list_groups(c.owner) == []
+    end
+
+    test "the tokens page says a refused new token in a flash, and mints none", c do
+      {:ok, view, _} = live(log_in_user(c.conn, c.owner), ~p"/account/tokens")
+      nobody_here(view)
+
+      view |> element("form[phx-submit=create_token]") |> render_submit(%{"label" => "CI"})
+
+      assert render(view) =~ "Your own sign-ins and API tokens was asked with nobody acting"
+      assert Slipdock.Accounts.list_api_tokens(c.owner) == []
+    end
+
+    test "REST: My work's mute answers 403", c do
+      conn =
+        as_nobody(
+          c.conn,
+          SlipdockWeb.API.WorkController,
+          :mute,
+          %{"board" => "#{c.board.id}"},
+          c.owner
+        )
+
+      assert json_response(conn, 403)["error"] =~ "Your own My work list"
+    end
+
+    test "REST: a display setting answers 403, not a bad value", c do
+      conn =
+        as_nobody(
+          c.conn,
+          SlipdockWeb.API.MeController,
+          :put_display,
+          %{"tree_names" => "short"},
+          c.owner
+        )
+
+      assert json_response(conn, 403)["error"] =~ "Your own settings"
+    end
+
+    test "REST: a header link answers 403, not an unprocessable one", c do
+      params = %{"board" => "#{c.board.id}", "icon" => hd(Slipdock.Wiki.Icons.names())}
+      conn = as_nobody(c.conn, SlipdockWeb.API.HeaderLinkController, :create, params, c.owner)
+      assert json_response(conn, 403)["error"] =~ "Your own saved views"
+    end
+
+    test "REST: unsaving a search answers 403", c do
+      conn = as_nobody(c.conn, SlipdockWeb.API.SearchController, :unsave, %{"id" => "1"}, c.owner)
+      assert json_response(conn, 403)["error"] =~ "Your own saved views"
+    end
+
+    test "REST: closing an account answers 403", c do
+      {:ok, admin} =
+        Policy.as_system("a test fixture", fn -> Slipdock.Accounts.promote(c.owner) end)
+
+      gone = user_fixture("doors5.gone@example.com")
+      params = %{"id" => "#{gone.id}", "confirm" => gone.email}
+      conn = as_nobody(c.conn, SlipdockWeb.API.AdminController, :delete_user, params, admin)
+      assert json_response(conn, 403)["error"] =~ "Running this server's accounts"
+      assert Slipdock.Accounts.get_user(gone.id)
+    end
+
+    test "a passkey refused answers 403", c do
+      challenge =
+        Wax.new_registration_challenge(origin: "https://example.com", rp_id: "example.com")
+
+      Actor.put(nil)
+      Policy.forbid_nobody()
+
+      conn =
+        c.conn
+        |> Plug.Test.init_test_session(%{passkey_registration_challenge: challenge})
+        |> Map.put(:params, %{})
+        |> Plug.Conn.assign(:current_user, c.owner)
+        |> SlipdockWeb.PasskeyController.call(SlipdockWeb.PasskeyController.init(:create))
+
+      assert json_response(conn, 403)["error"] =~ "Your own sign-ins"
+    end
+  end
 end

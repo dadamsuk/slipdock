@@ -149,6 +149,13 @@ defmodule Slipdock.Boards.ActivityTest do
       entry = latest(ctx.board)
       assert entry.user_id == gone.id
 
+      # An admin closes the account (`Slipdock.Policy`, #3172).
+      admin = user_fixture("activity.admin@example.com")
+
+      {:ok, admin} =
+        Slipdock.Policy.as_system("a test fixture", fn -> Accounts.promote(admin) end)
+
+      Actor.put(Actor.web(admin))
       {:ok, _} = Accounts.delete_user(gone)
 
       entry = Repo.get!(Activity, entry.id)

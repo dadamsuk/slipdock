@@ -36,6 +36,10 @@ defmodule SlipdockWeb.PasskeyController do
       {:ok, passkey} ->
         conn |> put_status(:created) |> json(%{passkey: %{id: passkey.id, name: passkey.name}})
 
+      # The context refused it (`Slipdock.Policy`, #3172): a disabled account, say.
+      {:error, %Slipdock.Policy.Refused{message: message}} ->
+        conn |> put_status(:forbidden) |> json(%{error: message})
+
       {:error, reason} ->
         conn |> put_status(:unprocessable_entity) |> json(%{error: message(reason)})
     end

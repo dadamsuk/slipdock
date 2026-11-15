@@ -63,13 +63,23 @@ defmodule SlipdockWeb.InboundAddressesComponent do
       else: {:ok, socket}
   end
 
+  # A write the context refuses (`Slipdock.Policy`) is said in a flash,
+  # whatever the handler made of it (`SlipdockWeb.Refusals`, #3172).
   @impl true
-  def handle_event("open", _params, socket),
+  def handle_event(event, params, socket) do
+    SlipdockWeb.Refusals.said(
+      socket,
+      fn -> event(event, params, socket) end,
+      &SlipdockWeb.ComponentFlash.flash(&1, :error, &2)
+    )
+  end
+
+  defp event("open", _params, socket),
     do: {:noreply, socket |> assign(open: true, rotated: false, folder: nil) |> load()}
 
-  def handle_event("close", _params, socket), do: {:noreply, assign(socket, open: false)}
+  defp event("close", _params, socket), do: {:noreply, assign(socket, open: false)}
 
-  def handle_event("ack", params, socket) do
+  defp event("ack", params, socket) do
     case Slipdock.Accounts.update_inbound(socket.assigns.current_user, %{
            "inbound_ack" => params["ack"] == "true"
          }) do
@@ -78,7 +88,7 @@ defmodule SlipdockWeb.InboundAddressesComponent do
     end
   end
 
-  def handle_event("rotate", _params, socket) do
+  defp event("rotate", _params, socket) do
     case Tokens.rotate(socket.assigns.current_user, target(socket.assigns)) do
       {:ok, addresses} -> {:noreply, assign(socket, addresses: addresses, rotated: true)}
       {:error, _} -> {:noreply, assign(socket, addresses: :unavailable)}

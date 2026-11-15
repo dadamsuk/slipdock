@@ -44,6 +44,16 @@ defmodule Slipdock.UncheckedWritesTest do
     assert Enum.filter(system_funs(), &(&1 in UncheckedWrites.read_list(@list))) == []
   end
 
+  # Policy 5 (#3172): a person's own rows and the server's accounts ask, or
+  # are the server's own (signing in, before anybody is).
+  test "the account and personal contexts ask for every write, or are listed as the server's" do
+    own =
+      ~r/^Slipdock\.(Accounts|CardViews|Multiboard|SavedQueries|OAuth|Work|TransferLinks|HeaderLinks|Onboarding|Favourites)[.\/]/
+
+    assert @root |> UncheckedWrites.unchecked() |> Enum.filter(&(&1 =~ own)) |> Enum.sort() ==
+             system_funs() |> Enum.filter(&(&1 =~ own)) |> Enum.sort()
+  end
+
   # Policy 4 (#3171): the wiki, vaults and recordings ask, or are the server's own.
   test "the wiki, vault and recording contexts ask for every write, or are listed as the server's" do
     wiki = ~r/^Slipdock\.(Wiki|Vaults|Recordings|Google|OCR|Handbook|Transcription)[.\/]/

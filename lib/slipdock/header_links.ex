@@ -21,7 +21,7 @@ defmodule Slipdock.HeaderLinks do
   alias Slipdock.HeaderLinks.HeaderLink
   alias Slipdock.Vaults.Vault
   alias Slipdock.Wiki.Icons
-  alias Slipdock.{Access, Repo, Vaults}
+  alias Slipdock.{Access, Policy, Repo, Vaults}
 
   @max 8
 
@@ -108,7 +108,9 @@ defmodule Slipdock.HeaderLinks do
   """
   def add(%User{} = user, target, icon)
       when is_struct(target, Board) or is_struct(target, Vault) do
-    with :ok <- valid_icon(icon),
+    # The person's own header, nobody else's (`Slipdock.Policy`, #3172).
+    with :ok <- Policy.authorize(:own_view, user),
+         :ok <- valid_icon(icon),
          :ok <- allowed(user, target) do
       case Repo.one(from(l in HeaderLink, where: l.user_id == ^user.id) |> on(target)) do
         %HeaderLink{} = link ->
@@ -159,9 +161,11 @@ defmodule Slipdock.HeaderLinks do
 
   @doc "Takes link `id` off `user`'s header. `:ok`, or `{:error, :not_found}`."
   def remove(%User{} = user, id) do
-    case Repo.delete_all(from(l in HeaderLink, where: l.user_id == ^user.id and l.id == ^id)) do
-      {1, _} -> :ok
-      _ -> {:error, :not_found}
+    with :ok <- Policy.authorize(:own_view, user) do
+      case Repo.delete_all(from(l in HeaderLink, where: l.user_id == ^user.id and l.id == ^id)) do
+        {1, _} -> :ok
+        _ -> {:error, :not_found}
+      end
     end
   end
 
@@ -170,6 +174,10 @@ defmodule Slipdock.HeaderLinks do
   end it stays put. `:ok`, or `{:error, :not_found}`.
   """
   def move(%User{} = user, id, direction) when direction in [:left, :right] do
+    with :ok <- Policy.authorize(:own_view, user), do: move_link(user, id, direction)
+  end
+
+  defp move_link(user, id, direction) do
     links = user |> rows() |> Enum.map(&elem(&1, 0))
 
     case Enum.find_index(links, &(&1.id == id)) do
@@ -187,17 +195,14 @@ defmodule Slipdock.HeaderLinks do
               |> List.replace_at(index, Enum.at(links, other))
               |> List.replace_at(other, Enum.at(links, index))
 
-        Repo.transaction(fn ->
-          reordered
-          |> Enum.with_index()
-          |> Enum.each(fn {link, position} ->
-            if link.position != position,
-              do: link |> Ecto.Changeset.change(position: position) |> Repo.update!()
-          end)
-        end)
-
+        Repo.transaction(fn -> Enum.each(Enum.with_index(reordered), &place/1) end)
         :ok
     end
+  end
+
+  defp place({link, position}) do
+    if link.position != position,
+      do: link |> Ecto.Changeset.change(position: position) |> Repo.update!()
   end
 
   defp openable?(%Board{archived_at: archived_at}), do: is_nil(archived_at)

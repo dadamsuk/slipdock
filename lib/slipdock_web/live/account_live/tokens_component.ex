@@ -23,29 +23,49 @@ defmodule SlipdockWeb.AccountLive.TokensComponent do
   defp load_tokens(socket),
     do: assign(socket, tokens: Accounts.list_api_tokens(socket.assigns.current_user))
 
+  # A write the context refuses (`Slipdock.Policy`) is said in a flash,
+  # whatever the handler made of it (`SlipdockWeb.Refusals`, #3172).
   @impl true
-  def handle_event("create_token", params, socket) do
+  def handle_event(event, params, socket) do
+    SlipdockWeb.Refusals.said(
+      socket,
+      fn -> event(event, params, socket) end,
+      &SlipdockWeb.ComponentFlash.flash(&1, :error, &2)
+    )
+  end
+
+  defp event("create_token", params, socket) do
     label = params["label"] |> to_string() |> String.trim()
     label = if label == "", do: "CLI", else: label
 
-    {token, _} =
-      Accounts.create_api_token(socket.assigns.current_user, label,
-        scope: params["scope"],
-        expires_at: Accounts.expiry_in_days(params["expires_in_days"])
-      )
+    case Accounts.create_api_token(socket.assigns.current_user, label,
+           scope: params["scope"],
+           expires_at: Accounts.expiry_in_days(params["expires_in_days"])
+         ) do
+      # A refusal is a 2-tuple too (`Slipdock.Policy`, #3172); the wrapper
+      # above says it.
+      {:error, %Slipdock.Policy.Refused{}} ->
+        {:noreply, socket}
 
-    {:noreply,
-     socket |> assign(new_token: token) |> update(:form_key, &(&1 + 1)) |> load_tokens()}
+      {token, %Slipdock.Accounts.UserToken{}} ->
+        {:noreply,
+         socket |> assign(new_token: token) |> update(:form_key, &(&1 + 1)) |> load_tokens()}
+    end
   end
 
-  def handle_event("delete_token", %{"id" => id}, socket) do
-    if id = SlipdockWeb.Params.id(id),
-      do: :ok = Accounts.delete_api_token(socket.assigns.current_user, id)
+  defp event("delete_token", %{"id" => id}, socket) do
+    id = SlipdockWeb.Params.id(id)
 
-    {:noreply, socket |> assign(new_token: nil) |> load_tokens()}
+    case id && Accounts.delete_api_token(socket.assigns.current_user, id) do
+      {:error, %Slipdock.Policy.Refused{}} ->
+        {:noreply, socket}
+
+      _ ->
+        {:noreply, socket |> assign(new_token: nil) |> load_tokens()}
+    end
   end
 
-  def handle_event("dismiss_token", _, socket), do: {:noreply, assign(socket, new_token: nil)}
+  defp event("dismiss_token", _, socket), do: {:noreply, assign(socket, new_token: nil)}
 
   defp relative_time(dt), do: SlipdockWeb.SlipdockComponents.relative_time(dt)
 

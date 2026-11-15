@@ -32,8 +32,18 @@ defmodule SlipdockWeb.AccountLive.ProfileComponent do
     |> assign(source_url: Slipdock.Config.get(:source_url))
   end
 
+  # A write the context refuses (`Slipdock.Policy`) is said in a flash,
+  # whatever the handler made of it (`SlipdockWeb.Refusals`, #3172).
   @impl true
-  def handle_event("save_profile", %{"user" => params}, socket) do
+  def handle_event(event, params, socket) do
+    SlipdockWeb.Refusals.said(
+      socket,
+      fn -> event(event, params, socket) end,
+      &SlipdockWeb.ComponentFlash.flash(&1, :error, &2)
+    )
+  end
+
+  defp event("save_profile", %{"user" => params}, socket) do
     case Accounts.update_profile(socket.assigns.current_user, params) do
       {:ok, user} ->
         # The header shows the name too, so the page needs the new user.

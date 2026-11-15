@@ -21,7 +21,7 @@ defmodule Slipdock.SavedQueries do
   import Ecto.Query, warn: false
 
   alias Slipdock.Accounts.User
-  alias Slipdock.Repo
+  alias Slipdock.{Policy, Repo}
   alias Slipdock.SavedQueries.SavedQuery
 
   @modes SavedQuery.modes()
@@ -98,6 +98,11 @@ defmodule Slipdock.SavedQueries do
   @spec save(User.t(), String.t() | atom, String.t()) ::
           {:ok, SavedQuery.t()} | {:error, Ecto.Changeset.t() | :bad_mode}
   def save(%User{} = user, mode, text) do
+    # The person's own saved searches (`Slipdock.Policy`, #3172).
+    with :ok <- Policy.authorize(:own_view, user), do: insert(user, mode, text)
+  end
+
+  defp insert(user, mode, text) do
     case normalize(mode) do
       {:ok, mode} ->
         attrs = %{"user_id" => user.id, "mode" => mode, "text" => text}
@@ -116,15 +121,21 @@ defmodule Slipdock.SavedQueries do
   end
 
   @doc "Removes a saved query by id. Only ever the caller's own."
-  @spec delete(User.t(), integer) :: :ok
+  @spec delete(User.t(), integer) :: :ok | {:error, Exception.t()}
   def delete(%User{} = user, id) when is_integer(id) do
-    Repo.delete_all(from(q in SavedQuery, where: q.user_id == ^user.id and q.id == ^id))
-    :ok
+    with :ok <- Policy.authorize(:own_view, user) do
+      Repo.delete_all(from(q in SavedQuery, where: q.user_id == ^user.id and q.id == ^id))
+      :ok
+    end
   end
 
   @doc "Removes a saved query by its text. Idempotent."
-  @spec remove(User.t(), String.t() | atom, String.t()) :: :ok
+  @spec remove(User.t(), String.t() | atom, String.t()) :: :ok | {:error, Exception.t()}
   def remove(%User{} = user, mode, text) do
+    with :ok <- Policy.authorize(:own_view, user), do: delete_text(user, mode, text)
+  end
+
+  defp delete_text(user, mode, text) do
     with {:ok, mode} <- normalize(mode) do
       trimmed = String.trim(to_string(text))
 
@@ -146,8 +157,7 @@ defmodule Slipdock.SavedQueries do
           {:ok, :saved | :removed} | {:error, term}
   def toggle(%User{} = user, mode, text) do
     if saved?(user, mode, text) do
-      remove(user, mode, text)
-      {:ok, :removed}
+      with :ok <- remove(user, mode, text), do: {:ok, :removed}
     else
       case save(user, mode, text) do
         {:ok, _} -> {:ok, :saved}

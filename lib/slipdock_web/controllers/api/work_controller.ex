@@ -70,6 +70,9 @@ defmodule SlipdockWeb.API.WorkController do
         {:ok, item} ->
           json(conn, %{dismissed: item(Map.put(item, :path, Work.path(item.card)))})
 
+        {:error, %Slipdock.Policy.Refused{}} = refused ->
+          refused
+
         {:error, :not_waiting} ->
           {:error, :unprocessable_entity, "card ##{card.id} isn't waiting on you"}
       end
@@ -82,6 +85,7 @@ defmodule SlipdockWeb.API.WorkController do
       case Work.undismiss(conn.assigns.current_user, card) do
         {:ok, n} -> json(conn, %{undismissed: %{card_id: card.id, count: n}})
         {:error, :not_dismissed} -> {:error, :not_found, "dismissal of card ##{card.id}"}
+        {:error, %Slipdock.Policy.Refused{}} = refused -> refused
       end
     end
   end
@@ -100,6 +104,7 @@ defmodule SlipdockWeb.API.WorkController do
       case Work.unmute(conn.assigns.current_user, board) do
         {:ok, board} -> json(conn, %{unmuted: board_ref(board)})
         {:error, :not_muted} -> {:error, :not_found, "mute of board #{board.name}"}
+        {:error, %Slipdock.Policy.Refused{}} = refused -> refused
       end
     end
   end

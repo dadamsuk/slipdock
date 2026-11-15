@@ -83,6 +83,9 @@ defmodule SlipdockWeb.DeviceActivationController do
 
       {:error, :expired} ->
         gone(conn)
+
+      {:error, %Slipdock.Policy.Refused{} = refused} ->
+        refused(conn, refused)
     end
   end
 
@@ -95,7 +98,15 @@ defmodule SlipdockWeb.DeviceActivationController do
 
       {:error, :expired} ->
         gone(conn)
+
+      {:error, %Slipdock.Policy.Refused{} = refused} ->
+        refused(conn, refused)
     end
+  end
+
+  # The context refused it (`Slipdock.Policy`, #3172): a disabled account, say.
+  defp refused(conn, %Slipdock.Policy.Refused{message: message}) do
+    conn |> put_flash(:error, message) |> redirect(to: ~p"/activate")
   end
 
   # Expired, or decided by somebody else in the meantime: either way the code

@@ -186,15 +186,25 @@ defmodule SlipdockWeb.AccountLive.SettingsComponent do
 
   defp board_switch(params, _user), do: params
 
+  # A write the context refuses (`Slipdock.Policy`) is said in a flash,
+  # whatever the handler made of it (`SlipdockWeb.Refusals`, #3172).
   @impl true
-  def handle_event("change_quick_add", %{"user" => params}, socket) do
+  def handle_event(event, params, socket) do
+    SlipdockWeb.Refusals.said(
+      socket,
+      fn -> event(event, params, socket) end,
+      &SlipdockWeb.ComponentFlash.flash(&1, :error, &2)
+    )
+  end
+
+  defp event("change_quick_add", %{"user" => params}, socket) do
     user = socket.assigns.current_user
     changeset = Accounts.change_quick_add(user, board_switch(params, user))
     {:noreply, assign_quick_add(socket, changeset)}
   end
 
   # Display: how trees and lists name a card's folder.
-  def handle_event("save_display", %{"display" => params}, socket) do
+  defp event("save_display", %{"display" => params}, socket) do
     case Accounts.update_display(socket.assigns.current_user, params) do
       {:ok, user} ->
         send(self(), {:current_user, user})
@@ -206,7 +216,7 @@ defmodule SlipdockWeb.AccountLive.SettingsComponent do
   end
 
   # How I hear that something waits on me (#2095): the alert and the email.
-  def handle_event("save_waiting_notice", params, socket) do
+  defp event("save_waiting_notice", params, socket) do
     attrs = %{
       waiting_alerts: get_in(params, ["notice", "waiting_alerts"]) == "true",
       waiting_emails: get_in(params, ["notice", "waiting_emails"]) == "true"
@@ -219,7 +229,7 @@ defmodule SlipdockWeb.AccountLive.SettingsComponent do
     {:noreply, socket |> assign(current_user: user) |> flash(:info, "Saved.")}
   end
 
-  def handle_event("save_quick_add", %{"user" => params}, socket) do
+  defp event("save_quick_add", %{"user" => params}, socket) do
     case Accounts.update_quick_add(socket.assigns.current_user, params) do
       {:ok, user} ->
         # The header's quick add box reads the page's user, so it must follow.
@@ -236,7 +246,7 @@ defmodule SlipdockWeb.AccountLive.SettingsComponent do
     end
   end
 
-  def handle_event("save_quick_note", %{"location" => location}, socket) do
+  defp event("save_quick_note", %{"location" => location}, socket) do
     user = socket.assigns.current_user
 
     case quick_note_attrs(user, location) do
@@ -255,12 +265,12 @@ defmodule SlipdockWeb.AccountLive.SettingsComponent do
     end
   end
 
-  def handle_event("pick_header_link_icon", %{"header_link" => params}, socket),
+  defp event("pick_header_link_icon", %{"header_link" => params}, socket),
     do:
       {:noreply,
        assign(socket, header_link_icon: params["icon"], header_link_target: params["target"])}
 
-  def handle_event("add_header_link", %{"header_link" => params}, socket) do
+  defp event("add_header_link", %{"header_link" => params}, socket) do
     user = socket.assigns.current_user
 
     with {:ok, target} <- HeaderLinks.resolve(user, params["target"] || ""),
@@ -276,7 +286,7 @@ defmodule SlipdockWeb.AccountLive.SettingsComponent do
     end
   end
 
-  def handle_event("remove_header_link", %{"id" => id}, socket) do
+  defp event("remove_header_link", %{"id" => id}, socket) do
     case Params.id(id) do
       nil ->
         {:noreply, socket}
@@ -287,8 +297,8 @@ defmodule SlipdockWeb.AccountLive.SettingsComponent do
     end
   end
 
-  def handle_event("move_header_link", %{"id" => id, "direction" => direction}, socket)
-      when direction in ["left", "right"] do
+  defp event("move_header_link", %{"id" => id, "direction" => direction}, socket)
+       when direction in ["left", "right"] do
     case Params.id(id) do
       nil ->
         {:noreply, socket}
@@ -303,7 +313,7 @@ defmodule SlipdockWeb.AccountLive.SettingsComponent do
   # leaves the stored key alone — it is a password box, so blank means "not
   # changing this", and the Remove button is how a key goes. A blank endpoint
   # does mean "back to the default", which is the only way to say so.
-  def handle_event("save_ai_provider", params, socket) do
+  defp event("save_ai_provider", params, socket) do
     attrs =
       %{base_url: params["base_url"] || ""}
       |> then(fn attrs ->
@@ -328,7 +338,7 @@ defmodule SlipdockWeb.AccountLive.SettingsComponent do
     end
   end
 
-  def handle_event("save_ai_model", params, socket) do
+  defp event("save_ai_model", params, socket) do
     attrs = %{model: params["model"] || "", embed_model: params["embed_model"] || ""}
 
     case AI.Keys.put_settings(socket.assigns.current_user, attrs) do
@@ -340,7 +350,7 @@ defmodule SlipdockWeb.AccountLive.SettingsComponent do
   # Asks the endpoint what it can run. Off the LiveView process, since a model
   # server on the other end of a VPN takes its time, and a slow answer should
   # not hold up the rest of the page.
-  def handle_event("list_ai_models", _, socket) do
+  defp event("list_ai_models", _, socket) do
     user = socket.assigns.current_user
 
     {:noreply,
@@ -349,7 +359,7 @@ defmodule SlipdockWeb.AccountLive.SettingsComponent do
      |> start_async(:ai_models, Slipdock.Actor.carry(fn -> AI.models(user: user) end))}
   end
 
-  def handle_event("remove_ai_key", _, socket) do
+  defp event("remove_ai_key", _, socket) do
     case AI.Keys.put_settings(socket.assigns.current_user, %{api_key: ""}) do
       :ok -> {:noreply, socket |> assign_ai_key() |> flash(:info, "AI key removed.")}
       {:error, message} -> {:noreply, flash(socket, :error, message)}
