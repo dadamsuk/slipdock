@@ -3649,7 +3649,7 @@ the line.
 ### Code sweeps
 
 The built-in **Sweep Tool** reads the code one area and one lens a
-night, on a rotation (authorization, duplication, dead code, test
+week, on a rotation (authorization, duplication, dead code, test
 gaps, old code that breaks a newer rule, secrets and personal details).
 It goes on a board's root:
 
@@ -3659,9 +3659,10 @@ slipdock tools install-board sweep --board <board>   # or install_tool {tool: "s
 
 It adds a `Sweeps` page (the rotation table: areas from the handbook's
 `covers:`, against the lenses, each cell the commit last swept), a
-**Triage** list and a daily *Sweep the code* card whose description is
+**Triage** list and a weekly *Sweep the code* card (every Monday) whose description is
 the procedure. Installing again adds only what is missing, and gives an
-open card from an older version the current procedure. The card's
+open card from an older version the current procedure (and a series
+still repeating daily the weekly schedule). The card's
 bar names no cell ("Swept the stalest cell of W-…'s Rotation table…"),
 and each new instance starts from that template, not the last run's
 bar: work to the stalest cell on the day, not one a bar names.
@@ -3676,7 +3677,10 @@ list when the board has one (everything to Triage when it doesn't). A
 sweep files one card per issue (where, why it matters, the fix); the
 same mechanical fix in many files is one issue, never a card per file,
 module or area: one card for the whole sweep, or a few split by area when one would hold too much at once,
-each one commit with its tests (#2795). A security issue gets the
+each one commit with its tests (#2795). A run files **at most 5
+cards**, `security` ones first; whatever it finds past the fifth is a
+line in its closing comment's `Findings:` block, with no card (#3181).
+A security issue gets the
 `security` tag and stays vague anywhere public.
 
 

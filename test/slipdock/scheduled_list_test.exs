@@ -2,7 +2,7 @@ defmodule Slipdock.ScheduledListTest do
   @moduledoc """
   The Scheduled list (#2100): a list category, `scheduled`, for where
   recurring agent work lands. A recurring card's next instance is made there,
-  the Sweep and Handbook Tools put their daily cards there, the stock
+  the Sweep and Handbook Tools put their recurring cards there, the stock
   templates with a To Do carry one, nothing that answers "what next" reads it
   as the ready list, feed rules work it, and a card left in it past its due
   day is on its owner's Waiting on you.

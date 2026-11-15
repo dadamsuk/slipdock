@@ -338,8 +338,8 @@ page. Installing needs a write token that isn't confined to some boards.
 
 Two built-in Tools go onto a board that already exists instead of building
 one, with `board` given: `handbook` (the project handbook) and `sweep` (the
-code sweep: a `Sweeps` rotation page, a `Triage` list and a daily *Sweep the
-code* card). Both go on the board's root and add only what is missing when
+code sweep: a `Sweeps` rotation page, a `Triage` list and a weekly *Sweep the
+code* card, which files at most 5 cards a run, `security` first). Both go on the board's root and add only what is missing when
 installed again. See [the manual](manual/tools.md).
 
 On a **first install** the server builds the board:

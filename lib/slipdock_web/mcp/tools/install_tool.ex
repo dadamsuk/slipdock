@@ -40,7 +40,7 @@ defmodule SlipdockWeb.MCP.Tools.InstallTool do
           type: "string",
           description:
             "For the handbook (W-1934) or the sweep (W-2310: its rotation page, a Triage list " <>
-              "and a daily Sweep the code card): the board (id, code or name) to install it " <>
+              "and a weekly Sweep the code card): the board (id, code or name) to install it " <>
               "on; it goes on the root."
         }
       },

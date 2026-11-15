@@ -58,13 +58,13 @@ defmodule Slipdock.SweepE2ETest do
 
   test "a sweep's finding waits in Triage, then ships neutrally from To Do, on a runner that reports drift",
        %{user: user, board: board, runner: runner, token: token} do
-    # The Tool is installed: the rotation page, the Triage list and the daily card.
+    # The Tool is installed: the rotation page, the Triage list and the weekly card.
     {:ok, _} = Sweep.install(user, board)
     assert %{page: %{title: "Sweeps"}, card: %{title: "Sweep the code"}} = Sweep.find(board)
     triage = column(board, "Triage")
     assert triage.category == "triage"
 
-    # The daily sweep card is put aside, so the feed's top card is the issue.
+    # The weekly sweep card is put aside, so the feed's top card is the issue.
     sweep_card = Sweep.find(board).card
 
     Repo.update_all(from(c in Card, where: c.id == ^sweep_card.id),

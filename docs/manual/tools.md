@@ -188,7 +188,8 @@ adds:
   the commit and date that area was last swept through that lens, `—` for
   never;
 - a **Triage** list, in the `triage` category;
-- a **Sweep the code** card, every day. Its procedure: take the stalest
+- a **Sweep the code** card, every Monday (weekly since 1.4.0, #3181).
+  Its procedure: take the stalest
   cell, check out the default branch's head in a clean worktree, read that
   area through that lens without changing code, file each issue as a card
   (where, why it matters, the fix): a fix or investigation in the
@@ -196,12 +197,14 @@ adds:
   question (the answer would change how the product or a process behaves) in
   Triage; on a board with no Housekeeping list, everything in Triage. Record
   each as a finding in the closing comment, then update the cell and the Log. One area and one lens a
-  run; a security issue gets the `security` tag and stays vague in commit
+  run, and **at most 5 cards a run**: `security` issues first, then the
+  ones that bite hardest, and anything found past the fifth is a line in
+  the closing comment's `Findings:` block, with no card. A security issue gets the `security` tag and stays vague in commit
   messages, pull requests and the log. It is installed with a bar of its own
   that names no cell ("Swept the stalest cell of W-…'s Rotation table…"),
   and each new instance starts from that template rather than the last
   run's bar, which named the cell that run swept, so the bar holds on any
-  day.
+  week. The bar says the cap too.
 
 Installing again adds only what is missing (the list, the page or the card,
 if deleted) and never touches the page once it is there. Installing 1.1.0
@@ -209,7 +212,10 @@ over an older sweep gives its open *Sweep the code* card the current
 procedure (fixes to Housekeeping, design questions to Triage), and changes
 nothing else on it; installing 1.2.0 adds that the same mechanical fix in
 many files is one issue: one card for the whole sweep, or a few split by
-area when one would hold too much at once, never a card per file, module or area (#2795).
+area when one would hold too much at once, never a card per file, module or area (#2795);
+installing 1.4.0 adds the five-card cap and moves a series still repeating
+every day to every Monday, whether its current card is open or done. A
+schedule somebody set to anything else is kept (#3181).
 
 **A Triage list is never fed.** A list whose category is `triage` holds work
 for a person to look at, not for the loop: the agent guide never reads it as

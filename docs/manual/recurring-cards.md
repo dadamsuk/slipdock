@@ -78,10 +78,10 @@ right for timesheets. A server that was down catches up once, to the latest
 occurrence, never one per missed date.
 
 **The Scheduled list.** A list in the `scheduled` category is where
-recurring agent work lands: the nightly sweep, the handbook's reconcile and
+recurring agent work lands: the weekly sweep, the handbook's reconcile and
 triage, anything a runner should do on a day. Nobody picks from it, people
 or agents. The agent guide never reads it as the ready list (it shows it as
-`scheduled: worked by feed rules, never take work from it`), so the daily
+`scheduled: worked by feed rules, never take work from it`), so the recurring
 cards no longer push in above your own To Do. Its *Work a list with a
 runner* rules (`list_top`) send each card to the runners on its day:
 
@@ -96,7 +96,7 @@ runner* rules (`list_top`) send each card to the runners on its day:
   with the same pool and settings, and setting up a runner that works the
   ready list adds one too. A pool with a rule on Scheduled already gets no
   second;
-- the Sweep and Handbook Tools put their daily cards there when the board
+- the Sweep and Handbook Tools put their recurring cards there when the board
   has one;
 - a Scheduled card still there after the end of its due day (in the board
   owner's time zone) means its feed didn't take it: it comes onto the owner's
