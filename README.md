@@ -406,6 +406,8 @@ Account page links to the source for exactly that reason — point
 - **[UPGRADING.md](UPGRADING.md)** — moving an existing install across the
   Kanban → Slipdock rename.
 - **[CONTRIBUTING.md](CONTRIBUTING.md)** — how to work on it.
+- **[ARCHITECTURE.md](ARCHITECTURE.md)** — a map of the code and a glossary
+  of the in-house words, for a newcomer or their agent.
 - **[SECURITY.md](SECURITY.md)** — reporting a vulnerability.
 - **[AGENTS.md](AGENTS.md)** — the house rules an agent working in this
   codebase should read first.
