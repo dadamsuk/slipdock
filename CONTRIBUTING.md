@@ -66,6 +66,19 @@ the whole suite, split four ways across runners, when the change touches the
 app; a change to docs, skills, `*.md`, `cli/` or `daemon/` alone runs the
 repo checks in its place, beside the cli or daemon job. The whole suite takes about a minute locally on 8 cores.
 
+While you work, or for a first pull request, a quicker check catches most of
+what fails, in well under a minute once things are compiled:
+
+```sh
+mix format --check-formatted && mix test --stale --warnings-as-errors
+```
+
+It checks the formatting, compiles with warnings as errors and runs the tests
+that depend on what you changed (the first `--stale` run in a checkout runs
+them all). Run `mix pre_push` before you ask for a
+review; if you can't (it wants a Go toolchain for the daemon), say so in the
+pull request.
+
 The CLI (`cli/`) is a Mix project of its own with its own suite, whose tests
 `mix pre_push` does not run: `cd cli && mix test`. CI runs those in a
 separate `cli` job, with PowerShell installed so the Windows service tests
@@ -211,13 +224,34 @@ the suite took two minutes on 8 cores; with nothing shared it takes one.
   constraint you discovered is the valuable part.
 - **One concern per pull request**, with a message that says what changed and
   why. Fixes to a bug should come with the test that would have caught it.
-- **Keep the three faces in step.** Most features exist in the web UI, in the
-  JSON API (`/api`), and in the `slipdock` CLI under `cli/`, and the agent guide
-  at `/api/guide` documents the API for automated callers. If you add
-  something people would reach for from a script, add it in all of them, or say
-  in the pull request why it belongs in only one.
+- **Change every place a feature shows up**, listed in
+  §Where a feature shows up below, or say in the pull request why one of them
+  doesn't need it.
 - **Migrations are forward-only** and should be safe to run against an
   existing database with data in it.
+
+## Where a feature shows up
+
+This is the one list of them; `CLAUDE.md` rule 2 points here. A feature
+usually lives in several of these, and a change to it changes each one it
+lives in:
+
+- **The web UI**, the LiveViews in `lib/slipdock_web/live/`.
+- **The REST API** under `/api`.
+- **The CLI**, the `slipdock` command in `cli/`.
+- **The MCP tools** in `lib/slipdock_web/mcp/tools/`.
+- **The agents page**, `docs/agents.md`.
+- **The API guide** at `/api/guide`: its prose is a Markdown file per section
+  in `lib/slipdock_web/api_guide/`, compiled in by
+  `lib/slipdock_web/api_guide.ex`. A change to it regenerates the copy
+  `test/slipdock_web/api_guide_golden_test.exs` holds it to.
+- **The in-app help**, `HelpLive`.
+- **The packaged skills** in `priv/skills/`, the only place to edit them.
+- **The README**, which is the overview (#2792): a feature gets a line and a
+  link there at most.
+- **The manual**, `docs/manual.md`, a page per section in `docs/manual/`. A
+  feature's paragraph goes in `docs/manual/every-feature-in-brief.md` and its
+  detail in its own page.
 
 ## Licence
 
