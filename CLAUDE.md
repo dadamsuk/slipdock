@@ -37,18 +37,10 @@ holds the detail behind each rule.
    no behaviour is covered by the tests already there. **The second time a
    kind of problem turns up, fix the kind**: one shared mechanism and a check
    that fails CI if it comes back, not a fix and a card per instance.
-2. **Change every place a feature shows up**, or say on the card why not. The
-   same feature usually lives in the web UI, the REST API, the CLI (`cli/`)
-   and the MCP tools (`lib/slipdock_web/mcp/tools/`), and is described in the
-   agents page and API guide (`docs/agents.md`; the guide's prose is a Markdown
-   file per section in `lib/slipdock_web/api_guide/`, compiled in by
-   `lib/slipdock_web/api_guide.ex`, and a change to it regenerates the copy
-   `test/slipdock_web/api_guide_golden_test.exs` holds it to),
-   the in-app help (`HelpLive`), the packaged skills (`priv/skills/`), the
-   `README.md` and the manual (`docs/manual.md`, a page per section in
-   `docs/manual/`). The README is the overview (#2792): a feature gets a line
-   and a link there at most, its paragraph goes in
-   `docs/manual/every-feature-in-brief.md` and its detail in its manual page.
+2. **Change every place a feature shows up**, or say on the card why not.
+   The places are listed, with their paths, in `CONTRIBUTING.md` §Where a
+   feature shows up: that is the one list, so read it there rather than
+   from memory.
 3. **Edit the skills only in `priv/skills/`.** Installed copies (such as
    `~/.claude/skills`) are overwritten from the server, so an edit there is
    lost.

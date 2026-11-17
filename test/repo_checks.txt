@@ -224,3 +224,4 @@ except test/slipdock/handbook_rules_e2e_test.exs: its README.md is a card path g
 except test/slipdock/pre_push_alias_test.exs: reads .credo.exs and mix.exs to test `mix pre_push` itself, 10 s alone, half the list's budget; it waits for CI
 except test/slipdock_web/controllers/cli_install_controller_test.exs: a controller test with one Dockerfile read (the image's build order); on the list its server-text assertions fall under the docs tests' whole-sentence rule (docs_tests_state_facts_test); it waits for CI
 test/slipdock_web/mcp_brief_docs_test.exs
+test/slipdock/feature_places_test.exs
