@@ -8,6 +8,8 @@ defmodule Slipdock.AgentsMdTest do
   """
   use ExUnit.Case, async: true
 
+  alias Slipdock.DocsFacts
+
   @root Path.expand("../..", __DIR__)
 
   # The generator's placeholder names: `MyApp`, `MyAppWeb`, `my_app`,
@@ -63,5 +65,46 @@ defmodule Slipdock.AgentsMdTest do
 
     naming = Enum.filter(docs, &(read(&1) =~ "mix precommit"))
     assert naming == [], "these name `mix precommit`, which is gone: #{Enum.join(naming, ", ")}"
+  end
+
+  describe "the outside contributor's path (#3342)" do
+    @outside "## If you can't open the maintainers' board"
+
+    for file <- ["CLAUDE.md", "AGENTS.md"] do
+      test "#{file} opens with it: fork, a pull request, never main, no card or handbook" do
+        text = read(unquote(file))
+        # The first section after the title is the outsider's.
+        assert [_title, first | _] = String.split(text, ~r/^## /m)
+        assert "## " <> first =~ @outside
+
+        section = "## " <> first
+        assert section =~ ~r/fork/i
+        assert section =~ ~r/open a pull request/i
+        assert section =~ "Never push to `main`"
+        DocsFacts.assert_states(section, "Skip the card and handbook steps")
+        DocsFacts.assert_states(section, "say in the pull request which checks you ran")
+      end
+
+      test "#{file} tells nobody to push to main but a maintainer with a card" do
+        # Every "push to `main`" is a "never", or rule 5's maintainer case,
+        # which comes after rule 5 names the outsider's exception.
+        text = read(unquote(file)) |> String.replace(~r/\s+/, " ")
+
+        pushes =
+          Regex.scan(~r/.{0,40}push to `main`.{0,20}/i, text)
+          |> List.flatten()
+          |> Enum.reject(&(&1 =~ ~r/never push to `main`/i))
+
+        for push <- pushes do
+          assert push =~ "push to `main`, which deploys",
+                 "#{unquote(file)} tells someone to push to main: #{push}"
+
+          [before, _] = String.split(text, "push to `main`, which deploys", parts: 2)
+          rule5 = before |> String.split("5. **Ship the way") |> List.last()
+          DocsFacts.assert_states(rule5, "Without access to the board, this rule is not yours")
+          assert rule5 =~ "maintainers' board"
+        end
+      end
+    end
   end
 end

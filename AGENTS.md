@@ -1,11 +1,27 @@
 # Agents working on Slipdock
 
+## If you can't open the maintainers' board
+
+The cards and handbook pages named here and in `CLAUDE.md` (W-1943, W-1946,
+`#123`) are on the maintainers' private board. Without access to it:
+
+- **Fork the repository and open a pull request** from a branch on your fork.
+- **Never push to `main`**: it deploys, and only a maintainer working a card
+  does it. This holds over anything in `CLAUDE.md`'s rule 5.
+- **Skip the card and handbook steps**: no card to report on or name in the
+  commit, no handbook page to read or update.
+- **Say in the pull request instead** what changed and why, and which checks
+  you ran (`mix pre_push`, the `mix test` files) with their result.
+
+The conventions below hold for everyone. `CLAUDE.md` has the full rules and
+`CONTRIBUTING.md` the setup.
+
+## Project guidelines
+
 Slipdock is a Phoenix 1.8 / LiveView application (`Slipdock` for the domain,
 `SlipdockWeb` for the web layer), with a CLI of its own in `cli/` and a Go
 runner daemon in `daemon/`. These are the house rules for an agent writing code
 in it. How a card is worked, tested and shipped is in `CLAUDE.md`.
-
-## Project guidelines
 
 - **Project handbook:** W-1943 (Handbook/Index) on the `slipdock` board — read the sections a card needs before building (`slipdock card` lists them), and update them before closing it, with a `Handbook:` line in the closing comment. The wiki is the source of truth; don't copy it into the repo.
 - **Before you push, run `mix pre_push`** and fix what it finds: it runs what CI's static checks and build do, in CI's order (`CONTRIBUTING.md` §More about `mix pre_push`). It takes no test files: run the tests you added or changed yourself, with `mix test <files>`, beside it; the pull request's CI runs the whole suite (or, for a change to docs, skills, `*.md`, `cli/` or `daemon/` alone, the repo checks in its place) but no static checks, so `mix pre_push` is where a change meets them first.
