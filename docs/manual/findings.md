@@ -18,7 +18,7 @@ its `Handbook:` line, one item per line, each with its kind:
 - Findings:
   - gotcha: `mix format` can need two passes
   - rule: every new MCP tool gets a docs test        (a rule candidate)
-  - handbook-wrong: W-1950 §Tests says async is safe, but the fixture is one user
+  - handbook-wrong: W-3 §Tests says async is safe, but the fixture is one user
   - tooling (runner): the installed CLI ignores --paths
   - process: merges wait for an idle runner
 ```
@@ -32,7 +32,7 @@ as a `gotcha`, so nothing written is lost to a typo.
 
 An item that is already dealt with says where, and is kept *promoted*, with
 that place as its note, rather than open for triage: `[done: <where>]` after
-its kind when it is settled in the handbook (`- gotcha [done: W-1950 §Local
+its kind when it is settled in the handbook (`- gotcha [done: W-3 §Local
 setup]: the test partition needs its own database`), or `→ #<card>` (`->`
 works too) at its end when a card was filed for it (`- tooling: no test pins
 the CLI's exit codes → #2087`). Words like "(corrected)" or "fixed" are not
@@ -59,7 +59,7 @@ uncertain, cuts across cards, or shows the handbook wrong:
 |---|---|
 | `page section --append -` writes a literal `-` (a bug a person meets) | no test pins `slipdock done`'s exit codes (a missing test) |
 | a third copy that drops `%{count}`: one helper, and a check that fails on a new copy (the kind) | `mix format` can need two passes; run the check after it |
-| a card grant can write the whole board (security) | W-1950 §Tests says async is safe, but the fixture is one user |
+| a card grant can write the whole board (security) | W-3 §Tests says async is safe, but the fixture is one user |
 
 Write the block once, in the closing comment (on a board that verifies work, the completion's
 evidence): not again in a wrap-up, a restatement or on the epic. The block is
@@ -126,7 +126,7 @@ a proposal for a person to apply or dismiss:
   several findings into one) still file one proposal between them.
 - **Triage closes it.** Promoting, dismissing or merging the finding (by a
   person, a triage pass or a dedupe) closes its open proposal by itself, with
-  a note naming why (`finding #14 promoted: W-1950 §Tests`), so the Tidy-up
+  a note naming why (`finding #14 promoted: W-3 §Tests`), so the Tidy-up
   page keeps only what still needs a person. Reopening the finding reopens
   its proposal. A proposal filed by hand that names the finding stays open.
 - **Waiting on a person.** While an open proposal names a finding, the
@@ -150,7 +150,7 @@ A board with findings from before this (#1941) collapses them with
 `mix slipdock.findings.dedupe <board> [--dry-run]`, which applies the same
 two rules to the open ones as merges a person can reopen (run it again after
 an upgrade that widens them, as #2117 did)
-(the handbook's Operations page, W-1951 §Runbooks, has the release form).
+(the handbook's Operations page, §Runbooks, has the release form).
 
 **Recorded by the server.** The system notes its own signals without asking:
 a verifier's rejection, a job that times out or fails, a card requeued or
@@ -205,7 +205,7 @@ slipdock findings slipdock --kind rule --days 7  # also --status all, --source t
 slipdock findings slipdock --status waiting      # open ones a proposal names: a person's, not triage's
 slipdock findings slipdock --source incident     # what each incident's check missed
 slipdock findings slipdock --scope runner        # tooling kept with a runner; --scope all for both
-slipdock finding 41 promote --note "W-1950 §Tests TEST-9"
+slipdock finding 41 promote --note "W-3 §Tests TEST-9"
 slipdock finding 42 merge --into 41
 slipdock finding 43 dismiss
 ```

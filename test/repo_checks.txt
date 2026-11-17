@@ -177,6 +177,7 @@ test/slipdock/migration_order_test.exs
 # Fixtures and nothing personal
 test/slipdock/fixtures_test.exs
 test/slipdock/nothing_personal_test.exs
+test/slipdock/public_docs_w_ids_test.exs
 test/slipdock/repo_checks_test.exs
 
 # A sync test module says why above its use line (TEST-9, #2607)

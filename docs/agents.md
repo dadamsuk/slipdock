@@ -521,7 +521,7 @@ approve; never dismiss one on your own judgment, since a dismissal is
 remembered. The CLI is `slipdock garden <board> [--run]` and `slipdock garden
 apply|dismiss|undo <id>`. A proposed handbook edit is a person's to decide,
 and a proposal is decided on the board's Tidy-up page (`/boards/<id>/tidy`),
-signed in, and nowhere else (W-1945 §Permissions, #2668): REST, the CLI and
+signed in, and nowhere else (#2668): REST, the CLI and
 `garden_decide` are refused with the page's link whatever their token or
 `confirm` says, so an agent never decides one. Point the person at the page.
 See [the manual](manual/tidying-up.md).
@@ -1096,7 +1096,7 @@ repeated in a wrap-up or on the epic), beside the `Handbook:` line, one
 with the runner), or `Findings: none`. A lesson said again is counted on the
 finding it repeats, on this card or another (`rule` and `handbook-wrong`
 excepted across cards). An item already dealt with says where, and is kept
-*promoted*, not open: `- gotcha [done: W-1950 §Local setup]: …` when it is
+*promoted*, not open: `- gotcha [done: W-3 §Local setup]: …` when it is
 settled in the handbook, `- tooling: … → #2087` when a card was filed for it.
 Only what bites is a card: a bug a person would meet (a tooling bug such as
 "`page section --append -` writes a literal `-`"), a security issue or a broken
@@ -1114,7 +1114,7 @@ shared helper or mechanism, and a check that fails CI if it comes back),
 naming the instances it closes, never a card per instance. A
 finding is for the rest: what is uncertain, cuts across cards, or shows the
 handbook wrong ("`mix format` can need two passes", "the shared `_pre_push`
-database can hold another branch's migration", "W-1950 §Tests says async is
+database can hold another branch's migration", "W-3 §Tests says async is
 safe, but the fixture is one user").
 The test
 for one: would a card on a different subject want to know this? Never a

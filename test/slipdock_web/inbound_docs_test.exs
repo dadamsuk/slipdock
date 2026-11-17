@@ -24,7 +24,7 @@ defmodule SlipdockWeb.InboundDocsTest do
     assert manual =~ "`card_limit_reached`"
     assert manual =~ "**Did it arrive?**"
     assert manual =~ "slipdock inbound me --ack on"
-    assert manual =~ "W-1933"
+    assert manual =~ "maintainers' wiki"
   end
 
   test "the manual covers the page address: Inbox, [folder], + Title and its bounces" do
@@ -63,7 +63,7 @@ defmodule SlipdockWeb.InboundDocsTest do
     assert read("README.md") =~ "(docs/manual/emailing-your-board.md)"
     assert read("README.md") =~ "(docs/manual/receiving-email.md)"
     assert receiving =~ "slipdock inbound\n<board>`"
-    assert receiving =~ "(W-1933)"
+    assert receiving =~ "are on the maintainers' wiki."
     assert receiving =~ "`page-…@` address"
     assert digest =~ "`+ Title` adds a dated section"
   end

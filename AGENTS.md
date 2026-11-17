@@ -2,8 +2,8 @@
 
 ## If you can't open the maintainers' board
 
-The cards and handbook pages named here and in `CLAUDE.md` (W-1943, W-1946,
-`#123`) are on the maintainers' private board. Without access to it:
+The cards (`#123`) and the handbook pages named here and in `CLAUDE.md` are
+on the maintainers' private board. Without access to it:
 
 - **Fork the repository and open a pull request** from a branch on your fork.
 - **Never push to `main`**: it deploys, and only a maintainer working a card
@@ -23,10 +23,10 @@ Slipdock is a Phoenix 1.8 / LiveView application (`Slipdock` for the domain,
 runner daemon in `daemon/`. These are the house rules for an agent writing code
 in it. How a card is worked, tested and shipped is in `CLAUDE.md`.
 
-- **Project handbook:** W-1943 (Handbook/Index) on the `slipdock` board — read the sections a card needs before building (`slipdock card` lists them), and update them before closing it, with a `Handbook:` line in the closing comment. The wiki is the source of truth; don't copy it into the repo.
+- **Project handbook:** the Handbook/Index page on the `slipdock` board (`slipdock handbook slipdock`) — read the sections a card needs before building (`slipdock card` lists them), and update them before closing it, with a `Handbook:` line in the closing comment. The wiki is the source of truth; don't copy it into the repo. It is private to the maintainers, so the public docs (`docs/`, `README.md`, `CONTRIBUTING.md`, `CLAUDE.md`, this file) name its pages by title, never by `W-` code, unless a public link goes with it; `test/slipdock/public_docs_w_ids_test.exs` holds them to that.
 - **Before you push, run `mix pre_push`** and fix what it finds: it runs what CI's static checks and build do, in CI's order (`CONTRIBUTING.md` §More about `mix pre_push`). It takes no test files: run the tests you added or changed yourself, with `mix test <files>`, beside it; the pull request's CI runs the whole suite (or, for a change to docs, skills, `*.md`, `cli/` or `daemon/` alone, the repo checks in its place) but no static checks, so `mix pre_push` is where a change meets them first.
 - Use the included `:req` (`Req`) library for HTTP requests; **avoid** `:httpoison`, `:tesla` and `:httpc`. Don't add a dependency the card doesn't ask for.
-- How the UI looks and behaves (design tokens, buttons, controls, dates, fonts) is in the handbook's UX & UI page (W-1946), and the source-convention tests in `test/repo_checks.txt` hold `lib/` to it.
+- How the UI looks and behaves (design tokens, buttons, controls, dates, fonts) is in the handbook's UX & UI page, and the source-convention tests in `test/repo_checks.txt` hold `lib/` to it.
 
 ### Phoenix v1.8 guidelines
 
