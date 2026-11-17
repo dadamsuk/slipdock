@@ -1,12 +1,32 @@
 # Working on Slipdock
 
+## If you can't open the maintainers' board
+
+Most contributors can't, and that is fine: the cards and the handbook pages
+the rules below name (W-1943, W-1950, `#123`) are on the maintainers' private
+board. Without access to it:
+
+- **Fork the repository and open a pull request** from a branch on your fork.
+- **Never push to `main`**, whatever a rule below says: pushing to `main`
+  deploys, and only a maintainer working a card on the board does it.
+- **Skip the card and handbook steps**: there is no card to comment on,
+  complete or name in the commit, and no handbook page to read or update.
+- **Say in the pull request instead** what changed and why, and which checks
+  you ran (`mix pre_push`, and the `mix test` files you ran) with their
+  result.
+
+Everything else holds for you too: the tests (rule 1), every place a feature
+shows up (rule 2), the skills in `priv/skills/` (rule 3), `mix pre_push`
+(rule 4) and nothing personal (rule 7). The setup is in `CONTRIBUTING.md`,
+and the checks in `CONTRIBUTING.md` §Before you open a pull request.
+
+## The rules
+
 These are the rules for working in this repository, for people and coding
 agents alike. How to set it up and run the checks is in `CONTRIBUTING.md`;
 Elixir and Phoenix conventions are in `AGENTS.md`. The project handbook
 (W-1943 on the maintainers' `slipdock` board, testing and shipping in W-1950)
 holds the detail behind each rule.
-
-## The rules
 
 1. **Tests come with the code, as much as its risk asks**, in the same
    commit, asserting what happens. Security, permissions, data loss and
@@ -42,12 +62,14 @@ holds the detail behind each rule.
    time out). It takes about 4 minutes. Its only options, `--prune` and
    `--from-git-ref <ref>`, and its workings are in `CONTRIBUTING.md`
    §More about `mix pre_push`.
-5. **Ship the way the card's board says.** Commit with the card's id in the
-   message (`#123`). By push (the default), push to `main`, which deploys. By
-   pull request, push the branch `card-<id>`, open a PR and give its URL when
-   completing the card; never push to `main`. The PR's CI is the full suite:
-   before pushing, run the tests you added or changed and `mix pre_push`, not
-   the whole suite.
+5. **Ship the way the card's board says.** Without access to the board, this
+   rule is not yours: open a pull request from your fork and never push to
+   `main` (see *If you can't open the maintainers' board*, above). With a
+   card: commit with the card's id in the message (`#123`). By push (the
+   default), push to `main`, which deploys. By pull request, push the branch
+   `card-<id>`, open a PR and give its URL when completing the card; never
+   push to `main`. The PR's CI is the full suite: before pushing, run the
+   tests you added or changed and `mix pre_push`, not the whole suite.
 6. **Write down what you learn in the handbook**, not in an agent's own
    memory, which nobody else can read. Read the sections a card needs before
    building, update them before closing it, and say so in a `Handbook:` line
