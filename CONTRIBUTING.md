@@ -6,8 +6,11 @@ reference, and this file explains how to work on it.
 
 ## Getting it running
 
-You need Elixir 1.17 or newer on Erlang/OTP 27 and a Postgres; the asset
-pipeline installs its own Tailwind and esbuild. `compose.dev.yaml` runs a
+You need Elixir 1.20 on Erlang/OTP 27 and a Postgres; the asset pipeline
+installs its own Tailwind and esbuild. `.tool-versions` pins the exact
+versions (with Go for the runner daemon and Node for the browser-script
+tests), so `asdf install` or `mise install` sets the lot up;
+`tool_versions_test.exs` keeps it, `mix.exs`, CI and this paragraph in step. `compose.dev.yaml` runs a
 Postgres for development and tests if you would rather not install one.
 
 ```sh
@@ -16,9 +19,14 @@ mix setup          # deps, database, seeds, Tailwind and esbuild
 mix phx.server     # then open the address it prints
 ```
 
-`mix setup` seeds two sample boards, so there is something to look at. In
-development the server binds to this machine's Tailscale address if it has one;
-`KANBAN_BIND_IP=127.0.0.1` keeps it on loopback and `PORT` moves the port.
+`mix setup` seeds two sample boards, so there is something to look at.
+
+**Where it listens.** In development the server binds to this machine's
+Tailscale address if it has one (`config/dev.exs`), else to loopback. On
+Tailscale that means every device on your tailnet can reach it, its
+development mailbox at `/dev/mailbox` (every sign-in link it has "sent") and
+its debug error pages included, without you asking for that.
+`SLIPDOCK_BIND_IP=127.0.0.1` keeps it on loopback; `PORT` moves the port.
 
 Sign-in is by emailed magic link, and in development no mail leaves the
 machine: the link is written to the log and the message is kept in the
@@ -51,7 +59,7 @@ request's CI (`.github/workflows/ci.yml`) runs no static checks (they run on
 `main` and the release), so this is where a change meets them first. It runs
 the whole suite, split four ways across runners, when the change touches the
 app; a change to docs, skills, `*.md`, `cli/` or `daemon/` alone runs the
-repo checks in its place, beside the cli or daemon job. The whole suite takes about two minutes locally.
+repo checks in its place, beside the cli or daemon job. The whole suite takes about a minute locally on 8 cores.
 
 The CLI (`cli/`) is a Mix project of its own with its own suite, whose tests
 `mix pre_push` does not run: `cd cli && mix test`. CI runs those in a
@@ -210,7 +218,7 @@ the suite took two minutes on 8 cores; with nothing shared it takes one.
 
 The project is AGPL-3.0 (see `LICENSE`). By opening a pull request you are
 offering your contribution under that licence, and if you run a modified copy
-as a service you owe its users your changes — so keep `KANBAN_SOURCE_URL`
+as a service you owe its users your changes — so keep `SLIPDOCK_SOURCE_URL`
 pointing at a repository they can actually reach.
 
 ## Reporting things

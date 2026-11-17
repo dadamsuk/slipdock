@@ -29,7 +29,7 @@ lets a non-admin, or an admin's ordinary read/write token, reach `/api/admin`.
 
 Out of scope, because they are deployment choices rather than bugs:
 
-- **Agentic Login** (`KANBAN_AGENTIC_LOGIN`). It writes a working sign-in link
+- **Agentic Login** (`SLIPDOCK_AGENTIC_LOGIN`). It writes a working sign-in link
   for *any* address to a file on the server, by design, so that an automated
   test can sign itself in. It is an authentication bypass for anyone who can
   reach the sign-in page or read that directory. It is off unless you set the
