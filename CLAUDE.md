@@ -3,8 +3,8 @@
 ## If you can't open the maintainers' board
 
 Most contributors can't, and that is fine: the cards and the handbook pages
-the rules below name (W-1943, W-1950, `#123`) are on the maintainers' private
-board. Without access to it:
+the rules below name (the handbook's pages, `#123`) are on the maintainers'
+private board. Without access to it:
 
 - **Fork the repository and open a pull request** from a branch on your fork.
 - **Never push to `main`**, whatever a rule below says: pushing to `main`
@@ -25,14 +25,16 @@ and the checks in `CONTRIBUTING.md` §Before you open a pull request.
 These are the rules for working in this repository, for people and coding
 agents alike. How to set it up and run the checks is in `CONTRIBUTING.md`;
 Elixir and Phoenix conventions are in `AGENTS.md`. The project handbook
-(W-1943 on the maintainers' `slipdock` board, testing and shipping in W-1950)
-holds the detail behind each rule.
+(the wiki on the maintainers' `slipdock` board: its index is `slipdock handbook
+slipdock`, testing and shipping are its Testing & tooling page) holds the
+detail behind each rule. It is private, so the public docs name its pages by
+title, never by code (`test/slipdock/public_docs_w_ids_test.exs`).
 
 1. **Tests come with the code, as much as its risk asks**, in the same
    commit, asserting what happens. Security, permissions, data loss and
    money: the error and edge cases too. Other features and fixes: the happy
    path and the errors a person would meet. UI notices, copy and flash
-   wording need no test of their own. W-1950 §Tests has the tiers. If
+   wording need no test of their own. Testing & tooling §Tests has the tiers. If
    something can't be tested, say why on the card. A refactor that changes
    no behaviour is covered by the tests already there. **The second time a
    kind of problem turns up, fix the kind**: one shared mechanism and a check

@@ -175,7 +175,7 @@ The code: `Slipdock.Inbound.Tokens` (addresses), `Slipdock.Inbound.Cards`,
 `Slipdock.Inbound.Pages` and `Slipdock.Inbound.QuickAdd` (what mail makes), `Slipdock.Inbound.Ack`,
 `Slipdock.Inbound.ReplyToken` and `Slipdock.Inbound.Replies` (replies),
 `Slipdock.Inbound.WaitReply` (answering a wait). The
-design and the Cloudflare runbook are W-1933 on the Slipdock board's wiki.
+design and the Cloudflare runbook are on the maintainers' wiki.
 
 ---
 

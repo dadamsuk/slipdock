@@ -1,6 +1,6 @@
 # Visual design review and proposal
 
-> This is the September review that led to the design system, not the system itself. The rules in force (type, radius, surfaces, fields, buttons, chips) are kept in the project handbook, W-1946 UX & UI §Design system, and defined once in `assets/css/app.css`. Fields were left out here; #1672 added them after the card back drifted to four sizes and three borders.
+> This is the September review that led to the design system, not the system itself. The rules in force (type, radius, surfaces, fields, buttons, chips) are kept in the maintainers' handbook (the UX & UI page, §Design system), and defined once in `assets/css/app.css`. Fields were left out here; #1672 added them after the card back drifted to four sizes and three borders.
 
 Date: 2026-09-26. Status: all four phases below were implemented the same day (uncommitted); the screenshots in `tmp/design-review/` show the state before the changes. Reviewed against commit `2e072a0` on the dev server, in light and dark themes, at 1440×900 desktop and 390×844 mobile. Screenshots live in `tmp/design-review/` (git-ignored); the proposed-direction mockup is `tmp/design-review/mockup.html`.
 
@@ -17,7 +17,7 @@ Everything below is in service of those four.
 
 ## Palette direction (added later the same day)
 
-> **Superseded (November 2026).** The pastel periwinkle palette below was replaced by the brand kit's: Slip teal primary on cool surfaces, Harbor ink text, Buoy orange kept for the moving card. The decision is the wiki page W-2307, the token values are in handbook W-1946 §Design system (Colour), and `docs/design/brand.md` has a summary. This section is kept as the history of how the app got here.
+> **Superseded (November 2026).** The pastel periwinkle palette below was replaced by the brand kit's: Slip teal primary on cool surfaces, Harbor ink text, Buoy orange kept for the moving card. The decision is a page on the maintainers' wiki, the token values are in the handbook's UX & UI page (§Design system, Colour), and `docs/design/brand.md` has a summary. This section is kept as the history of how the app got here.
 
 The first pass kept a saturated indigo accent and the vivid 500-level Tailwind hues for tags, covers and priorities. On review the whole scheme felt too loud, so it moved to pastels:
 

@@ -31,7 +31,7 @@ notification](emailing-your-board.md#replying-to-a-notification)); rotating the
 secret retires those addresses once the previous one is dropped. Each person's last 50 inbound messages, and what came of
 each (what it made, or why it bounced or was ignored), are on the account's
 *Email Log* tab, at `GET /api/inbound/log` and with `slipdock inbound log`. The design
-and the deploy runbook are on the Slipdock board's wiki (W-1933).
+and the deploy runbook are on the maintainers' wiki.
 
 ---
 

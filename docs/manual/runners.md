@@ -291,8 +291,8 @@ taking jobs with its token, but can't update itself or be installed again:
 the panel's **Move to a machine** on it gives the steps (set the daemon up,
 add a runner with the same pool, agent and directory, probe it, stop the old
 service, revoke the old runner), and **Make a new token** still replaces a
-lost one. The runbook is W-1951, *Moving a machine's runners onto the
-daemon*.
+lost one. The runbook is *Moving a machine's runners onto the
+daemon*, in the maintainers' handbook (Operations).
 
 **The Slipdock tools.** A job runs Claude with `-p`, where nobody can approve
 a tool, so a machine names the tools a Claude job may use without asking in

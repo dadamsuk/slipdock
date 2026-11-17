@@ -44,7 +44,7 @@ defmodule SlipdockWeb.GardenConfirmDocsTest do
     assert_states(
       agents,
       "a proposal is decided on the board's Tidy-up page (`/boards/<id>/tidy`), " <>
-        "signed in, and nowhere else (W-1945 §Permissions, #2668)"
+        "signed in, and nowhere else (#2668)"
     )
 
     assert_states(agents, "Point the person at the page.")

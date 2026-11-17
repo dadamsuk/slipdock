@@ -16,8 +16,8 @@ releases that it updates itself from, running its runners' jobs, and the
 Machines page where its runners are set, taking changes made there while
 it runs. It replaced the shell and PowerShell runners, which this server no
 longer serves (#2582, [Runners](runners.md)): a machine still running one
-moves over as W-1951's runbook *Moving a machine's runners onto the daemon*
-says.
+moves over as the runbook *Moving a machine's runners onto the daemon* (in the
+maintainers' handbook) says.
 
 A board's **Automations → Connect a runner** offers *A machine with the
 daemon* first: its steps make a one-time enrolment key for the board and

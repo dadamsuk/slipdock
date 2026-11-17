@@ -370,7 +370,7 @@ too. `list_tools` and `slipdock tools` give each Tool's `kind`: `mine`,
 
 Skills are published outside Slipdock too, usually as a GitHub repository of
 `SKILL.md` files. The **Skills** page (`/skills`, under Set up in the menu)
-keeps the ones a person points the server at (#2059, spec W-2513).
+keeps the ones a person points the server at (#2059).
 
 - **Add a source** by its URL: a GitHub repository
   (`https://github.com/owner/repo`), a folder in one (`…/tree/main/skills`),
