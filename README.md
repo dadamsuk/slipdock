@@ -282,7 +282,8 @@ The manual has the rest:
 
 ### From a checkout
 
-You need Elixir 1.19 or newer on Erlang/OTP 27, and a Postgres.
+You need Elixir 1.20 on Erlang/OTP 27, and a Postgres (`.tool-versions`
+pins the exact versions for asdf or mise).
 
 ```sh
 git clone https://github.com/dadamsuk/slipdock.git

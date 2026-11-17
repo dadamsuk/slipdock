@@ -164,6 +164,10 @@ test/slipdock/ci_runner_test.exs
 test/slipdock/ci_workflow_test.exs
 test/slipdock/daemon_release_workflow_test.exs
 
+# One toolchain: mix.exs, CI, the Dockerfile, .tool-versions and the docs agree
+# on it, and no doc names a KANBAN_* variable (#3344)
+test/slipdock/tool_versions_test.exs
+
 # The e2e scripts CI can't run, against what they drive
 test/slipdock/daemon_job_log_e2e_test.exs
 
