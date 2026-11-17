@@ -97,7 +97,7 @@ Slipdock.Runners.MachineRunners.remove_runner/1
 Slipdock.Runners.MachineRunners.report/3
 Slipdock.Runners.MachineRunners.request_update/1
 Slipdock.Runners.MachineRunners.resume_runner/1
-Slipdock.Runners.MachineRunners.set_boards/4
+Slipdock.Runners.MachineRunners.set_boards/3
 Slipdock.Runners.MachineRunners.set_runner/2
 Slipdock.Runners.Probe.claim/1
 Slipdock.Runners.Probe.send_probe/2

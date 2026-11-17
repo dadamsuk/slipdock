@@ -186,6 +186,99 @@ defmodule Slipdock.MachineBoardsTest do
     end
   end
 
+  describe "two changes from the same stale copy (#3347)" do
+    setup ctx do
+      {:ok, machine} = Machines.change_boards(ctx.machine, ctx.user, add: [ctx.second.id])
+      third = board_fixture(%{"name" => "Third", "code" => unique_code()}, owner: ctx.user)
+      %{stale: machine, third: third}
+    end
+
+    test "one adds a board, the other removes one: both survive", ctx do
+      assert {:ok, _} = Machines.change_boards(ctx.stale, ctx.user, add: [ctx.third.id])
+
+      assert {:ok, machine} =
+               Machines.change_boards(ctx.stale, ctx.user, remove: [ctx.second.id])
+
+      assert machine.board_ids == [ctx.first.id, ctx.third.id]
+      assert fresh(ctx.machine).board_ids == [ctx.first.id, ctx.third.id]
+
+      assert [%{outcome: "board_removed"}, %{outcome: "board_added"}, %{outcome: "board_added"}] =
+               MachineRunners.reports(machine)
+    end
+
+    test "both add a board: both survive", ctx do
+      fourth = board_fixture(%{"name" => "Fourth", "code" => unique_code()}, owner: ctx.user)
+
+      assert {:ok, _} = Machines.change_boards(ctx.stale, ctx.user, add: [ctx.third.id])
+      assert {:ok, machine} = Machines.change_boards(ctx.stale, ctx.user, add: [fourth.id])
+
+      assert machine.board_ids == [ctx.first.id, ctx.second.id, ctx.third.id, fourth.id]
+    end
+
+    test "a board the stale copy doesn't show yet can be removed", ctx do
+      {:ok, _} = Machines.change_boards(ctx.stale, ctx.user, add: [ctx.third.id])
+
+      assert {:ok, machine} = Machines.change_boards(ctx.stale, ctx.user, remove: [ctx.third.id])
+      assert machine.board_ids == [ctx.first.id, ctx.second.id]
+    end
+
+    test "removing what the other already removed is refused, changing nothing", ctx do
+      {:ok, _} = Machines.change_boards(ctx.stale, ctx.user, remove: [ctx.second.id])
+      version = fresh(ctx.machine).config_version
+
+      assert {:error, :invalid, "the machine doesn't serve " <> _} =
+               Machines.change_boards(ctx.stale, ctx.user, remove: [ctx.second.id])
+
+      machine = fresh(ctx.machine)
+      assert machine.board_ids == [ctx.first.id]
+      assert machine.config_version == version
+    end
+
+    test "the last board is refused against the machine as it is now", ctx do
+      {:ok, _} = Machines.change_boards(ctx.stale, ctx.user, remove: [ctx.second.id])
+
+      assert {:error, :invalid, "a machine serves at least one board" <> _} =
+               Machines.change_boards(ctx.stale, ctx.user, remove: [ctx.first.id])
+
+      assert fresh(ctx.machine).board_ids == [ctx.first.id]
+    end
+
+    test "a runner added since the copy was read still stops its board going", ctx do
+      builder = runner(fresh(ctx.machine), ctx.second, "builder")
+
+      assert {:error, :invalid, message} =
+               Machines.change_boards(ctx.stale, ctx.user, remove: [ctx.second.id])
+
+      assert message =~ "builder (##{builder.id})"
+      assert fresh(ctx.machine).board_ids == [ctx.first.id, ctx.second.id]
+    end
+
+    test "the write that sets the boards makes the runner check itself", ctx do
+      runner(ctx.stale, ctx.second, "builder")
+      version = fresh(ctx.machine).config_version
+
+      assert {:error, :invalid, "board " <> _} =
+               MachineRunners.set_boards(ctx.stale, [], [ctx.second.id])
+
+      machine = fresh(ctx.machine)
+      assert machine.board_ids == [ctx.first.id, ctx.second.id]
+      assert machine.config_version == version
+    end
+
+    test "a runner can't be added from a stale copy to a board since removed", ctx do
+      {:ok, _} = Machines.change_boards(ctx.stale, ctx.user, remove: [ctx.second.id])
+
+      assert {:error, :invalid, "the machine doesn't serve that board" <> _} =
+               MachineRunners.add_runner(ctx.stale, ctx.second, %{
+                 "pool" => "build",
+                 "name" => "late",
+                 "config" => %{"directory" => "/srv/src/app"}
+               })
+
+      assert MachineRunners.list_runners(ctx.machine) == []
+    end
+  end
+
   describe "refused outright" do
     test "a revoked machine, nothing named, and a board both added and removed", ctx do
       assert {:error, :invalid, "name a board to add or to remove"} =
