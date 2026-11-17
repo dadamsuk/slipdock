@@ -124,6 +124,11 @@ defmodule Slipdock.Machines do
   is refused there until someone at the machine adds it to `ceiling.json`
   (`ceiling_mismatch/1`). Asking for what is already so changes nothing.
   Returns `{:ok, machine}`.
+
+  The change applies to the machine as it is when written, not to the
+  `machine` given (#3347): two changes made from the same stale copy (two
+  tabs, a tab and the CLI) both survive, and the runner check is made in
+  the same transaction as the write (`MachineRunners.set_boards/3`).
   """
   def change_boards(%Machine{} = machine, %User{} = user, opts) do
     add = opts |> Keyword.get(:add) |> refs()
@@ -132,16 +137,9 @@ defmodule Slipdock.Machines do
     with :ok <- live(machine),
          :ok <- something(add, remove),
          {:ok, add_ids} <- adding(user, add),
-         {:ok, remove_ids} <- removing(machine, remove),
-         :ok <- not_both(add_ids, remove_ids),
-         added = add_ids -- machine.board_ids,
-         removed = Enum.filter(remove_ids, &Enum.member?(machine.board_ids, &1)),
-         :ok <- no_runners_on(machine, removed),
-         ids = (machine.board_ids -- removed) ++ added,
-         :ok <- not_empty(ids) do
-      if added == [] and removed == [],
-        do: {:ok, machine},
-        else: Slipdock.Runners.MachineRunners.set_boards(machine, ids, added, removed)
+         {:ok, remove_ids} <- removing(Repo.get!(Machine, machine.id), remove),
+         :ok <- not_both(add_ids, remove_ids) do
+      Slipdock.Runners.MachineRunners.set_boards(machine, add_ids, remove_ids)
     end
   end
 
@@ -187,39 +185,6 @@ defmodule Slipdock.Machines do
         {:error, :invalid, "board #{Enum.join(both, ", ")} is both added and removed: choose one"}
     end
   end
-
-  defp no_runners_on(_machine, []), do: :ok
-
-  defp no_runners_on(machine, removed) do
-    case Enum.filter(
-           Slipdock.Runners.MachineRunners.list_runners(machine),
-           &Enum.member?(removed, &1.board_id)
-         ) do
-      [] ->
-        :ok
-
-      runners ->
-        names = Enum.map_join(runners, ", ", &"#{&1.name} (##{&1.id})")
-
-        {:error, :invalid,
-         "#{board_label(runners)} still has runners on this machine: #{names}. " <>
-           "Remove them first (each finishes the job it holds), then the board"}
-    end
-  end
-
-  defp board_label(runners) do
-    case runners |> Enum.map(& &1.board_id) |> Enum.uniq() do
-      [id] -> "board ##{id}"
-      ids -> "boards " <> Enum.map_join(ids, ", ", &"##{&1}")
-    end
-  end
-
-  defp not_empty([]),
-    do:
-      {:error, :invalid,
-       "a machine serves at least one board: to stop it serving any, revoke it instead"}
-
-  defp not_empty(_), do: :ok
 
   @doc """
   Where the boards the server lets `machine` serve and the boards its own

@@ -115,7 +115,14 @@ defmodule Slipdock.Runners.MachineRunners do
         "pool" => pool,
         "name" => attrs["name"] || attrs[:name] || default_name(machine, pool)
       })
-      |> save(machine, &Repo.insert/1)
+      |> save(machine, fn changeset ->
+        # Checked again on the locked row, so a runner can't land on a
+        # board a concurrent change is removing (#3347).
+        case serves(locked(machine), root_id) do
+          :ok -> Repo.insert(changeset)
+          {:error, :invalid, message} -> Repo.rollback({:invalid, message})
+        end
+      end)
     end
   end
 
@@ -241,38 +248,96 @@ defmodule Slipdock.Runners.MachineRunners do
   end
 
   @doc """
-  Sets the boards `machine` serves to `ids` (#3249), with `added` and
-  `removed` the boards that changed: `Slipdock.Machines.change_boards/3`
-  checks them first and is the door to use. In one transaction it saves
-  them, bumps the machine's config version (so the daemon's long-poll
-  wakes and its config carries the new boards) and logs a line per board
-  in the machine's changes. Returns `{:ok, machine}`.
+  Adds `added` to and removes `removed` from the boards `machine` serves
+  (#3249): `Slipdock.Machines.change_boards/3` resolves and checks the
+  refs first and is the door to use. In one transaction it locks the
+  machine's row and re-reads its boards (#3347), so a change applies to
+  the machine as it is now rather than to a stale copy, and two quick
+  changes from two tabs both survive; refuses removing a board that still
+  has runners on this machine, or the last board; saves the boards, bumps
+  the machine's config version (so the daemon's long-poll wakes and its
+  config carries the new boards) and logs a line per board in the
+  machine's changes. Asking for what is already so changes nothing.
+  Returns `{:ok, machine}` or `{:error, :invalid, message}`.
   """
-  def set_boards(%Machine{} = machine, ids, added, removed) do
-    names =
-      Map.new(Repo.all(from(b in Board, where: b.id in ^(added ++ removed))), &{&1.id, &1.name})
-
+  def set_boards(%Machine{} = machine, added, removed) do
     Repo.transaction(fn ->
-      {1, [version]} =
-        Repo.update_all(
-          from(m in Machine, where: m.id == ^machine.id, select: m.config_version),
-          inc: [config_version: 1],
-          set: [board_ids: ids, updated_at: DateTime.utc_now(:second)]
-        )
+      current = locked(machine)
 
-      for {outcome, list} <- [{"board_added", added}, {"board_removed", removed}], id <- list do
-        Repo.insert!(%ConfigReport{
-          machine_id: machine.id,
-          version: version,
-          outcome: outcome,
-          reason: "#{Map.get(names, id, "board")} (##{id})"
-        })
+      with :ok <- live(current),
+           added = Enum.uniq(added) -- current.board_ids,
+           removed = removed |> Enum.uniq() |> Enum.filter(&(&1 in current.board_ids)),
+           :ok <- no_runners_on(current, removed),
+           ids = (current.board_ids -- removed) ++ added,
+           :ok <- not_empty(ids) do
+        if added == [] and removed == [],
+          do: current,
+          else: write_boards(current, ids, added, removed)
+      else
+        {:error, :invalid, message} -> Repo.rollback({:invalid, message})
       end
-
-      Repo.get!(Machine, machine.id)
     end)
     |> after_change(machine)
   end
+
+  defp write_boards(machine, ids, added, removed) do
+    names =
+      Map.new(Repo.all(from(b in Board, where: b.id in ^(added ++ removed))), &{&1.id, &1.name})
+
+    {1, [version]} =
+      Repo.update_all(
+        from(m in Machine, where: m.id == ^machine.id, select: m.config_version),
+        inc: [config_version: 1],
+        set: [board_ids: ids, updated_at: DateTime.utc_now(:second)]
+      )
+
+    for {outcome, list} <- [{"board_added", added}, {"board_removed", removed}], id <- list do
+      Repo.insert!(%ConfigReport{
+        machine_id: machine.id,
+        version: version,
+        outcome: outcome,
+        reason: "#{Map.get(names, id, "board")} (##{id})"
+      })
+    end
+
+    Repo.get!(Machine, machine.id)
+  end
+
+  # The machine's row as it is now, locked until the transaction ends:
+  # board changes and runners added take it, so neither works from a stale
+  # list of boards (#3347).
+  defp locked(%Machine{id: id}),
+    do: Repo.one!(from(m in Machine, where: m.id == ^id, lock: "FOR UPDATE"))
+
+  defp no_runners_on(_machine, []), do: :ok
+
+  defp no_runners_on(machine, removed) do
+    case Enum.filter(list_runners(machine), &(&1.board_id in removed)) do
+      [] ->
+        :ok
+
+      runners ->
+        names = Enum.map_join(runners, ", ", &"#{&1.name} (##{&1.id})")
+
+        {:error, :invalid,
+         "#{board_label(runners)} still has runners on this machine: #{names}. " <>
+           "Remove them first (each finishes the job it holds), then the board"}
+    end
+  end
+
+  defp board_label(runners) do
+    case runners |> Enum.map(& &1.board_id) |> Enum.uniq() do
+      [id] -> "board ##{id}"
+      ids -> "boards " <> Enum.map_join(ids, ", ", &"##{&1}")
+    end
+  end
+
+  defp not_empty([]),
+    do:
+      {:error, :invalid,
+       "a machine serves at least one board: to stop it serving any, revoke it instead"}
+
+  defp not_empty(_), do: :ok
 
   defp live(%Machine{revoked_at: nil}), do: :ok
   defp live(%Machine{}), do: {:error, :invalid, "the machine is revoked"}
