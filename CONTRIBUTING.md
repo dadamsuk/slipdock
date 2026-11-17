@@ -4,6 +4,11 @@ Thanks for looking. This is a self-hosted kanban and wiki built in Phoenix
 LiveView; the README explains what it does, `docs/manual.md` is the full
 reference, and this file explains how to work on it.
 
+New to the code? [ARCHITECTURE.md](ARCHITECTURE.md) maps it: the main
+contexts and biggest modules, how the web app, REST API, CLI, MCP tools and
+runner daemon fit together, the Policy/Actor authorisation model, and a
+glossary of the in-house words.
+
 ## Getting it running
 
 You need Elixir 1.17 or newer on Erlang/OTP 27 and a Postgres; the asset
