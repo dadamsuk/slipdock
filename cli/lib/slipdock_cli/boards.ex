@@ -192,7 +192,7 @@ defmodule SlipdockCLI.Boards do
     do: HTTP.get("/boards/#{enc(ref)}/tags") |> out(o, &Render.tags(&1["tags"]))
 
   def run("activity", [ref], o) do
-    HTTP.get("/boards/#{enc(ref)}/activity", limit: o[:limit], card: o[:card])
+    SlipdockCLI.Op.run("activity", [ref], Keyword.delete(o, :view))
     |> out(o, &Render.activity(&1["activity"]))
   end
 

@@ -91,7 +91,7 @@ defmodule SlipdockWeb.MCP.ActivityLedgerTest do
              "since is a date"
 
     assert ctx.conn |> call(%{board: ctx.board.code, view: "chart"}) |> error!() =~
-             "view is log or ledger"
+             "view must be log or ledger"
 
     assert ctx.conn |> call(%{view: "ledger"}) |> error!() =~ "board is required"
 

@@ -429,5 +429,67 @@
         }
       }
     }
+  },
+  {
+    "name": "activity",
+    "summary": "A board's activity log, newest first; card = only that card's. view=ledger: what shipped since (days, a date or a time; 07:00 yesterday by default), with who accepted it and its evidence.",
+    "verb": "GET",
+    "path": "/api/boards/:board/activity",
+    "writes": false,
+    "params": [
+      {
+        "name": "board",
+        "type": "string",
+        "required": true,
+        "in_path": "board"
+      },
+      {
+        "name": "card",
+        "type": "integer",
+        "required": false
+      },
+      {
+        "name": "limit",
+        "type": "integer",
+        "required": false,
+        "default": 30
+      },
+      {
+        "name": "view",
+        "type": {
+          "enum": [
+            "log",
+            "ledger"
+          ]
+        },
+        "required": false,
+        "default": "log"
+      },
+      {
+        "name": "since",
+        "type": "string",
+        "required": false
+      }
+    ],
+    "cli": {
+      "command": "activity",
+      "positional": [
+        "board"
+      ],
+      "flags": {
+        "card": {
+          "param": "card"
+        },
+        "limit": {
+          "param": "limit"
+        },
+        "since": {
+          "param": "since"
+        },
+        "view": {
+          "param": "view"
+        }
+      }
+    }
   }
 ]

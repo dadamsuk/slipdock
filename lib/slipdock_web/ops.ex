@@ -18,7 +18,8 @@ defmodule SlipdockWeb.Ops do
     Ops.QuickNote,
     Ops.PageTool,
     Ops.KeepJobLog,
-    Ops.InstallTool
+    Ops.InstallTool,
+    Ops.Activity
   ]
 
   def all, do: @ops
@@ -51,6 +52,15 @@ defmodule SlipdockWeb.Ops do
   defp cast_one(%{required: true, name: name}, nil), do: {:error, "#{name} is required"}
   defp cast_one(_param, nil), do: {:ok, nil}
   defp cast_one(%{type: :any}, v), do: {:ok, v}
+  # A count with a ceiling (`limit`): 1 or more, and more than `max` is `max`.
+  defp cast_one(%{type: :integer, name: n, max: max}, v) do
+    case integer(n, v) do
+      {:ok, i} when i >= 1 -> {:ok, min(i, max)}
+      {:ok, _} -> {:error, "#{n} must be a positive whole number"}
+      error -> error
+    end
+  end
+
   defp cast_one(%{type: :integer, name: n}, v), do: integer(n, v)
   defp cast_one(%{type: :boolean}, v) when is_boolean(v), do: {:ok, v}
   defp cast_one(%{type: :boolean}, v) when v in ["true", "false"], do: {:ok, v == "true"}

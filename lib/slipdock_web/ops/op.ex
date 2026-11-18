@@ -15,7 +15,8 @@ defmodule SlipdockWeb.Ops.Op do
       `:integer`, `:string`, `:boolean`, `{:enum, [..]}`, `:position`
       (`top`, `bottom` or a 0-based place), or `:any` (passed to `run/2` as
       sent, for a value the operation reads itself; `schema` then gives the
-      MCP schema for it)
+      MCP schema for it). An `:integer` with `max` is a count with a ceiling
+      (`limit`): it must be 1 or more, and more than `max` is taken as `max`
     * `cli` — `%{command, positional, flags}`: how argv maps onto `params`;
       left out when the CLI has no command for it
 

@@ -10,23 +10,10 @@ defmodule SlipdockWeb.API.LedgerController do
   """
   use SlipdockWeb, :controller
 
-  alias Slipdock.Ledger
-  alias SlipdockWeb.API.Authorize
-  alias SlipdockWeb.API.LedgerJSON
-
   action_fallback SlipdockWeb.API.FallbackController
 
-  def index(conn, %{"board" => ref} = params) do
-    with {:ok, board} <- Authorize.fetch_board(conn, ref, :read),
-         {:ok, ledger} <- read(board, params["since"]) do
-      json(conn, LedgerJSON.ledger(board, ledger))
-    end
-  end
-
-  defp read(board, since) do
-    case Ledger.since(board, since: since) do
-      {:ok, _} = ok -> ok
-      {:error, message} -> {:error, :unprocessable_entity, message}
-    end
-  end
+  @doc "`SlipdockWeb.Ops.Activity` with `view` settled `ledger` (#3188)."
+  def index(conn, params),
+    do:
+      SlipdockWeb.Ops.REST.run(conn, SlipdockWeb.Ops.Activity, Map.put(params, "view", "ledger"))
 end

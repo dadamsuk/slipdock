@@ -72,7 +72,8 @@ defmodule SlipdockCLI.LedgerTest do
     out = capture_io(fn -> Ledger.run("ledger", ["slipdock"], []) end)
 
     assert_received {:request, "GET", path, _}
-    assert path =~ "/api/boards/slipdock/ledger"
+    # The activity operation's ledger view (#3188).
+    assert path =~ "/api/boards/slipdock/activity?view=ledger"
     refute path =~ "since="
 
     assert out =~ "2 shipped since 2026-11-06T07:00:00Z (Europe/London)"

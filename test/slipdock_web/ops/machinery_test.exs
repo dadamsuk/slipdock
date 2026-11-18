@@ -27,7 +27,8 @@ defmodule SlipdockWeb.Ops.MachineryTest do
         params: [
           %{name: "thing", type: :integer, required: true, in_path: "id"},
           %{name: "kind", type: {:enum, ~w(a b c)}},
-          %{name: "parts", type: :any, schema: %{type: "array", items: %{type: "string"}}}
+          %{name: "parts", type: :any, schema: %{type: "array", items: %{type: "string"}}},
+          %{name: "limit", type: :integer, default: 10, max: 50}
         ],
         confirm: %{type: :string, doc: "The thing's name, again."}
       }
@@ -65,6 +66,18 @@ defmodule SlipdockWeb.Ops.MachineryTest do
              type: "array",
              items: %{type: "string"}
            }
+  end
+
+  test "an :integer with max is 1 or more, and more than max is max (#3188)" do
+    cast = &Ops.cast(Thing, %{"thing" => 1, "limit" => &1})
+    assert {:ok, %{"limit" => 10}} = Ops.cast(Thing, %{"thing" => 1})
+    assert {:ok, %{"limit" => 7}} = cast.("7")
+    assert {:ok, %{"limit" => 50}} = cast.(500)
+
+    for bad <- [0, -3, "0"],
+        do: assert(cast.(bad) == {:error, :bad_request, "limit must be a positive whole number"})
+
+    assert cast.("lots") == {:error, :bad_request, "limit must be a number"}
   end
 
   test "a bad enum names every value, the last after `or`" do

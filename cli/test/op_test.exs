@@ -80,6 +80,14 @@ defmodule SlipdockCLI.OpTest do
              {:post, "/tools/triage/install", %{"name" => "Mine"}}
   end
 
+  test "activity is a GET: its params go in the query; ledger is its ledger view" do
+    assert Op.request("activity", ["errands"], limit: 5, card: "12") ==
+             {:get, "/boards/errands/activity", %{"limit" => 5, "card" => "12"}}
+
+    assert Op.request("activity", ["errands"], view: "ledger", since: "7") ==
+             {:get, "/boards/errands/activity", %{"view" => "ledger", "since" => "7"}}
+  end
+
   test "an operation the CLI has no command for (delete_board) is left out" do
     refute Map.has_key?(Op.ops(), nil)
     refute Enum.any?(Op.ops(), fn {_, op} -> op["name"] == "delete_board" end)

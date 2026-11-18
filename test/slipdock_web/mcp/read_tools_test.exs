@@ -537,7 +537,7 @@ defmodule SlipdockWeb.MCP.ReadToolsTest do
                "positive whole number"
 
       assert ctx.conn |> call("activity", %{board: "delivery7", card: "top"}) |> error!() =~
-               "card number"
+               "card must be a number"
     end
   end
 

@@ -59,6 +59,7 @@ GET    /api/boards/:board/columns          POST   /api/boards/:board/columns
 PATCH  /api/boards/:board/columns/:id      DELETE /api/boards/:board/columns/:id
 GET    /api/boards/:board/tags             POST   /api/boards/:board/tags
 DELETE /api/boards/:board/tags/:id         GET    /api/boards/:board/activity?limit=&card=
+       GET .../activity answers {board, activity}; limit 1 to 200 (default 30); ?view=ledger is GET .../ledger
        POST .../tags answers {tag, created}: a tag of that name already there, in any case, comes back (200), not a second
 GET    /api/boards/:board/swimlanes         ?view= &rows= &cols= &unit= &sort= &dir= &q= &due= &done= &empty=
                                             &tags= &priorities= &flags= &columns= &colors=   (lists are comma-joined)
