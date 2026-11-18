@@ -20,7 +20,7 @@ defmodule Slipdock.OriginDocsTest do
           {"lib/slipdock_web/api_guide.ex", "**Where a card came from** (#2778)"},
           {"lib/slipdock_web/live/help_live/agents.ex",
            "<strong>Where a card came from.</strong>"},
-          {"lib/slipdock_web/live/help_live/guides.ex", "due date and origin"},
+          {"lib/slipdock_web/live/help_live/guides.ex", "due date, origin"},
           {"cli/help.txt", "--origin sweep|findings"},
           {"priv/skills/slipdock/SKILL.md", "--origin sweep|findings names the generator"}
         ] do
