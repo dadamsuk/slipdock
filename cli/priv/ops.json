@@ -166,5 +166,66 @@
         }
       }
     }
+  },
+  {
+    "name": "verify_card",
+    "summary": "Accepts or rejects a card waiting for verification, after checking it at the evidence's commit. accept completes it; reject needs the reason and a failing check. checks: the verdict in parts. Not on a card you submitted.",
+    "verb": "POST",
+    "path": "/api/cards/:id/verify",
+    "writes": true,
+    "params": [
+      {
+        "name": "card",
+        "type": "integer",
+        "required": true,
+        "in_path": "id"
+      },
+      {
+        "name": "decision",
+        "type": {
+          "enum": [
+            "accept",
+            "reject",
+            "merged",
+            "agree",
+            "disagree"
+          ]
+        },
+        "required": true
+      },
+      {
+        "name": "reason",
+        "type": "string",
+        "required": false
+      },
+      {
+        "name": "commit",
+        "type": "string",
+        "required": false
+      },
+      {
+        "name": "checks",
+        "type": "any",
+        "required": false
+      }
+    ],
+    "cli": {
+      "command": "verify",
+      "positional": [
+        "card",
+        "decision"
+      ],
+      "flags": {
+        "check": {
+          "param": "checks"
+        },
+        "evidence_commit": {
+          "param": "commit"
+        },
+        "reason": {
+          "param": "reason"
+        }
+      }
+    }
   }
 ]

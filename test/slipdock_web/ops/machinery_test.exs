@@ -51,7 +51,7 @@ defmodule SlipdockWeb.Ops.MachineryTest do
     schema = Ops.input_schema(Thing)
     assert schema.required == ["thing", "confirm"]
 
-    assert schema.properties["confirm"] == %{
+    assert schema.properties.confirm == %{
              type: "string",
              description: "The thing's name, again."
            }
@@ -61,7 +61,7 @@ defmodule SlipdockWeb.Ops.MachineryTest do
     assert {:ok, %{"parts" => %{"a" => 1}}} =
              Ops.cast(Thing, %{"thing" => 1, "parts" => %{"a" => 1}})
 
-    assert Ops.input_schema(Thing).properties["parts"] == %{
+    assert Ops.input_schema(Thing).properties.parts == %{
              type: "array",
              items: %{type: "string"}
            }

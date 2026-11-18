@@ -610,16 +610,7 @@ defmodule SlipdockCLI.Boards do
     if decision == "disagree" and Enum.member?([nil, ""], o[:reason]),
       do: fail("an audit's disagreement needs its reason: --reason TEXT")
 
-    body =
-      %{
-        "decision" => decision,
-        "reason" => o[:reason],
-        "commit" => o[:evidence_commit],
-        "checks" => verify_checks(o)
-      }
-      |> compact()
-
-    HTTP.post("/cards/#{enc(id)}/verify", body)
+    SlipdockCLI.Op.run("verify", [id, decision], Keyword.put(o, :check, verify_checks(o)))
     |> out(o, &card_ok(verified_word(decision), &1))
   end
 

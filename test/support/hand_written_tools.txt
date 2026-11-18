@@ -9,7 +9,6 @@
 create_tag
 delete_board
 list_cards
-verify_card
 
 # One operation each: Ops 4 (#3188) makes these from definitions
 activity

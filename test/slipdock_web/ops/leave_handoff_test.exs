@@ -24,7 +24,7 @@ defmodule SlipdockWeb.Ops.LeaveHandoffTest do
     assert tool.__op__() == SlipdockWeb.Ops.LeaveHandoff
 
     assert tool.input_schema().properties |> Map.keys() |> Enum.sort() ==
-             ~w(body card clear delete next_step)
+             ~w(body card clear delete next_step)a
   end
 
   test "REST (201) and MCP write a handoff alike, each recording its own way in", ctx do

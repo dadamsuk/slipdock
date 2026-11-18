@@ -41,6 +41,21 @@ defmodule SlipdockCLI.OpTest do
     assert Op.request("delete", ["57"], []) == {:delete, "/cards/57", %{}}
   end
 
+  test "verify is verify_card's request: --evidence-commit is commit, --check checks" do
+    assert Op.request("verify", ~w(12 reject),
+             reason: "No test",
+             evidence_commit: "abc123",
+             check: ["bar:1=fail"]
+           ) ==
+             {:post, "/cards/12/verify",
+              %{
+                "decision" => "reject",
+                "reason" => "No test",
+                "commit" => "abc123",
+                "checks" => ["bar:1=fail"]
+              }}
+  end
+
   describe "slipdock move, end to end against a fake server" do
     setup do
       home = Path.join(System.tmp_dir!(), "slipdock-op-#{System.unique_integer([:positive])}")

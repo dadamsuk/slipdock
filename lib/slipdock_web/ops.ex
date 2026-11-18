@@ -7,7 +7,7 @@ defmodule SlipdockWeb.Ops do
 
   alias SlipdockWeb.Ops
 
-  @ops [Ops.MoveCard, Ops.ArchiveCard, Ops.DeleteCard, Ops.LeaveHandoff]
+  @ops [Ops.MoveCard, Ops.ArchiveCard, Ops.DeleteCard, Ops.LeaveHandoff, Ops.VerifyCard]
 
   def all, do: @ops
 
@@ -98,7 +98,9 @@ defmodule SlipdockWeb.Ops do
 
     %{
       type: "object",
-      properties: Map.new(params, &{&1.name, json_schema(&1)}),
+      # Atom keys, as every hand-written tool's schema has them (the names
+      # are the definitions', never a caller's).
+      properties: Map.new(params, &{String.to_atom(&1.name), json_schema(&1)}),
       required: for(%{required: true, name: n} <- params, do: n) ++ confirm,
       additionalProperties: false
     }

@@ -20,7 +20,7 @@ defmodule SlipdockWeb.Ops.DeleteCardTest do
     tool = SlipdockWeb.MCP.Tools.DeleteCard
     assert tool.__op__() == SlipdockWeb.Ops.DeleteCard
     assert tool.input_schema().required == ["card", "confirm"]
-    assert tool.input_schema().properties["confirm"].type == "boolean"
+    assert tool.input_schema().properties.confirm.type == "boolean"
     assert tool.destructive?()
     refute tool.read_only?()
   end

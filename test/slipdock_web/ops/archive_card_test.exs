@@ -22,7 +22,7 @@ defmodule SlipdockWeb.Ops.ArchiveCardTest do
     tool = SlipdockWeb.MCP.Tools.ArchiveCard
     assert tool.__op__() == SlipdockWeb.Ops.ArchiveCard
     assert tool.input_schema().required == ["card"]
-    assert Map.keys(tool.input_schema().properties) == ["card", "restore"]
+    assert Map.keys(tool.input_schema().properties) == [:card, :restore]
   end
 
   test "REST and MCP archive alike and answer the same {card}", ctx do
