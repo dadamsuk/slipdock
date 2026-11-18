@@ -29,11 +29,14 @@ e2e_start() {
   ids=$(mix run -e '
     alias Slipdock.{Accounts, Boards, Wiki}
     {:ok, user} = Accounts.get_or_create_user_by_email("e2e@example.com")
+    # The seed writes as the server: no person, token or rule is behind it.
+    Slipdock.Policy.as_system("an e2e seed", fn ->
     {:ok, kb} = Boards.create_board(%{"name" => "Keystone", "code" => "kbe2e"}, owner_id: user.id)
     {:ok, hunt} = Boards.create_board(%{"name" => "Journal Desk", "code" => "hunte2e"}, owner_id: user.id)
     {:ok, specs} = Wiki.create_folder(kb, %{"name" => "Specs"})
     {:ok, page} = Wiki.create_page(kb, %{"title" => "Acme call", "body" => "Went well.", "folder_id" => specs.id}, user: user)
     IO.puts("IDS #{kb.id} #{hunt.id} #{specs.id} #{page.id}")
+    end)
   ' | grep '^IDS' | cut -d' ' -f2-)
   read -r KB HUNT SPECS PAGE <<<"$ids"
 

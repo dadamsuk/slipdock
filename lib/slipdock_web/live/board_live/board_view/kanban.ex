@@ -70,7 +70,13 @@ defmodule SlipdockWeb.BoardLive.BoardView.Kanban do
         </.search_box>
       </:search>
       <:filter>
-        <.filter_menu board={@board} filters={@filters} filtering={@filtering} states />
+        <.filter_menu
+          board={@board}
+          filters={@filters}
+          filtering={@filtering}
+          fields={@board.fields}
+          states
+        />
       </:filter>
       <:display>
         <form id="swim-config" phx-change="swim_config" phx-submit="swim_config" class="contents">

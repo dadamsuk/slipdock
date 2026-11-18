@@ -7,7 +7,7 @@ defmodule SlipdockWeb.SlipdockComponents.Chrome do
   alias Phoenix.LiveView.JS
   alias Slipdock.Palette
 
-  import SlipdockWeb.CoreComponents, only: [icon: 1, quick_chips: 1]
+  import SlipdockWeb.CoreComponents, only: [date_field: 1, icon: 1, input: 1, quick_chips: 1]
   import SlipdockWeb.SlipdockComponents.CardFace, only: [kind_icon: 1]
   import SlipdockWeb.SlipdockComponents.Marks
   import SlipdockWeb.SlipdockComponents.Schedule, only: [due_icon: 0]
@@ -504,6 +504,10 @@ defmodule SlipdockWeb.SlipdockComponents.Chrome do
   attr :filtering, :boolean, required: true
   attr :label, :string, default: "Hide completed cards"
 
+  attr :fields, :list,
+    default: [],
+    doc: "The tree's custom fields, each offered as a filter suited to its kind (#3369)."
+
   attr :kinds, :boolean,
     default: true,
     doc: "Offer the Kind section. False where everything in view is the one kind."
@@ -582,6 +586,18 @@ defmodule SlipdockWeb.SlipdockComponents.Chrome do
             >
               <.tag_chip tag={tag} />
             </button>
+          </div>
+        </div>
+        <div :if={@fields != []} data-role="filter-fields">
+          <p class="mb-1.5 section-label">
+            Fields
+          </p>
+          <div class="space-y-2">
+            <.field_filter
+              :for={field <- @fields}
+              field={field}
+              condition={Slipdock.Filters.field_condition(@filters, field)}
+            />
           </div>
         </div>
         <div>
@@ -707,6 +723,129 @@ defmodule SlipdockWeb.SlipdockComponents.Chrome do
     </div>
     """
   end
+
+  attr :field, :any, required: true
+  attr :condition, :map, default: nil
+
+  # One custom field's filter, its control suited to the field's kind
+  # (#3369): options to pick, a least number of stars, a range, or words.
+  # Each sends `filter_field` (`Slipdock.Filters.put_field/3`).
+  defp field_filter(%{field: %{kind: "select"}} = assigns) do
+    ~H"""
+    <div data-field-filter={@field.key}>
+      <p class="mb-1 text-xs text-base-content/70">{@field.name}</p>
+      <div class="flex flex-wrap gap-1">
+        <button
+          :for={option <- @field.options}
+          type="button"
+          class={[
+            "btn btn-xs",
+            if(@condition && Enum.member?(@condition.options, option["key"]),
+              do: "btn-primary",
+              else: "btn-ghost"
+            )
+          ]}
+          phx-click="filter_field"
+          phx-value-field={@field.id}
+          phx-value-option={option["key"]}
+        >
+          {option["label"]}
+        </button>
+      </div>
+    </div>
+    """
+  end
+
+  defp field_filter(%{field: %{kind: "rating"}} = assigns) do
+    assigns = assign(assigns, :max, Slipdock.Boards.FieldDefinition.rating_max(assigns.field))
+
+    ~H"""
+    <div data-field-filter={@field.key}>
+      <p class="mb-1 text-xs text-base-content/70">{@field.name} (at least)</p>
+      <div class="flex flex-wrap gap-1">
+        <button
+          :for={n <- 1..@max}
+          type="button"
+          class={[
+            "btn btn-xs",
+            if(@condition && @condition.min == n, do: "btn-primary", else: "btn-ghost")
+          ]}
+          phx-click="filter_field"
+          phx-value-field={@field.id}
+          phx-value-min={n}
+          title={"#{@field.name}: #{n} or more"}
+        >
+          {n}★
+        </button>
+      </div>
+    </div>
+    """
+  end
+
+  defp field_filter(%{field: %{kind: kind}} = assigns)
+       when kind in ~w(number formula date text) do
+    c = assigns.condition || %{}
+
+    values =
+      Map.new([:min, :max, :from, :to, :text], &{to_string(&1), input_value(Map.get(c, &1))})
+
+    assigns =
+      assign(assigns,
+        form:
+          to_form(Map.put(values, "field", assigns.field.id),
+            id: "field-filter-#{assigns.field.id}"
+          )
+      )
+
+    ~H"""
+    <.form
+      for={@form}
+      id={@form.id}
+      data-field-filter={@field.key}
+      phx-change="filter_field"
+      phx-submit="filter_field"
+    >
+      <.input field={@form[:field]} type="hidden" />
+      <p class="mb-1 text-xs text-base-content/70">{@field.name}</p>
+      <div :if={@field.kind in ~w(number formula)} class="flex items-center gap-1">
+        <.input
+          field={@form[:min]}
+          type="number"
+          step="any"
+          placeholder="min"
+          aria-label={"#{@field.name} from"}
+          phx-debounce="400"
+        />
+        <.input
+          field={@form[:max]}
+          type="number"
+          step="any"
+          placeholder="max"
+          aria-label={"#{@field.name} to"}
+          phx-debounce="400"
+        />
+      </div>
+      <div :if={@field.kind == "date"} class="flex items-center gap-1">
+        <.date_field field={@form[:from]} placeholder="From" aria-label={"#{@field.name} from"} />
+        <.date_field field={@form[:to]} placeholder="To" aria-label={"#{@field.name} to"} />
+      </div>
+      <.input
+        :if={@field.kind == "text"}
+        field={@form[:text]}
+        placeholder="contains…"
+        aria-label={"#{@field.name} contains"}
+        phx-debounce="400"
+      />
+    </.form>
+    """
+  end
+
+  defp field_filter(assigns), do: ~H""
+
+  defp input_value(nil), do: nil
+  defp input_value(%Date{} = d), do: Date.to_iso8601(d)
+  defp input_value(n) when is_float(n) and n == trunc(n), do: trunc(n)
+  defp input_value(n), do: n
 
   ## Support access --------------------------------------------------------
 

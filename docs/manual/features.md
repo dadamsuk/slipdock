@@ -182,9 +182,13 @@
   timeline, table and Prioritise rendered for a narrow screen rather than
   scrolled sideways (see [On a phone](on-a-phone.md))
 - Filter bar: full-text search, kind (cards / documents / wiki pages), tag,
-  priority, flag, due date, hide completed. On the board, a search or filter
-  shows its matches as one list down the page, grouped by the list each card
-  is in, in board order: each heading gives the list's name and how many
+  priority, flag, due date, custom fields, hide completed. Each custom field
+  is filtered the way its type reads: a choice field by the options picked, a
+  rating by a least number of stars, a number or formula by a min and max, a
+  date by a from and to date, and a text field by words it contains; a card
+  with no value for a field is hidden by a filter on it. On the board, a
+  search or filter shows its matches as one list down the page, grouped by
+  the list each card is in, in board order: each heading gives the list's name and how many
   match, and a click folds or unfolds it (Done, and any list with more than
   10 matches, starts folded). The lists with no matches are named on one line
   at the end. Each match is one row that opens the card, with the move menu
