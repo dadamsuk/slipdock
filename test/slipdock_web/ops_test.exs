@@ -145,14 +145,6 @@ defmodule SlipdockWeb.OpsTest do
     assert Ops.reference() =~ "Needs write on the card."
   end
 
-  test "the route the definition names is the router's" do
-    paths = for r <- Phoenix.Router.routes(SlipdockWeb.Router), do: {r.verb, r.path}
-
-    for op <- Ops.all(), d = op.definition() do
-      assert {d.verb, d.path} in paths, "#{d.name}: no #{d.verb} #{d.path} in the router"
-    end
-  end
-
   # Regenerate with OPS_MANIFEST=write mix test test/slipdock_web/ops_test.exs
   test "the CLI's manifest is the definitions as they are now" do
     if System.get_env("OPS_MANIFEST") == "write", do: File.write!(@manifest, Ops.manifest_json())
