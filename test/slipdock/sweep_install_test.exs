@@ -42,18 +42,18 @@ defmodule Slipdock.SweepInstallTest do
 
       first = user |> token_conn() |> mcp(%{"tool" => "sweep", "board" => board.code})
       assert first["isError"] == false, inspect(first["content"])
-      assert mcp_data(first)["board"] == board.code
-      assert mcp_data(first)["created"] == true
-      assert mcp_data(first)["added"]["lists"] == ["Triage"]
-      assert mcp_data(first)["added"]["pages"] == ["Sweeps"]
+      assert mcp_data(first)["install"]["board"] == board.code
+      assert mcp_data(first)["install"]["created"] == true
+      assert mcp_data(first)["install"]["added"]["lists"] == ["Triage"]
+      assert mcp_data(first)["install"]["added"]["pages"] == ["Sweeps"]
       assert Sweep.find(board)
       # The sweep is not the handbook.
       assert Handbook.find(board) == nil
 
       again = user |> token_conn() |> mcp(%{"tool" => "sweep", "board" => board.code})
-      assert mcp_data(again)["created"] == false
-      assert mcp_data(again)["added"]["pages"] == []
-      assert mcp_data(again)["added"]["cards"] == []
+      assert mcp_data(again)["install"]["created"] == false
+      assert mcp_data(again)["install"]["added"]["pages"] == []
+      assert mcp_data(again)["install"]["added"]["cards"] == []
     end
 
     test "without a board it says to give one", %{user: user} do

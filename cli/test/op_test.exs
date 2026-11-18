@@ -75,6 +75,11 @@ defmodule SlipdockCLI.OpTest do
     assert Op.request("job --keep", ["812"], keep_log: true) == {:post, "/jobs/812/keep", %{}}
   end
 
+  test "tools install-board is install_tool's request, --name the board's name" do
+    assert Op.request("tools install-board", ["triage"], name: "Mine", board: nil) ==
+             {:post, "/tools/triage/install", %{"name" => "Mine"}}
+  end
+
   test "an operation the CLI has no command for (delete_board) is left out" do
     refute Map.has_key?(Op.ops(), nil)
     refute Enum.any?(Op.ops(), fn {_, op} -> op["name"] == "delete_board" end)

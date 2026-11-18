@@ -17,7 +17,8 @@ defmodule SlipdockWeb.Ops do
     Ops.DeleteBoard,
     Ops.QuickNote,
     Ops.PageTool,
-    Ops.KeepJobLog
+    Ops.KeepJobLog,
+    Ops.InstallTool
   ]
 
   def all, do: @ops

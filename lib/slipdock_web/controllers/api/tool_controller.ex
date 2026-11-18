@@ -26,60 +26,11 @@ defmodule SlipdockWeb.API.ToolController do
 
   @doc """
   Builds the Tool's board for the caller, or finds the one already built:
-  201 with the board's code when it is new, 200 when it was there.
+  201 with the board's code when it is new, 200 when it was there. Made from
+  `SlipdockWeb.Ops.InstallTool` (#3188).
   """
-  def install(conn, %{"slug" => slug} = params) do
-    user = conn.assigns.current_user
-
-    case on_board(slug, params["board"], user) do
-      nil -> install_tool(conn, user, slug, params)
-      mod -> install_on_board(conn, mod, params)
-    end
-  end
-
-  # The built-in Tools that go onto a board that exists: the handbook
-  # (#1262) and the code sweep (#1793). Named without a board, a published
-  # Tool of the same name is the one meant.
-  defp on_board(slug, board, user) do
-    mod = Enum.find([Slipdock.Handbook, Slipdock.Sweep], & &1.tool?(slug))
-    if mod && (board || not match?({:ok, _}, Tools.fetch(user, slug))), do: mod
-  end
-
-  defp install_on_board(conn, mod, params) do
-    with {:ok, board} <- board_param(mod, params["board"]),
-         {:ok, board} <- SlipdockWeb.API.Authorize.fetch_board(conn, board, :write),
-         {:ok, result} <- installed_on(mod.install(conn.assigns.current_user, board)) do
-      conn
-      |> put_status(if(result.created, do: :created, else: :ok))
-      |> json(%{install: ToolJSON.install(result, SlipdockWeb.BaseURL.from_conn(conn))})
-    end
-  end
-
-  defp installed_on({:ok, result}), do: {:ok, result}
-  defp installed_on({:error, message}), do: {:error, :unprocessable_entity, message}
-
-  defp board_param(_mod, ref) when is_binary(ref) and ref != "", do: {:ok, ref}
-
-  defp board_param(mod, _),
-    do: {:error, :unprocessable_entity, "the #{mod.name()} installs onto a board: give board"}
-
-  defp install_tool(conn, user, slug, params) do
-    with :ok <- unscoped(conn.assigns[:api_token]),
-         {:ok, tool} <- fetch(user, slug) do
-      case Tools.install_board(user, tool, version: params["version"], name: params["name"]) do
-        {:ok, result} ->
-          conn
-          |> put_status(if(result.created, do: :created, else: :ok))
-          |> json(%{install: ToolJSON.install(result, SlipdockWeb.BaseURL.from_conn(conn))})
-
-        {:error, :not_found} ->
-          {:error, :not_found, "version #{params["version"]} of Tool #{inspect(slug)}"}
-
-        {:error, message} when is_binary(message) ->
-          {:error, :unprocessable_entity, message}
-      end
-    end
-  end
+  def install(conn, params),
+    do: SlipdockWeb.Ops.REST.run(conn, SlipdockWeb.Ops.InstallTool, params)
 
   @doc "Every skill of the Tool as one `.tar.gz`, laid out for a skills directory."
   def skills_archive(conn, %{"slug" => slug} = params) do
@@ -194,11 +145,6 @@ defmodule SlipdockWeb.API.ToolController do
       end
     end
   end
-
-  defp unscoped(%{scope_boards: [_ | _]}),
-    do: {:error, :forbidden, "this token is confined to some boards, so it can't make one"}
-
-  defp unscoped(_), do: :ok
 
   @doc """
   Publishes a package: a `.tar.gz` sent as the multipart field `package`, or

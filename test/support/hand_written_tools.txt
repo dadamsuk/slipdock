@@ -17,7 +17,6 @@ list_cards
 activity
 garden_decide
 get_guide
-install_tool
 page_history
 revert_page
 search

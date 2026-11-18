@@ -382,5 +382,52 @@
       ],
       "flags": {}
     }
+  },
+  {
+    "name": "install_tool",
+    "summary": "Builds the board a Tool (see list_tools) comes with and returns its code. Already installed, it adds what a newer version brings without touching edited pages. tool: \"handbook\" or tool: \"sweep\" with board installs that on its root instead.",
+    "verb": "POST",
+    "path": "/api/tools/:slug/install",
+    "writes": true,
+    "params": [
+      {
+        "name": "tool",
+        "type": "string",
+        "required": true,
+        "in_path": "slug"
+      },
+      {
+        "name": "version",
+        "type": "string",
+        "required": false
+      },
+      {
+        "name": "name",
+        "type": "string",
+        "required": false
+      },
+      {
+        "name": "board",
+        "type": "string",
+        "required": false
+      }
+    ],
+    "cli": {
+      "command": "tools install-board",
+      "positional": [
+        "tool"
+      ],
+      "flags": {
+        "board": {
+          "param": "board"
+        },
+        "name": {
+          "param": "name"
+        },
+        "version": {
+          "param": "version"
+        }
+      }
+    }
   }
 ]
