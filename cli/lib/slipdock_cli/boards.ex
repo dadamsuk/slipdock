@@ -492,17 +492,15 @@ defmodule SlipdockCLI.Boards do
         fail("--delete deletes the current handoff: leave off --next and --clear")
 
       o[:delete] ->
-        HTTP.delete("/cards/#{enc(id)}/handoff")
+        SlipdockCLI.Op.run("handoff", [id], delete: true)
         |> out(o, &handoff_deleted(id, &1))
 
       o[:clear] ->
-        HTTP.post("/cards/#{enc(id)}/handoff", %{"clear" => true, "via" => "cli"})
+        SlipdockCLI.Op.run("handoff", [id], clear: true)
         |> out(o, fn _ -> IO.puts("cleared the handoff on ##{id}") end)
 
       o[:next] ->
-        body = compact(%{"next_step" => o[:next], "body" => handoff_body(o), "via" => "cli"})
-
-        HTTP.post("/cards/#{enc(id)}/handoff", body)
+        SlipdockCLI.Op.run("handoff", [id], next: o[:next], body: handoff_body(o))
         |> out(o, fn r -> IO.puts("left a handoff on ##{id}: #{r["handoff"]["next_step"]}") end)
 
       o[:body] || o[:file] ->
@@ -612,16 +610,7 @@ defmodule SlipdockCLI.Boards do
     if decision == "disagree" and Enum.member?([nil, ""], o[:reason]),
       do: fail("an audit's disagreement needs its reason: --reason TEXT")
 
-    body =
-      %{
-        "decision" => decision,
-        "reason" => o[:reason],
-        "commit" => o[:evidence_commit],
-        "checks" => verify_checks(o)
-      }
-      |> compact()
-
-    HTTP.post("/cards/#{enc(id)}/verify", body)
+    SlipdockCLI.Op.run("verify", [id, decision], Keyword.put(o, :check, verify_checks(o)))
     |> out(o, &card_ok(verified_word(decision), &1))
   end
 
@@ -1031,15 +1020,17 @@ defmodule SlipdockCLI.Boards do
     end)
   end
 
+  # Archiving and restoring are one operation, `archive_card` (#3187).
   def run("archive", ids, o) when ids != [],
-    do: each(ids, o, &HTTP.post("/cards/#{enc(&1)}/archive"), "archived")
+    do: each(ids, o, &SlipdockCLI.Op.run("archive", [&1], o), "archived")
 
   def run("restore", ids, o) when ids != [],
-    do: each(ids, o, &HTTP.post("/cards/#{enc(&1)}/restore"), "restored")
+    do: each(ids, o, &SlipdockCLI.Op.run("archive", [&1], restore: true), "restored")
 
   def run("delete", ids, o) when ids != [] do
     Enum.each(ids, fn id ->
-      HTTP.delete("/cards/#{enc(id)}") |> out(o, fn _ -> IO.puts("deleted card ##{id}") end)
+      SlipdockCLI.Op.run("delete", [id], o)
+      |> out(o, fn _ -> IO.puts("deleted card ##{id}") end)
     end)
   end
 
@@ -1456,10 +1447,11 @@ defmodule SlipdockCLI.Boards do
   end
 
   def run("new-tag", [ref | words], o) when words != [] do
-    body = compact(%{"name" => Enum.join(words, " "), "color" => o[:color]})
-
-    HTTP.post("/boards/#{enc(ref)}/tags", body)
-    |> out(o, fn r -> IO.puts("created tag ##{r["tag"]["id"]}: #{r["tag"]["name"]}") end)
+    SlipdockCLI.Op.run("new-tag", [ref | words], o)
+    |> out(o, fn r ->
+      said = if r["created"] == false, do: "already there: tag", else: "created tag"
+      IO.puts("#{said} ##{r["tag"]["id"]}: #{r["tag"]["name"]}")
+    end)
   end
 
   def run("save-view", [ref | words], o) when words != [] do

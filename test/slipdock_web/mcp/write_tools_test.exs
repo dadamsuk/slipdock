@@ -817,12 +817,12 @@ defmodule SlipdockWeb.MCP.WriteToolsTest do
   describe "archive_card" do
     test "archives it out of listings, and restore brings it back", ctx do
       result = ctx.conn |> call("archive_card", %{card: ctx.card.id}) |> ok!()
-      assert result["archived"] == true
+      assert result["card"]["archived_at"]
       assert api_card(ctx.conn, ctx.card.id)["archived_at"]
       refute Enum.any?(Boards.Cards.list_cards(ctx.board, %{}), &(&1.id == ctx.card.id))
 
       result = ctx.conn |> call("archive_card", %{card: ctx.card.id, restore: true}) |> ok!()
-      assert result["archived"] == false
+      assert result["card"]["archived_at"] == nil
       assert api_card(ctx.conn, ctx.card.id)["archived_at"] == nil
       assert Enum.any?(Boards.Cards.list_cards(ctx.board, %{}), &(&1.id == ctx.card.id))
     end

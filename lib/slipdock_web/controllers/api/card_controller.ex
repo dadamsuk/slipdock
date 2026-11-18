@@ -243,29 +243,19 @@ defmodule SlipdockWeb.API.CardController do
   # The operation is defined once (#3185), in `SlipdockWeb.Ops.MoveCard`.
   def move(conn, params), do: SlipdockWeb.Ops.REST.run(conn, SlipdockWeb.Ops.MoveCard, params)
 
-  def archive(conn, %{"id" => id}) do
-    with {:ok, card} <- fetch_card(id),
-         :ok <- Authorize.card(conn, card, :write),
-         {:ok, card} <- Boards.Cards.archive_card(card) do
-      json(conn, %{card: V.card(Authorize.visible(conn, Boards.Cards.get_card!(card.id)))})
-    end
-  end
+  def archive(conn, params),
+    do: SlipdockWeb.Ops.REST.run(conn, SlipdockWeb.Ops.ArchiveCard, params)
 
-  def restore(conn, %{"id" => id}) do
-    with {:ok, card} <- fetch_card(id),
-         :ok <- Authorize.card(conn, card, :write),
-         {:ok, card} <- Boards.Cards.unarchive_card(card) do
-      json(conn, %{card: V.card(Authorize.visible(conn, Boards.Cards.get_card!(card.id)))})
-    end
-  end
+  # The same operation, restoring.
+  def restore(conn, params),
+    do:
+      SlipdockWeb.Ops.REST.run(
+        conn,
+        SlipdockWeb.Ops.ArchiveCard,
+        Map.put(params, "restore", true)
+      )
 
-  def delete(conn, %{"id" => id}) do
-    with {:ok, card} <- fetch_card(id),
-         :ok <- Authorize.card(conn, card, :write),
-         {:ok, _} <- Boards.Cards.delete_card(card) do
-      json(conn, %{ok: true})
-    end
-  end
+  def delete(conn, params), do: SlipdockWeb.Ops.REST.run(conn, SlipdockWeb.Ops.DeleteCard, params)
 
   @doc """
   `POST /api/cards/:id/copy` — a copy of the card as it is now (see
@@ -509,48 +499,30 @@ defmodule SlipdockWeb.API.CardController do
   defp current([]), do: nil
 
   @doc """
-  Leaves a handoff on the card: `next_step` (one line, required) and `body`,
-  or `clear: true`. Anyone who may comment on the card may write one. `via`
-  is `cli` from the command line and `api` otherwise.
+  Leaves a handoff on the card (`SlipdockWeb.Ops.LeaveHandoff`): `next_step`
+  and `body`, `clear: true` or `delete: true`.
   """
-  def leave_handoff(conn, %{"id" => id} = params) do
-    via = if params["via"] == "cli", do: "cli", else: "api"
-
-    with {:ok, card} <- fetch_card(id),
-         :ok <- Authorize.card(conn, card, :comment),
-         {:ok, handoff} <-
-           CardWrites.write_handoff(card, conn.assigns.current_user, params, via) do
-      conn |> put_status(:created) |> json(%{card: card.id, handoff: V.handoff(handoff)})
-    end
-  end
+  def leave_handoff(conn, params),
+    do: SlipdockWeb.Ops.REST.run(conn, SlipdockWeb.Ops.LeaveHandoff, params)
 
   @doc """
-  Deletes the card's current handoff outright (#1214), so the one before it
-  is current again. Its author, or anyone who can edit the card. Answers
-  what was deleted and the handoff the card has now.
+  Deletes the card's current handoff (#1214), so the one before it is
+  current again: `leave_handoff` with `delete` settled true.
   """
-  def delete_handoff(conn, %{"id" => id}) do
-    with {:ok, card} <- fetch_card(id),
-         {:ok, deleted} <- CardWrites.delete_handoff(conn, card) do
-      json(conn, %{
-        card: card.id,
-        deleted: V.handoff(deleted),
-        handoff: card |> Boards.Handoffs.current_handoff() |> then(&(&1 && V.handoff(&1)))
-      })
-    end
-  end
+  def delete_handoff(conn, params),
+    do:
+      SlipdockWeb.Ops.REST.run(
+        conn,
+        SlipdockWeb.Ops.LeaveHandoff,
+        Map.put(params, "delete", true)
+      )
 
   @doc """
   Decides a card waiting for verification (#1633): `decision` accept or
   reject, `reason` (required to reject) and `commit`. Needs write on the
   card, and someone other than whoever submitted it.
   """
-  def verify(conn, %{"id" => id} = params) do
-    with {:ok, card} <- fetch_card(id),
-         {:ok, card} <- CardWrites.verify(conn, card, params) do
-      json(conn, %{card: V.card(Authorize.visible(conn, Boards.Cards.get_card!(card.id)))})
-    end
-  end
+  def verify(conn, params), do: SlipdockWeb.Ops.REST.run(conn, SlipdockWeb.Ops.VerifyCard, params)
 
   @doc """
   Opens a wait on the card (#1114): `needs` or `questions` (a numbered

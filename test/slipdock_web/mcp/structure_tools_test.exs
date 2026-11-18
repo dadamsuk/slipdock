@@ -97,7 +97,7 @@ defmodule SlipdockWeb.MCP.StructureToolsTest do
   describe "delete_card" do
     test "with confirm, it is gone for good", ctx do
       result = ctx.conn |> call("delete_card", %{card: ctx.card.id, confirm: true}) |> ok!()
-      assert result["deleted"] == true
+      assert result["ok"] == true
       assert result["card"] == ctx.card.id
       assert Boards.Cards.get_card(ctx.card.id) == nil
       assert ctx.conn |> get(~p"/api/cards/#{ctx.card.id}") |> json_response(404)
@@ -209,7 +209,7 @@ defmodule SlipdockWeb.MCP.StructureToolsTest do
     test "an unknown colour, a blank name or one too long is refused", ctx do
       assert ctx.conn
              |> call("create_tag", %{board: "delivery9", name: "x", color: "plaid"})
-             |> error!() =~ "not saved"
+             |> error!() =~ "color must be slate, red"
 
       assert ctx.conn |> call("create_tag", %{board: "delivery9", name: " "}) |> error!() =~
                "name is required"
@@ -511,7 +511,7 @@ defmodule SlipdockWeb.MCP.StructureToolsTest do
       result =
         ctx.conn |> call("delete_board", %{board: ctx.board.id, confirm: "Delivery9"}) |> ok!()
 
-      assert result["deleted"] == true
+      assert result["ok"] == true
       assert Boards.get_board(ctx.board.id) == nil
       assert Boards.Cards.get_card(ctx.card.id) == nil
     end

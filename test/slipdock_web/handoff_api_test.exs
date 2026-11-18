@@ -54,11 +54,9 @@ defmodule SlipdockWeb.HandoffAPITest do
 
       assert %{"handoff" => %{"next_step" => "Run CI", "body" => "State: green", "via" => "cli"}} =
                as(ctx.owner)
-               |> post("/api/cards/#{id}/handoff", %{
-                 next_step: "Run CI",
-                 body: "State: green",
-                 via: "cli"
-               })
+               # The CLI says so in its header (#3187), not in a `via` param.
+               |> put_req_header("x-slipdock-client", "cli")
+               |> post("/api/cards/#{id}/handoff", %{next_step: "Run CI", body: "State: green"})
                |> json_response(201)
 
       assert %{"card" => ^id, "handoff" => current, "history" => [newest, oldest]} =

@@ -7,13 +7,25 @@ defmodule SlipdockWeb.Ops do
 
   alias SlipdockWeb.Ops
 
-  @ops [Ops.MoveCard]
+  @ops [
+    Ops.MoveCard,
+    Ops.ArchiveCard,
+    Ops.DeleteCard,
+    Ops.LeaveHandoff,
+    Ops.VerifyCard,
+    Ops.CreateTag,
+    Ops.DeleteBoard
+  ]
 
   def all, do: @ops
 
-  @doc "Casts raw params (REST's or MCP's, string keys) by the definition."
-  def cast(op, raw) do
-    Enum.reduce_while(op.definition().params, {:ok, %{}}, fn param, {:ok, acc} ->
+  @doc """
+  Casts raw params (REST's or MCP's, string keys) by the definition. MCP's
+  (`surface` `:mcp`) include the definition's `confirm`, cast but not
+  required here: the operation's `confirm/2` says what a missing one means.
+  """
+  def cast(op, raw, surface \\ :rest) do
+    Enum.reduce_while(params(op, surface), {:ok, %{}}, fn param, {:ok, acc} ->
       case cast_one(param, Map.get(raw, param.name, param[:default])) do
         {:ok, nil} -> {:cont, {:ok, acc}}
         {:ok, value} -> {:cont, {:ok, Map.put(acc, param.name, value)}}
@@ -22,8 +34,19 @@ defmodule SlipdockWeb.Ops do
     end)
   end
 
+  # The params a surface takes: MCP's have the definition's `confirm` too.
+  defp params(op, :rest), do: op.definition().params
+
+  defp params(op, :mcp) do
+    case op.definition()[:confirm] do
+      nil -> op.definition().params
+      confirm -> op.definition().params ++ [Map.put(confirm, :name, "confirm")]
+    end
+  end
+
   defp cast_one(%{required: true, name: name}, nil), do: {:error, "#{name} is required"}
   defp cast_one(_param, nil), do: {:ok, nil}
+  defp cast_one(%{type: :any}, v), do: {:ok, v}
   defp cast_one(%{type: :integer, name: n}, v), do: integer(n, v)
   defp cast_one(%{type: :boolean}, v) when is_boolean(v), do: {:ok, v}
   defp cast_one(%{type: :boolean}, v) when v in ["true", "false"], do: {:ok, v == "true"}
@@ -40,7 +63,7 @@ defmodule SlipdockWeb.Ops do
   defp cast_one(%{type: {:enum, values}, name: n}, v) do
     if Enum.member?(values, v),
       do: {:ok, v},
-      else: {:error, "#{n} must be #{Enum.join(values, " or ")}"}
+      else: {:error, "#{n} must be #{either(values)}"}
   end
 
   defp cast_one(%{type: :position}, v) when v in ["top", "bottom"],
@@ -69,14 +92,26 @@ defmodule SlipdockWeb.Ops do
   defp type_word(:boolean), do: "true or false"
   defp type_word(_), do: "a string"
 
-  @doc "The MCP `inputSchema`, from the params."
+  # "a, b or c"
+  defp either([one]), do: one
+  defp either(values), do: Enum.join(Enum.drop(values, -1), ", ") <> " or " <> List.last(values)
+
+  @doc """
+  The MCP `inputSchema`, from the params: the definition's `confirm`, when
+  it has one, is among them and required.
+  """
+  # The atoms are the definitions' param names, written in the code.
+  # Not a hole: never a caller's words.
+  # sobelow_skip ["DOS.StringToAtom"]
   def input_schema(op) do
-    params = op.definition().params
+    params = params(op, :mcp)
+    confirm = if op.definition()[:confirm], do: ["confirm"], else: []
 
     %{
       type: "object",
-      properties: Map.new(params, &{&1.name, json_schema(&1)}),
-      required: for(%{required: true, name: n} <- params, do: n),
+      # Atom keys, as every hand-written tool's schema has them.
+      properties: Map.new(params, &{String.to_atom(&1.name), json_schema(&1)}),
+      required: for(%{required: true, name: n} <- params, do: n) ++ confirm,
       additionalProperties: false
     }
   end
@@ -84,6 +119,7 @@ defmodule SlipdockWeb.Ops do
   defp json_schema(param) do
     base =
       case param.type do
+        :any -> Map.fetch!(param, :schema)
         :integer -> %{type: "integer"}
         :boolean -> %{type: "boolean"}
         :string -> %{type: "string"}
@@ -121,20 +157,25 @@ defmodule SlipdockWeb.Ops do
               default: p[:default]
             )
           end),
-        cli:
-          ordered(
-            command: d.cli.command,
-            positional: d.cli.positional,
-            flags:
-              d.cli.flags
-              |> Enum.sort()
-              |> Enum.map(fn {flag, spec} ->
-                {flag, ordered(param: spec.param, value: spec[:value])}
-              end)
-              |> Jason.OrderedObject.new()
-          )
+        cli: cli(d[:cli])
       )
     end
+  end
+
+  defp cli(nil), do: nil
+
+  defp cli(cli) do
+    ordered(
+      command: cli.command,
+      positional: cli.positional,
+      flags:
+        cli.flags
+        |> Enum.sort()
+        |> Enum.map(fn {flag, spec} ->
+          {flag, ordered(param: spec.param, value: spec[:value])}
+        end)
+        |> Jason.OrderedObject.new()
+    )
   end
 
   @doc """
@@ -154,20 +195,19 @@ defmodule SlipdockWeb.Ops do
     Enum.map_join(@ops, "\n", fn op ->
       d = op.definition()
 
-      params =
-        d.params
-        |> Enum.reject(& &1[:in_path])
-        |> Enum.map_join(", ", &param_word/1)
-
       "- `#{d.verb |> to_string() |> String.upcase()} #{d.path}` — #{d.summary} " <>
-        "Takes #{params}. Needs #{permission(d.permission)}."
+        takes(Enum.reject(d.params, & &1[:in_path])) <> "Needs #{permission(d.permission)}."
     end)
   end
+
+  defp takes([]), do: ""
+  defp takes(params), do: "Takes #{Enum.map_join(params, ", ", &param_word/1)}. "
 
   defp param_word(%{default: default, name: name}) when not is_nil(default),
     do: "`#{name}` (default `#{default}`)"
 
   defp param_word(%{name: name}), do: "`#{name}`"
 
+  defp permission({subject, :owner}), do: "to own the #{subject}"
   defp permission({subject, need}), do: "#{need} on the #{subject}"
 end

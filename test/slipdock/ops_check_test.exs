@@ -130,7 +130,7 @@ defmodule Slipdock.OpsCheckTest do
   test "every defined operation's CLI command goes through SlipdockCLI.Op" do
     text = Enum.map_join(cli_sources(), "\n", &elem(&1, 1))
 
-    for op <- Ops.all(), command = op.definition().cli[:command] do
+    for op <- Ops.all(), command = op.definition()[:cli][:command] do
       assert text =~ ~s{SlipdockCLI.Op.run("#{command}"},
              "#{op.definition().name}: no CLI command calls SlipdockCLI.Op.run(\"#{command}\", …)"
     end

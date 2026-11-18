@@ -52,5 +52,247 @@
         }
       }
     }
+  },
+  {
+    "name": "archive_card",
+    "summary": "Archives a card: off the board and out of listings, kept and restorable. restore = true brings it back. Finished work goes to done, not here.",
+    "verb": "POST",
+    "path": "/api/cards/:id/archive",
+    "writes": true,
+    "params": [
+      {
+        "name": "card",
+        "type": "integer",
+        "required": true,
+        "in_path": "id"
+      },
+      {
+        "name": "restore",
+        "type": "boolean",
+        "required": false,
+        "default": false
+      }
+    ],
+    "cli": {
+      "command": "archive",
+      "positional": [
+        "card"
+      ],
+      "flags": {
+        "restore": {
+          "param": "restore",
+          "value": true
+        }
+      }
+    }
+  },
+  {
+    "name": "delete_card",
+    "summary": "Deletes a card and its subcards, comments and files. Cannot be undone; archive_card is the safe way. Needs confirm = true.",
+    "verb": "DELETE",
+    "path": "/api/cards/:id",
+    "writes": true,
+    "params": [
+      {
+        "name": "card",
+        "type": "integer",
+        "required": true,
+        "in_path": "id"
+      }
+    ],
+    "cli": {
+      "command": "delete",
+      "positional": [
+        "card"
+      ],
+      "flags": {}
+    }
+  },
+  {
+    "name": "leave_handoff",
+    "summary": "Leaves the card's handoff for whoever picks it up next: write one whenever you stop unfinished. It replaces the last (kept as history); get_card shows it first. next_step: one line; body: the note. clear: true clears it; delete: true deletes it.",
+    "verb": "POST",
+    "path": "/api/cards/:id/handoff",
+    "writes": true,
+    "params": [
+      {
+        "name": "card",
+        "type": "integer",
+        "required": true,
+        "in_path": "id"
+      },
+      {
+        "name": "next_step",
+        "type": "string",
+        "required": false
+      },
+      {
+        "name": "body",
+        "type": "string",
+        "required": false
+      },
+      {
+        "name": "clear",
+        "type": "boolean",
+        "required": false,
+        "default": false
+      },
+      {
+        "name": "delete",
+        "type": "boolean",
+        "required": false,
+        "default": false
+      }
+    ],
+    "cli": {
+      "command": "handoff",
+      "positional": [
+        "card"
+      ],
+      "flags": {
+        "body": {
+          "param": "body"
+        },
+        "clear": {
+          "param": "clear",
+          "value": true
+        },
+        "delete": {
+          "param": "delete",
+          "value": true
+        },
+        "next": {
+          "param": "next_step"
+        }
+      }
+    }
+  },
+  {
+    "name": "verify_card",
+    "summary": "Accepts or rejects a card waiting for verification, after checking it at the evidence's commit. accept completes it; reject needs the reason and a failing check. checks: the verdict in parts. Not on a card you submitted.",
+    "verb": "POST",
+    "path": "/api/cards/:id/verify",
+    "writes": true,
+    "params": [
+      {
+        "name": "card",
+        "type": "integer",
+        "required": true,
+        "in_path": "id"
+      },
+      {
+        "name": "decision",
+        "type": {
+          "enum": [
+            "accept",
+            "reject",
+            "merged",
+            "agree",
+            "disagree"
+          ]
+        },
+        "required": true
+      },
+      {
+        "name": "reason",
+        "type": "string",
+        "required": false
+      },
+      {
+        "name": "commit",
+        "type": "string",
+        "required": false
+      },
+      {
+        "name": "checks",
+        "type": "any",
+        "required": false
+      }
+    ],
+    "cli": {
+      "command": "verify",
+      "positional": [
+        "card",
+        "decision"
+      ],
+      "flags": {
+        "check": {
+          "param": "checks"
+        },
+        "evidence_commit": {
+          "param": "commit"
+        },
+        "reason": {
+          "param": "reason"
+        }
+      }
+    }
+  },
+  {
+    "name": "create_tag",
+    "summary": "Adds a tag to a board (shared by its sub-boards), so create_card and update_card can put it on cards. A tag of that name already there is returned, not doubled. Making a new one needs edit access to the tree's root board.",
+    "verb": "POST",
+    "path": "/api/boards/:board/tags",
+    "writes": true,
+    "params": [
+      {
+        "name": "board",
+        "type": "string",
+        "required": true,
+        "in_path": "board"
+      },
+      {
+        "name": "name",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "color",
+        "type": {
+          "enum": [
+            "slate",
+            "red",
+            "orange",
+            "amber",
+            "lime",
+            "emerald",
+            "teal",
+            "sky",
+            "indigo",
+            "violet",
+            "fuchsia",
+            "rose"
+          ]
+        },
+        "required": false
+      }
+    ],
+    "cli": {
+      "command": "new-tag",
+      "positional": [
+        "board",
+        "name..."
+      ],
+      "flags": {
+        "color": {
+          "param": "color"
+        }
+      }
+    }
+  },
+  {
+    "name": "delete_board",
+    "summary": "Deletes a board you own with all its cards, pages and files. Cannot be undone; archive_board is the safe way. confirm must repeat the board's code.",
+    "verb": "DELETE",
+    "path": "/api/boards/:board",
+    "writes": true,
+    "params": [
+      {
+        "name": "board",
+        "type": "string",
+        "required": true,
+        "in_path": "board"
+      }
+    ]
   }
 ]

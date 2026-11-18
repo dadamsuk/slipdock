@@ -30,6 +30,42 @@ defmodule SlipdockCLI.OpTest do
     refute Map.has_key?(body, "index")
   end
 
+  test "archive and restore are the one archive_card request (#3187)" do
+    assert Op.request("archive", ["57"], []) == {:post, "/cards/57/archive", %{}}
+
+    assert Op.request("archive", ["57"], restore: true) ==
+             {:post, "/cards/57/archive", %{"restore" => true}}
+  end
+
+  test "delete is delete_card's request, with no confirm: REST never asks for one" do
+    assert Op.request("delete", ["57"], []) == {:delete, "/cards/57", %{}}
+  end
+
+  test "verify is verify_card's request: --evidence-commit is commit, --check checks" do
+    assert Op.request("verify", ~w(12 reject),
+             reason: "No test",
+             evidence_commit: "abc123",
+             check: ["bar:1=fail"]
+           ) ==
+             {:post, "/cards/12/verify",
+              %{
+                "decision" => "reject",
+                "reason" => "No test",
+                "commit" => "abc123",
+                "checks" => ["bar:1=fail"]
+              }}
+  end
+
+  test "new-tag is create_tag's request, the board in the path" do
+    assert Op.request("new-tag", ~w(errands needs review), color: "red") ==
+             {:post, "/boards/errands/tags", %{"name" => "needs review", "color" => "red"}}
+  end
+
+  test "an operation the CLI has no command for (delete_board) is left out" do
+    refute Map.has_key?(Op.ops(), nil)
+    refute Enum.any?(Op.ops(), fn {_, op} -> op["name"] == "delete_board" end)
+  end
+
   describe "slipdock move, end to end against a fake server" do
     setup do
       home = Path.join(System.tmp_dir!(), "slipdock-op-#{System.unique_integer([:positive])}")
@@ -62,6 +98,27 @@ defmodule SlipdockCLI.OpTest do
       assert_received {:request, "POST", "/api/cards/57/move", body}
       assert JSON.decode!(body) == %{"column" => "Doing", "index" => "top"}
       assert out =~ "moved"
+    end
+
+    test "restore asks archive_card with restore, and says so" do
+      card =
+        ~s({"card":{"id":57,"title":"Ship it","column":"Doing","completed":false,"priority":"none","flags":[],"tags":[],"comments":[],"checklist":{"done":0,"total":0,"items":[]}}})
+
+      System.put_env("SLIPDOCK_URL", FakeServer.start([{200, card}]))
+      out = capture_io(fn -> Boards.run("restore", ["57"], []) end)
+
+      assert_received {:request, "POST", "/api/cards/57/archive", body}
+      assert JSON.decode!(body) == %{"restore" => true}
+      assert out =~ "restored"
+    end
+
+    test "new-tag says when the tag was there already" do
+      tag = ~s({"tag":{"id":4,"name":"Infra","color":null},"created":false})
+      System.put_env("SLIPDOCK_URL", FakeServer.start([{200, tag}]))
+      out = capture_io(fn -> Boards.run("new-tag", ~w(errands infra), []) end)
+
+      assert_received {:request, "POST", "/api/boards/errands/tags", _}
+      assert out =~ "already there: tag #4: Infra"
     end
   end
 end
