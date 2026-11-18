@@ -1,7 +1,7 @@
 defmodule SlipdockWeb.Ops.MachineryTest do
   @moduledoc """
   The shared machinery every operation's surfaces are made with
-  (`SlipdockWeb.Ops`, `Ops.MCPTool`, `Ops.REST`), on a made-up definition:
+  (`SlipdockWeb.Ops`, `Ops.MCPCall`, `Ops.REST`), on a made-up definition:
   MCP's `confirm`, an `:any` param, the REST status and the words a bad
   enum is refused in (#3187).
   """
@@ -75,14 +75,14 @@ defmodule SlipdockWeb.Ops.MachineryTest do
   test "the MCP tool asks confirm/2 before it runs, and is destructive" do
     auth = %{assigns: %{}}
 
-    assert Ops.MCPTool.call(Thing, %{"thing" => 1}, auth) ==
+    assert Ops.MCPCall.call(Thing, %{"thing" => 1}, auth) ==
              {:error, "not done: confirm must be \"thing\""}
 
     assert {:ok, %{params: %{"confirm" => "thing"}}} =
-             Ops.MCPTool.call(Thing, %{"thing" => 1, "confirm" => "thing"}, auth)
+             Ops.MCPCall.call(Thing, %{"thing" => 1, "confirm" => "thing"}, auth)
 
-    assert Ops.MCPTool.destructive?(Thing)
-    refute Ops.MCPTool.destructive?(Ops.MoveCard)
+    assert Ops.MCPCall.destructive?(Thing)
+    refute Ops.MCPCall.destructive?(Ops.MoveCard)
   end
 
   test "REST answers the definition's status, a function of the result here" do
