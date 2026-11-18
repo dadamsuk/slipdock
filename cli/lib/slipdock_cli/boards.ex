@@ -1447,10 +1447,11 @@ defmodule SlipdockCLI.Boards do
   end
 
   def run("new-tag", [ref | words], o) when words != [] do
-    body = compact(%{"name" => Enum.join(words, " "), "color" => o[:color]})
-
-    HTTP.post("/boards/#{enc(ref)}/tags", body)
-    |> out(o, fn r -> IO.puts("created tag ##{r["tag"]["id"]}: #{r["tag"]["name"]}") end)
+    SlipdockCLI.Op.run("new-tag", [ref | words], o)
+    |> out(o, fn r ->
+      said = if r["created"] == false, do: "already there: tag", else: "created tag"
+      IO.puts("#{said} ##{r["tag"]["id"]}: #{r["tag"]["name"]}")
+    end)
   end
 
   def run("save-view", [ref | words], o) when words != [] do

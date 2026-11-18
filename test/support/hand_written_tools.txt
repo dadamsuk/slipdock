@@ -6,7 +6,6 @@
 # only when it combines several operations. One tool name per line.
 
 # One operation each: Ops 3 (#3187) makes these from definitions
-create_tag
 delete_board
 list_cards
 

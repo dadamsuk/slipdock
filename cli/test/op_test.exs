@@ -56,6 +56,11 @@ defmodule SlipdockCLI.OpTest do
               }}
   end
 
+  test "new-tag is create_tag's request, the board in the path" do
+    assert Op.request("new-tag", ~w(errands needs review), color: "red") ==
+             {:post, "/boards/errands/tags", %{"name" => "needs review", "color" => "red"}}
+  end
+
   describe "slipdock move, end to end against a fake server" do
     setup do
       home = Path.join(System.tmp_dir!(), "slipdock-op-#{System.unique_integer([:positive])}")
@@ -100,6 +105,15 @@ defmodule SlipdockCLI.OpTest do
       assert_received {:request, "POST", "/api/cards/57/archive", body}
       assert JSON.decode!(body) == %{"restore" => true}
       assert out =~ "restored"
+    end
+
+    test "new-tag says when the tag was there already" do
+      tag = ~s({"tag":{"id":4,"name":"Infra","color":null},"created":false})
+      System.put_env("SLIPDOCK_URL", FakeServer.start([{200, tag}]))
+      out = capture_io(fn -> Boards.run("new-tag", ~w(errands infra), []) end)
+
+      assert_received {:request, "POST", "/api/boards/errands/tags", _}
+      assert out =~ "already there: tag #4: Infra"
     end
   end
 end

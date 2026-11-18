@@ -227,5 +227,57 @@
         }
       }
     }
+  },
+  {
+    "name": "create_tag",
+    "summary": "Adds a tag to a board (shared by its sub-boards), so create_card and update_card can put it on cards. A tag of that name already there is returned, not doubled. Making a new one needs edit access to the tree's root board.",
+    "verb": "POST",
+    "path": "/api/boards/:board/tags",
+    "writes": true,
+    "params": [
+      {
+        "name": "board",
+        "type": "string",
+        "required": true,
+        "in_path": "board"
+      },
+      {
+        "name": "name",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "color",
+        "type": {
+          "enum": [
+            "slate",
+            "red",
+            "orange",
+            "amber",
+            "lime",
+            "emerald",
+            "teal",
+            "sky",
+            "indigo",
+            "violet",
+            "fuchsia",
+            "rose"
+          ]
+        },
+        "required": false
+      }
+    ],
+    "cli": {
+      "command": "new-tag",
+      "positional": [
+        "board",
+        "name..."
+      ],
+      "flags": {
+        "color": {
+          "param": "color"
+        }
+      }
+    }
   }
 ]

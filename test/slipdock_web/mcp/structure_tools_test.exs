@@ -209,7 +209,7 @@ defmodule SlipdockWeb.MCP.StructureToolsTest do
     test "an unknown colour, a blank name or one too long is refused", ctx do
       assert ctx.conn
              |> call("create_tag", %{board: "delivery9", name: "x", color: "plaid"})
-             |> error!() =~ "not saved"
+             |> error!() =~ "color must be slate, red"
 
       assert ctx.conn |> call("create_tag", %{board: "delivery9", name: " "}) |> error!() =~
                "name is required"
