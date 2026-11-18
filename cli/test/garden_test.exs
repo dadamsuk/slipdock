@@ -122,20 +122,22 @@ defmodule SlipdockCLI.GardenTest do
   end
 
   # --keep and --choice are apply's: given to dismiss or undo, they aren't sent.
-  test "dismiss and undo post an empty body, whatever --keep or --choice they are given" do
+  test "dismiss and undo post an empty body, and refuse --keep and --choice (#3191)" do
     done = JSON.encode!(%{"suggestion" => %{@dupe | "state" => "dismissed"}})
     serve([{200, done}, {200, done}])
 
-    capture_io(fn -> Garden.run("garden", ["dismiss", "42"], keep: "1", choice: "snooze") end)
+    capture_io(fn -> Garden.run("garden", ["dismiss", "42"], []) end)
     assert_received {:request, "POST", "/api/garden/suggestions/42/dismiss", d}
     assert JSON.decode!(d) == %{}
 
-    capture_io(fn -> Garden.run("garden", ["undo", "42"], keep: "1", choice: "snooze") end)
+    capture_io(fn -> Garden.run("garden", ["undo", "42"], json: true) end)
     assert_received {:request, "POST", "/api/garden/suggestions/42/undo", u}
     assert JSON.decode!(u) == %{}
 
-    assert Garden.decision_body("dismiss", keep: "1", choice: "snooze") == %{}
-    assert Garden.decision_body("undo", keep: "1", choice: "snooze") == %{}
+    assert {:error, refused} = SlipdockCLI.Op.check("garden dismiss", keep: "1", choice: "x")
+    assert refused =~ "slipdock garden dismiss does not take --choice, --keep"
+    assert {:error, _} = SlipdockCLI.Op.check("garden undo", keep: "1")
+    assert :ok = SlipdockCLI.Op.check("garden apply", keep: "1", choice: "snooze")
   end
 
   # #2688: a proposal is decided on the Tidy-up page (#2668), so the CLI has
@@ -147,11 +149,6 @@ defmodule SlipdockCLI.GardenTest do
              )
 
     refute Keyword.has_key?(SlipdockCLI.switches(), :confirm)
-    assert Garden.decision_body("dismiss", confirm: true) == %{}
-    assert Garden.decision_body("undo", confirm: true) == %{}
-    assert Garden.decision_body("dismiss", []) == %{}
-    assert Garden.decision_body("apply", confirm: true, keep: "1") == %{"keep" => "1"}
-    assert Garden.decision_body("apply", choice: "snooze") == %{"choice" => "snooze"}
 
     usage = Garden.usage()
     assert usage =~ "garden apply|dismiss|undo <id>... [--keep CARD] [--choice NAME] |"

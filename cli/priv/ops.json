@@ -161,6 +161,10 @@
           "param": "delete",
           "value": true
         },
+        "file": {
+          "param": "body",
+          "read": "file"
+        },
         "next": {
           "param": "next_step"
         }
@@ -218,6 +222,10 @@
       "flags": {
         "check": {
           "param": "checks"
+        },
+        "checks_file": {
+          "param": "checks",
+          "read": "file"
         },
         "evidence_commit": {
           "param": "commit"
@@ -313,7 +321,16 @@
       "positional": [
         "text..."
       ],
-      "flags": {}
+      "flags": {
+        "body": {
+          "param": "text",
+          "read": "stdin"
+        },
+        "file": {
+          "param": "text",
+          "read": "file"
+        }
+      }
     }
   },
   {

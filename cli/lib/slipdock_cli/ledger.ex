@@ -14,7 +14,7 @@ defmodule SlipdockCLI.Ledger do
 
   def run("ledger", [ref], o) do
     # The ledger is the activity operation's ledger view (#3188).
-    SlipdockCLI.Op.run("activity", [ref], view: "ledger", since: since(o[:since]))
+    SlipdockCLI.Op.run("ledger", [ref], o, view: "ledger", since: since(o[:since]))
     |> out(o, &listing/1)
   end
 

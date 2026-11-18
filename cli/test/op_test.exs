@@ -168,4 +168,208 @@ defmodule SlipdockCLI.OpTest do
       assert out =~ "already there: tag #4: Infra"
     end
   end
+
+  describe "the flags a command takes come from its definition (#3191)" do
+    test "a flag the definition names, or a global one, is taken" do
+      assert :ok = Op.check("move", top: true, board: "errands", json: true, url: "x")
+      assert :ok = Op.check("handoff", next: "x", file: "notes.md")
+      assert :ok = Op.check("verify", reason: "-", check: "bar:1=ok", checks_file: "-")
+    end
+
+    test "any other is refused, naming the flags the command does take" do
+      assert Op.check("move", column: "Doing", tree: true) ==
+               {:error,
+                "slipdock move does not take --column, --tree: it takes --board, --bottom, " <>
+                  "--index, --top, and --json and --url, as every command does"}
+
+      assert Op.check("page revert", base_hash: "h1", limit: 5) ==
+               {:error,
+                "slipdock page revert does not take --limit: it takes --base-hash, --message, " <>
+                  "--rev, and --json and --url, as every command does"}
+    end
+
+    test "a command whose definition names no flag takes only the global ones" do
+      assert Op.check("delete", force: true) ==
+               {:error,
+                "slipdock delete does not take --force: it takes only --json and --url, " <>
+                  "as every command does"}
+    end
+
+    test "a usage takes only its own share of the definition's flags" do
+      # archive_card's --restore is the restore command's, set by it.
+      assert {:error, _} = Op.check("archive", restore: true)
+
+      assert {:error, "slipdock ledger does not take --limit: it takes --since" <> _} =
+               Op.check("ledger", limit: 5)
+
+      assert {:error, _} = Op.check("activity", view: "ledger")
+      assert :ok = Op.check("activity", card: "12", limit: 5, since: "7")
+      assert {:error, _} = Op.check("page history", rev: "3")
+      assert :ok = Op.check("page diff", rev: "3", against: "1")
+      assert {:error, _} = Op.check("garden undo", keep: "1")
+    end
+
+    test "every usage's flags are its definition's, and its command a defined one" do
+      for {usage, {command, only}} <- Op.usages() do
+        flags = Map.keys(Op.ops()[command]["cli"]["flags"])
+        assert only -- flags == [], "#{usage} takes #{inspect(only -- flags)}, not #{command}'s"
+      end
+    end
+
+    test "a flag the command reads itself is taken but not sent as it was typed" do
+      assert Op.request("handoff", ["5"], [next: "Ship", file: "notes.md"], body: "From the file") ==
+               {:post, "/cards/5/handoff", %{"next_step" => "Ship", "body" => "From the file"}}
+
+      assert Op.request("note", ["from stdin"], body: "-") ==
+               {:post, "/notes", %{"text" => "from stdin"}}
+    end
+
+    test "what the command sets is sent over what was typed, and is not checked" do
+      assert Op.request("ledger", ["errands"], [since: "7"], view: "ledger") ==
+               {:get, "/boards/errands/activity", %{"view" => "ledger", "since" => "7"}}
+
+      assert Op.request("restore", ["57"], [], restore: true) ==
+               {:post, "/cards/57/archive", %{"restore" => true}}
+    end
+  end
+
+  describe "a refused flag, run as a command" do
+    # Each command made from a definition, as typed, with a flag none of
+    # them takes. A refusal ends in `System.halt/1`, so each runs in an
+    # `elixir` of its own; nothing listens on port 9, so a request made
+    # before the refusal would fail with an error of its own instead.
+    @refused [
+      {"move", ~w(move 57 Doing)},
+      {"archive", ~w(archive 57)},
+      {"restore", ~w(restore 57)},
+      {"delete", ~w(delete 57)},
+      {"handoff", ~w(handoff 57 --next Ship)},
+      {"verify", ~w(verify 57 accept)},
+      {"verify", ~w(accept 57)},
+      {"new-tag", ~w(new-tag errands infra)},
+      {"note", ~w(note ring the printers)},
+      {"page ai", ~w(page ai W-31 summarise)},
+      {"page history", ~w(page history W-31)},
+      {"page diff", ~w(page diff W-31)},
+      {"page revert", ~w(page revert W-31 --rev 2)},
+      {"job --keep", ~w(job 812 --keep)},
+      {"tools install-board", ~w(tools install-board triage)},
+      {"activity", ~w(activity errands)},
+      {"ledger", ~w(ledger errands)},
+      {"garden apply", ~w(garden apply 42)},
+      {"garden dismiss", ~w(garden dismiss 42)},
+      {"garden undo", ~w(garden undo 42)}
+    ]
+
+    test "every command made from a definition is in the list below" do
+      named = MapSet.new(@refused, &elem(&1, 0))
+      made = MapSet.new(Map.keys(Op.ops()) ++ Map.keys(Op.usages()))
+      # garden's usages are its decisions: `garden` alone is the listing.
+      assert MapSet.difference(made, named) == MapSet.new(["garden"])
+    end
+
+    test "exits 1 before any request, naming what the command takes" do
+      home = Path.join(System.tmp_dir!(), "slipdock-op-#{System.unique_integer([:positive])}")
+      File.mkdir_p!(home)
+      on_exit(fn -> File.rm_rf!(home) end)
+
+      @refused
+      |> Task.async_stream(
+        fn {usage, argv} -> {usage, argv, main(argv ++ ["--tree", "--json"], home)} end,
+        timeout: 60_000
+      )
+      |> Enum.each(fn {:ok, {usage, argv, {out, status}}} ->
+        assert status == 1, "#{Enum.join(argv, " ")}: #{out}"
+        assert out =~ "error: slipdock #{usage} does not take --tree: it takes ", out
+      end)
+    end
+
+    defp main(argv, home) do
+      System.cmd(
+        "elixir",
+        ["-pa", Mix.Project.compile_path(), "-e", "SlipdockCLI.main(#{inspect(argv)})"],
+        env: [
+          {"HOME", home},
+          {"SLIPDOCK_URL", "http://127.0.0.1:9"},
+          {"SLIPDOCK_TOKEN", "test-token"}
+        ],
+        stderr_to_stdout: true
+      )
+    end
+  end
+
+  describe "the help names only flags a command takes" do
+    @help Path.expand("../help.txt", __DIR__)
+
+    # Each usage's entries in help.txt, by how they start.
+    @entries %{
+      "move" => ["move <id>"],
+      "archive" => ["archive <id>"],
+      "delete" => ["delete <id>"],
+      "handoff" => ["handoff <id>"],
+      "verify" => ["verify <id>", "accept <id>"],
+      "new-tag" => ["new-tag <board>"],
+      "note" => ["note <text"],
+      "page ai" => ["page ai <page>"],
+      "page history" => ["page history <page>"],
+      "page diff" => ["page diff <page>"],
+      "page revert" => ["page revert <page>"],
+      "tools install-board" => ["tools install-board "],
+      "activity" => ["activity <board>"],
+      "ledger" => ["ledger <board>"],
+      "garden apply" => ["garden apply <id>"],
+      "garden dismiss" => ["garden dismiss|undo <id>"]
+    }
+
+    test "each flag on a defined command's help entry is one it takes" do
+      entries = entries(File.read!(@help))
+
+      for {usage, starts} <- @entries, start <- starts do
+        text = Enum.filter(entries, &String.starts_with?(&1, start))
+        assert text != [], "no help entry starts #{inspect(start)}"
+
+        named =
+          ~r/--([a-z][a-z-]*)/
+          |> Regex.scan(Enum.join(text, "\n"))
+          |> Enum.map(fn [_, f] -> String.replace(f, "-", "_") end)
+          |> Enum.uniq()
+
+        assert named -- (Op.takes(usage) ++ Op.global()) == [],
+               "help names #{inspect(named -- Op.takes(usage))} for #{usage}"
+      end
+    end
+
+    test "and job --keep is the one entry its flag only names" do
+      assert Op.takes("job --keep") == []
+      assert Enum.any?(entries(File.read!(@help)), &String.starts_with?(&1, "job <id> --keep "))
+    end
+
+    # An entry is a line at indent 2 and the lines indented deeper under it.
+    defp entries(help) do
+      help
+      |> String.split("\n")
+      |> Enum.chunk_while(
+        nil,
+        fn
+          "  " <> <<c, _::binary>> = line, acc when c in ?a..?z ->
+            if acc,
+              do: {:cont, acc, String.trim_leading(line)},
+              else: {:cont, String.trim_leading(line)}
+
+          "    " <> _ = line, acc when is_binary(acc) ->
+            {:cont, acc <> "\n" <> line}
+
+          _line, nil ->
+            {:cont, nil}
+
+          _line, acc ->
+            {:cont, acc, nil}
+        end,
+        fn
+          nil -> {:cont, nil}
+          acc -> {:cont, acc, nil}
+        end
+      )
+    end
+  end
 end

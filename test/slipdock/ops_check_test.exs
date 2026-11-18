@@ -139,7 +139,9 @@ defmodule Slipdock.OpsCheckTest do
     text = Enum.map_join(cli_sources(), "\n", &elem(&1, 1))
 
     for op <- Ops.all(), command = op.definition()[:cli][:command] do
-      assert text =~ ~s{SlipdockCLI.Op.run("#{command}"},
+      # Or one of its usages (`SlipdockCLI.Op.usages/0`): "garden apply" is garden's.
+      assert text =~ ~s{SlipdockCLI.Op.run("#{command}"} or
+               text =~ ~s{SlipdockCLI.Op.run("#{command} },
              "#{op.definition().name}: no CLI command calls SlipdockCLI.Op.run(\"#{command}\", …)"
     end
   end

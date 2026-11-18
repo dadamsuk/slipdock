@@ -342,7 +342,7 @@ defmodule SlipdockCLI.Runners do
 
   # Keep this log (#1872): the ended job's log as a page in the card's folder.
   defp keep_log(id, o) do
-    SlipdockCLI.Op.run("job --keep", [id], o)
+    SlipdockCLI.Op.run("job --keep", [id], Keyword.delete(o, :keep_log))
     |> out(o, fn %{"page" => p} ->
       IO.puts("kept job ##{id}'s log as #{p["code"]} #{p["title"]}  #{p["url"] || ""}")
     end)

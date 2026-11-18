@@ -78,7 +78,9 @@ defmodule SlipdockWeb.Ops.VerifyCard do
         flags: %{
           "reason" => %{param: "reason"},
           "evidence_commit" => %{param: "commit"},
-          "check" => %{param: "checks"}
+          "check" => %{param: "checks"},
+          # `--checks-file F`: the checks a line each (or a JSON map), read by the CLI.
+          "checks_file" => %{param: "checks", read: :file}
         }
       }
     }

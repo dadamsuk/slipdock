@@ -18,7 +18,12 @@ defmodule SlipdockWeb.Ops.Op do
       MCP schema for it). An `:integer` with `max` is a count with a ceiling
       (`limit`): it must be 1 or more, and more than `max` is taken as `max`
     * `cli` — `%{command, positional, flags}`: how argv maps onto `params`;
-      left out when the CLI has no command for it
+      left out when the CLI has no command for it. `flags` are every flag
+      the command takes besides the global ones (`--json`, `--url`): the CLI
+      refuses any other (#3191). A flag is `%{param}` (its value is the
+      param's), `%{param, value}` (given, the param is `value`), or
+      `%{param, read}` for one the CLI reads the param from itself: `read:
+      :file` a file (`-`, stdin), `read: :stdin` the text or `-` for stdin
 
   and, optionally:
 

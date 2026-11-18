@@ -189,7 +189,7 @@ defmodule SlipdockWeb.Ops do
         cli.flags
         |> Enum.sort()
         |> Enum.map(fn {flag, spec} ->
-          {flag, ordered(param: spec.param, value: spec[:value])}
+          {flag, ordered(param: spec.param, value: spec[:value], read: spec[:read])}
         end)
         |> Jason.OrderedObject.new()
     )
