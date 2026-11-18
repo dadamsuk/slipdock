@@ -97,7 +97,7 @@ defmodule SlipdockWeb.MCP.StructureToolsTest do
   describe "delete_card" do
     test "with confirm, it is gone for good", ctx do
       result = ctx.conn |> call("delete_card", %{card: ctx.card.id, confirm: true}) |> ok!()
-      assert result["deleted"] == true
+      assert result["ok"] == true
       assert result["card"] == ctx.card.id
       assert Boards.Cards.get_card(ctx.card.id) == nil
       assert ctx.conn |> get(~p"/api/cards/#{ctx.card.id}") |> json_response(404)

@@ -1040,7 +1040,8 @@ defmodule SlipdockCLI.Boards do
 
   def run("delete", ids, o) when ids != [] do
     Enum.each(ids, fn id ->
-      HTTP.delete("/cards/#{enc(id)}") |> out(o, fn _ -> IO.puts("deleted card ##{id}") end)
+      SlipdockCLI.Op.run("delete", [id], o)
+      |> out(o, fn _ -> IO.puts("deleted card ##{id}") end)
     end)
   end
 

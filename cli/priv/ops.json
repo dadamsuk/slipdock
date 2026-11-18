@@ -85,5 +85,27 @@
         }
       }
     }
+  },
+  {
+    "name": "delete_card",
+    "summary": "Deletes a card and its subcards, comments and files. Cannot be undone; archive_card is the safe way. Needs confirm = true.",
+    "verb": "DELETE",
+    "path": "/api/cards/:id",
+    "writes": true,
+    "params": [
+      {
+        "name": "card",
+        "type": "integer",
+        "required": true,
+        "in_path": "id"
+      }
+    ],
+    "cli": {
+      "command": "delete",
+      "positional": [
+        "card"
+      ],
+      "flags": {}
+    }
   }
 ]

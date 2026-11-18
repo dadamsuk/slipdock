@@ -255,13 +255,7 @@ defmodule SlipdockWeb.API.CardController do
         Map.put(params, "restore", true)
       )
 
-  def delete(conn, %{"id" => id}) do
-    with {:ok, card} <- fetch_card(id),
-         :ok <- Authorize.card(conn, card, :write),
-         {:ok, _} <- Boards.Cards.delete_card(card) do
-      json(conn, %{ok: true})
-    end
-  end
+  def delete(conn, params), do: SlipdockWeb.Ops.REST.run(conn, SlipdockWeb.Ops.DeleteCard, params)
 
   @doc """
   `POST /api/cards/:id/copy` — a copy of the card as it is now (see

@@ -37,6 +37,10 @@ defmodule SlipdockCLI.OpTest do
              {:post, "/cards/57/archive", %{"restore" => true}}
   end
 
+  test "delete is delete_card's request, with no confirm: REST never asks for one" do
+    assert Op.request("delete", ["57"], []) == {:delete, "/cards/57", %{}}
+  end
+
   describe "slipdock move, end to end against a fake server" do
     setup do
       home = Path.join(System.tmp_dir!(), "slipdock-op-#{System.unique_integer([:positive])}")
