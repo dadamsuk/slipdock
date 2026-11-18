@@ -138,11 +138,48 @@ defmodule SlipdockWeb.OpsTest do
   end
 
   test "the guide's reference line comes from the definition" do
-    assert Ops.reference() =~
-             "- `POST /api/cards/:id/move` — Moves a card to a list on its board"
+    reference = Ops.reference()
 
-    assert Ops.reference() =~ "`index` (default `bottom`)"
-    assert Ops.reference() =~ "Needs write on the card."
+    assert reference[{"POST", "/api/cards/:id/move"}] ==
+             "move_card: takes column, index (default bottom), board; needs write on the card"
+
+    # Required, a default and a ceiling are each said; the path's params are the path's.
+    assert reference[{"GET", "/api/boards/:board/activity"}] =~
+             "takes card, limit (default 30, at most 200), view (default log), since;"
+
+    assert reference[{"POST", "/api/notes"}] ==
+             "quick_note: takes text (required); needs write on the wiki"
+
+    assert reference[{"DELETE", "/api/boards/:board"}] ==
+             "delete_board: no params; needs to own the board"
+
+    assert map_size(reference) == length(Ops.all())
+  end
+
+  test "the guide's Every endpoint list gives a defined route its definition's line (#3191)" do
+    [_, section] = String.split(SlipdockWeb.APIGuide.markdown(), "\n## Every endpoint\n")
+    [section | _] = String.split(section, "\n## ", parts: 2)
+
+    assert section =~
+             "    POST   /api/cards/:id/move\n" <>
+               "           move_card: takes column, index (default bottom), board; needs write on the card\n"
+
+    # Under the route, wrapped to stay readable in the code block.
+    assert section =~
+             "    POST   /api/cards/:id/handoff\n" <>
+               "           leave_handoff: takes next_step, body, clear (default false), delete (default false);\n" <>
+               "           needs comment on the card\n"
+
+    under = for line <- String.split(section, "\n"), line =~ ~r/^ {11}\S/, do: line
+    assert Enum.all?(under, &(String.length(&1) <= 99))
+
+    # A route no operation is defined for is its verb and path alone.
+    assert section =~ "    POST   /api/cards/:id/copy\n    POST"
+
+    for {{verb, path}, line} <- Ops.reference() do
+      first = line |> String.split(" ") |> hd()
+      assert section =~ "#{String.pad_trailing(verb, 7)}#{path}\n           #{first} "
+    end
   end
 
   # Regenerate with OPS_MANIFEST=write mix test test/slipdock_web/ops_test.exs

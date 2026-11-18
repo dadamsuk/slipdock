@@ -556,13 +556,41 @@ defmodule SlipdockWeb.APIGuide do
     """
   end
 
+  # A route an operation is defined for (`SlipdockWeb.Ops`) has the
+  # definition's params and permission under it (#3191); the rest are the
+  # router's verb and path, their params in the prose.
   defp endpoints_section do
+    defined = SlipdockWeb.Ops.reference()
+
     md(:endpoints, %{
       endpoints:
         Enum.map_join(endpoints(), "\n    ", fn {verb, path} ->
-          String.pad_trailing(verb, 7) <> path
+          line = String.pad_trailing(verb, 7) <> path
+
+          case defined[{verb, path}] do
+            nil -> line
+            said -> line <> "\n    " <> Enum.join(wrap(said, 88), "\n    ")
+          end
         end)
     })
+  end
+
+  # Words in lines of at most `width`, each indented under the path.
+  defp wrap(text, width) do
+    text
+    |> String.split(" ")
+    |> Enum.reduce([], fn
+      word, [] ->
+        [word]
+
+      word, [line | rest] when byte_size(line) + 1 + byte_size(word) <= width ->
+        [line <> " " <> word | rest]
+
+      word, lines ->
+        [word | lines]
+    end)
+    |> Enum.reverse()
+    |> Enum.map(&("       " <> &1))
   end
 
   defp boards_section(nil, _token, _limit) do

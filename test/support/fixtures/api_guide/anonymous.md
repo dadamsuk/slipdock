@@ -4032,6 +4032,7 @@ POST   /api/runner/claim
     POST   /api/tools
     GET    /api/tools/:slug
     POST   /api/tools/:slug/install
+           install_tool: takes version, name, board; needs read on the tool
     POST   /api/tools/:slug/listing
     GET    /api/tools/:slug/skills.tar.gz
     GET    /api/tools/:slug/skills/:skill/claude.zip
@@ -4040,6 +4041,7 @@ POST   /api/runner/claim
     GET    /api/tools/:slug/package.tar.gz
     GET    /api/me/drive
     POST   /api/notes
+           quick_note: takes text (required); needs write on the wiki
     PUT    /api/me/ai-key
     POST   /api/me/ai-key
     DELETE /api/me/ai-key
@@ -4102,9 +4104,12 @@ POST   /api/runner/claim
     GET    /api/boards/:board
     PATCH  /api/boards/:board
     DELETE /api/boards/:board
+           delete_board: no params; needs to own the board
     POST   /api/boards/:board/archive
     POST   /api/boards/:board/restore
     GET    /api/boards/:board/activity
+           activity: takes card, limit (default 30, at most 200), view (default log), since; needs
+           read on the board
     GET    /api/boards/:board/pulse
     GET    /api/boards/:board/handbook
     GET    /api/boards/:board/dora
@@ -4168,11 +4173,13 @@ POST   /api/runner/claim
     GET    /api/jobs/:id/transcript
     GET    /api/jobs/:id/log
     POST   /api/jobs/:id/keep
+           keep_job_log: no params; needs write on the card
     POST   /api/jobs/:id/cancel
     POST   /api/jobs/:id/progress
     POST   /api/jobs/:id/finish
     GET    /api/boards/:board/tags
     POST   /api/boards/:board/tags
+           create_tag: takes name (required), color; needs write on the board
     DELETE /api/boards/:board/tags/:id
     GET    /api/boards/:board/cards
     POST   /api/boards/:board/cards
@@ -4249,10 +4256,15 @@ POST   /api/runner/claim
     POST   /api/cards/:id/pages
     POST   /api/pages/:id/cards
     POST   /api/pages/:id/ai
+           page_tool: takes board, tool (required); needs read on the page
     GET    /api/pages/:id/revisions
+           page_history: takes board, limit (default 100, at most 500), rev, diff; needs read on
+           the page
     POST   /api/pages/:id/revisions/purge
     GET    /api/pages/:id/revisions/:rev
     POST   /api/pages/:id/revert
+           revert_page: takes board, revision (required), base_hash (required), message; needs
+           write on the page
     POST   /api/pages/:id/publish
     POST   /api/pages/:id/place
     DELETE /api/pages/:id/place
@@ -4270,8 +4282,11 @@ POST   /api/runner/claim
     GET    /api/cards/:id
     PATCH  /api/cards/:id
     DELETE /api/cards/:id
+           delete_card: no params; needs write on the card
     POST   /api/cards/:id/move
+           move_card: takes column, index (default bottom), board; needs write on the card
     POST   /api/cards/:id/archive
+           archive_card: takes restore (default false); needs write on the card
     POST   /api/cards/:id/restore
     POST   /api/cards/:id/copy
     POST   /api/cards/:id/incident-of
@@ -4287,6 +4302,7 @@ POST   /api/runner/claim
     PATCH  /api/boards/:board/garden/settings
     POST   /api/boards/:board/garden/proposals
     POST   /api/garden/suggestions/:id/:decision
+           garden_decide: takes keep, choice; needs write on the board
     GET    /api/boards/:board/health
     GET    /api/boards/:board/now
     POST   /api/boards/:board/health
@@ -4301,9 +4317,12 @@ POST   /api/runner/claim
     GET    /api/cards/:id/handoff
     GET    /api/cards/:id/timeline
     POST   /api/cards/:id/handoff
+           leave_handoff: takes next_step, body, clear (default false), delete (default false);
+           needs comment on the card
     DELETE /api/cards/:id/handoff
     POST   /api/cards/:id/wait
     POST   /api/cards/:id/verify
+           verify_card: takes decision (required), reason, commit, checks; needs write on the card
     DELETE /api/cards/:id/wait
     POST   /api/cards/:id/wait/answer
     GET    /api/cards/:id/waits

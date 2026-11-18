@@ -7,7 +7,7 @@ defmodule SlipdockWeb.Ops.Op do
   `definition/0` is plain data:
 
     * `name` — the operation's one name (`move_card`), the MCP tool's too
-    * `title`, `summary` — the MCP title and description, the reference line
+    * `title`, `summary` — the MCP title and description
     * `verb`, `path` — the REST route (`path` as the router writes it)
     * `permission` — what the caller needs, `{:card, :write}` and so on
     * `writes?` — whether it changes anything (a read-scope token's test)

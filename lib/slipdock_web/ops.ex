@@ -207,23 +207,38 @@ defmodule SlipdockWeb.Ops do
   defp type_name({:enum, values}), do: ordered(enum: values)
   defp type_name(t), do: to_string(t)
 
-  @doc "The guide's reference line for each operation, params and all."
+  @doc """
+  What the guide's *Every endpoint* list says under a defined operation's
+  route (#3191): its name, the params it takes beyond the path's (each
+  required one, default and ceiling said) and the permission it needs. By
+  `{"POST", "/api/cards/:id/move"}`, as the list writes a route. Plain text:
+  the list is a code block.
+  """
   def reference do
-    Enum.map_join(@ops, "\n", fn op ->
+    Map.new(@ops, fn op ->
       d = op.definition()
+      verb = d.verb |> to_string() |> String.upcase()
 
-      "- `#{d.verb |> to_string() |> String.upcase()} #{d.path}` — #{d.summary} " <>
-        takes(Enum.reject(d.params, & &1[:in_path])) <> "Needs #{permission(d.permission)}."
+      {{verb, d.path},
+       "#{d.name}: " <>
+         takes(Enum.reject(d.params, & &1[:in_path])) <> "needs #{permission(d.permission)}"}
     end)
   end
 
-  defp takes([]), do: ""
-  defp takes(params), do: "Takes #{Enum.map_join(params, ", ", &param_word/1)}. "
+  defp takes([]), do: "no params; "
+  defp takes(params), do: "takes #{Enum.map_join(params, ", ", &param_word/1)}; "
 
-  defp param_word(%{default: default, name: name}) when not is_nil(default),
-    do: "`#{name}` (default `#{default}`)"
+  defp param_word(param) do
+    said =
+      [
+        param[:required] && "required",
+        param[:default] != nil && "default #{param[:default]}",
+        param[:max] && "at most #{param[:max]}"
+      ]
+      |> Enum.filter(& &1)
 
-  defp param_word(%{name: name}), do: "`#{name}`"
+    if said == [], do: param.name, else: "#{param.name} (#{Enum.join(said, ", ")})"
+  end
 
   defp permission({subject, :owner}), do: "to own the #{subject}"
   defp permission({subject, need}), do: "#{need} on the #{subject}"
