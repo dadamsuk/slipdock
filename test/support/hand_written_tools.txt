@@ -18,7 +18,6 @@ activity
 garden_decide
 get_guide
 install_tool
-keep_job_log
 page_history
 revert_page
 search

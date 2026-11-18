@@ -360,5 +360,27 @@
         }
       }
     }
+  },
+  {
+    "name": "keep_job_log",
+    "summary": "Keeps an ended runner job's live log, which otherwise expires: writes it as a page Pass <card> (<date>) in the card's folder and links it from the job. Again gives the same page.",
+    "verb": "POST",
+    "path": "/api/jobs/:id/keep",
+    "writes": true,
+    "params": [
+      {
+        "name": "job",
+        "type": "integer",
+        "required": true,
+        "in_path": "id"
+      }
+    ],
+    "cli": {
+      "command": "job --keep",
+      "positional": [
+        "job"
+      ],
+      "flags": {}
+    }
   }
 ]

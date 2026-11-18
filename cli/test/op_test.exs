@@ -71,6 +71,10 @@ defmodule SlipdockCLI.OpTest do
              {:post, "/pages/W-31/ai", %{"tool" => "summarise"}}
   end
 
+  test "job --keep-log is keep_job_log's request" do
+    assert Op.request("job --keep", ["812"], keep_log: true) == {:post, "/jobs/812/keep", %{}}
+  end
+
   test "an operation the CLI has no command for (delete_board) is left out" do
     refute Map.has_key?(Op.ops(), nil)
     refute Enum.any?(Op.ops(), fn {_, op} -> op["name"] == "delete_board" end)
