@@ -1,0 +1,56 @@
+[
+  {
+    "name": "move_card",
+    "summary": "Moves a card to a list on its board: to the doing list when you start it. With board, to another board, subcards and all. To finish a card use complete_card, which also marks it done.",
+    "verb": "POST",
+    "path": "/api/cards/:id/move",
+    "writes": true,
+    "params": [
+      {
+        "name": "card",
+        "type": "integer",
+        "required": true,
+        "in_path": "id"
+      },
+      {
+        "name": "column",
+        "type": "string",
+        "required": false
+      },
+      {
+        "name": "index",
+        "type": "position",
+        "required": false,
+        "default": "bottom"
+      },
+      {
+        "name": "board",
+        "type": "string",
+        "required": false
+      }
+    ],
+    "cli": {
+      "command": "move",
+      "positional": [
+        "card",
+        "column..."
+      ],
+      "flags": {
+        "board": {
+          "param": "board"
+        },
+        "bottom": {
+          "param": "index",
+          "value": "bottom"
+        },
+        "index": {
+          "param": "index"
+        },
+        "top": {
+          "param": "index",
+          "value": "top"
+        }
+      }
+    }
+  }
+]

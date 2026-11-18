@@ -202,7 +202,7 @@ The claim is the lock — do it before any work, so a concurrent pass or a
 watching human can see the card is taken:
 
 ```sh
-slipdock move <id> "In Progress" --top
+slipdock move <id> "In Progress" --top   # MCP: move_card with index "top" (default: bottom)
 slipdock edit <id> --assignee me --percent 0
 slipdock comment <id> --body - <<'EOF'
 **Picked up.** <what you read it as, in a sentence or two.>

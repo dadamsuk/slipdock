@@ -73,7 +73,7 @@ PUT    /api/card-views/level  ?board= &list=      {card_view, elements, show, hi
 DELETE /api/card-views/level  ?board= &list=      clears it, so it inherits everything (PATCH as PUT)
 GET    /api/card-views/applied ?board= &list= &view=   what applies, each element with the level that decided it
 GET    /api/cards/:id                      PATCH  /api/cards/:id       DELETE /api/cards/:id
-POST   /api/cards/:id/move   {column, index: "top"|"bottom"|N}
+POST   /api/cards/:id/move   {column, index: "top"|"bottom"|N}   default bottom; any other index is a 400
 POST   /api/cards/:id/move   {board, column}   to another board, with its subcards; answers
                                                `moved: {tags_created, tags_dropped, fields_dropped, milestones_unpinned}`
 POST   /api/cards/:id/archive              POST   /api/cards/:id/restore

@@ -619,6 +619,7 @@ palette name, `""` for none), sets what blocks a card and works its checklist (a
 items, tick and untick them by the ids `get_card` shows; a new order is over
 HTTP, `POST /api/checklist/<item_id>/move {"before": <item_id>}`, or `slipdock
 move-check <item-id> --before <item-id>`); `move_card` takes
+`index` (`top`, `bottom` the default, or a place from 0) and
 `board` to send a card, subcards and all, to another board; `list_cards`
 takes `archived` (`exclude`, the default, `include` or `only`) and `full:
 true` for every card as `get_card` gives it; and

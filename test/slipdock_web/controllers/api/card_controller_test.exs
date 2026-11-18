@@ -456,7 +456,9 @@ defmodule SlipdockWeb.API.CardControllerTest do
       )
     end
 
-    test "index takes top, bottom, a number, a numeric string, and anything else as bottom", %{
+    # #3185: one cast for REST and MCP, so an index that is not a place
+    # is refused (400) on both, where REST used to take it as the bottom.
+    test "index takes top, bottom, a number or a numeric string, and refuses anything else", %{
       conn: conn,
       card: card,
       other: other,
@@ -473,11 +475,13 @@ defmodule SlipdockWeb.API.CardControllerTest do
       assert move.(third, "bottom") == ["First", "Second", "Third"]
       assert move.(third, 0) == ["Third", "First", "Second"]
       assert move.(third, "1") == ["First", "Third", "Second"]
-      assert move.(third, "middle") == ["First", "Second", "Third"]
-      # Not a 500: a JSON number that is not whole, or a boolean, is the end.
-      assert move.(card, 1.5) == ["Second", "Third", "First"]
-      assert move.(card, true) == ["Second", "Third", "First"]
-      assert move.(other, nil) == ["Third", "First", "Second"]
+
+      for bad <- ["middle", 1.5, true, -1] do
+        assert %{"error" => "index must be top, bottom" <> _} =
+                 conn |> post("/api/cards/#{card.id}/move", %{index: bad}) |> json_response(400)
+      end
+
+      assert move.(other, nil) == ["First", "Third", "Second"]
     end
 
     test "an unknown list is a 404", %{conn: conn, card: card} do

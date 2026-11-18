@@ -240,46 +240,8 @@ defmodule SlipdockWeb.API.CardController do
   # tags (by name) and whatever custom fields the destination also has. See
   # `Slipdock.Boards.Moves.move_card_to_board/2`; `index` has no meaning there,
   # because the card lands at the end of a list it has never been in.
-  def move(conn, %{"id" => id, "board" => ref} = params) when not is_nil(ref) do
-    with {:ok, card} <- fetch_card(id),
-         :ok <- Authorize.card(conn, card, :write),
-         {:ok, board} <- Authorize.fetch_board(conn, ref, :write),
-         {:ok, column} <- resolve_column(board, params["column"]),
-         refusal = Authorize.tags_refusal(conn, board),
-         {:ok, summary} <-
-           move_to_board(card, column,
-             actor: Slipdock.Actor.from_conn(conn),
-             make_tags: is_nil(refusal)
-           ) do
-      json(conn, %{
-        card: V.card(Authorize.visible(conn, Boards.Cards.get_card!(card.id))),
-        moved:
-          summary |> Map.delete(:card) |> Map.merge(tags_dropped(summary.tags_dropped, refusal))
-      })
-    end
-  end
-
-  def move(conn, %{"id" => id} = params) do
-    with {:ok, card} <- fetch_card(id),
-         :ok <- Authorize.card(conn, card, :write),
-         board <- Boards.get_board!(card.board_id),
-         {:ok, column} <- resolve_column(board, params["column"] || card.column_id),
-         :ok <-
-           Boards.Cards.move_card_to_index(card, column, parse_index(params["index"]),
-             actor: Slipdock.Actor.from_conn(conn)
-           ) do
-      json(conn, %{card: V.card(Authorize.visible(conn, Boards.Cards.get_card!(card.id)))})
-    end
-  end
-
-  defp move_to_board(card, column, opts) do
-    case Boards.Moves.move_card_to_board(card, column, opts) do
-      {:ok, summary} -> {:ok, summary}
-      # A limit on the destination: the fallback answers it with its 402.
-      {:error, %Ecto.Changeset{}} = refused -> refused
-      {:error, message} -> {:error, :unprocessable_entity, message}
-    end
-  end
+  # The operation is defined once (#3185), in `SlipdockWeb.Ops.MoveCard`.
+  def move(conn, params), do: SlipdockWeb.Ops.REST.run(conn, SlipdockWeb.Ops.MoveCard, params)
 
   def archive(conn, %{"id" => id}) do
     with {:ok, card} <- fetch_card(id),
