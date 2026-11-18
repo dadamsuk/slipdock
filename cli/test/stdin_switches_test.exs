@@ -390,4 +390,76 @@ defmodule SlipdockCLI.StdinSwitchesTest do
     assert Util.stdin_arg(nil, "--desc") == nil
     assert Util.stdin_arg("--", "--desc") == "--"
   end
+
+  describe "two options reading stdin on one command (#3192)" do
+    test "are refused, naming both, before anything is read" do
+      {opts, _, []} =
+        OptionParser.parse(["--desc", "-", "--bar", "-"], strict: SlipdockCLI.switches())
+
+      assert Util.stdin_clash(opts) ==
+               "only one option per command can read stdin, but --desc -, --bar - " <>
+                 "each ask to: give the others as text, or run a second command"
+    end
+
+    test "are refused on any command, by the option's name as typed" do
+      {opts, _, []} =
+        OptionParser.parse(["--no-code", "-", "--evidence", "-", "--paths-from", "-"],
+          strict: SlipdockCLI.switches()
+        )
+
+      assert Util.stdin_clash(opts) =~ "--no-code -, --evidence -, --paths-from -"
+    end
+
+    test "one `-`, plain text, `--out -` and a literal `--agent -` are let through" do
+      assert Util.stdin_clash(desc: "-", bar: "as typed") == nil
+      assert Util.stdin_clash(desc: "text", bar: "text") == nil
+      assert Util.stdin_clash(body: "-", out: "-") == nil
+      assert Util.stdin_clash(agent: "-", instructions: "-") == nil
+      assert Util.stdin_clash([]) == nil
+    end
+
+    test "the escript refuses `add --desc - --bar -`, exits 1 and sends nothing" do
+      cli = Path.expand("..", __DIR__)
+      url = FakeServer.start([{200, ~s({"card":{"id":1}})}])
+
+      {out, status} =
+        System.cmd(
+          "sh",
+          [
+            "-c",
+            "printf 'text\\n' | mix run -e 'SlipdockCLI.main(System.argv())' -- " <>
+              "add b Title --desc - --bar - --url " <> url
+          ],
+          cd: cli,
+          stderr_to_stdout: true,
+          env: [{"MIX_ENV", "test"}]
+        )
+
+      assert status == 1
+      assert out =~ "error: only one option per command can read stdin, but --desc -, --bar -"
+      refute_received {:request, _, _, _}
+    end
+  end
+
+  # Every option the CLI's source reads from stdin with `-` is in the list
+  # the clash check counts, so a new one can't slip past it.
+  test "every option read from stdin is in Util.stdin_switches/0" do
+    source =
+      Path.wildcard(Path.expand("../lib/**/*.ex", __DIR__))
+      |> Enum.map_join("\n", &File.read!/1)
+
+    read =
+      Regex.scan(~r/stdin_arg\(o\[:(\w+)\]/, source, capture: :all_but_first) ++
+        Regex.scan(~r/o\[:(\w+)\] == "-"/, source, capture: :all_but_first) ++
+        Regex.scan(
+          ~r/case o\[:(\w+)\] do\s+(?:nil -> [^\n]+\s+)?"-" -> [^\n]*(?:stdin|IO\.read)/,
+          source,
+          capture: :all_but_first
+        )
+
+    keys = read |> List.flatten() |> Enum.map(&String.to_atom/1) |> Enum.uniq()
+
+    assert keys != []
+    assert keys -- Util.stdin_switches() == []
+  end
 end

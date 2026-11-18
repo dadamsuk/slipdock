@@ -311,7 +311,7 @@ slipdock add <board> <title words...> [--column C] [--desc TEXT] [--priority P] 
                                         # inside a runner job, --origin sweep|findings names the generator filing it
                                        # --archived: made straight into the archive (a record of finished work)
                                        # --desc - (and --bar -) reads the text from stdin: a quoted heredoc (<<'EOF') keeps
-                                       # its lines, on add and edit; one - per command. The server refuses an agent's
+                                       # its lines, on add and edit; one - per command (a second is refused). The server refuses an agent's
                                        # description or bar that is a bare "-" (what a CLI that doesn't read stdin sends)
 slipdock edit <id> [--title T] [--desc TEXT] [--priority P] [--start DATE|--no-start] [--due DATE|--no-due] [--percent N|--no-percent] [--color C|--no-color] [--column C]
 slipdock edit <id> --short-name T            # a label for tight spaces and the card's folder name; "" hands it back (also on add)

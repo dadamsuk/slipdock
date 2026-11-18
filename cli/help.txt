@@ -589,7 +589,8 @@ WRITE
       --origin sweep|findings     inside a runner job, the generator filing it (the server
                                   records every other origin itself)
       --archived                  archive it as soon as it is made (a record of finished work)
-      --desc - and --bar - read the text from stdin (a heredoc keeps its lines; one per command)
+      --desc - and --bar - read the text from stdin (a heredoc keeps its lines; one per command:
+                                  a second - is refused, on any command)
   edit <id> [opts]                    change fields on a card
       --title T  --desc TEXT  --priority P  --start DATE | --no-start  --due DATE | --no-due
       --color C | --no-color  --column C

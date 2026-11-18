@@ -391,9 +391,7 @@ defmodule SlipdockCLI do
     {opts, args, invalid} =
       OptionParser.parse(wait_on(argv), strict: @switches, aliases: [h: :help, j: :json])
 
-    if invalid != [] do
-      fail("unknown option(s): " <> Enum.map_join(invalid, ", ", &elem(&1, 0)))
-    end
+    refuse_bad_options(opts, invalid)
 
     if opts[:url], do: System.put_env("SLIPDOCK_URL", opts[:url])
 
@@ -414,6 +412,15 @@ defmodule SlipdockCLI do
           do: System.halt(0),
           else: reraise(error, __STACKTRACE__)
     end
+  end
+
+  defp refuse_bad_options(_opts, [_ | _] = invalid),
+    do: fail("unknown option(s): " <> Enum.map_join(invalid, ", ", &elem(&1, 0)))
+
+  # #3192: stdin is read once, so a second `-` got nothing (or, on an older
+  # CLI, nothing at all was said). Refused here, before any command runs.
+  defp refuse_bad_options(opts, []) do
+    if clash = Util.stdin_clash(opts), do: fail(clash)
   end
 
   # `slipdock wait <id> "…" --on EMAIL`: everywhere else `--on` is a switch
