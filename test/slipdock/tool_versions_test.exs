@@ -11,7 +11,9 @@ defmodule Slipdock.ToolVersionsTest do
   so the check is that it is at least the daemon's `go.mod` floor.
 
   And the `KANBAN_*` environment variables, renamed `SLIPDOCK_*`, are named
-  nowhere in the docs but `UPGRADING.md`, whose table is the rename itself.
+  nowhere in the docs but `UPGRADING.md`, whose table is the rename itself,
+  nor in the scripts under `tools/` (#3350). The CLI's help topic names the
+  Elixir `cli/mix.exs` requires, which is older than the app's (#3350).
   """
   use ExUnit.Case, async: true
 
@@ -92,6 +94,27 @@ defmodule Slipdock.ToolVersionsTest do
                [elixir_minor()],
              "#{doc} names another Elixir version"
     end
+  end
+
+  test "the CLI help topic names the Elixir cli/mix.exs requires, and no other" do
+    [cli_minor] =
+      Regex.run(~r/elixir: "~> (\d+\.\d+)"/, read("cli/mix.exs"), capture: :all_but_first)
+
+    text = read("lib/slipdock_web/live/help_live/agents/topics/cli.html.heex")
+    assert text =~ "Elixir #{cli_minor} or later"
+
+    assert Regex.scan(~r/Elixir (\d+\.\d+)/, text, capture: :all_but_first)
+           |> List.flatten()
+           |> Enum.uniq() == [cli_minor]
+  end
+
+  test "no script in tools/ sets a KANBAN_* variable" do
+    offenders =
+      for path <- Path.wildcard(Path.join(@root, "tools/**/*.{sh,mjs,js,exs}")),
+          File.read!(path) =~ ~r/\bKANBAN_[A-Z]/,
+          do: Path.relative_to(path, @root)
+
+    assert offenders == []
   end
 
   test "no doc names a KANBAN_* variable but UPGRADING.md's rename table" do

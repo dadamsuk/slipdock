@@ -18,9 +18,9 @@ LOG="$(mktemp -d)/server.log"
 BASE="http://127.0.0.1:$PORT"
 
 export DATABASE_URL="${SCREENSHOT_DATABASE_URL:-postgres://postgres:postgres@localhost:5434/$DB}"
-export KANBAN_BIND_IP=127.0.0.1
+export SLIPDOCK_BIND_IP=127.0.0.1
 export PORT
-export KANBAN_AGENTIC_LOGIN=true
+export SLIPDOCK_AGENTIC_LOGIN=true
 export MIX_ENV=dev
 
 mix ecto.create --quiet
