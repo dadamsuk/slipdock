@@ -47,7 +47,7 @@
   </p>
   <p>On Windows, in PowerShell. This installs Erlang through winget if it isn't already there:</p>
   <.snippet id="help-cli-windows" text={"irm #{@base_url}/cli/install.ps1 | iex\nslipdock auth"} />
-  <p>From a checkout, build it from the repository (Elixir 1.19 or later):</p>
+  <p>From a checkout, build it from the repository (Elixir 1.17 or later):</p>
   <.snippet
     id="help-cli-build"
     text={"cd cli && mix escript.build && cp slipdock ~/.local/bin/\nslipdock url #{@base_url}\nslipdock auth"}
