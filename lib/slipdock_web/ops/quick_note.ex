@@ -33,7 +33,15 @@ defmodule SlipdockWeb.Ops.QuickNote do
       params: [
         %{name: "text", type: :string, required: true, doc: "The note, in Markdown."}
       ],
-      cli: %{command: "note", positional: ["text..."], flags: %{}}
+      cli: %{
+        command: "note",
+        positional: ["text..."],
+        # With no words, the text is `--body TEXT` (`-`, stdin) or `--file F`.
+        flags: %{
+          "body" => %{param: "text", read: :stdin},
+          "file" => %{param: "text", read: :file}
+        }
+      }
     }
   end
 

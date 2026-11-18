@@ -71,6 +71,8 @@ defmodule SlipdockWeb.Ops.LeaveHandoff do
         flags: %{
           "next" => %{param: "next_step"},
           "body" => %{param: "body"},
+          # `--file F`: the body from a file (`-`, stdin), read by the CLI.
+          "file" => %{param: "body", read: :file},
           "clear" => %{param: "clear", value: true},
           "delete" => %{param: "delete", value: true}
         }

@@ -192,7 +192,7 @@ defmodule SlipdockCLI.Boards do
     do: HTTP.get("/boards/#{enc(ref)}/tags") |> out(o, &Render.tags(&1["tags"]))
 
   def run("activity", [ref], o) do
-    SlipdockCLI.Op.run("activity", [ref], Keyword.delete(o, :view))
+    SlipdockCLI.Op.run("activity", [ref], o)
     |> out(o, &Render.activity(&1["activity"]))
   end
 
@@ -492,15 +492,15 @@ defmodule SlipdockCLI.Boards do
         fail("--delete deletes the current handoff: leave off --next and --clear")
 
       o[:delete] ->
-        SlipdockCLI.Op.run("handoff", [id], delete: true)
+        SlipdockCLI.Op.run("handoff", [id], o)
         |> out(o, &handoff_deleted(id, &1))
 
       o[:clear] ->
-        SlipdockCLI.Op.run("handoff", [id], clear: true)
+        SlipdockCLI.Op.run("handoff", [id], o)
         |> out(o, fn _ -> IO.puts("cleared the handoff on ##{id}") end)
 
       o[:next] ->
-        SlipdockCLI.Op.run("handoff", [id], next: o[:next], body: handoff_body(o))
+        SlipdockCLI.Op.run("handoff", [id], o, body: handoff_body(o))
         |> out(o, fn r -> IO.puts("left a handoff on ##{id}: #{r["handoff"]["next_step"]}") end)
 
       o[:body] || o[:file] ->
@@ -602,15 +602,16 @@ defmodule SlipdockCLI.Boards do
   # the reason.
   def run("verify", [id, decision], o)
       when decision in ~w(accept reject merged agree disagree) do
-    o = Keyword.replace(o, :reason, stdin_arg(o[:reason], "--reason"))
+    SlipdockCLI.Op.check!("verify", o)
+    reason = stdin_arg(o[:reason], "--reason")
 
-    if decision == "reject" and Enum.member?([nil, ""], o[:reason]),
+    if decision == "reject" and Enum.member?([nil, ""], reason),
       do: fail("a rejection needs its reason: --reason TEXT")
 
-    if decision == "disagree" and Enum.member?([nil, ""], o[:reason]),
+    if decision == "disagree" and Enum.member?([nil, ""], reason),
       do: fail("an audit's disagreement needs its reason: --reason TEXT")
 
-    SlipdockCLI.Op.run("verify", [id, decision], Keyword.put(o, :check, verify_checks(o)))
+    SlipdockCLI.Op.run("verify", [id, decision], o, reason: reason, check: verify_checks(o))
     |> out(o, &card_ok(verified_word(decision), &1))
   end
 
@@ -1025,7 +1026,7 @@ defmodule SlipdockCLI.Boards do
     do: each(ids, o, &SlipdockCLI.Op.run("archive", [&1], o), "archived")
 
   def run("restore", ids, o) when ids != [],
-    do: each(ids, o, &SlipdockCLI.Op.run("archive", [&1], restore: true), "restored")
+    do: each(ids, o, &SlipdockCLI.Op.run("restore", [&1], o, restore: true), "restored")
 
   def run("delete", ids, o) when ids != [] do
     Enum.each(ids, fn id ->

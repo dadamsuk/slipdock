@@ -729,24 +729,25 @@ defmodule SlipdockCLI.Wiki do
     do: HTTP.post("/pages/#{enc(ref)}/restore", %{}) |> out(o, &page_ok("restored", &1))
 
   def run("page", ["history", ref], o) do
-    SlipdockCLI.Op.run("page history", [ref], limit: o[:limit])
+    SlipdockCLI.Op.run("page history", [ref], o)
     |> out(o, &Render.revisions(&1["revisions"]))
   end
 
   # --against compares with any other version; without it, the one before.
   # Without --rev, the latest save's change.
   def run("page", ["diff", ref], o) do
-    SlipdockCLI.Op.run("page history", [ref], rev: o[:rev], against: o[:against] || "previous")
+    SlipdockCLI.Op.run("page diff", [ref], o, against: o[:against] || "previous")
     |> out(o, &Render.diff(&1["diff"] || []))
   end
 
   # A revert needs the page's hash as it stands (#3188), so a newer edit is
   # never lost to it unseen: read it first, unless --base-hash gives it.
   def run("page", ["revert", ref], o) do
+    SlipdockCLI.Op.check!("page revert", o)
     o[:rev] || fail("which version? pass --rev N (see `slipdock page history`)")
     hash = o[:base_hash] || fetch!("/pages/#{enc(ref)}")["page"]["content_hash"]
 
-    SlipdockCLI.Op.run("page revert", [ref], Keyword.put(o, :base_hash, hash))
+    SlipdockCLI.Op.run("page revert", [ref], o, base_hash: hash)
     |> out(o, &page_ok("reverted", &1))
   end
 

@@ -23,11 +23,14 @@ defmodule SlipdockCLI.Garden do
         {:error, message} -> fail(message)
       end
 
-    # The definition's flags, from what the decision sends.
-    flags = for {key, value} <- decision_body(verb, o), do: {String.to_existing_atom(key), value}
+    # Its flags are garden_decide's: --keep and --choice for apply alone. A
+    # proposed handbook edit is decided only on the board's Tidy-up page
+    # (#2668): the server refuses it here with the page's link, so there is
+    # no `--confirm` to send (#2688).
+    SlipdockCLI.Op.check!("garden #{verb}", o)
 
     Enum.each(ids, fn id ->
-      SlipdockCLI.Op.run("garden", [verb, to_string(id)], flags)
+      SlipdockCLI.Op.run("garden #{verb}", [verb, to_string(id)], o)
       |> out(o, fn r -> IO.puts("#{past(verb)} " <> line(r["suggestion"])) end)
     end)
   end
@@ -88,13 +91,6 @@ defmodule SlipdockCLI.Garden do
       "usage: slipdock garden <board> [--run] [--check K] | garden apply|dismiss|undo <id>... " <>
         "[--keep CARD] [--choice NAME] | garden settings <board> [<check> key=value...] | " <>
         "garden propose <board> <file.json | ->"
-
-  @doc false
-  # What a decision sends. A proposed handbook edit is decided only on the
-  # board's Tidy-up page (#2668): the server refuses it here with the page's
-  # link, so there is no `--confirm` to send (#2688).
-  def decision_body("apply", o), do: compact(%{"keep" => o[:keep], "choice" => o[:choice]})
-  def decision_body(_verb, _o), do: %{}
 
   @doc false
   # The Tidy-up page of the board a suggestion is on, where a person decides a
