@@ -1,0 +1,68 @@
+# The MCP tools still written by hand, not made from an operation's
+# definition (`use SlipdockWeb.Ops.MCPTool`, #3183). test/slipdock/
+# ops_check_test.exs fails on a hand-written tool that isn't here, and on a
+# line here whose tool is now made from a definition or is gone. The list
+# is meant to shrink: a new tool is made from a definition, and comes here
+# only when it combines several operations. One tool name per line.
+
+# One operation each: Ops 3 (#3187) makes these from definitions
+archive_card
+create_tag
+delete_board
+delete_card
+leave_handoff
+list_cards
+verify_card
+
+# One operation each: Ops 4 (#3188) makes these from definitions
+activity
+garden_decide
+get_guide
+install_tool
+keep_job_log
+page_history
+page_tool
+quick_note
+revert_page
+search
+
+# Several operations each, or none REST has: hand-composed on purpose
+# (SPEC-4); Ops 5 (#3190) takes their params from the definitions they wrap
+archive_board
+ask
+card_views
+claim_job
+comment
+complete_card
+create_board
+create_card
+create_list
+delete_attachment
+delete_list
+download_file
+file_folder
+finish_job
+garden
+get_board
+get_card
+job_log
+job_progress
+list_automations
+list_boards
+list_pages
+list_tools
+manage_automation
+manage_wiki
+page_info
+read_page
+release_now
+share
+skill_registry
+status_update
+update_board
+update_card
+update_page
+upload_file
+whoami
+wiki_info
+write_page

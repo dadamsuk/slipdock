@@ -9,6 +9,9 @@ defmodule SlipdockWeb.Ops.MCPTool do
       @behaviour SlipdockWeb.MCP.Tool
       @op unquote(op)
 
+      @doc "The definition this tool is made from (`OpsCheckTest` reads it)."
+      def __op__, do: @op
+
       @impl true
       def name, do: @op.definition().name
       @impl true
