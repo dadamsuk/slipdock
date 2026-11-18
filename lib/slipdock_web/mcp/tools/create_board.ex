@@ -6,7 +6,17 @@ defmodule SlipdockWeb.MCP.Tools.CreateBoard do
   @behaviour SlipdockWeb.MCP.Tool
 
   alias Slipdock.Boards
+  alias SlipdockWeb.API.Authorize
   alias SlipdockWeb.MCP.{Args, Tools}
+  alias SlipdockWeb.Ops
+
+  # The params it shares with `POST /api/boards` (`Ops.NewBoard`): all it
+  # takes. REST's also take shortcut, color, kind, simple, and columns (the
+  # old name for lists).
+  @shared ~w(name code description template lists save_template)
+
+  @doc false
+  def shared, do: @shared
 
   @impl true
   def name, do: "create_board"
@@ -25,38 +35,26 @@ defmodule SlipdockWeb.MCP.Tools.CreateBoard do
   def input_schema do
     %{
       type: "object",
-      properties: %{
-        name: %{type: "string"},
-        code: %{type: "string", description: "Short slug; made from the name if left out."},
-        description: %{type: "string"},
-        template: %{type: "string", description: "Template name or id for its lists."},
-        lists: %{
-          type: "array",
-          items: %{type: "string"},
-          description:
-            "The board's own list names, in order, instead of a template's. Names like " <>
-              "To Do, In Progress and Done are given those roles."
-        },
-        save_template: %{
-          type: "string",
-          description: "Also keep the board's lists as a template with this name."
-        }
-      },
+      properties: %{},
       required: ["name"],
       additionalProperties: false
     }
+    # Every param it takes is POST /api/boards's, from its definition (#3361).
+    |> Map.update!(:properties, &Map.merge(&1, Ops.params_from(Ops.NewBoard, @shared)))
   end
 
   @impl true
   def read_only?, do: false
 
   @impl true
-  def call(args, %{user: user, token: token} = context) do
+  def call(args, %{user: user} = context) do
+    auth = Args.auth(context)
+
     with {:ok, name} <- Args.required(args, "name"),
          {:ok, template_ref} <- Args.optional(args, "template"),
          {:ok, lists} <- Args.strings(args, "lists"),
          {:ok, save_as} <- Args.optional(args, "save_template"),
-         :ok <- unscoped(token),
+         :ok <- Args.refusal(Authorize.unconfined(auth, "create boards")),
          {:ok, template} <- template(user, template_ref),
          attrs = args |> Map.take(~w(code description)) |> Map.put("name", name),
          {:ok, board} <-
@@ -74,18 +72,6 @@ defmodule SlipdockWeb.MCP.Tools.CreateBoard do
          :url,
          context.base_url <> "/boards/#{board.id}"
        )}
-    end
-  end
-
-  defp unscoped(token) do
-    case Map.get(token, :scope_boards) || [] do
-      [] ->
-        :ok
-
-      _ ->
-        {:error,
-         "this API token's scope doesn't allow it to create boards: it is confined to " <>
-           "some boards (see Account → API tokens). Don't retry."}
     end
   end
 

@@ -7,6 +7,15 @@ defmodule SlipdockWeb.MCP.Tools.CreateCard do
   alias SlipdockWeb.MCP.{Args, Tools}
   alias SlipdockWeb.Ops
 
+  # The params it shares with `POST /api/boards/:board/cards` (`Ops.AddCard`).
+  # Its own: parent (a subcard, making the sub-board), top and
+  # subcard_template.
+  @shared ~w(board title description column short_name priority tags assignees start_date
+             due_date bar paths profile caused_by missed_by archived origin)
+
+  @doc false
+  def shared, do: @shared
+
   @impl true
   def name, do: "create_card"
 
@@ -28,49 +37,7 @@ defmodule SlipdockWeb.MCP.Tools.CreateCard do
           type: "integer",
           description: "Make it a subcard of this card, in place of board."
         },
-        title: %{type: "string"},
-        description: %{type: "string", description: "Markdown: the brief."},
-        column: %{type: "string", description: "List name; default the board's ready list."},
         top: %{type: "boolean", description: "Put it at the top of the list (default bottom)."},
-        short_name: %{
-          type: "string",
-          description: "At most 40 characters, for tight spaces. Made for you if left out."
-        },
-        priority: %{type: "string", enum: ["none", "low", "medium", "high", "critical"]},
-        tags: %{
-          type: "array",
-          items: %{type: "string"},
-          description:
-            "Tag names already on the board (get_board lists them; create_tag adds one)."
-        },
-        assignees: %{
-          type: "array",
-          items: %{type: "string"},
-          description: "Emails; \"me\" for yourself."
-        },
-        start_date: %{type: "string", description: "YYYY-MM-DD."},
-        due_date: %{type: "string", description: "YYYY-MM-DD."},
-        # The bar and paths (#1757), as update_card takes them, so a planned
-        # card is one write. The bar isn't locked yet: that is when work starts.
-        bar: update_card_property(:bar),
-        paths: update_card_property(:paths),
-        profile: update_card_property(:profile),
-        # An incident (#1946), as update_card takes it.
-        caused_by: update_card_property(:caused_by),
-        missed_by: update_card_property(:missed_by),
-        archived: %{
-          type: "boolean",
-          description: "File it away as soon as it is made, e.g. a record of finished work."
-        },
-        # Where it came from (#2778): the server records it; a job may only
-        # name the generator it is running.
-        origin: %{
-          type: "string",
-          enum: Slipdock.Origin.claimable(),
-          description:
-            "Only inside a runner job, to name the generator filing it (the sweep, findings " <>
-              "triage). Leave it out otherwise: the server records who made the card."
-        },
         subcard_template: %{
           type: "string",
           description: "Lists for a new sub-board (default \"Simple\")."
@@ -79,12 +46,10 @@ defmodule SlipdockWeb.MCP.Tools.CreateCard do
       required: ["title"],
       additionalProperties: false
     }
-    # Taken as every board operation takes it (#3190).
-    |> Map.update!(:properties, &Map.merge(&1, Ops.params_from(Ops.DeleteBoard, ["board"])))
+    # The params it shares with POST /api/boards/:board/cards, from its
+    # definition (#3361).
+    |> Map.update!(:properties, &Map.merge(&1, Ops.params_from(Ops.AddCard, @shared)))
   end
-
-  defp update_card_property(key),
-    do: SlipdockWeb.MCP.Tools.UpdateCard.input_schema().properties |> Map.fetch!(key)
 
   @impl true
   def read_only?, do: false

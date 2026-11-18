@@ -619,7 +619,7 @@ Give an epic its subcards, then fill them:
     POST /api/boards/9/cards           {"title": "Query parser", "column": "To Do"}
 
 A new board takes its lists from `template`, or sets its own out with
-`POST /api/boards {"name": "Hiring", "columns": ["Applied", "Interview",
+`POST /api/boards {"name": "Hiring", "lists": ["Applied", "Interview",
 "Done"], "save_template": "Hiring"}` — names like To Do, In Progress and
 Done get those roles, and `save_template` (a name, or `true` for the
 board's) keeps the lists as a new template in the same request.
@@ -4099,10 +4099,20 @@ POST   /api/runner/claim
     POST   /api/import
     GET    /api/boards
     POST   /api/boards
+           new_board: takes name (required), code, shortcut, description, color, kind, simple,
+           template, lists, columns, save_template; needs a token not confined to some boards
     POST   /api/boards/order
     POST   /api/boards/welcome
     GET    /api/boards/:board
     PATCH  /api/boards/:board
+           set_board: takes name, code, shortcut, description, color, simple, kind, default_view,
+           add_card, add_page, add_document, page_card_features, show_pulse, vote_budget, vote_max,
+           automation_wip, agentic_building, delivery_metrics, incident_tag, hotfix_window_hours,
+           not_shipped_minutes, card_ref_pattern, handoff_label, handoff_prompt, inbound_senders,
+           bar_required, evidence_required, verify_work, verify_pool, verify_rejection_limit,
+           verify_audit, ship_via, release_mode, release_age_cap_hours, release_command, profiles,
+           profile_tiers, job_log_hours, failure_log_hours, findings_propose_at,
+           wait_default_after, wait_routes; needs to own the board
     DELETE /api/boards/:board
            delete_board: no params; needs to own the board
     POST   /api/boards/:board/archive
@@ -4183,6 +4193,12 @@ POST   /api/runner/claim
     DELETE /api/boards/:board/tags/:id
     GET    /api/boards/:board/cards
     POST   /api/boards/:board/cards
+           add_card: takes title, short_name, description, priority, flags, start_date, due_date,
+           date_precision, completed, percent_complete, time_spent, time_estimate, time_unit,
+           log_time, color, border_top, border_right, border_bottom, border_left, bar, evidence,
+           evidence_commit, evidence_branch, evidence_tests, evidence_suite, evidence_pr,
+           evidence_no_code, profile, paths, caused_by, missed_by, column, tags, assignee,
+           assignees, archived, origin; needs write on the board
     GET    /api/boards/:board/sprints/next
     GET    /api/boards/:board/sprints/velocity
     GET    /api/boards/:board/sprints/sources
@@ -4281,6 +4297,13 @@ POST   /api/runner/claim
     POST   /api/boards/:board/pages/import
     GET    /api/cards/:id
     PATCH  /api/cards/:id
+           edit_card: takes title, short_name, description, priority, start_date, due_date,
+           date_precision, percent_complete, completed, bar, paths, profile, caused_by, missed_by,
+           color, border_top, border_right, border_bottom, border_left, time_spent, time_estimate,
+           time_unit, log_time, flags, add_flags, remove_flags, tags, add_tags, remove_tags,
+           assignee, assignees, add_assignees, remove_assignees, column, fields, evidence,
+           evidence_commit, evidence_branch, evidence_tests, evidence_suite, evidence_pr,
+           evidence_no_code, changed_lines, changed_files; needs write on the card
     DELETE /api/cards/:id
            delete_card: no params; needs write on the card
     POST   /api/cards/:id/move

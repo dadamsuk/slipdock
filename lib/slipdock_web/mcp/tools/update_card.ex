@@ -17,6 +17,14 @@ defmodule SlipdockWeb.MCP.Tools.UpdateCard do
   @lists ~w(add_flags remove_flags add_tags remove_tags assignees add_assignees remove_assignees)
   @id_lists ~w(add_blocked_by remove_blocked_by check_items uncheck_items)
 
+  # The params it shares with `PATCH /api/cards/:id` (`Ops.EditCard`), taken
+  # from that definition (#3361). The rest are its own: what blocks it, its
+  # checklist, recurrence, snooze and waits, each a route of its own on REST.
+  @shared ["card" | @fields ++ @lists]
+
+  @doc false
+  def shared, do: @shared
+
   @impl true
   def name, do: "update_card"
 
@@ -36,82 +44,11 @@ defmodule SlipdockWeb.MCP.Tools.UpdateCard do
     list = %{type: "array", items: %{type: "string"}}
     ids = %{type: "array", items: %{type: "integer"}}
 
-    border = %{
-      type: "string",
-      enum: ["" | Slipdock.Palette.names()],
-      description: "That edge of the card's front in a palette colour; \"\" takes it off."
-    }
-
     %{
       type: "object",
       properties: %{
-        title: %{type: "string"},
-        short_name: %{
-          type: "string",
-          description: "At most 40 characters, for tight spaces. \"\" hands it back to be made."
-        },
-        description: %{type: "string", description: "Replaces the whole description."},
-        priority: %{type: "string", enum: ["none", "low", "medium", "high", "critical"]},
-        due_date: %{type: "string", description: "YYYY-MM-DD; \"\" clears it."},
-        start_date: %{type: "string", description: "YYYY-MM-DD; \"\" clears it."},
-        percent_complete: %{type: "integer", minimum: 0, maximum: 100},
-        bar: %{
-          type: "string",
-          description: "What done means for it; locks when work starts, where the board asks."
-        },
         # The caller's own Waiting on you (#2069).
         waiting_list: WaitingList.property(card: true),
-        paths: %{
-          type: "array",
-          items: %{type: "string"},
-          description:
-            "Globs of the files its work touches (lib/x/**); [] clears. They scope the " <>
-              "card's handbook rules and feed its profile."
-        },
-        # What kind of change it is (#1951).
-        profile: %{
-          type: "string",
-          enum: Slipdock.Profiles.names() ++ [""],
-          description:
-            "What kind of change it is: security, schema, feature, fix, docs or spike; \"\" " <>
-              "clears it. Inferred when an agent starts it on a board with profiles on."
-        },
-        # An incident (#1946): what shipped it and which check missed it.
-        caused_by: %{
-          type: ["integer", "null"],
-          description:
-            "This card is an incident: the id of the card whose shipping caused it, on any " <>
-              "board you can read. null clears it."
-        },
-        missed_by: %{
-          type: ["string", "null"],
-          enum: Slipdock.Boards.Card.layers() ++ [nil],
-          description:
-            "The check that should have caught the incident: bar, rules, ci, verify, audit " <>
-              "or none. With caused_by it records a process finding (source incident) on " <>
-              "the causing card. null clears it."
-        },
-        color: %{
-          border
-          | description: "The card's cover colour, from the palette; \"\" takes it off."
-        },
-        border_top: border,
-        border_right: border,
-        border_bottom: border,
-        border_left: border,
-        add_flags: list,
-        remove_flags: list,
-        add_tags:
-          Map.put(
-            list,
-            :description,
-            "Tag names already on the board (get_board lists them; create_tag adds one)."
-          ),
-        remove_tags: Map.put(list, :description, "Tag names on the board."),
-        assignees:
-          Map.put(list, :description, "Replaces who is on it; [] unassigns. \"me\" for yourself."),
-        add_assignees: list,
-        remove_assignees: list,
         add_blocked_by: Map.put(ids, :description, "Cards that must finish before this one."),
         remove_blocked_by: ids,
         add_checklist: Map.put(list, :description, "New checklist items, in order."),
@@ -240,8 +177,8 @@ defmodule SlipdockWeb.MCP.Tools.UpdateCard do
       required: ["card"],
       additionalProperties: false
     }
-    # Taken as every card operation takes it (#3190).
-    |> Map.update!(:properties, &Map.merge(&1, Ops.params_from(Ops.DeleteCard, ["card"])))
+    # The params it shares with PATCH /api/cards/:id, from its definition (#3361).
+    |> Map.update!(:properties, &Map.merge(&1, Ops.params_from(Ops.EditCard, @shared)))
   end
 
   @impl true

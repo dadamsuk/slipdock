@@ -9,21 +9,26 @@ defmodule SlipdockWeb.Ops.Op do
     * `name` — the operation's one name (`move_card`), the MCP tool's too
     * `title`, `summary` — the MCP title and description
     * `verb`, `path` — the REST route (`path` as the router writes it)
-    * `permission` — what the caller needs, `{:card, :write}` and so on
+    * `permission` — what the caller needs, `{:card, :write}` and so on, or
+      `:unconfined` for a token not confined to some boards (`new_board`)
     * `writes?` — whether it changes anything (a read-scope token's test)
     * `params` — `[%{name, type, required, default, doc}]`, `type` one of
       `:integer`, `:string`, `:boolean`, `{:enum, [..]}`, `:position`
       (`top`, `bottom` or a 0-based place), or `:any` (passed to `run/2` as
       sent, for a value the operation reads itself; `schema` then gives the
       MCP schema for it). An `:integer` with `max` is a count with a ceiling
-      (`limit`): it must be 1 or more, and more than `max` is taken as `max`
+      (`limit`): it must be 1 or more, and more than `max` is taken as `max`.
+      `null: true` passes a null sent on as nil, for a field it clears;
+      any other null is a param left out (#3361)
     * `cli` — `%{command, positional, flags}`: how argv maps onto `params`;
       left out when the CLI has no command for it. `flags` are every flag
       the command takes besides the global ones (`--json`, `--url`): the CLI
       refuses any other (#3191). A flag is `%{param}` (its value is the
       param's), `%{param, value}` (given, the param is `value`), or
       `%{param, read}` for one the CLI reads the param from itself: `read:
-      :file` a file (`-`, stdin), `read: :stdin` the text or `-` for stdin
+      :file` a file (`-`, stdin), `read: :stdin` the text or `-` for stdin,
+      `read: :parsed` a value it works the param out from (`--no-due` a
+      null, `--route KIND=EMAIL` a map, `on|off` a boolean; #3361)
 
   and, optionally:
 

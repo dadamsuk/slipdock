@@ -61,7 +61,7 @@ Give an epic its subcards, then fill them:
     POST /api/boards/9/cards           {"title": "Query parser", "column": "To Do"}
 
 A new board takes its lists from `template`, or sets its own out with
-`POST /api/boards {"name": "Hiring", "columns": ["Applied", "Interview",
+`POST /api/boards {"name": "Hiring", "lists": ["Applied", "Interview",
 "Done"], "save_template": "Hiring"}` — names like To Do, In Progress and
 Done get those roles, and `save_template` (a name, or `true` for the
 board's) keeps the lists as a new template in the same request.

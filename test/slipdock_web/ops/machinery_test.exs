@@ -28,7 +28,8 @@ defmodule SlipdockWeb.Ops.MachineryTest do
           %{name: "thing", type: :integer, required: true, in_path: "id"},
           %{name: "kind", type: {:enum, ~w(a b c)}},
           %{name: "parts", type: :any, schema: %{type: "array", items: %{type: "string"}}},
-          %{name: "limit", type: :integer, default: 10, max: 50}
+          %{name: "limit", type: :integer, default: 10, max: 50},
+          %{name: "note", type: :any, schema: %{type: "string"}, null: true}
         ],
         confirm: %{type: :string, doc: "The thing's name, again."}
       }
@@ -89,9 +90,25 @@ defmodule SlipdockWeb.Ops.MachineryTest do
     assert Ops.params_from(Thing, []) == %{}
   end
 
+  test "params_from takes a param under the tool's own name (#3361)" do
+    assert Ops.params_from(Thing, [{"sort", "kind"}]) == %{
+             sort: %{type: "string", enum: ~w(a b c)}
+           }
+  end
+
+  test "a null: true param sent as null is kept as nil, to clear; any other null is left out" do
+    assert {:ok, cast} = Ops.cast(Thing, %{"thing" => 1, "note" => nil, "parts" => nil})
+    assert Map.fetch(cast, "note") == {:ok, nil}
+    refute Map.has_key?(cast, "parts")
+
+    # Not sent at all: left out, as any param is.
+    assert {:ok, cast} = Ops.cast(Thing, %{"thing" => 1})
+    refute Map.has_key?(cast, "note")
+  end
+
   test "params_from raises on a name the definition doesn't have, naming those it has" do
     assert_raise ArgumentError,
-                 ~s(thing has no param "things"; it has thing, kind, parts, limit),
+                 ~s(thing has no param "things"; it has thing, kind, parts, limit, note),
                  fn ->
                    Ops.params_from(Thing, ["kind", "things"])
                  end

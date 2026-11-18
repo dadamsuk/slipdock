@@ -141,24 +141,9 @@ defmodule SlipdockWeb.API.BoardController do
 
   defp epic?(card), do: card.sub_board != nil
 
-  def create(conn, params) do
-    attrs =
-      params
-      |> Map.take(~w(name code shortcut description color kind simple))
-
-    with {:ok, template} <- optional_template(conn, params["template"]),
-         {:ok, board} <-
-           Boards.create_board(attrs,
-             template: template,
-             owner_id: conn.assigns.current_user.id,
-             columns: params["columns"],
-             save_template: save_template(params["save_template"])
-           ) do
-      conn
-      |> put_status(:created)
-      |> json(%{board: V.board(Authorize.visible(conn, Boards.get_board!(board.id)))})
-    end
-  end
+  # `POST /api/boards` and `PATCH /api/boards/:board` are made from their
+  # definitions (`SlipdockWeb.Ops.NewBoard`, `Ops.SetBoard`, #3361).
+  def create(conn, params), do: SlipdockWeb.Ops.REST.run(conn, SlipdockWeb.Ops.NewBoard, params)
 
   @doc """
   Builds the “Getting Started” tour board for the caller — the same board a
@@ -194,72 +179,7 @@ defmodule SlipdockWeb.API.BoardController do
 
   defp truthy?(value), do: Enum.member?([true, "true", "1", 1, "yes"], value)
 
-  # `save_template` names the template the new board's lists are kept as;
-  # `true` keeps them under the board's own name.
-  defp save_template(value) when value in [nil, "", false, "false"], do: nil
-  defp save_template(value) when value in [true, "true"], do: true
-  defp save_template(name), do: to_string(name)
-
-  def update(conn, %{"board" => ref} = params) do
-    with {:ok, board} <- fetch_board(conn, ref, :owner),
-         {:ok, params} <- profile_tiers(board, params),
-         {:ok, board} <- wait_routes(board, params),
-         {:ok, board} <-
-           Boards.update_board(
-             board,
-             Map.take(
-               params,
-               ~w(name code shortcut description color vote_budget vote_max
-                  add_card add_page add_document page_card_features simple kind
-                  default_view show_pulse delivery_metrics card_ref_pattern
-                  incident_tag hotfix_window_hours not_shipped_minutes automation_wip agentic_building job_log_hours
-                  failure_log_hours handoff_label
-                  handoff_prompt inbound_senders bar_required
-                  evidence_required verify_work verify_pool verify_rejection_limit verify_audit profiles profile_tiers ship_via findings_propose_at wait_default_after
-                  release_mode release_age_cap_hours release_command)
-             )
-           ) do
-      json(
-        conn,
-        agentic_warning(
-          %{board: V.board_summary(board, conn.assigns.current_user)},
-          board,
-          params
-        )
-      )
-    end
-  end
-
-  # Agentic Building turned off with rules still set (#2011): they hold on,
-  # so the answer says which.
-  defp agentic_warning(body, board, %{"agentic_building" => off}) when off in [false, "false"] do
-    case V.agentic_warning(board) do
-      nil -> body
-      warning -> Map.put(body, :warnings, [warning])
-    end
-  end
-
-  defp agentic_warning(body, _board, _params), do: body
-
-  # `wait_routes` (#1949): `{kind: [email, ...]}`, a blank or empty list
-  # taking a kind's route off. Refused whole if any of it is wrong.
-  defp wait_routes(board, %{"wait_routes" => routes}) do
-    case Slipdock.WaitRoutes.set(board, routes) do
-      {:ok, _} = ok -> ok
-      {:error, message} -> {:error, :unprocessable_entity, message}
-    end
-  end
-
-  defp wait_routes(board, _params), do: {:ok, board}
-
-  # `profile_tiers` (#1952): `{profile: tier}` merged onto the root's, a
-  # blank or `default` putting one back.
-  defp profile_tiers(board, params) do
-    case Slipdock.Profiles.put_tiers(board, params) do
-      {:ok, _} = ok -> ok
-      {:error, message} -> {:error, :unprocessable_entity, message}
-    end
-  end
+  def update(conn, params), do: SlipdockWeb.Ops.REST.run(conn, SlipdockWeb.Ops.SetBoard, params)
 
   # The board's delivery performance (#1134, `Slipdock.Dora`) for one
   # environment over `days`. While the board's delivery metrics are off it
@@ -655,16 +575,6 @@ defmodule SlipdockWeb.API.BoardController do
          {:ok, view} <- find(Boards.SavedViews.find_saved_view(board, id), "view"),
          {:ok, _} <- Boards.SavedViews.delete_saved_view(view) do
       json(conn, %{ok: true})
-    end
-  end
-
-  defp optional_template(_conn, nil), do: {:ok, nil}
-  defp optional_template(_conn, ""), do: {:ok, nil}
-
-  defp optional_template(conn, ref) do
-    case Boards.Templates.find_template(conn.assigns.current_user, ref) do
-      {:ok, t} -> {:ok, t}
-      _ -> {:error, :not_found, "template"}
     end
   end
 

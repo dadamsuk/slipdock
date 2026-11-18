@@ -7,6 +7,25 @@ defmodule SlipdockWeb.MCP.Tools.CompleteCard do
   alias SlipdockWeb.MCP.{Args, Tools}
   alias SlipdockWeb.Ops
 
+  # The params it shares with `PATCH /api/cards/:id` (`Ops.EditCard`): the
+  # evidence's under the short names it has always taken them by (`commit`
+  # is `evidence_commit`). Its own: comment.
+  @shared [
+    "card",
+    "evidence",
+    "changed_lines",
+    "changed_files",
+    {"commit", "evidence_commit"},
+    {"branch", "evidence_branch"},
+    {"pr", "evidence_pr"},
+    {"no_code", "evidence_no_code"},
+    {"tests", "evidence_tests"},
+    {"suite", "evidence_suite"}
+  ]
+
+  @doc false
+  def shared, do: @shared
+
   @impl true
   def name, do: "complete_card"
 
@@ -24,63 +43,14 @@ defmodule SlipdockWeb.MCP.Tools.CompleteCard do
     %{
       type: "object",
       properties: %{
-        comment: %{type: "string", description: "What was done, added before closing."},
-        evidence: %{
-          type: "string",
-          description: "What you checked (tests run, output); a board may require it."
-        },
-        commit: %{type: "string", description: "The commit the evidence is for."},
-        branch: %{type: "string", description: "The commit's branch."},
-        pr: %{
-          type: "string",
-          description:
-            "The pull request's URL, on a board that ships by pull request. Give commit " <>
-              "with it, the PR's head: the PR is merged at that commit, and a PR without " <>
-              "one is refused, on a resubmission too."
-        },
-        no_code: %{
-          type: "string",
-          description:
-            "Why the card changes no code (a sweep, a handbook reconcile, a read-and-file " <>
-              "card): on a board that ships by pull request, given in place of pr, and " <>
-              "accepting it merges nothing. Not with pr."
-        },
-        changed_lines: %{
-          type: "integer",
-          minimum: 0,
-          description:
-            "The change's changed lines, added plus removed (`git diff --numstat`). With " <>
-              "profiles on, a fix or docs card over 400 is raised to feature."
-        },
-        changed_files: %{
-          type: "array",
-          items: %{type: "string"},
-          description:
-            "The files the change touches. With profiles on, a migration raises the card's " <>
-              "profile to schema and a security path to security; never lowered."
-        },
-        tests: %{
-          type: "array",
-          items: %{type: "string"},
-          description: "The test files added or changed."
-        },
-        suite: %{
-          type: "object",
-          properties: %{
-            result: %{type: "string", enum: ["passed", "failed"]},
-            passed: %{type: "integer", minimum: 0},
-            failed: %{type: "integer", minimum: 0}
-          },
-          required: ["result"],
-          additionalProperties: false,
-          description: "The test suite's result and counts."
-        }
+        comment: %{type: "string", description: "What was done, added before closing."}
       },
       required: ["card"],
       additionalProperties: false
     }
-    # Taken as every card operation takes it (#3190).
-    |> Map.update!(:properties, &Map.merge(&1, Ops.params_from(Ops.DeleteCard, ["card"])))
+    # The params it shares with PATCH /api/cards/:id, from its definition
+    # (#3361), the evidence's under their short names.
+    |> Map.update!(:properties, &Map.merge(&1, Ops.params_from(Ops.EditCard, @shared)))
   end
 
   @impl true
