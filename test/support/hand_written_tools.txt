@@ -32,7 +32,9 @@ search
 get_guide
 
 # Several operations each, or none REST has: hand-composed on purpose
-# (SPEC-4); Ops 5 (#3190) takes their params from the definitions they wrap
+# (SPEC-4). A param one shares with a defined operation comes from that
+# definition (Ops.params_from/2, #3190); test/slipdock_web/ops/
+# composed_tools_test.exs holds the five largest to it
 archive_board
 ask
 card_views

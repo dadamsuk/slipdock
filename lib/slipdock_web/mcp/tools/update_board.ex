@@ -14,6 +14,7 @@ defmodule SlipdockWeb.MCP.Tools.UpdateBoard do
   alias Slipdock.Boards
   alias SlipdockWeb.API.Authorize
   alias SlipdockWeb.MCP.{Args, Tools, WaitingList}
+  alias SlipdockWeb.Ops
 
   @fields ~w(name description color simple default_view agentic_building handoff_label bar_required
              evidence_required verify_work verify_pool profiles profile_tiers ship_via job_log_hours
@@ -38,7 +39,6 @@ defmodule SlipdockWeb.MCP.Tools.UpdateBoard do
     %{
       type: "object",
       properties: %{
-        board: %{type: "string", description: "Board id, code or name."},
         # The caller's own Waiting on you (#2069).
         waiting_list: WaitingList.property(board: true),
         name: %{type: "string"},
@@ -152,6 +152,8 @@ defmodule SlipdockWeb.MCP.Tools.UpdateBoard do
       required: ["board"],
       additionalProperties: false
     }
+    # Taken as every board operation takes it (#3190).
+    |> Map.update!(:properties, &Map.merge(&1, Ops.params_from(Ops.DeleteBoard, ["board"])))
   end
 
   @impl true

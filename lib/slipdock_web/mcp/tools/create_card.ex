@@ -5,6 +5,7 @@ defmodule SlipdockWeb.MCP.Tools.CreateCard do
   alias Slipdock.Boards
   alias SlipdockWeb.API.{Authorize, CardWrites}
   alias SlipdockWeb.MCP.{Args, Tools}
+  alias SlipdockWeb.Ops
 
   @impl true
   def name, do: "create_card"
@@ -23,8 +24,10 @@ defmodule SlipdockWeb.MCP.Tools.CreateCard do
     %{
       type: "object",
       properties: %{
-        board: %{type: "string", description: "Board id, code or name. Or give parent instead."},
-        parent: %{type: "integer", description: "Make it a subcard of this card."},
+        parent: %{
+          type: "integer",
+          description: "Make it a subcard of this card, in place of board."
+        },
         title: %{type: "string"},
         description: %{type: "string", description: "Markdown: the brief."},
         column: %{type: "string", description: "List name; default the board's ready list."},
@@ -76,6 +79,8 @@ defmodule SlipdockWeb.MCP.Tools.CreateCard do
       required: ["title"],
       additionalProperties: false
     }
+    # Taken as every board operation takes it (#3190).
+    |> Map.update!(:properties, &Map.merge(&1, Ops.params_from(Ops.DeleteBoard, ["board"])))
   end
 
   defp update_card_property(key),

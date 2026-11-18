@@ -10,6 +10,7 @@ defmodule SlipdockWeb.MCP.Tools.UpdateCard do
   alias SlipdockWeb.API.{Authorize, CardWrites}
   alias SlipdockWeb.API.JSON, as: V
   alias SlipdockWeb.MCP.{Args, Tools, WaitingList}
+  alias SlipdockWeb.Ops
 
   @fields ~w(title short_name description priority due_date start_date percent_complete bar paths profile color border_top
              border_right border_bottom border_left caused_by missed_by)
@@ -44,7 +45,6 @@ defmodule SlipdockWeb.MCP.Tools.UpdateCard do
     %{
       type: "object",
       properties: %{
-        card: %{type: "integer"},
         title: %{type: "string"},
         short_name: %{
           type: "string",
@@ -240,6 +240,8 @@ defmodule SlipdockWeb.MCP.Tools.UpdateCard do
       required: ["card"],
       additionalProperties: false
     }
+    # Taken as every card operation takes it (#3190).
+    |> Map.update!(:properties, &Map.merge(&1, Ops.params_from(Ops.DeleteCard, ["card"])))
   end
 
   @impl true
