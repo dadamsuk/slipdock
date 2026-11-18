@@ -143,6 +143,31 @@ defmodule SlipdockCLI.Util do
 
   def stdin_arg(value, _flag), do: value
 
+  # The options whose `-` reads stdin. Others take `-` as their value
+  # (`--agent -`) or write to stdout with it (`--out -`), so they aren't here.
+  # `StdinSwitchesTest` fails when an option read from stdin is missing.
+  @stdin_switches ~w(append bar body checks_file desc evidence file from_runs goal
+                     instructions message needs no_code note paths_from reason spec
+                     summary text)a
+
+  def stdin_switches, do: @stdin_switches
+
+  # Only one `-` per command can read stdin (#3192): the first takes all of
+  # it, so a second (`add --desc - --bar -`) would find nothing. The message
+  # for options that ask for more than one, naming them, or nil.
+  def stdin_clash(opts) do
+    readers =
+      for {k, "-"} <- opts, Enum.member?(@stdin_switches, k) do
+        "--#{String.replace(to_string(k), "_", "-")} -"
+      end
+
+    if length(readers) > 1 do
+      "only one option per command can read stdin, but " <>
+        Enum.join(readers, ", ") <>
+        " each ask to: give the others as text, or run a second command"
+    end
+  end
+
   def stdin_text(text, flag) when is_binary(text) do
     if String.trim(text) == "",
       do: {:error, "nothing on stdin for #{flag} -"},
