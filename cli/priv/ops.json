@@ -52,5 +52,38 @@
         }
       }
     }
+  },
+  {
+    "name": "archive_card",
+    "summary": "Archives a card: off the board and out of listings, kept and restorable. restore = true brings it back. Finished work goes to done, not here.",
+    "verb": "POST",
+    "path": "/api/cards/:id/archive",
+    "writes": true,
+    "params": [
+      {
+        "name": "card",
+        "type": "integer",
+        "required": true,
+        "in_path": "id"
+      },
+      {
+        "name": "restore",
+        "type": "boolean",
+        "required": false,
+        "default": false
+      }
+    ],
+    "cli": {
+      "command": "archive",
+      "positional": [
+        "card"
+      ],
+      "flags": {
+        "restore": {
+          "param": "restore",
+          "value": true
+        }
+      }
+    }
   }
 ]

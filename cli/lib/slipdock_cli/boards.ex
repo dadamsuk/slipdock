@@ -1031,11 +1031,12 @@ defmodule SlipdockCLI.Boards do
     end)
   end
 
+  # Archiving and restoring are one operation, `archive_card` (#3187).
   def run("archive", ids, o) when ids != [],
-    do: each(ids, o, &HTTP.post("/cards/#{enc(&1)}/archive"), "archived")
+    do: each(ids, o, &SlipdockCLI.Op.run("archive", [&1], o), "archived")
 
   def run("restore", ids, o) when ids != [],
-    do: each(ids, o, &HTTP.post("/cards/#{enc(&1)}/restore"), "restored")
+    do: each(ids, o, &SlipdockCLI.Op.run("archive", [&1], restore: true), "restored")
 
   def run("delete", ids, o) when ids != [] do
     Enum.each(ids, fn id ->

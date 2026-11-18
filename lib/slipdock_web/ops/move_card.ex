@@ -11,7 +11,7 @@ defmodule SlipdockWeb.Ops.MoveCard do
 
   alias Slipdock.Boards
   alias SlipdockWeb.API.{Authorize, CardWrites}
-  alias SlipdockWeb.API.JSON, as: V
+  import SlipdockWeb.Ops.Shared, only: [card_json: 2, actor: 1]
 
   @impl true
   def definition do
@@ -84,9 +84,6 @@ defmodule SlipdockWeb.Ops.MoveCard do
     end
   end
 
-  defp card_json(auth, card),
-    do: V.card(Authorize.visible(auth, Boards.Cards.get_card!(card.id)))
-
   defp move_to_board(card, column, auth, refusal) do
     case Boards.Moves.move_card_to_board(card, column,
            actor: actor(auth),
@@ -97,10 +94,6 @@ defmodule SlipdockWeb.Ops.MoveCard do
       {:error, message} -> {:error, :unprocessable_entity, message}
     end
   end
-
-  # A conn carries its actor in `Actor.from_conn/1`; the MCP auth map in assigns.
-  defp actor(%Plug.Conn{} = conn), do: Slipdock.Actor.from_conn(conn)
-  defp actor(%{assigns: %{actor: actor}}), do: actor
 
   defp tags_dropped([], _refusal), do: %{tags_dropped: []}
   defp tags_dropped(names, refusal), do: %{tags_dropped: names, tags_dropped_reason: refusal}

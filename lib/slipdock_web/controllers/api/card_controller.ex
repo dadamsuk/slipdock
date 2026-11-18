@@ -243,21 +243,17 @@ defmodule SlipdockWeb.API.CardController do
   # The operation is defined once (#3185), in `SlipdockWeb.Ops.MoveCard`.
   def move(conn, params), do: SlipdockWeb.Ops.REST.run(conn, SlipdockWeb.Ops.MoveCard, params)
 
-  def archive(conn, %{"id" => id}) do
-    with {:ok, card} <- fetch_card(id),
-         :ok <- Authorize.card(conn, card, :write),
-         {:ok, card} <- Boards.Cards.archive_card(card) do
-      json(conn, %{card: V.card(Authorize.visible(conn, Boards.Cards.get_card!(card.id)))})
-    end
-  end
+  def archive(conn, params),
+    do: SlipdockWeb.Ops.REST.run(conn, SlipdockWeb.Ops.ArchiveCard, params)
 
-  def restore(conn, %{"id" => id}) do
-    with {:ok, card} <- fetch_card(id),
-         :ok <- Authorize.card(conn, card, :write),
-         {:ok, card} <- Boards.Cards.unarchive_card(card) do
-      json(conn, %{card: V.card(Authorize.visible(conn, Boards.Cards.get_card!(card.id)))})
-    end
-  end
+  # The same operation, restoring.
+  def restore(conn, params),
+    do:
+      SlipdockWeb.Ops.REST.run(
+        conn,
+        SlipdockWeb.Ops.ArchiveCard,
+        Map.put(params, "restore", true)
+      )
 
   def delete(conn, %{"id" => id}) do
     with {:ok, card} <- fetch_card(id),

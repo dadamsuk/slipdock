@@ -30,6 +30,13 @@ defmodule SlipdockCLI.OpTest do
     refute Map.has_key?(body, "index")
   end
 
+  test "archive and restore are the one archive_card request (#3187)" do
+    assert Op.request("archive", ["57"], []) == {:post, "/cards/57/archive", %{}}
+
+    assert Op.request("archive", ["57"], restore: true) ==
+             {:post, "/cards/57/archive", %{"restore" => true}}
+  end
+
   describe "slipdock move, end to end against a fake server" do
     setup do
       home = Path.join(System.tmp_dir!(), "slipdock-op-#{System.unique_integer([:positive])}")
@@ -62,6 +69,18 @@ defmodule SlipdockCLI.OpTest do
       assert_received {:request, "POST", "/api/cards/57/move", body}
       assert JSON.decode!(body) == %{"column" => "Doing", "index" => "top"}
       assert out =~ "moved"
+    end
+
+    test "restore asks archive_card with restore, and says so" do
+      card =
+        ~s({"card":{"id":57,"title":"Ship it","column":"Doing","completed":false,"priority":"none","flags":[],"tags":[],"comments":[],"checklist":{"done":0,"total":0,"items":[]}}})
+
+      System.put_env("SLIPDOCK_URL", FakeServer.start([{200, card}]))
+      out = capture_io(fn -> Boards.run("restore", ["57"], []) end)
+
+      assert_received {:request, "POST", "/api/cards/57/archive", body}
+      assert JSON.decode!(body) == %{"restore" => true}
+      assert out =~ "restored"
     end
   end
 end
