@@ -566,29 +566,16 @@ defmodule SlipdockCLI.Boards do
     |> out(o, fn _ -> IO.puts("deleted") end)
   end
 
-  def run("move", [id | column_words], o) when column_words != [] do
-    column = Enum.join(column_words, " ")
-
-    if o[:board] do
-      # Another board entirely: the card goes with its subcards, its tags
-      # travel by name, and custom fields survive only where the other board
-      # has the same one. `index` means nothing in a list it has never been in.
-      HTTP.post("/cards/#{enc(id)}/move", %{"board" => o[:board], "column" => column})
-      |> out(o, fn r ->
-        card_ok("moved", r)
-        note_losses(r["moved"])
-      end)
-    else
-      index =
-        cond do
-          o[:top] -> "top"
-          o[:index] -> o[:index]
-          true -> "bottom"
-        end
-
-      HTTP.post("/cards/#{enc(id)}/move", %{"column" => column, "index" => index})
-      |> out(o, &card_ok("moved", &1))
-    end
+  # #3185: the request comes from the server's definition of move_card
+  # (`SlipdockCLI.Op`, `priv/ops.json`); what it prints stays here. Another
+  # board: the card goes with its subcards, its tags travel by name, and
+  # custom fields survive only where the other board has the same one.
+  def run("move", [_id | column_words] = words, o) when column_words != [] do
+    SlipdockCLI.Op.run("move", words, o)
+    |> out(o, fn r ->
+      card_ok("moved", r)
+      if r["moved"], do: note_losses(r["moved"])
+    end)
   end
 
   def run("done", ids, o) when ids != [] do

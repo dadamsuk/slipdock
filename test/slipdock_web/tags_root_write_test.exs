@@ -441,8 +441,8 @@ defmodule SlipdockWeb.TagsRootWriteTest do
 
         result = mcp_tool(ctx[unquote(who)], "move_card", %{card: card.id, board: ctx.sub.id})
         assert result["isError"] == false
-        assert mcp_data(result)["tags_dropped"] == ["sneaky"]
-        assert mcp_data(result)["tags_dropped_reason"] =~ "top board"
+        assert mcp_data(result)["moved"]["tags_dropped"] == ["sneaky"]
+        assert mcp_data(result)["moved"]["tags_dropped_reason"] =~ "top board"
         assert names(ctx) == ["ops"]
       end
 
@@ -498,8 +498,8 @@ defmodule SlipdockWeb.TagsRootWriteTest do
         |> json_response(200)
         |> Map.fetch!("result")
 
-      assert mcp_data(result)["tags_dropped"] == ["sneaky"]
-      assert mcp_data(result)["tags_dropped_reason"] =~ "token's scope"
+      assert mcp_data(result)["moved"]["tags_dropped"] == ["sneaky"]
+      assert mcp_data(result)["moved"]["tags_dropped_reason"] =~ "token's scope"
       assert names(ctx) == ["ops"]
     end
 

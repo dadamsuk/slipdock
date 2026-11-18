@@ -18,7 +18,7 @@ with them first. Anybody else is the same `404 user …`, account or not.
 
 Move the epic above it into its own `doing` list too, so the top of the
 board reads true while you are inside the tree. `move` takes an optional
-`index`: `"top"`, `"bottom"` (the default) or a number.
+`index`: `"top"`, `"bottom"` (the default) or a number; else a 400.
 
 ### While you work
 

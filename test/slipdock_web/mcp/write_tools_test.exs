@@ -652,7 +652,10 @@ defmodule SlipdockWeb.MCP.WriteToolsTest do
   describe "move_card" do
     test "to the doing list, at the top", ctx do
       other = card_fixture(ctx.roles.doing, %{"title" => "Already there"})
-      ctx.conn |> call("move_card", %{card: ctx.card.id, column: ctx.roles.doing.name}) |> ok!()
+      # #3185: one definition, so MCP's default is REST's (bottom); `index`, not `position`.
+      ctx.conn
+      |> call("move_card", %{card: ctx.card.id, column: ctx.roles.doing.name, index: "top"})
+      |> ok!()
 
       card = api_card(ctx.conn, ctx.card.id)
       assert card["column_id"] == ctx.roles.doing.id
@@ -673,7 +676,9 @@ defmodule SlipdockWeb.MCP.WriteToolsTest do
         |> call("move_card", %{card: ctx.card.id, board: "elsewhere4", column: target.name})
         |> ok!()
 
-      assert moved["board_id"] == elsewhere.id
+      # #3185: the result is REST's, `{card, moved}`.
+      assert moved["card"]["board_id"] == elsewhere.id
+      assert moved["moved"]["tags_dropped"] == []
       card = api_card(ctx.conn, ctx.card.id)
       assert card["board_id"] == elsewhere.id
       assert card["column_id"] == target.id
@@ -696,9 +701,9 @@ defmodule SlipdockWeb.MCP.WriteToolsTest do
       assert Boards.Cards.get_card!(ctx.card.id).board_id == ctx.board.id
     end
 
-    test "a bad position", ctx do
-      assert ctx.conn |> call("move_card", %{card: ctx.card.id, position: "middle"}) |> error!() =~
-               "top or bottom"
+    test "a bad index", ctx do
+      assert ctx.conn |> call("move_card", %{card: ctx.card.id, index: "middle"}) |> error!() =~
+               "top, bottom or a place"
     end
   end
 
