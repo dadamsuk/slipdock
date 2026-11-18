@@ -279,5 +279,20 @@
         }
       }
     }
+  },
+  {
+    "name": "delete_board",
+    "summary": "Deletes a board you own with all its cards, pages and files. Cannot be undone; archive_board is the safe way. confirm must repeat the board's code.",
+    "verb": "DELETE",
+    "path": "/api/boards/:board",
+    "writes": true,
+    "params": [
+      {
+        "name": "board",
+        "type": "string",
+        "required": true,
+        "in_path": "board"
+      }
+    ]
   }
 ]

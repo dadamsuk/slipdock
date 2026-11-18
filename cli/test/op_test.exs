@@ -61,6 +61,11 @@ defmodule SlipdockCLI.OpTest do
              {:post, "/boards/errands/tags", %{"name" => "needs review", "color" => "red"}}
   end
 
+  test "an operation the CLI has no command for (delete_board) is left out" do
+    refute Map.has_key?(Op.ops(), nil)
+    refute Enum.any?(Op.ops(), fn {_, op} -> op["name"] == "delete_board" end)
+  end
+
   describe "slipdock move, end to end against a fake server" do
     setup do
       home = Path.join(System.tmp_dir!(), "slipdock-op-#{System.unique_integer([:positive])}")

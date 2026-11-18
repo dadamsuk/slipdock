@@ -13,7 +13,8 @@ defmodule SlipdockWeb.Ops do
     Ops.DeleteCard,
     Ops.LeaveHandoff,
     Ops.VerifyCard,
-    Ops.CreateTag
+    Ops.CreateTag,
+    Ops.DeleteBoard
   ]
 
   def all, do: @ops

@@ -404,12 +404,8 @@ defmodule SlipdockWeb.API.BoardController do
     end
   end
 
-  def delete(conn, %{"board" => ref}) do
-    with {:ok, board} <- fetch_board(conn, ref, :owner),
-         {:ok, _} <- Boards.delete_board(board) do
-      json(conn, %{ok: true})
-    end
-  end
+  def delete(conn, params),
+    do: SlipdockWeb.Ops.REST.run(conn, SlipdockWeb.Ops.DeleteBoard, params)
 
   def columns(conn, %{"board" => ref}) do
     with {:ok, board} <- fetch_board(conn, ref, :read) do

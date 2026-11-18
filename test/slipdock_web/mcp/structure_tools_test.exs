@@ -511,7 +511,7 @@ defmodule SlipdockWeb.MCP.StructureToolsTest do
       result =
         ctx.conn |> call("delete_board", %{board: ctx.board.id, confirm: "Delivery9"}) |> ok!()
 
-      assert result["deleted"] == true
+      assert result["ok"] == true
       assert Boards.get_board(ctx.board.id) == nil
       assert Boards.Cards.get_card(ctx.card.id) == nil
     end

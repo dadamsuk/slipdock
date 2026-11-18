@@ -11,7 +11,12 @@ defmodule SlipdockCLI.Op do
 
   @path Path.expand("../../priv/ops.json", __DIR__)
   @external_resource @path
-  @ops @path |> File.read!() |> JSON.decode!() |> Map.new(&{&1["cli"]["command"], &1})
+  # By command; an operation the CLI has no command for has no `cli`.
+  @ops @path
+       |> File.read!()
+       |> JSON.decode!()
+       |> Enum.filter(& &1["cli"])
+       |> Map.new(&{&1["cli"]["command"], &1})
 
   def ops, do: @ops
 
