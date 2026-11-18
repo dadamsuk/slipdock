@@ -2,7 +2,8 @@ defmodule SlipdockWeb.Ops do
   @moduledoc """
   The operations defined once (#3183) (see
   `SlipdockWeb.Ops.Op`), and what each surface is made from them: casting
-  params, the MCP input schema, the CLI's manifest and the guide's reference.
+  params, the MCP input schema, the CLI's manifest and the guide's reference,
+  and the params a hand-composed MCP tool shares with one (`params_from/2`).
   """
 
   alias SlipdockWeb.Ops
@@ -131,6 +132,35 @@ defmodule SlipdockWeb.Ops do
       required: for(%{required: true, name: n} <- params, do: n) ++ confirm,
       additionalProperties: false
     }
+  end
+
+  @doc """
+  The MCP schema properties for some of a definition's params, as
+  `input_schema/1` gives them (name, type and doc): what a hand-composed
+  tool (one that combines several operations, SPEC-4) takes a param it
+  shares with a defined operation from, rather than writing its own (#3190).
+  A name the definition doesn't have raises: the tool and the definition
+  have come apart.
+
+      properties: Map.merge(Ops.params_from(Ops.DeleteCard, ["card"]), %{title: ...})
+  """
+  # The atoms are the definitions' param names, written in the code.
+  # Not a hole: never a caller's words.
+  # sobelow_skip ["DOS.StringToAtom"]
+  def params_from(op, names) do
+    params = op.definition().params
+
+    Map.new(names, fn name ->
+      case Enum.find(params, &(&1.name == name)) do
+        nil ->
+          raise ArgumentError,
+                "#{op.definition().name} has no param #{inspect(name)}; it has " <>
+                  Enum.map_join(params, ", ", & &1.name)
+
+        param ->
+          {String.to_atom(name), json_schema(param)}
+      end
+    end)
   end
 
   defp json_schema(param) do
