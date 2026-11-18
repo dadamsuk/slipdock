@@ -332,7 +332,8 @@ Both make the action `{"type": "runner", "pool", "kind", "prompt"}`:
 
 Install with `POST /api/tools/<name>/install` (optional `version`, and
 `name` for the board's name, which defaults to the Tool's title). The same
-install is MCP `install_tool` (`tool`, `version`, `board_name`), the CLI's
+install is MCP `install_tool` (`tool`, `version`, `name`), answering the
+same `{install}`, the CLI's
 `slipdock tools install-board <name>`, or **Make the board** on the Tool's
 page. Installing needs a write token that isn't confined to some boards.
 

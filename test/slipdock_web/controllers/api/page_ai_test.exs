@@ -53,9 +53,9 @@ defmodule SlipdockWeb.API.PageAITest do
     assert json_response(post(conn, ~p"/api/pages/#{empty.code}/ai", %{tool: "summarise"}), 422)
   end
 
-  test "someone who can't read the page is refused and asks no model", ctx do
+  test "someone who can't read the page finds none (404) and asks no model", ctx do
     response = post(stranger(), ~p"/api/pages/#{ctx.page.code}/ai", %{tool: "summarise"})
-    assert json_response(response, 403)
+    assert json_response(response, 404)
     refute_received {:ai_request, _}
   end
 

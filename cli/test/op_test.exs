@@ -61,6 +61,53 @@ defmodule SlipdockCLI.OpTest do
              {:post, "/boards/errands/tags", %{"name" => "needs review", "color" => "red"}}
   end
 
+  test "note is quick_note's request, the words the text (#3188)" do
+    assert Op.request("note", ~w(ring the printers), []) ==
+             {:post, "/notes", %{"text" => "ring the printers"}}
+  end
+
+  test "page ai is page_tool's request, the page in the path" do
+    assert Op.request("page ai", ~w(W-31 summarise), []) ==
+             {:post, "/pages/W-31/ai", %{"tool" => "summarise"}}
+  end
+
+  test "job --keep-log is keep_job_log's request" do
+    assert Op.request("job --keep", ["812"], keep_log: true) == {:post, "/jobs/812/keep", %{}}
+  end
+
+  test "tools install-board is install_tool's request, --name the board's name" do
+    assert Op.request("tools install-board", ["triage"], name: "Mine", board: nil) ==
+             {:post, "/tools/triage/install", %{"name" => "Mine"}}
+  end
+
+  test "activity is a GET: its params go in the query; ledger is its ledger view" do
+    assert Op.request("activity", ["errands"], limit: 5, card: "12") ==
+             {:get, "/boards/errands/activity", %{"limit" => 5, "card" => "12"}}
+
+    assert Op.request("activity", ["errands"], view: "ledger", since: "7") ==
+             {:get, "/boards/errands/activity", %{"view" => "ledger", "since" => "7"}}
+  end
+
+  test "garden apply|dismiss|undo is garden_decide's request, the decision in the path" do
+    assert Op.request("garden", ~w(apply 42), keep: "#12") ==
+             {:post, "/garden/suggestions/42/apply", %{"keep" => "#12"}}
+
+    assert Op.request("garden", ~w(undo 42), []) == {:post, "/garden/suggestions/42/undo", %{}}
+  end
+
+  test "page revert is revert_page's request: --rev is the revision" do
+    assert Op.request("page revert", ["W-31"], rev: "7", base_hash: "h1") ==
+             {:post, "/pages/W-31/revert", %{"revision" => "7", "base_hash" => "h1"}}
+  end
+
+  test "page history and page diff are page_history's request: --against is diff" do
+    assert Op.request("page history", ["W-31"], rev: "12", against: "previous") ==
+             {:get, "/pages/W-31/revisions", %{"rev" => "12", "diff" => "previous"}}
+
+    assert Op.request("page history", ["W-31"], limit: 5) ==
+             {:get, "/pages/W-31/revisions", %{"limit" => 5}}
+  end
+
   test "an operation the CLI has no command for (delete_board) is left out" do
     refute Map.has_key?(Op.ops(), nil)
     refute Enum.any?(Op.ops(), fn {_, op} -> op["name"] == "delete_board" end)

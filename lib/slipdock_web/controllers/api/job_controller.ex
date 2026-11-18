@@ -12,7 +12,7 @@ defmodule SlipdockWeb.API.JobController do
   use SlipdockWeb, :controller
 
   alias Slipdock.{Boards, Runners}
-  alias Slipdock.Runners.{Runner, Setup, TranscriptRetention}
+  alias Slipdock.Runners.{Runner, Setup}
   alias SlipdockWeb.API.{Authorize, CardWrites}
   alias SlipdockWeb.API.JSON, as: V
 
@@ -274,26 +274,13 @@ defmodule SlipdockWeb.API.JobController do
   end
 
   @doc """
-  Keep this log (#1872): writes the ended job's live log as a page in its
+  Keep this log (#1872), made from `SlipdockWeb.Ops.KeepJobLog` (#3188):
+  writes the ended job's live log as a page in its
   card's folder, `Pass <card> (<date>)`, links it from the job and stops it
   expiring. Keeping it again answers the same page. Needs write access to
   the card.
   """
-  def keep(conn, %{"id" => id}) do
-    with {:ok, job, _card} <- fetch_job(conn, id, :write),
-         {:ok, page, job} <- keep_log(conn, job) do
-      json(conn, %{job: V.job(job), page: V.page(page)})
-    end
-  end
-
-  defp keep_log(conn, job) do
-    case TranscriptRetention.keep(job, conn.assigns.current_user, via: "api") do
-      {:ok, page, job} -> {:ok, page, job}
-      {:error, %Slipdock.Policy.Refused{}} = refused -> refused
-      {:error, {:payment_required, code, message}} -> {:error, :payment_required, code, message}
-      {:error, reason} -> {:error, :unprocessable_entity, TranscriptRetention.refusal(reason)}
-    end
-  end
+  def keep(conn, params), do: SlipdockWeb.Ops.REST.run(conn, SlipdockWeb.Ops.KeepJobLog, params)
 
   def cancel(conn, %{"id" => id}) do
     with {:ok, job, _card} <- fetch_job(conn, id, :write) do

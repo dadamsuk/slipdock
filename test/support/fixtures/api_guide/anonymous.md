@@ -2685,7 +2685,7 @@ curl -s -H "$H" B/api/pages/W-31/revisions
 curl -s -H "$H" "B/api/pages/W-31/revisions/12?diff=previous"
 curl -s -H "$H" "B/api/pages/W-31/revisions/12?diff=7"   # from version 7 to 12
 curl -s -X POST -H "$H" -H 'content-type: application/json' \
-     B/api/pages/W-31/revert -d '{"revision_id": 12}'
+     B/api/pages/W-31/revert -d '{"revision": 12, "base_hash": "<content_hash>"}'
 ```
 
 **`base_hash` is the thing to get right.** Every page carries a
@@ -4286,9 +4286,7 @@ POST   /api/runner/claim
     POST   /api/boards/:board/garden
     PATCH  /api/boards/:board/garden/settings
     POST   /api/boards/:board/garden/proposals
-    POST   /api/garden/suggestions/:id/apply
-    POST   /api/garden/suggestions/:id/dismiss
-    POST   /api/garden/suggestions/:id/undo
+    POST   /api/garden/suggestions/:id/:decision
     GET    /api/boards/:board/health
     GET    /api/boards/:board/now
     POST   /api/boards/:board/health

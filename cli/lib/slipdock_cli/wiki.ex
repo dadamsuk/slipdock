@@ -130,7 +130,7 @@ defmodule SlipdockCLI.Wiki do
   def run("note", words, o) do
     text = if words == [], do: page_body(o), else: Enum.join(words, " ")
 
-    HTTP.post("/notes", %{"text" => text})
+    SlipdockCLI.Op.run("note", [text], o)
     |> out(o, fn %{"note" => note} ->
       IO.puts("noted #{note["code"]}  #{note["title"]}")
       fallback = if note["placed_by"] == "settings", do: "  (your fallback location)"
@@ -309,7 +309,7 @@ defmodule SlipdockCLI.Wiki do
   # reference has been followed. Answering a question wants the second.
   # An AI tool over a page: the answer's Markdown, on the caller's AI key.
   def run("page", ["ai", ref, tool], o) do
-    HTTP.post("/pages/#{enc(ref)}/ai", %{"tool" => tool})
+    SlipdockCLI.Op.run("page ai", [ref, tool], o)
     |> out(o, fn %{"answer" => answer} ->
       IO.puts(answer["text"])
       if answer["truncated"], do: IO.puts("(only the start of the page was read)")
@@ -729,28 +729,24 @@ defmodule SlipdockCLI.Wiki do
     do: HTTP.post("/pages/#{enc(ref)}/restore", %{}) |> out(o, &page_ok("restored", &1))
 
   def run("page", ["history", ref], o) do
-    HTTP.get("/pages/#{enc(ref)}/revisions", limit: o[:limit])
+    SlipdockCLI.Op.run("page history", [ref], limit: o[:limit])
     |> out(o, &Render.revisions(&1["revisions"]))
   end
 
+  # --against compares with any other version; without it, the one before.
+  # Without --rev, the latest save's change.
   def run("page", ["diff", ref], o) do
-    rev = o[:rev] || latest_revision(ref)
-
-    # --against compares with any other version; without it, the one before.
-    HTTP.get("/pages/#{enc(ref)}/revisions/#{enc(rev)}", diff: o[:against] || "previous")
+    SlipdockCLI.Op.run("page history", [ref], rev: o[:rev], against: o[:against] || "previous")
     |> out(o, &Render.diff(&1["diff"] || []))
   end
 
+  # A revert needs the page's hash as it stands (#3188), so a newer edit is
+  # never lost to it unseen: read it first, unless --base-hash gives it.
   def run("page", ["revert", ref], o) do
-    rev = o[:rev] || fail("which version? pass --rev N (see `slipdock page history`)")
+    o[:rev] || fail("which version? pass --rev N (see `slipdock page history`)")
+    hash = o[:base_hash] || fetch!("/pages/#{enc(ref)}")["page"]["content_hash"]
 
-    HTTP.post(
-      "/pages/#{enc(ref)}/revert",
-      compact(%{
-        "revision_id" => rev,
-        "message" => o[:message]
-      })
-    )
+    SlipdockCLI.Op.run("page revert", [ref], Keyword.put(o, :base_hash, hash))
     |> out(o, &page_ok("reverted", &1))
   end
 
@@ -890,13 +886,6 @@ defmodule SlipdockCLI.Wiki do
   defp body_text(:eof), do: ""
   defp body_text(text) when is_binary(text), do: text
   defp body_text(_), do: fail("could not read the body from stdin")
-
-  defp latest_revision(ref) do
-    case fetch!("/pages/#{enc(ref)}/revisions?limit=1") do
-      %{"revisions" => [%{"id" => id} | _]} -> to_string(id)
-      _ -> fail("that page has no history yet")
-    end
-  end
 
   # A section path is the rest of the route, so each level is its own segment.
   defp section_path(path) do

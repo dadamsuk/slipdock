@@ -586,20 +586,8 @@ defmodule SlipdockWeb.API.BoardController do
     end
   end
 
-  def activity(conn, %{"board" => ref} = params) do
-    limit = params |> Map.get("limit", "30") |> to_string() |> Integer.parse() |> elem(0)
-
-    card_id =
-      case Integer.parse(params |> Map.get("card", "") |> to_string() |> String.trim_leading("#")) do
-        {id, ""} -> id
-        _ -> nil
-      end
-
-    with {:ok, board} <- fetch_board(conn, ref, :read) do
-      activity = Boards.ActivityLog.list_activities(board.id, limit, card_id)
-      json(conn, %{activity: Enum.map(activity, &V.activity/1)})
-    end
-  end
+  @doc "The board's activity log: made from `SlipdockWeb.Ops.Activity` (#3188)."
+  def activity(conn, params), do: SlipdockWeb.Ops.REST.run(conn, SlipdockWeb.Ops.Activity, params)
 
   ## Swimlanes & saved views
 

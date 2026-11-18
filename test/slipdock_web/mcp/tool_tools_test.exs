@@ -51,7 +51,12 @@ defmodule SlipdockWeb.MCP.ToolToolsTest do
 
   describe "install_tool" do
     test "builds the board, answers with its code, and finds it again", %{user: user, name: name} do
-      first = user |> token_conn() |> call("install_tool", %{"tool" => name}) |> ok!()
+      first =
+        user
+        |> token_conn()
+        |> call("install_tool", %{"tool" => name})
+        |> ok!()
+        |> Map.fetch!("install")
 
       assert first["created"] == true
       assert first["board"] =~ ~r/^[a-z0-9-]+$/
@@ -59,13 +64,26 @@ defmodule SlipdockWeb.MCP.ToolToolsTest do
       assert first["added"]["lists"] == ["Found", "Doing", "Closed"]
       assert first["installed_version"] == "1.0.0"
 
-      again = user |> token_conn() |> call("install_tool", %{"tool" => name}) |> ok!()
+      again =
+        user
+        |> token_conn()
+        |> call("install_tool", %{"tool" => name})
+        |> ok!()
+        |> Map.fetch!("install")
+
       assert again["created"] == false
       assert again["upgraded"] == false
       assert again["board"] == first["board"]
 
       {:ok, _} = Tools.publish(user, package(name, "1.1.0"))
-      upgraded = user |> token_conn() |> call("install_tool", %{"tool" => name}) |> ok!()
+
+      upgraded =
+        user
+        |> token_conn()
+        |> call("install_tool", %{"tool" => name})
+        |> ok!()
+        |> Map.fetch!("install")
+
       assert upgraded["upgraded"] == true
       assert upgraded["installed_version"] == "1.1.0"
       assert upgraded["board"] == first["board"]
@@ -79,7 +97,7 @@ defmodule SlipdockWeb.MCP.ToolToolsTest do
       missing =
         stranger |> token_conn() |> call("install_tool", %{"tool" => "zz-none"}) |> error!()
 
-      assert hidden =~ "no Tool you can see is called"
+      assert hidden =~ ~s(no Tool "#{name}" you can see)
       assert String.replace(hidden, name, "X") == String.replace(missing, "zz-none", "X")
     end
 
@@ -90,7 +108,7 @@ defmodule SlipdockWeb.MCP.ToolToolsTest do
         |> call("install_tool", %{"tool" => name, "version" => "7.0.0"})
         |> error!()
 
-      assert text =~ "no such version"
+      assert text =~ "no version 7.0.0 of Tool"
     end
 
     test "a read-only token can't install", %{user: user, name: name} do

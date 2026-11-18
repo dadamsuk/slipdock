@@ -24,7 +24,8 @@ defmodule SlipdockCLI.Op do
   The request a command makes: `{verb, path, body}`. Positional words fill
   the definition's `positional` params in order (a trailing `name...` takes
   the rest, joined by spaces); flags map onto params by the definition's
-  `flags`. Path params go into the path, the rest into the body.
+  `flags`. Path params go into the path, the rest into the body: for a GET,
+  the query string (`HTTP.get/2`).
   """
   def request(command, words, opts) do
     op = Map.fetch!(@ops, command)

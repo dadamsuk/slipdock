@@ -59,6 +59,7 @@ GET    /api/boards/:board/columns          POST   /api/boards/:board/columns
 PATCH  /api/boards/:board/columns/:id      DELETE /api/boards/:board/columns/:id
 GET    /api/boards/:board/tags             POST   /api/boards/:board/tags
 DELETE /api/boards/:board/tags/:id         GET    /api/boards/:board/activity?limit=&card=
+       GET .../activity answers {board, activity}; limit 1 to 200 (default 30); ?view=ledger is GET .../ledger
        POST .../tags answers {tag, created}: a tag of that name already there, in any case, comes back (200), not a second
 GET    /api/boards/:board/swimlanes         ?view= &rows= &cols= &unit= &sort= &dir= &q= &due= &done= &empty=
                                             &tags= &priorities= &flags= &columns= &colors=   (lists are comma-joined)
@@ -113,7 +114,9 @@ GET    /api/pages/:id                      PATCH  /api/pages/:id   {title, body,
 DELETE /api/pages/:id      ?purge=true     POST   /api/pages/:id/restore
 POST   /api/pages/:id/move                 {parent, position: N|top|bottom}
 GET    /api/pages/:id/revisions            GET    /api/pages/:id/revisions/:rev   ?diff=previous|<rev id>
-POST   /api/pages/:id/revert               {revision_id, message}
+       both answer the page {code, title, content_hash, url} beside them; ?rev= is the second, ?diff=
+       without it the latest save's; ?limit= 1 to 500 (default 100); long unchanged runs come back as skip
+POST   /api/pages/:id/revert               {revision, base_hash, message}   answers {page, reverted_to, revision}
 GET    /api/pages/:id/render               ?format=markdown|html|text  (references resolved)
 GET    /api/pages/:id/recording            a meeting page's audio, with Range  (see Meeting transcripts)
 GET    /api/pages/:id/sections             the heading paths a section may be addressed by

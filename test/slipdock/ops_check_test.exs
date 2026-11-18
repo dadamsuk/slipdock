@@ -51,12 +51,20 @@ defmodule Slipdock.OpsCheckTest do
   make a defined operation's request by hand: `[{file, op name}]`.
   """
   def cli_duplicates(sources, ops) do
-    patterns = Enum.map(ops, &{&1.definition().name, request_pattern(&1.definition())})
+    patterns =
+      Enum.map(ops, fn op ->
+        d = op.definition()
+        {d.name, request_pattern(d), Enum.map(d.params, & &1.name)}
+      end)
 
     for {file, text} <- sources,
-        [_, verb, path] <- Regex.scan(~r/HTTP\.(get|post|patch|put|delete)\(\s*"([^"]*)"/, text),
-        {name, {op_verb, regex}} <- patterns,
+        [_, verb, path | key] <-
+          Regex.scan(~r/HTTP\.(get|post|patch|put|delete)\(\s*"([^"]*)"(?:\s*,\s*(\w+):)?/, text),
+        {name, {op_verb, regex}, params} <- patterns,
         verb == op_verb and Regex.match?(regex, path),
+        # A query naming what the definition doesn't (`bodies: "all"` on
+        # page_history's route) is another request on the same route (#3188).
+        List.first(key, "") in ["" | params],
         do: {file, name}
   end
 
@@ -170,6 +178,17 @@ defmodule Slipdock.OpsCheckTest do
         )
 
       assert found == [{"a.ex", "move_card"}, {"b.ex", "move_card"}, {"c.ex", "move_card"}]
+    end
+
+    test "a query the definition doesn't name is another request on its route (#3188)" do
+      assert cli_duplicates(
+               [
+                 {"a.ex", ~S|HTTP.get("/pages/#{enc(ref)}/revisions", bodies: "all")|},
+                 {"b.ex", ~S|HTTP.get("/pages/#{enc(ref)}/revisions", limit: o[:limit])|},
+                 {"c.ex", ~S|HTTP.get("/pages/#{enc(ref)}/revisions")|}
+               ],
+               Ops.all()
+             ) == [{"b.ex", "page_history"}, {"c.ex", "page_history"}]
     end
 
     test "another route, or another verb, isn't a duplicate" do

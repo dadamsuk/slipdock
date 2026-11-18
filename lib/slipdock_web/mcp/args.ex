@@ -12,7 +12,13 @@ defmodule SlipdockWeb.MCP.Args do
   """
   def auth(%{user: user, token: token} = context),
     do: %{
-      assigns: %{current_user: user, api_token: token, actor: Slipdock.Actor.mcp(context)}
+      assigns: %{
+        current_user: user,
+        api_token: token,
+        actor: Slipdock.Actor.mcp(context),
+        # The address links in an answer start with (`Ops.Shared.base_url/1`).
+        base_url: context[:base_url]
+      }
     }
 
   @doc "A required string argument, trimmed."

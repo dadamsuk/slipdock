@@ -49,13 +49,7 @@ defmodule SlipdockCLI.Tools do
 
   # The server builds the board; this only asks for it.
   def run("tools", ["install-board", name], o) do
-    body =
-      %{}
-      |> put_opt("version", o[:version])
-      |> put_opt("name", o[:name])
-      |> put_opt("board", o[:board])
-
-    HTTP.post("/tools/#{enc(name)}/install", body)
+    SlipdockCLI.Op.run("tools install-board", [name], o)
     |> out(o, fn %{"install" => i} ->
       verb =
         cond do

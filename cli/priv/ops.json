@@ -294,5 +294,359 @@
         "in_path": "board"
       }
     ]
+  },
+  {
+    "name": "quick_note",
+    "summary": "Saves text as a note in the person's wiki. The server names it (date, time, a title from the content) and picks the folder, and says where it went. Use write_page to choose the board and title.",
+    "verb": "POST",
+    "path": "/api/notes",
+    "writes": true,
+    "params": [
+      {
+        "name": "text",
+        "type": "string",
+        "required": true
+      }
+    ],
+    "cli": {
+      "command": "note",
+      "positional": [
+        "text..."
+      ],
+      "flags": {}
+    }
+  },
+  {
+    "name": "page_tool",
+    "summary": "Runs a model over a wiki page on your AI key and returns the answer; writes nothing. tool: summarise, key_points, actions, titles or improve.",
+    "verb": "POST",
+    "path": "/api/pages/:id/ai",
+    "writes": false,
+    "params": [
+      {
+        "name": "page",
+        "type": "string",
+        "required": true,
+        "in_path": "id"
+      },
+      {
+        "name": "board",
+        "type": "string",
+        "required": false
+      },
+      {
+        "name": "tool",
+        "type": {
+          "enum": [
+            "summarise",
+            "key_points",
+            "actions",
+            "titles",
+            "improve"
+          ]
+        },
+        "required": true
+      }
+    ],
+    "cli": {
+      "command": "page ai",
+      "positional": [
+        "page",
+        "tool"
+      ],
+      "flags": {
+        "board": {
+          "param": "board"
+        }
+      }
+    }
+  },
+  {
+    "name": "keep_job_log",
+    "summary": "Keeps an ended runner job's live log, which otherwise expires: writes it as a page Pass <card> (<date>) in the card's folder and links it from the job. Again gives the same page.",
+    "verb": "POST",
+    "path": "/api/jobs/:id/keep",
+    "writes": true,
+    "params": [
+      {
+        "name": "job",
+        "type": "integer",
+        "required": true,
+        "in_path": "id"
+      }
+    ],
+    "cli": {
+      "command": "job --keep",
+      "positional": [
+        "job"
+      ],
+      "flags": {}
+    }
+  },
+  {
+    "name": "install_tool",
+    "summary": "Builds the board a Tool (see list_tools) comes with and returns its code. Already installed, it adds what a newer version brings without touching edited pages. tool: \"handbook\" or tool: \"sweep\" with board installs that on its root instead.",
+    "verb": "POST",
+    "path": "/api/tools/:slug/install",
+    "writes": true,
+    "params": [
+      {
+        "name": "tool",
+        "type": "string",
+        "required": true,
+        "in_path": "slug"
+      },
+      {
+        "name": "version",
+        "type": "string",
+        "required": false
+      },
+      {
+        "name": "name",
+        "type": "string",
+        "required": false
+      },
+      {
+        "name": "board",
+        "type": "string",
+        "required": false
+      }
+    ],
+    "cli": {
+      "command": "tools install-board",
+      "positional": [
+        "tool"
+      ],
+      "flags": {
+        "board": {
+          "param": "board"
+        },
+        "name": {
+          "param": "name"
+        },
+        "version": {
+          "param": "version"
+        }
+      }
+    }
+  },
+  {
+    "name": "activity",
+    "summary": "A board's activity log, newest first; card = only that card's. view=ledger: what shipped since (days, a date or a time; 07:00 yesterday by default), with who accepted it and its evidence.",
+    "verb": "GET",
+    "path": "/api/boards/:board/activity",
+    "writes": false,
+    "params": [
+      {
+        "name": "board",
+        "type": "string",
+        "required": true,
+        "in_path": "board"
+      },
+      {
+        "name": "card",
+        "type": "integer",
+        "required": false
+      },
+      {
+        "name": "limit",
+        "type": "integer",
+        "required": false,
+        "default": 30
+      },
+      {
+        "name": "view",
+        "type": {
+          "enum": [
+            "log",
+            "ledger"
+          ]
+        },
+        "required": false,
+        "default": "log"
+      },
+      {
+        "name": "since",
+        "type": "string",
+        "required": false
+      }
+    ],
+    "cli": {
+      "command": "activity",
+      "positional": [
+        "board"
+      ],
+      "flags": {
+        "card": {
+          "param": "card"
+        },
+        "limit": {
+          "param": "limit"
+        },
+        "since": {
+          "param": "since"
+        },
+        "view": {
+          "param": "view"
+        }
+      }
+    }
+  },
+  {
+    "name": "garden_decide",
+    "summary": "Applies or dismisses one garden suggestion the person approved; never a list on your own judgment. A dismissal sticks unless its subject changes; undo puts an applied one back. keep and choice: see their fields. Needs confirm.",
+    "verb": "POST",
+    "path": "/api/garden/suggestions/:id/:decision",
+    "writes": true,
+    "params": [
+      {
+        "name": "suggestion",
+        "type": "integer",
+        "required": true,
+        "in_path": "id"
+      },
+      {
+        "name": "decision",
+        "type": {
+          "enum": [
+            "apply",
+            "dismiss",
+            "undo"
+          ]
+        },
+        "required": true,
+        "in_path": "decision"
+      },
+      {
+        "name": "keep",
+        "type": "integer",
+        "required": false
+      },
+      {
+        "name": "choice",
+        "type": "string",
+        "required": false
+      }
+    ],
+    "cli": {
+      "command": "garden",
+      "positional": [
+        "decision",
+        "suggestion"
+      ],
+      "flags": {
+        "choice": {
+          "param": "choice"
+        },
+        "keep": {
+          "param": "keep"
+        }
+      }
+    }
+  },
+  {
+    "name": "revert_page",
+    "summary": "Puts a page back to a revision from page_history, as a new revision (nothing is lost). Needs base_hash: the page's current content_hash, from read_page or page_history.",
+    "verb": "POST",
+    "path": "/api/pages/:id/revert",
+    "writes": true,
+    "params": [
+      {
+        "name": "page",
+        "type": "string",
+        "required": true,
+        "in_path": "id"
+      },
+      {
+        "name": "board",
+        "type": "string",
+        "required": false
+      },
+      {
+        "name": "revision",
+        "type": "integer",
+        "required": true
+      },
+      {
+        "name": "base_hash",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "message",
+        "type": "string",
+        "required": false
+      }
+    ],
+    "cli": {
+      "command": "page revert",
+      "positional": [
+        "page"
+      ],
+      "flags": {
+        "base_hash": {
+          "param": "base_hash"
+        },
+        "message": {
+          "param": "message"
+        },
+        "rev": {
+          "param": "revision"
+        }
+      }
+    }
+  },
+  {
+    "name": "page_history",
+    "summary": "A page's revisions, newest first: id, author, via, summary, time. With rev, that revision's body; diff: \"previous\" (or another revision's id) adds the change it made, and without rev is the latest save's. revert_page puts a revision back.",
+    "verb": "GET",
+    "path": "/api/pages/:id/revisions",
+    "writes": false,
+    "params": [
+      {
+        "name": "page",
+        "type": "string",
+        "required": true,
+        "in_path": "id"
+      },
+      {
+        "name": "board",
+        "type": "string",
+        "required": false
+      },
+      {
+        "name": "limit",
+        "type": "integer",
+        "required": false,
+        "default": 100
+      },
+      {
+        "name": "rev",
+        "type": "integer",
+        "required": false
+      },
+      {
+        "name": "diff",
+        "type": "any",
+        "required": false
+      }
+    ],
+    "cli": {
+      "command": "page history",
+      "positional": [
+        "page"
+      ],
+      "flags": {
+        "against": {
+          "param": "diff"
+        },
+        "limit": {
+          "param": "limit"
+        },
+        "rev": {
+          "param": "rev"
+        }
+      }
+    }
   }
 ]

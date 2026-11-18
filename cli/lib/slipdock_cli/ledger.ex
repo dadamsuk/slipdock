@@ -7,15 +7,15 @@ defmodule SlipdockCLI.Ledger do
 
   import SlipdockCLI.Util
 
-  alias SlipdockCLI.HTTP
-
   @commands ~w(ledger)
 
   @doc "The command names this module answers to; `SlipdockCLI` routes on it."
   def commands, do: @commands
 
   def run("ledger", [ref], o) do
-    HTTP.get("/boards/#{enc(ref)}/ledger", since: since(o[:since])) |> out(o, &listing/1)
+    # The ledger is the activity operation's ledger view (#3188).
+    SlipdockCLI.Op.run("activity", [ref], view: "ledger", since: since(o[:since]))
+    |> out(o, &listing/1)
   end
 
   def run("ledger", _args, _o) do

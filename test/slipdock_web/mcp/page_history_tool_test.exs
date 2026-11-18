@@ -90,8 +90,8 @@ defmodule SlipdockWeb.MCP.PageHistoryToolTest do
 
       [newest, middle | _] = out["revisions"]
       assert newest["summary"] == "shout"
-      assert newest["author"] == ctx.user.email
-      assert middle["author"] == ctx.other.email
+      assert newest["author"]["email"] == ctx.user.email
+      assert middle["author"]["email"] == ctx.other.email
       assert middle["via"] == "web"
       refute Map.has_key?(newest, "body")
     end
@@ -109,11 +109,11 @@ defmodule SlipdockWeb.MCP.PageHistoryToolTest do
       assert length(out["revisions"]) == 3
     end
 
-    test "diff=true is the latest save's change, without the body", ctx do
-      out = ctx.conn |> call("page_history", %{page: ctx.page.code, diff: true}) |> ok!()
+    test "diff=previous without rev is the latest save's change (#3188)", ctx do
+      out = ctx.conn |> call("page_history", %{page: ctx.page.code, diff: "previous"}) |> ok!()
 
       assert out["revision"]["id"] == ctx.revs.third.id
-      assert out["previous"] == ctx.revs.second.id
+      assert out["revision"]["body"] == "one\nTWO"
 
       assert out["diff"] == [
                %{"op" => "eq", "lines" => ["one"]},
@@ -121,15 +121,22 @@ defmodule SlipdockWeb.MCP.PageHistoryToolTest do
                %{"op" => "ins", "lines" => ["TWO"]}
              ]
 
-      refute Map.has_key?(out, "body")
+      # The old boolean is refused, not read as "previous".
+      assert ctx.conn |> call("page_history", %{page: ctx.page.code, diff: true}) |> error!() =~
+               "diff must be"
     end
 
-    test "rev gives that revision's body and the change it made", ctx do
-      out =
+    test "rev gives that revision's body, and diff=previous the change it made", ctx do
+      bare =
         ctx.conn |> call("page_history", %{page: ctx.page.code, rev: ctx.revs.second.id}) |> ok!()
 
-      assert out["body"] == "one\ntwo"
-      assert out["previous"] == ctx.revs.first.id
+      assert bare["revision"]["body"] == "one\ntwo"
+      refute Map.has_key?(bare, "diff")
+
+      out =
+        ctx.conn
+        |> call("page_history", %{page: ctx.page.code, rev: ctx.revs.second.id, diff: "previous"})
+        |> ok!()
 
       assert out["diff"] == [
                %{"op" => "eq", "lines" => ["one"]},
@@ -138,24 +145,22 @@ defmodule SlipdockWeb.MCP.PageHistoryToolTest do
 
       # The first save is all insertion, with nothing before it.
       first =
-        ctx.conn |> call("page_history", %{page: ctx.page.code, rev: ctx.revs.first.id}) |> ok!()
+        ctx.conn
+        |> call("page_history", %{page: ctx.page.code, rev: ctx.revs.first.id, diff: "previous"})
+        |> ok!()
 
-      assert first["previous"] == nil
       assert first["diff"] == [%{"op" => "ins", "lines" => ["one"]}]
     end
 
-    test "against diffs from that revision instead of the one before", ctx do
+    test "diff=<revision id> diffs from that revision instead of the one before", ctx do
       out =
         ctx.conn
         |> call("page_history", %{
           page: ctx.page.code,
           rev: ctx.revs.third.id,
-          against: ctx.revs.first.id
+          diff: ctx.revs.first.id
         })
         |> ok!()
-
-      assert out["against"] == ctx.revs.first.id
-      refute Map.has_key?(out, "previous")
 
       # Straight from the first save to the third, past the one between.
       assert out["diff"] == [
@@ -164,17 +169,20 @@ defmodule SlipdockWeb.MCP.PageHistoryToolTest do
              ]
     end
 
-    test "an against that is malformed or another page's is refused", ctx do
+    test "a diff that is malformed or another page's is refused; against is gone", ctx do
       elsewhere = page_fixture(ctx.board, %{"title" => "Other"}, user: ctx.user)
       [foreign] = Wiki.list_revisions(elsewhere)
 
       args = %{page: ctx.page.code, rev: ctx.revs.third.id}
 
-      assert ctx.conn |> call("page_history", Map.put(args, :against, "first")) |> error!() =~
-               "against must be a revision id"
+      assert ctx.conn |> call("page_history", Map.put(args, :diff, "first")) |> error!() =~
+               ~s(diff must be "previous" or a revision id)
+
+      assert ctx.conn |> call("page_history", Map.put(args, :diff, foreign.id)) |> error!() =~
+               "no revision you can see"
 
       assert ctx.conn |> call("page_history", Map.put(args, :against, foreign.id)) |> error!() =~
-               "no revision you can see"
+               ~s(no argument "against")
     end
 
     test "long unchanged runs are cut to the lines next to the change", ctx do
@@ -185,15 +193,15 @@ defmodule SlipdockWeb.MCP.PageHistoryToolTest do
       page = page_fixture(ctx.board, %{"title" => "Long", "body" => before}, user: ctx.user)
       {:ok, _} = Wiki.update_page(page, %{"body" => after_}, user: ctx.other)
 
-      out = ctx.conn |> call("page_history", %{page: page.code, diff: true}) |> ok!()
+      out = ctx.conn |> call("page_history", %{page: page.code, diff: "previous"}) |> ok!()
 
       assert out["diff"] == [
-               %{"op" => "skip", "count" => 6},
+               %{"op" => "skip", "count" => 6, "lines" => []},
                %{"op" => "eq", "lines" => ["line 7", "line 8", "line 9"]},
                %{"op" => "del", "lines" => ["line 10"]},
                %{"op" => "ins", "lines" => ["CHANGED"]},
                %{"op" => "eq", "lines" => ["line 11", "line 12", "line 13"]},
-               %{"op" => "skip", "count" => 7}
+               %{"op" => "skip", "count" => 7, "lines" => []}
              ]
     end
 
@@ -202,7 +210,7 @@ defmodule SlipdockWeb.MCP.PageHistoryToolTest do
                "no revision you can see"
 
       assert ctx.conn |> call("page_history", %{page: ctx.page.code, rev: "latest"}) |> error!() =~
-               "rev must be a revision id"
+               "rev must be a number"
     end
 
     test "another page's revision is not this page's", ctx do
@@ -222,7 +230,7 @@ defmodule SlipdockWeb.MCP.PageHistoryToolTest do
       stranger = user_fixture("stranger-#{System.unique_integer([:positive])}@example.com")
 
       assert stranger |> conn_as() |> call("page_history", %{page: ctx.page.code}) |> error!() =~
-               "don't read this page"
+               "no page"
 
       draft =
         page_fixture(ctx.board, %{"title" => "Secret plan", "status" => "draft"}, user: ctx.user)
@@ -231,7 +239,7 @@ defmodule SlipdockWeb.MCP.PageHistoryToolTest do
       share_fixture(ctx.board, reader, "read")
 
       assert reader |> conn_as() |> call("page_history", %{page: draft.code}) |> error!() =~
-               "no page you can see"
+               "no page"
     end
   end
 
@@ -243,7 +251,7 @@ defmodule SlipdockWeb.MCP.PageHistoryToolTest do
         ctx.conn
         |> call("revert_page", %{
           page: ctx.page.code,
-          rev: ctx.revs.first.id,
+          revision: ctx.revs.first.id,
           base_hash: hash,
           message: "undo the shouting"
         })
@@ -251,7 +259,8 @@ defmodule SlipdockWeb.MCP.PageHistoryToolTest do
 
       page = Wiki.get_page!(ctx.page.id)
       assert page.body == "one"
-      assert out["content_hash"] == page.content_hash
+      assert out["page"]["content_hash"] == page.content_hash
+      assert out["page"]["body"] == "one"
       assert out["reverted_to"] == ctx.revs.first.id
 
       [newest | rest] = Wiki.list_revisions(page)
@@ -267,7 +276,7 @@ defmodule SlipdockWeb.MCP.PageHistoryToolTest do
       hash = Wiki.get_page!(ctx.page.id).content_hash
 
       ctx.conn
-      |> call("revert_page", %{page: ctx.page.code, rev: ctx.revs.second.id, base_hash: hash})
+      |> call("revert_page", %{page: ctx.page.code, revision: ctx.revs.second.id, base_hash: hash})
       |> ok!()
 
       [newest | _] = Wiki.list_revisions(ctx.page)
@@ -278,17 +287,27 @@ defmodule SlipdockWeb.MCP.PageHistoryToolTest do
       hash = Wiki.get_page!(ctx.page.id).content_hash
 
       assert ctx.conn
-             |> call("revert_page", %{page: ctx.page.code, rev: 999_999, base_hash: hash})
+             |> call("revert_page", %{page: ctx.page.code, revision: 999_999, base_hash: hash})
              |> error!() =~ "no revision you can see"
 
       assert Wiki.get_page!(ctx.page.id).body == "one\nTWO"
       assert length(Wiki.list_revisions(ctx.page)) == 3
     end
 
-    test "base_hash is required", ctx do
+    test "base_hash is required; rev is now revision, and refused by its old name", ctx do
       assert ctx.conn
-             |> call("revert_page", %{page: ctx.page.code, rev: ctx.revs.first.id})
+             |> call("revert_page", %{page: ctx.page.code, revision: ctx.revs.first.id})
              |> error!() == "base_hash is required"
+
+      hash = Wiki.get_page!(ctx.page.id).content_hash
+
+      assert ctx.conn
+             |> call("revert_page", %{
+               page: ctx.page.code,
+               rev: ctx.revs.first.id,
+               base_hash: hash
+             })
+             |> error!() =~ ~s(no argument "rev")
 
       assert Wiki.get_page!(ctx.page.id).body == "one\nTWO"
     end
@@ -299,7 +318,11 @@ defmodule SlipdockWeb.MCP.PageHistoryToolTest do
 
       text =
         ctx.conn
-        |> call("revert_page", %{page: ctx.page.code, rev: ctx.revs.first.id, base_hash: stale})
+        |> call("revert_page", %{
+          page: ctx.page.code,
+          revision: ctx.revs.first.id,
+          base_hash: stale
+        })
         |> error!()
 
       assert text =~ "conflict"
@@ -313,7 +336,11 @@ defmodule SlipdockWeb.MCP.PageHistoryToolTest do
       text =
         ctx.user
         |> read_only()
-        |> call("revert_page", %{page: ctx.page.code, rev: ctx.revs.first.id, base_hash: hash})
+        |> call("revert_page", %{
+          page: ctx.page.code,
+          revision: ctx.revs.first.id,
+          base_hash: hash
+        })
         |> error!()
 
       assert text =~ "read-only"
@@ -327,7 +354,7 @@ defmodule SlipdockWeb.MCP.PageHistoryToolTest do
 
       reader
       |> conn_as()
-      |> call("revert_page", %{page: ctx.page.code, rev: ctx.revs.first.id, base_hash: hash})
+      |> call("revert_page", %{page: ctx.page.code, revision: ctx.revs.first.id, base_hash: hash})
       |> error!()
 
       assert Wiki.get_page!(ctx.page.id).body == "one\nTWO"

@@ -27,7 +27,8 @@ defmodule SlipdockWeb.Ops.MachineryTest do
         params: [
           %{name: "thing", type: :integer, required: true, in_path: "id"},
           %{name: "kind", type: {:enum, ~w(a b c)}},
-          %{name: "parts", type: :any, schema: %{type: "array", items: %{type: "string"}}}
+          %{name: "parts", type: :any, schema: %{type: "array", items: %{type: "string"}}},
+          %{name: "limit", type: :integer, default: 10, max: 50}
         ],
         confirm: %{type: :string, doc: "The thing's name, again."}
       }
@@ -67,6 +68,18 @@ defmodule SlipdockWeb.Ops.MachineryTest do
            }
   end
 
+  test "an :integer with max is 1 or more, and more than max is max (#3188)" do
+    cast = &Ops.cast(Thing, %{"thing" => 1, "limit" => &1})
+    assert {:ok, %{"limit" => 10}} = Ops.cast(Thing, %{"thing" => 1})
+    assert {:ok, %{"limit" => 7}} = cast.("7")
+    assert {:ok, %{"limit" => 50}} = cast.(500)
+
+    for bad <- [0, -3, "0"],
+        do: assert(cast.(bad) == {:error, :bad_request, "limit must be a positive whole number"})
+
+    assert cast.("lots") == {:error, :bad_request, "limit must be a number"}
+  end
+
   test "a bad enum names every value, the last after `or`" do
     assert Ops.cast(Thing, %{"thing" => 1, "kind" => "d"}) ==
              {:error, :bad_request, "kind must be a, b or c"}
@@ -83,6 +96,28 @@ defmodule SlipdockWeb.Ops.MachineryTest do
 
     assert Ops.MCPCall.destructive?(Thing)
     refute Ops.MCPCall.destructive?(Ops.MoveCard)
+  end
+
+  defmodule Strict do
+    @behaviour SlipdockWeb.Ops.Op
+    @impl true
+    def definition, do: %{Thing.definition() | name: "strict"} |> Map.put(:strict?, true)
+    @impl true
+    def run(params, auth), do: Thing.run(params, auth)
+  end
+
+  test "a strict? definition's REST action refuses a field it doesn't name (#3188)" do
+    conn = Phoenix.ConnTest.build_conn()
+
+    assert Ops.REST.run(conn, Strict, %{"id" => "1", "kinds" => "a", "zz" => 1}) ==
+             {:error, :bad_request, "unknown field(s): kinds, zz"}
+
+    # Its path params, its own and its confirm (MCP's alone) pass.
+    assert Ops.REST.run(conn, Strict, %{"id" => "1", "kind" => "a", "confirm" => "x"}).status ==
+             201
+
+    # Not strict: an unknown field is ignored, as it always was.
+    assert Ops.REST.run(conn, Thing, %{"id" => "1", "zz" => 1}).status == 200
   end
 
   test "REST answers the definition's status, a function of the result here" do

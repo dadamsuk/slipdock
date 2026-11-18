@@ -18,7 +18,7 @@ defmodule SlipdockWeb.API.PageController do
   use SlipdockWeb, :controller
 
   alias Slipdock.{Boards, Wiki}
-  alias Slipdock.Wiki.{Archive, FolderPlacements, FrontMatter, Page, PageTools, Placements, Query}
+  alias Slipdock.Wiki.{Archive, FolderPlacements, FrontMatter, Page, Placements, Query}
   alias SlipdockWeb.API.{Authorize, CardWrites}
   alias Slipdock.Wiki.Sharing
   alias SlipdockWeb.API.Uploads
@@ -752,20 +752,10 @@ defmodule SlipdockWeb.API.PageController do
   end
 
   @doc """
-  Runs one of the AI tools over a page (#1539): `Slipdock.Wiki.PageTools`, on
-  the caller's AI key. It only answers, so reading the page is enough.
+  Runs one of the AI tools over a page (#1539): made from
+  `SlipdockWeb.Ops.PageTool` (#3188).
   """
-  def ai(conn, %{"id" => id} = params) do
-    with {:ok, page} <- fetch_page(conn, id, :read),
-         {:ok, answer} <-
-           PageTools.run(
-             params["tool"],
-             %{title: page.title, body: page.body},
-             conn.assigns.current_user
-           ) do
-      json(conn, %{page: page.code, answer: answer})
-    end
-  end
+  def ai(conn, params), do: SlipdockWeb.Ops.REST.run(conn, SlipdockWeb.Ops.PageTool, params)
 
   defp resolve_column(board, nil) do
     case Boards.get_board!(board.id).columns do
@@ -833,12 +823,9 @@ defmodule SlipdockWeb.API.PageController do
     end
   end
 
-  def revisions(conn, %{"id" => id} = params) do
-    with {:ok, page} <- fetch_page(conn, id, :read) do
-      limit = params["limit"] |> to_limit()
-      json(conn, %{revisions: Enum.map(Wiki.list_revisions(page, limit), &V.revision/1)})
-    end
-  end
+  # The list, and one revision (`revision/2`): `SlipdockWeb.Ops.PageHistory` (#3188).
+  def revisions(conn, params),
+    do: SlipdockWeb.Ops.REST.run(conn, SlipdockWeb.Ops.PageHistory, params)
 
   @doc """
   Deletes the named revisions, which the client found still hold text it
@@ -864,64 +851,19 @@ defmodule SlipdockWeb.API.PageController do
     end
   end
 
-  defp to_limit(nil), do: 100
-
-  defp to_limit(value) do
-    case Integer.parse(to_string(value)) do
-      {n, ""} when n > 0 -> min(n, 500)
-      _ -> 100
-    end
-  end
-
   @doc """
   One revision: its body, and with `?diff=previous` the change it made,
-  as hunks of equal, deleted and inserted lines. `?diff=<revision id>`
-  diffs from that version of the same page to this one instead, so any two
-  versions can be compared.
+  `?diff=<revision id>` from that version of the same page instead. The
+  history's definition with `rev` from the path (`SlipdockWeb.Ops.PageHistory`).
   """
-  def revision(conn, %{"id" => id, "rev" => rev} = params) do
-    with {:ok, page} <- fetch_page(conn, id, :read),
-         {:ok, revision} <- Wiki.get_revision(page, rev),
-         {:ok, before} <- diff_base(page, revision, params["diff"]) do
-      body = %{revision: V.revision(revision) |> Map.put(:body, revision.body)}
+  def revision(conn, params),
+    do: SlipdockWeb.Ops.REST.run(conn, SlipdockWeb.Ops.PageHistory, params)
 
-      body =
-        case before do
-          :none -> body
-          text -> Map.put(body, :diff, V.diff(Wiki.diff(text, revision.body)))
-        end
-
-      json(conn, body)
-    end
-  end
-
-  # What a revision is diffed from: nothing asked, the one before it, or
-  # another version of the same page by id.
-  defp diff_base(_page, _revision, diff) when diff in [nil, ""], do: {:ok, :none}
-
-  defp diff_base(_page, revision, "previous") do
-    previous = Wiki.previous_revision(revision)
-    {:ok, if(previous, do: previous.body, else: "")}
-  end
-
-  defp diff_base(page, _revision, other) do
-    with {n, ""} when n > 0 <- Integer.parse(to_string(other)),
-         {:ok, base} <- Wiki.get_revision(page, n) do
-      {:ok, base.body}
-    else
-      {:error, _, _} = not_found -> not_found
-      _ -> {:error, :bad_request, "diff must be \"previous\" or a revision id of this page"}
-    end
-  end
-
-  @doc "Puts the page back to a revision. This is a save of its own, never a deletion."
-  def revert(conn, %{"id" => id} = params) do
-    with {:ok, page} <- fetch_page(conn, id, :write),
-         {:ok, revision} <- Wiki.get_revision(page, params["revision_id"] || params["revision"]),
-         {:ok, page} <- Wiki.revert_page(page, revision, write_opts(conn, params)) do
-      json(conn, %{page: V.page(with_users(page))})
-    end
-  end
+  @doc """
+  Puts the page back to a revision: a save of its own, never a deletion.
+  Made from `SlipdockWeb.Ops.RevertPage` (#3188).
+  """
+  def revert(conn, params), do: SlipdockWeb.Ops.REST.run(conn, SlipdockWeb.Ops.RevertPage, params)
 
   ## Helpers ------------------------------------------------------------------
 

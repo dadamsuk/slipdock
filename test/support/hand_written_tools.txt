@@ -13,17 +13,23 @@
 # callers their answer: Ops 5 (#3190) takes its params from a definition.
 list_cards
 
-# One operation each: Ops 4 (#3188) makes these from definitions
-activity
-garden_decide
-get_guide
-install_tool
-keep_job_log
-page_history
-page_tool
-quick_note
-revert_page
+# Not one definition (#3188): REST's GET /api/search answers each result
+# with every match's whole text (a chunk is up to 1,500 characters), the
+# board and list as objects and relative links, 20 by default and up to
+# 50, and is what the CLI's `search --full` prints; MCP's answers each
+# result's best match cut to 300 characters with absolute links, 10 by
+# default and up to 30. The same reason as list_cards: one shape would
+# cost MCP's callers their context or REST's callers their answer.
 search
+
+# Not one definition (#3188): REST's GET /api/guide needs no token,
+# answers Markdown (JSON only when asked) and, without a section, the
+# whole guide, as the URL quoted in prompts and docs has always served;
+# MCP's get_guide answers JSON, the short guide by default (the whole one
+# is more than a tool result shows), and with board that board's skills,
+# which REST serves at GET /api/boards/:board/skills. Each default is on
+# purpose, so neither can take the other's.
+get_guide
 
 # Several operations each, or none REST has: hand-composed on purpose
 # (SPEC-4); Ops 5 (#3190) takes their params from the definitions they wrap

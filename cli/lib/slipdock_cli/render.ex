@@ -2256,17 +2256,17 @@ defmodule SlipdockCLI.Render do
   @doc "A diff as the API returns it: hunks of equal, deleted and inserted lines."
   def diff([]), do: IO.puts(dim("no change"))
 
-  def diff(hunks) do
-    Enum.each(hunks, fn %{"op" => op, "lines" => lines} ->
-      Enum.each(lines, fn line ->
-        case op do
-          "ins" -> IO.puts(green("+ " <> line))
-          "del" -> IO.puts(red("- " <> line))
-          _ -> IO.puts(dim("  " <> line))
-        end
-      end)
-    end)
-  end
+  def diff(hunks), do: Enum.each(hunks, &hunk/1)
+
+  # A long unchanged run the server cut (#3188).
+  defp hunk(%{"op" => "skip", "count" => count}),
+    do: IO.puts(dim("  … #{count} unchanged line#{if count == 1, do: "", else: "s"}"))
+
+  defp hunk(%{"op" => op, "lines" => lines}), do: Enum.each(lines, &diff_line(op, &1))
+
+  defp diff_line("ins", line), do: IO.puts(green("+ " <> line))
+  defp diff_line("del", line), do: IO.puts(red("- " <> line))
+  defp diff_line(_op, line), do: IO.puts(dim("  " <> line))
 
   def sections([]), do: IO.puts(dim("no headings"))
 

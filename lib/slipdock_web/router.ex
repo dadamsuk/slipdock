@@ -898,9 +898,8 @@ defmodule SlipdockWeb.Router do
     post "/boards/:board/garden", GardenController, :create
     patch "/boards/:board/garden/settings", GardenController, :settings
     post "/boards/:board/garden/proposals", GardenController, :propose
-    post "/garden/suggestions/:id/apply", GardenController, :apply
-    post "/garden/suggestions/:id/dismiss", GardenController, :dismiss
-    post "/garden/suggestions/:id/undo", GardenController, :undo
+    # apply, dismiss or undo: `SlipdockWeb.Ops.GardenDecide` (#3188).
+    post "/garden/suggestions/:id/:decision", GardenController, :decide
     get "/boards/:board/health", HealthController, :index
     get "/boards/:board/now", NowController, :show
     post "/boards/:board/health", HealthController, :create
