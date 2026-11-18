@@ -32,7 +32,7 @@ defmodule Slipdock.Handbook do
   alias Slipdock.Wiki.{Folders, FrontMatter, Page}
 
   @name "handbook"
-  @version "1.10.0"
+  @version "1.10.1"
   @folder "Handbook"
   @decisions "Handbook/Decisions"
 
@@ -166,9 +166,9 @@ defmodule Slipdock.Handbook do
   @spike """
   ## Spike
 
-  - **Asks:** of the brief's open questions, which pass all three: only building answers it (not a person, not reading); a "no" changes the spec (say how); a late "no" costs more than the spike, counting flow time and lane contention as well as rework. One that fails only the third gets its card first in build order instead. None pass: the stage is skipped, and the agent says why.
+  - **Asks:** of the brief's open questions, which pass all three: only building answers it (not a person, not reading); a "no" changes the spec (say how); a late "no" costs more than the spike, counting flow time and work held up behind it as well as rework. One that fails only the third gets its card first in build order instead. None pass: the stage is skipped, and the agent says why.
   - **Skill:** the plan skill's Spike. The agent proposes the candidates and a person confirms them; unattended, they go to a person as one `product` wait on the epic.
-  - **Produces:** one card tagged `spike` per confirmed question, one sitting each, its bar the question and what counts as an answer. A spike holds no lane and merges nothing: its answer is a page, its prototype stays on a branch.
+  - **Produces:** one card tagged `spike` per confirmed question, one sitting each, its bar the question and what counts as an answer. A spike merges nothing: its answer is a page, its prototype stays on a branch.
   - **Writes to:** the epic's sub-board; each answer to a page pinned to the epic. Planning stops there and resumes at Spec once every spike is accepted, from their answers.
   """
 
@@ -306,12 +306,24 @@ defmodule Slipdock.Handbook do
   _Replace `none` with the page holding the person's own defaults (stack, hosting), as `defaults: W-123`: their Knowledge Base. Decide reads it, proposes each default with its rationale, asks, and records the outcome as a Decision on this project. A default is never imposed. With none named, it asks from scratch._
   """
 
+  # The 1.10.0 Playbook seed, whose Spike stage still spoke of lanes after
+  # #3178 removed them (#3195).
+  @playbook_1_10 @playbook
+                 |> String.replace(
+                   "counting flow time and work held up behind it as well as rework.",
+                   "counting flow time and lane contention as well as rework."
+                 )
+                 |> String.replace(
+                   "A spike merges nothing: its answer",
+                   "A spike holds no lane and merges nothing: its answer"
+                 )
+
   # The 1.9.3 Playbook seed (as #2065 left it), whose Grill said only that
   # a round goes into one wait with nobody there: not that the agent answers
   # what the board answers, marked *(assumed)*, and waits only for the
   # person's decisions (#3050).
   @playbook_1_9 String.replace(
-                  @playbook,
+                  @playbook_1_10,
                   "With nobody there, it answers what the board answers (the card, the handbook, a Decision) and marks each such answer *(assumed)* where it writes it; only the person's decisions go into the one wait, as a numbered round, a question each with its recommended answer, and it never answers those itself.",
                   "With nobody there, a round goes into one wait, a question each."
                 )
@@ -522,7 +534,8 @@ defmodule Slipdock.Handbook do
     ]
   end
 
-  # On Playbook, its 1.9.3 seed, whose Grill didn't say to answer what the
+  # On Playbook, its 1.10.0 seed, whose Spike stage spoke of lanes (#3195),
+  # its 1.9.3 seed, whose Grill didn't say to answer what the
   # board answers, marked (assumed), and wait only for the person's (#3050),
   # its 1.8.0 seed, whose Grill asked one question at a time (#2065), its 1.7.0 seed, whose Grill named no registry skill (#2601),
   # its 1.6.0 seed and the 1.5.0 one before Card shape read a moot bar item
@@ -532,6 +545,7 @@ defmodule Slipdock.Handbook do
 
     [
       {skeleton("playbook"), "seed added"},
+      {{@playbook_1_10, rules}, "seed updated"},
       {{@playbook_1_9, rules}, "seed updated"},
       {{@playbook_1_8, rules}, "seed updated"},
       {{@playbook_1_7, rules}, "seed updated"},
@@ -571,11 +585,13 @@ defmodule Slipdock.Handbook do
   end
 
   @doc false
-  # The body a Playbook page had as 1.9.3 seeded it, before its Grill said
+  # The body a Playbook page had as 1.10.0 seeded it, before its Spike stage
+  # stopped speaking of lanes (#3195), as 1.9.3 did before its Grill said
   # what to do unattended (#3050), as 1.8.0 did before its Grill asked
   # in numbered rounds (#2065), as 1.7.0 did before its Grill named a
   # registry skill (#2601), as 1.6.0 did before the Spike stage (#2352), and
   # as 1.5.0 did before #2096, for the upgrade's tests.
+  def seed_body("playbook", "1.10.0"), do: playbook_body(@playbook_1_10)
   def seed_body("playbook", "1.9.3"), do: playbook_body(@playbook_1_9)
   def seed_body("playbook", "1.8.0"), do: playbook_body(@playbook_1_8)
   def seed_body("playbook", "1.7.0"), do: playbook_body(@playbook_1_7)
