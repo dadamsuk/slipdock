@@ -5,6 +5,7 @@ defmodule SlipdockWeb.MCP.Tools.CompleteCard do
   alias Slipdock.Boards
   alias SlipdockWeb.API.{Authorize, CardWrites}
   alias SlipdockWeb.MCP.{Args, Tools}
+  alias SlipdockWeb.Ops
 
   @impl true
   def name, do: "complete_card"
@@ -23,7 +24,6 @@ defmodule SlipdockWeb.MCP.Tools.CompleteCard do
     %{
       type: "object",
       properties: %{
-        card: %{type: "integer"},
         comment: %{type: "string", description: "What was done, added before closing."},
         evidence: %{
           type: "string",
@@ -79,6 +79,8 @@ defmodule SlipdockWeb.MCP.Tools.CompleteCard do
       required: ["card"],
       additionalProperties: false
     }
+    # Taken as every card operation takes it (#3190).
+    |> Map.update!(:properties, &Map.merge(&1, Ops.params_from(Ops.DeleteCard, ["card"])))
   end
 
   @impl true

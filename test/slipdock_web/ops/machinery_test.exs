@@ -80,6 +80,26 @@ defmodule SlipdockWeb.Ops.MachineryTest do
     assert cast.("lots") == {:error, :bad_request, "limit must be a number"}
   end
 
+  test "params_from gives the named params' schemas as input_schema has them (#3190)" do
+    from = Ops.params_from(Thing, ["kind", "parts", "limit"])
+
+    assert from == Map.take(Ops.input_schema(Thing).properties, [:kind, :parts, :limit])
+    assert from.kind == %{type: "string", enum: ~w(a b c)}
+    assert Ops.params_from(Ops.MoveCard, ["index"]).index.description =~ "Default bottom"
+    assert Ops.params_from(Thing, []) == %{}
+  end
+
+  test "params_from raises on a name the definition doesn't have, naming those it has" do
+    assert_raise ArgumentError,
+                 ~s(thing has no param "things"; it has thing, kind, parts, limit),
+                 fn ->
+                   Ops.params_from(Thing, ["kind", "things"])
+                 end
+
+    # confirm is MCP's alone, not a param a composed tool can share.
+    assert_raise ArgumentError, fn -> Ops.params_from(Thing, ["confirm"]) end
+  end
+
   test "a bad enum names every value, the last after `or`" do
     assert Ops.cast(Thing, %{"thing" => 1, "kind" => "d"}) ==
              {:error, :bad_request, "kind must be a, b or c"}
