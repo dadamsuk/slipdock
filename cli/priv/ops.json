@@ -543,5 +543,57 @@
         }
       }
     }
+  },
+  {
+    "name": "revert_page",
+    "summary": "Puts a page back to a revision from page_history, as a new revision (nothing is lost). Needs base_hash: the page's current content_hash, from read_page or page_history.",
+    "verb": "POST",
+    "path": "/api/pages/:id/revert",
+    "writes": true,
+    "params": [
+      {
+        "name": "page",
+        "type": "string",
+        "required": true,
+        "in_path": "id"
+      },
+      {
+        "name": "board",
+        "type": "string",
+        "required": false
+      },
+      {
+        "name": "revision",
+        "type": "integer",
+        "required": true
+      },
+      {
+        "name": "base_hash",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "message",
+        "type": "string",
+        "required": false
+      }
+    ],
+    "cli": {
+      "command": "page revert",
+      "positional": [
+        "page"
+      ],
+      "flags": {
+        "base_hash": {
+          "param": "base_hash"
+        },
+        "message": {
+          "param": "message"
+        },
+        "rev": {
+          "param": "revision"
+        }
+      }
+    }
   }
 ]

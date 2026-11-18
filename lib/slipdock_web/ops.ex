@@ -20,7 +20,8 @@ defmodule SlipdockWeb.Ops do
     Ops.KeepJobLog,
     Ops.InstallTool,
     Ops.Activity,
-    Ops.GardenDecide
+    Ops.GardenDecide,
+    Ops.RevertPage
   ]
 
   def all, do: @ops

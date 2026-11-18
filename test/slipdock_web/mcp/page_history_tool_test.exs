@@ -243,7 +243,7 @@ defmodule SlipdockWeb.MCP.PageHistoryToolTest do
         ctx.conn
         |> call("revert_page", %{
           page: ctx.page.code,
-          rev: ctx.revs.first.id,
+          revision: ctx.revs.first.id,
           base_hash: hash,
           message: "undo the shouting"
         })
@@ -251,7 +251,8 @@ defmodule SlipdockWeb.MCP.PageHistoryToolTest do
 
       page = Wiki.get_page!(ctx.page.id)
       assert page.body == "one"
-      assert out["content_hash"] == page.content_hash
+      assert out["page"]["content_hash"] == page.content_hash
+      assert out["page"]["body"] == "one"
       assert out["reverted_to"] == ctx.revs.first.id
 
       [newest | rest] = Wiki.list_revisions(page)
@@ -267,7 +268,7 @@ defmodule SlipdockWeb.MCP.PageHistoryToolTest do
       hash = Wiki.get_page!(ctx.page.id).content_hash
 
       ctx.conn
-      |> call("revert_page", %{page: ctx.page.code, rev: ctx.revs.second.id, base_hash: hash})
+      |> call("revert_page", %{page: ctx.page.code, revision: ctx.revs.second.id, base_hash: hash})
       |> ok!()
 
       [newest | _] = Wiki.list_revisions(ctx.page)
@@ -278,17 +279,27 @@ defmodule SlipdockWeb.MCP.PageHistoryToolTest do
       hash = Wiki.get_page!(ctx.page.id).content_hash
 
       assert ctx.conn
-             |> call("revert_page", %{page: ctx.page.code, rev: 999_999, base_hash: hash})
+             |> call("revert_page", %{page: ctx.page.code, revision: 999_999, base_hash: hash})
              |> error!() =~ "no revision you can see"
 
       assert Wiki.get_page!(ctx.page.id).body == "one\nTWO"
       assert length(Wiki.list_revisions(ctx.page)) == 3
     end
 
-    test "base_hash is required", ctx do
+    test "base_hash is required; rev is now revision, and refused by its old name", ctx do
       assert ctx.conn
-             |> call("revert_page", %{page: ctx.page.code, rev: ctx.revs.first.id})
+             |> call("revert_page", %{page: ctx.page.code, revision: ctx.revs.first.id})
              |> error!() == "base_hash is required"
+
+      hash = Wiki.get_page!(ctx.page.id).content_hash
+
+      assert ctx.conn
+             |> call("revert_page", %{
+               page: ctx.page.code,
+               rev: ctx.revs.first.id,
+               base_hash: hash
+             })
+             |> error!() =~ ~s(no argument "rev")
 
       assert Wiki.get_page!(ctx.page.id).body == "one\nTWO"
     end
@@ -299,7 +310,11 @@ defmodule SlipdockWeb.MCP.PageHistoryToolTest do
 
       text =
         ctx.conn
-        |> call("revert_page", %{page: ctx.page.code, rev: ctx.revs.first.id, base_hash: stale})
+        |> call("revert_page", %{
+          page: ctx.page.code,
+          revision: ctx.revs.first.id,
+          base_hash: stale
+        })
         |> error!()
 
       assert text =~ "conflict"
@@ -313,7 +328,11 @@ defmodule SlipdockWeb.MCP.PageHistoryToolTest do
       text =
         ctx.user
         |> read_only()
-        |> call("revert_page", %{page: ctx.page.code, rev: ctx.revs.first.id, base_hash: hash})
+        |> call("revert_page", %{
+          page: ctx.page.code,
+          revision: ctx.revs.first.id,
+          base_hash: hash
+        })
         |> error!()
 
       assert text =~ "read-only"
@@ -327,7 +346,7 @@ defmodule SlipdockWeb.MCP.PageHistoryToolTest do
 
       reader
       |> conn_as()
-      |> call("revert_page", %{page: ctx.page.code, rev: ctx.revs.first.id, base_hash: hash})
+      |> call("revert_page", %{page: ctx.page.code, revision: ctx.revs.first.id, base_hash: hash})
       |> error!()
 
       assert Wiki.get_page!(ctx.page.id).body == "one\nTWO"

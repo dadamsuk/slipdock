@@ -741,16 +741,13 @@ defmodule SlipdockCLI.Wiki do
     |> out(o, &Render.diff(&1["diff"] || []))
   end
 
+  # A revert needs the page's hash as it stands (#3188), so a newer edit is
+  # never lost to it unseen: read it first, unless --base-hash gives it.
   def run("page", ["revert", ref], o) do
-    rev = o[:rev] || fail("which version? pass --rev N (see `slipdock page history`)")
+    o[:rev] || fail("which version? pass --rev N (see `slipdock page history`)")
+    hash = o[:base_hash] || fetch!("/pages/#{enc(ref)}")["page"]["content_hash"]
 
-    HTTP.post(
-      "/pages/#{enc(ref)}/revert",
-      compact(%{
-        "revision_id" => rev,
-        "message" => o[:message]
-      })
-    )
+    SlipdockCLI.Op.run("page revert", [ref], Keyword.put(o, :base_hash, hash))
     |> out(o, &page_ok("reverted", &1))
   end
 

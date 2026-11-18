@@ -95,6 +95,11 @@ defmodule SlipdockCLI.OpTest do
     assert Op.request("garden", ~w(undo 42), []) == {:post, "/garden/suggestions/42/undo", %{}}
   end
 
+  test "page revert is revert_page's request: --rev is the revision" do
+    assert Op.request("page revert", ["W-31"], rev: "7", base_hash: "h1") ==
+             {:post, "/pages/W-31/revert", %{"revision" => "7", "base_hash" => "h1"}}
+  end
+
   test "an operation the CLI has no command for (delete_board) is left out" do
     refute Map.has_key?(Op.ops(), nil)
     refute Enum.any?(Op.ops(), fn {_, op} -> op["name"] == "delete_board" end)

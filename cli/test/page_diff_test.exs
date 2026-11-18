@@ -49,4 +49,15 @@ defmodule SlipdockCLI.PageDiffTest do
     assert path =~ "diff=7"
     refute path =~ "previous"
   end
+
+  test "revert reads the page's hash first and sends it with the revision" do
+    page = ~s({"page":{"code":"W-31","title":"T","content_hash":"h1","url":"/x"}})
+    System.put_env("SLIPDOCK_URL", FakeServer.start([{200, page}, {200, page}]))
+    capture_io(fn -> Wiki.run("page", ["revert", "W-31"], rev: "7", message: "back") end)
+
+    assert_received {:request, "GET", "/api/pages/W-31", _}
+    assert_received {:request, "POST", "/api/pages/W-31/revert", body}
+
+    assert JSON.decode!(body) == %{"revision" => "7", "base_hash" => "h1", "message" => "back"}
+  end
 end

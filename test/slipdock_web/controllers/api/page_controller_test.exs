@@ -580,7 +580,10 @@ defmodule SlipdockWeb.API.PageControllerTest do
 
       assert %{"error" => "revision not found"} =
                conn
-               |> post("/api/pages/#{page["id"]}/revert", %{revision_id: 999_999_999})
+               |> post("/api/pages/#{page["id"]}/revert", %{
+                 revision: 999_999_999,
+                 base_hash: page["content_hash"]
+               })
                |> json_response(404)
     end
 

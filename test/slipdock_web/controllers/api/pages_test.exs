@@ -326,7 +326,10 @@ defmodule SlipdockWeb.API.PagesTest do
 
       assert %{"page" => reverted} =
                conn
-               |> post("/api/pages/#{page["id"]}/revert", %{revision_id: oldest["id"]})
+               |> post("/api/pages/#{page["id"]}/revert", %{
+                 revision: oldest["id"],
+                 base_hash: Slipdock.Wiki.get_page!(page["id"]).content_hash
+               })
                |> json_response(200)
 
       assert reverted["body"] == "first"

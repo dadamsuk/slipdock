@@ -904,14 +904,11 @@ defmodule SlipdockWeb.API.PageController do
     end
   end
 
-  @doc "Puts the page back to a revision. This is a save of its own, never a deletion."
-  def revert(conn, %{"id" => id} = params) do
-    with {:ok, page} <- fetch_page(conn, id, :write),
-         {:ok, revision} <- Wiki.get_revision(page, params["revision_id"] || params["revision"]),
-         {:ok, page} <- Wiki.revert_page(page, revision, write_opts(conn, params)) do
-      json(conn, %{page: V.page(with_users(page))})
-    end
-  end
+  @doc """
+  Puts the page back to a revision: a save of its own, never a deletion.
+  Made from `SlipdockWeb.Ops.RevertPage` (#3188).
+  """
+  def revert(conn, params), do: SlipdockWeb.Ops.REST.run(conn, SlipdockWeb.Ops.RevertPage, params)
 
   ## Helpers ------------------------------------------------------------------
 
