@@ -24,6 +24,25 @@ defmodule SlipdockWeb.API.Authorize do
     end
   end
 
+  @doc """
+  `:ok` unless the request's token is confined to some boards, else the
+  refusal saying it is the token's scope that can't `what` ("create
+  boards"): for what reaches past any one board, as making a board does,
+  which a confined token could not reach after (#3361). A session, or a
+  token for the whole account, is let through.
+  """
+  def unconfined(conn, what) do
+    case conn.assigns[:api_token] do
+      %{scope_boards: [_ | _]} ->
+        {:error, :forbidden,
+         "this API token's scope doesn't allow it to #{what}: it is confined to some " <>
+           "boards (see Account → API tokens). Don't retry."}
+
+      _ ->
+        :ok
+    end
+  end
+
   def board(conn, board, need) do
     conn
     |> level(Access.board_permission(conn.assigns.current_user, board), board.id)

@@ -21,6 +21,9 @@ defmodule SlipdockWeb.API.CardWrites do
   # inside a job: `Slipdock.Origin` refuses the rest.
   @create_keys @card_fields ++ ~w(column tags assignee assignees archived origin)
 
+  @doc "Every key a create takes (`Ops.AddCard`'s params are these)."
+  def create_keys, do: @create_keys
+
   @doc """
   `:ok`, or a 422 naming the keys of a create's `params` that it doesn't
   take, so a typo (`archved` for `archived`) is refused rather than quietly

@@ -224,6 +224,39 @@ defmodule SlipdockCLI.OpTest do
                {:post, "/notes", %{"text" => "from stdin"}}
     end
 
+    test "the params a command works out go in the request, a nil as null (#3361)" do
+      assert Op.request("edit", ["5"], [title: "Ship", no_due: true], [], %{
+               "title" => "Ship",
+               "due_date" => nil
+             }) == {:patch, "/cards/5", %{"title" => "Ship", "due_date" => nil}}
+
+      assert Op.request("add", ~w(errands Ship it), [tag: "a", tag: "b"], [], %{
+               "tags" => ["a", "b"]
+             }) == {:post, "/boards/errands/cards", %{"title" => "Ship it", "tags" => ["a", "b"]}}
+
+      assert Op.request("new-board", ~w(Hiring), [], [], %{"lists" => [%{"name" => "Applied"}]}) ==
+               {:post, "/boards", %{"name" => "Hiring", "lists" => [%{"name" => "Applied"}]}}
+    end
+
+    test "a param the definition doesn't have is refused before any request" do
+      assert_raise ArgumentError, "edit_card has no param due", fn ->
+        Op.request("edit", ["5"], [], [], %{"due" => "2026-12-01"})
+      end
+    end
+
+    test "edit_card's usages take only their own flags" do
+      assert :ok = Op.check("edit", title: "x", no_due: true, assignee: "me")
+
+      assert {:error, "slipdock edit does not take --evidence" <> _} =
+               Op.check("edit", evidence: "x")
+
+      assert :ok = Op.check("done", evidence: "x", pr: "u", suite: "passed", diff_base: "main")
+      assert {:error, "slipdock done does not take --title" <> _} = Op.check("done", title: "x")
+
+      for usage <- ~w(undone flag tag set log),
+          do: assert({:error, _} = Op.check(usage, title: "x"))
+    end
+
     test "what the command sets is sent over what was typed, and is not checked" do
       assert Op.request("ledger", ["errands"], [since: "7"], view: "ledger") ==
                {:get, "/boards/errands/activity", %{"view" => "ledger", "since" => "7"}}
@@ -258,7 +291,17 @@ defmodule SlipdockCLI.OpTest do
       {"ledger", ~w(ledger errands)},
       {"garden apply", ~w(garden apply 42)},
       {"garden dismiss", ~w(garden dismiss 42)},
-      {"garden undo", ~w(garden undo 42)}
+      {"garden undo", ~w(garden undo 42)},
+      {"edit", ~w(edit 57 --title Ship)},
+      {"done", ~w(done 57)},
+      {"undone", ~w(undone 57)},
+      {"flag", ~w(flag 57 blocked)},
+      {"tag", ~w(tag 57 infra)},
+      {"set", ~w(set 57 points=3)},
+      {"log", ~w(log 57 1h)},
+      {"add", ~w(add errands Ship it)},
+      {"new-board", ~w(new-board Hiring)},
+      {"set-board", ~w(set-board errands --name Hiring)}
     ]
 
     test "every command made from a definition is in the list below" do
@@ -318,7 +361,35 @@ defmodule SlipdockCLI.OpTest do
       "activity" => ["activity <board>"],
       "ledger" => ["ledger <board>"],
       "garden apply" => ["garden apply <id>"],
-      "garden dismiss" => ["garden dismiss|undo <id>"]
+      "garden dismiss" => ["garden dismiss|undo <id>"],
+      "edit" => ["edit <id>"],
+      "done" => ["done <id>"],
+      "flag" => ["flag <id>"],
+      "tag" => ["tag <id>"],
+      "set" => ["set <id>"],
+      "log" => ["log <id>"],
+      "add" => ["add <board>"],
+      "new-board" => ["new-board <name>"],
+      "set-board" => ["set-board <board>"]
+    }
+
+    # Flags an entry names that aren't its definition's. set-board spends
+    # --wiki-sort on another request: the wiki's order (PATCH
+    # /boards/:board/tree), which a writer may set, not only the owner. edit
+    # and done name other commands' flags in their prose: set-board's
+    # --bar-required, --profiles, --evidence-required and --verify-work as
+    # what the board asks, and `findings --source`. flag's and tag's --off
+    # picks the param their words go in (remove_flags), sent as no flag;
+    # log's says it is edit's --log.
+    @elsewhere %{
+      "log" => ["log"],
+      "flag" => ["off"],
+      "tag" => ["off"],
+      # Its prose names done's --evidence and --evidence-commit, wait's
+      # --default, and the release command's `gh workflow run … --ref`.
+      "set-board" => ["wiki_sort", "evidence", "evidence_commit", "default", "ref"],
+      "done" => ["evidence_required", "verify_work"],
+      "edit" => ["bar_required", "profiles", "source"]
     }
 
     test "each flag on a defined command's help entry is one it takes" do
@@ -334,8 +405,15 @@ defmodule SlipdockCLI.OpTest do
           |> Enum.map(fn [_, f] -> String.replace(f, "-", "_") end)
           |> Enum.uniq()
 
-        assert named -- (Op.takes(usage) ++ Op.global()) == [],
-               "help names #{inspect(named -- Op.takes(usage))} for #{usage}"
+        takes = Op.takes(usage) ++ Op.global() ++ Map.get(@elsewhere, usage, [])
+        # `--no-simple` is --simple off, as OptionParser reads a boolean.
+        named =
+          Enum.reject(named, fn
+            "no_" <> flag -> flag in takes
+            _ -> false
+          end)
+
+        assert named -- takes == [], "help names #{inspect(named -- takes)} for #{usage}"
       end
     end
 

@@ -274,7 +274,8 @@ answer there: no interactive flow helps a machine that nobody is watching.
 named boards) and an optional expiry, and Account › *API tokens* shows when each was
 last used and from where. A read-only token is refused any request that would
 change something, and a board-scoped one cannot see — or even list — boards
-outside its scope. Revoke one and it stops working at once.
+outside its scope, nor create a board, which it could not reach. Revoke one
+and it stops working at once.
 
 ### Agentic Login (for automated testing)
 

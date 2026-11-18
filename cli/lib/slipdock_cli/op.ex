@@ -11,7 +11,10 @@ defmodule SlipdockCLI.Op do
   Any other is refused before a request is made, with the flags the command
   does take. A flag whose definition says `read` names a file (or `-`,
   stdin) the command reads the param from itself: it is taken, but what the
-  request carries is what the command read, given in `set`.
+  request carries is what the command read, given in `set`. One whose
+  definition says `read: "parsed"` (`--no-due`, `--route KIND=EMAIL`) is
+  one the command works a param out from: it gives the param in `params`
+  (#3361), by the definition's name, a nil sent as null (it clears).
   """
 
   alias SlipdockCLI.HTTP
@@ -44,7 +47,21 @@ defmodule SlipdockCLI.Op do
     "page diff" => {"page history", ~w(against rev)},
     "garden apply" => {"garden", ~w(choice keep)},
     "garden dismiss" => {"garden", []},
-    "garden undo" => {"garden", []}
+    "garden undo" => {"garden", []},
+    # edit_card's (#3361): edit takes the fields, done the evidence and the
+    # change, and the rest each set one param from their words.
+    "edit" => {"edit", ~w(title short_name desc bar priority start no_start due no_due percent
+                          no_percent paths profile no_profile caused_by no_caused_by missed_by
+                          no_missed_by spent no_spent estimate no_estimate unit log color
+                          no_color column assignee no_assignee add_assignee remove_assignee
+                          border no_border border_top border_right border_bottom border_left)},
+    "done" => {"edit", ~w(evidence evidence_commit branch tests suite pr no_code diff_base
+                          changed_lines changed_files)},
+    "undone" => {"edit", []},
+    "flag" => {"edit", []},
+    "tag" => {"edit", []},
+    "set" => {"edit", []},
+    "log" => {"edit", []}
   }
 
   def global, do: @global
@@ -110,15 +127,18 @@ defmodule SlipdockCLI.Op do
   the definition's `positional` params in order (a trailing `name...` takes
   the rest, joined by spaces); flags map onto params by the definition's
   `flags`. Path params go into the path, the rest into the body: for a GET,
-  the query string (`HTTP.get/2`).
+  the query string (`HTTP.get/2`). `params` are the ones the command worked
+  out itself, over the rest; a name the definition doesn't have raises.
   """
-  def request(usage, words, opts, set \\ []) do
+  def request(usage, words, opts, set \\ [], params \\ %{}) do
     {command, _} = usage(usage)
     op = Map.fetch!(@ops, command)
     opts = Keyword.merge(opts, set)
 
     params =
-      Map.merge(positional(op["cli"]["positional"], words), flags(op["cli"]["flags"], opts))
+      positional(op["cli"]["positional"], words)
+      |> Map.merge(flags(op["cli"]["flags"], opts))
+      |> Map.merge(given(op, params))
 
     path =
       Enum.reduce(op["params"], op["path"], fn
@@ -141,10 +161,21 @@ defmodule SlipdockCLI.Op do
   values the command worked out itself (a file read, a mode it is), not
   checked, and over `opts`.
   """
-  def run(usage, words, opts, set \\ []) do
+  def run(usage, words, opts, set \\ [], params \\ %{}) do
     check!(usage, opts)
-    {verb, path, body} = request(usage, words, opts, set)
+    {verb, path, body} = request(usage, words, opts, set, params)
     apply(HTTP, verb, [path, body])
+  end
+
+  # The params a command worked out itself, each one its definition names:
+  # a name it doesn't is this client and the server come apart.
+  defp given(op, params) do
+    names = Enum.map(op["params"], & &1["name"])
+
+    case Map.keys(params) -- names do
+      [] -> params
+      extra -> raise ArgumentError, "#{op["name"]} has no param #{Enum.join(extra, ", ")}"
+    end
   end
 
   defp positional(names, words) do

@@ -665,5 +665,1185 @@
         }
       }
     }
+  },
+  {
+    "name": "edit_card",
+    "summary": "Changes a card's fields: only what you send changes, and null clears one. completed with the evidence fields completes it.",
+    "verb": "PATCH",
+    "path": "/api/cards/:id",
+    "writes": true,
+    "params": [
+      {
+        "name": "card",
+        "type": "any",
+        "required": true,
+        "in_path": "id"
+      },
+      {
+        "name": "title",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "short_name",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "description",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "priority",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "start_date",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "due_date",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "date_precision",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "percent_complete",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "completed",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "bar",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "paths",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "profile",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "caused_by",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "missed_by",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "color",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "border_top",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "border_right",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "border_bottom",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "border_left",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "time_spent",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "time_estimate",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "time_unit",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "log_time",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "flags",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "add_flags",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "remove_flags",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "tags",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "add_tags",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "remove_tags",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "assignee",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "assignees",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "add_assignees",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "remove_assignees",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "column",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "fields",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "evidence",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "evidence_commit",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "evidence_branch",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "evidence_tests",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "evidence_suite",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "evidence_pr",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "evidence_no_code",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "changed_lines",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "changed_files",
+        "type": "any",
+        "required": false
+      }
+    ],
+    "cli": {
+      "command": "edit",
+      "positional": [
+        "card"
+      ],
+      "flags": {
+        "add_assignee": {
+          "param": "add_assignees",
+          "read": "parsed"
+        },
+        "assignee": {
+          "param": "assignees",
+          "read": "parsed"
+        },
+        "bar": {
+          "param": "bar",
+          "read": "stdin"
+        },
+        "border": {
+          "param": "border_top",
+          "read": "parsed"
+        },
+        "border_bottom": {
+          "param": "border_bottom",
+          "read": "parsed"
+        },
+        "border_left": {
+          "param": "border_left",
+          "read": "parsed"
+        },
+        "border_right": {
+          "param": "border_right",
+          "read": "parsed"
+        },
+        "border_top": {
+          "param": "border_top",
+          "read": "parsed"
+        },
+        "branch": {
+          "param": "evidence_branch"
+        },
+        "caused_by": {
+          "param": "caused_by"
+        },
+        "changed_files": {
+          "param": "changed_files",
+          "read": "parsed"
+        },
+        "changed_lines": {
+          "param": "changed_lines"
+        },
+        "color": {
+          "param": "color"
+        },
+        "column": {
+          "param": "column"
+        },
+        "desc": {
+          "param": "description",
+          "read": "stdin"
+        },
+        "diff_base": {
+          "param": "changed_lines",
+          "read": "parsed"
+        },
+        "due": {
+          "param": "due_date"
+        },
+        "estimate": {
+          "param": "time_estimate"
+        },
+        "evidence": {
+          "param": "evidence",
+          "read": "stdin"
+        },
+        "evidence_commit": {
+          "param": "evidence_commit"
+        },
+        "log": {
+          "param": "log_time"
+        },
+        "missed_by": {
+          "param": "missed_by"
+        },
+        "no_assignee": {
+          "param": "assignee",
+          "read": "parsed"
+        },
+        "no_border": {
+          "param": "border_top",
+          "read": "parsed"
+        },
+        "no_caused_by": {
+          "param": "caused_by",
+          "read": "parsed"
+        },
+        "no_code": {
+          "param": "evidence_no_code",
+          "read": "stdin"
+        },
+        "no_color": {
+          "param": "color",
+          "read": "parsed"
+        },
+        "no_due": {
+          "param": "due_date",
+          "read": "parsed"
+        },
+        "no_estimate": {
+          "param": "time_estimate",
+          "read": "parsed"
+        },
+        "no_missed_by": {
+          "param": "missed_by",
+          "read": "parsed"
+        },
+        "no_percent": {
+          "param": "percent_complete",
+          "read": "parsed"
+        },
+        "no_profile": {
+          "param": "profile",
+          "read": "parsed"
+        },
+        "no_spent": {
+          "param": "time_spent",
+          "read": "parsed"
+        },
+        "no_start": {
+          "param": "start_date",
+          "read": "parsed"
+        },
+        "paths": {
+          "param": "paths"
+        },
+        "percent": {
+          "param": "percent_complete"
+        },
+        "pr": {
+          "param": "evidence_pr"
+        },
+        "priority": {
+          "param": "priority"
+        },
+        "profile": {
+          "param": "profile"
+        },
+        "remove_assignee": {
+          "param": "remove_assignees",
+          "read": "parsed"
+        },
+        "short_name": {
+          "param": "short_name"
+        },
+        "spent": {
+          "param": "time_spent"
+        },
+        "start": {
+          "param": "start_date"
+        },
+        "suite": {
+          "param": "evidence_suite",
+          "read": "parsed"
+        },
+        "tests": {
+          "param": "evidence_tests",
+          "read": "parsed"
+        },
+        "title": {
+          "param": "title"
+        },
+        "unit": {
+          "param": "time_unit"
+        }
+      }
+    }
+  },
+  {
+    "name": "add_card",
+    "summary": "Adds a card to a board, with any of the fields edit_card changes.",
+    "verb": "POST",
+    "path": "/api/boards/:board/cards",
+    "writes": true,
+    "params": [
+      {
+        "name": "board",
+        "type": "string",
+        "required": true,
+        "in_path": "board"
+      },
+      {
+        "name": "title",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "short_name",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "description",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "priority",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "flags",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "start_date",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "due_date",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "date_precision",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "completed",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "percent_complete",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "time_spent",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "time_estimate",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "time_unit",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "log_time",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "color",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "border_top",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "border_right",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "border_bottom",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "border_left",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "bar",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "evidence",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "evidence_commit",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "evidence_branch",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "evidence_tests",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "evidence_suite",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "evidence_pr",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "evidence_no_code",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "profile",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "paths",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "caused_by",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "missed_by",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "column",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "tags",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "assignee",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "assignees",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "archived",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "origin",
+        "type": "any",
+        "required": false
+      }
+    ],
+    "cli": {
+      "command": "add",
+      "positional": [
+        "board",
+        "title..."
+      ],
+      "flags": {
+        "archived": {
+          "param": "archived",
+          "value": true
+        },
+        "assignee": {
+          "param": "assignees",
+          "read": "parsed"
+        },
+        "bar": {
+          "param": "bar",
+          "read": "stdin"
+        },
+        "border": {
+          "param": "border_top",
+          "read": "parsed"
+        },
+        "border_bottom": {
+          "param": "border_bottom",
+          "read": "parsed"
+        },
+        "border_left": {
+          "param": "border_left",
+          "read": "parsed"
+        },
+        "border_right": {
+          "param": "border_right",
+          "read": "parsed"
+        },
+        "border_top": {
+          "param": "border_top",
+          "read": "parsed"
+        },
+        "caused_by": {
+          "param": "caused_by"
+        },
+        "color": {
+          "param": "color"
+        },
+        "column": {
+          "param": "column"
+        },
+        "desc": {
+          "param": "description",
+          "read": "stdin"
+        },
+        "due": {
+          "param": "due_date"
+        },
+        "estimate": {
+          "param": "time_estimate"
+        },
+        "flag": {
+          "param": "flags",
+          "read": "parsed"
+        },
+        "missed_by": {
+          "param": "missed_by"
+        },
+        "no_border": {
+          "param": "border_top",
+          "read": "parsed"
+        },
+        "origin": {
+          "param": "origin"
+        },
+        "paths": {
+          "param": "paths"
+        },
+        "percent": {
+          "param": "percent_complete"
+        },
+        "priority": {
+          "param": "priority"
+        },
+        "profile": {
+          "param": "profile"
+        },
+        "short_name": {
+          "param": "short_name"
+        },
+        "spent": {
+          "param": "time_spent"
+        },
+        "start": {
+          "param": "start_date"
+        },
+        "tag": {
+          "param": "tags",
+          "read": "parsed"
+        },
+        "unit": {
+          "param": "time_unit"
+        }
+      }
+    }
+  },
+  {
+    "name": "set_board",
+    "summary": "Changes a board you own: only what you send changes.",
+    "verb": "PATCH",
+    "path": "/api/boards/:board",
+    "writes": true,
+    "params": [
+      {
+        "name": "board",
+        "type": "string",
+        "required": true,
+        "in_path": "board"
+      },
+      {
+        "name": "name",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "code",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "shortcut",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "description",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "color",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "simple",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "kind",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "default_view",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "add_card",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "add_page",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "add_document",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "page_card_features",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "show_pulse",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "vote_budget",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "vote_max",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "automation_wip",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "agentic_building",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "delivery_metrics",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "incident_tag",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "hotfix_window_hours",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "not_shipped_minutes",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "card_ref_pattern",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "handoff_label",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "handoff_prompt",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "inbound_senders",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "bar_required",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "evidence_required",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "verify_work",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "verify_pool",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "verify_rejection_limit",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "verify_audit",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "ship_via",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "release_mode",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "release_age_cap_hours",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "release_command",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "profiles",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "profile_tiers",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "job_log_hours",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "failure_log_hours",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "findings_propose_at",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "wait_default_after",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "wait_routes",
+        "type": "any",
+        "required": false
+      }
+    ],
+    "cli": {
+      "command": "set-board",
+      "positional": [
+        "board"
+      ],
+      "flags": {
+        "add_card": {
+          "param": "add_card"
+        },
+        "add_document": {
+          "param": "add_document"
+        },
+        "add_page": {
+          "param": "add_page"
+        },
+        "agentic_building": {
+          "param": "agentic_building",
+          "read": "parsed"
+        },
+        "automation_wip": {
+          "param": "automation_wip"
+        },
+        "bar_required": {
+          "param": "bar_required"
+        },
+        "card_ref_pattern": {
+          "param": "card_ref_pattern"
+        },
+        "code": {
+          "param": "code"
+        },
+        "color": {
+          "param": "color"
+        },
+        "default_view": {
+          "param": "default_view"
+        },
+        "delivery_metrics": {
+          "param": "delivery_metrics"
+        },
+        "desc": {
+          "param": "description",
+          "read": "stdin"
+        },
+        "evidence_required": {
+          "param": "evidence_required"
+        },
+        "failure_log_hours": {
+          "param": "failure_log_hours"
+        },
+        "findings_propose_at": {
+          "param": "findings_propose_at"
+        },
+        "handoff_label": {
+          "param": "handoff_label"
+        },
+        "handoff_prompt": {
+          "param": "handoff_prompt",
+          "read": "parsed"
+        },
+        "handoff_prompt_file": {
+          "param": "handoff_prompt",
+          "read": "file"
+        },
+        "hotfix_hours": {
+          "param": "hotfix_window_hours"
+        },
+        "inbound_senders": {
+          "param": "inbound_senders"
+        },
+        "incident_tag": {
+          "param": "incident_tag"
+        },
+        "job_log_hours": {
+          "param": "job_log_hours"
+        },
+        "name": {
+          "param": "name"
+        },
+        "no_route": {
+          "param": "wait_routes",
+          "read": "parsed"
+        },
+        "not_shipped_minutes": {
+          "param": "not_shipped_minutes"
+        },
+        "page_card_features": {
+          "param": "page_card_features"
+        },
+        "profile_tier": {
+          "param": "profile_tiers",
+          "read": "parsed"
+        },
+        "profiles": {
+          "param": "profiles",
+          "read": "parsed"
+        },
+        "release_age_cap": {
+          "param": "release_age_cap_hours",
+          "read": "parsed"
+        },
+        "release_command": {
+          "param": "release_command",
+          "read": "parsed"
+        },
+        "release_mode": {
+          "param": "release_mode",
+          "read": "parsed"
+        },
+        "route": {
+          "param": "wait_routes",
+          "read": "parsed"
+        },
+        "ship_via": {
+          "param": "ship_via",
+          "read": "parsed"
+        },
+        "shortcut": {
+          "param": "shortcut"
+        },
+        "show_pulse": {
+          "param": "show_pulse"
+        },
+        "simple": {
+          "param": "simple"
+        },
+        "sprints": {
+          "param": "kind",
+          "read": "parsed"
+        },
+        "verify_audit": {
+          "param": "verify_audit"
+        },
+        "verify_pool": {
+          "param": "verify_pool"
+        },
+        "verify_rejection_limit": {
+          "param": "verify_rejection_limit"
+        },
+        "verify_work": {
+          "param": "verify_work"
+        },
+        "wait_default_after": {
+          "param": "wait_default_after"
+        }
+      }
+    }
+  },
+  {
+    "name": "new_board",
+    "summary": "Creates a board of your own, with a template's lists or lists of its own.",
+    "verb": "POST",
+    "path": "/api/boards",
+    "writes": true,
+    "params": [
+      {
+        "name": "name",
+        "type": "any",
+        "required": true
+      },
+      {
+        "name": "code",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "shortcut",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "description",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "color",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "kind",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "simple",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "template",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "lists",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "columns",
+        "type": "any",
+        "required": false
+      },
+      {
+        "name": "save_template",
+        "type": "any",
+        "required": false
+      }
+    ],
+    "cli": {
+      "command": "new-board",
+      "positional": [
+        "name..."
+      ],
+      "flags": {
+        "code": {
+          "param": "code"
+        },
+        "color": {
+          "param": "color"
+        },
+        "desc": {
+          "param": "description",
+          "read": "stdin"
+        },
+        "list": {
+          "param": "lists",
+          "read": "parsed"
+        },
+        "save_template": {
+          "param": "save_template"
+        },
+        "shortcut": {
+          "param": "shortcut"
+        },
+        "template": {
+          "param": "template"
+        }
+      }
+    }
   }
 ]

@@ -23,7 +23,11 @@ defmodule SlipdockWeb.Ops do
     Ops.Activity,
     Ops.GardenDecide,
     Ops.RevertPage,
-    Ops.PageHistory
+    Ops.PageHistory,
+    Ops.EditCard,
+    Ops.AddCard,
+    Ops.SetBoard,
+    Ops.NewBoard
   ]
 
   def all, do: @ops
@@ -36,9 +40,19 @@ defmodule SlipdockWeb.Ops do
   def cast(op, raw, surface \\ :rest) do
     Enum.reduce_while(params(op, surface), {:ok, %{}}, fn param, {:ok, acc} ->
       case cast_one(param, Map.get(raw, param.name, param[:default])) do
-        {:ok, nil} -> {:cont, {:ok, acc}}
-        {:ok, value} -> {:cont, {:ok, Map.put(acc, param.name, value)}}
-        {:error, message} -> {:halt, {:error, :bad_request, message}}
+        # A `null: true` param sent as null clears its field (#3361): kept,
+        # where any other null is a param left out.
+        {:ok, nil} when is_map_key(raw, param.name) and param.null == true ->
+          {:cont, {:ok, Map.put(acc, param.name, nil)}}
+
+        {:ok, nil} ->
+          {:cont, {:ok, acc}}
+
+        {:ok, value} ->
+          {:cont, {:ok, Map.put(acc, param.name, value)}}
+
+        {:error, message} ->
+          {:halt, {:error, :bad_request, message}}
       end
     end)
   end
@@ -140,7 +154,9 @@ defmodule SlipdockWeb.Ops do
   tool (one that combines several operations, SPEC-4) takes a param it
   shares with a defined operation from, rather than writing its own (#3190).
   A name the definition doesn't have raises: the tool and the definition
-  have come apart.
+  have come apart. `{as, name}` takes the definition's `name` under the
+  tool's own `as` (#3361): `complete_card`'s `commit` is `edit_card`'s
+  `evidence_commit`.
 
       properties: Map.merge(Ops.params_from(Ops.DeleteCard, ["card"]), %{title: ...})
   """
@@ -150,7 +166,9 @@ defmodule SlipdockWeb.Ops do
   def params_from(op, names) do
     params = op.definition().params
 
-    Map.new(names, fn name ->
+    Map.new(names, fn entry ->
+      {as, name} = if is_tuple(entry), do: entry, else: {entry, entry}
+
       case Enum.find(params, &(&1.name == name)) do
         nil ->
           raise ArgumentError,
@@ -158,7 +176,7 @@ defmodule SlipdockWeb.Ops do
                   Enum.map_join(params, ", ", & &1.name)
 
         param ->
-          {String.to_atom(name), json_schema(param)}
+          {String.to_atom(as), json_schema(param)}
       end
     end)
   end
@@ -270,6 +288,7 @@ defmodule SlipdockWeb.Ops do
     if said == [], do: param.name, else: "#{param.name} (#{Enum.join(said, ", ")})"
   end
 
+  defp permission(:unconfined), do: "a token not confined to some boards"
   defp permission({subject, :owner}), do: "to own the #{subject}"
   defp permission({subject, need}), do: "#{need} on the #{subject}"
 end

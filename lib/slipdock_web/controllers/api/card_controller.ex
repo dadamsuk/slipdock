@@ -116,23 +116,16 @@ defmodule SlipdockWeb.API.CardController do
     end
   end
 
-  def create(conn, %{"board" => ref} = params) do
+  # `POST /api/boards/:board/cards` and `PATCH /api/cards/:id` are made from
+  # their definitions (`SlipdockWeb.Ops.AddCard`, `Ops.EditCard`, #3361). A
+  # create refuses a field a new card doesn't have (422, naming the ones it
+  # does) before the definition casts, which would drop it.
+  def create(conn, params) do
     with :ok <- CardWrites.check_create_keys(params, ["board"]),
-         {:ok, board} <- Authorize.fetch_board(conn, ref, :write),
-         {:ok, card} <- CardWrites.create(conn, board, params) do
-      conn
-      |> put_status(:created)
-      |> json(%{card: V.card(Authorize.visible(conn, card))})
-    end
+         do: SlipdockWeb.Ops.REST.run(conn, SlipdockWeb.Ops.AddCard, params)
   end
 
-  def update(conn, %{"id" => id} = params) do
-    with {:ok, card} <- fetch_card(id),
-         :ok <- Authorize.card(conn, card, :write),
-         {:ok, card} <- CardWrites.update(conn, card, params) do
-      json(conn, %{card: V.card(Authorize.visible(conn, card))})
-    end
-  end
+  def update(conn, params), do: SlipdockWeb.Ops.REST.run(conn, SlipdockWeb.Ops.EditCard, params)
 
   # `POST /api/cards/:id/timer {"action": "start" | "stop"}`. Stopping adds
   # the minutes it ran to the card's time spent.

@@ -43,7 +43,8 @@ POST   /api/ask     {q, history: [{role, content}]}     ask the assistant; it se
 GET    /api/templates                      POST   /api/templates   {name, description, columns: ["Name" | {name, wip_limit, color}]}
 GET    /api/templates/:id                  PATCH  /api/templates/:id   DELETE /api/templates/:id
 GET    /api/boards                         POST   /api/boards   {name, code, description, color, template,
-                                                   columns: ["Name" | {name, wip_limit, color, category}],
+                                                   lists: ["Name" | {name, wip_limit, color, category}],
+                                                   (columns: the old name for lists, still taken)
                                                    save_template: "Name" | true}
        ?archived=true|all &sort=manual|name|active|newest|oldest|cards
 GET    /api/boards/:board                  PATCH  /api/boards/:board   DELETE /api/boards/:board

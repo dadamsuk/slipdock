@@ -403,7 +403,10 @@ defmodule SlipdockCLI.Boards do
       |> Map.merge(borders(o))
       |> compact()
 
-    HTTP.post("/boards/#{enc(ref)}/cards", body) |> out(o, &card_ok("created", &1))
+    # #3361: the route and the flags come from add_card's definition; what
+    # the flags say is worked out here, as it always was.
+    SlipdockCLI.Op.run("add", [ref | title_words], o, [], body)
+    |> out(o, &card_ok("created", &1))
   end
 
   def run("edit", [id], o) do
@@ -445,7 +448,9 @@ defmodule SlipdockCLI.Boards do
       |> incident_clears(o)
 
     if body == %{}, do: fail("nothing to change — pass at least one option (see --help)")
-    HTTP.patch("/cards/#{enc(id)}", body) |> out(o, &card_ok("updated", &1))
+
+    # #3361: the route and the flags come from edit_card's definition.
+    SlipdockCLI.Op.run("edit", [id], o, [], body) |> out(o, &card_ok("updated", &1))
   end
 
   def run("set", [id | pairs], o) when pairs != [] do
@@ -457,7 +462,8 @@ defmodule SlipdockCLI.Boards do
         end
       end)
 
-    HTTP.patch("/cards/#{enc(id)}", %{"fields" => fields}) |> out(o, &card_ok("updated", &1))
+    SlipdockCLI.Op.run("set", [id], o, [], %{"fields" => fields})
+    |> out(o, &card_ok("updated", &1))
   end
 
   def run("vote", [id, n], o) do
@@ -595,7 +601,7 @@ defmodule SlipdockCLI.Boards do
       |> Map.merge(change(o))
       |> compact()
 
-    each(ids, o, &HTTP.patch("/cards/#{enc(&1)}", body), "completed")
+    each(ids, o, &SlipdockCLI.Op.run("done", [&1], o, [], body), "completed")
   end
 
   # A card waiting for verification (#1633): accept it, or reject it with
@@ -627,16 +633,27 @@ defmodule SlipdockCLI.Boards do
       )
 
   def run("undone", ids, o) when ids != [],
-    do: each(ids, o, &HTTP.patch("/cards/#{enc(&1)}", %{"completed" => false}), "reopened")
+    do:
+      each(
+        ids,
+        o,
+        &SlipdockCLI.Op.run("undone", [&1], o, [], %{"completed" => false}),
+        "reopened"
+      )
 
+  # `--off` says which param the words go in; the request takes no flag.
   def run("flag", [id | flags], o) when flags != [] do
     key = if o[:off], do: "remove_flags", else: "add_flags"
-    HTTP.patch("/cards/#{enc(id)}", %{key => flags}) |> out(o, &card_ok("updated", &1))
+
+    SlipdockCLI.Op.run("flag", [id], Keyword.delete(o, :off), [], %{key => flags})
+    |> out(o, &card_ok("updated", &1))
   end
 
   def run("tag", [id | tags], o) when tags != [] do
     key = if o[:off], do: "remove_tags", else: "add_tags"
-    HTTP.patch("/cards/#{enc(id)}", %{key => tags}) |> out(o, &card_ok("updated", &1))
+
+    SlipdockCLI.Op.run("tag", [id], Keyword.delete(o, :off), [], %{key => tags})
+    |> out(o, &card_ok("updated", &1))
   end
 
   def run("check", [id | words], o) when words != [] do
@@ -657,7 +674,7 @@ defmodule SlipdockCLI.Boards do
   def run("timer", _, _), do: fail("usage: slipdock timer <id> start|stop")
 
   def run("log", [id | amount], o) when amount != [] do
-    HTTP.patch("/cards/#{enc(id)}", %{"log_time" => Enum.join(amount, " ")})
+    SlipdockCLI.Op.run("log", [id], o, [], %{"log_time" => Enum.join(amount, " ")})
     |> out(o, &card_ok("logged time on", &1))
   end
 
@@ -1093,11 +1110,12 @@ defmodule SlipdockCLI.Boards do
         "description" => stdin_arg(o[:desc], "--desc"),
         "color" => o[:color],
         "template" => o[:template],
-        "columns" => o |> Keyword.get_values(:list) |> Enum.map(&list_spec/1) |> nonempty(),
+        "lists" => o |> Keyword.get_values(:list) |> Enum.map(&list_spec/1) |> nonempty(),
         "save_template" => o[:save_template]
       })
 
-    HTTP.post("/boards", body)
+    # #3361: the route and the flags come from new_board's definition.
+    SlipdockCLI.Op.run("new-board", words, o, [], body)
     |> out(o, fn r -> IO.puts("created board ##{r["board"]["id"]}: #{r["board"]["name"]}") end)
   end
 
@@ -1201,7 +1219,12 @@ defmodule SlipdockCLI.Boards do
     sorted =
       if o[:wiki_sort], do: HTTP.patch("/boards/#{enc(ref)}/tree", %{"sort" => o[:wiki_sort]})
 
-    if(body == %{}, do: sorted, else: HTTP.patch("/boards/#{enc(ref)}", body))
+    # #3361: the route and the flags come from set_board's definition;
+    # --wiki-sort is spent on the request above.
+    if(body == %{},
+      do: sorted,
+      else: SlipdockCLI.Op.run("set-board", [ref], Keyword.delete(o, :wiki_sort), [], body)
+    )
     |> out(o, fn r ->
       IO.puts("updated board ##{r["board"]["id"]}: #{r["board"]["name"]}")
       tier_warning(r["board"])

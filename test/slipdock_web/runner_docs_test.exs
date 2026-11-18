@@ -285,7 +285,9 @@ defmodule SlipdockWeb.RunnerDocsTest do
           "lib/slipdock_web/live/help_live/guides.ex",
           "lib/slipdock_web/live/help_live/flow.ex",
           "lib/slipdock_web/live/agentic_live/index.ex",
-          "lib/slipdock_web/mcp/tools/update_board.ex",
+          # update_board's release_command, from PATCH /api/boards/:board's
+          # definition (#3361).
+          "lib/slipdock_web/ops/set_board.ex",
           "cli/help.txt",
           "priv/skills/slipdock/SKILL.md"
         ] do

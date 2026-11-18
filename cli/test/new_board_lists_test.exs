@@ -30,6 +30,8 @@ defmodule SlipdockCLI.NewBoardListsTest do
 
   @created ~s({"board":{"id":7,"name":"Hiring"}})
 
+  # `lists`, as new_board's definition names them (#3361): REST's `columns`
+  # is the old name.
   test "--list sends the lists in order, with wip and colour, and --save-template the name" do
     serve([{201, @created}])
 
@@ -48,7 +50,7 @@ defmodule SlipdockCLI.NewBoardListsTest do
 
     assert JSON.decode!(body) == %{
              "name" => "Hiring",
-             "columns" => [
+             "lists" => [
                %{"name" => "Applied"},
                %{"name" => "Interview", "wip_limit" => "2"},
                %{"name" => "Done", "wip_limit" => "0", "color" => "emerald"}
