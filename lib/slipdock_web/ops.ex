@@ -100,14 +100,16 @@ defmodule SlipdockWeb.Ops do
   The MCP `inputSchema`, from the params: the definition's `confirm`, when
   it has one, is among them and required.
   """
+  # The atoms are the definitions' param names, written in the code.
+  # Not a hole: never a caller's words.
+  # sobelow_skip ["DOS.StringToAtom"]
   def input_schema(op) do
     params = params(op, :mcp)
     confirm = if op.definition()[:confirm], do: ["confirm"], else: []
 
     %{
       type: "object",
-      # Atom keys, as every hand-written tool's schema has them (the names
-      # are the definitions', never a caller's).
+      # Atom keys, as every hand-written tool's schema has them.
       properties: Map.new(params, &{String.to_atom(&1.name), json_schema(&1)}),
       required: for(%{required: true, name: n} <- params, do: n) ++ confirm,
       additionalProperties: false
