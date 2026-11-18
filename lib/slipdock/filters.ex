@@ -1,7 +1,8 @@
 defmodule Slipdock.Filters do
   @moduledoc """
   The board toolbar's filters — text, kind, tags, priority, flag, due, stuck,
-  driver, origin (#2778), hide completed — and what they match. `stuck` and `driver` read
+  driver, origin (#2778), custom fields (#3369), hide completed — and what
+  they match. `stuck` and `driver` read
   the card's `state` (`Slipdock.CardState`), which a page never has.
 
   `matches?/2` reads the thing by shape rather than by struct, so it takes a
@@ -9,6 +10,8 @@ defmodule Slipdock.Filters do
   (see `Slipdock.Wiki.Page`), which is the whole reason the wiki can offer the
   same filter bar the card views do.
   """
+
+  alias Slipdock.Boards.FieldDefinition
 
   @empty %{
     q: "",
@@ -20,6 +23,7 @@ defmodule Slipdock.Filters do
     stuck: false,
     driver: nil,
     origin: nil,
+    fields: %{},
     hide_completed: false
   }
 
@@ -45,7 +49,7 @@ defmodule Slipdock.Filters do
         filters.hide_completed
       ],
       & &1
-    )
+    ) + map_size(fields_of(filters))
   end
 
   @doc """
@@ -76,8 +80,130 @@ defmodule Slipdock.Filters do
   # `matches?/3` takes no new branch.
   defp made_and_moved?(item, filters) do
     Slipdock.CardState.matches?(item, filters.stuck, filters.driver) and
-      origin_matches?(item, Map.get(filters, :origin))
+      origin_matches?(item, Map.get(filters, :origin)) and
+      Enum.all?(fields_of(filters), fn {_id, condition} -> field_matches?(item, condition) end)
   end
+
+  defp fields_of(filters), do: Map.get(filters, :fields) || %{}
+
+  ## Custom fields (#3369) ----------------------------------------------------
+
+  @doc """
+  The filters with the condition on custom `field` set from a control's
+  `params`, read by the field's kind; a condition left empty is dropped.
+
+    * `select`: `"option"` toggles that option in or out (any of them passes)
+    * `rating`: `"min"`, at least that many stars; the same again clears it
+    * `number`, `formula`: `"min"` and `"max"`, either or both
+    * `date`: `"from"` and `"to"` (ISO dates), either or both
+    * `text`: `"text"`, words the value contains, in any case
+
+  An item with no value for the field fails any condition on it.
+  """
+  def put_field(filters, %FieldDefinition{id: id} = field, params) when is_map(params) do
+    current = Map.get(fields_of(filters), id)
+
+    condition =
+      field
+      |> condition(current, params)
+      |> then(&if(empty_condition?(&1), do: nil, else: Map.put(&1, :field, field)))
+
+    fields =
+      if condition,
+        do: Map.put(fields_of(filters), id, condition),
+        else: Map.delete(fields_of(filters), id)
+
+    Map.put(filters, :fields, fields)
+  end
+
+  @doc "The condition set on `field`, or nil."
+  def field_condition(filters, %FieldDefinition{id: id}), do: Map.get(fields_of(filters), id)
+
+  defp condition(%FieldDefinition{kind: "select"} = field, current, %{"option" => key}) do
+    options = (current && current.options) || []
+    known? = Enum.any?(field.options, &(&1["key"] == key))
+
+    cond do
+      Enum.member?(options, key) -> %{options: List.delete(options, key)}
+      known? -> %{options: options ++ [key]}
+      true -> %{options: options}
+    end
+  end
+
+  defp condition(%FieldDefinition{kind: "rating"} = field, current, %{"min" => min}) do
+    case parse_number(min) do
+      n when is_number(n) and n >= 1 ->
+        n = min(round(n), FieldDefinition.rating_max(field))
+        if current && current.min == n, do: %{min: nil}, else: %{min: n}
+
+      _ ->
+        %{min: nil}
+    end
+  end
+
+  defp condition(%FieldDefinition{kind: kind}, _current, params)
+       when kind in ~w(number formula),
+       do: %{min: parse_number(params["min"]), max: parse_number(params["max"])}
+
+  defp condition(%FieldDefinition{kind: "date"}, _current, params),
+    do: %{from: parse_date(params["from"]), to: parse_date(params["to"])}
+
+  defp condition(%FieldDefinition{kind: "text"}, _current, params),
+    do: %{text: String.trim(to_string(params["text"] || ""))}
+
+  defp condition(_field, current, _params), do: current || %{}
+
+  defp empty_condition?(condition) do
+    condition
+    |> Map.delete(:field)
+    |> Enum.all?(fn {_k, v} -> Enum.member?([nil, "", []], v) end)
+  end
+
+  defp field_matches?(item, %{field: field} = condition) do
+    value = Slipdock.Fields.value(item, field)
+    not is_nil(value) and value_matches?(field.kind, value, condition)
+  end
+
+  defp value_matches?("select", key, %{options: options}), do: Enum.member?(options, key)
+
+  defp value_matches?("rating", n, %{min: min}) when is_number(n), do: n >= min
+
+  defp value_matches?(kind, n, condition) when kind in ~w(number formula) and is_number(n),
+    do: within?(n, condition.min, condition.max, &(&1 >= &2), &(&1 <= &2))
+
+  defp value_matches?("date", %Date{} = d, condition),
+    do:
+      within?(d, condition.from, condition.to, &(Date.compare(&1, &2) != :lt), fn a, b ->
+        Date.compare(a, b) != :gt
+      end)
+
+  defp value_matches?("text", text, %{text: words}) when is_binary(text),
+    do: String.contains?(String.downcase(text), String.downcase(words))
+
+  defp value_matches?(_kind, _value, _condition), do: false
+
+  defp within?(value, low, high, at_least, at_most),
+    do: (is_nil(low) or at_least.(value, low)) and (is_nil(high) or at_most.(value, high))
+
+  defp parse_number(n) when is_number(n), do: n
+
+  defp parse_number(s) when is_binary(s) do
+    case Float.parse(String.trim(s)) do
+      {f, ""} -> f
+      _ -> nil
+    end
+  end
+
+  defp parse_number(_), do: nil
+
+  defp parse_date(s) when is_binary(s) do
+    case Date.from_iso8601(String.trim(s)) do
+      {:ok, d} -> d
+      _ -> nil
+    end
+  end
+
+  defp parse_date(_), do: nil
 
   # Who or what made it (#2778): "none" for an item with no origin, which a
   # page always is.

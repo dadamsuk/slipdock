@@ -79,7 +79,7 @@ defmodule SlipdockWeb.BoardLive.Show do
   # Events that change nothing stored: filters, panels opening and closing,
   # forms being typed into, the keyboard's place on the board.
   @read_events ~w(search filter_tag filter_kind filter_priority filter_flag filter_due
-    filter_stuck filter_driver filter_origin toggle_hide_completed clear_filters start_add_column cancel_add_column
+    filter_stuck filter_driver filter_origin filter_field toggle_hide_completed clear_filters start_add_column cancel_add_column
     start_rename_column cancel_rename_column start_add_card aim_document cancel_add_card
     quick_add_change open_card open_page focus_column focus_card focus_open focus_end
     validate_document swim_config swim_set swim_clear_filters table_sort cal_toggle_day
@@ -1072,6 +1072,20 @@ defmodule SlipdockWeb.BoardLive.Show do
     if Enum.member?(Slipdock.Origin.buckets() |> Enum.map(&elem(&1, 0)), o),
       do: {:noreply, put_filter(socket, :origin, toggle(socket.assigns.filters.origin, o))},
       else: {:noreply, put_filter(socket, :origin, nil)}
+  end
+
+  # A custom field's condition (#3369), read by the field's kind
+  # (`Slipdock.Filters.put_field/3`). A field not on this tree is ignored.
+  def handle_event("filter_field", %{"field" => id} = params, socket) do
+    field = Enum.find(socket.assigns.board.fields, &(&1.id == Params.id(id)))
+
+    if field,
+      do:
+        {:noreply,
+         socket
+         |> assign(filters: Slipdock.Filters.put_field(socket.assigns.filters, field, params))
+         |> assign_columns()},
+      else: {:noreply, socket}
   end
 
   def handle_event("toggle_hide_completed", _, socket) do

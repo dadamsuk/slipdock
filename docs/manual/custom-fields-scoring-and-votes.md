@@ -22,6 +22,11 @@ matrix, and dragging a card between cells rescores it. A number or rating
 field marked *Σ* rolls up the tree (totals per card, done and all) and
 totals in table group headers.
 
+The board's **Filter** menu has a *Fields* section with one filter per
+field, suited to its type: options to pick for a choice, a least number of
+stars for a rating, a min and max for a number or formula, a from and to
+for a date, and words to find for text.
+
 **Votes.** Everyone has a budget of votes to spend across a board tree
 (board settings: votes per person, max per card). The card modal shows the
 total and a stepper for your own; votes are a table column, a sort and
