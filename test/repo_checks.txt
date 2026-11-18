@@ -32,6 +32,7 @@ test/slipdock/unchecked_writes_test.exs
 # A defined operation is written once: no hand-written MCP tool or CLI
 # request for it, and its route is the router's (#3186)
 test/slipdock/ops_check_test.exs
+test/slipdock/revert_examples_docs_test.exs
 
 # A LiveView's async task acts for the page's person (`Actor.carry/1`, #3169)
 test/slipdock_web/async_actor_test.exs

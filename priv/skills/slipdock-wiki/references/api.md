@@ -56,7 +56,7 @@ curl -s -H "$H" B/api/pages/W-31/revisions
 curl -s -H "$H" "B/api/pages/W-31/revisions/12?diff=previous"
 curl -s -H "$H" "B/api/pages/W-31/revisions/12?diff=7"     # any two versions compared
 curl -s -X POST -H "$H" -H 'content-type: application/json' \
-     B/api/pages/W-31/revert -d '{"revision_id":12}'
+     B/api/pages/W-31/revert -d '{"revision":12,"base_hash":"<content_hash>"}'   # the page's current hash
 
 # away and back
 curl -s -X DELETE -H "$H" B/api/pages/W-31             # archive; ?purge=true is permanent, owner only
