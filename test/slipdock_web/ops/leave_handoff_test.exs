@@ -30,7 +30,7 @@ defmodule SlipdockWeb.Ops.LeaveHandoffTest do
   test "REST (201) and MCP write a handoff alike, each recording its own way in", ctx do
     args = %{next_step: "Run CI", body: "State: green"}
     rest = ctx.conn |> post("/api/cards/#{ctx.a.id}/handoff", args) |> json_response(201)
-    {false, via_mcp} = mcp_call(ctx.conn, "leave_handoff", Map.put(args, :card, ctx.b.id))
+    {false, via_mcp} = call_mcp_tool(ctx.conn, "leave_handoff", Map.put(args, :card, ctx.b.id))
 
     assert Map.keys(via_mcp) == Map.keys(rest)
     assert same(via_mcp["handoff"]) == same(rest["handoff"])
@@ -49,7 +49,7 @@ defmodule SlipdockWeb.Ops.LeaveHandoffTest do
     rest =
       ctx.conn |> post("/api/cards/#{ctx.a.id}/handoff", %{clear: true}) |> json_response(201)
 
-    {false, via_mcp} = mcp_call(ctx.conn, "leave_handoff", %{card: ctx.b.id, clear: true})
+    {false, via_mcp} = call_mcp_tool(ctx.conn, "leave_handoff", %{card: ctx.b.id, clear: true})
 
     assert rest["handoff"]["cleared"] and via_mcp["handoff"]["cleared"]
     assert same(via_mcp["handoff"]) == same(rest["handoff"])
@@ -62,7 +62,7 @@ defmodule SlipdockWeb.Ops.LeaveHandoffTest do
     end
 
     rest = ctx.conn |> delete("/api/cards/#{ctx.a.id}/handoff") |> json_response(200)
-    {false, via_mcp} = mcp_call(ctx.conn, "leave_handoff", %{card: ctx.b.id, delete: true})
+    {false, via_mcp} = call_mcp_tool(ctx.conn, "leave_handoff", %{card: ctx.b.id, delete: true})
 
     for answer <- [rest, via_mcp] do
       assert answer["deleted"]["next_step"] == "New"
@@ -78,19 +78,23 @@ defmodule SlipdockWeb.Ops.LeaveHandoffTest do
     %{"error" => rest} =
       ctx.conn |> post("/api/cards/#{ctx.a.id}/handoff", %{body: "a note"}) |> json_response(422)
 
-    assert {true, text} = mcp_call(ctx.conn, "leave_handoff", %{card: ctx.a.id, body: "a note"})
+    assert {true, text} =
+             call_mcp_tool(ctx.conn, "leave_handoff", %{card: ctx.a.id, body: "a note"})
+
     assert text =~ "next_step"
     assert is_binary(rest)
 
     assert ctx.conn |> delete("/api/cards/#{ctx.a.id}/handoff") |> json_response(404)
 
     assert {true, "no handoff you can see matches that"} =
-             mcp_call(ctx.conn, "leave_handoff", %{card: ctx.a.id, delete: true})
+             call_mcp_tool(ctx.conn, "leave_handoff", %{card: ctx.a.id, delete: true})
 
     %{"error" => rest} =
       ctx.conn |> post("/api/cards/#{ctx.a.id}/handoff", %{clear: "maybe"}) |> json_response(400)
 
-    assert {true, ^rest} = mcp_call(ctx.conn, "leave_handoff", %{card: ctx.a.id, clear: "maybe"})
+    assert {true, ^rest} =
+             call_mcp_tool(ctx.conn, "leave_handoff", %{card: ctx.a.id, clear: "maybe"})
+
     assert Handoffs.current_handoff(ctx.a) == nil
   end
 end

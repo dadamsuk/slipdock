@@ -29,7 +29,7 @@ defmodule SlipdockWeb.Ops.DeleteBoardTest do
     rest = ctx.conn |> delete("/api/boards/#{ctx.a.code}") |> json_response(200)
 
     {false, via_mcp} =
-      mcp_call(ctx.conn, "delete_board", %{board: ctx.b.code, confirm: "DELB3187B "})
+      call_mcp_tool(ctx.conn, "delete_board", %{board: ctx.b.code, confirm: "DELB3187B "})
 
     assert rest == %{"ok" => true, "board" => ctx.a.id, "code" => "delb3187a", "name" => "Gone A"}
 
@@ -45,7 +45,9 @@ defmodule SlipdockWeb.Ops.DeleteBoardTest do
 
   test "MCP refuses a wrong or missing confirm, naming the code; REST doesn't ask", ctx do
     for args <- [%{}, %{confirm: "nope"}, %{confirm: true}] do
-      assert {true, text} = mcp_call(ctx.conn, "delete_board", Map.put(args, :board, ctx.a.code))
+      assert {true, text} =
+               call_mcp_tool(ctx.conn, "delete_board", Map.put(args, :board, ctx.a.code))
+
       assert text =~ ~s(confirm must be the board's code, "delb3187a")
       assert text =~ "archive_board"
     end
@@ -62,7 +64,7 @@ defmodule SlipdockWeb.Ops.DeleteBoardTest do
     assert rest =~ "goes with its card"
 
     assert {true, ^rest} =
-             mcp_call(ctx.conn, "delete_board", %{board: sub.id, confirm: sub.code})
+             call_mcp_tool(ctx.conn, "delete_board", %{board: sub.id, confirm: sub.code})
 
     assert Boards.get_board(sub.id)
   end
@@ -75,7 +77,7 @@ defmodule SlipdockWeb.Ops.DeleteBoardTest do
     %{"error" => rest} = ctx.conn |> delete("/api/boards/#{theirs.code}") |> json_response(403)
 
     assert {true, ^rest} =
-             mcp_call(ctx.conn, "delete_board", %{board: theirs.code, confirm: theirs.code})
+             call_mcp_tool(ctx.conn, "delete_board", %{board: theirs.code, confirm: theirs.code})
 
     assert Boards.get_board(theirs.id)
   end

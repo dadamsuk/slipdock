@@ -14,7 +14,7 @@ defmodule SlipdockWeb.MCPResult do
   answer, `{true, text}` for a refusal (`isError`). What the operations'
   tests (`test/slipdock_web/ops/`) set beside REST's answer to the same call.
   """
-  def mcp_call(conn, tool, args) do
+  def call_mcp_tool(conn, tool, args) do
     body =
       Jason.encode!(%{
         jsonrpc: "2.0",

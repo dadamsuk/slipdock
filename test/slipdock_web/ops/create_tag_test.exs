@@ -31,7 +31,7 @@ defmodule SlipdockWeb.Ops.CreateTagTest do
       |> json_response(201)
 
     {false, via_mcp} =
-      mcp_call(ctx.conn, "create_tag", %{board: ctx.board.code, name: "ops", color: "red"})
+      call_mcp_tool(ctx.conn, "create_tag", %{board: ctx.board.code, name: "ops", color: "red"})
 
     assert rest["created"] == true and via_mcp["created"] == true
     assert Map.delete(via_mcp["tag"], "id") == %{Map.delete(rest["tag"], "id") | "name" => "ops"}
@@ -46,7 +46,8 @@ defmodule SlipdockWeb.Ops.CreateTagTest do
       |> post("/api/boards/#{ctx.board.code}/tags", %{name: "infra"})
       |> json_response(200)
 
-    {false, via_mcp} = mcp_call(ctx.conn, "create_tag", %{board: ctx.board.code, name: "INFRA "})
+    {false, via_mcp} =
+      call_mcp_tool(ctx.conn, "create_tag", %{board: ctx.board.code, name: "INFRA "})
 
     assert rest == via_mcp
     assert rest == %{"created" => false, "tag" => SlipdockWeb.API.JSON.tag(tag) |> json()}
@@ -59,7 +60,7 @@ defmodule SlipdockWeb.Ops.CreateTagTest do
         ctx.conn |> post("/api/boards/#{ctx.board.code}/tags", args) |> json_response(400)
 
       assert {true, ^rest} =
-               mcp_call(ctx.conn, "create_tag", Map.put(args, :board, ctx.board.code))
+               call_mcp_tool(ctx.conn, "create_tag", Map.put(args, :board, ctx.board.code))
     end
 
     # A changeset's refusal: REST's details, MCP's sentence, the same words.
@@ -68,7 +69,9 @@ defmodule SlipdockWeb.Ops.CreateTagTest do
     %{"details" => %{"name" => [rest]}} =
       ctx.conn |> post("/api/boards/#{ctx.board.code}/tags", long) |> json_response(422)
 
-    assert {true, text} = mcp_call(ctx.conn, "create_tag", Map.put(long, :board, ctx.board.code))
+    assert {true, text} =
+             call_mcp_tool(ctx.conn, "create_tag", Map.put(long, :board, ctx.board.code))
+
     assert text == "not saved: name #{rest}."
 
     assert names(ctx.board) == []
@@ -79,7 +82,7 @@ defmodule SlipdockWeb.Ops.CreateTagTest do
     theirs = board_fixture(%{"name" => "Theirs", "code" => "tag3187b"}, owner: other)
 
     assert ctx.conn |> post("/api/boards/#{theirs.code}/tags", %{name: "x"}) |> json_response(404)
-    assert {true, text} = mcp_call(ctx.conn, "create_tag", %{board: theirs.code, name: "x"})
+    assert {true, text} = call_mcp_tool(ctx.conn, "create_tag", %{board: theirs.code, name: "x"})
     assert text =~ "no board"
     assert names(theirs) == []
   end

@@ -19,7 +19,7 @@ defmodule SlipdockWeb.Ops.VerifyCardTest do
     [a, b] =
       for title <- ["A", "B"] do
         card = card_fixture(doing, %{"title" => title})
-        {false, _} = mcp_call(builder, "complete_card", %{card: card.id})
+        {false, _} = call_mcp_tool(builder, "complete_card", %{card: card.id})
         card
       end
 
@@ -47,7 +47,8 @@ defmodule SlipdockWeb.Ops.VerifyCardTest do
       |> post("/api/cards/#{ctx.a.id}/verify", %{decision: "accept"})
       |> json_response(200)
 
-    {false, via_mcp} = mcp_call(ctx.checker, "verify_card", %{card: ctx.b.id, decision: "accept"})
+    {false, via_mcp} =
+      call_mcp_tool(ctx.checker, "verify_card", %{card: ctx.b.id, decision: "accept"})
 
     assert Map.keys(via_mcp) == ["card"] and Map.keys(rest) == ["card"]
     assert Map.keys(via_mcp["card"]) == Map.keys(rest["card"])
@@ -67,7 +68,7 @@ defmodule SlipdockWeb.Ops.VerifyCardTest do
       |> json_response(200)
 
     {false, via_mcp} =
-      mcp_call(ctx.checker, "verify_card", %{
+      call_mcp_tool(ctx.checker, "verify_card", %{
         card: ctx.b.id,
         decision: "reject",
         reason: "No test",
@@ -92,7 +93,9 @@ defmodule SlipdockWeb.Ops.VerifyCardTest do
         ctx.checker |> post("/api/cards/#{ctx.a.id}/verify", args) |> json_response(status)
 
       assert rest =~ words
-      assert {true, ^rest} = mcp_call(ctx.checker, "verify_card", Map.put(args, :card, ctx.a.id))
+
+      assert {true, ^rest} =
+               call_mcp_tool(ctx.checker, "verify_card", Map.put(args, :card, ctx.a.id))
     end
 
     # The builder can't verify its own work, on either surface.
@@ -102,7 +105,7 @@ defmodule SlipdockWeb.Ops.VerifyCardTest do
       |> json_response(403)
 
     assert {true, ^rest} =
-             mcp_call(ctx.builder, "verify_card", %{card: ctx.a.id, decision: "accept"})
+             call_mcp_tool(ctx.builder, "verify_card", %{card: ctx.a.id, decision: "accept"})
 
     assert Boards.Cards.get_card!(ctx.a.id).verify_state == "pending"
   end

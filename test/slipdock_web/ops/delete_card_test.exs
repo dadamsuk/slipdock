@@ -27,7 +27,7 @@ defmodule SlipdockWeb.Ops.DeleteCardTest do
 
   test "REST and MCP delete alike and answer the same shape", ctx do
     rest = ctx.conn |> delete("/api/cards/#{ctx.a.id}") |> json_response(200)
-    {false, via_mcp} = mcp_call(ctx.conn, "delete_card", %{card: ctx.b.id, confirm: true})
+    {false, via_mcp} = call_mcp_tool(ctx.conn, "delete_card", %{card: ctx.b.id, confirm: true})
 
     assert rest == %{
              "ok" => true,
@@ -42,7 +42,7 @@ defmodule SlipdockWeb.Ops.DeleteCardTest do
 
   test "MCP refuses without confirm = true and deletes nothing; REST doesn't ask", ctx do
     for args <- [%{}, %{confirm: false}, %{confirm: "yes"}] do
-      assert {true, text} = mcp_call(ctx.conn, "delete_card", Map.put(args, :card, ctx.a.id))
+      assert {true, text} = call_mcp_tool(ctx.conn, "delete_card", Map.put(args, :card, ctx.a.id))
       assert text =~ "needs confirm = true"
       assert text =~ "archive_card"
     end
@@ -58,14 +58,14 @@ defmodule SlipdockWeb.Ops.DeleteCardTest do
     assert %{"error" => _} = ctx.conn |> delete("/api/cards/999999999") |> json_response(404)
 
     assert {true, "no card you can see matches that"} =
-             mcp_call(ctx.conn, "delete_card", %{card: 999_999_999, confirm: true})
+             call_mcp_tool(ctx.conn, "delete_card", %{card: 999_999_999, confirm: true})
 
     other = user_fixture("del.stranger@example.com")
     theirs = board_fixture(%{"name" => "Theirs", "code" => "del3187b"}, owner: other)
     card = card_fixture(hd(theirs.columns), %{"title" => "Theirs"})
 
     %{"error" => rest} = ctx.conn |> delete("/api/cards/#{card.id}") |> json_response(403)
-    assert {true, ^rest} = mcp_call(ctx.conn, "delete_card", %{card: card.id, confirm: true})
+    assert {true, ^rest} = call_mcp_tool(ctx.conn, "delete_card", %{card: card.id, confirm: true})
     assert Boards.Cards.get_card(card.id)
   end
 end
