@@ -294,5 +294,26 @@
         "in_path": "board"
       }
     ]
+  },
+  {
+    "name": "quick_note",
+    "summary": "Saves text as a note in the person's wiki. The server names it (date, time, a title from the content) and picks the folder, and says where it went. Use write_page to choose the board and title.",
+    "verb": "POST",
+    "path": "/api/notes",
+    "writes": true,
+    "params": [
+      {
+        "name": "text",
+        "type": "string",
+        "required": true
+      }
+    ],
+    "cli": {
+      "command": "note",
+      "positional": [
+        "text..."
+      ],
+      "flags": {}
+    }
   }
 ]

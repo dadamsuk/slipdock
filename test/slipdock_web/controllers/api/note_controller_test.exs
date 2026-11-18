@@ -43,14 +43,15 @@ defmodule SlipdockWeb.API.NoteControllerTest do
     assert page.code == note["code"]
   end
 
-  test "an empty note is a 422", %{conn: conn, board: board} do
-    assert %{"error" => error} = conn |> post(~p"/api/notes", %{text: " "}) |> json_response(422)
-    assert error =~ "something"
+  test "an empty note is a 400 (#3188)", %{conn: conn, board: board} do
+    assert %{"error" => "text is required"} =
+             conn |> post(~p"/api/notes", %{text: " "}) |> json_response(400)
+
     assert Wiki.list_pages(board) == []
   end
 
-  test "text left out is a 422, not a crash", %{conn: conn} do
-    assert conn |> post(~p"/api/notes", %{}) |> json_response(422)
+  test "text left out is a 400, not a crash", %{conn: conn} do
+    assert conn |> post(~p"/api/notes", %{}) |> json_response(400)
   end
 
   test "the MCP tool saves one", %{conn: conn, board: board, user: user} do

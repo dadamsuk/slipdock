@@ -130,7 +130,7 @@ defmodule SlipdockCLI.Wiki do
   def run("note", words, o) do
     text = if words == [], do: page_body(o), else: Enum.join(words, " ")
 
-    HTTP.post("/notes", %{"text" => text})
+    SlipdockCLI.Op.run("note", [text], o)
     |> out(o, fn %{"note" => note} ->
       IO.puts("noted #{note["code"]}  #{note["title"]}")
       fallback = if note["placed_by"] == "settings", do: "  (your fallback location)"

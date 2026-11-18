@@ -14,7 +14,7 @@ defmodule SlipdockWeb.Ops.LeaveHandoff do
   """
   @behaviour SlipdockWeb.Ops.Op
 
-  import SlipdockWeb.Ops.Shared, only: [actor: 1]
+  import SlipdockWeb.Ops.Shared, only: [via: 1]
 
   alias Slipdock.Boards.Handoffs
   alias SlipdockWeb.API.{Authorize, CardWrites}
@@ -93,14 +93,6 @@ defmodule SlipdockWeb.Ops.LeaveHandoff do
          {:ok, handoff} <-
            CardWrites.write_handoff(card, auth.assigns.current_user, params, via(auth)) do
       {:ok, %{card: card.id, handoff: V.handoff(handoff)}}
-    end
-  end
-
-  # The way it came in, as the handoff records it.
-  defp via(auth) do
-    case actor(auth).via do
-      via when via in ["cli", "mcp"] -> via
-      _ -> "api"
     end
   end
 end

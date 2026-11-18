@@ -21,7 +21,6 @@ install_tool
 keep_job_log
 page_history
 page_tool
-quick_note
 revert_page
 search
 

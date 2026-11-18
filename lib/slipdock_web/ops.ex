@@ -14,7 +14,8 @@ defmodule SlipdockWeb.Ops do
     Ops.LeaveHandoff,
     Ops.VerifyCard,
     Ops.CreateTag,
-    Ops.DeleteBoard
+    Ops.DeleteBoard,
+    Ops.QuickNote
   ]
 
   def all, do: @ops
