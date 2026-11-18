@@ -371,7 +371,7 @@ POST   /api/pages/:id/append               append to the page
 POST   /api/pages/:id/move                 {parent, position} — reparent / reorder
 GET    /api/pages/:id/revisions
 GET    /api/pages/:id/revisions/:rev       body, and ?diff=previous|<rev id>
-POST   /api/pages/:id/revert               {revision_id, message}
+POST   /api/pages/:id/revert               {revision, base_hash, message}
 
 GET    /api/pages/:id/links                outgoing, incoming, unresolved
 POST   /api/pages/:id/links                pin/unpin a card or page relation
