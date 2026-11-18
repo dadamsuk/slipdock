@@ -499,36 +499,23 @@ defmodule SlipdockWeb.API.CardController do
   defp current([]), do: nil
 
   @doc """
-  Leaves a handoff on the card: `next_step` (one line, required) and `body`,
-  or `clear: true`. Anyone who may comment on the card may write one. `via`
-  is `cli` from the command line and `api` otherwise.
+  Leaves a handoff on the card (`SlipdockWeb.Ops.LeaveHandoff`): `next_step`
+  and `body`, `clear: true` or `delete: true`.
   """
-  def leave_handoff(conn, %{"id" => id} = params) do
-    via = if params["via"] == "cli", do: "cli", else: "api"
-
-    with {:ok, card} <- fetch_card(id),
-         :ok <- Authorize.card(conn, card, :comment),
-         {:ok, handoff} <-
-           CardWrites.write_handoff(card, conn.assigns.current_user, params, via) do
-      conn |> put_status(:created) |> json(%{card: card.id, handoff: V.handoff(handoff)})
-    end
-  end
+  def leave_handoff(conn, params),
+    do: SlipdockWeb.Ops.REST.run(conn, SlipdockWeb.Ops.LeaveHandoff, params)
 
   @doc """
-  Deletes the card's current handoff outright (#1214), so the one before it
-  is current again. Its author, or anyone who can edit the card. Answers
-  what was deleted and the handoff the card has now.
+  Deletes the card's current handoff (#1214), so the one before it is
+  current again: `leave_handoff` with `delete` settled true.
   """
-  def delete_handoff(conn, %{"id" => id}) do
-    with {:ok, card} <- fetch_card(id),
-         {:ok, deleted} <- CardWrites.delete_handoff(conn, card) do
-      json(conn, %{
-        card: card.id,
-        deleted: V.handoff(deleted),
-        handoff: card |> Boards.Handoffs.current_handoff() |> then(&(&1 && V.handoff(&1)))
-      })
-    end
-  end
+  def delete_handoff(conn, params),
+    do:
+      SlipdockWeb.Ops.REST.run(
+        conn,
+        SlipdockWeb.Ops.LeaveHandoff,
+        Map.put(params, "delete", true)
+      )
 
   @doc """
   Decides a card waiting for verification (#1633): `decision` accept or

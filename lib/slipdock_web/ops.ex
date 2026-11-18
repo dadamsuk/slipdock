@@ -7,7 +7,7 @@ defmodule SlipdockWeb.Ops do
 
   alias SlipdockWeb.Ops
 
-  @ops [Ops.MoveCard, Ops.ArchiveCard, Ops.DeleteCard]
+  @ops [Ops.MoveCard, Ops.ArchiveCard, Ops.DeleteCard, Ops.LeaveHandoff]
 
   def all, do: @ops
 

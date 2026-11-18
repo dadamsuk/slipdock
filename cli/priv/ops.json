@@ -107,5 +107,64 @@
       ],
       "flags": {}
     }
+  },
+  {
+    "name": "leave_handoff",
+    "summary": "Leaves the card's handoff for whoever picks it up next: write one whenever you stop unfinished. It replaces the last (kept as history); get_card shows it first. next_step: one line; body: the note. clear: true clears it; delete: true deletes it.",
+    "verb": "POST",
+    "path": "/api/cards/:id/handoff",
+    "writes": true,
+    "params": [
+      {
+        "name": "card",
+        "type": "integer",
+        "required": true,
+        "in_path": "id"
+      },
+      {
+        "name": "next_step",
+        "type": "string",
+        "required": false
+      },
+      {
+        "name": "body",
+        "type": "string",
+        "required": false
+      },
+      {
+        "name": "clear",
+        "type": "boolean",
+        "required": false,
+        "default": false
+      },
+      {
+        "name": "delete",
+        "type": "boolean",
+        "required": false,
+        "default": false
+      }
+    ],
+    "cli": {
+      "command": "handoff",
+      "positional": [
+        "card"
+      ],
+      "flags": {
+        "body": {
+          "param": "body"
+        },
+        "clear": {
+          "param": "clear",
+          "value": true
+        },
+        "delete": {
+          "param": "delete",
+          "value": true
+        },
+        "next": {
+          "param": "next_step"
+        }
+      }
+    }
   }
 ]

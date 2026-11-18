@@ -492,17 +492,15 @@ defmodule SlipdockCLI.Boards do
         fail("--delete deletes the current handoff: leave off --next and --clear")
 
       o[:delete] ->
-        HTTP.delete("/cards/#{enc(id)}/handoff")
+        SlipdockCLI.Op.run("handoff", [id], delete: true)
         |> out(o, &handoff_deleted(id, &1))
 
       o[:clear] ->
-        HTTP.post("/cards/#{enc(id)}/handoff", %{"clear" => true, "via" => "cli"})
+        SlipdockCLI.Op.run("handoff", [id], clear: true)
         |> out(o, fn _ -> IO.puts("cleared the handoff on ##{id}") end)
 
       o[:next] ->
-        body = compact(%{"next_step" => o[:next], "body" => handoff_body(o), "via" => "cli"})
-
-        HTTP.post("/cards/#{enc(id)}/handoff", body)
+        SlipdockCLI.Op.run("handoff", [id], next: o[:next], body: handoff_body(o))
         |> out(o, fn r -> IO.puts("left a handoff on ##{id}: #{r["handoff"]["next_step"]}") end)
 
       o[:body] || o[:file] ->

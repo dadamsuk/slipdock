@@ -8,7 +8,6 @@
 # One operation each: Ops 3 (#3187) makes these from definitions
 create_tag
 delete_board
-leave_handoff
 list_cards
 verify_card
 

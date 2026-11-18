@@ -44,8 +44,7 @@ defmodule SlipdockCLI.HandoffTest do
 
     assert JSON.decode!(body) == %{
              "next_step" => "Run the suite",
-             "body" => "State: half done",
-             "via" => "cli"
+             "body" => "State: half done"
            }
 
     assert out =~ "left a handoff on #7: Run the suite"
@@ -79,7 +78,9 @@ defmodule SlipdockCLI.HandoffTest do
     ])
 
     out = capture_io(fn -> Boards.run("handoff", ["7"], delete: true) end)
-    assert_received {:request, "DELETE", "/api/cards/7/handoff", _}
+    # One operation, leave_handoff, with delete (#3187).
+    assert_received {:request, "POST", "/api/cards/7/handoff", body}
+    assert JSON.decode!(body) == %{"delete" => true}
     assert out =~ "deleted the handoff on #7: A wrong turn"
     assert out =~ "current again: Run the suite"
   end
@@ -97,7 +98,8 @@ defmodule SlipdockCLI.HandoffTest do
 
     out = capture_io(fn -> Boards.run("handoff", ["7"], clear: true) end)
     assert_received {:request, "POST", "/api/cards/7/handoff", body}
-    assert JSON.decode!(body) == %{"clear" => true, "via" => "cli"}
+    # The server reads "cli" from the client's header (#3187), not the body.
+    assert JSON.decode!(body) == %{"clear" => true}
     assert out =~ "cleared the handoff on #7"
   end
 
