@@ -559,7 +559,7 @@ defmodule SlipdockWeb.API.PageControllerTest do
       page: page
     } do
       assert %{"revisions" => [rev]} =
-               conn |> get("/api/pages/#{page["id"]}/revisions?limit=junk") |> json_response(200)
+               conn |> get("/api/pages/#{page["id"]}/revisions") |> json_response(200)
 
       assert %{"revision" => %{"body" => "first"}} =
                body =
@@ -645,7 +645,7 @@ defmodule SlipdockWeb.API.PageControllerTest do
                |> json_response(400)
     end
 
-    test "limit caps the list, and a zero or nonsense limit means the default", %{
+    test "limit caps the list, and a zero or nonsense limit is a 400 (#3188)", %{
       conn: conn,
       page: page,
       board: board
@@ -667,8 +667,14 @@ defmodule SlipdockWeb.API.PageControllerTest do
       end
 
       assert count.("1") == 1
-      assert count.("0") == 2
-      assert count.("") == 2
+      assert count.("2") == 2
+
+      for bad <- ["0", "junk", ""] do
+        assert %{"error" => "limit must be " <> _} =
+                 conn
+                 |> get("/api/pages/#{page["id"]}/revisions?limit=#{bad}")
+                 |> json_response(400)
+      end
     end
   end
 

@@ -39,9 +39,9 @@ every card in full (comments, checklist, docs) in one call instead of a `get_car
 and works the checklist. `list_pages` lists a board's wiki (`tree: true` nests it, as `page tree`
 does), and `read_page` reads one. `page_info` answers what `page links`, `page sections`,
 `page wanted` and `page resolve` do — ask it for `sections` before a `write_page` section edit
-rather than guessing the heading path. `page_history` is `page history` and `page diff` (`rev`, `rev` + `against` to
-compare two versions, or `diff: true` for the latest save), and `revert_page` is `page revert`: it needs the page's current
-`content_hash` as `base_hash`. `update_page` is `page edit --title/--summary/--tag`, `page mv`, `page file`,
+rather than guessing the heading path. `page_history` is `page history` and `page diff` (`rev` + `diff: "previous"`,
+`diff` a revision id to compare two versions, or `diff` alone for the latest save), and `revert_page` is `page revert`
+(`revision`): it needs the page's current `content_hash` as `base_hash`. `update_page` is `page edit --title/--summary/--tag`, `page mv`, `page file`,
 `page rm`/`page restore` (`archived`) and `page pin --card` (`pin_card`/`unpin_card`).
 `upload_file` is `attach` for a file of up to 10 MB (`content_base64`, or `text`). Base64 a model
 writes out goes wrong above about 1 KB (#1040), so with a shell where the file is, don't send it:

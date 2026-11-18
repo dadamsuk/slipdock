@@ -595,5 +595,58 @@
         }
       }
     }
+  },
+  {
+    "name": "page_history",
+    "summary": "A page's revisions, newest first: id, author, via, summary, time. With rev, that revision's body; diff: \"previous\" (or another revision's id) adds the change it made, and without rev is the latest save's. revert_page puts a revision back.",
+    "verb": "GET",
+    "path": "/api/pages/:id/revisions",
+    "writes": false,
+    "params": [
+      {
+        "name": "page",
+        "type": "string",
+        "required": true,
+        "in_path": "id"
+      },
+      {
+        "name": "board",
+        "type": "string",
+        "required": false
+      },
+      {
+        "name": "limit",
+        "type": "integer",
+        "required": false,
+        "default": 100
+      },
+      {
+        "name": "rev",
+        "type": "integer",
+        "required": false
+      },
+      {
+        "name": "diff",
+        "type": "any",
+        "required": false
+      }
+    ],
+    "cli": {
+      "command": "page history",
+      "positional": [
+        "page"
+      ],
+      "flags": {
+        "against": {
+          "param": "diff"
+        },
+        "limit": {
+          "param": "limit"
+        },
+        "rev": {
+          "param": "rev"
+        }
+      }
+    }
   }
 ]

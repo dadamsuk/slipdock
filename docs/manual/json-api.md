@@ -114,6 +114,8 @@ GET    /api/pages/:id                      PATCH  /api/pages/:id   {title, body,
 DELETE /api/pages/:id      ?purge=true     POST   /api/pages/:id/restore
 POST   /api/pages/:id/move                 {parent, position: N|top|bottom}
 GET    /api/pages/:id/revisions            GET    /api/pages/:id/revisions/:rev   ?diff=previous|<rev id>
+       both answer the page {code, title, content_hash, url} beside them; ?rev= is the second, ?diff=
+       without it the latest save's; ?limit= 1 to 500 (default 100); long unchanged runs come back as skip
 POST   /api/pages/:id/revert               {revision, base_hash, message}   answers {page, reverted_to, revision}
 GET    /api/pages/:id/render               ?format=markdown|html|text  (references resolved)
 GET    /api/pages/:id/recording            a meeting page's audio, with Range  (see Meeting transcripts)

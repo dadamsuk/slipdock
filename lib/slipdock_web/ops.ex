@@ -21,7 +21,8 @@ defmodule SlipdockWeb.Ops do
     Ops.InstallTool,
     Ops.Activity,
     Ops.GardenDecide,
-    Ops.RevertPage
+    Ops.RevertPage,
+    Ops.PageHistory
   ]
 
   def all, do: @ops

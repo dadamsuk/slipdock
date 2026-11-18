@@ -823,12 +823,9 @@ defmodule SlipdockWeb.API.PageController do
     end
   end
 
-  def revisions(conn, %{"id" => id} = params) do
-    with {:ok, page} <- fetch_page(conn, id, :read) do
-      limit = params["limit"] |> to_limit()
-      json(conn, %{revisions: Enum.map(Wiki.list_revisions(page, limit), &V.revision/1)})
-    end
-  end
+  # The list, and one revision (`revision/2`): `SlipdockWeb.Ops.PageHistory` (#3188).
+  def revisions(conn, params),
+    do: SlipdockWeb.Ops.REST.run(conn, SlipdockWeb.Ops.PageHistory, params)
 
   @doc """
   Deletes the named revisions, which the client found still hold text it
@@ -854,55 +851,13 @@ defmodule SlipdockWeb.API.PageController do
     end
   end
 
-  defp to_limit(nil), do: 100
-
-  defp to_limit(value) do
-    case Integer.parse(to_string(value)) do
-      {n, ""} when n > 0 -> min(n, 500)
-      _ -> 100
-    end
-  end
-
   @doc """
   One revision: its body, and with `?diff=previous` the change it made,
-  as hunks of equal, deleted and inserted lines. `?diff=<revision id>`
-  diffs from that version of the same page to this one instead, so any two
-  versions can be compared.
+  `?diff=<revision id>` from that version of the same page instead. The
+  history's definition with `rev` from the path (`SlipdockWeb.Ops.PageHistory`).
   """
-  def revision(conn, %{"id" => id, "rev" => rev} = params) do
-    with {:ok, page} <- fetch_page(conn, id, :read),
-         {:ok, revision} <- Wiki.get_revision(page, rev),
-         {:ok, before} <- diff_base(page, revision, params["diff"]) do
-      body = %{revision: V.revision(revision) |> Map.put(:body, revision.body)}
-
-      body =
-        case before do
-          :none -> body
-          text -> Map.put(body, :diff, V.diff(Wiki.diff(text, revision.body)))
-        end
-
-      json(conn, body)
-    end
-  end
-
-  # What a revision is diffed from: nothing asked, the one before it, or
-  # another version of the same page by id.
-  defp diff_base(_page, _revision, diff) when diff in [nil, ""], do: {:ok, :none}
-
-  defp diff_base(_page, revision, "previous") do
-    previous = Wiki.previous_revision(revision)
-    {:ok, if(previous, do: previous.body, else: "")}
-  end
-
-  defp diff_base(page, _revision, other) do
-    with {n, ""} when n > 0 <- Integer.parse(to_string(other)),
-         {:ok, base} <- Wiki.get_revision(page, n) do
-      {:ok, base.body}
-    else
-      {:error, _, _} = not_found -> not_found
-      _ -> {:error, :bad_request, "diff must be \"previous\" or a revision id of this page"}
-    end
-  end
+  def revision(conn, params),
+    do: SlipdockWeb.Ops.REST.run(conn, SlipdockWeb.Ops.PageHistory, params)
 
   @doc """
   Puts the page back to a revision: a save of its own, never a deletion.

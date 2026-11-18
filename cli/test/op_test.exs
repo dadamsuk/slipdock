@@ -100,6 +100,14 @@ defmodule SlipdockCLI.OpTest do
              {:post, "/pages/W-31/revert", %{"revision" => "7", "base_hash" => "h1"}}
   end
 
+  test "page history and page diff are page_history's request: --against is diff" do
+    assert Op.request("page history", ["W-31"], rev: "12", against: "previous") ==
+             {:get, "/pages/W-31/revisions", %{"rev" => "12", "diff" => "previous"}}
+
+    assert Op.request("page history", ["W-31"], limit: 5) ==
+             {:get, "/pages/W-31/revisions", %{"limit" => 5}}
+  end
+
   test "an operation the CLI has no command for (delete_board) is left out" do
     refute Map.has_key?(Op.ops(), nil)
     refute Enum.any?(Op.ops(), fn {_, op} -> op["name"] == "delete_board" end)

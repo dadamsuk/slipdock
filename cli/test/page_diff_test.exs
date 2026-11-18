@@ -35,9 +35,11 @@ defmodule SlipdockCLI.PageDiffTest do
     {path, out}
   end
 
+  # page_history's one route (#3188): rev and diff in the query.
   test "without --against diffs a version from the one before it" do
     {path, out} = run(rev: "12")
-    assert path =~ "/pages/W-31/revisions/12"
+    assert path =~ "/pages/W-31/revisions?"
+    assert path =~ "rev=12"
     assert path =~ "diff=previous"
     assert out =~ "- old"
     assert out =~ "+ new"
@@ -45,9 +47,27 @@ defmodule SlipdockCLI.PageDiffTest do
 
   test "--against compares with that version instead" do
     {path, _out} = run(rev: "12", against: "7")
-    assert path =~ "/pages/W-31/revisions/12"
+    assert path =~ "rev=12"
     assert path =~ "diff=7"
     refute path =~ "previous"
+  end
+
+  test "without --rev it is the latest save's change, in one request" do
+    {path, _out} = run([])
+    assert path =~ "/pages/W-31/revisions?diff=previous"
+    refute path =~ "rev="
+  end
+
+  test "a long unchanged run the server cut is said, not left out" do
+    hunks =
+      ~s({"diff":[{"op":"skip","count":6,"lines":[]},{"op":"eq","lines":["kept"]},) <>
+        ~s({"op":"ins","lines":["new"]}]})
+
+    System.put_env("SLIPDOCK_URL", FakeServer.start([{200, hunks}]))
+    out = capture_io(fn -> Wiki.run("page", ["diff", "W-31"], []) end)
+    assert out =~ "… 6 unchanged lines"
+    assert out =~ "  kept"
+    assert out =~ "+ new"
   end
 
   test "revert reads the page's hash first and sends it with the revision" do
