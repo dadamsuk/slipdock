@@ -1389,7 +1389,10 @@ defmodule Slipdock.HandbookTest do
       assert spike =~ ~s{a "no" changes the spec (say how)}
 
       assert spike =~
-               "a late \"no\" costs more than the spike, counting flow time and lane contention"
+               "a late \"no\" costs more than the spike, counting flow time and work held up behind it as well as rework"
+
+      assert spike =~ "A spike merges nothing: its answer is a page"
+      refute spike =~ "lane"
 
       assert spike =~ "gets its card first in build order instead"
       assert spike =~ "None pass: the stage is skipped, and the agent says why."
@@ -1472,12 +1475,14 @@ defmodule Slipdock.HandbookTest do
       assert grill =~ "- **Asks:** in numbered rounds."
       refute seeded =~ "one question at a time"
 
-      # 1.8.0's seed differs from today's in the Grill's Asks and Skill lines only.
+      # 1.8.0's seed differs from 1.10.0's in the Grill's Asks and Skill lines only.
       latest = Handbook.seed_body("playbook", "1.8.0")
 
       assert [{:ins, [asks, skill]}] =
                String.split(latest, "\n")
-               |> List.myers_difference(String.split(String.trim(seeded), "\n"))
+               |> List.myers_difference(
+                 String.split(String.trim(Handbook.seed_body("playbook", "1.10.0")), "\n")
+               )
                |> Enum.filter(&(elem(&1, 0) == :ins))
 
       assert asks =~ "- **Asks:** in numbered rounds."
@@ -1511,12 +1516,14 @@ defmodule Slipdock.HandbookTest do
       seeded = play.body
       assert seeded =~ "marks each such answer *(assumed)*"
 
-      # 1.9.3's seed differs from today's in the Grill's Asks line only.
+      # 1.9.3's seed differs from 1.10.0's in the Grill's Asks line only.
       old = Handbook.seed_body("playbook", "1.9.3")
 
       assert [{:ins, [asks]}] =
                String.split(old, "\n")
-               |> List.myers_difference(String.split(String.trim(seeded), "\n"))
+               |> List.myers_difference(
+                 String.split(String.trim(Handbook.seed_body("playbook", "1.10.0")), "\n")
+               )
                |> Enum.filter(&(elem(&1, 0) == :ins))
 
       assert asks =~ "- **Asks:** in numbered rounds."
@@ -1526,6 +1533,40 @@ defmodule Slipdock.HandbookTest do
 
       {:ok, _} = Wiki.update_page(Repo.get!(Page, play.id), %{"body" => old})
       {:ok, again} = Handbook.install(user, board)
+      assert again.report.added["pages"] == ["Playbook (seed updated)"]
+      refute Enum.any?(again.report.skipped["pages"], &(&1 =~ "edited"))
+      assert Repo.get!(Page, play.id).body == seeded
+
+      # Once it holds today's seed, installing again changes nothing.
+      {:ok, third} = Handbook.install(user, board)
+      assert third.report.added["pages"] == []
+      assert Repo.get!(Page, play.id).body == seeded
+      assert proposals(board) == []
+    end
+
+    test "installing over an unedited 1.10.0 Playbook seed drops its lane words (#3195)",
+         %{user: user, board: board} do
+      {:ok, _} = Handbook.install(user, board)
+      play = page_titled(board, "Playbook")
+      seeded = play.body
+      refute seeded =~ "lane"
+
+      # 1.10.0's seed differs from today's in the Spike's Asks and Produces lines only.
+      old = Handbook.seed_body("playbook", "1.10.0")
+      assert old =~ "counting flow time and lane contention as well as rework"
+      assert old =~ "A spike holds no lane and merges nothing"
+
+      assert [{:ins, [asks]}, {:ins, [produces]}] =
+               String.split(old, "\n")
+               |> List.myers_difference(String.split(String.trim(seeded), "\n"))
+               |> Enum.filter(&(elem(&1, 0) == :ins))
+
+      assert asks =~ "counting flow time and work held up behind it as well as rework"
+      assert produces =~ "A spike merges nothing: its answer is a page"
+
+      {:ok, _} = Wiki.update_page(Repo.get!(Page, play.id), %{"body" => old})
+      {:ok, again} = Handbook.install(user, board)
+      assert again.version.version == Handbook.version()
       assert again.report.added["pages"] == ["Playbook (seed updated)"]
       refute Enum.any?(again.report.skipped["pages"], &(&1 =~ "edited"))
       assert Repo.get!(Page, play.id).body == seeded

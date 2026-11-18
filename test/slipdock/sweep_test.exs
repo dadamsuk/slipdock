@@ -212,8 +212,36 @@ defmodule Slipdock.SweepTest do
       [after_card] = sweep_cards(board)
       assert after_card.description =~ "never a card per file, module or area"
       assert after_card.description =~ "one commit with its tests"
-      assert after_card.description =~ "or a few split by lane"
+      assert after_card.description =~ "or a few split by area"
+      refute after_card.description =~ "lane"
       assert after_card.description =~ "Playbook's Sweeps section"
+    end
+
+    test "installing 1.4.1 over a 1.4.0 card splits a big fix by area, not lane (#3195)",
+         %{user: user, board: board} do
+      {:ok, _} = Sweep.install(user, board)
+      [card] = sweep_cards(board)
+      refute card.description =~ "lane"
+
+      old =
+        String.replace(
+          card.description,
+          "or a few split by area when",
+          "or a few split by lane when"
+        )
+
+      assert old != card.description
+      {:ok, _} = Boards.Cards.update_card(card, %{"description" => old})
+
+      assert {:ok, again} = Sweep.install(user, board)
+      assert again.upgraded
+      assert again.report.added["cards"] == ["Sweep the code (updated: procedure)"]
+      [after_card] = sweep_cards(board)
+      assert after_card.id == card.id
+      assert after_card.description == card.description
+
+      assert {:ok, third} = Sweep.install(user, board)
+      refute third.upgraded
     end
 
     test "a Triage list made by hand gets the category; one with its own keeps it",
