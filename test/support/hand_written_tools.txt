@@ -5,7 +5,12 @@
 # is meant to shrink: a new tool is made from a definition, and comes here
 # only when it combines several operations. One tool name per line.
 
-# One operation each: Ops 3 (#3187) makes these from definitions
+# Not one definition (#3187): MCP's list_cards answers lines, a page of
+# them (limit, truncated, total) with done lists left out unless asked,
+# or each card as get_card has it (full); REST's GET /api/boards/:board/
+# cards answers every card in full and is what the CLI's `cards` reads.
+# One result shape would cost MCP's callers their context or REST's
+# callers their answer: Ops 5 (#3190) takes its params from a definition.
 list_cards
 
 # One operation each: Ops 4 (#3188) makes these from definitions

@@ -59,6 +59,7 @@ GET    /api/boards/:board/columns          POST   /api/boards/:board/columns
 PATCH  /api/boards/:board/columns/:id      DELETE /api/boards/:board/columns/:id
 GET    /api/boards/:board/tags             POST   /api/boards/:board/tags
 DELETE /api/boards/:board/tags/:id         GET    /api/boards/:board/activity?limit=&card=
+       POST .../tags answers {tag, created}: a tag of that name already there, in any case, comes back (200), not a second
 GET    /api/boards/:board/swimlanes         ?view= &rows= &cols= &unit= &sort= &dir= &q= &due= &done= &empty=
                                             &tags= &priorities= &flags= &columns= &colors=   (lists are comma-joined)
 GET    /api/boards/:board/views            POST   /api/boards/:board/views   {name, ...config params}
@@ -76,13 +77,14 @@ GET    /api/cards/:id                      PATCH  /api/cards/:id       DELETE /a
 POST   /api/cards/:id/move   {column, index: "top"|"bottom"|N}   default bottom; any other index is a 400
 POST   /api/cards/:id/move   {board, column}   to another board, with its subcards; answers
                                                `moved: {tags_created, tags_dropped, fields_dropped, milestones_unpinned}`
-POST   /api/cards/:id/archive              POST   /api/cards/:id/restore
+POST   /api/cards/:id/archive {restore}    POST   /api/cards/:id/restore   (archive with restore: true)
+                                           what is already so is left as it is; both answer {card}
 POST   /api/cards/:id/timer {action: start|stop}   stopping adds the minutes it ran to time spent
 POST   /api/cards/:id/checklist {text}     POST   /api/checklist/:item_id/toggle   DELETE /api/checklist/:item_id
 POST   /api/checklist/:item_id/move {before}   before another item of the same card or page, or last
                                                without one; answers {items} in the new order
 POST   /api/cards/:id/comments {body}      DELETE /api/comments/:comment_id
-GET    /api/cards/:id/handoff              POST   /api/cards/:id/handoff {next_step, body} | {clear: true}
+GET    /api/cards/:id/handoff              POST   /api/cards/:id/handoff {next_step, body} | {clear: true} | {delete: true}
 DELETE /api/cards/:id/handoff              the current one, outright: {deleted, handoff} (the one now current)
 GET    /api/cards/:id/timeline             the lists it sat in, its waits and jobs, as spans
 POST   /api/cards/:id/dependencies {blocked_by: id} | {blocks: id}
