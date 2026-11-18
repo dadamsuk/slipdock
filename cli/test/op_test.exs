@@ -66,6 +66,11 @@ defmodule SlipdockCLI.OpTest do
              {:post, "/notes", %{"text" => "ring the printers"}}
   end
 
+  test "page ai is page_tool's request, the page in the path" do
+    assert Op.request("page ai", ~w(W-31 summarise), []) ==
+             {:post, "/pages/W-31/ai", %{"tool" => "summarise"}}
+  end
+
   test "an operation the CLI has no command for (delete_board) is left out" do
     refute Map.has_key?(Op.ops(), nil)
     refute Enum.any?(Op.ops(), fn {_, op} -> op["name"] == "delete_board" end)

@@ -315,5 +315,50 @@
       ],
       "flags": {}
     }
+  },
+  {
+    "name": "page_tool",
+    "summary": "Runs a model over a wiki page on your AI key and returns the answer; writes nothing. tool: summarise, key_points, actions, titles or improve.",
+    "verb": "POST",
+    "path": "/api/pages/:id/ai",
+    "writes": false,
+    "params": [
+      {
+        "name": "page",
+        "type": "string",
+        "required": true,
+        "in_path": "id"
+      },
+      {
+        "name": "board",
+        "type": "string",
+        "required": false
+      },
+      {
+        "name": "tool",
+        "type": {
+          "enum": [
+            "summarise",
+            "key_points",
+            "actions",
+            "titles",
+            "improve"
+          ]
+        },
+        "required": true
+      }
+    ],
+    "cli": {
+      "command": "page ai",
+      "positional": [
+        "page",
+        "tool"
+      ],
+      "flags": {
+        "board": {
+          "param": "board"
+        }
+      }
+    }
   }
 ]

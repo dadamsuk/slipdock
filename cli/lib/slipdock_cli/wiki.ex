@@ -309,7 +309,7 @@ defmodule SlipdockCLI.Wiki do
   # reference has been followed. Answering a question wants the second.
   # An AI tool over a page: the answer's Markdown, on the caller's AI key.
   def run("page", ["ai", ref, tool], o) do
-    HTTP.post("/pages/#{enc(ref)}/ai", %{"tool" => tool})
+    SlipdockCLI.Op.run("page ai", [ref, tool], o)
     |> out(o, fn %{"answer" => answer} ->
       IO.puts(answer["text"])
       if answer["truncated"], do: IO.puts("(only the start of the page was read)")

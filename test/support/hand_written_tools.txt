@@ -20,7 +20,6 @@ get_guide
 install_tool
 keep_job_log
 page_history
-page_tool
 revert_page
 search
 

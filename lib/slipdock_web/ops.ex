@@ -15,7 +15,8 @@ defmodule SlipdockWeb.Ops do
     Ops.VerifyCard,
     Ops.CreateTag,
     Ops.DeleteBoard,
-    Ops.QuickNote
+    Ops.QuickNote,
+    Ops.PageTool
   ]
 
   def all, do: @ops
