@@ -98,6 +98,28 @@ defmodule SlipdockWeb.Ops.MachineryTest do
     refute Ops.MCPCall.destructive?(Ops.MoveCard)
   end
 
+  defmodule Strict do
+    @behaviour SlipdockWeb.Ops.Op
+    @impl true
+    def definition, do: %{Thing.definition() | name: "strict"} |> Map.put(:strict?, true)
+    @impl true
+    def run(params, auth), do: Thing.run(params, auth)
+  end
+
+  test "a strict? definition's REST action refuses a field it doesn't name (#3188)" do
+    conn = Phoenix.ConnTest.build_conn()
+
+    assert Ops.REST.run(conn, Strict, %{"id" => "1", "kinds" => "a", "zz" => 1}) ==
+             {:error, :bad_request, "unknown field(s): kinds, zz"}
+
+    # Its path params, its own and its confirm (MCP's alone) pass.
+    assert Ops.REST.run(conn, Strict, %{"id" => "1", "kind" => "a", "confirm" => "x"}).status ==
+             201
+
+    # Not strict: an unknown field is ignored, as it always was.
+    assert Ops.REST.run(conn, Thing, %{"id" => "1", "zz" => 1}).status == 200
+  end
+
   test "REST answers the definition's status, a function of the result here" do
     conn = Phoenix.ConnTest.build_conn()
     assert Ops.REST.run(conn, Thing, %{"id" => "1", "kind" => "a"}).status == 201

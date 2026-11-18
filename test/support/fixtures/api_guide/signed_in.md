@@ -4610,9 +4610,7 @@ POST   /api/runner/claim
     POST   /api/boards/:board/garden
     PATCH  /api/boards/:board/garden/settings
     POST   /api/boards/:board/garden/proposals
-    POST   /api/garden/suggestions/:id/apply
-    POST   /api/garden/suggestions/:id/dismiss
-    POST   /api/garden/suggestions/:id/undo
+    POST   /api/garden/suggestions/:id/:decision
     GET    /api/boards/:board/health
     GET    /api/boards/:board/now
     POST   /api/boards/:board/health

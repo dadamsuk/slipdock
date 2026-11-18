@@ -23,10 +23,11 @@ defmodule SlipdockCLI.Garden do
         {:error, message} -> fail(message)
       end
 
-    body = decision_body(verb, o)
+    # The definition's flags, from what the decision sends.
+    flags = for {key, value} <- decision_body(verb, o), do: {String.to_existing_atom(key), value}
 
     Enum.each(ids, fn id ->
-      HTTP.post("/garden/suggestions/#{id}/#{verb}", body)
+      SlipdockCLI.Op.run("garden", [verb, to_string(id)], flags)
       |> out(o, fn r -> IO.puts("#{past(verb)} " <> line(r["suggestion"])) end)
     end)
   end

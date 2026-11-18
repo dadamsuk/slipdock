@@ -14,7 +14,6 @@
 list_cards
 
 # One operation each: Ops 4 (#3188) makes these from definitions
-garden_decide
 get_guide
 page_history
 revert_page

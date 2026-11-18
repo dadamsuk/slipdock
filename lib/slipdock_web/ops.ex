@@ -19,7 +19,8 @@ defmodule SlipdockWeb.Ops do
     Ops.PageTool,
     Ops.KeepJobLog,
     Ops.InstallTool,
-    Ops.Activity
+    Ops.Activity,
+    Ops.GardenDecide
   ]
 
   def all, do: @ops

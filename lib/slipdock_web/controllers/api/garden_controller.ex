@@ -12,8 +12,9 @@ defmodule SlipdockWeb.API.GardenController do
       findings?, cards?}` – file a proposal (#1788, `Gardener.propose/4`):
       201 with it, or 200 with the one already filed. Write access.
     * `POST /api/garden/suggestions/:id/apply {keep?, choice?}`,
-      `…/dismiss` and `…/undo` – decide one. Write access; a proposal, or
-      a suggestion that edits a section, only a person's (not an agent's).
+      `…/dismiss` and `…/undo` – decide one (`SlipdockWeb.Ops.GardenDecide`,
+      #3188). Write access; a proposal, or a suggestion that edits a
+      section, only a person's (not an agent's).
   """
   use SlipdockWeb, :controller
 
@@ -71,43 +72,9 @@ defmodule SlipdockWeb.API.GardenController do
     end
   end
 
-  def apply(conn, %{"id" => id} = params) do
-    with :ok <- known(params, ~w(id keep choice confirm)) do
-      decide(conn, id, :write, fn s, user ->
-        Gardener.apply(s, user,
-          keep: params["keep"],
-          choice: params["choice"],
-          actor: decider(conn)
-        )
-      end)
-    end
-  end
-
-  def dismiss(conn, %{"id" => id}),
-    do: decide(conn, id, :write, &Gardener.dismiss(&1, &2, actor: decider(conn)))
-
-  def undo(conn, %{"id" => id}),
-    do: decide(conn, id, :write, &Gardener.undo(&1, &2, actor: decider(conn)))
-
-  # Who decides: the request's actor, never the Tidy-up page's, so a
-  # person-only suggestion is decided there and not over the API (#2668).
-  # `confirm` is accepted from older CLIs and changes nothing.
-  defp decider(conn) do
-    case Slipdock.Actor.from_conn(conn) do
-      %{via: "web"} = actor -> %{actor | via: "api"}
-      actor -> actor
-    end
-  end
-
-  defp decide(conn, id, need, fun) do
-    with {:ok, suggestion} <- fetch(id),
-         board = Boards.get_board_record!(suggestion.board_id),
-         :ok <- readable(conn, board),
-         :ok <- Authorize.board(conn, board, need),
-         {:ok, suggestion} <- refused(fun.(suggestion, conn.assigns.current_user)) do
-      json(conn, %{suggestion: G.suggestion(suggestion)})
-    end
-  end
+  @doc "Decides one suggestion: made from `SlipdockWeb.Ops.GardenDecide` (#3188)."
+  def decide(conn, params),
+    do: SlipdockWeb.Ops.REST.run(conn, SlipdockWeb.Ops.GardenDecide, params)
 
   defp answer(conn, board, check) do
     json(conn, %{
@@ -116,21 +83,6 @@ defmodule SlipdockWeb.API.GardenController do
       last_run: G.run(Gardener.last_run(board)),
       checks: G.checks(Boards.get_board_record!(board.id))
     })
-  end
-
-  # A suggestion on a board the caller can't read is one they don't know of.
-  defp readable(conn, board) do
-    case Authorize.board(conn, board, :read) do
-      :ok -> :ok
-      _ -> {:error, :not_found, "suggestion"}
-    end
-  end
-
-  defp fetch(id) do
-    case Gardener.get_suggestion(id) do
-      nil -> {:error, :not_found, "suggestion"}
-      s -> {:ok, s}
-    end
   end
 
   defp check_param(nil), do: {:ok, nil}

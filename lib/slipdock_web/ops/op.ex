@@ -25,6 +25,9 @@ defmodule SlipdockWeb.Ops.Op do
     * `status` — REST's status on success: an atom (`:created`), or a
       function of the result for an operation whose answer says which
       (default `:ok`)
+    * `strict?` — `true` for one whose REST action refuses a field it
+      doesn't name (400, "unknown field(s): …"), as MCP always refuses an
+      argument its schema doesn't
     * `destructive?` — `true` for one that can't be undone (MCP's
       `destructiveHint`)
     * `confirm` — `%{type, doc}`: the `confirm` argument the MCP tool

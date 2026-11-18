@@ -491,5 +491,57 @@
         }
       }
     }
+  },
+  {
+    "name": "garden_decide",
+    "summary": "Applies or dismisses one garden suggestion the person approved; never a list on your own judgment. A dismissal sticks unless its subject changes; undo puts an applied one back. keep and choice: see their fields. Needs confirm.",
+    "verb": "POST",
+    "path": "/api/garden/suggestions/:id/:decision",
+    "writes": true,
+    "params": [
+      {
+        "name": "suggestion",
+        "type": "integer",
+        "required": true,
+        "in_path": "id"
+      },
+      {
+        "name": "decision",
+        "type": {
+          "enum": [
+            "apply",
+            "dismiss",
+            "undo"
+          ]
+        },
+        "required": true,
+        "in_path": "decision"
+      },
+      {
+        "name": "keep",
+        "type": "integer",
+        "required": false
+      },
+      {
+        "name": "choice",
+        "type": "string",
+        "required": false
+      }
+    ],
+    "cli": {
+      "command": "garden",
+      "positional": [
+        "decision",
+        "suggestion"
+      ],
+      "flags": {
+        "choice": {
+          "param": "choice"
+        },
+        "keep": {
+          "param": "keep"
+        }
+      }
+    }
   }
 ]

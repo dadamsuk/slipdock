@@ -88,6 +88,13 @@ defmodule SlipdockCLI.OpTest do
              {:get, "/boards/errands/activity", %{"view" => "ledger", "since" => "7"}}
   end
 
+  test "garden apply|dismiss|undo is garden_decide's request, the decision in the path" do
+    assert Op.request("garden", ~w(apply 42), keep: "#12") ==
+             {:post, "/garden/suggestions/42/apply", %{"keep" => "#12"}}
+
+    assert Op.request("garden", ~w(undo 42), []) == {:post, "/garden/suggestions/42/undo", %{}}
+  end
+
   test "an operation the CLI has no command for (delete_board) is left out" do
     refute Map.has_key?(Op.ops(), nil)
     refute Enum.any?(Op.ops(), fn {_, op} -> op["name"] == "delete_board" end)
