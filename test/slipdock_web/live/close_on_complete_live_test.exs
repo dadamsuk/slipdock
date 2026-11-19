@@ -10,7 +10,7 @@ defmodule SlipdockWeb.CloseOnCompleteLiveTest do
   import Phoenix.LiveViewTest
   import Slipdock.Fixtures
 
-  alias Slipdock.Boards
+  alias Slipdock.{Access, Boards}
 
   @panel_toggle "#card-title-form [data-role=complete-toggle]"
 
@@ -41,6 +41,21 @@ defmodule SlipdockWeb.CloseOnCompleteLiveTest do
     assert Boards.Cards.get_card!(ctx.card.id).completed
     assert_patch(view, ~p"/boards/#{board}")
     refute has_element?(view, "#card-modal")
+  end
+
+  test "on: a card-only user completing the open card is sent off the board", ctx do
+    board = close_on_complete(ctx.board, true)
+    guest = user_fixture("guest@example.com")
+    {:ok, _} = Access.grant(ctx.card, guest, "write", ctx.user)
+    assert Access.board_permission(guest, board) == :none
+
+    {:ok, view, _} = open(log_in_user(build_conn(), guest), board, ctx.card)
+    assert has_element?(view, "#card-modal")
+
+    view |> element(@panel_toggle) |> render_click()
+
+    assert Boards.Cards.get_card!(ctx.card.id).completed
+    assert_redirect(view, ~p"/")
   end
 
   test "off: completing the open card leaves it open", ctx do
