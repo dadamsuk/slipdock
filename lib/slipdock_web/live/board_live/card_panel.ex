@@ -189,7 +189,15 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
       class="space-y-3"
     >
       <div class="flex items-start gap-3">
-        <.complete_toggle card={@card} class="mt-1.5" size="size-6" disabled={!@can_write} />
+        <%!-- `from=panel`: on a board set to close on complete, completing
+              the card here closes it (#3473); a tile's icon never does. --%>
+        <.complete_toggle
+          card={@card}
+          class="mt-1.5"
+          size="size-6"
+          disabled={!@can_write}
+          phx-value-from="panel"
+        />
         <textarea
           name={@form[:title].name}
           id="card-title"

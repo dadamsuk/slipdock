@@ -57,6 +57,11 @@ defmodule Slipdock.Boards.Board do
     # on; the numbers reach the API, MCP and the CLI either way.
     field :show_pulse, :boolean, default: false
 
+    # Whether marking an open card complete from its Complete icon closes
+    # the card and returns to the board (#3473). Off unless the owner turns
+    # it on; marking it incomplete again never closes it.
+    field :close_on_complete, :boolean, default: false
+
     # Whether the board records deploys and shows delivery metrics (#1134,
     # `Slipdock.Deployments`, `Slipdock.Dora`). Off unless the owner turns it
     # on, and invisible while off: the deploy endpoint refuses posts for it.
@@ -577,6 +582,7 @@ defmodule Slipdock.Boards.Board do
       :page_card_features,
       :simple,
       :show_pulse,
+      :close_on_complete,
       :delivery_metrics,
       :card_ref_pattern,
       :incident_tag,

@@ -69,6 +69,7 @@ defmodule SlipdockCLI do
     page_card_features: :boolean,
     wiki_sort: :string,
     show_pulse: :boolean,
+    close_on_complete: :boolean,
     show_age: :boolean,
     show_images: :boolean,
     # `slipdock deploy` (#1134).

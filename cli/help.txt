@@ -813,7 +813,8 @@ WRITE
   set-board <board> [--name N] [--code C] [--shortcut K] [--desc TEXT|-] [--color C]
       [--no-add-card] [--no-add-page] [--no-add-document] [--sprints | --no-sprints]
       [--simple | --no-simple] [--page-card-features | --no-page-card-features]
-      [--show-pulse | --no-show-pulse] [--automation-wip | --no-automation-wip]
+      [--show-pulse | --no-show-pulse] [--close-on-complete | --no-close-on-complete]
+      [--automation-wip | --no-automation-wip]
       [--agentic-building on|off]
       [--job-log-hours N] [--failure-log-hours N]
       [--delivery-metrics | --no-delivery-metrics] [--incident-tag T] [--hotfix-hours N]
@@ -839,6 +840,8 @@ WRITE
                                       --wiki-sort orders the top of the wiki's tree and the
                                       folders that follow it, and needs only write access;
                                       --show-pulse puts the board's pulse over its lists;
+                                      --close-on-complete makes an open card's Complete
+                                      icon close the card and return to the board;
                                       --automation-wip makes the first in-progress list's
                                       WIP limit hold runner jobs and list sends;
                                       --agentic-building on puts an Agentic Building item

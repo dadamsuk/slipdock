@@ -110,6 +110,24 @@ defmodule Slipdock.PortableImportTest do
       assert report.pages == 1
     end
 
+    test "close on complete comes with the board (#3473)", %{owner: owner, receiver: receiver} do
+      [source] = owned(owner)
+      {:ok, _} = Boards.update_board(source, %{"close_on_complete" => true})
+
+      {_report, board} = round_trip(owner, receiver)
+
+      assert board.owner_id == receiver.id
+      assert board.close_on_complete
+    end
+
+    test "close on complete stays off when the board had it off", %{
+      owner: owner,
+      receiver: receiver
+    } do
+      {_report, board} = round_trip(owner, receiver)
+      refute board.close_on_complete
+    end
+
     test "its lists come back in order, with their categories", %{
       owner: owner,
       receiver: receiver

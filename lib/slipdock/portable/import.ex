@@ -501,6 +501,7 @@ defmodule Slipdock.Portable.Import do
             if(Enum.member?(Board.default_views(), doc[:default_view]), do: doc[:default_view]),
           simple: bool(doc[:simple], false),
           show_pulse: bool(doc[:show_pulse], false),
+          close_on_complete: bool(doc[:close_on_complete], false),
           delivery_metrics: bool(doc[:delivery_metrics], false),
           # The changeset starts the board's `delivery_metrics_since` at the
           # import, so nothing the copy merged before it is not shipped (#2819).
