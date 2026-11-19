@@ -1458,6 +1458,11 @@
         "required": false
       },
       {
+        "name": "close_on_complete",
+        "type": "any",
+        "required": false
+      },
+      {
         "name": "vote_budget",
         "type": "any",
         "required": false
@@ -1630,6 +1635,9 @@
         },
         "card_ref_pattern": {
           "param": "card_ref_pattern"
+        },
+        "close_on_complete": {
+          "param": "close_on_complete"
         },
         "code": {
           "param": "code"

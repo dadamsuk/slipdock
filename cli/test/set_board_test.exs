@@ -58,6 +58,24 @@ defmodule SlipdockCLI.SetBoardTest do
     assert JSON.decode!(body) == %{"page_card_features" => true}
   end
 
+  test "--close-on-complete and --no-close-on-complete send the board's setting (#3473)" do
+    {opts, ["set-board", "docs"], []} =
+      OptionParser.parse(["set-board", "docs", "--close-on-complete"],
+        strict: SlipdockCLI.switches()
+      )
+
+    assert opts[:close_on_complete] == true
+
+    serve([{200, @updated}, {200, @updated}])
+    capture_io(fn -> Boards.run("set-board", ["docs"], close_on_complete: true) end)
+    assert_received {:request, "PATCH", "/api/boards/docs", body}
+    assert JSON.decode!(body) == %{"close_on_complete" => true}
+
+    capture_io(fn -> Boards.run("set-board", ["docs"], close_on_complete: false) end)
+    assert_received {:request, "PATCH", "/api/boards/docs", body}
+    assert JSON.decode!(body) == %{"close_on_complete" => false}
+  end
+
   test "--wiki-sort goes to the tree's own route, which a writer may use" do
     {opts, ["set-board", "docs"], []} =
       OptionParser.parse(["set-board", "docs", "--wiki-sort", "modified"],

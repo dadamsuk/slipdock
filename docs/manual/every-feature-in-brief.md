@@ -344,6 +344,10 @@ and MCP) and a link to the page that covers it.
 - **Simple boards** — [one setting](simple-boards.md) turns a
   board into a plain to-do list, hiding % complete, start dates, health, time
   tracking, votes, dependencies and the timeline and prioritise views.
+- **Close on complete** — a board setting (**Close a card when it is
+  completed**, `slipdock set-board <board> --close-on-complete`): marking an
+  open card complete with its Complete icon closes the card and returns to
+  the board. Marking it incomplete again leaves it open.
 - **Default view** — [a board can open on](a-boards-default-view.md)
   its wiki, table, calendar or any other view instead of the kanban.
 - **Sprints** — [a sprint board](sprints.md) where each card is a

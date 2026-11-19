@@ -356,6 +356,7 @@ defmodule SlipdockWeb.API.JSON do
       wiki_tree_icons: b.wiki_tree_icons,
       wiki_sort: b.wiki_sort,
       show_pulse: b.show_pulse,
+      close_on_complete: b.close_on_complete,
       delivery_metrics: b.delivery_metrics,
       card_ref_pattern: b.card_ref_pattern,
       incident_tag: b.incident_tag || "incident",
@@ -474,6 +475,7 @@ defmodule SlipdockWeb.API.JSON do
       # Whether the board page shows its pulse strip; `GET .../pulse` has
       # the numbers on any board.
       show_pulse: b.show_pulse,
+      close_on_complete: b.close_on_complete,
       delivery_metrics: b.delivery_metrics,
       card_ref_pattern: b.card_ref_pattern,
       incident_tag: b.incident_tag || "incident",

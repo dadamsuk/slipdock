@@ -206,6 +206,23 @@ defmodule SlipdockWeb.BoardLive.Show do
 
   defp refused(socket, _result), do: socket
 
+  # On a board set to close on complete (#3473), completing the open card
+  # from its panel's icon closes it and returns to the board. Marking it
+  # incomplete again, or the icon on a tile, leaves the page as it is.
+  defp close_on_complete(
+         %{assigns: %{board: %{close_on_complete: true}, card: %Card{id: id}}} = socket,
+         %{"from" => "panel"},
+         {:ok, %Card{id: id, completed: true}}
+       ) do
+    to = socket.assigns.paths.close
+
+    if socket.assigns.card_only,
+      do: push_navigate(socket, to: to),
+      else: push_patch(socket, to: to)
+  end
+
+  defp close_on_complete(socket, _params, _toggled), do: socket
+
   defp mount_assigns(socket, board) do
     socket
     |> assign(SnoozeEvents.mount_assigns())
@@ -1318,11 +1335,11 @@ defmodule SlipdockWeb.BoardLive.Show do
   def handle_event("open_page", %{"id" => id}, socket),
     do: {:noreply, push_patch(socket, to: page_panel_path(socket, id))}
 
-  def handle_event("toggle_complete", %{"id" => id}, socket) do
+  def handle_event("toggle_complete", %{"id" => id} = params, socket) do
     with {:ok, card} <- writable_card(socket, id) do
       user = socket.assigns.current_user
       toggled = Boards.Cards.toggle_completed(card, by: user, actor: Slipdock.Actor.web(user))
-      {:noreply, refused(socket, toggled)}
+      {:noreply, socket |> refused(toggled) |> close_on_complete(params, toggled)}
     else
       _ -> {:noreply, put_flash(socket, :error, "You have read-only access to that card.")}
     end

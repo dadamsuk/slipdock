@@ -168,6 +168,17 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent.Panels do
           were done this week, and how long work usually takes to get done.
         </.switch_field>
       </div>
+      <%!-- Completing an open card closes it (#3473). Off by default. --%>
+      <div class="space-y-1">
+        <.switch_field
+          field={@form[:close_on_complete]}
+          id="board-close-on-complete"
+          label="Close a card when it is completed"
+        >
+          Marking an open card complete with its Complete icon closes the card and
+          returns to the board.
+        </.switch_field>
+      </div>
       <%!-- Deploys and DORA metrics (#1134). Off by default, and while
                 off the deploy endpoint refuses posts for the board. --%>
       <div class="space-y-1">

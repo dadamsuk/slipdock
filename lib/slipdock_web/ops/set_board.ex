@@ -37,6 +37,8 @@ defmodule SlipdockWeb.Ops.SetBoard do
       {"page_card_features",
        %{type: "boolean", description: "The card contents under every wiki page."}},
       {"show_pulse", %{type: "boolean", description: "The pulse strip over the lists."}},
+      {"close_on_complete",
+       %{type: "boolean", description: "Completing an open card closes it to the board."}},
       {"vote_budget", %{type: "integer", description: "Votes each person has on the board."}},
       {"vote_max", %{type: "integer", description: "Most votes one person may put on a card."}},
       {"automation_wip",
@@ -200,6 +202,7 @@ defmodule SlipdockWeb.Ops.SetBoard do
           "page_card_features" => %{param: "page_card_features"},
           "simple" => %{param: "simple"},
           "show_pulse" => %{param: "show_pulse"},
+          "close_on_complete" => %{param: "close_on_complete"},
           "automation_wip" => %{param: "automation_wip"},
           # on|off, worked out by the CLI.
           "agentic_building" => %{param: "agentic_building", read: :parsed},
