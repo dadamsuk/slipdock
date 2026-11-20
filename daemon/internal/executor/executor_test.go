@@ -519,6 +519,34 @@ func TestConfinedNeedsLandlockABI3(t *testing.T) {
 	}
 }
 
+// TestAnAllowlistNeedsLandlockABI4: on Linux, confined is ready for a
+// network allowlist only where Landlock limits TCP connections (ABI 4);
+// ABI 3 is enough without one. It fakes the kernel, so it runs on every OS.
+func TestAnAllowlistNeedsLandlockABI4(t *testing.T) {
+	defer func(f func() int) { landlockABI = f }(landlockABI)
+	ready := func(abi int, eg *Egress) error {
+		landlockABI = func() int { return abi }
+		ex, err := New(Confined, Settings{GOOS: "linux", Launcher: os.Args[0], Egress: eg})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return ex.Ready()
+	}
+	err := ready(3, &Egress{Port: 4100})
+	if err == nil || !strings.Contains(err.Error(), "needs Landlock ABI 4 or later") ||
+		!strings.Contains(err.Error(), "offers ABI 3") {
+		t.Fatalf("ABI 3 with an allowlist: %v", err)
+	}
+	if err := ready(3, nil); err != nil {
+		t.Fatalf("ABI 3 without an allowlist: %v", err)
+	}
+	for _, abi := range []int{4, 5} {
+		if err := ready(abi, &Egress{Port: 4100}); err != nil {
+			t.Fatalf("ABI %d with an allowlist: %v", abi, err)
+		}
+	}
+}
+
 func TestAConfinedRunnersHookMayWriteTheRepositoryAndItsWorktrees(t *testing.T) {
 	if runtime.GOOS != "linux" && runtime.GOOS != "darwin" {
 		t.Skip("confined is Linux and macOS only")
