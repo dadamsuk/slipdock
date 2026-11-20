@@ -277,6 +277,23 @@ defmodule SlipdockCLI.MachinesTest do
       assert out == "added runner #9 b (v1): the machine has it within seconds\n"
     end
 
+    test "add-runner prints nothing more when the notice is empty" do
+      serve([
+        {201,
+         JSON.encode!(%{
+           "runner" => %{"id" => 9, "name" => "b", "config_version" => 1},
+           "notice" => ""
+         })}
+      ])
+
+      out =
+        capture_io(fn ->
+          Machines.run("machine", ["add-runner", "4", "slipdock"], pool: "build", dir: "/srv/a")
+        end)
+
+      assert out == "added runner #9 b (v1): the machine has it within seconds\n"
+    end
+
     test "add-runner needs a pool and a directory" do
       assert {:error, "usage: " <> _} = Machines.plan(["add-runner", "4", "b"], pool: "x")
       assert {:error, "usage: " <> _} = Machines.plan(["add-runner", "4", "b"], dir: "/x")
