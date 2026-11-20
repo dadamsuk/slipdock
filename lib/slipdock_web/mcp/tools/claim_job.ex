@@ -22,8 +22,8 @@ defmodule SlipdockWeb.MCP.Tools.ClaimJob do
     do:
       "Takes the oldest job queued for a runner pool on a board, with a 20-minute " <>
         "lease. Work its card, report with job_progress between steps (stop if it says " <>
-        "cancel), end with finish_job. Says \"nothing queued\", or why work is held. " <>
-        "The board owner's, or a writer's they granted the pool."
+        "cancel), end with finish_job. Says \"nothing queued\" or why work is held. " <>
+        "Owner or pool grantee."
 
   @impl true
   def input_schema do
