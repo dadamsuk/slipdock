@@ -347,7 +347,8 @@ The sandbox stops a job going round the proxy:
   an allowlist is refused: use `confined`.
 
 The daemon's own git for the job (its worktree's fetch) and the runner's
-hooks are held to the same allowlist. The origin is the one first seen
+hooks are held to the same allowlist, and so is a verify job of the tier,
+in its container. The origin is the one first seen
 for the runner, kept in the daemon's own directory (`jobs/<runner>/
 egress-origin`), because a job can rewrite its repository's
 `.git/config`: if the origin changes, the job's log says so, and deleting
