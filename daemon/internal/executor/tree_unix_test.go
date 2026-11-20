@@ -51,12 +51,24 @@ func helperEscape(args []string) int {
 	return 0
 }
 
-// ticks says whether the process ticking in path still runs.
-func ticks(path string) bool {
+// ticks says whether the process ticking in path still runs: whether the
+// count moves within half a second.
+func ticks(path string) bool { return ticksWithin(path, 500*time.Millisecond) }
+
+// alive says whether it does within 10 seconds: a loaded machine (CI's,
+// with every package's tests at once) can stall a process for longer than
+// ticks waits, which mustn't read as stopped.
+func alive(path string) bool { return ticksWithin(path, 10*time.Second) }
+
+func ticksWithin(path string, d time.Duration) bool {
 	before, _ := os.ReadFile(path)
-	time.Sleep(300 * time.Millisecond)
-	after, _ := os.ReadFile(path)
-	return len(after) > 0 && string(before) != string(after)
+	for end := time.Now().Add(d); time.Now().Before(end); {
+		time.Sleep(50 * time.Millisecond)
+		if after, _ := os.ReadFile(path); len(after) > 0 && string(after) != string(before) {
+			return true
+		}
+	}
+	return false
 }
 
 // killTicker kills the process ticking in path, if it is there.
@@ -105,7 +117,7 @@ func TestStoppingAJobStopsWhatLeftItsGroup(t *testing.T) {
 		}
 		return true
 	})
-	if !ticks(tagged) || !ticks(bare) {
+	if !alive(tagged) || !alive(bare) || !alive(neighbour) {
 		t.Fatal("the children aren't ticking: the test proves nothing")
 	}
 	ex.Stop(cmd, false)
@@ -125,11 +137,11 @@ func TestStoppingAJobStopsWhatLeftItsGroup(t *testing.T) {
 		}
 	case "linux":
 		// The tag alone: a process that clears its environment escapes.
-		if !ticks(bare) {
+		if !alive(bare) {
 			t.Error("Linux: a child with no tag was stopped: the sweep reached beyond the job's tag")
 		}
 	}
-	if !ticks(neighbour) {
+	if !alive(neighbour) {
 		t.Error("another job's process was stopped")
 	}
 }

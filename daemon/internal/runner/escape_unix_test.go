@@ -87,8 +87,14 @@ func TestCancelStopsWhatLeftTheJobsGroup(t *testing.T) {
 		b := r.srv.beats[125]
 		return len(b) > 0 && strings.Contains(b[len(b)-1], "started the escaping tree")
 	})
-	if !ticking(t, tick) || !ticking(t, tick2) {
-		t.Fatal("the children aren't ticking: the test proves nothing")
+	// Waited for, not sampled: a loaded machine can stall a child for
+	// longer than ticking looks.
+	for _, p := range []string{tick, tick2} {
+		before, _ := os.ReadFile(p)
+		waitFor(t, "the child ticking into "+filepath.Base(p), func() bool {
+			after, _ := os.ReadFile(p)
+			return len(after) > 0 && string(after) != string(before)
+		})
 	}
 	r.srv.mu.Lock()
 	r.srv.cancel[125] = true
