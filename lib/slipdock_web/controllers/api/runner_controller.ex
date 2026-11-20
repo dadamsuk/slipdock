@@ -178,6 +178,9 @@ defmodule SlipdockWeb.API.RunnerController do
     # model by (`MODEL_<profile>`); the server never says what to run.
     |> then(&if(profile, do: put_resp_header(&1, "x-card-profile", profile), else: &1))
     |> then(&if(wait, do: put_resp_header(&1, "x-wait-id", to_string(wait.id)), else: &1))
+    # The card's paths (#3521): a JSON list of globs, all of it ASCII, that a
+    # confining runner keeps the job's writes in its worktree to.
+    |> paths_header(Runners.job_paths(job))
     |> then(
       &if(handoff, do: put_resp_header(&1, "x-handoff-id", to_string(handoff.id)), else: &1)
     )
@@ -193,6 +196,11 @@ defmodule SlipdockWeb.API.RunnerController do
     |> put_resp_header("x-prompt-tier", tier)
     |> put_resp_header("x-job-hook-key", key)
   end
+
+  defp paths_header(conn, []), do: conn
+
+  defp paths_header(conn, paths),
+    do: put_resp_header(conn, "x-card-paths", Jason.encode!(paths, escape: :unicode_safe))
 
   # A merge job (#1656): the pull request and the accepted commit, for the
   # runner's built-in merge to check before it merges anything.

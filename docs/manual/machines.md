@@ -375,6 +375,28 @@ git config or a hook the job planted there runs inside the same walls.
 `confined_writable` in the local file lists more paths a confined job may
 write.
 
+**A card's paths.** When a confined or container job runs in a worktree
+and its card has paths (`slipdock edit <id> --paths`), it may write only
+those in the worktree, as they were when the job was claimed: not the
+rest of the worktree (CI workflows, say, unless the card names them), not
+the worktree's `.git`, and not the main checkout. Of the repository's
+`.git` it may write only what a commit needs: its `objects`, `refs` and
+`logs` and the worktree's own git directory; never its `config` or its
+`hooks`. Landlock and a bind mount grant directories and files, so each
+glob grants one: its deepest fixed directory (`lib/foo/**/*.ex` grants all
+of `lib/foo`, made if it isn't there), or, with no wildcard, the path
+itself when it is there and else the directory it would be in. A glob with
+no fixed directory (`*.md`, `**/x.ex`, a new file at the top) grants the
+whole worktree. A glob that is absolute, has a `..`, names `.git` or
+leads through a link out of the worktree grants nothing, and the job's log
+says so, as it says what the job may write. The worktree's pointers to its
+repository (its `.git` file, and `commondir`, `gitdir` and
+`config.worktree` in its git directory) are put back when the agent ends,
+before a hook or the daemon's own git reads them. A card with no paths
+writes the whole worktree, as before; the hooks and the daemon's own git
+are not kept to the card's paths; and under `me` and `user` the paths are
+only what the skills' pre-commit check reads.
+
 **Windows** runs jobs as the current account only (`me`): `init` says so and
 doesn't ask, and neither `user`, `confined` nor `container` is offered there yet.
 
@@ -404,8 +426,11 @@ last accepted settings. Add `container` to the ceiling's `executors` too:
 What the container sees, each at the path it has on the machine:
 
 - the job's directory (its repository), read-write; in a worktree, the
-  worktree and its repository. The hooks and the daemon's own git also see
-  the repository's worktrees (`<repo>-lanes`).
+  worktree and its repository. When the card has paths, the agent's
+  worktree and repository are read-only, with only the card's paths and
+  what a commit needs read-write over them (see *A card's paths*, above).
+  The hooks and the daemon's own git also see the repository's worktrees
+  (`<repo>-lanes`).
 - the agent's login and the slipdock CLI's, read-only: by default
   `~/.claude/.credentials.json` and `~/.claude/skills` for `claude`,
   `~/.codex/auth.json` for `codex`, and `~/.config/slipdock`, those that are
@@ -833,9 +858,11 @@ the machine allows, and a job never runs under a weaker one in its place.
   logins (its `gh` login pushes wherever it can), or the network.
 - `confined`: jobs run as you, unable to write outside the job's
   directory, its repository, a scratch temporary directory and the
-  agent's own state (Landlock on Linux, `sandbox-exec` on macOS). The
-  daemon's own git for the runner and the runner's hooks are confined in
-  the same way. It stops a job writing to your home, other repositories
+  agent's own state (Landlock on Linux, `sandbox-exec` on macOS). In a
+  worktree, a job whose card has paths writes only those in it, and of
+  its repository only what a commit needs. The daemon's own git for the
+  runner and the runner's hooks are confined to the repository and its
+  worktrees. It stops a job writing to your home, other repositories
   and the system. It doesn't stop the job reading your files, your SSH
   keys and logins included, or the network, so a confined job can still
   read a secret and send it.
@@ -844,6 +871,8 @@ the machine allows, and a job never runs under a weaker one in its place.
   or worktree mounted at the same path, the agent's login mounted
   read-only, and an empty directory of its own for the agent's
   transcript, which the daemon reads only as regular files beneath it.
+  In a worktree, a job whose card has paths has only those mounted
+  read-write, and of its repository only what a commit needs.
   It stops a job reading or writing anything outside what is mounted,
   and, when the runner asks for the network off, the network.
   It doesn't stop the job changing the mounted repository, using the

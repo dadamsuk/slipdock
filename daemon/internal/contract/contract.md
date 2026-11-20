@@ -111,9 +111,11 @@ the machine allows, and a job never runs under a weaker one in its place.
   logins (its `gh` login pushes wherever it can), or the network.
 - `confined`: jobs run as you, unable to write outside the job's
   directory, its repository, a scratch temporary directory and the
-  agent's own state (Landlock on Linux, `sandbox-exec` on macOS). The
-  daemon's own git for the runner and the runner's hooks are confined in
-  the same way. It stops a job writing to your home, other repositories
+  agent's own state (Landlock on Linux, `sandbox-exec` on macOS). In a
+  worktree, a job whose card has paths writes only those in it, and of
+  its repository only what a commit needs. The daemon's own git for the
+  runner and the runner's hooks are confined to the repository and its
+  worktrees. It stops a job writing to your home, other repositories
   and the system. It doesn't stop the job reading your files, your SSH
   keys and logins included, or the network, so a confined job can still
   read a secret and send it.
@@ -122,6 +124,8 @@ the machine allows, and a job never runs under a weaker one in its place.
   or worktree mounted at the same path, the agent's login mounted
   read-only, and an empty directory of its own for the agent's
   transcript, which the daemon reads only as regular files beneath it.
+  In a worktree, a job whose card has paths has only those mounted
+  read-write, and of its repository only what a commit needs.
   It stops a job reading or writing anything outside what is mounted,
   and, when the runner asks for the network off, the network.
   It doesn't stop the job changing the mounted repository, using the

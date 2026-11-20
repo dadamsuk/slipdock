@@ -49,13 +49,15 @@ var Limits = map[string]string{
 		"reaches the network.",
 	Confined: "Jobs run as you but can't write outside their working directory, " +
 		"their own temporary directory, the terminal devices and the agent's own " +
-		"state (~/.claude for claude). The runner's hooks and the daemon's own git " +
+		"state (~/.claude for claude); in a worktree, a job whose card has paths writes " +
+		"only those in it. The runner's hooks and the daemon's own git " +
 		"for it are confined to its repository and worktrees. Jobs can still read " +
 		"your files, and reach the network. Linux (Landlock ABI 3: kernel 6.2 or " +
 		"later) and macOS (sandbox-exec) only.",
 	Container: "Jobs run in a short-lived Docker or Podman container, from an image on " +
 		"this machine's allow-list. They see only what is mounted: their directory " +
-		"and repository (read-write), the agent's and the CLI's logins (read-only), and " +
+		"and repository (read-write; in a worktree whose card has paths, only those " +
+		"paths and what a commit needs), the agent's and the CLI's logins (read-only), and " +
 		"an empty directory of the job's own for the agent's transcript, which the daemon " +
 		"reads only as regular files beneath it; the home is otherwise empty. The network is off when the runner asks. They " +
 		"still reach the network when it is on, carry the logins mounted in, and are " +
@@ -73,6 +75,12 @@ type Proc struct {
 	// Writable, under confined: what the job may write besides Dir (the
 	// repository, when Dir is a worktree of it).
 	Writable []string
+	// Paths, under confined and container (#3521): when set, the only
+	// paths in Dir and Writable the job may write (real paths beneath
+	// them: its card's paths in its worktree and the git internals a
+	// commit writes), in place of all of Dir and Writable, which stay
+	// readable. Empty: all of Dir and Writable. Never a hook's.
+	Paths []string
 	// Scratch, under confined: the job's own temporary directory, its
 	// TMPDIR.
 	Scratch string

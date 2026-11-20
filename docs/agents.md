@@ -1430,7 +1430,11 @@ repository naming the files its work touches, set with `update_card`
 rules the card carries (its `handbook` block, as `slipdock handbook <board>
 --paths` gives them) and they are what its profile is inferred from, so
 write them before starting and widen them when the work goes beyond them.
-Stage files by name, never `git add -A`, and check `git status` before
+A runner whose executor confines its jobs (`confined`, `container`) lets a
+job in a worktree write only its card's paths there, as they were when it
+was claimed (the claim's `x-card-paths` header, a JSON list), and of the
+repository's `.git` only what a commit needs: widen them before the job,
+not during it. Stage files by name, never `git add -A`, and check `git status` before
 committing. A runner setting runs each job in a git worktree of its own
 (`--worktree`, in `<repo>-lanes/card-<id>` on the branch `card-<id>`,
 `$SLIPDOCK_WORKTREE` set), and the skills use a worktree of their own when

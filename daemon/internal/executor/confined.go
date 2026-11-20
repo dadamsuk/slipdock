@@ -58,11 +58,14 @@ func (c *confined) Ready() error {
 	return Supported(Confined, c.s.GOOS)
 }
 
-// writable is every path the job may write: its directory, what else it
-// names, its scratch directory, the terminal devices, and the agent's
-// state that exists.
+// writable is every path the job may write: its directory and what else
+// it names (or, when it has Paths, only those), its scratch directory, the
+// terminal devices, and the agent's state that exists.
 func (c *confined) writable(p Proc) []string {
 	paths := append([]string{p.Dir}, p.Writable...)
+	if len(p.Paths) > 0 {
+		paths = append([]string(nil), p.Paths...)
+	}
 	if p.Scratch != "" {
 		paths = append(paths, p.Scratch)
 	}
@@ -150,7 +153,7 @@ func (c *confined) Exec(ctx context.Context, dir, name string, args ...string) (
 // scratch directory: it runs where the job could have planted git config.
 func (c *confined) Hook(ctx context.Context, p Proc, prog string, args ...string) (*exec.Cmd, error) {
 	p.Writable = append(append([]string(nil), p.Writable...), c.repository(ctx)...)
-	p.noState = true
+	p.Paths, p.noState = nil, true
 	return c.Command(p, prog, args...)
 }
 

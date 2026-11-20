@@ -725,6 +725,16 @@ func (w *Worker) runAgent(ctx context.Context, j *jobRun) {
 		return
 	}
 
+	only, gitDir, err := w.keepToPaths(ctx, j)
+	if err != nil {
+		w.say("job #%d: %v", job.ID, err)
+		j.note("slipdock-runner: " + err.Error())
+		w.afterHook(ctx, j, 1, "failed")
+		j.lane.close(ctx, w.Exec, j.note)
+		w.finish(ctx, job, j, 1, "failed", "", "")
+		return
+	}
+
 	if before != nil {
 		if rc := w.hook(ctx, j, *before, j.env); rc != 0 {
 			w.say("job #%d: the before hook failed (exit %d), so the job was not run", job.ID, rc)
@@ -737,6 +747,11 @@ func (w *Worker) runAgent(ctx context.Context, j *jobRun) {
 	}
 
 	p := w.proc(j, j.env)
+	var pinned *pins
+	if only != nil {
+		// After the before hook, which may write the worktree's git.
+		p.Paths, pinned = only, pin(j.lane.path, gitDir)
+	}
 	tx := &transcript{root: w.transcriptsDir(), cardURL: job.CardURL, started: time.Now().Add(-time.Second),
 		files: w.files(), secrets: w.secrets()}
 	if dir := w.containerTranscripts(j); dir != "" {
@@ -763,6 +778,8 @@ func (w *Worker) runAgent(ctx context.Context, j *jobRun) {
 	}()
 	stop := func() { w.stopTree(cmd, done) }
 	ended, rc := w.watch(ctx, j, done, stop, tx)
+	// Before a hook or the daemon's own git reads the worktree's git again.
+	pinned.restore(j.note)
 	if ended == "" && rc != 0 {
 		if tr := w.trouble(j, started, rc, tx); tr != nil {
 			w.requeue(ctx, j, rc, tr, tx)
