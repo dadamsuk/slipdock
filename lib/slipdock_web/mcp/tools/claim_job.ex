@@ -66,8 +66,9 @@ defmodule SlipdockWeb.MCP.Tools.ClaimJob do
 
         job ->
           # The answered question it carries on from, and the handoff, as
-          # data beside the prompt that already says them (#1115).
-          %{wait: wait, handoff: handoff, profile: profile} = Runners.claim_context(job)
+          # data beside the prompt that already says them (#1115); an
+          # `anyone`-tier job's are their ids alone (#3531).
+          %{wait: wait, handoff: handoff, profile: profile} = V.claim_context(job)
 
           {:ok,
            %{
@@ -80,8 +81,8 @@ defmodule SlipdockWeb.MCP.Tools.ClaimJob do
              lease_seconds: Runners.lease_for(runner),
              # With the card's bar, when it has one (#1622).
              prompt: Runners.claimed_prompt(job),
-             wait: V.wait(wait),
-             handoff: handoff && V.handoff(handoff)
+             wait: wait,
+             handoff: handoff
            }}
       end
     end

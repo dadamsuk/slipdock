@@ -1880,5 +1880,35 @@ defmodule SlipdockWeb.API.JSON do
     }
   end
 
+  @doc """
+  What a claim says beside a claimed job's prompt (#1115), for every door
+  that answers one in JSON (REST `POST /api/boards/:board/jobs/claim`, MCP
+  `claim_job`): the answered wait it carries on from, the card's handoff,
+  and the card's profile. For a job the quarantined reader reads (#3531,
+  `Slipdock.Runners.Quarantine`) the wait and handoff are their ids alone:
+  their text is the untrusted text its prompt leaves out.
+  """
+  def claim_context(%Slipdock.Runners.Job{} = job) do
+    %{wait: wait, handoff: handoff, profile: profile} = Slipdock.Runners.claim_context(job)
+
+    if Slipdock.Runners.Quarantine.applies?(job),
+      do: %{wait: ids_only(wait), handoff: ids_only(handoff), profile: profile},
+      else: %{wait: wait(wait), handoff: handoff && handoff(handoff), profile: profile}
+  end
+
+  defp ids_only(nil), do: nil
+  defp ids_only(%{id: id}), do: %{id: id}
+
+  @doc """
+  A claimed job as a JSON claim answers it: `job/1` with the prompt the
+  agent is handed (`Runners.claimed_prompt/1`). For a job the quarantined
+  reader reads (#3531) the card's title is left out with the rest of its
+  text.
+  """
+  def claimed_job(%Slipdock.Runners.Job{} = j) do
+    view = j |> Map.put(:prompt, Slipdock.Runners.claimed_prompt(j)) |> job()
+    if Slipdock.Runners.Quarantine.applies?(j), do: %{view | card: nil}, else: view
+  end
+
   def errors(%Ecto.Changeset{} = changeset), do: Slipdock.ChangesetErrors.by_field(changeset)
 end
