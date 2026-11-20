@@ -56,8 +56,43 @@ defmodule SlipdockWeb.Wiki.Renderer do
       "article" => ["data-transcript"],
       "li" => ["data-speaker", "data-start-ms", "data-end-ms"]
     },
+    # The sanitiser lets `class` through on any tag; `allowed_classes/1`
+    # then keeps only the classes listed in `@classes`.
     add_generic_attributes: ["class"]
   ]
+
+  # The only classes a page's HTML may carry (#3504): the ones this module,
+  # comrak and the transcript view (`SlipdockWeb.TranscriptView`) put there,
+  # and a code block's `language-…`. Anything else an author writes in raw
+  # HTML is taken off, so a page can't use the app's own layout classes on
+  # its content. A class added to any of those must be added here too;
+  # `renderer_classes_test.exs` fails until it is.
+  @classes MapSet.new(~w(
+               anchor footnote-ref footnote-backref
+               meld-hint meld-locked
+               wiki-backlinks wiki-block-anchor wiki-children wiki-chip wiki-chip-done
+               wiki-chip-id wiki-chip-meta wiki-chip-title wiki-drawing wiki-drawing-preview
+               wiki-embed wiki-embed-title wiki-empty wiki-file-embed wiki-file-link
+               wiki-hidden-link wiki-inline wiki-link wiki-link-board wiki-link-view
+               wiki-list-summary wiki-mention wiki-progress wiki-progress-bar
+               wiki-progress-label wiki-progress-text wiki-query-card wiki-query-count
+               wiki-query-error wiki-query-error-message wiki-query-group
+               wiki-query-group-count wiki-query-list wiki-query-number wiki-query-table
+               wiki-static wiki-toc wiki-toc-title wiki-toc-1 wiki-toc-2 wiki-toc-3
+               wiki-toc-4 wiki-toc-5 wiki-toc-6 wiki-wanted
+               wiki-transcript-tags wiki-transcript-tag-link
+               wiki-transcript wiki-transcript-block wiki-transcript-summary
+               wiki-transcript-turn wiki-transcript-speaker wiki-transcript-tag
+               wiki-transcript-empty
+               my-4 mb-4 pt-0.5 pl-3 space-y-4 grid grid-cols-[4rem_1fr] gap-x-3
+               rounded-lg border-l-4 border-base-300 text-xs text-sm text-right
+               text-base-content text-base-content/50 text-base-content/60 font-mono
+               font-semibold italic leading-relaxed tabular-nums align-middle
+               cursor-pointer badge badge-sm badge-warning
+               border-sky-500 text-sky-500 border-amber-500 text-amber-500
+               border-emerald-500 text-emerald-500 border-rose-500 text-rose-500
+               border-violet-500 text-violet-500 border-teal-500 text-teal-500
+             ))
 
   # `id` is not a generic attribute (#2799): an id an author writes in raw
   # HTML names a property of `window`, which is DOM clobbering. It is allowed
@@ -114,7 +149,7 @@ defmodule SlipdockWeb.Wiki.Renderer do
              doc
              |> expand(context)
              |> MDEx.to_html(extension: extension, render: @render, sanitize: @sanitize) do
-        settle_ids(html, context)
+        html |> allowed_classes() |> settle_ids(context)
       else
         _ -> "<pre>" <> escape(body) <> "</pre>"
       end
@@ -157,6 +192,32 @@ defmodule SlipdockWeb.Wiki.Renderer do
   # The sanitiser's output is what makes a regex safe here: in it a `<` only
   # ever opens a tag, and an attribute's value is always in double quotes
   # with any quote inside it escaped.
+  # Each tag's `class` keeps the classes in `@classes` and loses the rest,
+  # and goes altogether when none is left. Attributes are matched one after
+  # another from the tag's name, a quoted value whole, so the word class
+  # inside another attribute's value is never taken for the attribute. Like
+  # `own_ids/2`, this relies on the sanitiser's output: every value quoted.
+  defp allowed_classes(html) do
+    Regex.replace(~r/<[a-z](?:[^>"]|"[^"]*")*>/, html, fn tag ->
+      Regex.replace(~r/\s([^\s"'>\/=]+)(?:="([^"]*)")?/, tag, fn
+        _whole, "class", value -> class_attribute(value)
+        whole, _name, _value -> whole
+      end)
+    end)
+  end
+
+  defp class_attribute(value) do
+    case value |> String.split() |> Enum.filter(&allowed_class?/1) |> Enum.uniq() do
+      [] -> ""
+      kept -> ~s| class="#{Enum.join(kept, " ")}"|
+    end
+  end
+
+  @doc false
+  # Public for the test that every class the renderer writes is allowed.
+  def allowed_class?("language-" <> language), do: language =~ ~r/\A[A-Za-z0-9_+#.-]+\z/
+  def allowed_class?(class), do: MapSet.member?(@classes, class)
+
   defp settle_ids(html, %{embedded_ids: true}), do: html
   defp settle_ids(html, %{id_key: key}), do: own_ids(html, key)
 
