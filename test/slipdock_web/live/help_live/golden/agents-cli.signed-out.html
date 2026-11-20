@@ -158,7 +158,9 @@ brew install erlang</code>
     <code>
 /cli/SHA256SUMS</code>
 
-    first, and against the release key&#39;s signature when there is one:
+    and the release key&#39;s signature (with <code>
+ssh-keygen</code>
+):
   </p>
 <div phx-r="">
 <code id="help-cli-unix" class="block select-all whitespace-pre-wrap break-words rounded-xl bg-base-200 px-3 py-2 font-mono text-xs leading-relaxed text-base-content">
@@ -196,6 +198,19 @@ slipdock auth</code>
 Copy</span>
 </button>
 </div>
+<p phx-r="">
+
+    A server built from source serves no signature, and with none (or no <code>
+ssh-keygen</code>
+
+    to check it) both install nothing and say why. To install its CLI on the checksum alone, add <code>
+| sh -s -- --allow-unsigned</code>
+, or on Windows set
+    <code>
+$env:SLIPDOCK_ALLOW_UNSIGNED = &#39;1&#39;</code>
+
+    first.
+  </p>
 <p phx-r="">
 From a checkout, build it from the repository (Elixir 1.17 or later):</p>
 <div phx-r="">

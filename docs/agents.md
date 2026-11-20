@@ -186,8 +186,10 @@ slipdock auth                          # the device flow; prints a code to appro
 slipdock whoami
 ```
 
-It checks the download against `/cli/SHA256SUMS`, and against the release
-key's signature when the server serves one, before anything is written. It
+It checks the download against `/cli/SHA256SUMS` and the release key's
+signature (with `ssh-keygen`) before anything is written; with no signature,
+as from a server built from source, it installs nothing unless told to
+(`| sh -s -- --allow-unsigned`, or `-AllowUnsigned` on Windows). It
 needs Erlang/OTP 27 or later and installs nothing as root: with none, it stops
 and says what to run (`brew install erlang` on macOS, the distribution's
 package on Linux). That is `/cli/install.sh`, the CLI; `/install.sh`, without

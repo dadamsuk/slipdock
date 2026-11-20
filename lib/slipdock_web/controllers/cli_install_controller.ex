@@ -24,10 +24,13 @@ defmodule SlipdockWeb.CLIInstallController do
   none and answers 404, and the runner daemon then keeps the machine's own
   CLI unless its `local.json` sets `cli_checksum_only`.
 
-  `/cli/install.sh` (#2826) checks the signature too, when one is served,
-  with the release key's public half written into it from
+  `/cli/install.sh` (#2826) and `/cli/install.ps1` check the signature too,
+  with the release key's public half written into them from
   `daemon/internal/release/release_key.pub` (read at compile time: the
-  Dockerfile copies it in before `mix compile`). It is not `/install.sh`,
+  Dockerfile copies it in before `mix compile`). With no signature served, or
+  no `ssh-keygen` to check it with, they install nothing unless told to
+  (`--allow-unsigned`, `-AllowUnsigned` or `SLIPDOCK_ALLOW_UNSIGNED=1`, for a
+  server built from source; #3506). `/cli/install.sh` is not `/install.sh`,
   which installs the skills.
   """
   use SlipdockWeb, :controller
@@ -68,16 +71,17 @@ defmodule SlipdockWeb.CLIInstallController do
       # BaseURL already refuses a Host that is not a plain name; in a
       # single-quoted PowerShell string only a quote means anything, doubled.
       |> String.replace("__SLIPDOCK_BASE__", String.replace(base, "'", "''"))
+      |> String.replace("__SLIPDOCK_RELEASE_KEY__", @release_key)
 
     conn
     |> put_resp_content_type("text/plain")
     |> send_resp(200, script)
   end
 
-  @doc "Where the release key `/cli/install.sh` carries is read from, from the repository's root."
+  @doc "Where the release key the CLI's installers carry is read from, from the repository's root."
   def release_key_source, do: @release_key_source
 
-  @doc "The release key's public half as `/cli/install.sh` carries it, or `\"\"`."
+  @doc "The release key's public half as the CLI's installers carry it, or `\"\"`."
   def release_key, do: @release_key
 
   def install_sh(conn, _params) do
