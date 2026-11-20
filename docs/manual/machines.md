@@ -293,7 +293,9 @@ with passkey** on the card (under the bar, for the owner only) signs its
 title, description and bar with one of the owner's passkeys, one tap. The
 card then shows *Signed by the owner* and the date; any change to those
 three fields, by anyone, shows *Edited since it was signed* until the owner
-signs it again. Comments, answers and handoffs are never signed.
+signs it again. While editing the description or the bar, the owner also
+has **Save and sign** beside Done: it saves the text, then asks for the tap
+straight away. Comments, answers and handoffs are never signed.
 
 What is signed is the card's text byte for byte, with the server's address,
 the card's number and when it was signed, so a signature can't be moved to

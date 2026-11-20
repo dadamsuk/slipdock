@@ -218,13 +218,16 @@ export const PasskeyRegister = {
       const message = failureMessage(error)
       if (message) this.pushEventTo(this.el, "passkey_failed", {message})
     } finally {
-      button.disabled = false
+      this.signing = false
+      if (button) button.disabled = false
     }
   },
 }
 
 // On the card panel's signing row, drawn only for the board's owner. The
-// outcome goes to the panel, which reads the card again.
+// outcome goes to the panel, which reads the card again. "Save and sign"
+// beside the description's or the bar's Done saves first; the panel then
+// sends `card_sign_start`, and the row signs the text just kept.
 export const CardSign = {
   mounted() {
     this.pushEventTo(this.el, "sign_support", {supported: supported()})
@@ -232,9 +235,15 @@ export const CardSign = {
       const button = e.target.closest("[data-card-sign-start]")
       if (button) this.start(button)
     })
+    this.handleEvent("card_sign_start", ({card_id}) => {
+      if (String(card_id) === this.el.dataset.cardId)
+        this.start(this.el.querySelector("[data-card-sign-start]"))
+    })
   },
   async start(button) {
-    button.disabled = true
+    if (this.signing) return
+    this.signing = true
+    if (button) button.disabled = true
     try {
       const signedAt = await signCard({
         cardId: this.el.dataset.cardId,

@@ -222,6 +222,8 @@ function mountHook(hook, el) {
   h.el = el
   h.pushEvent = (event, payload) => pushed.push({event, payload})
   h.pushEventTo = (target, event, payload) => pushed.push({target, event, payload})
+  h.handlers = {}
+  h.handleEvent = (event, fn) => { h.handlers[event] = fn }
   h.runs = []
   h.start = function(...args) {
     const run = hook.start.apply(this, args)
@@ -446,6 +448,27 @@ test("CardSign: says whether passkeys work, and pushes how signing ended", async
     await Promise.all(h.runs)
     assert.equal(button.disabled, false)
     assert.deepEqual(pushed[1], {target: el, event: "card_signed", payload: {signed_at: "2026-11-20T05:00:00Z"}})
+  })
+})
+
+test("CardSign: Save and sign's card_sign_start signs this card, and no other", async () => {
+  const {fetchFn, calls} = fakeFetch({
+    "/cards/7/sign/options": [200, {publicKey: {challenge: "AQ"}}],
+    "/cards/7/sign": [200, {signed_at: "2026-11-20T05:00:00Z"}],
+  })
+  await withBrowser({credentials: {get: async () => assertion}, fetchFn}, async () => {
+    const button = {disabled: false}
+    const el = {...fakeEl({"[data-card-sign-start]": button}), dataset: {cardId: "7"}}
+    const {h, pushed} = mountHook(CardSign, el)
+
+    h.handlers.card_sign_start({card_id: 8})
+    assert.equal(h.runs.length, 0)
+
+    h.handlers.card_sign_start({card_id: 7})
+    await Promise.all(h.runs)
+    assert.equal(button.disabled, false)
+    assert.deepEqual(pushed[1], {target: el, event: "card_signed", payload: {signed_at: "2026-11-20T05:00:00Z"}})
+    assert.ok(calls.some(c => c.url === "/cards/7/sign"))
   })
 })
 

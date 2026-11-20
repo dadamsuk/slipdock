@@ -122,10 +122,13 @@ defmodule SlipdockWeb.CardSignControllerTest do
       {conn, _body, kept} = start(ctx.conn, ctx.card)
       answer = Authenticator.assert(ctx.key, kept.challenge)
 
-      assert conn
-             |> recycle()
-             |> post(~p"/cards/#{other.id}/sign", answer)
-             |> json_response(422)
+      # Refused before the text is compared: the kept challenge answers only
+      # for the card it was made for.
+      assert %{"error" => "That took too long" <> _} =
+               conn
+               |> recycle()
+               |> post(~p"/cards/#{other.id}/sign", answer)
+               |> json_response(422)
 
       assert Intent.state(Repo.get!(Card, other.id)) == :unsigned
     end
@@ -185,6 +188,83 @@ defmodule SlipdockWeb.CardSignControllerTest do
 
       {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/cards/#{ctx.card.id}")
       assert has_element?(view, "#card-sign-edited", "Edited since it was signed")
+    end
+
+    defp open_panel(conn, ctx, supported \\ true) do
+      {:ok, view, _} = live(conn, ~p"/boards/#{ctx.board}/cards/#{ctx.card.id}")
+
+      view
+      |> with_target("#board-card")
+      |> render_hook("sign_support", %{"supported" => supported})
+
+      view
+    end
+
+    test "Save and sign: the owner's description is saved, then signed", ctx do
+      view = open_panel(ctx.conn, ctx)
+      refute has_element?(view, "#card-description-save-sign")
+
+      view |> element("#card-form button[phx-click=edit_description]") |> render_click()
+      assert has_element?(view, "#card-description-save-sign", "Save and sign")
+
+      view
+      |> form("#card-form", card: %{description: "Export it as CSV."})
+      |> put_submitter("#card-description-save-sign")
+      |> render_submit()
+
+      card_id = ctx.card.id
+      assert_push_event(view, "card_sign_start", %{card_id: ^card_id})
+      refute has_element?(view, "#card-description-save-sign")
+      saved = Repo.get!(Card, card_id)
+      assert saved.description == "Export it as CSV."
+
+      # What the hook then runs: the challenge is over the text just saved.
+      {conn, _body, kept} = start(ctx.conn, saved)
+
+      assert kept.challenge.bytes ==
+               Intent.challenge(Intent.fields(saved, kept.challenge.origin, kept.signed_at))
+
+      answer = Authenticator.assert(ctx.key, kept.challenge)
+      conn |> recycle() |> post(~p"/cards/#{card_id}/sign", answer) |> json_response(200)
+      assert {:signed, _} = Intent.state(Repo.get!(Card, card_id))
+    end
+
+    test "Save and sign: the owner's bar too", ctx do
+      {:ok, _} = Boards.Cards.update_card(ctx.card, %{"bar" => "1. CSV"}, by: ctx.owner)
+      view = open_panel(ctx.conn, ctx)
+      refute has_element?(view, "#card-bar-save-sign")
+
+      view |> element("#card-bar-edit") |> render_click()
+
+      view
+      |> form("#card-bar-form", card: %{bar: "1. CSV; 2. JSON"})
+      |> put_submitter("#card-bar-save-sign")
+      |> render_submit()
+
+      card_id = ctx.card.id
+      assert_push_event(view, "card_sign_start", %{card_id: ^card_id})
+      assert Repo.get!(Card, card_id).bar == "1. CSV; 2. JSON"
+    end
+
+    test "Save and sign: not offered where the browser has no passkeys", ctx do
+      view = open_panel(ctx.conn, ctx, false)
+      view |> element("#card-form button[phx-click=edit_description]") |> render_click()
+      refute has_element?(view, "#card-description-save-sign")
+    end
+
+    test "Save and sign: a writer isn't offered it, and a sign sent anyway only saves", ctx do
+      writer = member(ctx, "write")
+      view = open_panel(build_conn() |> log_in_user(writer), ctx)
+
+      view |> element("#card-form button[phx-click=edit_description]") |> render_click()
+      refute has_element?(view, "#card-description-save-sign")
+
+      view
+      |> form("#card-form", card: %{description: "Changed by the writer."})
+      |> render_submit(%{"sign" => "description"})
+
+      refute_push_event(view, "card_sign_start", %{})
+      assert Repo.get!(Card, ctx.card.id).description == "Changed by the writer."
     end
 
     test "shows a writer that it is signed, with no button", ctx do

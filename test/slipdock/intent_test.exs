@@ -180,6 +180,17 @@ defmodule Slipdock.IntentTest do
                Intent.sign(ctx.owner, ctx.card, wax, at, Authenticator.assert(ctx.key, wax))
     end
 
+    test "a disabled owner is refused, with a challenge or an answer", ctx do
+      {:ok, wax, at, _} = Intent.signing_challenge(ctx.owner, ctx.card, @origin)
+      answer = Authenticator.assert(ctx.key, wax)
+      disabled = disable!(ctx.owner)
+
+      refute Intent.signer?(disabled, ctx.card)
+      assert {:error, :not_owner} = Intent.signing_challenge(disabled, ctx.card, @origin)
+      assert {:error, :not_owner} = Intent.sign(disabled, ctx.card, wax, at, answer)
+      assert Intent.state(Repo.get!(Card, ctx.card.id)) == :unsigned
+    end
+
     test "no challenge kept, or no passkey at all, says so", ctx do
       assert {:error, :no_challenge} = Intent.sign(ctx.owner, ctx.card, nil, nil, %{})
 
@@ -350,6 +361,21 @@ defmodule Slipdock.IntentTest do
       assert keys.owner_id == ctx.owner.id
       assert [%{fingerprint: "sha256:" <> _, spki: _, credential_id: _}] = keys.keys
     end
+
+    test "for a runner whose owner is disabled are none", ctx do
+      {:ok, runner, _} =
+        Runners.create_runner(ctx.board, %{"name" => "box", "pool" => "dev"}, ctx.owner)
+
+      disable!(ctx.owner)
+
+      keys = Intent.owner_keys(runner, @origin)
+      assert keys.owner_id == ctx.owner.id
+      assert keys.keys == []
+    end
+  end
+
+  defp disable!(user) do
+    user |> Ecto.Changeset.change(disabled_at: DateTime.utc_now(:second)) |> Repo.update!()
   end
 
   defp cose_passkey(cose),

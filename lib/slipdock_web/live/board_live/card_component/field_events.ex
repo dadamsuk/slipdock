@@ -77,7 +77,8 @@ defmodule SlipdockWeb.BoardLive.CardComponent.FieldEvents do
             {:noreply,
              socket
              |> assign(card: State.fresh(socket, card.id))
-             |> keep_bar_open(params)}
+             |> keep_bar_open(params)
+             |> sign_after_save(event, card)}
 
           {:error, cs} ->
             {:noreply, socket |> assign(card_form: to_form(cs)) |> keep_bar_open(params)}
@@ -378,6 +379,19 @@ defmodule SlipdockWeb.BoardLive.CardComponent.FieldEvents do
     do: [String.to_existing_atom("border_" <> edge)]
 
   defp border_fields(_), do: []
+
+  # "Save and sign" (#3532): the owner's description or bar is saved above;
+  # the box closes and the `CardSign` hook is told to sign the card now, so
+  # the challenge is made from the text just kept. Anyone else's `sign` is
+  # an ordinary save.
+  defp sign_after_save(%{assigns: %{can_sign: true}} = socket, %{"sign" => field}, card)
+       when field in ~w(description bar) do
+    socket
+    |> assign(editing_description: false, editing_bar: false)
+    |> push_event("card_sign_start", %{card_id: card.id})
+  end
+
+  defp sign_after_save(socket, _event, _card), do: socket
 
   # A bar typed into its box keeps the box open (#3001): the first keys into
   # an empty bar would otherwise swap the box for the rendered view.

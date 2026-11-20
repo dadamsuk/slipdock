@@ -487,6 +487,16 @@ defmodule SlipdockWeb.BoardLive.CardComponent.Modal do
   # that needs write: each drawn when the board has a use for it and the
   # reader's card view keeps it.
   defp open_sections(assigns) do
+    # "Save and sign" beside the description's and the bar's Done (#3532):
+    # for the owner, in a browser with passkeys, where the signing row (and
+    # its `CardSign` hook, which runs the ceremony) is drawn.
+    assigns =
+      assign(
+        assigns,
+        :sign_on_save,
+        assigns.can_sign and assigns.sign_supported and on?(assigns.panel, "open.bar")
+      )
+
     ~H"""
     <.card_header_form
       board={@board}
@@ -500,6 +510,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent.Modal do
       target={@target}
       uploads={@uploads}
       description?={on?(@panel, "open.description")}
+      sign_on_save={@sign_on_save}
     />
 
     <%!-- The agent work (#2018): profile, bar, paths and evidence
@@ -521,6 +532,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent.Modal do
       editing={@editing_bar}
       form={@form}
       target={@target}
+      sign_on_save={@sign_on_save}
     />
 
     <.sign_section
