@@ -453,7 +453,7 @@ defmodule SlipdockWeb.Wiki.RendererTest do
     test "an id written in raw HTML is stripped, whatever tag it is on" do
       html =
         Renderer.to_html("""
-        <h3 id="evil" class="kept">Raw heading</h3>
+        <h3 id="evil" class="wiki-inline">Raw heading</h3>
 
         <div id="config">block</div>
 
@@ -464,7 +464,7 @@ defmodule SlipdockWeb.Wiki.RendererTest do
         """)
 
       refute html =~ ~r/\sid=/
-      assert html =~ ~s|<h3 class="kept">Raw heading</h3>|
+      assert html =~ ~s|<h3 class="wiki-inline">Raw heading</h3>|
       assert html =~ ~s|<span title="a&gt;b">span</span>|
       assert html =~ ~s|<li>one</li>|
     end
