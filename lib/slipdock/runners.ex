@@ -2212,6 +2212,7 @@ defmodule Slipdock.Runners do
         |> with_shipping(job)
         |> with_housekeeping(job)
         |> with_list(job)
+        |> with_sensitivity(job)
         |> Kernel.<>("\n\n" <> Slipdock.Automations.Runner.unattended())
 
       {:held, text} ->
@@ -2237,6 +2238,19 @@ defmodule Slipdock.Runners do
     |> with_shipping(job)
     |> with_housekeeping(job)
     |> with_list(job)
+    |> with_sensitivity(job)
+  end
+
+  # How carefully to proceed (#3552): the tree's sensitivity, said only when
+  # it isn't medium, which changes nothing.
+  defp with_sensitivity(prompt, %Job{card_id: card_id}) do
+    with %Card{} = card <- Repo.get(Card, card_id),
+         note when is_binary(note) <-
+           card |> Slipdock.Sensitivity.of() |> Slipdock.Sensitivity.prompt_note() do
+      (prompt || "") <> "\n\n" <> note
+    else
+      _ -> prompt
+    end
   end
 
   @doc """

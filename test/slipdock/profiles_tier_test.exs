@@ -191,6 +191,62 @@ defmodule Slipdock.ProfilesTierTest do
     end
   end
 
+  # The tree's sensitivity has the last word on the tier (#3552).
+  describe "acceptance by sensitivity" do
+    defp level!(ctx, level),
+      do:
+        {:ok, _} =
+          Boards.update_board(Repo.get!(Boards.Board, ctx.board.id), %{"sensitivity" => level})
+
+    test "low: a schema or security card an agent accepts merges, held for nobody", ctx do
+      level!(ctx, "low")
+
+      for profile <- ~w(schema security) do
+        card = ctx |> card(profile) |> submit(ctx)
+        assert Profiles.tier(Repo.preload(Repo.get!(Card, card.id), :board)) == "none"
+        {:ok, accepted} = accept(card, ctx.checker, ctx)
+        assert accepted.verify_state == "merging", profile
+        assert [_job] = merge_jobs(card)
+        assert is_nil(Boards.Waits.current_wait(card))
+      end
+    end
+
+    test "low wins over a tree's own tier raised to before_merge", ctx do
+      {:ok, _} = Boards.update_board(ctx.board, %{"profile_tiers" => %{"fix" => "before_merge"}})
+      level!(ctx, "low")
+      card = ctx |> card("fix") |> submit(ctx)
+      assert {:ok, %{verify_state: "merging"}} = accept(card, ctx.checker, ctx)
+    end
+
+    test "high: a feature card is held for a person; a fix still merges", ctx do
+      level!(ctx, "high")
+      held = held!(ctx, "feature")
+      assert Boards.Waits.current_wait(held).purpose == "before_merge"
+
+      card = ctx |> card("fix") |> submit(ctx)
+      assert {:ok, %{verify_state: "merging"}} = accept(card, ctx.checker, ctx)
+    end
+
+    test "high keeps schema held and medium is the defaults", ctx do
+      level!(ctx, "high")
+      held!(ctx, "schema")
+
+      level!(ctx, "medium")
+      card = ctx |> card("feature") |> submit(ctx)
+      assert {:ok, %{verify_state: "merging"}} = accept(card, ctx.checker, ctx)
+    end
+
+    test "a card on a sub-board goes by the root's level", ctx do
+      level!(ctx, "low")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
+      {:ok, sub} = sub_board(card_fixture(ctx.todo, %{"title" => "Epic"}), t)
+      sub = Boards.get_board!(sub.id)
+      card = card_fixture(hd(sub.columns), %{"title" => "Task"})
+      {:ok, card} = Boards.Cards.update_card(card, %{"profile" => "security"})
+      assert Profiles.tier(Repo.preload(card, :board, force: true)) == "none"
+    end
+  end
+
   describe "acceptance by tier" do
     test "none and ledger merge, as without profiles", ctx do
       # A docs card is accepted by the server with no verifier (#1953):

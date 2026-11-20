@@ -125,6 +125,14 @@ and MCP) and a link to the page that covers it.
     one the agent proposes (`--default N`, `default`), so the answer can be one
     click; an agent finding a wait moot withdraws it, whoever opened it, with
     the reason posted on the card (`slipdock wait 12 --withdraw --reason "…"`).
+  - **Sensitivity** (`slipdock set-board --sensitivity low|medium|high`,
+    `sensitivity`, the Agentic Building page; the tree's root keeps it,
+    `medium` by default) says how carefully agents proceed. At `low` an
+    agent makes implementation choices itself and says so on the card, and
+    no card is held for a person by its profile. At `high` it asks before
+    any material choice, `feature` cards wait for a person before they merge
+    as `schema` and `security` ones do, and approvals never go ahead by
+    their default. A security question is asked at every level.
   - **An approval's proposal stands after** a board's `wait_default_after`
     (`slipdock set-board --wait-default-after 4h`; off until set): an
     unanswered wait of kind `other` with a proposal goes ahead with it and the

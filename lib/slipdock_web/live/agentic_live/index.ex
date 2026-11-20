@@ -15,7 +15,7 @@ defmodule SlipdockWeb.AgenticLive.Index do
   """
   use SlipdockWeb, :live_view
 
-  alias Slipdock.{Access, AgenticBuilding, Boards, Profiles, WaitRoutes}
+  alias Slipdock.{Access, AgenticBuilding, Boards, Profiles, Sensitivity, WaitRoutes}
   alias Slipdock.Boards.Board
   alias SlipdockWeb.AgenticLive.Hub
 
@@ -196,6 +196,8 @@ defmodule SlipdockWeb.AgenticLive.Index do
     release = Slipdock.Releases.settings(b)
 
     [
+      {"sensitivity", "sensitivity", "Sensitivity", Sensitivity.of(b) != Sensitivity.default(),
+       Sensitivity.of(b)},
       {"bar", "verified", "Bar before work", b.bar_required, nil},
       {"evidence", "verified", "Evidence", b.evidence_required, nil},
       {"verify", "verified", "Second agent verifies", b.verify_work,
@@ -214,6 +216,11 @@ defmodule SlipdockWeb.AgenticLive.Index do
       {"wip", "runners", "WIP holds automation", b.automation_wip, nil}
     ]
   end
+
+  # A level as the page says it (#3552).
+  defp sensitivity_label("low"), do: "Low: agents decide; nothing held by its profile"
+  defp sensitivity_label("high"), do: "High: agents ask more; features held before merging"
+  defp sensitivity_label(_medium), do: "Medium: as usual"
 
   # The root's release settings, read from a sub-board (#2834).
   defp release_text(%Board{release_mode: "batched", release_age_cap_hours: nil}),
@@ -467,6 +474,39 @@ defmodule SlipdockWeb.AgenticLive.Index do
             class="space-y-6"
           >
             <fieldset disabled={!@can_manage} class="space-y-6">
+              <.section id="sensitivity" icon="hero-shield-exclamation" title="Sensitivity">
+                <:about>
+                  How carefully agents proceed. A tool that tells jokes and a system holding a
+                  customer's personal data want different amounts of asking.
+                </:about>
+                <div id="board-sensitivity" class="space-y-1">
+                  <%= if @root do %>
+                    <p id="board-sensitivity-read" class="text-sm text-base-content/70">
+                      {sensitivity_label(Sensitivity.of(@root))}
+                    </p>
+                    <.set_on_root root={@root} what="Sensitivity" />
+                  <% else %>
+                    <.input
+                      field={@form[:sensitivity]}
+                      id="board-sensitivity-level"
+                      type="select"
+                      label="Sensitivity"
+                      options={
+                        for level <- Sensitivity.levels(), do: {sensitivity_label(level), level}
+                      }
+                      class="select field w-full"
+                    />
+                    <p class="-mt-1 text-xs text-base-content/60">
+                      Low: agents make implementation choices themselves and say so, and no card
+                      is held for a person by its profile. Medium: as usual. High: agents ask
+                      before any material choice, feature cards are held for a person before they
+                      merge, and approvals never go ahead by their default. Security questions are
+                      always asked.
+                    </p>
+                  <% end %>
+                </div>
+              </.section>
+
               <.section
                 id="verified"
                 icon="hero-check-badge"

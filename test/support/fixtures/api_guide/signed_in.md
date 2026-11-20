@@ -1230,7 +1230,17 @@ carries it. A board's `wait_default_after` (off unless set: `4h`,
 `default`, go unanswered that long and then resolve to its default:
 the card says so, the person asked is told, and the card moves on as
 on an answer. Never for a product, ux, security or release question,
-nor a wait with no default.
+nor a wait with no default, nor on a tree whose `sensitivity` is
+`high`.
+
+**A board's sensitivity** (`low`, `medium` by default, `high`; the
+tree's root keeps it, board JSON `sensitivity`) says how readily to ask.
+At `low`, decide what you would otherwise wait on (a choice between
+implementation options, two readings) and say on the card what you chose;
+no card is held for a person by its profile. At `high`, open a wait
+before any material choice; `feature` cards are held before they merge.
+A runner's card job says the level when it isn't medium, and so does the
+guide's board line. A security question is asked at every level.
 
 **Several questions** go in one wait as `questions` (at most 20), never
 as one block in `needs`: each is shown numbered with its own answer box,
@@ -4625,7 +4635,7 @@ POST   /api/runner/claim
            bar_required, evidence_required, verify_work, verify_pool, verify_rejection_limit,
            verify_audit, ship_via, release_mode, release_age_cap_hours, release_command, profiles,
            profile_tiers, job_log_hours, failure_log_hours, findings_propose_at,
-           wait_default_after, wait_routes; needs to own the board
+           wait_default_after, sensitivity, wait_routes; needs to own the board
     DELETE /api/boards/:board
            delete_board: no params; needs to own the board
     POST   /api/boards/:board/archive

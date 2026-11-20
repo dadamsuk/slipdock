@@ -1,4 +1,6 @@
 [
+  {"Sensitivity", "slipdock set-board B --sensitivity high",
+   "How carefully agents proceed on the tree (the root's): low, they decide implementation choices themselves and nothing is held by its profile; medium (the default), as usual; high, they ask before material choices, feature cards wait for a person before merging and approvals never go ahead by default."},
   {"A bar before work starts", "slipdock set-board B --bar-required",
    "Agents write each card's bar before they may start it; it locks then."},
   {"Profiles", "slipdock set-board B --profiles on",

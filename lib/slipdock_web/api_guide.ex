@@ -688,6 +688,19 @@ defmodule SlipdockWeb.APIGuide do
       |> Enum.uniq_by(fn {_, col} -> col.id end)
       |> Enum.map_join(" · ", fn {role, col} -> "#{role}: “#{col.name}” (##{col.id})" end)
 
+    verified = agent_notes(full)
+
+    """
+    - **##{board.id} #{board.name}** (`#{board.code}`) — #{length(board.cards)} top-level cards, #{Enum.count(board.cards, & &1.completed)} done#{if epics > 0, do: ", #{epics} of them epics with subcards"}#{shared_note(board, viewer)}
+      - lists: #{lists}
+      - #{if roles == "", do: "nothing on this board says which list means what — ask before choosing work from it", else: roles}#{verified}
+    """
+    |> String.trim_trailing()
+  end
+
+  # What the board's line says about how agents work on it: Verified work,
+  # shipping, profiles and sensitivity, each only when it applies.
+  defp agent_notes(full) do
     verified =
       case Slipdock.Verified.switches(full) do
         [] ->
@@ -709,12 +722,11 @@ defmodule SlipdockWeb.APIGuide do
         do: verified <> "\n  - profiles: on — a card an agent starts gets one (see *Profiles*)",
         else: verified
 
-    """
-    - **##{board.id} #{board.name}** (`#{board.code}`) — #{length(board.cards)} top-level cards, #{Enum.count(board.cards, & &1.completed)} done#{if epics > 0, do: ", #{epics} of them epics with subcards"}#{shared_note(board, viewer)}
-      - lists: #{lists}
-      - #{if roles == "", do: "nothing on this board says which list means what — ask before choosing work from it", else: roles}#{verified}
-    """
-    |> String.trim_trailing()
+    # How carefully agents proceed (#3552): said only away from medium.
+    case full |> Slipdock.Sensitivity.of() |> Slipdock.Sensitivity.guide_line() do
+      nil -> verified
+      line -> verified <> "\n  - " <> line
+    end
   end
 
   defp verified_name(:bar), do: "a bar before work starts"

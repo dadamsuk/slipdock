@@ -253,6 +253,8 @@ defmodule Slipdock.Portable.Export do
       bar_required: board.bar_required,
       profiles: board.profiles,
       profile_tiers: board.profile_tiers,
+      # How carefully agents proceed (#3552): a root board's.
+      sensitivity: board.sensitivity,
       evidence_required: board.evidence_required,
       verify_work: board.verify_work,
       verify_pool: board.verify_pool,

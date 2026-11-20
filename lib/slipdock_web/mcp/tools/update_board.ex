@@ -8,7 +8,8 @@ defmodule SlipdockWeb.MCP.Tools.UpdateBoard do
   agent asks goes to (`wait_routes`, #1949, `Slipdock.WaitRoutes`), and
   each profile's human tier (`profile_tiers`, #1952), and whether its
   editors may share its cards, pages and folders (`editors_may_share`,
-  #3558). Only the board's owner may.
+  #3558), and how carefully agents proceed on the tree (`sensitivity`,
+  #3552, `Slipdock.Sensitivity`). Only the board's owner may.
   """
   @behaviour SlipdockWeb.MCP.Tool
 
@@ -20,7 +21,7 @@ defmodule SlipdockWeb.MCP.Tools.UpdateBoard do
   @fields ~w(name description color simple default_view agentic_building handoff_label bar_required
              evidence_required verify_work verify_pool profiles profile_tiers ship_via job_log_hours
              failure_log_hours findings_propose_at wait_default_after release_mode release_age_cap_hours
-             release_command editors_may_share)
+             release_command editors_may_share sensitivity)
 
   # The params it shares with `PATCH /api/boards/:board` (`Ops.SetBoard`).
   # Its own: overseer and waiting_list. The board's other settings are
@@ -40,9 +41,9 @@ defmodule SlipdockWeb.MCP.Tools.UpdateBoard do
   def description,
     do:
       "Changes a board you own: name, description, color, simple, default_view, handoff_label, agentic_building, " <>
-        "verified-work switches, profiles and tiers, " <>
+        "verified-work switches, profiles, tiers, sensitivity, " <>
         "log hours, findings_propose_at, wait_routes, overseer, editors_may_share. " <>
-        "Sends only changes."
+        "Only changes."
 
   @impl true
   def input_schema do

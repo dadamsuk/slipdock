@@ -94,6 +94,11 @@ ships by push the work is already on the default branch, so there is no
 merge to hold and the tiers change nothing. With profiles off every tier
 is `none`.
 
+The board tree's **sensitivity** (Agentic Building → *Sensitivity*, on the
+root) overrides the tiers: at `low` every tier is `none`, so nothing is held;
+at `high` `feature` is held `before_merge` too; at `medium` (the default) the
+tiers are as set.
+
 **Held for a person.** An agent accepting a `before_merge` card leaves it
 in progress as *Accepted, held for a person* (`verify_state: held`), its
 `review` flag still on and no merge job queued, and opens one wait, a

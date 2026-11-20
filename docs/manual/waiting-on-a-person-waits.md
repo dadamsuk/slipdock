@@ -123,7 +123,8 @@ kind `other` that offers choices and proposes one, unanswered for that long,
 is answered with its proposal by the server: the card says so, the person it
 was on (or the owner, for a wait on anyone) is told, and the card moves on as
 it would on your answer. A product, UX, security or release question, and a
-wait that proposes nothing, always waits for a person, however long it takes.
+wait that proposes nothing, always waits for a person, however long it takes. On a tree
+whose sensitivity is `high`, no wait goes ahead by its proposal.
 
 ```sh
 slipdock wait 12 "Read bar 2 as the one copy W-31 settled on?" --choice Yes --choice No --default 1

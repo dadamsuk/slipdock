@@ -1613,6 +1613,11 @@
         "required": false
       },
       {
+        "name": "sensitivity",
+        "type": "any",
+        "required": false
+      },
+      {
         "name": "wait_routes",
         "type": "any",
         "required": false
@@ -1739,6 +1744,9 @@
         },
         "sensitive_paths": {
           "param": "sensitive_paths"
+        },
+        "sensitivity": {
+          "param": "sensitivity"
         },
         "ship_via": {
           "param": "ship_via",
