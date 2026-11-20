@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/dadamsuk/slipdock/daemon/internal/daemonlog"
@@ -452,6 +453,38 @@ type jobRun struct {
 	// extra are the job's own variables besides the daemon's usual ones:
 	// a verify job's token, server and pull request (#3522).
 	extra []string
+	// tripped is where the job's proxy saw one of its fake credentials
+	// (#3524), "" until then; trips tells watch, which stops the job.
+	tripMu  sync.Mutex
+	tripped string
+	trips   chan struct{}
+}
+
+// trip is the proxy seeing one of the job's fake credentials: the first
+// is kept, and the job is stopped.
+func (j *jobRun) trip(what string) {
+	j.tripMu.Lock()
+	defer j.tripMu.Unlock()
+	if j.tripped != "" {
+		return
+	}
+	j.tripped = what
+	if j.trips != nil {
+		select {
+		case j.trips <- struct{}{}:
+		default:
+		}
+	}
+}
+
+// trippedOn is where the job's fake credentials were seen, or "".
+func (j *jobRun) trippedOn() string {
+	if j == nil {
+		return ""
+	}
+	j.tripMu.Lock()
+	defer j.tripMu.Unlock()
+	return j.tripped
 }
 
 func (j *jobRun) note(line string) {
@@ -483,7 +516,7 @@ func (w *Worker) runJob(ctx context.Context, job *Job) {
 	}
 	defer f.Close()
 	w.recordJob()
-	j := &jobRun{job: job, log: f, logPath: logPath, dir: w.Runner.Config.Directory}
+	j := &jobRun{job: job, log: f, logPath: logPath, dir: w.Runner.Config.Directory, trips: make(chan struct{}, 1)}
 
 	kinds := w.kinds()
 	if !contains(kinds, job.Kind) {
@@ -1054,6 +1087,9 @@ func (w *Worker) watch(ctx context.Context, j *jobRun, done chan int, stop func(
 		select {
 		case rc := <-done:
 			return "", rc
+		case <-j.trips:
+			stop()
+			return "tripwire", 137
 		case <-ctx.Done():
 			stop()
 			return "shutdown", 130
@@ -1109,6 +1145,10 @@ func (w *Worker) end(ctx context.Context, j *jobRun, ended string, rc int, merge
 		w.say("job #%d: cancelled from the board, so it was stopped", job.ID)
 		j.note("slipdock-runner: cancelled from the board")
 		status = "cancelled"
+	case "tripwire":
+		w.say("warn: job #%d: its fake credentials were seen leaving (%s), so it was stopped", job.ID, j.trippedOn())
+		j.note("slipdock-runner: tripwire: stopped, and the server told: its pool is paused until a person resumes it")
+		status = "failed"
 	default:
 		w.say("job #%d: exit %d in %s", job.ID, rc, j.where())
 	}
@@ -1356,7 +1396,14 @@ func (w *Worker) report(ctx context.Context, job *Job, j *jobRun, rc int, status
 	}
 	sleep := func(d time.Duration) { _ = w.Sleep(ctx, d) }
 	var err error
-	if tr != nil {
+	if what := j.trippedOn(); what != "" {
+		// Whatever else it says, a job that tripped its wire failed, and
+		// the server pauses its pool and raises the alert (#3524).
+		if status == "" || status == "done" || status == "requeue" {
+			status = "failed"
+		}
+		err = w.Client.Tripped(ctx, w.Runner.ID, job.ID, rc, status, what, body, sleep)
+	} else if tr != nil {
 		err = w.Client.Requeue(ctx, w.Runner.ID, job.ID, rc, tr.kind, tr.until, tr.reason, body, sleep)
 	} else {
 		err = w.Client.Finish(ctx, w.Runner.ID, job.ID, rc, status, merged, body, sleep)

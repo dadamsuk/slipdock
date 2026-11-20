@@ -170,6 +170,36 @@ func (c *container) egressMounts() (string, string, error) {
 	return sock, launcher, nil
 }
 
+// tripwireMounts are the job's fake credentials (#3524), each mounted
+// read-only where tools look for them in its home: never where a login of
+// the machine's is mounted (in it, or holding it), which stays the real one.
+func (c *container) tripwireMounts(home string, logins []string) ([]string, error) {
+	dir := c.s.Egress.Tripwire
+	if dir == "" {
+		return nil, nil
+	}
+	var argv []string
+next:
+	for _, rel := range TripwireDirs {
+		src := filepath.Join(dir, rel)
+		if _, err := os.Lstat(src); err != nil {
+			continue
+		}
+		dest := filepath.Join(home, rel)
+		for _, l := range logins {
+			if holds(dest, l) || holds(l, dest) {
+				continue next
+			}
+		}
+		r, err := c.mountable(src)
+		if err != nil {
+			return nil, fmt.Errorf("the job's tripwire: %v", err)
+		}
+		argv = append(argv, "--mount=type=bind,source="+r+",destination="+dest+",readonly")
+	}
+	return argv, nil
+}
+
 // egressReady: a container job's allowlist needs Linux, where the
 // daemon's own binary, statically linked, runs inside the container
 // (Docker Desktop and Podman machine on macOS run a Linux VM, which the
@@ -606,6 +636,11 @@ func (c *container) runArgs(rt string, p Proc) ([]string, []string, error) {
 		}
 		argv = append(argv, "--mount=type=bind,source="+sock+",destination="+egressDir+",readonly",
 			"--mount=type=bind,source="+launcher+",destination="+egressTarget+",readonly")
+		tw, err := c.tripwireMounts(home, ro)
+		if err != nil {
+			return nil, nil, err
+		}
+		argv = append(argv, tw...)
 		p.Env = append(append([]string(nil), p.Env...), egress.Env(e.addr(), egressTarget)...)
 	}
 	argv = append(argv, "--workdir="+dir, "--env=HOME="+home)

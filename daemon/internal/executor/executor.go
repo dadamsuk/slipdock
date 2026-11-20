@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -186,7 +187,16 @@ type Egress struct {
 	// Direct are ports of the machine itself a confined job may reach
 	// outside the proxy (allow_hosts' localhost:port).
 	Direct []int
+	// Tripwire, under container, is a directory of the job's fake
+	// credentials (#3524), which the proxy watches for: its .aws and
+	// .config/gh are mounted read-only at the same places in the job's
+	// home, unless a login mounted there is the machine's own.
+	Tripwire string
 }
+
+// TripwireDirs are what of Egress.Tripwire is mounted, by path under the
+// home.
+var TripwireDirs = []string{".aws", filepath.Join(".config", "gh")}
 
 // addr is the proxy's address, as the job's processes reach it.
 func (e *Egress) addr() string { return fmt.Sprintf("127.0.0.1:%d", e.Port) }

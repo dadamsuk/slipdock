@@ -1540,6 +1540,12 @@ defmodule Slipdock.Runners do
   (a usage limit, a sign-in failure, #2920): it goes back to the queue
   uncounted, its card untouched (`Slipdock.Runners.Trouble`), unless it
   was asked to cancel or has an open wait, which win as ever.
+
+  `tripwire` (#3524) is where the job's proxy saw its fake credentials:
+  the runner's pool is paused and an alert raised
+  (`Slipdock.Runners.Tripwire`) before the job ends, failed (or cancelled
+  or timeout, as it says), never done or requeued; one with an open wait
+  still parks, its pool paused.
   """
   def finish(%Runner{} = runner, job_id, attrs) do
     Slipdock.Policy.as_system(@runner_reason, fn -> finish_job(runner, job_id, attrs) end)
@@ -1551,6 +1557,12 @@ defmodule Slipdock.Runners do
         Enum.member?(Job.finished_statuses(), job.status) ->
           {:ok, job}
 
+        # Its fake credentials seen leaving (#3524): the pool is paused
+        # before the job ends, so nothing the end feeds is claimed.
+        Slipdock.Runners.Tripwire.tripped?(attrs) ->
+          Slipdock.Runners.Tripwire.tripped(runner, job, attrs[:tripwire])
+          end_held(runner, job, Map.put(attrs, :status, tripped_status(attrs[:status])))
+
         attrs[:status] == "requeue" and is_nil(job.cancel_requested_at) and
             is_nil(open_linked_wait(job)) ->
           Slipdock.Runners.Trouble.requeue(runner, job, attrs)
@@ -1560,6 +1572,10 @@ defmodule Slipdock.Runners do
       end
     end
   end
+
+  # A tripped job never ends done or requeued.
+  defp tripped_status(status) when status in ["cancelled", "timeout"], do: status
+  defp tripped_status(_), do: "failed"
 
   defp end_held(runner, job, attrs) do
     with {:ok, status} <- end_status(job, attrs) do

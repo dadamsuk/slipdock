@@ -63,6 +63,11 @@ defmodule SlipdockWeb.API.RunnerController do
   untouched, and the board gets one alert for the machine
   (`Slipdock.Runners.Trouble`). Cancelled or waiting, it ends as ever.
 
+  A job whose network proxy saw its fake credentials leaving (#3524)
+  finishes `status=failed&tripwire=<which, where, to what host>`: the
+  runner's pool is paused and the board gets an urgent alert
+  (`Slipdock.Runners.Tripwire`).
+
   An empty claim says why work is held, when it is, in `X-Held`
   ("paused by David: bad deploy", "WIP full: In Progress 3/3").
 
@@ -139,7 +144,9 @@ defmodule SlipdockWeb.API.RunnerController do
       # A job its agent couldn't run (status=requeue, #2920).
       trouble: params["trouble"],
       until: params["until"],
-      reason: params["reason"]
+      reason: params["reason"],
+      # Where the job's proxy saw its fake credentials (#3524).
+      tripwire: params["tripwire"]
     }
 
     case Runners.finish(conn.assigns.runner, id, attrs) do

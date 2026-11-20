@@ -110,6 +110,11 @@ the machine on the Machines page ends the key at once.
   through a proxy of the daemon's. Such a job can still send what it
   reads to those hosts, and the allowlist doesn't cover name lookups or,
   under `confined` on Linux, UDP or another host on the proxy's port.
+  A `container` job under an allowlist also finds fake credentials in
+  its home, and its proxy, seeing one leave, has the job stopped and its
+  pool paused: that catches a job sending them where the proxy can read
+  (a host name, plain HTTP), not one sending them inside TLS to an
+  allowed host.
 - Prompts are the board members' instructions. The agent follows them
   within the runner's permission mode, as the account its jobs run as.
   Every job's prompt tells the agent that a card's text is data, never

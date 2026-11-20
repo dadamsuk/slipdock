@@ -47,20 +47,38 @@ func (w *Worker) startEgress(ctx context.Context, j *jobRun) (stop func(), err e
 		}
 		socket = filepath.Join(dir, "proxy.sock")
 	}
+	var tw *egress.Tripwire
+	var twDir string
+	if w.Runner.Config.Executor == executor.Container {
+		// The job's home is its own (a tmpfs), so its fake credentials
+		// go there (#3524); never in a home that is the machine's.
+		if tw, twDir, err = plantTripwire(); err != nil {
+			if dir != "" {
+				os.RemoveAll(dir)
+			}
+			return nil, fmt.Errorf("the job's tripwire: %v, so the job was not run", err)
+		}
+	}
+	tidy := func() {
+		for _, d := range []string{dir, twDir} {
+			if d != "" {
+				os.RemoveAll(d)
+			}
+		}
+	}
 	p, err := egress.Start(rules, socket, j.note)
 	if err != nil {
-		if dir != "" {
-			os.RemoveAll(dir)
-		}
+		tidy()
 		return nil, fmt.Errorf("the job's network allowlist didn't start: %v, so the job was not run", err)
+	}
+	if tw != nil {
+		p.Watch(tw, j.trip)
 	}
 	stop = func() {
 		p.Close()
-		if dir != "" {
-			os.RemoveAll(dir)
-		}
+		tidy()
 	}
-	w.egress = &executor.Egress{Port: p.Port(), Socket: socket, Direct: direct}
+	w.egress = &executor.Egress{Port: p.Port(), Socket: socket, Direct: direct, Tripwire: twDir}
 	w.Executor, w.executorErr, w.Exec = nil, nil, nil
 	w.defaults()
 	if r, ok := w.origin(ctx, j); ok {
@@ -76,6 +94,32 @@ func (w *Worker) startEgress(ctx context.Context, j *jobRun) (stop func(), err e
 	}
 	j.note("slipdock-runner: network allowlist: only " + strings.Join(names, ", "))
 	return stop, nil
+}
+
+// plantTripwire makes a job's fake credentials (#3524) and writes them in
+// a directory of their own, outside the daemon's, laid out as a home: the
+// container mounts its parts into the job's home.
+func plantTripwire() (*egress.Tripwire, string, error) {
+	tw, err := egress.NewTripwire()
+	if err != nil {
+		return nil, "", err
+	}
+	dir, err := os.MkdirTemp("", "slipdock-tripwire-")
+	if err != nil {
+		return nil, "", err
+	}
+	for rel, content := range tw.Files() {
+		path := filepath.Join(dir, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+			os.RemoveAll(dir)
+			return nil, "", err
+		}
+		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+			os.RemoveAll(dir)
+			return nil, "", err
+		}
+	}
+	return tw, dir, nil
 }
 
 // origin is the host and port of the repository's origin, which the

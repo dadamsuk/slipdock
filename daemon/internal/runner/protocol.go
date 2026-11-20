@@ -432,6 +432,14 @@ func (c *Client) Requeue(ctx context.Context, runnerID, jobID int64, exit int, k
 	return c.finish(ctx, runnerID, jobID, q, tail, sleep)
 }
 
+// Tripped reports a job whose proxy saw one of its fake credentials
+// (#3524): it ended status (failed, or cancelled), and what says which
+// value and where. The server pauses the runner's pool and raises an alert.
+func (c *Client) Tripped(ctx context.Context, runnerID, jobID int64, exit int, status, what string, tail []byte, sleep func(time.Duration)) error {
+	q := url.Values{"exit": {strconv.Itoa(exit)}, "status": {status}, "tripwire": {clip(what, 200)}}
+	return c.finish(ctx, runnerID, jobID, q, tail, sleep)
+}
+
 func (c *Client) finish(ctx context.Context, runnerID, jobID int64, q url.Values, tail []byte, sleep func(time.Duration)) error {
 	var last error
 	for try := 1; try <= 5; try++ {
