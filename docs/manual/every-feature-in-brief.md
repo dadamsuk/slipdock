@@ -565,7 +565,8 @@ with the tail of the log — and a Cancel button.
   runner's machine, and a kind it doesn't know is refused there.
 - **Board writers steer the agent.** Anyone who can write or comment on a
   board a runner serves gives its agent instructions; the runner's
-  executor and permission mode are what limit them
+  executor and permission mode are what limit them (a `codex` job's
+  mode becomes its sandbox flags)
   ([Who steers a runner's agent](machines.md#who-steers-a-runners-agent)),
   and the machine's trust tiers can tighten both by who wrote the card, or
   hold its network to an allowlist of the model API, the server and the
