@@ -39,6 +39,12 @@ defmodule SlipdockWeb.Ops.SetBoard do
       {"show_pulse", %{type: "boolean", description: "The pulse strip over the lists."}},
       {"close_on_complete",
        %{type: "boolean", description: "Completing an open card closes it to the board."}},
+      {"editors_may_share",
+       %{
+         type: "boolean",
+         description:
+           "People who can edit may share its cards, pages and folders (top board; owner only)."
+       }},
       {"vote_budget", %{type: "integer", description: "Votes each person has on the board."}},
       {"vote_max", %{type: "integer", description: "Most votes one person may put on a card."}},
       {"automation_wip",
@@ -209,6 +215,7 @@ defmodule SlipdockWeb.Ops.SetBoard do
           "simple" => %{param: "simple"},
           "show_pulse" => %{param: "show_pulse"},
           "close_on_complete" => %{param: "close_on_complete"},
+          "editors_may_share" => %{param: "editors_may_share"},
           "automation_wip" => %{param: "automation_wip"},
           # on|off, worked out by the CLI.
           "agentic_building" => %{param: "agentic_building", read: :parsed},

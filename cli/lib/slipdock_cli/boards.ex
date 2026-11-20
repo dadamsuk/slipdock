@@ -1151,6 +1151,8 @@ defmodule SlipdockCLI.Boards do
         "show_pulse" => o[:show_pulse],
         # Completing an open card closes it to the board (#3473).
         "close_on_complete" => o[:close_on_complete],
+        # Editors may share its cards, pages and folders (#3558).
+        "editors_may_share" => o[:editors_may_share],
         # WIP limits holding runner jobs and list_top sends (#1116).
         "automation_wip" => o[:automation_wip],
         # The web app's Agentic Building item and page (#2011): on|off.
@@ -1217,7 +1219,7 @@ defmodule SlipdockCLI.Boards do
       do:
         fail(
           "nothing to change — pass --name, --code, --shortcut, --desc, --color, " <>
-            "--[no-]add-card / --[no-]add-page / --[no-]add-document, --[no-]sprints, --[no-]simple, --[no-]page-card-features, --[no-]show-pulse, --[no-]close-on-complete, --[no-]automation-wip, --agentic-building on|off, --[no-]delivery-metrics, --incident-tag, --hotfix-hours, --not-shipped-minutes, --card-ref-pattern, --default-view, --handoff-label, --handoff-prompt(-file), --inbound-senders, --sensitive-paths, --wiki-sort, --[no-]bar-required, --[no-]evidence-required, --[no-]verify-work, --verify-pool, --ship-via, --release-mode, --release-age-cap, --release-command, --profiles on|off, --profile-tier PROFILE=TIER or --route KIND=EMAIL / --no-route KIND"
+            "--[no-]add-card / --[no-]add-page / --[no-]add-document, --[no-]sprints, --[no-]simple, --[no-]page-card-features, --[no-]show-pulse, --[no-]close-on-complete, --[no-]editors-may-share, --[no-]automation-wip, --agentic-building on|off, --[no-]delivery-metrics, --incident-tag, --hotfix-hours, --not-shipped-minutes, --card-ref-pattern, --default-view, --handoff-label, --handoff-prompt(-file), --inbound-senders, --sensitive-paths, --wiki-sort, --[no-]bar-required, --[no-]evidence-required, --[no-]verify-work, --verify-pool, --ship-via, --release-mode, --release-age-cap, --release-command, --profiles on|off, --profile-tier PROFILE=TIER or --route KIND=EMAIL / --no-route KIND"
         )
 
     # The wiki's sort has its own route: a writer may set it, not only the owner.

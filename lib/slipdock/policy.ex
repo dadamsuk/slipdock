@@ -131,9 +131,12 @@ defmodule Slipdock.Policy do
     {:own_template, :self, :owner, "Your own templates"},
     {:share_board, :board, :owner, "Sharing a board"},
     {:share_view, :board, :owner, "Sharing a saved view"},
+    # Write is enough only where the tree's top board lets editors share;
+    # elsewhere these ask owner (`share_need/3`, #3558).
     {:share_card, :card, :write, "Sharing a card"},
     {:share_page, :page, :write, "Sharing a page"},
     {:share_folder, :folder, :write, "Sharing a folder"},
+    {:let_editors_share, :tree_root, :owner, "Letting editors share"},
     {:share_tool, :tool, :owner, "Sharing a tool"},
     {:share_pool, :board, :owner, "Granting a runner pool"},
     # The wiki, vaults and recordings (#3171)
@@ -226,6 +229,7 @@ defmodule Slipdock.Policy do
   # What `authorize/3` decides, without noting a refusal (`can?/3` asks it).
   defp check(action, subject, opts) do
     {scope, need} = Map.fetch!(@rules, action)
+    need = share_need(action, subject, need)
     actor = actor(opts)
 
     cond do
@@ -237,6 +241,20 @@ defmodule Slipdock.Policy do
       true -> decide(action, scope, need, subject, actor)
     end
   end
+
+  # Sharing a card, page or folder onward asks owner, unless the owner of
+  # the tree's top board has let its editors share (`editors_may_share`,
+  # read now, #3558).
+  @share_onward [:share_card, :share_page, :share_folder]
+
+  defp share_need(action, subject, need) when action in @share_onward do
+    case root_board(subject) do
+      %Board{editors_may_share: true} -> need
+      _ -> :owner
+    end
+  end
+
+  defp share_need(_action, _subject, need), do: need
 
   # Who the `opts` name (`opts[:actor]`, or `:via` and `:by`, as
   # `Actor.resolve/1` reads a context's own `opts`, passed straight through)
@@ -554,6 +572,14 @@ defmodule Slipdock.Policy do
 
   defp root_board(%{board_id: id}) when is_integer(id), do: root_board(%Board{id: id})
   defp root_board(subject), do: with(%Board{} = board <- board_of(subject), do: root_board(board))
+
+  defp refuse(action, scope, :owner, :user) when action in @share_onward do
+    message =
+      "#{Map.fetch!(@what, action)} needs the board's owner, unless the owner lets " <>
+        "editors share (the board's Editors may share setting)."
+
+    {:error, %Refused{action: action, scope: scope, need: :owner, by: :user, message: message}}
+  end
 
   defp refuse(action, scope, need, by) do
     what = Map.fetch!(@what, action)

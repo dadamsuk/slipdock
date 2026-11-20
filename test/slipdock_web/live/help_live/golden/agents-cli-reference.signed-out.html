@@ -2489,8 +2489,9 @@ share it with a person (an email; a stranger is invited) or a group of yours, re
 <pre class="overflow-x-auto rounded-xl bg-base-200 px-3 py-2 font-mono text-xs leading-relaxed">
 --comment (read, comment, report a status, vote;
 no edits) or --write; --off takes it back; nobody
-named lists who has it. Only its board&#39;s writers
-can share</pre>
+named lists who has it. Only its board&#39;s owner
+can share, or its writers where the owner set
+--editors-may-share</pre>
 </dd>
 </div>
 <div class="min-w-0 py-3" data-role="cli-command">
@@ -4672,6 +4673,8 @@ set-board</span>
 <span class="inline-block max-w-full">
 [--close-on-complete | --no-close-on-complete]</span>
 <span class="inline-block max-w-full">
+[--editors-may-share | --no-editors-may-share]</span>
+<span class="inline-block max-w-full">
 [--automation-wip | --no-automation-wip]</span>
 <span class="inline-block max-w-full">
 [--agentic-building on|off]</span>
@@ -4744,6 +4747,9 @@ folders that follow it, and needs only write access;
 --show-pulse puts the board&#39;s pulse over its lists;
 --close-on-complete makes an open card&#39;s Complete
 icon close the card and return to the board;
+--editors-may-share lets people who can edit the
+board share its cards, pages and folders (off: only
+the owner; set on the top board);
 --automation-wip makes the first in-progress list&#39;s
 WIP limit hold runner jobs and list sends;
 --agentic-building on puts an Agentic Building item

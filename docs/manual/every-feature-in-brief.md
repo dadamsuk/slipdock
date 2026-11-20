@@ -344,6 +344,10 @@ and MCP) and a link to the page that covers it.
 - **Simple boards** — [one setting](simple-boards.md) turns a
   board into a plain to-do list, hiding % complete, start dates, health, time
   tracking, votes, dependencies and the timeline and prioritise views.
+- **Editors may share** — a board setting, off by default and the owner's
+  alone (`slipdock set-board <board> --editors-may-share`): lets people who
+  can edit the board share its cards, pages and folders with others.
+  Off, only the owner shares them. [Who may share](accounts-and-sharing.md).
 - **Close on complete** — a board setting (**Close a card when it is
   completed**, `slipdock set-board <board> --close-on-complete`): marking an
   open card complete with its Complete icon closes the card and returns to

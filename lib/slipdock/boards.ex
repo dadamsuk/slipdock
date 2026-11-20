@@ -686,7 +686,18 @@ defmodule Slipdock.Boards do
   (the settings panel is the owner's).
   """
   def update_board(%Board{} = board, attrs) do
-    with :ok <- Policy.authorize(:update_board, board), do: save_board(board, attrs)
+    with :ok <- may_set_sharing(board, attrs),
+         :ok <- Policy.authorize(:update_board, board),
+         do: save_board(board, attrs)
+  end
+
+  # Who may share onward is the owner's to change, whoever else may change
+  # the board's other settings (#3558): asked only when it would change.
+  defp may_set_sharing(board, attrs) do
+    case board |> Board.changeset(attrs) |> Ecto.Changeset.fetch_change(:editors_may_share) do
+      {:ok, _} -> Policy.authorize(:let_editors_share, board)
+      :error -> :ok
+    end
   end
 
   defp save_board(board, attrs) do

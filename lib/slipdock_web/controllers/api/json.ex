@@ -357,6 +357,7 @@ defmodule SlipdockWeb.API.JSON do
       wiki_sort: b.wiki_sort,
       show_pulse: b.show_pulse,
       close_on_complete: b.close_on_complete,
+      editors_may_share: b.editors_may_share,
       delivery_metrics: b.delivery_metrics,
       card_ref_pattern: b.card_ref_pattern,
       incident_tag: b.incident_tag || "incident",
@@ -479,6 +480,7 @@ defmodule SlipdockWeb.API.JSON do
       # the numbers on any board.
       show_pulse: b.show_pulse,
       close_on_complete: b.close_on_complete,
+      editors_may_share: b.editors_may_share,
       delivery_metrics: b.delivery_metrics,
       card_ref_pattern: b.card_ref_pattern,
       incident_tag: b.incident_tag || "incident",

@@ -502,6 +502,7 @@ defmodule Slipdock.Portable.Import do
           simple: bool(doc[:simple], false),
           show_pulse: bool(doc[:show_pulse], false),
           close_on_complete: bool(doc[:close_on_complete], false),
+          editors_may_share: bool(doc[:editors_may_share], false),
           delivery_metrics: bool(doc[:delivery_metrics], false),
           # The changeset starts the board's `delivery_metrics_since` at the
           # import, so nothing the copy merged before it is not shipped (#2819).

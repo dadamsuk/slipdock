@@ -29,6 +29,7 @@ defmodule Slipdock.PolicyActions do
       share_card: :write,
       share_page: :write,
       share_folder: :write,
+      let_editors_share: :owner,
       share_tool: :owner,
       share_pool: :owner
     ]
