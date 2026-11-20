@@ -30,7 +30,7 @@ defmodule Slipdock.Runners.MachineRunners do
   alias Slipdock.Boards.Board
   alias Slipdock.Machines.Machine
   alias Slipdock.Repo
-  alias Slipdock.Runners.{Ceiling, Config, ConfigReport, Runner}
+  alias Slipdock.Runners.{Ceiling, Config, ConfigReport, PoolGrants, Runner}
 
   @pubsub Slipdock.PubSub
   @max_reason 1000
@@ -100,9 +100,9 @@ defmodule Slipdock.Runners.MachineRunners do
 
     with :ok <- live(machine),
          :ok <- serves(machine, root_id),
-         {:ok, config} <- config(attrs["config"] || attrs[:config] || %{}, nil) do
-      pool = attrs["pool"] || attrs[:pool]
-
+         {:ok, config} <- config(attrs["config"] || attrs[:config] || %{}, nil),
+         pool = attrs["pool"] || attrs[:pool],
+         :ok <- takes_pool(machine, root_id, pool) do
       %Runner{
         board_id: root_id,
         machine_id: machine.id,
@@ -157,7 +157,8 @@ defmodule Slipdock.Runners.MachineRunners do
     machine = Repo.get!(Machine, machine_id)
 
     with :ok <- live(machine),
-         {:ok, config} <- config(attrs["config"] || attrs[:config] || %{}, runner.config) do
+         {:ok, config} <- config(attrs["config"] || attrs[:config] || %{}, runner.config),
+         :ok <- moving_to(machine, runner, attrs["pool"] || attrs[:pool]) do
       changeset =
         runner
         |> Runner.changeset(Map.take(stringify(attrs), ["pool", "name"]))
@@ -338,6 +339,27 @@ defmodule Slipdock.Runners.MachineRunners do
        "a machine serves at least one board: to stop it serving any, revoke it instead"}
 
   defp not_empty(_), do: :ok
+
+  # A runner on a pool takes its jobs, so its machine's owner must be one
+  # who may (#3492). A blank pool is left to the changeset's own error.
+  defp takes_pool(_machine, _root_id, pool) when pool in [nil, ""], do: :ok
+
+  defp takes_pool(%Machine{user_id: user_id}, root_id, pool) do
+    if PoolGrants.may_take?(user_id, root_id, pool),
+      do: :ok,
+      else: {:error, :invalid, PoolGrants.refusal(PoolGrants.normalize(pool))}
+  end
+
+  # Only a move onto another pool is asked: a runner kept where it is can
+  # still be renamed or set up while it waits for a grant.
+  defp moving_to(machine, %Runner{board_id: root_id, pool: current}, pool)
+       when is_binary(pool) do
+    if PoolGrants.normalize(pool) == current,
+      do: :ok,
+      else: takes_pool(machine, root_id, pool)
+  end
+
+  defp moving_to(_machine, _runner, _pool), do: :ok
 
   defp live(%Machine{revoked_at: nil}), do: :ok
   defp live(%Machine{}), do: {:error, :invalid, "the machine is revoked"}

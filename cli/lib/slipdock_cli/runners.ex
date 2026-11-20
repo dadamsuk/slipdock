@@ -10,7 +10,7 @@ defmodule SlipdockCLI.Runners do
   alias SlipdockCLI.HTTP
   alias SlipdockCLI.Render
 
-  @commands ~w(runner runners runner-stats jobs job job-log cancel-job claim-job job-progress finish-job pause resume release releases)
+  @commands ~w(runner runners runner-stats pool-grant pool-grants jobs job job-log cancel-job claim-job job-progress finish-job pause resume release releases)
 
   @doc "The command names this module answers to; `SlipdockCLI` routes on it."
   def commands, do: @commands
@@ -67,6 +67,39 @@ defmodule SlipdockCLI.Runners do
     HTTP.delete("/boards/#{enc(ref)}/runners/#{enc(runner)}")
     |> out(o, fn _ -> IO.puts("revoked runner #{runner}: its token no longer works") end)
   end
+
+  # Who besides the owner takes a pool's jobs (#3492): the root board's
+  # owner grants a pool to a writer of the board, and takes it back.
+  def run("pool-grants", [ref], o) do
+    HTTP.get("/boards/#{enc(ref)}/pool-grants")
+    |> out(o, &print_pool_grants(&1["pool_grants"]))
+  end
+
+  def run("pool-grants", _, _o), do: fail("usage: slipdock pool-grants <board>")
+
+  def run("pool-grant", [ref, pool], o) do
+    HTTP.get("/boards/#{enc(ref)}/pool-grants", pool: pool)
+    |> out(o, &print_pool_grants(&1["pool_grants"]))
+  end
+
+  def run("pool-grant", [ref, pool, email], o) do
+    body = %{"pool" => pool, "email" => email}
+
+    if o[:off] do
+      HTTP.delete("/boards/#{enc(ref)}/pool-grants", pool: pool, email: email)
+      |> out(o, fn %{"revoked" => r} ->
+        IO.puts("#{r["email"]} no longer takes pool #{r["pool"]}'s jobs")
+      end)
+    else
+      HTTP.post("/boards/#{enc(ref)}/pool-grants", body)
+      |> out(o, fn %{"pool_grant" => g} ->
+        IO.puts("#{g["user"]["email"]} takes pool #{g["pool"]}'s jobs now")
+      end)
+    end
+  end
+
+  def run("pool-grant", _, _o),
+    do: fail("usage: slipdock pool-grant <board> <pool> [EMAIL] [--off]")
 
   def run("runner", _, _o),
     do:
@@ -229,6 +262,15 @@ defmodule SlipdockCLI.Runners do
   end
 
   def run(cmd, _args, _o), do: bad_usage(cmd)
+
+  defp print_pool_grants([]),
+    do: IO.puts("no pool grants: only the board's owner takes its pools' jobs")
+
+  defp print_pool_grants(grants) do
+    Enum.each(grants, fn g ->
+      IO.puts("#{g["pool"]}  #{g["user"]["email"]}  (granted by #{g["granted_by"] || "?"})")
+    end)
+  end
 
   # The wizard's answers among the options given, by the names the server uses.
   # The wizard's answers, as `runner new` sends them.

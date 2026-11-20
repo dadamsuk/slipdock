@@ -30,7 +30,8 @@ defmodule Slipdock.Runners do
   alias Slipdock.{Boards, Repo}
   alias Slipdock.Accounts.UserToken
   alias Slipdock.Boards.{Board, Card}
-  alias Slipdock.Runners.{ClaimDrain, ClaimMove, Job, Pause, Probe, Recovery, Requeue, Runner}
+  alias Slipdock.Runners.{ClaimDrain, ClaimMove, Job, Pause, PoolGrants, Probe, Recovery, Requeue}
+  alias Slipdock.Runners.Runner
 
   @pubsub Slipdock.PubSub
 
@@ -310,7 +311,10 @@ defmodule Slipdock.Runners do
     pool = pool |> to_string() |> String.trim() |> String.downcase()
     root = Board.root_id(board)
 
-    with :ok <- valid_name(pool, "pool") do
+    # Taking a pool's jobs is the owner's, or a writer's they granted it
+    # (#3492): asked before the runner is made, and again at every claim.
+    with :ok <- valid_name(pool, "pool"),
+         :ok <- PoolGrants.check(user, board, pool) do
       existing =
         Repo.one(
           from(r in Runner,
@@ -1165,6 +1169,8 @@ defmodule Slipdock.Runners do
     cond do
       probe = Probe.claim(runner) -> claimed_probe(probe)
       pause_for(runner.board_id, runner.pool) || runner_paused?(runner) -> nil
+      # Its person may no longer take the pool's jobs (#3492): kept, idle.
+      not PoolGrants.runner_may_take?(runner) -> nil
       true -> claim_next(runner)
     end
   end
@@ -1807,6 +1813,7 @@ defmodule Slipdock.Runners do
 
     with {id, ""} <- Integer.parse(to_string(job_id)),
          false <- busy?(runner),
+         true <- PoolGrants.runner_may_take?(runner),
          {1, [job]} <-
            Repo.update_all(
              from(j in Job,
