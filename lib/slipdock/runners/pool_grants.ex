@@ -16,6 +16,7 @@ defmodule Slipdock.Runners.PoolGrants do
   alias Slipdock.{Access, Accounts, Policy, Repo}
   alias Slipdock.Accounts.User
   alias Slipdock.Boards.Board
+  alias Slipdock.Machines.Machine
   alias Slipdock.Runners.{PoolGrant, Runner}
 
   @doc "A pool's name as it is stored: trimmed and lower case."
@@ -28,12 +29,17 @@ defmodule Slipdock.Runners.PoolGrants do
   @doc """
   Whether `runner` may take its pool's jobs, read afresh (a grant can be
   taken back while it waits for one). A runner is its person's: whoever
-  made it (a session's, or the owner of a machine). A runner with a token
+  made it (a session's), or the owner of its machine. A runner with a token
   of its own and no maker on record was made by the board's owner, the
   only person who can make one.
   """
-  def runner_may_take?(%Runner{created_by_id: nil, api_token_id: nil, machine_id: nil}),
-    do: true
+  def runner_may_take?(%Runner{machine_id: machine_id, board_id: root_id, pool: pool})
+      when is_integer(machine_id) do
+    owner = Repo.one(from(m in Machine, where: m.id == ^machine_id, select: m.user_id))
+    may_take?(owner, root_id, pool)
+  end
+
+  def runner_may_take?(%Runner{created_by_id: nil, api_token_id: nil}), do: true
 
   def runner_may_take?(%Runner{created_by_id: user_id, board_id: root_id, pool: pool}),
     do: may_take?(user_id, root_id, pool)

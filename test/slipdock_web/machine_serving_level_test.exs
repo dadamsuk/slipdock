@@ -198,13 +198,23 @@ defmodule SlipdockWeb.MachineServingLevelTest do
       assert {:ok, {_, %Machine{board_ids: ids}}} = Machines.poll_enrolment(device_code)
       assert ids == [ctx.theirs.id]
 
+      runner = %{board: ctx.theirs.id, pool: "build", config: %{directory: @dir}}
+
+      # Serving the board isn't taking its pools' jobs: the owner grants a
+      # pool first (#3492).
+      assert ctx.conn
+             |> post(~p"/api/machines/#{machine.id}/runners", runner)
+             |> json_response(422)
+             |> Map.fetch!("error") =~ "pool “build”"
+
+      {:ok, _} =
+        Slipdock.Runners.PoolGrants.grant(ctx.theirs, "build", ctx.user.email,
+          actor: Slipdock.Actor.web(ctx.owner)
+        )
+
       assert %{"runner" => %{"pool" => "build"}} =
                ctx.conn
-               |> post(~p"/api/machines/#{machine.id}/runners", %{
-                 board: ctx.theirs.id,
-                 pool: "build",
-                 config: %{directory: @dir}
-               })
+               |> post(~p"/api/machines/#{machine.id}/runners", runner)
                |> json_response(201)
     end
 
