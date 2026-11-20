@@ -181,13 +181,26 @@ defmodule SlipdockWeb.API.RunnerController do
 
   # A merge job (#1656): the pull request and the accepted commit, for the
   # runner's built-in merge to check before it merges anything.
-  defp merge_headers(conn, %{pr: pr, commit: commit}) do
+  defp merge_headers(conn, %{pr: pr, commit: commit} = target) do
     conn
     |> then(&if(pr, do: put_resp_header(&1, "x-merge-pr", header_text(pr)), else: &1))
     |> then(&if(commit, do: put_resp_header(&1, "x-merge-commit", header_text(commit)), else: &1))
+    |> sensitive_headers(target)
   end
 
   defp merge_headers(conn, nil), do: conn
+
+  # The paths whose change a person approves before the merge (#3519), and
+  # whether one has: the runner checks the pull request's files.
+  defp sensitive_headers(conn, %{sensitive: [_ | _] = paths, approved: approved}) do
+    conn
+    # Whole, never cut short as `header_text/1` cuts: a glob cut in half
+    # would match something else. The board keeps at most 100 of 200 bytes.
+    |> put_resp_header("x-sensitive-paths", Enum.join(paths, ","))
+    |> then(&if(approved, do: put_resp_header(&1, "x-merge-approved", "1"), else: &1))
+  end
+
+  defp sensitive_headers(conn, _target), do: conn
 
   defp fetch_runner(conn, _opts) do
     token = SlipdockWeb.UserAuth.bearer_token(conn)

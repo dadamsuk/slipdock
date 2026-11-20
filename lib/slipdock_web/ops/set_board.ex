@@ -70,6 +70,12 @@ defmodule SlipdockWeb.Ops.SetBoard do
          type: "string",
          description: "Who else may mail the board's card addresses, comma-separated; \"\" none."
        }},
+      {"sensitive_paths",
+       %{
+         type: "string",
+         description:
+           "Globs a person approves before a pull request changing them merges, comma-separated; \"default\" the defaults, \"\" none."
+       }},
       {"bar_required", %{type: "boolean", description: "Agents write a card's bar before work."}},
       {"evidence_required", %{type: "boolean", description: "Agents give evidence to complete."}},
       {"verify_work", %{type: "boolean", description: "A second agent accepts or rejects."}},
@@ -232,6 +238,7 @@ defmodule SlipdockWeb.Ops.SetBoard do
           "handoff_prompt" => %{param: "handoff_prompt", read: :parsed},
           "handoff_prompt_file" => %{param: "handoff_prompt", read: :file},
           "inbound_senders" => %{param: "inbound_senders"},
+          "sensitive_paths" => %{param: "sensitive_paths"},
           # Repeatable: KIND=EMAIL[,EMAIL], and --no-route KIND.
           "route" => %{param: "wait_routes", read: :parsed},
           "no_route" => %{param: "wait_routes", read: :parsed},

@@ -495,6 +495,7 @@ slipdock done <id> --no-code "<why>" --evidence "…"   # a card that changes no
                                        # its CI is the full test run: run only your own tests before
                                        # pushing, and a verifier checks its checks, not the suite again
 slipdock set-board <board> --inbound-senders "ann@example.com,bob@example.com"  # who else may mail the board's card addresses (replaces the list; "" clears); only when asked
+slipdock set-board <board> --sensitive-paths ".github/workflows/**,Makefile"  # what a person approves before a PR changing it merges ("default" the defaults, "" none); only when asked
 slipdock handoff <id> --delete                            # delete a card's current handoff outright (one left by mistake); --clear keeps it in the history
 slipdock fav card <id> | fav list <board> <column> | fav view <board> <view> | fav board <board>
 slipdock fav page <page>                                  # a wiki page, by code (W-31), slug or board/slug

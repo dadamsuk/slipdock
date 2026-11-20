@@ -3,7 +3,9 @@ package runner
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -13,8 +15,9 @@ type execFunc func(ctx context.Context, dir, name string, args ...string) (strin
 
 var prURL = regexp.MustCompile(`^https://github\.com/([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)/pull/([0-9]+)/*$`)
 
-// mergeExit is a merge refused before anything changed (2), or one gh
-// refused (3), as the shell runner's job_merge says them.
+// mergeExit is a merge refused before anything changed (2), one gh
+// refused (3), as the shell runner's job_merge says them, or one that
+// waits for a person's approval (4, #3519).
 type mergeExit struct {
 	code int
 	msg  string
@@ -70,6 +73,12 @@ func merge(ctx context.Context, run execFunc, dir string, job *Job, log func(str
 	}
 	if !strings.HasPrefix(strings.ToLower(head), strings.ToLower(want)) {
 		return fail(2, "%s's head is %s, not the accepted commit %s (it moved after the card was accepted); nothing merged", pr, head, want)
+	}
+	if hit, err := needsApproval(ctx, run, dir, prRepo, num, job); err != nil {
+		return fail(2, "could not list %s's files: %v; nothing merged", pr, err)
+	} else if len(hit) > 0 {
+		return fail(4, "%s %s changes %s, so a person approves it first; nothing merged",
+			NeedsApproval, pr, strings.Join(hit, ", "))
 	}
 	card := "?"
 	if job.CardID > 0 {
@@ -135,4 +144,90 @@ var remoteURL = regexp.MustCompile(`^(?:ssh://git@github\.com/|git@github\.com:|
 
 func oneLine(s string) string {
 	return strings.Join(strings.Fields(s), " ")
+}
+
+// NeedsApproval opens the merge line of a pull request that changes a
+// sensitive file nobody has approved yet (#3519): the server holds the
+// card for a person when it reads it.
+const NeedsApproval = "needs a person's approval:"
+
+// needsApproval is the pull request's files that match the board's
+// sensitive paths, when a person hasn't approved its merge: none when the
+// server sent no paths (an older one) or the approval. A pull request with
+// more files than gh lists counts as one that needs it.
+func needsApproval(ctx context.Context, run execFunc, dir, prRepo, num string, job *Job) ([]string, error) {
+	if len(job.SensitivePaths) == 0 || job.MergeApproved {
+		return nil, nil
+	}
+	out, err := run(ctx, dir, "gh", "pr", "view", num, "--repo", prRepo, "--json", "changedFiles,files",
+		"--jq", ".changedFiles, .files[].path")
+	if err != nil {
+		return nil, fmt.Errorf("%s", oneLine(out))
+	}
+	lines := strings.Split(strings.TrimSpace(out), "\n")
+	count, err := strconv.Atoi(strings.TrimSpace(lines[0]))
+	if err != nil {
+		return nil, fmt.Errorf("gh said %q", oneLine(out))
+	}
+	var files, hit []string
+	for _, f := range lines[1:] {
+		if f = strings.TrimSpace(f); f != "" {
+			files = append(files, f)
+		}
+	}
+	for _, f := range files {
+		if matchAny(job.SensitivePaths, f) {
+			hit = append(hit, f)
+		}
+	}
+	if len(files) < count {
+		hit = append(hit, fmt.Sprintf("%d more files gh doesn't list", count-len(files)))
+	}
+	return hit, nil
+}
+
+func matchAny(globs []string, path string) bool {
+	for _, g := range globs {
+		if globMatch(g, path) {
+			return true
+		}
+	}
+	return false
+}
+
+// globMatch matches a path against a glob as the server's handbook does:
+// ** is any run of folders (none included), * any run of characters but /,
+// and a glob matches the files under a folder it names.
+func globMatch(glob, path string) bool {
+	glob = strings.TrimPrefix(strings.TrimSpace(glob), "./")
+	path = strings.TrimPrefix(path, "./")
+	if glob == "" {
+		return false
+	}
+	return matchParts(strings.Split(glob, "/"), strings.Split(path, "/"))
+}
+
+func matchParts(glob, path []string) bool {
+	if len(glob) == 0 {
+		return len(path) == 0
+	}
+	if glob[0] == "**" {
+		for i := 0; i <= len(path); i++ {
+			if matchParts(glob[1:], path[i:]) {
+				return true
+			}
+		}
+		return false
+	}
+	if len(path) == 0 {
+		return false
+	}
+	if ok, _ := filepath.Match(glob[0], path[0]); !ok {
+		return false
+	}
+	if len(glob) == 1 {
+		// A folder the glob names holds the files under it.
+		return true
+	}
+	return matchParts(glob[1:], path[1:])
 }

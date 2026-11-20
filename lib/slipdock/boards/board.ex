@@ -173,6 +173,10 @@ defmodule Slipdock.Boards.Board do
     # besides each address owner's own: lower-cased, at most
     # `inbound_senders_limit/0`. See `permitted_sender?/2`.
     field :inbound_senders, {:array, :string}, default: []
+    # The paths whose change a person approves before a card's pull request
+    # merges (#3519), as globs: nil is `default_sensitive_paths/0`, [] none.
+    # See `sensitive_paths/1`.
+    field :sensitive_paths, {:array, :string}
 
     # What sort of board this is, when it is more than a board: "sprints"
     # makes every card a sprint and its subcards the sprint's work, and gives
@@ -465,6 +469,76 @@ defmodule Slipdock.Boards.Board do
   defp split_senders(nil), do: []
   defp split_senders(other), do: other
 
+  @default_sensitive_paths [
+    ".github/workflows/**",
+    ".github/actions/**",
+    ".git/hooks/**",
+    ".claude/**",
+    ".gitconfig",
+    ".gitmodules",
+    ".gitattributes",
+    "**/Makefile",
+    "**/package.json",
+    "**/.npmrc",
+    "**/setup.py",
+    "**/pyproject.toml"
+  ]
+
+  @sensitive_paths_limit 100
+
+  @doc """
+  The paths a board starts with whose change a person approves before a
+  card's pull request merges (#3519): CI workflows, git hooks and config,
+  the agent's own settings, and the files that run code as a package
+  installs.
+  """
+  def default_sensitive_paths, do: @default_sensitive_paths
+
+  @doc "The board's sensitive paths: its own list, or the defaults when it has none."
+  def sensitive_paths(%__MODULE__{sensitive_paths: nil}), do: @default_sensitive_paths
+  def sensitive_paths(%__MODULE__{sensitive_paths: paths}), do: paths
+
+  # A list, or text one glob per line (or comma or space apart); "default"
+  # or nil puts the defaults back.
+  defp put_sensitive_paths(changeset, attrs) do
+    key = if Map.has_key?(attrs, :sensitive_paths), do: :sensitive_paths, else: "sensitive_paths"
+
+    case Map.fetch(attrs, key) do
+      {:ok, value} when value in [nil, "default"] ->
+        put_change(changeset, :sensitive_paths, nil)
+
+      {:ok, value} when is_binary(value) ->
+        put_change(
+          changeset,
+          :sensitive_paths,
+          value |> String.split(~r/[\s,]+/, trim: true) |> Enum.uniq()
+        )
+
+      {:ok, value} when is_list(value) ->
+        put_change(
+          changeset,
+          :sensitive_paths,
+          value
+          |> Enum.map(&String.trim(to_string(&1)))
+          |> Enum.reject(&(&1 == ""))
+          |> Enum.uniq()
+        )
+
+      _ ->
+        changeset
+    end
+    |> validate_length(:sensitive_paths,
+      max: @sensitive_paths_limit,
+      message: "can be at most %{count} paths"
+    )
+    |> validate_change(:sensitive_paths, fn field, paths ->
+      case Enum.filter(paths, &(String.length(&1) > 200 or String.contains?(&1, [",", " "]))) do
+        [] -> []
+        bad -> [{field, "aren't paths: #{Enum.join(bad, ", ")}"}]
+      end
+    end)
+  end
+
   defp put_senders(changeset, attrs) do
     key = if Map.has_key?(attrs, :inbound_senders), do: :inbound_senders, else: "inbound_senders"
 
@@ -613,6 +687,7 @@ defmodule Slipdock.Boards.Board do
     ])
     |> put_senders(attrs)
     |> validate_senders()
+    |> put_sensitive_paths(attrs)
     |> update_change(:verify_pool, &pool_name/1)
     |> validate_format(:verify_pool, Slipdock.Runners.Runner.name_format(),
       message: "must be a runner pool's name: lower case letters, digits, - or _"

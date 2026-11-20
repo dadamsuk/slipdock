@@ -179,6 +179,15 @@
      {:yes, "through the CLI"},
      {:no, "one way only"}
    ]},
+  {"Set the paths a person approves before a pull request changing them merges",
+   [
+     {:yes, "PATCH /api/boards/:id sensitive_paths"},
+     {:no, "not a tool: the board's owner decides"},
+     {:yes, "slipdock set-board <board> --sensitive-paths LIST"},
+     {:yes, "through the CLI"},
+     {:yes, "through the CLI"},
+     {:no, "one way only"}
+   ]},
   {"Let other addresses mail a board's card address (permitted senders)",
    [
      {:yes, "PATCH /api/boards/:id inbound_senders"},

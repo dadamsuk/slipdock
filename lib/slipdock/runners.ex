@@ -1440,10 +1440,19 @@ defmodule Slipdock.Runners do
   def merge_target(%Job{kind: "merge", card_id: card_id}) when is_integer(card_id) do
     case Repo.get(Card, card_id) do
       %Card{} = card ->
-        %{pr: card.evidence_pr, commit: card.verify_commit || card.evidence_commit}
+        commit = card.verify_commit || card.evidence_commit
+
+        %{
+          pr: card.evidence_pr,
+          commit: commit,
+          # The paths whose change a person approves first (#3519), and
+          # whether one has, for this commit.
+          sensitive: Board.sensitive_paths(Repo.get!(Board, card.board_id)),
+          approved: is_binary(commit) and card.merge_approved_commit == commit
+        }
 
       nil ->
-        %{pr: nil, commit: nil}
+        %{pr: nil, commit: nil, sensitive: [], approved: false}
     end
   end
 

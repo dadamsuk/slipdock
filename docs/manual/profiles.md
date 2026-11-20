@@ -105,6 +105,24 @@ else the board's owner), with two choices:
   as the failing part, *the ask*), to the top of the ready list for
   rework. Skipping the wait sends it back too.
 
+**Sensitive paths.** Whatever its profile, a card whose pull request
+changes one of the board's sensitive paths is held the same way before it
+merges: the runner's merge job lists the pull request's files, stops
+before merging when one matches, and the card is held with the same
+Merge / Send back wait, naming the files. Merge approves that commit, so
+the next merge goes ahead; a new commit needs approving again. A board
+starts with these, as globs (`**` any folders, `*` any name):
+
+`.github/workflows/**`, `.github/actions/**`, `.git/hooks/**`,
+`.claude/**`, `.gitconfig`, `.gitmodules`, `.gitattributes`,
+`**/Makefile`, `**/package.json`, `**/.npmrc`, `**/setup.py`,
+`**/pyproject.toml`
+
+The board's owner changes the list with `slipdock set-board <board>
+--sensitive-paths "a/**,b"` (`default` puts the defaults back, `""`
+turns the check off), `PATCH /api/boards/:board {"sensitive_paths":
+[...]}` or the board's settings.
+
 Only a person may answer it: an agent's answer or skip is refused. You
 can also decide on the card itself: the panel's *Merge* and *Send back*,
 `slipdock verify ID accept` or `reject --reason …`, `verify_card`, or

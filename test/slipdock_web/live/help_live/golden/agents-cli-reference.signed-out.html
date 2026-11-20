@@ -4698,6 +4698,8 @@ set-board</span>
 <span class="inline-block max-w-full">
 [--inbound-senders LIST]</span>
 <span class="inline-block max-w-full">
+[--sensitive-paths LIST]</span>
+<span class="inline-block max-w-full">
 [--wiki-sort manual|name|modified|created]</span>
 <span class="inline-block max-w-full">
 [--bar-required | --no-bar-required]</span>
@@ -4773,6 +4775,10 @@ AI is told when it drafts one (&quot;&quot; for the defaults);
 --inbound-senders &quot;ann@example.com,bob@example.com&quot;
 is every address besides your own that may mail the
 board&#39;s card addresses (replaces the list; &quot;&quot; clears)
+--sensitive-paths &quot;.github/workflows/**,Makefile&quot;
+is the globs a person approves before a pull request
+that changes them merges (&quot;default&quot; the defaults,
+&quot;&quot; none)
 --bar-required: agents write each card&#39;s bar (what
 done means) before work starts, and it locks then;
 --evidence-required: agents say what they checked

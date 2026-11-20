@@ -85,7 +85,11 @@ type Job struct {
 	Profile      string
 	MergePR      string
 	MergeCommit  string
-	Prompt       string
+	// SensitivePaths are the board's globs whose change a person approves
+	// before a merge (#3519); MergeApproved says one has, for this commit.
+	SensitivePaths []string
+	MergeApproved  bool
+	Prompt         string
 	// Tier is the trust tier of the prompt's text (#3516): owner, member
 	// or anyone; "" from a server that doesn't say.
 	Tier string
@@ -254,6 +258,12 @@ func parseJob(h http.Header, body []byte) (*Job, error) {
 	}
 	job.MergePR = h.Get("X-Merge-Pr")
 	job.MergeCommit = h.Get("X-Merge-Commit")
+	for _, g := range strings.Split(h.Get("X-Sensitive-Paths"), ",") {
+		if g = strings.TrimSpace(g); g != "" {
+			job.SensitivePaths = append(job.SensitivePaths, g)
+		}
+	}
+	job.MergeApproved = h.Get("X-Merge-Approved") == "1"
 	return job, nil
 }
 

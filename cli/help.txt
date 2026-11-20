@@ -826,6 +826,7 @@ WRITE
       [--delivery-metrics | --no-delivery-metrics] [--incident-tag T] [--hotfix-hours N]
       [--not-shipped-minutes N] [--card-ref-pattern RE] [--default-view V] [--handoff-label L]
       [--handoff-prompt TEXT | --handoff-prompt-file PATH] [--inbound-senders LIST]
+      [--sensitive-paths LIST]
       [--wiki-sort manual|name|modified|created] [--bar-required | --no-bar-required]
       [--evidence-required | --no-evidence-required] [--verify-work | --no-verify-work]
       [--verify-pool POOL] [--verify-rejection-limit N] [--verify-audit N]
@@ -879,6 +880,10 @@ WRITE
                                       --inbound-senders "ann@example.com,bob@example.com"
                                       is every address besides your own that may mail the
                                       board's card addresses (replaces the list; "" clears)
+                                      --sensitive-paths ".github/workflows/**,Makefile"
+                                      is the globs a person approves before a pull request
+                                      that changes them merges ("default" the defaults,
+                                      "" none)
                                       --bar-required: agents write each card's bar (what
                                       done means) before work starts, and it locks then;
                                       --evidence-required: agents say what they checked

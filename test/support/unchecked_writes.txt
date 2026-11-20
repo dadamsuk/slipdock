@@ -159,6 +159,7 @@ Slipdock.Verified.Audits.audit_decision/6
 Slipdock.Verified.Audits.clear_audit_alerts/1
 Slipdock.Verified.Circling.after_rejection/4
 Slipdock.Verified.Decisions.decide/5
+Slipdock.Verified.Decisions.hold_for_approval/3
 Slipdock.Verified.Decisions.saved/3
 Slipdock.Verified.Decisions.wait_closed/2
 Slipdock.Verified.EpicRework.send_again/2

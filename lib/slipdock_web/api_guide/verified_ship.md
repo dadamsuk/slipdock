@@ -48,3 +48,10 @@ A pull request already merged at the accepted commit completes the
 card with that merge commit; one merged at another head leaves it
 merging and says which head, and neither counts as a rejection. A
 person can say they merged it by hand (`verify_card` `merged`).
+A pull request that changes one of the board's **sensitive paths** (CI
+workflows, git hooks and config, `.claude/**`, and the files a package
+install runs, unless the board sets its own list with `sensitive_paths`)
+merges only once a person approves it: the runner stops before merging,
+and the card is held for a person with a Merge / Send back wait. The
+merge job carries the list as `X-Sensitive-Paths` and a person's approval
+of that commit as `X-Merge-Approved: 1`.
