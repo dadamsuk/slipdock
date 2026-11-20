@@ -50,7 +50,9 @@ func TestAConfinedClaudeJobWritesOnlyItsSessionState(t *testing.T) {
 	// macOS profile grants them alone.
 	r.w.makeClaudeState()
 	for _, d := range claudeStateDirs {
-		if fi, err := os.Stat(filepath.Join(claude, d)); err != nil || !fi.IsDir() || fi.Mode().Perm() != 0o700 {
+		fi, err := os.Stat(filepath.Join(claude, d))
+		// Windows keeps no Unix mode: only that it was made.
+		if err != nil || !fi.IsDir() || runtime.GOOS != "windows" && fi.Mode().Perm() != 0o700 {
 			t.Fatalf("%s wasn't made, owner-only: %v %v", d, fi, err)
 		}
 	}
