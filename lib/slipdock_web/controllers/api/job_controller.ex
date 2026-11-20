@@ -487,6 +487,7 @@ defmodule SlipdockWeb.API.JobController do
   defp session(board, pool, conn) do
     case Runners.session_runner(board, pool, conn.assigns.api_token, conn.assigns.current_user) do
       {:ok, runner} -> {:ok, runner}
+      {:error, :forbidden, message} -> {:error, :forbidden, message}
       {:error, message} when is_binary(message) -> {:error, :unprocessable_entity, message}
       {:error, %Ecto.Changeset{} = changeset} -> {:error, changeset}
     end

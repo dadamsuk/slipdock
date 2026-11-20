@@ -132,6 +132,7 @@ defmodule Slipdock.Policy do
     {:share_page, :page, :write, "Sharing a page"},
     {:share_folder, :folder, :write, "Sharing a folder"},
     {:share_tool, :tool, :owner, "Sharing a tool"},
+    {:share_pool, :board, :owner, "Granting a runner pool"},
     # The wiki, vaults and recordings (#3171)
     {:create_wiki_item, :wiki, :write, "Making a page, file or folder there"},
     {:edit_page, :page, :write, "Changing a page"},

@@ -158,7 +158,7 @@ Admin</a>
 Read</a>
 <span class="text-xs text-base-content/50">
 
-          33
+          35
         </span>
 </li>
 <li>
@@ -1278,6 +1278,36 @@ runners</span>
 </dt>
 <dd class="mt-1 break-words text-sm text-base-content/70">
 the runners taking jobs from the board&#39;s tree (owner only)</dd>
+</div>
+<div class="min-w-0 py-3" data-role="cli-command">
+<dt>
+<code class="break-words font-mono text-sm font-medium text-base-content" data-role="cli-usage">
+<span class="inline-block max-w-full">
+pool-grants</span>
+<span class="inline-block max-w-full">
+&lt;board&gt;</span>
+</code>
+</dt>
+<dd class="mt-1 break-words text-sm text-base-content/70">
+who besides the owner takes each runner pool&#39;s jobs (owner only)</dd>
+</div>
+<div class="min-w-0 py-3" data-role="cli-command">
+<dt>
+<code class="break-words font-mono text-sm font-medium text-base-content" data-role="cli-usage">
+<span class="inline-block max-w-full">
+pool-grant</span>
+<span class="inline-block max-w-full">
+&lt;board&gt;</span>
+<span class="inline-block max-w-full">
+&lt;pool&gt;</span>
+<span class="inline-block max-w-full">
+[EMAIL]</span>
+<span class="inline-block max-w-full">
+[--off]</span>
+</code>
+</dt>
+<dd class="mt-1 break-words text-sm text-base-content/70">
+grant a writer of the board the pool, so their sessions and machines take its jobs; --off takes it back; with no EMAIL, who has the pool. Only the owner and those granted take a pool&#39;s jobs</dd>
 </div>
 <div class="min-w-0 py-3" data-role="cli-command">
 <dt>

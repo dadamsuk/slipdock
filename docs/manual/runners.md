@@ -424,6 +424,16 @@ told to take jobs that finds no job tools stops and says so. A session reports b
 own work rather than from a background loop, so it holds its job on a
 20-minute lease instead of 90 seconds.
 
+**Who takes a pool's jobs.** The board tree's owner takes every pool's
+jobs. Anybody else takes a pool's jobs only once the owner grants them that
+pool, and only while they can write the board: on the Automations panel's
+**Who takes each pool's jobs**, `slipdock pool-grant <board> <pool> EMAIL`,
+or `POST /api/boards/:id/pool-grants`. Without one, a session's claim is
+refused saying so, and their machine can't add a runner to the pool or move
+one onto it. A runner already in the pool stays, but takes no job until its
+person is granted the pool again; a job it holds when the grant is taken
+back is its to finish.
+
 | CLI | What it does |
 |---|---|
 | `slipdock runner new <board> --pool P [--scenario …]` | The **Connect a runner** wizard: prints exactly what to paste for `daemon` (the default: a machine with the runner daemon, a one-time enrolment key for the board, its `init` line and the service, then its runners added on the machine's page or with `slipdock machine add-runner`), `loop`, `cloud` or `chatgpt` (the connector, and a one-job prompt for a chat or a ChatGPT scheduled task; jobs of kind `chatgpt`, and `--commit` refused, as it has no repository), with `--kind`, `--cwd`, `--permission-mode`, `--where desktop\|cloud`, `--repo`, and what a job does to its card and repository, in every scenario and each off unless given: `--in-progress` (move it to the doing list), `--assign` (assign it to the session), `--commit` (only ever in a git repository), `--push` (needs `--commit`), `--move-done`, `--complete` and `--percent-100`, each with a `--no-` form. Off ones are said in the prompt as don'ts. `--verbosity nothing` (the default) means no comments on the card at all. A working directory spelled the Windows way (`C:\…`, `~\…`) gets PowerShell steps, the skills from `/install.ps1`. `--column LIST` adds a rule sending that list's cards. `--scenario server` and `windows`, the retired shell runners, are refused. |
@@ -432,6 +442,8 @@ own work rather than from a background loop, so it holds its job on a
 | `slipdock runner ls <board>` / `slipdock runners <board>` | The board's runners: pool, last seen, current job. |
 | `slipdock runner show <board> <runner>` | One runner in full: what kind it is, who made it and when, last seen, the API token a Claude session works through, the job it holds now, how many of its jobs ended each way, its latest jobs (`--limit N`, 10 by default) and the rules sending cards to its pool. On the Automations panel, clicking a runner's name shows the same. |
 | `slipdock runner rm <board> <runner>` | Revokes a runner. |
+| `slipdock pool-grants <board>` / `slipdock pool-grant <board> <pool>` | Who besides the owner takes each pool's jobs, or one pool's. The owner's. |
+| `slipdock pool-grant <board> <pool> EMAIL [--off]` | Grants a writer of the board the pool, so their sessions and machines take its jobs; `--off` takes it back. |
 | `slipdock jobs <board> [--status S]` / `slipdock jobs --card ID` | Jobs, newest first. `S` is `open` or a status. |
 | `slipdock job <id>` | One job: status, runner, its latest step, prompt, log tail. |
 | `slipdock job <id> --follow [--interval SECS]` | Watches a job: its live log as it arrives, one line per message, tool call or result, until the job ends (exit 0). |

@@ -23,11 +23,11 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
 
   alias Slipdock.{Access, Automations, Runners}
   alias Slipdock.Automations.Spec
-  alias Slipdock.Runners.{Drift, Runner, Setup}
+  alias Slipdock.Runners.{Drift, PoolGrants, Runner, Setup}
 
   @events ~w(open_wizard close_wizard wizard_change connect regenerate rotate_token
     revoke_runner close_setup close_dialog show_runner
-    open_pause pause_change pause cancel_pause resume)
+    open_pause pause_change pause cancel_pause resume grant_pool revoke_pool)
 
   @doc false
   def events, do: @events
@@ -49,6 +49,9 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
        pausing: nil,
        pause_reason: "",
        pauses: [],
+       # Who besides the owner takes each pool's jobs (#3492).
+       pool_grants: [],
+       grant_form: to_form(%{"pool" => "", "email" => ""}, as: :pool_grant),
        panel_notice: nil
      )}
   end
@@ -73,12 +76,20 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
 
     socket
     |> assign(runners: runners, steps: Runners.current_steps(runners))
-    |> assign(pauses: Runners.pauses(board))
+    |> assign(pauses: Runners.pauses(board), pool_grants: PoolGrants.list(board))
     |> assign_details()
   end
 
   defp assign_runners(socket),
-    do: assign(socket, runners: [], steps: %{}, shown: nil, details: nil, pauses: [])
+    do:
+      assign(socket,
+        runners: [],
+        steps: %{},
+        shown: nil,
+        details: nil,
+        pauses: [],
+        pool_grants: []
+      )
 
   # The runner whose details are open, read again whenever the list is: a
   # revoked one closes them.
@@ -237,6 +248,52 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
 
       {:error, message} ->
         {:noreply, socket |> assign(pauses: Runners.pauses(board)) |> notice(:error, message)}
+    end
+  end
+
+  # A pool's jobs are the owner's; these give one to a writer of the board,
+  # or take it back (#3492). The guard has checked the owner already, and
+  # `PoolGrants` asks `Slipdock.Policy` again.
+  defp event("grant_pool", %{"pool_grant" => %{"pool" => pool, "email" => email}}, socket) do
+    actor = [actor: Slipdock.Actor.web(socket.assigns.current_user)]
+
+    case PoolGrants.grant(socket.assigns.board, pool, email, actor) do
+      {:ok, grant} ->
+        {:noreply,
+         socket
+         |> assign(grant_form: to_form(%{"pool" => "", "email" => ""}, as: :pool_grant))
+         |> assign_runners()
+         |> notice(:info, "#{grant.user.email} takes pool #{grant.pool}'s jobs now.")}
+
+      {:error, :invalid, message} ->
+        {:noreply,
+         socket
+         |> assign(grant_form: to_form(%{"pool" => pool, "email" => email}, as: :pool_grant))
+         |> notice(:error, message)}
+
+      {:error, %Slipdock.Policy.Refused{message: message}} ->
+        {:noreply, notice(socket, :error, message)}
+    end
+  end
+
+  defp event("revoke_pool", %{"pool" => pool, "email" => email}, socket) do
+    actor = [actor: Slipdock.Actor.web(socket.assigns.current_user)]
+
+    case PoolGrants.revoke(socket.assigns.board, pool, email, actor) do
+      :ok ->
+        {:noreply,
+         socket
+         |> assign_runners()
+         |> notice(
+           :info,
+           "#{email} no longer takes pool #{pool}'s jobs. A job one of their runners holds finishes."
+         )}
+
+      {:error, :not_found} ->
+        {:noreply, socket |> assign_runners() |> notice(:error, "That grant is gone already.")}
+
+      {:error, %Slipdock.Policy.Refused{message: message}} ->
+        {:noreply, notice(socket, :error, message)}
     end
   end
 
@@ -429,6 +486,14 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
         </li>
       </ul>
 
+      <.pool_grants
+        :if={@can_manage}
+        grants={@pool_grants}
+        form={@grant_form}
+        pools={@pools}
+        target={@myself}
+      />
+
       <ul :if={@runners != [] or @waiting_pools != []} id="runner-list" class="space-y-1">
         <%= for runner <- @runners do %>
           <li
@@ -593,6 +658,69 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
           <button type="submit" aria-label="Close">Close</button>
         </form>
       </dialog>
+    </div>
+    """
+  end
+
+  attr :grants, :list, required: true
+  attr :form, :any, required: true
+  attr :pools, :list, required: true
+  attr :target, :any, required: true
+
+  # Who besides the owner takes each pool's jobs (#3492): a person must be
+  # granted the pool before their sessions or machines take its jobs.
+  defp pool_grants(assigns) do
+    ~H"""
+    <div id="pool-grants" class="space-y-2 rounded-lg border border-base-content/10 p-3">
+      <div>
+        <p class="text-sm font-medium">Who takes each pool's jobs</p>
+        <p class="text-xs text-base-content/60">
+          You take every pool's jobs. A person you share the board with for writing takes a
+          pool's jobs, from their own sessions or machines, only once you grant them it here.
+        </p>
+      </div>
+      <ul :if={@grants != []} id="pool-grant-list" class="space-y-1">
+        <li
+          :for={grant <- @grants}
+          id={"pool-grant-#{grant.id}"}
+          class="flex items-center gap-2 rounded-lg px-2 py-1 text-sm odd:bg-base-200/40"
+        >
+          <.icon name="hero-key" class="size-4 shrink-0 text-base-content/50" />
+          <span class="min-w-0 flex-1 truncate">
+            pool {grant.pool} <span class="text-base-content/60">· {grant.user.email}</span>
+          </span>
+          <button
+            phx-target={@target}
+            type="button"
+            class="btn btn-ghost btn-xs"
+            phx-click="revoke_pool"
+            phx-value-pool={grant.pool}
+            phx-value-email={grant.user.email}
+            id={"revoke-pool-grant-#{grant.id}"}
+            data-confirm={"#{grant.user.email} will stop taking pool #{grant.pool}'s jobs. Take it back?"}
+          >
+            Take back
+          </button>
+        </li>
+      </ul>
+      <.form
+        for={@form}
+        id="pool-grant-form"
+        phx-target={@target}
+        phx-submit="grant_pool"
+        class="flex flex-wrap items-end gap-2"
+      >
+        <div class="w-32">
+          <.input field={@form[:pool]} label="Pool" list="pool-grant-pools" required />
+          <datalist id="pool-grant-pools">
+            <option :for={pool <- @pools} value={pool}></option>
+          </datalist>
+        </div>
+        <div class="min-w-48 flex-1">
+          <.input field={@form[:email]} type="email" label="Their email" required />
+        </div>
+        <button type="submit" id="pool-grant-submit" class="btn btn-sm">Grant</button>
+      </.form>
     </div>
     """
   end

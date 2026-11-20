@@ -273,6 +273,14 @@ defmodule Slipdock.VerifiedJobsTest do
     test "another person's session, or a runner of the pool's own, takes it", ctx do
       {_card, verify, _} = built_by_session(ctx)
       other = user_fixture("other@example.com")
+      # A writer the owner granted the pool (#3492).
+      {:ok, _} = Slipdock.Access.grant(ctx.board, other, "write", ctx.owner)
+
+      {:ok, _} =
+        Slipdock.Runners.PoolGrants.grant(ctx.board, "checkers", other.email,
+          actor: Slipdock.Actor.web(ctx.owner)
+        )
+
       {theirs, _} = session(ctx, other, "checkers")
 
       assert %{id: id} = Slipdock.Runners.claim(theirs)

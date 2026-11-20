@@ -1709,6 +1709,17 @@ defmodule SlipdockWeb.API.JSON do
     }
   end
 
+  @doc "A runner pool's grant to a person (#3492): who takes that pool's jobs."
+  def pool_grant(%Slipdock.Runners.PoolGrant{} = g) do
+    %{
+      id: g.id,
+      pool: g.pool,
+      user: %{id: g.user.id, email: g.user.email, name: g.user.name},
+      granted_by: g.granted_by && g.granted_by.email,
+      inserted_at: g.inserted_at
+    }
+  end
+
   @doc "A runner, for the board's owner. Never its token."
   def runner(%Slipdock.Runners.Runner{} = r) do
     %{

@@ -187,6 +187,12 @@ READ
   callbacks <board> [--limit N]       the calls the board's rules have made, and what came back
   alerts                              alerts automation rules have raised for you
   runners <board>                     the runners taking jobs from the board's tree (owner only)
+  pool-grants <board>                 who besides the owner takes each runner pool's jobs (owner only)
+  pool-grant <board> <pool> [EMAIL] [--off]
+                                      grant a writer of the board the pool, so their sessions
+                                      and machines take its jobs; --off takes it back; with no
+                                      EMAIL, who has the pool. Only the owner and those granted
+                                      take a pool's jobs
   now <board>                         right now on the board's tree: each runner at work and its
                                       jobs' steps, the cards in progress with where they sit and
                                       what holds them, the queue with why each job is held, and

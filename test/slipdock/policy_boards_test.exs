@@ -130,6 +130,10 @@ defmodule Slipdock.PolicyBoardsTest do
     Access.grant(tool, stranger(), "read", user)
   end
 
+  # Granting a runner pool (#3492), as the process's actor.
+  defp act(:share_pool, ctx, _user),
+    do: Slipdock.Runners.PoolGrants.grant(ctx.root, "dev", stranger().email)
+
   defp refused?(result, action, by),
     do: match?({:error, %Refused{action: ^action, by: ^by}}, result)
 
