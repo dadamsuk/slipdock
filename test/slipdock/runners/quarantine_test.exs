@@ -340,6 +340,20 @@ defmodule Slipdock.Runners.QuarantineTest do
       assert read["agent_directed"] == false
     end
 
+    test "drops a verbatim value over its field's cap" do
+      long = String.duplicate("word ", 130) <> "end."
+
+      answer =
+        read(%{"requirement" => long, "acceptance" => ["Short item."], "context" => [long]})
+
+      source = [{"Description", long <> "\nShort item."}]
+
+      assert {:ok, read} = Quarantine.check(answer, source)
+      # 655 characters: over the requirement's 600, under the context's 1500.
+      assert read["requirement"] == nil
+      assert read["context"] == [long]
+    end
+
     test "caps a list's length" do
       text = Enum.map_join(1..50, "\n", &"item #{&1}.")
       answer = read(%{"requirement" => "item 1.", "context" => Enum.map(1..50, &"item #{&1}.")})
