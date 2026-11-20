@@ -2059,7 +2059,10 @@ repository, links only in the context, a length cap), and the prompt
 holds only those, under a header saying they are quoted from an untrusted
 author. A read that speaks to an agent, fails, is invalid or finds no AI
 key is never handed out: the job ends `parked` on a `security` wait on the
-card, and the claim answers the next job, or 204.
+card, and the claim answers the next job, or 204. A JSON claim of such a
+job (`POST /api/boards/:board/jobs/claim`, MCP `claim_job`) gives its
+`wait` and `handoff` as `{"id": …}` alone and no card title: their text is
+what the prompt leaves out.
 
 **What a job reads while it runs.** A read of a card that sends a job's
 id as `x-slipdock-job` (`GET /api/cards/:id`, which `slipdock card` uses,
