@@ -84,7 +84,8 @@ type Local struct {
 	// (W-2543): init writes it when it sets the account up.
 	User *Account `json:"user,omitempty"`
 	// ConfinedWritable are what a confined job may write besides its own
-	// directory: the agent's own state (default ~/.claude, for claude).
+	// directory, in place of the default: for claude, the session state in
+	// ~/.claude (its transcripts, todos and the like), never its config.
 	ConfinedWritable []string `json:"confined_writable,omitempty"`
 	// LogLevel is the least a line must matter to reach the daemon's log:
 	// debug, info (the default), warn or error (#2652). run's --log-level

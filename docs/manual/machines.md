@@ -567,7 +567,7 @@ is gone, say), the job fails before anything starts, and its log says why.
 | Executor | Jobs run as | What it stops | What it doesn't |
 |---|---|---|---|
 | `user` | a dedicated account, `slipdock` by default, with its own home, clones and logins | reading your home: a job is refused while your home is open to the account | reading what every account can, writing its own home and `/tmp`, the network |
-| `confined` | you, unable to write outside the job's directory | writing anywhere else: your home, other repositories, the system; reading the daemon's own directory (the machine key) and the logins no job needs (`~/.aws`, `~/.netrc`, `~/.docker/config.json`, `~/.kube`, `~/.config/gcloud`, `~/.azure`, `~/.gnupg`); under a tier's network allowlist, reaching any host off it | reading your other files (`~/.ssh` and the `gh` and `slipdock` logins included), the network (but for an allowlist). It may also write its own temporary directory, the terminal devices and the agent's own state (`~/.claude` for `claude`) |
+| `confined` | you, unable to write outside the job's directory | writing anywhere else: your home, other repositories, the system; reading the daemon's own directory (the machine key) and the logins no job needs (`~/.aws`, `~/.netrc`, `~/.docker/config.json`, `~/.kube`, `~/.config/gcloud`, `~/.azure`, `~/.gnupg`); under a tier's network allowlist, reaching any host off it | reading your other files (`~/.ssh` and the `gh` and `slipdock` logins included), the network (but for an allowlist). It may also write its own temporary directory, the terminal devices and the agent's session state (for `claude`, its transcripts, todos and the like in `~/.claude`, but not its settings, hooks, skills, plugins, commands, agents or `CLAUDE.md`) |
 | `me` | you, as you are | nothing: an agent can read and change what you can | |
 | `container` | you, in a short-lived Docker or Podman container from an image on the machine's allow-list | seeing anything not mounted: your home is an empty one; writing outside the job's directory and repository; the network, when the runner turns it off; any host off a tier's network allowlist (Linux) | the network when it is on; what the mounted logins allow; the image itself, and the runtime (an account in the `docker` group is root on the machine) |
 
@@ -594,8 +594,21 @@ install. A job may write its repository, `.git` included, so the daemon's
 own git for the runner (its worktrees, the built-in merge) and the runner's
 hooks run confined too, able to write only the repository and its worktrees:
 git config or a hook the job planted there runs inside the same walls.
-`confined_writable` in the local file lists more paths a confined job may
-write.
+`confined_writable` in the local file lists the paths a confined job may
+write besides its directory, in place of the agent's session state.
+
+**Claude's own directory.** A confined `claude` job may write only the
+state a session keeps in `~/.claude` (or `$CLAUDE_CONFIG_DIR`): `projects`
+(its transcripts), `todos`, `tasks`, `plans`, `file-history`, `debug`,
+`logs`, `telemetry`, `paste-cache` and `image-cache`, which the daemon
+makes before the job when they aren't there, and `.credentials.json` and
+`history.jsonl` when they are. It reads the rest where it is, its skills
+and MCP config included, but can't change what a later session loads:
+its settings and hooks, `CLAUDE.md`, skills, plugins, commands, agents and
+output styles, nor the shell snapshots and session environments a session
+reads back. Its shell commands run without a snapshot of your login shell.
+It keeps your sign-in: the job uses `~/.claude` itself, not a copy, so the
+macOS keychain entry Claude Code keeps for it still applies.
 
 A confined job reads your files but not the daemon's own directory (the
 machine key, the jobs' logs; its copy of the `slipdock` CLI, its
@@ -766,7 +779,7 @@ optional, and with no file at all `claude` and `codex` are found on your
   can read: not the place for a secret.
 - `user`: the dedicated account (`name`, `home`, and the `path` its jobs
   get), which `init` writes. `confined_writable`: what a confined job may
-  write besides its directory.
+  write besides its directory, in place of the agent's session state.
 - `container`: how the `container` executor runs here. `runtime`
   (`docker`, `podman` or a path; default `docker`, else `podman`), `pull`
   (`never`, the default: the image must be on the machine; `missing` or
@@ -1174,7 +1187,8 @@ the machine allows, and a job never runs under a weaker one in its place.
   logins (its `gh` login pushes wherever it can), or the network.
 - `confined`: jobs run as you, unable to write outside the job's
   directory, its repository, a scratch temporary directory and the
-  agent's own state (Landlock on Linux, `sandbox-exec` on macOS). In a
+  agent's session state, never its settings, hooks or skills (Landlock
+  on Linux, `sandbox-exec` on macOS). In a
   worktree, a job whose card has paths writes only those in it, and of
   its repository only what a commit needs. The daemon's own git for the
   runner and the runner's hooks are confined to the repository and its

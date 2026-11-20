@@ -750,7 +750,8 @@ gh</code>
 confined</code>
 : jobs run as you, unable to write outside the job&#39;s
 directory, its repository, a scratch temporary directory and the
-agent&#39;s own state (Landlock on Linux, <code>
+agent&#39;s session state, never its settings, hooks or skills (Landlock
+on Linux, <code>
 sandbox-exec</code>
  on macOS). In a
 worktree, a job whose card has paths writes only those in it, and of
