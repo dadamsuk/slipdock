@@ -2321,7 +2321,10 @@ else 204), reports its machine's ceiling with `PUT /api/machine/ceiling`
 `boards`, `executors`, from its own local file: the server only shows it)
 and says what it did with each config: `POST
 /api/machine/runners/:runner_id/report` with `version` and `outcome`
-`accepted`, or `rejected` and a `reason` (a stale version answers 409).
+`accepted`, or `rejected` and a `reason` (a stale version answers 409);
+the same call with `outcome` `worktree_pruned` and a `reason`, and no
+version needed, says it pruned a worktree the runner's jobs left with
+uncommitted changes (#3489), a line in the machine's log.
 `GET /api/machines/:id` shows the ceiling, the runners with what falls
 outside it, and the log of accepted and rejected changes. The runner
 protocol takes the machine key with `X-Runner-Id`, for that machine's own

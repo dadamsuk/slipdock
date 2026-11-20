@@ -1,8 +1,10 @@
 // Package daemonstate is what the running daemon writes down about itself
 // for `slipdock-runner status` to read back with no server call (#2652):
 // daemon-state.json in its directory (the process, when it started and
-// stopped, and its last contact with the server), and each runner's
-// jobs/<runner>/job.json (the job it holds or last held).
+// stopped, and its last contact with the server), each runner's
+// jobs/<runner>/job.json (the job it holds or last held), and
+// left-worktrees.json, the worktrees its jobs left with uncommitted
+// changes (#3489).
 package daemonstate
 
 import (
@@ -43,6 +45,36 @@ type Job struct {
 	// Status is how it ended: the status reported to the server, or
 	// "stopped" when the daemon stopped while it ran.
 	Status string `json:"status,omitempty"`
+}
+
+// LeftFile lists the worktrees the daemon's jobs left with uncommitted
+// changes, in its directory.
+const LeftFile = "left-worktrees.json"
+
+// Left is a worktree a job left with uncommitted changes: its path, its
+// repository and branch (card-<id>), the runner whose job left it, and
+// when.
+type Left struct {
+	Path   string    `json:"path"`
+	Repo   string    `json:"repo"`
+	Branch string    `json:"branch"`
+	Runner int64     `json:"runner"`
+	At     time.Time `json:"at"`
+}
+
+// LoadLeft reads dir's left worktrees; none is an empty list.
+func LoadLeft(dir string) ([]Left, error) {
+	var l []Left
+	_, err := readJSON(filepath.Join(dir, LeftFile), &l)
+	return l, err
+}
+
+// SaveLeft writes dir's left worktrees.
+func SaveLeft(dir string, l []Left) error {
+	if l == nil {
+		l = []Left{}
+	}
+	return writeJSON(filepath.Join(dir, LeftFile), l)
 }
 
 // Load reads dir's daemon state; none is nil.

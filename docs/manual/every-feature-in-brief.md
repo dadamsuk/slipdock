@@ -642,7 +642,10 @@ with the tail of the log — and a Cancel button.
   branch named for its card (`card-<id>`, started from the origin's
   default branch), beside the repository in
   `<repo>-lanes/`; a clean one is removed after the job, one with
-  uncommitted changes kept for the next job on that card. Off by default.
+  uncommitted changes kept for the next job on that card, and, once
+  nobody has touched it for `dirty_worktree_days` (14 by default), its
+  changes go on a `slipdock-kept/…` branch and it is removed, on the
+  Machines page's changes. Off by default.
 - **Each card has a timeline.** Near the bottom of the card, lanes on one
   time axis show each list it has sat in (coloured by the list's category,
   with who moved it), each wait on a person and each runner job, from its

@@ -364,11 +364,13 @@ defmodule SlipdockWeb.MachinesLive.Show do
   defp board_name(names, id), do: Map.get(names, id, "board ##{id}")
 
   defp outcome_tone("rejected"), do: "text-error"
+  defp outcome_tone("worktree_pruned"), do: "text-warning"
   defp outcome_tone(outcome) when outcome in ["board_added", "board_removed"], do: "text-info"
   defp outcome_tone(_), do: "text-success"
 
   defp outcome_text("board_added"), do: "board added"
   defp outcome_text("board_removed"), do: "board removed"
+  defp outcome_text("worktree_pruned"), do: "worktree pruned"
   defp outcome_text(outcome), do: outcome
 
   ## Render ------------------------------------------------------------------------
@@ -840,7 +842,8 @@ defmodule SlipdockWeb.MachinesLive.Show do
           >
             <h2 class="section-title">Changes</h2>
             <p class="mt-1 text-sm text-base-content/60">
-              What the machine said of each setting it was sent, and each board added or removed.
+              What the machine said of each setting it was sent, each board added or removed, and
+              each worktree left with uncommitted changes that it pruned.
             </p>
             <ul class="mt-3 space-y-1 text-sm">
               <li :for={c <- @changes} class="flex flex-wrap gap-2">

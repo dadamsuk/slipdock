@@ -481,11 +481,43 @@ defmodule Slipdock.Runners.MachineRunners do
   runner's current version can be reported on (a stale one gets
   `{:error, :stale, current}`: the daemon has a newer config to fetch).
   Accepting clears a rejection on record.
+
+  Or `%{"outcome" => "worktree_pruned"}` with a `reason`, the daemon saying
+  it pruned a worktree the runner's jobs left with uncommitted changes
+  (#3489): a line in the machine's log at the runner's current version,
+  whatever version is given, and nothing about the runner changes.
   """
   def report(%Machine{} = machine, %Runner{machine_id: machine_id} = runner, attrs)
       when machine_id == machine.id do
-    attrs = stringify(attrs)
+    case stringify(attrs) do
+      %{"outcome" => "worktree_pruned"} = attrs -> pruned(machine, runner, attrs)
+      attrs -> config_report(machine, runner, attrs)
+    end
+  end
 
+  def report(%Machine{}, %Runner{}, _attrs), do: {:error, :not_found}
+
+  defp pruned(machine, runner, attrs) do
+    case clean(attrs["reason"]) do
+      nil ->
+        {:error, :invalid, "a pruned worktree says which: give a reason"}
+
+      reason ->
+        Repo.insert!(%ConfigReport{
+          machine_id: machine.id,
+          runner_id: runner.id,
+          runner_name: runner.name,
+          version: runner.config_version,
+          outcome: "worktree_pruned",
+          reason: reason
+        })
+
+        broadcast(machine, :config_reported)
+        {:ok, runner}
+    end
+  end
+
+  defp config_report(machine, runner, attrs) do
     with {:ok, version} <- version(attrs["version"], runner),
          {:ok, outcome, reason} <- outcome(attrs) do
       {:ok, runner} =
@@ -511,8 +543,6 @@ defmodule Slipdock.Runners.MachineRunners do
       {:ok, runner}
     end
   end
-
-  def report(%Machine{}, %Runner{}, _attrs), do: {:error, :not_found}
 
   # Only the current version is reported on, so an acceptance is never
   # older than a rejection on record: it clears it.
@@ -546,9 +576,10 @@ defmodule Slipdock.Runners.MachineRunners do
     end
   end
 
-  defp outcome(_), do: {:error, :invalid, "outcome must be accepted or rejected"}
+  defp outcome(_),
+    do: {:error, :invalid, "outcome must be accepted, rejected or worktree_pruned"}
 
-  @doc "The machine's log of accepted and rejected changes, newest first."
+  @doc "The machine's log of changes and pruned worktrees, newest first."
   def reports(%Machine{id: id}, limit \\ 50) do
     Repo.all(
       from(r in ConfigReport,

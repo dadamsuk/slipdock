@@ -116,6 +116,10 @@ type Worker struct {
 	// Holds are the daemon's holds on claiming while its agent can't run
 	// (#2920), shared by its runners (default: the worker's own).
 	Holds *Holds
+	// Lanes are the machine's job worktrees, shared by its runners: which
+	// are in use, and which were left with uncommitted changes (#3489;
+	// default: the worker's own, listed in MachineDir).
+	Lanes *Lanes
 	// QuickExit is how soon an agent that exits non-zero before a tool
 	// call reads as the machine's trouble (quickExit; < 0 off).
 	QuickExit time.Duration
@@ -187,6 +191,18 @@ func (w *Worker) defaults() {
 	if w.QuickExit == 0 {
 		w.QuickExit = quickExit
 	}
+	if w.Lanes == nil {
+		w.Lanes = NewLanes(w.machineDir())
+	}
+}
+
+// machineDir is the daemon's own directory: MachineDir, else JobsDir's
+// parent, else "" (none).
+func (w *Worker) machineDir() string {
+	if w.MachineDir == "" && w.JobsDir != "" {
+		return filepath.Dir(w.JobsDir)
+	}
+	return w.MachineDir
 }
 
 // executorSettings are what the executor needs from the machine's files.
@@ -224,11 +240,7 @@ func (w *Worker) containerSettings(s *executor.Settings) {
 	if ct := w.Local.Container; ct != nil {
 		s.Runtime, s.Pull, s.Login, s.PassEnv = ct.Runtime, ct.Pull, ct.Login, ct.Env
 	}
-	md := w.MachineDir
-	if md == "" && w.JobsDir != "" {
-		md = filepath.Dir(w.JobsDir)
-	}
-	for _, p := range []string{md, w.JobsDir} {
+	for _, p := range []string{w.machineDir(), w.JobsDir} {
 		if p != "" {
 			s.Protected = append(s.Protected, p)
 		}
@@ -909,7 +921,7 @@ func (w *Worker) runAgent(ctx context.Context, j *jobRun) {
 	w.keepCLI(ctx, j)
 	wt := w.Runner.Config.Worktree
 	if wt == "on" || (wt == "auto" && w.SharedDir) {
-		if j.lane, err = openLane(ctx, w.Exec, w.Executor.IsDir, j.dir, job.CardID, j.note); err != nil {
+		if j.lane, err = w.laneFor(ctx, j); err != nil {
 			w.say("job #%d: no worktree for it, so not run: %v", job.ID, err)
 			j.note("slipdock-runner: " + err.Error())
 			j.env = w.jobEnv(j)

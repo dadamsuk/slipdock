@@ -38,6 +38,9 @@ type machineStatus struct {
 	ConfigVersion int64               `json:"config_version"`
 	Runners       []runnerStatus      `json:"runners"`
 	Update        *update.Check       `json:"update"`
+	// Left are the worktrees jobs left with uncommitted changes (#3489),
+	// which a later job prunes once they are old.
+	Left []daemonstate.Left `json:"left_worktrees"`
 }
 
 type statusMachine struct {
@@ -126,6 +129,9 @@ func readStatus(d string, env Env) (machineStatus, error) {
 		return s, err
 	}
 	s.Update = u.Last
+	if s.Left, err = daemonstate.LoadLeft(d); err != nil {
+		return s, err
+	}
 	return s, nil
 }
 
@@ -239,6 +245,14 @@ func printStatus(s machineStatus, env Env) {
 		tw.Flush()
 	}
 	fmt.Fprintln(out)
+	if len(s.Left) == 0 {
+		fmt.Fprintln(out, "Worktrees: none left with uncommitted changes")
+	} else {
+		fmt.Fprintf(out, "Worktrees: %d left with uncommitted changes, kept on a branch and removed once untouched for dirty_worktree_days:\n", len(s.Left))
+		for _, l := range s.Left {
+			fmt.Fprintf(out, "  %s (%s, runner #%d, left %s)\n", l.Path, l.Branch, l.Runner, stamp(l.At))
+		}
+	}
 	if u := s.Update; u != nil {
 		line := fmt.Sprintf("%s at %s", u.Outcome, stamp(u.At))
 		if u.Latest != "" {

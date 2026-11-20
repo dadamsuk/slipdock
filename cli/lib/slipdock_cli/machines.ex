@@ -470,6 +470,10 @@ defmodule SlipdockCLI.Machines do
   # A board added or removed (#3249) has no runner: the board is its reason.
   defp change_line(%{"outcome" => "board_" <> done} = c), do: "board #{done}: #{c["reason"]}"
 
+  # A worktree the daemon pruned (#3489): what it did is the reason.
+  defp change_line(%{"outcome" => "worktree_pruned"} = c),
+    do: "#{c["runner"]} pruned a worktree: #{c["reason"]}"
+
   defp change_line(c) do
     reason = if c["reason"], do: ": #{c["reason"]}", else: ""
     "#{c["runner"]} v#{c["version"]} #{c["outcome"]}#{reason}"

@@ -485,6 +485,13 @@ defmodule SlipdockCLI.MachinesTest do
               "version" => 2,
               "outcome" => "rejected",
               "reason" => "timeout over the ceiling"
+            },
+            %{
+              "at" => "2026-11-09T05:00:00Z",
+              "runner" => "builder",
+              "version" => 2,
+              "outcome" => "worktree_pruned",
+              "reason" => "worktree /srv/src/app-lanes/card-5 was removed"
             }
           ]
         })
@@ -504,6 +511,7 @@ defmodule SlipdockCLI.MachinesTest do
       assert out =~ "builder: v2 refused: timeout over the ceiling"
       assert out =~ "outside the ceiling: timeout 240 minutes is over 60"
       assert out =~ "builder v2 rejected: timeout over the ceiling"
+      assert out =~ "builder pruned a worktree: worktree /srv/src/app-lanes/card-5 was removed"
     end
 
     test "machines lists the ones serving your boards after your own" do

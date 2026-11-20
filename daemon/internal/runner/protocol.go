@@ -520,6 +520,27 @@ func (c *Client) Report(ctx context.Context, runnerID, version int64, outcome, r
 	return refused(resp, data)
 }
 
+// ReportWorktree tells the server, for the machine's page, that runnerID
+// pruned a worktree its jobs left with uncommitted changes (#3489): what
+// goes in the machine's log of changes, with outcome worktree_pruned.
+func (c *Client) ReportWorktree(ctx context.Context, runnerID int64, what string) error {
+	body, err := json.Marshal(map[string]any{"outcome": "worktree_pruned", "reason": clip(what, 1000)})
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	h := http.Header{"Content-Type": {"application/json"}, "Accept": {"application/json"}}
+	resp, data, err := c.request(ctx, 0, http.MethodPost, fmt.Sprintf("/api/machine/runners/%d/report", runnerID), body, h)
+	switch {
+	case err != nil:
+		return err
+	case resp.StatusCode == http.StatusOK, resp.StatusCode == http.StatusNotFound:
+		return nil
+	}
+	return refused(resp, data)
+}
+
 // ReportCeiling tells the server the machine's ceiling and the executors it
 // offers (PUT /api/machine/ceiling, #2615), for the Machines page to show
 // and to say which runner fields fall outside it. A refusal (the key

@@ -91,6 +91,8 @@ func fixture(t *testing.T, w *world, alive bool) {
 	writeFile(t, filepath.Join(jobs, "21", "job.log"), "starting\nall done: pushed abc123\n\n")
 	daemonstate.SaveJob(jobs, 22, daemonstate.Job{ID: 802, CardID: 42, Kind: "claude", Started: fixtureNow.Add(-10 * time.Minute)})
 	writeFile(t, filepath.Join(jobs, "22", "job.log"), "cloning\nrunning the tests\n")
+	daemonstate.SaveLeft(d, []daemonstate.Left{{Path: filepath.Join(root, "app-lanes", "card-40"), Repo: filepath.Join(root, "app"),
+		Branch: "card-40", Runner: 21, At: fixtureStart}})
 	contact := fixtureNow.Add(-2 * time.Minute)
 	daemonstate.Save(d, daemonstate.Daemon{PID: 4242, Version: "v1.4.0", Started: fixtureStart, LastContact: &contact, Online: true})
 	update.Save(d, update.Settings{Last: &update.Check{At: fixtureStart, Current: "v1.4.0", Latest: "v1.4.0", Outcome: update.Current}})
@@ -117,6 +119,8 @@ func TestStatusShowsEachRunnersState(t *testing.T) {
 		"Contact:   online, the server last answered 2026-11-10T11:58:00Z",
 		"Config:    version 12",
 		"Updates:   last check current at 2026-11-10T08:00:00Z, latest v1.4.0",
+		"Worktrees: 1 left with uncommitted changes, kept on a branch and removed once untouched for dirty_worktree_days:\n  " +
+			filepath.Join(w.home, "dev", "app-lanes", "card-40") + " (card-40, runner #21, left 2026-11-10T08:00:00Z)",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("missing %q in:\n%s", want, out)
@@ -189,7 +193,9 @@ func TestStatusWhenTheDaemonIsntRunning(t *testing.T) {
 	os.Remove(filepath.Join(w.dir, daemonstate.File))
 	os.Remove(filepath.Join(w.dir, "config-cache.json"))
 	os.Remove(filepath.Join(w.dir, update.File))
+	os.Remove(filepath.Join(w.dir, daemonstate.LeftFile))
 	if code := w.main("status"); code != 1 || !strings.Contains(w.out.String(), "not running (no daemon-state.json") ||
+		!strings.Contains(w.out.String(), "Worktrees: none left with uncommitted changes") ||
 		!strings.Contains(w.out.String(), "No runners") || !strings.Contains(w.out.String(), "Updates:   not checked yet") {
 		t.Fatalf("no state: %d\n%s", code, w.out)
 	}
@@ -225,7 +231,8 @@ func TestStatusJSON(t *testing.T) {
 				CardID int64 `json:"card_id"`
 			} `json:"job"`
 		} `json:"runners"`
-		Update *update.Check `json:"update"`
+		Update *update.Check      `json:"update"`
+		Left   []daemonstate.Left `json:"left_worktrees"`
 	}
 	if err := json.Unmarshal(w.out.Bytes(), &s); err != nil {
 		t.Fatalf("%v:\n%s", err, w.out)
@@ -248,6 +255,9 @@ func TestStatusJSON(t *testing.T) {
 	}
 	if r := s.Runners[1]; r.Job == nil || r.Job.CardID != 42 || r.Last != "running the tests" {
 		t.Errorf("busy-one: %+v", r)
+	}
+	if len(s.Left) != 1 || s.Left[0].Branch != "card-40" || s.Left[0].Runner != 21 {
+		t.Errorf("left worktrees: %+v", s.Left)
 	}
 }
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/ed25519"
 	"crypto/rand"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -68,6 +69,10 @@ func helper(mode string, args []string) int {
 			}
 		}
 		_ = os.WriteFile(os.Getenv("HELPER_OUT"), []byte(b.String()), 0o600)
+		if left := os.Getenv("HELPER_LEAVE"); left != "" {
+			// Leaves a file it never commits where it ran.
+			_ = os.WriteFile(left, []byte("work in progress\n"), 0o600)
+		}
 		fmt.Println("hello from the agent")
 		if say := os.Getenv("HELPER_SAY"); say != "" {
 			fmt.Println(say)
@@ -279,6 +284,8 @@ type server struct {
 	intents    map[int64]string
 	intentCode int
 	intentGets int
+	// reports are what each POST /api/machine/runners/:id/report said.
+	reports []map[string]any
 	// round moves on each time a rig's worker has stopped (rig.run), and
 	// the rig's client sends the round it is in with each claim
 	// (X-Test-Round). A stopped worker's last claim is cancelled on its
@@ -497,6 +504,15 @@ func (s *server) handle(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			fmt.Fprint(w, body)
 		}
+	case strings.HasPrefix(r.URL.Path, "/api/machine/runners/") && strings.HasSuffix(r.URL.Path, "/report"):
+		var rep map[string]any
+		if err := json.Unmarshal(body, &rep); err != nil {
+			w.WriteHeader(422)
+			return
+		}
+		rep["runner"] = jobID(r.URL.Path)
+		s.reports = append(s.reports, rep)
+		fmt.Fprintln(w, `{"ok":true}`)
 	case strings.HasSuffix(r.URL.Path, "/finish"):
 		id := jobID(r.URL.Path)
 		exit, _ := strconv.Atoi(r.URL.Query().Get("exit"))

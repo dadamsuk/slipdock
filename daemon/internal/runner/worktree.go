@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"time"
+
+	"github.com/dadamsuk/slipdock/daemon/internal/daemonstate"
 )
 
 // lane is a job's own git worktree, as the shell runner's WORKTREE=1 makes
@@ -12,6 +15,11 @@ import (
 // <repo>-lanes, so jobs side by side never share a working tree.
 type lane struct {
 	path, repo, branch string
+	// lanes are the machine's (#3489): close lists a worktree it keeps
+	// with uncommitted changes there, as runner's at now.
+	lanes  *Lanes
+	now    func() time.Time
+	runner int64
 }
 
 // openLane makes (or reuses) the card's worktree for a job in dir. With no
@@ -167,13 +175,23 @@ func isAncestor(ctx context.Context, run execFunc, dir, a, b string) bool {
 }
 
 // close removes a clean worktree, and its branch if it is merged (git
-// branch -d); anything uncommitted keeps it.
+// branch -d); anything uncommitted keeps it, listed in the machine's Lanes
+// for a later job's sweep to prune once it is old (#3489).
 func (l *lane) close(ctx context.Context, run execFunc, note func(string)) {
 	if l == nil {
 		return
 	}
+	var left *daemonstate.Left
+	defer func() {
+		if err := l.lanes.release(l.path, left); err != nil {
+			note(fmt.Sprintf("slipdock-runner: can't write the worktrees left with uncommitted changes: %v", err))
+		}
+	}()
 	if st, err := run(ctx, l.path, "git", "status", "--porcelain"); err != nil || strings.TrimSpace(st) != "" {
 		note(fmt.Sprintf("slipdock-runner: worktree %s has uncommitted changes, so it is kept", l.path))
+		if l.now != nil {
+			left = &daemonstate.Left{Path: l.path, Repo: l.repo, Branch: l.branch, Runner: l.runner, At: l.now()}
+		}
 		return
 	}
 	if _, err := run(ctx, l.repo, "git", "worktree", "remove", l.path); err != nil {

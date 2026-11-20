@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestLoadLocalMissingIsEmpty(t *testing.T) {
@@ -201,5 +202,38 @@ func TestAVerifyImageMustBeAnImage(t *testing.T) {
 	l.Container.VerifyImage = "ghcr.io/example/verify:1"
 	if err := l.Validate(); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// A worktree left with uncommitted changes is pruned after
+// dirty_worktree_days (#3489): 14 by default, 0 or less never, and more
+// than a hundred years refused.
+func TestTheLocalFileSaysWhenADirtyWorktreeIsPruned(t *testing.T) {
+	day := 24 * time.Hour
+	for body, want := range map[string]time.Duration{
+		`{}`:                          14 * day,
+		`{"dirty_worktree_days":3}`:   3 * day,
+		`{"dirty_worktree_days":0}`:   0,
+		`{"dirty_worktree_days":-1}`:  0,
+		`{"dirty_worktree_days":365}`: 365 * day,
+	} {
+		d := t.TempDir()
+		if err := os.WriteFile(filepath.Join(d, LocalFile), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		l, err := LoadLocal(d)
+		if err != nil {
+			t.Fatalf("%s: %v", body, err)
+		}
+		if got := l.DirtyWorktreeAge(); got != want {
+			t.Errorf("%s: age = %s, want %s", body, got, want)
+		}
+	}
+	d := t.TempDir()
+	if err := os.WriteFile(filepath.Join(d, LocalFile), []byte(`{"dirty_worktree_days":36501}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LoadLocal(d); err == nil || !strings.Contains(err.Error(), "dirty_worktree_days: 36501 is more than 36500") {
+		t.Fatalf("err = %v", err)
 	}
 }

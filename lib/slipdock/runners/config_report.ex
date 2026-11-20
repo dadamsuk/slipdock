@@ -6,7 +6,9 @@ defmodule Slipdock.Runners.ConfigReport do
   `Slipdock.Runners.MachineRunners.report/3`. Or a board its owner added
   or removed (#3249): `board_added` or `board_removed`, with no runner, the
   machine's config version it went out in, and the board as the `reason`,
-  written by `MachineRunners.set_boards/3`.
+  written by `MachineRunners.set_boards/3`. Or a worktree the daemon pruned
+  (#3489): `worktree_pruned`, its runner's, with what it did as the
+  `reason`.
   """
   use Ecto.Schema
 

@@ -792,6 +792,10 @@ the network for its agent and its verdict.
   a skills archive signed with the release key is installed.
 - `log_level`: how much goes in the daemon's log: `debug`, `info` (the
   default), `warn` or `error`. `run --log-level` overrides it.
+- `dirty_worktree_days`: how many days a worktree a job left with
+  uncommitted changes is kept untouched before its changes go on a
+  `slipdock-kept/…` branch and it is removed (14 by default; `0` never;
+  at most 36500). See *a worktree per job*, above.
 
 A job whose agent or hook the file doesn't define fails before anything
 runs, and its log on the card says which name was missing. A file with a
@@ -860,7 +864,19 @@ commits the other lacks, the local one is used and the job's log says the
 origin's were not taken. If that rebase conflicts, it is undone,
 the branch is left as it was, and the job's log says how far behind it is.
 A worktree kept from an earlier job (it had uncommitted changes) is used
-as it is. A runner alone in its
+as it is by the next job on that card. One nobody touches for
+`dirty_worktree_days` (14 by default) is pruned by the next job in that
+repository (#3489): its changes, untracked files included (not ignored
+ones), are committed to a branch of their own,
+`slipdock-kept/card-<id>-<date>-<time>`, as `slipdock-runner`, with no
+hook run; the worktree is removed, and its `card-<id>` branch too when it
+is merged. Untouched means since the later of when the job left it and the
+newest of its changed files, so a worktree you carry on in by hand is
+kept. Only a worktree a job left is pruned, never your own beside it, nor
+one a job is using. The job's log, the daemon's log and the Machines
+page's changes say each one, with the branch to recover it from (`git
+switch slipdock-kept/…`), and `slipdock-runner status` lists those still
+waiting. A runner alone in its
 directory gets none under `auto`, so set `on` for a checkout people or
 other tools also use. A merge job merges the card's pull request only if it is in the
 runner's repository, still open, and at the accepted commit, and one that
@@ -893,8 +909,9 @@ people that serve a board you're on. Each opens its own page, which shows:
   `slipdock machine add-runner`, `set-runner` and `show` print the same
   warning; the daemon logs one whenever it starts such a runner, shared
   board or not (#3482);
-- the **changes**: every setting the machine accepted or refused, and each
-  board added or removed.
+- the **changes**: every setting the machine accepted or refused, each
+  board added or removed, and each worktree left with uncommitted changes
+  that the machine pruned, with the branch its changes were kept on.
 
 On your own machine you can:
 
@@ -1177,7 +1194,8 @@ slipdock-runner config [--effective | --json]
   its last contact with the server, and one line per runner: board, pool,
   executor, permission mode, what it is doing (`idle`, `working on card #N
   since T`, `paused`, or `refused vN, keeping vM`) and the last line of its
-  job's log. It ends with the last update check. It exits non-zero when the
+  job's log. Then the worktrees jobs left with uncommitted changes, which
+a later job prunes once they are old, and the last update check. It exits non-zero when the
   daemon isn't running or a runner's settings were refused, so a script or
   a monitor can call it. `--json` prints the same as one object.
 - **`log`** prints the daemon's log, the last 50 lines (`-n 0` is all).
