@@ -61,13 +61,13 @@ defmodule Slipdock.Runners.Quarantine do
     "open_questions" => {600, 10}
   }
 
-  @url ~r{\b[a-z][a-z0-9+.\-]*://|\bwww\.}i
+  @url ~r{\b[a-z][a-z0-9+.\-]*://|\bwww\.}iu
 
   # Text that speaks to the agent rather than about the product.
   @agent_directed [
-    ~r/\b(?:ai|coding|llm)?\s*(?:agents?|assistants?|bots?|llms?|claude|copilot)\s+(?:first\s+|then\s+|should\s+|must\s+|will\s+|needs?\s+to\s+|has\s+to\s+)?(?:runs?|executes?|fetch(?:es)?|curls?|cats?|prints?|posts?|sends?|installs?|downloads?|pastes?|uploads?|deletes?|ignores?|calls?|exports?|echo(?:es)?|pipes?|reveals?)\b/i,
-    ~r/\bignore\s+(?:all\s+|any\s+)?(?:the\s+|your\s+|of\s+the\s+)?(?:previous|prior|above|earlier|other)\b/i,
-    ~r/\b(?:note|message|instructions?)\s+(?:for|to)\s+(?:the\s+|any\s+|all\s+)?(?:ai\s+|coding\s+|llm\s+)?(?:agents?|assistants?|llms?|models?|bots?)\b/i,
+    ~r/\b(?:ai|coding|llm)?\s*(?:agents?|assistants?|bots?|llms?|claude|copilot)\s+(?:first\s+|then\s+|should\s+|must\s+|will\s+|needs?\s+to\s+|has\s+to\s+)?(?:runs?|executes?|fetch(?:es)?|curls?|cats?|prints?|posts?|sends?|installs?|downloads?|pastes?|uploads?|deletes?|ignores?|calls?|exports?|echo(?:es)?|pipes?|reveals?)\b/iu,
+    ~r/\bignore\s+(?:all\s+|any\s+)?(?:the\s+|your\s+|of\s+the\s+)?(?:previous|prior|above|earlier|other)\b/iu,
+    ~r/\b(?:note|message|instructions?)\s+(?:for|to)\s+(?:the\s+|any\s+|all\s+)?(?:ai\s+|coding\s+|llm\s+)?(?:agents?|assistants?|llms?|models?|bots?)\b/iu,
     ~r/<!--/
   ]
 
@@ -439,6 +439,12 @@ defmodule Slipdock.Runners.Quarantine do
   open already), the job ends cancelled instead. Either way it never runs.
   """
   def hold(%Job{} = job, runner, why) do
+    Slipdock.Policy.as_system("the quarantined reader holding a job at claim (#3531)", fn ->
+      park(job, runner, why)
+    end)
+  end
+
+  defp park(job, runner, why) do
     Logger.info("Runner job ##{job.id} held for a person: #{why}")
     card = Repo.get!(Card, job.card_id)
 
