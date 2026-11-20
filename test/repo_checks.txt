@@ -34,6 +34,10 @@ test/slipdock/unchecked_writes_test.exs
 test/slipdock/ops_check_test.exs
 test/slipdock/revert_examples_docs_test.exs
 
+# Every foreign key has an index leading with its column, or is allowlisted
+# with its reason (W-1948 §Other, #3501)
+test/slipdock/foreign_key_indexes_test.exs
+
 # A LiveView's async task acts for the page's person (`Actor.carry/1`, #3169)
 test/slipdock_web/async_actor_test.exs
 
