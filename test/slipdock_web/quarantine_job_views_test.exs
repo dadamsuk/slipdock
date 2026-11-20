@@ -341,6 +341,14 @@ defmodule SlipdockWeb.QuarantineJobViewsTest do
       refute_secrets(read)
       assert read["quarantined"] == nil
       assert read["description"] =~ "none of it is given to you"
+
+      # Nor a read that spoke to an agent, whatever fields it kept.
+      directed = %{"requirement" => @asked, "acceptance" => [], "agent_directed" => true}
+      Repo.update_all(from(j in Job, where: j.id == ^job.id), set: [quarantined_read: directed])
+
+      read = Jason.decode!(read_under(ctx.conn, card, job))["card"]
+      assert read["quarantined"] == nil
+      refute read["description"] =~ @asked
     end
 
     test "an owner's job still reads its card as at claim", ctx do
