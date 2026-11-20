@@ -15,7 +15,7 @@ import (
 // The live log (#1870), as the shell runner sends it: the job's Claude Code
 // transcript, whole lines from where the server is, each line over lineMax
 // replaced by a line saying how long it was, each send at most sendMax,
-// and this machine's Slipdock keys and tokens taken out.
+// and the job's redactor over it (redact.go).
 const (
 	sendMax = 512 * 1024
 	lineMax = 32 * 1024
@@ -29,7 +29,7 @@ type transcript struct {
 	path    string    // found
 	lines   int       // the lines the server holds
 	done    bool      // the server's log is full, or there is none to send
-	secrets []string
+	redact  *redactor
 	files   executor.Files // read as the account jobs run as
 }
 
@@ -64,23 +64,23 @@ func (t *transcript) fs() executor.Files {
 }
 
 // next is the send from line t.lines: whole lines only (one still being
-// written waits), cut and scrubbed, at most sendMax. Empty when caught up.
-func (t *transcript) next() []byte {
+// written waits), cut and redacted, at most sendMax. Empty when caught up.
+func (t *transcript) next() scrubbed {
 	data, err := t.fs().ReadFile(t.path)
 	if err != nil {
-		return nil
+		return scrubbed{}
 	}
 	if i := bytes.LastIndexByte(data, '\n'); i >= 0 {
 		data = data[:i+1]
 	} else {
-		return nil
+		return scrubbed{}
 	}
 	lines := bytes.SplitAfter(data, []byte("\n"))
 	if len(lines) > 0 && len(lines[len(lines)-1]) == 0 {
 		lines = lines[:len(lines)-1]
 	}
 	if t.lines >= len(lines) {
-		return nil
+		return scrubbed{}
 	}
 	var out bytes.Buffer
 	for i, line := range lines[t.lines:] {
@@ -94,23 +94,13 @@ func (t *transcript) next() []byte {
 		out.Write(body)
 		out.WriteByte('\n')
 	}
-	return scrub(out.Bytes(), t.secrets)
-}
-
-// scrub takes each secret out of data.
-func scrub(data []byte, secrets []string) []byte {
-	for _, s := range secrets {
-		if len(s) >= 8 {
-			data = bytes.ReplaceAll(data, []byte(s), []byte("[redacted]"))
-		}
-	}
-	return data
+	return t.redact.redact(out.Bytes())
 }
 
 var tokenShape = regexp.MustCompile(`^[A-Za-z0-9_.~+/=-]{8,}$`)
 
-// machineSecrets are the keys and tokens on this machine a transcript must
-// never carry: the machine key, $SLIPDOCK_TOKEN, and the slipdock CLI's
+// machineSecrets are the keys and tokens on this machine a job's uploads
+// must never carry: the machine key, $SLIPDOCK_TOKEN, and the slipdock CLI's
 // saved tokens (~/.config/slipdock, and under $XDG_CONFIG_HOME). Read again
 // for each job, since a person may sign the CLI in between.
 func machineSecrets(key, home string, getenv func(string) string, fs executor.Files) []string {

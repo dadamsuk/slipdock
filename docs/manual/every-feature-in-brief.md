@@ -666,7 +666,8 @@ with the tail of the log — and a Cancel button.
   running job's **live log** shows under the job on the card and under the
   runner on the Automations panel, one line per message or tool call, each
   opening to the whole of it, updating as it goes (`slipdock job <id>
-  --follow`, MCP `job_log`).
+  --follow`, MCP `job_log`). The runner takes secrets out of the log and its
+  tail before either leaves the machine.
   - A day after the job ends the log is deleted (a
     week for failed, stuck or rejected work; each board sets both), unless
     someone presses **Keep this log** (`slipdock job <id> --keep`), which

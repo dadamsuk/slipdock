@@ -113,6 +113,17 @@ func helper(mode string, args []string) int {
 			time.Sleep(20 * time.Millisecond)
 		}
 		return 0
+	case "say-wait":
+		// Prints $HELPER_SAY, waits long enough for a few heartbeats, and
+		// exits with $HELPER_EXIT.
+		fmt.Println(os.Getenv("HELPER_SAY"))
+		if tx := os.Getenv("HELPER_TRANSCRIPT"); tx != "" {
+			_ = os.MkdirAll(filepath.Dir(tx), 0o700)
+			_ = os.WriteFile(tx, []byte(os.Getenv("HELPER_TRANSCRIPT_BODY")), 0o600)
+		}
+		time.Sleep(400 * time.Millisecond)
+		code, _ := strconv.Atoi(os.Getenv("HELPER_EXIT"))
+		return code
 	case "dial":
 		// A TCP connection straight to args[0]: exit 0 when it is made.
 		c, err := net.DialTimeout("tcp", args[0], 3*time.Second)

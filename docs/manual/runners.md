@@ -466,8 +466,11 @@ transcript as the newest `.jsonl` in a project folder under
 place) written since the job started that mentions the card's link. Each send is only the
 lines the server hasn't got, at most 512 KB, with any line over 32 KiB (a big
 tool result) replaced by a line saying how long it was, and with this
-machine's Slipdock keys and tokens taken out; the server takes out the shapes
-of other secrets as well. A log stops at 8 MB, with a last line saying so. A
+machine's Slipdock keys and tokens and the shapes of common secrets (GitHub,
+Anthropic, OpenAI and AWS keys, bearer and basic-auth credentials, a URL's
+password, private keys) taken out, by the same redactor the log's tail goes
+through on each heartbeat and at the finish; the server takes them out again
+as well. A log stops at 8 MB, with a last line saying so. A
 send that fails never stops the job: the next one catches up. A job claimed
 again (its lease ran out, or its machine couldn't run it) keeps what its
 earlier runs sent, and the new run's log follows a line saying a new run

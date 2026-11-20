@@ -363,10 +363,10 @@ func kindName(k string) bool {
 
 // Heartbeat renews the job's lease with the tail of its log. cancel says the
 // board cancelled the job; ErrLost that it is no longer this runner's.
-func (c *Client) Heartbeat(ctx context.Context, runnerID, jobID int64, tail []byte) (cancel bool, err error) {
+func (c *Client) Heartbeat(ctx context.Context, runnerID, jobID int64, tail scrubbed) (cancel bool, err error) {
 	ctx, stop := context.WithTimeout(ctx, 15*time.Second)
 	defer stop()
-	resp, data, err := c.request(ctx, runnerID, http.MethodPost, fmt.Sprintf("/api/runner/jobs/%d/heartbeat", jobID), tail, nil)
+	resp, data, err := c.request(ctx, runnerID, http.MethodPost, fmt.Sprintf("/api/runner/jobs/%d/heartbeat", jobID), tail.bytes(), nil)
 	if err != nil {
 		return false, err
 	}
@@ -382,10 +382,10 @@ func (c *Client) Heartbeat(ctx context.Context, runnerID, jobID int64, tail []by
 // Transcript sends lines of the job's transcript starting at line from. The
 // answer is the lines the server holds (where the next send starts) and
 // whether its log is full.
-func (c *Client) Transcript(ctx context.Context, runnerID, jobID int64, from int, lines []byte) (held int, capped bool, err error) {
+func (c *Client) Transcript(ctx context.Context, runnerID, jobID int64, from int, lines scrubbed) (held int, capped bool, err error) {
 	ctx, stop := context.WithTimeout(ctx, 15*time.Second)
 	defer stop()
-	resp, data, err := c.request(ctx, runnerID, http.MethodPost, fmt.Sprintf("/api/runner/jobs/%d/transcript?from=%d", jobID, from), lines, nil)
+	resp, data, err := c.request(ctx, runnerID, http.MethodPost, fmt.Sprintf("/api/runner/jobs/%d/transcript?from=%d", jobID, from), lines.bytes(), nil)
 	if err != nil {
 		return from, false, err
 	}
@@ -410,7 +410,7 @@ func (c *Client) Transcript(ctx context.Context, runnerID, jobID int64, from int
 // stopped (cancelled, timeout) or failed before it ran, the merge commit of
 // a merge, and the tail of its log. It tries five times, a little apart; a
 // job the server doesn't know (404) is reported.
-func (c *Client) Finish(ctx context.Context, runnerID, jobID int64, exit int, status, merged string, tail []byte, sleep func(time.Duration)) error {
+func (c *Client) Finish(ctx context.Context, runnerID, jobID int64, exit int, status, merged string, tail scrubbed, sleep func(time.Duration)) error {
 	q := url.Values{"exit": {strconv.Itoa(exit)}}
 	if status != "" {
 		q.Set("status", status)
@@ -425,7 +425,7 @@ func (c *Client) Finish(ctx context.Context, runnerID, jobID int64, exit int, st
 // status requeue, with the trouble's kind (limit, quick_exit), when the
 // runners hold off until, and why. The server puts the job back in the
 // queue; one older than requeue reads it as failed.
-func (c *Client) Requeue(ctx context.Context, runnerID, jobID int64, exit int, kind string, until time.Time, reason string, tail []byte, sleep func(time.Duration)) error {
+func (c *Client) Requeue(ctx context.Context, runnerID, jobID int64, exit int, kind string, until time.Time, reason string, tail scrubbed, sleep func(time.Duration)) error {
 	reason = clip(reason, 200)
 	q := url.Values{"exit": {strconv.Itoa(exit)}, "status": {"requeue"}, "trouble": {kind},
 		"until": {until.UTC().Format(time.RFC3339)}, "reason": {reason}}
@@ -435,16 +435,16 @@ func (c *Client) Requeue(ctx context.Context, runnerID, jobID int64, exit int, k
 // Tripped reports a job whose proxy saw one of its fake credentials
 // (#3524): it ended status (failed, or cancelled), and what says which
 // value and where. The server pauses the runner's pool and raises an alert.
-func (c *Client) Tripped(ctx context.Context, runnerID, jobID int64, exit int, status, what string, tail []byte, sleep func(time.Duration)) error {
+func (c *Client) Tripped(ctx context.Context, runnerID, jobID int64, exit int, status, what string, tail scrubbed, sleep func(time.Duration)) error {
 	q := url.Values{"exit": {strconv.Itoa(exit)}, "status": {status}, "tripwire": {clip(what, 200)}}
 	return c.finish(ctx, runnerID, jobID, q, tail, sleep)
 }
 
-func (c *Client) finish(ctx context.Context, runnerID, jobID int64, q url.Values, tail []byte, sleep func(time.Duration)) error {
+func (c *Client) finish(ctx context.Context, runnerID, jobID int64, q url.Values, tail scrubbed, sleep func(time.Duration)) error {
 	var last error
 	for try := 1; try <= 5; try++ {
 		rctx, stop := context.WithTimeout(ctx, 30*time.Second)
-		resp, data, err := c.request(rctx, runnerID, http.MethodPost, fmt.Sprintf("/api/runner/jobs/%d/finish?%s", jobID, q.Encode()), tail, nil)
+		resp, data, err := c.request(rctx, runnerID, http.MethodPost, fmt.Sprintf("/api/runner/jobs/%d/finish?%s", jobID, q.Encode()), tail.bytes(), nil)
 		stop()
 		switch {
 		case err != nil:

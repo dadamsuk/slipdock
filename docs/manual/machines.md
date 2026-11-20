@@ -849,8 +849,11 @@ only when their archive's signature (`/api/skills.tar.gz.sig`) verifies,
 and a server that serves none leaves the installed skills in place unless
 the local file sets `skills_unsigned: true`. While a job
 runs, its log's tail goes to the board every 20 seconds and Claude Code's
-transcript about once a minute, with this machine's keys and tokens taken
-out. Cancelling the job on the board, or its timeout, stops it and every
+transcript about once a minute, both through the one redactor that takes
+out this machine's keys and tokens and the shapes of common secrets (GitHub,
+Anthropic, OpenAI and AWS keys, bearer and basic-auth credentials, a URL's
+password, private keys); a tail starting part way through a line drops that
+line. Cancelling the job on the board, or its timeout, stops it and every
 process it started, including one that left its process group (`setsid`,
 `nohup`, a daemon that forked away, #3490): each carries the job's tag in
 its environment, and stopping the job looks for it, on Linux in
