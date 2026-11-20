@@ -13,7 +13,9 @@ defmodule SlipdockWeb.Plugs.ContentSecurityPolicy do
       allowing `'unsafe-inline'`, which would undo most of this.
     * `style-src 'self' 'unsafe-inline'` — Tailwind is a stylesheet, but
       components and wiki content carry `style` attributes, which this allows.
-      Inline style cannot run script, so the cost is small.
+      Inline style cannot run script, so the cost is small; in wiki content
+      the renderer keeps only a few declarations that stay inside their
+      element (`SlipdockWeb.Wiki.Renderer.allowed_style?/2`).
     * `img-src` and `media-src` include `https:` because wiki pages and card
       descriptions may point at pictures elsewhere, and `data:`/`blob:` because
       previews of a file being uploaded are made in the browser.
