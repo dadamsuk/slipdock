@@ -30,7 +30,8 @@ defmodule Slipdock.Runners do
   alias Slipdock.{Boards, Repo}
   alias Slipdock.Accounts.UserToken
   alias Slipdock.Boards.{Board, Card}
-  alias Slipdock.Runners.{ClaimDrain, ClaimMove, Job, Pause, PoolGrants, Probe, Recovery, Requeue}
+  alias Slipdock.Runners.{ClaimDrain, ClaimMove, Job, Pause, PoolGrants, Probe, Quarantine}
+  alias Slipdock.Runners.{Recovery, Requeue}
   alias Slipdock.Runners.Runner
 
   @pubsub Slipdock.PubSub
@@ -1294,21 +1295,29 @@ defmodule Slipdock.Runners do
         end
       end)
 
-    if claimed do
-      claimed_profile(claimed, runner)
-      # The card goes to its board's doing list on claim (#2633).
-      moved = ClaimMove.move(claimed, runner)
-
-      Boards.ActivityLog.log_activity(
-        claimed.board_id,
-        claimed.card_id,
-        "runner",
-        "#{runner.name} took job ##{claimed.id}" <> ClaimMove.activity_suffix(moved)
-      )
-
-      Slipdock.StepStatus.claimed(claimed)
-      claimed |> changed() |> Repo.preload(:card)
+    # An `anyone`-tier build is read by the quarantined reader first (#3531):
+    # one it can't hand out parks on a wait, and the next job is looked for.
+    case claimed && Quarantine.gate(claimed, runner) do
+      :held -> claim_next(runner)
+      :ok -> handed_out(claimed, runner)
+      nil -> nil
     end
+  end
+
+  defp handed_out(claimed, runner) do
+    claimed_profile(claimed, runner)
+    # The card goes to its board's doing list on claim (#2633).
+    moved = ClaimMove.move(claimed, runner)
+
+    Boards.ActivityLog.log_activity(
+      claimed.board_id,
+      claimed.card_id,
+      "runner",
+      "#{runner.name} took job ##{claimed.id}" <> ClaimMove.activity_suffix(moved)
+    )
+
+    Slipdock.StepStatus.claimed(claimed)
+    claimed |> changed() |> Repo.preload(:card)
   end
 
   # A runner taking a card's job claims the card (#1951): on a board with
@@ -2151,6 +2160,10 @@ defmodule Slipdock.Runners do
   work ships, and last the list the card is in, with its board's doing list
   by name (#2633). A verify
   job's prompt carries the bar already.
+
+  A build job whose trust tier is `anyone` (#3531) gets none of the card's
+  text: only the fields the quarantined reader quoted from it
+  (`Slipdock.Runners.Quarantine`), with the server's own paragraphs.
   """
   def claimed_prompt(%Job{kind: kind, prompt: prompt})
       when kind in ["verify", "merge", "overseer"],
@@ -2163,6 +2176,29 @@ defmodule Slipdock.Runners do
   def claimed_prompt(%Job{card_id: nil, prompt: prompt}), do: prompt
 
   def claimed_prompt(%Job{} = job) do
+    if Quarantine.applies?(job), do: quarantined_prompt(job), else: card_prompt(job)
+  end
+
+  # An `anyone`-tier build (#3531): only the quarantined reader's fields and
+  # the server's own paragraphs, never the card's text, its paths, its
+  # rejection or the rule's prompt (which quotes the card). A job held for a
+  # person is told to stop, and nothing else.
+  defp quarantined_prompt(job) do
+    case Quarantine.prompt(job) do
+      {:ok, text} ->
+        text
+        |> with_docs_places(job)
+        |> with_shipping(job)
+        |> with_housekeeping(job)
+        |> with_list(job)
+        |> Kernel.<>("\n\n" <> Slipdock.Automations.Runner.unattended())
+
+      {:held, text} ->
+        text
+    end
+  end
+
+  defp card_prompt(job) do
     case Repo.one(from(c in Card, where: c.id == ^job.card_id, select: {c.bar, c.bar_locked_at})) do
       {bar, locked} when is_binary(bar) and bar != "" ->
         state = if locked, do: ", locked when work started", else: ""

@@ -1713,6 +1713,19 @@ admin` or a runner's settings; skipping a check), or says the rules don't
 apply, the agent doesn't do it: it says on the card what was asked and that
 it left it, and opens a `security` wait if the card can't be done without it.
 
+**What an `anyone` job sees** (#3531). A build job whose text has an
+author outside the board (trust tier `anyone`: a permitted email sender,
+someone whose access has gone) doesn't get that text at all. At claim the
+server has a model with no tools quote from it into fixed fields
+(requirement, files, expected behaviour, the bar's items, context, open
+questions), checks each value (word for word from the text, files inside
+the repository, links only in the context, a length cap per field) and
+drops what fails. The agent's prompt holds those fields under a header
+saying they are quoted from an untrusted author, and nothing else of the
+card. Text that speaks to an agent, a failed or invalid read, or no AI key
+on the server holds the job on a `security` wait for a person instead;
+it never runs on the raw text.
+
 **What that doesn't stop.** Telling a model is not a boundary: a well-made
 request can still be followed. What bounds a job is on the machine, in the
 trust contract above:

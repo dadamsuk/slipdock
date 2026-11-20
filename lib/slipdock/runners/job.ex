@@ -102,6 +102,10 @@ defmodule Slipdock.Runners.Job do
     field :tool_seconds, :integer
     field :tokens, :map
     field :cost_lines, :integer, default: 0
+    # What the quarantined reader made of an `anyone`-tier job's card text
+    # (#3531, `Slipdock.Runners.Quarantine`): the hash of the text read, its
+    # checked fields and `agent_directed`. Never cast.
+    field :quarantined_read, :map
     # What its reads are held to (#3520, `Slipdock.Runners.ReadMark`): its
     # tier at claim, its card's title, description and bar as they were
     # then, the hash of the key its machine's hook asks with, and when and
