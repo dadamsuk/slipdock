@@ -155,7 +155,19 @@ defmodule Slipdock.PolicyOwnerAdminTest do
   defp act(:enable_skill, ctx, user),
     do: SkillRegistry.enable(user, ctx.board, ctx.entry.id, ctx.entry.content_hash)
 
-  @board_rows ~w(edit_rule triage_finding decide_suggestion propose_edit run_board_check enable_skill)a
+  # Signing a card's text (#3532): asking for the challenge, and keeping
+  # an answer, each ask.
+  defp act(:sign_card, ctx, user) do
+    origin = "https://slipdock.example.com"
+
+    with {:error, :no_passkey} <- Slipdock.Intent.signing_challenge(user, ctx.card, origin) do
+      {wax, _} = Slipdock.Accounts.Passkeys.authentication_challenge(origin)
+      Slipdock.Intent.sign(user, ctx.card, wax, DateTime.utc_now(:second), %{})
+    end
+  end
+
+  @board_rows ~w(edit_rule triage_finding decide_suggestion propose_edit run_board_check enable_skill
+    sign_card)a
 
   # The gardener's own check (`can_write/2`) refuses a person short of write
   # first, in its own words; the policy is what a token's scope meets.

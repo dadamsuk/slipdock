@@ -94,7 +94,8 @@ defmodule Slipdock.PolicyActions do
       run_board_check: :write,
       enable_skill: :write,
       own_source: :owner,
-      own_tool: :owner
+      own_tool: :owner,
+      sign_card: :owner
     ]
   end
 end

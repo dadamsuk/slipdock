@@ -241,7 +241,7 @@ slipdock swimlanes <board> [view options]   # grid of cards grouped on two axes 
 slipdock table <board> [view options] [--group A] [--fields id,title,column,priority,flags,tags,start,due,completed,percent,time,checklist,comments,deps,subcards,created,updated]
 slipdock views <board>                      # saved swimlane views
 slipdock favourites                         # what this person keeps going back to, with a URL each
-slipdock passkeys                           # your own passkeys; `passkeys remove <id>` revokes one (only when asked)
+slipdock passkeys                           # your own passkeys, with each key's fingerprint; `passkeys remove <id>` revokes one (only when asked)
 slipdock inbound <board> [--rotate]         # your card- and page- addresses for a board (only take mail from you, and card- from the board's permitted senders, listed); card-: "[#42] …" comments on card 42 instead; page-: subject = page title, "[Folder] Title" files it (else Inbox), "+ Title" appends a dated section to that page; --rotate only when asked: the old ones bounce
 slipdock inbound <board> --folder F [--rotate]   # a wiki folder's own page- address (a path, name or id): mail to it is a page in that folder; "[Sub] Title" files it beneath, "+ Title" appends as above
 slipdock inbound me [--rotate] [--ack on|off]   # your personal Quick Add address (subject picks board, list, #priority, due:); --ack: a link back per card
@@ -362,7 +362,9 @@ slipdock verify <id> agree|disagree --reason TEXT [--check …]   # an audit job
                                        # accepted card: a comment; disagree alerts and files a rework card
 slipdock verify <id> merged [--evidence-commit SHA]   # a person only: a merging card's PR was merged by hand
 slipdock edit <id> --bar "what done means"   # the card's bar; locks when work starts on a board
-                                       # that asks for one
+                                       # that asks for one. A card its owner signed with a passkey
+                                       # ("Signed by the owner") is unsigned by any edit to its title,
+                                       # description or bar: leave those alone unless asked
 slipdock edit <id> --paths "lib/foo/**,docs/x.md"   # the files its work touches (globs; "" clears);
                                        # write them before starting: they scope its handbook rules and profile
 slipdock edit <id> --profile fix | --no-profile   # what kind of change it is: security, schema,

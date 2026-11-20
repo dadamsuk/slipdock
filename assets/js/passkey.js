@@ -12,6 +12,9 @@
 // - `PasskeyRegister` on the account page's form. Same shape, but the answer
 //   is posted with fetch and the outcome is pushed to the LiveView, which
 //   shows the new passkey or says what went wrong.
+// - `CardSign` on the card panel's signing row (#3532): the owner signs the
+//   card's title, description and bar, the challenge being SHA-256 of their
+//   canonical text (`Slipdock.Intent`). Shaped like `PasskeyRegister`.
 //
 // Where the browser has no WebAuthn there are no passkey controls at all: a
 // button that can only fail is worse than no button.
@@ -144,7 +147,21 @@ export async function register({name, credentials, fetchFn, csrf}) {
   return saved.json.passkey
 }
 
-// Both hooks sit on an element the LiveView always renders and tell it, on
+// Signing a card's text (#3532): a challenge that is SHA-256 of the card's
+// canonical text, the owner's authenticator, then the answer. Resolves to
+// when it was signed, or throws with the server's reason.
+export async function signCard({cardId, credentials, fetchFn, csrf}) {
+  const base = `/cards/${encodeURIComponent(cardId)}/sign`
+  const options = await postJSON(fetchFn, `${base}/options`, {}, csrf)
+  if (!options.ok) throw new Error(options.json.error || "The server didn't start signing the card.")
+
+  const credential = await credentials.get({publicKey: requestOptions(options.json.publicKey)})
+  const saved = await postJSON(fetchFn, base, assertionJSON(credential), csrf)
+  if (!saved.ok) throw new Error(saved.json.error || "The card wasn't signed.")
+  return saved.json.signed_at
+}
+
+// The hooks sit on an element the LiveView always renders and tell it, on
 // mounting, whether this browser can do passkeys; the LiveView draws the
 // controls only when it can. (Hiding them from here would not last: the next
 // patch puts back whatever the server rendered.) Clicks and submits are
@@ -200,6 +217,44 @@ export const PasskeyRegister = {
     } catch (error) {
       const message = failureMessage(error)
       if (message) this.pushEventTo(this.el, "passkey_failed", {message})
+    } finally {
+      this.signing = false
+      if (button) button.disabled = false
+    }
+  },
+}
+
+// On the card panel's signing row, drawn only for the board's owner. The
+// outcome goes to the panel, which reads the card again. "Save and sign"
+// beside the description's or the bar's Done saves first; the panel then
+// sends `card_sign_start`, and the row signs the text just kept.
+export const CardSign = {
+  mounted() {
+    this.pushEventTo(this.el, "sign_support", {supported: supported()})
+    this.el.addEventListener("click", e => {
+      const button = e.target.closest("[data-card-sign-start]")
+      if (button) this.start(button)
+    })
+    this.handleEvent("card_sign_start", ({card_id}) => {
+      if (String(card_id) === this.el.dataset.cardId)
+        this.start(this.el.querySelector("[data-card-sign-start]"))
+    })
+  },
+  async start(button) {
+    if (this.signing) return
+    this.signing = true
+    if (button) button.disabled = true
+    try {
+      const signedAt = await signCard({
+        cardId: this.el.dataset.cardId,
+        credentials: navigator.credentials,
+        fetchFn: fetch,
+        csrf: csrfToken(),
+      })
+      this.pushEventTo(this.el, "card_signed", {signed_at: signedAt})
+    } catch (error) {
+      const message = failureMessage(error)
+      if (message) this.pushEventTo(this.el, "card_sign_failed", {message})
     } finally {
       button.disabled = false
     }

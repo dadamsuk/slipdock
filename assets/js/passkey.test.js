@@ -6,6 +6,7 @@ import assert from "node:assert/strict"
 import {
   toBase64url, fromBase64url, creationOptions, requestOptions, attestationJSON,
   assertionJSON, failureMessage, supported, signIn, register, PasskeyLogin, PasskeyRegister,
+  signCard, CardSign,
 } from "./passkey.js"
 
 const bytes = (...b) => new Uint8Array(b).buffer
@@ -221,6 +222,8 @@ function mountHook(hook, el) {
   h.el = el
   h.pushEvent = (event, payload) => pushed.push({event, payload})
   h.pushEventTo = (target, event, payload) => pushed.push({target, event, payload})
+  h.handlers = {}
+  h.handleEvent = (event, fn) => { h.handlers[event] = fn }
   h.runs = []
   h.start = function(...args) {
     const run = hook.start.apply(this, args)
@@ -393,5 +396,101 @@ test("PasskeyRegister: a cancel enables the button and pushes nothing", async ()
     assert.equal(form.input.value, "Desk")
     assert.equal(form.button.disabled, false)
     assert.deepEqual(pushed.map(p => p.event), ["passkey_support"])
+  })
+})
+
+// Signing a card's text (#3532).
+
+test("signCard: options for the card, the authenticator, then the assertion", async () => {
+  const {calls, fetchFn} = fakeFetch({
+    "/cards/42/sign/options": [200, {publicKey: {challenge: "AQID", rpId: "x", allowCredentials: [{type: "public-key", id: "CQ"}]}}],
+    "/cards/42/sign": [200, {signed_at: "2026-11-20T05:00:00Z"}],
+  })
+  let asked
+  const credentials = {get: async options => { asked = options; return assertion }}
+
+  const at = await signCard({cardId: "42", credentials, fetchFn, csrf: "tok"})
+
+  assert.equal(at, "2026-11-20T05:00:00Z")
+  assert.deepEqual(view(asked.publicKey.challenge), [1, 2, 3])
+  assert.deepEqual(view(asked.publicKey.allowCredentials[0].id), [9])
+  assert.deepEqual(calls[1].body, {id: "CQ", authenticatorData: "AQ", signature: "Ag", clientDataJSON: "Aw", userHandle: "Bw"})
+  assert.equal(calls[1].init.headers["x-csrf-token"], "tok")
+})
+
+test("signCard: the server's refusal comes back as the error, before any tap", async () => {
+  const {fetchFn} = fakeFetch({"/cards/42/sign/options": [403, {error: "Only the owner of the board can sign its cards."}]})
+  let asked = 0
+  const credentials = {get: async () => { asked++; return assertion }}
+  await assert.rejects(signCard({cardId: "42", credentials, fetchFn, csrf: ""}), /Only the owner/)
+  assert.equal(asked, 0)
+
+  const late = fakeFetch({
+    "/cards/42/sign/options": [200, {publicKey: {challenge: "AQ"}}],
+    "/cards/42/sign": [422, {error: "The card changed while you were signing it."}],
+  })
+  await assert.rejects(signCard({cardId: "42", credentials, fetchFn: late.fetchFn, csrf: ""}), /changed/)
+})
+
+test("CardSign: says whether passkeys work, and pushes how signing ended", async () => {
+  const {fetchFn} = fakeFetch({
+    "/cards/7/sign/options": [200, {publicKey: {challenge: "AQ"}}],
+    "/cards/7/sign": [200, {signed_at: "2026-11-20T05:00:00Z"}],
+  })
+  await withBrowser({credentials: {get: async () => assertion}, fetchFn}, async () => {
+    const el = {...fakeEl(), dataset: {cardId: "7"}}
+    const {h, pushed} = mountHook(CardSign, el)
+    assert.equal(pushed[0].event, "sign_support")
+    assert.deepEqual(pushed[0].payload, {supported: true})
+
+    const button = {disabled: false, closest: sel => (sel === "[data-card-sign-start]" ? button : null)}
+    el.listeners.click({target: button})
+    await Promise.all(h.runs)
+    assert.equal(button.disabled, false)
+    assert.deepEqual(pushed[1], {target: el, event: "card_signed", payload: {signed_at: "2026-11-20T05:00:00Z"}})
+  })
+})
+
+test("CardSign: Save and sign's card_sign_start signs this card, and no other", async () => {
+  const {fetchFn, calls} = fakeFetch({
+    "/cards/7/sign/options": [200, {publicKey: {challenge: "AQ"}}],
+    "/cards/7/sign": [200, {signed_at: "2026-11-20T05:00:00Z"}],
+  })
+  await withBrowser({credentials: {get: async () => assertion}, fetchFn}, async () => {
+    const button = {disabled: false}
+    const el = {...fakeEl({"[data-card-sign-start]": button}), dataset: {cardId: "7"}}
+    const {h, pushed} = mountHook(CardSign, el)
+
+    h.handlers.card_sign_start({card_id: 8})
+    assert.equal(h.runs.length, 0)
+
+    h.handlers.card_sign_start({card_id: 7})
+    await Promise.all(h.runs)
+    assert.equal(button.disabled, false)
+    assert.deepEqual(pushed[1], {target: el, event: "card_signed", payload: {signed_at: "2026-11-20T05:00:00Z"}})
+    assert.ok(calls.some(c => c.url === "/cards/7/sign"))
+  })
+})
+
+test("CardSign: cancelling is silent; a refusal is pushed", async () => {
+  const {fetchFn} = fakeFetch({"/cards/7/sign/options": [200, {publicKey: {challenge: "AQ"}}]})
+  await withBrowser({credentials: {get: async () => { throw notAllowed() }}, fetchFn}, async () => {
+    const el = {...fakeEl(), dataset: {cardId: "7"}}
+    const {h, pushed} = mountHook(CardSign, el)
+    const button = {disabled: false, closest: () => button}
+    el.listeners.click({target: button})
+    await Promise.all(h.runs)
+    assert.equal(pushed.length, 1)
+  })
+
+  const refused = fakeFetch({"/cards/7/sign/options": [403, {error: "Only the owner of the board can sign its cards."}]})
+  await withBrowser({credentials: {get: async () => assertion}, fetchFn: refused.fetchFn}, async () => {
+    const el = {...fakeEl(), dataset: {cardId: "7"}}
+    const {h, pushed} = mountHook(CardSign, el)
+    const button = {disabled: false, closest: () => button}
+    el.listeners.click({target: button})
+    await Promise.all(h.runs)
+    assert.equal(pushed[1].event, "card_sign_failed")
+    assert.match(pushed[1].payload.message, /Only the owner/)
   })
 })

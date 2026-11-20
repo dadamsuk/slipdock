@@ -64,7 +64,8 @@ auth <token>                        save an API token directly (create one at /a
   set-multiboard <saved> [--name N] [--color C] [--list L]... [--limit N] [--by B]
                                       rename, recolour or change a saved multiboard
   delete-multiboard <saved>           delete a saved multiboard (the boards stay as they are)
-  passkeys                            your passkeys: name, when added, when last used
+  passkeys                            your passkeys: name, when added, when last used, and the
+                                      fingerprint of each one's public key (to pin on a machine)
   passkeys remove <id>                remove one (a lost phone) — it can't sign in after.
                                       Adding one needs the device, so is in a browser only
   inbound log                         your last 50 emails to this server's inbound addresses,

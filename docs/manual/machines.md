@@ -293,6 +293,30 @@ text. It stops notes aimed at agents and smuggled paths; it does not stop a
 hostile request written as the card's requirement, which the tier's
 ceiling and a person reviewing the change still must.
 
+#### Cards signed by their owner
+
+The server works the tier out, so `owner` is only as good as the server's
+word. The owner of a board can make it more than that for a card: **Sign
+with passkey** on the card (under the bar, for the owner only) signs its
+title, description and bar with one of the owner's passkeys, one tap. The
+card then shows *Signed by the owner* and the date; any change to those
+three fields, by anyone, shows *Edited since it was signed* until the owner
+signs it again. While editing the description or the bar, the owner also
+has **Save and sign** beside Done: it saves the text, then asks for the tap
+straight away. Comments, answers and handoffs are never signed.
+
+What is signed is the card's text byte for byte, with the server's address,
+the card's number and when it was signed, so a signature can't be moved to
+another card or another server. A runner holding the card's job fetches the
+signed text uncut and the passkey's signature from
+`GET /api/runner/jobs/:id/intent`, and `GET /api/runner/owner-keys` lists
+the owner's passkeys with a fingerprint each (also in `slipdock passkeys`),
+for the person at the machine to compare and pin. A machine that checks
+the signature against a key it pinned knows the text is the owner's even
+if the server, an agent using the owner's login or a leaked token wrote
+otherwise. It doesn't protect against a compromised server, which serves
+the page that asks for the tap.
+
 #### What a job reads while it runs
 
 A job's agent reads more than its prompt: it looks cards up with

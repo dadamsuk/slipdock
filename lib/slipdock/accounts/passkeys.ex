@@ -300,6 +300,77 @@ defmodule Slipdock.Accounts.Passkeys do
   end
 
   @doc """
+  The account's passkeys as public keys a machine can pin (#3532): each
+  one's id, name, credential id (base64url), COSE algorithm, its public key
+  as SubjectPublicKeyInfo DER (base64url) and that key's fingerprint,
+  `sha256:` and the lowercase hex of SHA-256 over the DER. A key this
+  server can't put in that form (none it accepts today) is left out.
+  """
+  @spec public_keys(User.t()) :: [map()]
+  def public_keys(%User{} = user) do
+    user
+    |> list()
+    |> Enum.flat_map(fn passkey ->
+      case spki(passkey) do
+        {:ok, alg, der} ->
+          [
+            %{
+              id: passkey.id,
+              name: passkey.name,
+              credential_id: encode(passkey.credential_id),
+              algorithm: alg,
+              spki: encode(der),
+              fingerprint: fingerprint(der)
+            }
+          ]
+
+        :error ->
+          []
+      end
+    end)
+  end
+
+  @doc "A public key's fingerprint: `sha256:` and the hex of SHA-256 over its SPKI DER."
+  @spec fingerprint(binary()) :: String.t()
+  def fingerprint(der), do: "sha256:" <> Base.encode16(:crypto.hash(:sha256, der), case: :lower)
+
+  # Ed25519's SubjectPublicKeyInfo is a fixed prefix and the 32-byte key
+  # (RFC 8410); OTP's encoder doesn't take it on every release we run.
+  @ed25519_spki_prefix <<0x30, 0x2A, 0x30, 0x05, 0x06, 0x03, 0x2B, 0x65, 0x70, 0x03, 0x21, 0x00>>
+
+  @doc """
+  A passkey's public key as SubjectPublicKeyInfo DER, from the COSE key
+  stored at registration: `{:ok, cose_alg, der}`, or `:error`.
+  """
+  @spec spki(Passkey.t()) :: {:ok, integer(), binary()} | :error
+  def spki(%Passkey{} = passkey) do
+    cose = Passkey.cose_key(passkey)
+
+    case cose do
+      %{1 => 1, 3 => -8, -1 => 6, -2 => <<_::binary-32>> = x} ->
+        {:ok, -8, @ed25519_spki_prefix <> x}
+
+      %{1 => 2, 3 => -7, -1 => 1, -2 => <<_::binary-32>>, -3 => <<_::binary-32>>} ->
+        {:ok, -7, der(Wax.CoseKey.to_erlang_public_key(cose))}
+
+      %{1 => 3, 3 => -257, -1 => n, -2 => e} when is_binary(n) and is_binary(e) ->
+        {:ok, -257, der(Wax.CoseKey.to_erlang_public_key(cose))}
+
+      _ ->
+        :error
+    end
+  rescue
+    _ -> :error
+  end
+
+  defp der(key) do
+    {:SubjectPublicKeyInfo, der, :not_encrypted} =
+      :public_key.pem_entry_encode(:SubjectPublicKeyInfo, key)
+
+    der
+  end
+
+  @doc """
   The WebAuthn user handle for an account: opaque bytes the authenticator
   stores with the credential and hands back at sign-in. The account id, not
   the email, so the handle says nothing about the person.

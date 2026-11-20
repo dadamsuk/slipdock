@@ -12,9 +12,19 @@ defmodule SlipdockWeb.API.PasskeyController do
 
   action_fallback SlipdockWeb.API.FallbackController
 
-  @doc "The caller's passkeys, oldest first."
+  @doc """
+  The caller's passkeys, oldest first, each with its public key as SPKI and
+  that key's fingerprint (#3532), for a machine to pin.
+  """
   def index(conn, _params) do
-    passkeys = conn.assigns.current_user |> Passkeys.list() |> Enum.map(&entry/1)
+    user = conn.assigns.current_user
+    keys = Map.new(Passkeys.public_keys(user), &{&1.id, &1})
+
+    passkeys =
+      user
+      |> Passkeys.list()
+      |> Enum.map(&Map.merge(entry(&1), Map.drop(keys[&1.id] || %{}, [:id, :name])))
+
     json(conn, %{passkeys: passkeys})
   end
 

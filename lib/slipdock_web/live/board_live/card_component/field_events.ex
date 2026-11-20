@@ -77,7 +77,8 @@ defmodule SlipdockWeb.BoardLive.CardComponent.FieldEvents do
             {:noreply,
              socket
              |> assign(card: State.fresh(socket, card.id))
-             |> keep_bar_open(params)}
+             |> keep_bar_open(params)
+             |> sign_after_save(event, card)}
 
           {:error, cs} ->
             {:noreply, socket |> assign(card_form: to_form(cs)) |> keep_bar_open(params)}
@@ -251,6 +252,20 @@ defmodule SlipdockWeb.BoardLive.CardComponent.FieldEvents do
   def handle_event("stop_editing_bar", _, socket),
     do: {:noreply, assign(socket, editing_bar: false)}
 
+  # Signing the card's text (#3532): the `CardSign` hook says whether this
+  # browser has passkeys, and how the ceremony it ran with
+  # `SlipdockWeb.CardSignController` ended. The signature itself is kept by
+  # the controller; here the panel only reads the card again.
+  def handle_event("sign_support", %{"supported" => supported}, socket),
+    do: {:noreply, assign(socket, sign_supported: supported == true)}
+
+  def handle_event("card_signed", _params, socket),
+    do: {:noreply, socket |> State.reload() |> notice(:info, "Signed with your passkey.")}
+
+  def handle_event("card_sign_failed", %{"message" => message}, socket)
+      when is_binary(message),
+      do: {:noreply, notice(socket, :error, String.slice(message, 0, 300))}
+
   def handle_event("validate_attachments", _, socket),
     do: {:noreply, drop_invalid_uploads(socket, :attachment)}
 
@@ -364,6 +379,19 @@ defmodule SlipdockWeb.BoardLive.CardComponent.FieldEvents do
     do: [String.to_existing_atom("border_" <> edge)]
 
   defp border_fields(_), do: []
+
+  # "Save and sign" (#3532): the owner's description or bar is saved above;
+  # the box closes and the `CardSign` hook is told to sign the card now, so
+  # the challenge is made from the text just kept. Anyone else's `sign` is
+  # an ordinary save.
+  defp sign_after_save(%{assigns: %{can_sign: true}} = socket, %{"sign" => field}, card)
+       when field in ~w(description bar) do
+    socket
+    |> assign(editing_description: false, editing_bar: false)
+    |> push_event("card_sign_start", %{card_id: card.id})
+  end
+
+  defp sign_after_save(socket, _event, _card), do: socket
 
   # A bar typed into its box keeps the box open (#3001): the first keys into
   # an empty bar would otherwise swap the box for the rendered view.

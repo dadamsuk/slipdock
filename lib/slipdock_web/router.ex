@@ -172,6 +172,10 @@ defmodule SlipdockWeb.Router do
     # Whether a read marked the job (#3520), asked by its hook with the
     # job's own hook key.
     get "/jobs/:id/mark", JobMarkController, :show
+    # The job's card text as its owner signed it, uncut, with the passkey
+    # assertion (#3532); and the owner's passkeys, to pin.
+    get "/jobs/:id/intent", RunnerController, :intent
+    get "/owner-keys", RunnerController, :owner_keys
   end
 
   # Recording deploys from CI (see `SlipdockWeb.API.DeploymentController`):
@@ -239,6 +243,9 @@ defmodule SlipdockWeb.Router do
     # Adding a passkey (#828): a challenge, then the authenticator's answer.
     post "/account/passkeys/options", PasskeyController, :options
     post "/account/passkeys", PasskeyController, :create
+    # The owner signing a card's text with a passkey (#3532): likewise.
+    post "/cards/:card_id/sign/options", CardSignController, :options
+    post "/cards/:card_id/sign", CardSignController, :create
     get "/boards/:id/export.csv", ExportController, :table
     # The board's wiki as a folder of Markdown: the escape hatch.
     get "/boards/:id/wiki.zip", ExportController, :wiki

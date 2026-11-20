@@ -459,8 +459,13 @@ There are two ways to give them one:
   `slipdock-plan` uses it for a Playbook stage that names a skill: enabled
   on the board, else installed, else its own text.
 - **Passkeys** — `GET /api/me/passkeys` lists the token holder's own
-  passkeys (`id`, `name`, `created_at`, `last_used_at`; never the key), and
-  `DELETE /api/me/passkeys/:id` removes one so it can no longer sign in.
+  passkeys (`id`, `name`, `created_at`, `last_used_at`, and the public key
+  to pin: `credential_id`, `algorithm`, `spki` and its `fingerprint`;
+  never anything secret), and `DELETE /api/me/passkeys/:id` removes one so
+  it can no longer sign in. A board's owner signs a card's title,
+  description and bar with one from the card, in a browser; an edit to
+  those fields unsigns it. Don't edit the text of a card its owner signed
+  unless asked: it unsigns the card.
   Adding one needs the person's device, so it happens only in a browser,
   on their account page. Remove one only when the person asks: it is a way
   into their account, not clutter.
@@ -2037,6 +2042,8 @@ POST /api/runner/jobs/:id/finish?exit=N&status=S   body = last output → ok
                                            (status=requeue&trouble=K&until=T&reason=R → ok queued)
 POST /api/runner/jobs/:id/transcript?from=N  body = transcript lines from N → ok L | capped L
 GET  /api/runner/jobs/:id/mark             with the job's hook key → clear | marked <reason>
+GET  /api/runner/jobs/:id/intent           JSON: the card's text as its owner signed it, uncut
+GET  /api/runner/owner-keys                JSON: the board owner's passkeys, to pin
 ```
 
 **A verify job's own token** (#3522). A claimed `verify` job also comes
@@ -2050,6 +2057,28 @@ job's card, `POST /api/jobs/:id/progress` for the job, and `GET
 /api/boards/:board/handbook`, `…/garden` and `/api/pages/:id/revisions`
 in its tree; any other route answers 403, and MCP doesn't take it. An
 audit's, or one for a card with no diff to judge, reads its tree too.
+
+**A card signed by its owner.** The owner of a card's board tree, and
+nobody else, can sign the card's title, description and bar with a passkey
+from the card (the panel's *Sign with passkey*, in a browser). The
+challenge is SHA-256 of a canonical text: the line `slipdock-intent-v1`,
+then `origin`, `card`, `signed-at`, `title`, `description` and `bar`,
+each as its name, a space, its length in bytes, a newline, its bytes and a
+newline, nothing normalised. Any change to the three fields unsigns the
+card until the owner signs it again. `GET /api/runner/jobs/:id/intent` is
+the job's own runner's while it holds the job: `{"signed": true}` with the
+`version`, `origin`, `rp_id`, `card_id`, `signed_at`, the `title`,
+`description` and `bar` uncut (the prompt cuts long text), the
+`challenge`, and the `assertion` (`credential_id`, `authenticator_data`,
+`client_data_json`, `signature`, base64url); or `{"signed": false,
+"state": "unsigned" | "edited"}`. Another runner's job, or one that has
+ended, is a 404. `GET /api/runner/owner-keys` lists the passkeys of the
+owner of the runner's board tree as `keys` (`credential_id`, `algorithm`,
+`spki`: SubjectPublicKeyInfo DER in base64url, `fingerprint`:
+`sha256:` and the hex of its SHA-256), with the `origin` and `rp_id` they
+sign for. A machine checks the signature itself against keys its person
+pinned, never ones fetched at job time; the server is still trusted for
+everything else the agent reads.
 
 **A job's trust tier.** `X-Prompt-Tier` is the least-trusted author of
 the text in the prompt: `owner` (the owner of the card's board tree, or
@@ -4043,6 +4072,8 @@ POST   /api/runner/claim
     POST   /api/runner/jobs/:id/transcript
     POST   /api/runner/jobs/:id/finish
     GET    /api/runner/jobs/:id/mark
+    GET    /api/runner/jobs/:id/intent
+    GET    /api/runner/owner-keys
     GET    /api/deployments/last
     POST   /api/deployments
     POST   /api/deployments/failed

@@ -1,0 +1,50 @@
+{
+  "version": "slipdock-intent-v1",
+  "about": "Shared test vectors for the canonical text a card's owner signs with a passkey (#3532). Read by the daemon's daemon/internal/intent tests and the server's test/slipdock/intent_test.exs: both encoders must give these bytes exactly.",
+  "cases": [
+    {
+      "name": "the spike's card",
+      "origin": "https://slipdock.example.com",
+      "card_id": 3523,
+      "signed_at": "2026-11-20T05:00:00Z",
+      "title": "Add a CSV export",
+      "description": "Export the board as CSV.\n\nOnly the visible columns.",
+      "bar": "1. `slipdock export --csv` writes one row per card; 2. tests",
+      "canonical_base64": "c2xpcGRvY2staW50ZW50LXYxCm9yaWdpbiAyOApodHRwczovL3NsaXBkb2NrLmV4YW1wbGUuY29tCmNhcmQgNAozNTIzCnNpZ25lZC1hdCAyMAoyMDI2LTExLTIwVDA1OjAwOjAwWgp0aXRsZSAxNgpBZGQgYSBDU1YgZXhwb3J0CmRlc2NyaXB0aW9uIDUxCkV4cG9ydCB0aGUgYm9hcmQgYXMgQ1NWLgoKT25seSB0aGUgdmlzaWJsZSBjb2x1bW5zLgpiYXIgNjAKMS4gYHNsaXBkb2NrIGV4cG9ydCAtLWNzdmAgd3JpdGVzIG9uZSByb3cgcGVyIGNhcmQ7IDIuIHRlc3RzCg==",
+      "challenge_hex": "29b337792a1ff26e85d1a8025f4bda9d13d2ba3457e0abfae493d2781897734d"
+    },
+    {
+      "name": "empty description and bar",
+      "origin": "https://slipdock.example.com",
+      "card_id": 1,
+      "signed_at": "2026-01-02T03:04:05Z",
+      "title": "T",
+      "description": "",
+      "bar": "",
+      "canonical_base64": "c2xpcGRvY2staW50ZW50LXYxCm9yaWdpbiAyOApodHRwczovL3NsaXBkb2NrLmV4YW1wbGUuY29tCmNhcmQgMQoxCnNpZ25lZC1hdCAyMAoyMDI2LTAxLTAyVDAzOjA0OjA1Wgp0aXRsZSAxClQKZGVzY3JpcHRpb24gMAoKYmFyIDAKCg==",
+      "challenge_hex": "2197248f560738d5368a3d33fb654e2b69bb332508cc45b868ffdc8737eb92a8"
+    },
+    {
+      "name": "multi-byte text is counted in bytes, unnormalised",
+      "origin": "https://slipdock.example.com:8443",
+      "card_id": 987654321,
+      "signed_at": "2026-11-20T23:59:59Z",
+      "title": "Café — résumé 🚀",
+      "description": "é (decomposed) and é (composed)\r\nCRLF kept, trailing spaces kept   ",
+      "bar": "  leading spaces\n",
+      "canonical_base64": "c2xpcGRvY2staW50ZW50LXYxCm9yaWdpbiAzMwpodHRwczovL3NsaXBkb2NrLmV4YW1wbGUuY29tOjg0NDMKY2FyZCA5Cjk4NzY1NDMyMQpzaWduZWQtYXQgMjAKMjAyNi0xMS0yMFQyMzo1OTo1OVoKdGl0bGUgMjMKQ2Fmw6kg4oCUIHLDqXN1bcOpIPCfmoAKZGVzY3JpcHRpb24gNzAKZcyBIChkZWNvbXBvc2VkKSBhbmQgw6kgKGNvbXBvc2VkKQ0KQ1JMRiBrZXB0LCB0cmFpbGluZyBzcGFjZXMga2VwdCAgIApiYXIgMTcKICBsZWFkaW5nIHNwYWNlcwoK",
+      "challenge_hex": "b39f274f89a969edb3de3beec7a1ca5dfba82042fbbb3f537a5dfc86987377b0"
+    },
+    {
+      "name": "text that looks like the next field",
+      "origin": "https://slipdock.example.com",
+      "card_id": 42,
+      "signed_at": "2026-11-20T05:00:00Z",
+      "title": "x\ndescription 3\nabc",
+      "description": "b\nbar 1\nc",
+      "bar": "bar 0\n",
+      "canonical_base64": "c2xpcGRvY2staW50ZW50LXYxCm9yaWdpbiAyOApodHRwczovL3NsaXBkb2NrLmV4YW1wbGUuY29tCmNhcmQgMgo0MgpzaWduZWQtYXQgMjAKMjAyNi0xMS0yMFQwNTowMDowMFoKdGl0bGUgMTkKeApkZXNjcmlwdGlvbiAzCmFiYwpkZXNjcmlwdGlvbiA5CmIKYmFyIDEKYwpiYXIgNgpiYXIgMAoK",
+      "challenge_hex": "35e23b267c459b9029945402da0221d82a70224f98ee436fbd9131578b83eaa0"
+    }
+  ]
+}

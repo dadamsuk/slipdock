@@ -555,6 +555,10 @@ with the tail of the log — and a Cancel button.
   by someone less trusted than its prompt's authors, the machine's hook
   refuses its agent the shell, the network and pushing
   ([What a job reads while it runs](machines.md#what-a-job-reads-while-it-runs)).
+- **Cards signed with the owner's passkey.** A board's owner signs a card's
+  title, description and bar with a tap on the card; an edit unsigns it, and
+  a machine that pins the owner's keys checks the signature itself
+  ([Cards signed by their owner](machines.md#cards-signed-by-their-owner)).
 - **A list in order, or every card that arrives.** *Send cards to a runner*
   queues each card as it lands in a list; *Work a list with a runner*
   (trigger `list_top`) keeps one job open at a time, always for the top

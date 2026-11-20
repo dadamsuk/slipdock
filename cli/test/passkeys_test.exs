@@ -28,7 +28,7 @@ defmodule SlipdockCLI.PasskeysTest do
 
   defp serve(responses), do: System.put_env("SLIPDOCK_URL", FakeServer.start(responses))
 
-  @two ~s({"passkeys":[{"id":3,"name":"Laptop","created_at":"2026-10-01T09:00:00Z","last_used_at":"2026-10-14T08:00:00Z"},{"id":4,"name":"Phone","created_at":"2026-10-02T09:00:00Z","last_used_at":null}]})
+  @two ~s({"passkeys":[{"id":3,"name":"Laptop","created_at":"2026-10-01T09:00:00Z","last_used_at":"2026-10-14T08:00:00Z","fingerprint":"sha256:ab12"},{"id":4,"name":"Phone","created_at":"2026-10-02T09:00:00Z","last_used_at":null}]})
 
   test "lists them with when each was added and last used" do
     serve([{200, @two}])
@@ -36,8 +36,9 @@ defmodule SlipdockCLI.PasskeysTest do
 
     assert_received {:request, "GET", "/api/me/passkeys", _}
     assert out =~ "LAST USED"
-    assert out =~ ~r/3\s+Laptop\s+2026-10-01\s+2026-10-14/
-    assert out =~ ~r/4\s+Phone\s+2026-10-02\s+never/
+    assert out =~ ~r/3\s+Laptop\s+2026-10-01\s+2026-10-14\s+sha256:ab12/
+    # A server from before fingerprints were listed.
+    assert out =~ ~r/4\s+Phone\s+2026-10-02\s+never\s+-/
   end
 
   test "none says where to add one" do

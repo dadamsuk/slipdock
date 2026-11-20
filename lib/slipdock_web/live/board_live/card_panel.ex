@@ -403,6 +403,78 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
     """
   end
 
+  attr :id, :string, required: true
+  attr :field, :string, required: true, doc: "the field it saves: description or bar"
+
+  # The owner's "Save and sign" (#3532): it submits the field's form with
+  # `sign` set, so the panel saves the text and then has the `CardSign` hook
+  # sign it (`FieldEvents`, "card_change").
+  defp save_and_sign(assigns) do
+    ~H"""
+    <button
+      id={@id}
+      type="submit"
+      name="sign"
+      value={@field}
+      class="btn btn-ghost btn-xs"
+      title="Save, then sign the title, description and bar with your passkey"
+    >
+      <.icon name="hero-finger-print" class="size-3.5" /> Save and sign
+    </button>
+    """
+  end
+
+  attr :card, Card, required: true
+  attr :can_sign, :boolean, default: false, doc: "the reader owns the tree's root"
+  attr :supported, :boolean, default: false, doc: "this browser has passkeys"
+  attr :target, :any, required: true
+
+  @doc """
+  Whether the card's text is signed by its owner with a passkey (#3532,
+  `Slipdock.Intent`), and, for the owner, the button that signs it: the
+  `CardSign` hook runs the ceremony with `SlipdockWeb.CardSignController`
+  and says how it ended. An edit to the title, description or bar unsigns
+  the card, and the row says so. Drawn for the owner, and for anyone on a
+  card that has been signed.
+  """
+  def sign_section(assigns) do
+    assigns = assign(assigns, :state, Slipdock.Intent.state(assigns.card))
+
+    ~H"""
+    <div
+      id="card-sign"
+      phx-hook={@can_sign && "CardSign"}
+      data-card-id={@card.id}
+      class="flex flex-wrap items-center gap-2 px-1 text-sm"
+    >
+      <.icon name="hero-finger-print" class="size-4 text-base-content/60" />
+      <span :if={match?({:signed, _}, @state)} id="card-signed" class="badge badge-success badge-sm">
+        Signed by the owner · {SlipdockWeb.Dates.long(elem(@state, 1))}
+      </span>
+      <span :if={@state == :edited} id="card-sign-edited" class="badge badge-warning badge-sm">
+        Edited since it was signed: sign again
+      </span>
+      <span
+        :if={@state == :unsigned}
+        id="card-unsigned"
+        class="text-base-content/60"
+      >
+        Not signed
+      </span>
+      <button
+        :if={@can_sign and @supported}
+        id="card-sign-button"
+        type="button"
+        data-card-sign-start
+        class="btn btn-ghost btn-xs"
+        title="Sign the title, description and bar with your passkey, so a machine that pins your key can tell the text is yours"
+      >
+        {if @state == :unsigned, do: "Sign with passkey", else: "Sign again"}
+      </button>
+    </div>
+    """
+  end
+
   @doc "Where a card's profile came from, as the panel and tile say it (#2018)."
   def profile_source_text("inferred"), do: "inferred"
   def profile_source_text(source) when source in ~w(person agent rule), do: "set by #{source}"
@@ -415,6 +487,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
   attr :editing, :boolean, default: false, doc: "its box is open (#3001)"
   attr :form, :any, required: true
   attr :target, :any, required: true
+  attr :sign_on_save, :boolean, default: false, doc: "offer Save and sign (#3532)"
 
   @doc """
   What done means for the card (#1631): on a board that asks for a bar, or a
@@ -471,6 +544,11 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
         >
           <.icon name="hero-check" class="size-3.5" /> Done
         </button>
+        <.save_and_sign
+          :if={@sign_on_save and (@editing or not @written?)}
+          id="card-bar-save-sign"
+          field="bar"
+        />
       </div>
       <div
         :if={@written? and not @editing}
@@ -559,6 +637,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
   attr :target, :any, required: true
   attr :uploads, :map, required: true
   attr :description?, :boolean, default: true, doc: "the reader's card view shows it (#2031)"
+  attr :sign_on_save, :boolean, default: false, doc: "offer Save and sign (#3532)"
 
   @doc "The rest of the panel's top, under the title: flags, tags and the description."
   def card_header_form(assigns) do
@@ -595,24 +674,31 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
             <.icon name="hero-bars-3-bottom-left" class="size-3.5" />
             <.keyed_label key="d" label="Description" />
           </label>
-          <button
-            :if={@can_write and not @editing_description and (@card.description || "") != ""}
-            phx-target={@target}
-            type="button"
-            class="btn btn-ghost btn-xs"
-            phx-click="edit_description"
-          >
-            <.icon name="hero-pencil" class="size-3.5" /> Edit
-          </button>
-          <button
-            :if={@editing_description}
-            phx-target={@target}
-            type="button"
-            class="btn btn-ghost btn-xs"
-            phx-click="stop_editing_description"
-          >
-            <.icon name="hero-check" class="size-3.5" /> Done
-          </button>
+          <div class="flex items-center gap-1">
+            <button
+              :if={@can_write and not @editing_description and (@card.description || "") != ""}
+              phx-target={@target}
+              type="button"
+              class="btn btn-ghost btn-xs"
+              phx-click="edit_description"
+            >
+              <.icon name="hero-pencil" class="size-3.5" /> Edit
+            </button>
+            <button
+              :if={@editing_description}
+              phx-target={@target}
+              type="button"
+              class="btn btn-ghost btn-xs"
+              phx-click="stop_editing_description"
+            >
+              <.icon name="hero-check" class="size-3.5" /> Done
+            </button>
+            <.save_and_sign
+              :if={@sign_on_save and @editing_description}
+              id="card-description-save-sign"
+              field="description"
+            />
+          </div>
         </div>
         <div
           :if={@editing_description}
