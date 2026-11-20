@@ -28,7 +28,10 @@ var (
 	fakeAWSID    = fakeTok("AK", "IA", "FAKE0FAKE0FAKE00")
 	fakeAWSTemp  = fakeTok("AS", "IA", "FAKE0FAKE0FAKE00")
 	fakeAWSKey   = strings.Repeat("Fake0/+", 6)
-	fakeJWT      = fakeTok("ey", "J", fakeBody, ".ey", "J", fakeBody, ".", fakeBody)
+	// AWS secret keys the generic assignment rule skips: no digit, no letter.
+	fakeAWSKeyLetters = strings.Repeat("Fake", 10)
+	fakeAWSKeyDigits  = strings.Repeat("0/+9", 10)
+	fakeJWT           = fakeTok("ey", "J", fakeBody, ".ey", "J", fakeBody, ".", fakeBody)
 )
 
 func TestTheRedactorTakesOutEachShape(t *testing.T) {
@@ -49,6 +52,8 @@ func TestTheRedactorTakesOutEachShape(t *testing.T) {
 		{"an AWS key id", "id " + fakeAWSID + " ok", "FAKE0FAKE0FAKE00", "id [redacted] ok"},
 		{"an AWS temporary key id", "id " + fakeAWSTemp, "FAKE0FAKE0FAKE00", "id [redacted]"},
 		{"an AWS secret key", "aws_secret_access_key = " + fakeAWSKey, fakeAWSKey, "aws_secret_access_key = [redacted]"},
+		{"an AWS secret key of letters only", "aws_secret_access_key=" + fakeAWSKeyLetters, fakeAWSKeyLetters, "aws_secret_access_key=[redacted]"},
+		{"an AWS secret key with no letters", "aws_secret_access_key: " + fakeAWSKeyDigits, fakeAWSKeyDigits, "aws_secret_access_key: [redacted]"},
 		{"a bearer header", "Authorization: Bearer " + fakeBody, fakeBody, "Authorization: Bearer [redacted]"},
 		{"a bare bearer token", "curl -H 'bearer " + fakeBody + "'", fakeBody, "curl -H 'bearer [redacted]'"},
 		{"a basic-auth header", "Authorization: Basic " + basic, basic, "Authorization: Basic [redacted]"},
