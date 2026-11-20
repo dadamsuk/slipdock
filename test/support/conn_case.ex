@@ -91,7 +91,7 @@ defmodule SlipdockWeb.ConnCase do
     conn
     |> Phoenix.ConnTest.init_test_session(%{})
     |> Plug.Conn.put_session(:user_token, token)
-    |> Plug.Conn.put_session(:live_socket_id, "users_sessions:#{Base.url_encode64(token)}")
+    |> Plug.Conn.put_session(:live_socket_id, Slipdock.Accounts.session_live_socket_id(token))
   end
 
   @doc "A conn signed in (and API-authenticated) as `user`."

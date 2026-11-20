@@ -95,7 +95,7 @@ defmodule Slipdock.AdminStandingTest do
       {:ok, _} = Accounts.promote(user_fixture("admin@example.com"))
       {:ok, other} = Accounts.promote(user_fixture("other@example.com"))
       token = Accounts.generate_session_token(other)
-      topic = "users_sessions:#{Base.url_encode64(token)}"
+      topic = "users_sessions:#{Base.url_encode64(:crypto.hash(:sha256, token))}"
       SlipdockWeb.Endpoint.subscribe(topic)
       %{other: other, topic: topic}
     end

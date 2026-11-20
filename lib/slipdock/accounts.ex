@@ -954,8 +954,15 @@ defmodule Slipdock.Accounts do
     end
   end
 
+  @doc """
+  The id the LiveViews of the browser session holding `token` connect under:
+  what `disconnect_sessions/1` and signing out broadcast to.
+  """
+  def session_live_socket_id(token),
+    do: token |> UserToken.session_digest() |> UserToken.live_socket_id()
+
   def delete_session_token(token) do
-    Repo.delete_all(UserToken.by_token_and_context(token, "session"))
+    Repo.delete_all(UserToken.by_session_token(token))
     :ok
   end
 
@@ -1097,11 +1104,12 @@ defmodule Slipdock.Accounts do
   """
   def disconnect_sessions(%User{} = user), do: user |> live_socket_ids() |> broadcast_disconnect()
 
-  # The same id `SlipdockWeb.UserAuth` puts in the session at sign-in.
+  # The same id `SlipdockWeb.UserAuth` puts in the session at sign-in, made
+  # from the stored digest.
   defp live_socket_ids(%User{} = user) do
     from(t in UserToken.by_user_and_contexts(user, ["session"]), select: t.token)
     |> Repo.all()
-    |> Enum.map(&"users_sessions:#{Base.url_encode64(&1)}")
+    |> Enum.map(&UserToken.live_socket_id/1)
   end
 
   defp broadcast_disconnect(ids) do
