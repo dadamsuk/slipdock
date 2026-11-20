@@ -233,6 +233,11 @@ type server struct {
 	cliSig     []byte
 	cliSigCode int
 	sigGets    int
+	// intents are what /api/runner/jobs/:id/intent answers for each job
+	// (404 when it has none; intentCode fails it); intentGets counts them.
+	intents    map[int64]string
+	intentCode int
+	intentGets int
 	// round moves on each time a rig's worker has stopped (rig.run), and
 	// the rig's client sends the round it is in with each claim
 	// (X-Test-Round). A stopped worker's last claim is cancelled on its
@@ -434,6 +439,19 @@ func (s *server) handle(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		fmt.Fprintf(w, "ok %d\n", len(s.transcript[id]))
+	case strings.HasSuffix(r.URL.Path, "/intent"):
+		s.intentGets++
+		body, ok := s.intents[jobID(r.URL.Path)]
+		switch {
+		case s.intentCode != 0:
+			w.WriteHeader(s.intentCode)
+		case !ok:
+			w.WriteHeader(404)
+			fmt.Fprintln(w, "no such job for this runner")
+		default:
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, body)
+		}
 	case strings.HasSuffix(r.URL.Path, "/finish"):
 		id := jobID(r.URL.Path)
 		exit, _ := strconv.Atoi(r.URL.Query().Get("exit"))

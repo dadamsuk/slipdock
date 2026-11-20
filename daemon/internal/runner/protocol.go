@@ -15,6 +15,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/dadamsuk/slipdock/daemon/internal/intent"
 	"github.com/dadamsuk/slipdock/daemon/internal/machine"
 )
 
@@ -569,4 +570,68 @@ func clip(s string, n int) string {
 		n--
 	}
 	return s[:n]
+}
+
+// Intent fetches the job's card text as its owner signed it, uncut, with
+// the passkey's assertion (GET /api/runner/jobs/:id/intent, #3532). Every
+// field is the server's word: intent.Verify checks it against the
+// machine's pinned keys. ErrLost is a job no longer this runner's (404).
+func (c *Client) Intent(ctx context.Context, runnerID, jobID int64) (intent.Signed, error) {
+	var s intent.Signed
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	resp, data, err := c.request(ctx, runnerID, http.MethodGet, fmt.Sprintf("/api/runner/jobs/%d/intent", jobID), nil,
+		http.Header{"Accept": {"application/json"}})
+	switch {
+	case err != nil:
+		return s, err
+	case resp.StatusCode == http.StatusNotFound:
+		return s, ErrLost
+	case resp.StatusCode != http.StatusOK:
+		return s, refused(resp, data)
+	}
+	if err := json.Unmarshal(data, &s); err != nil {
+		return s, fmt.Errorf("the signed text isn't JSON: %w", err)
+	}
+	return s, nil
+}
+
+// OwnerKeys is GET /api/runner/owner-keys's answer (#3532): the passkeys
+// of the owner of a runner's board tree, with the origin and relying party
+// id they sign for, for the person at the machine to compare and pin.
+type OwnerKeys struct {
+	Origin  string     `json:"origin"`
+	RPID    string     `json:"rp_id"`
+	OwnerID int64      `json:"owner_id"`
+	Keys    []OwnerKey `json:"keys"`
+}
+
+// OwnerKey is one of the owner's passkeys as the server lists it: its
+// credential id and SPKI in base64url, and the server's fingerprint.
+type OwnerKey struct {
+	Name         string `json:"name"`
+	CredentialID string `json:"credential_id"`
+	Algorithm    string `json:"algorithm"`
+	SPKI         string `json:"spki"`
+	Fingerprint  string `json:"fingerprint"`
+}
+
+// FetchOwnerKeys asks the server for the passkeys of the owner of
+// runnerID's board tree.
+func (c *Client) FetchOwnerKeys(ctx context.Context, runnerID int64) (OwnerKeys, error) {
+	var k OwnerKeys
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	resp, data, err := c.request(ctx, runnerID, http.MethodGet, "/api/runner/owner-keys", nil,
+		http.Header{"Accept": {"application/json"}})
+	switch {
+	case err != nil:
+		return k, err
+	case resp.StatusCode != http.StatusOK:
+		return k, refused(resp, data)
+	}
+	if err := json.Unmarshal(data, &k); err != nil {
+		return k, fmt.Errorf("the owner's keys aren't JSON: %w", err)
+	}
+	return k, nil
 }

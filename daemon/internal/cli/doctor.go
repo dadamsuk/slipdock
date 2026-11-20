@@ -104,6 +104,10 @@ func doctorChecks(d string, env Env) []check {
 		add(fail, "the server knows this machine", err.Error())
 	}
 
+	if c, err := machine.LoadCeiling(d); err == nil {
+		out = append(out, ownerKeyChecks(ctx, st, key, c, env)...)
+	}
+
 	if _, err := env.LookPath("git"); err != nil {
 		add(fail, "git", "not on the PATH: jobs clone and commit with it")
 	} else {

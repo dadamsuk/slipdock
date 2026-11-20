@@ -2077,7 +2077,9 @@ owner of the runner's board tree as `keys` (`credential_id`, `algorithm`,
 `spki`: SubjectPublicKeyInfo DER in base64url, `fingerprint`:
 `sha256:` and the hex of its SHA-256), with the `origin` and `rp_id` they
 sign for. A machine checks the signature itself against keys its person
-pinned, never ones fetched at job time; the server is still trusted for
+pinned (`slipdock-runner trust-owner`, into its ceiling's `owner_keys`),
+never ones fetched at job time, and runs a job the server says is `owner`
+as `member` when the check fails; the server is still trusted for
 everything else the agent reads.
 
 **A job's trust tier.** `X-Prompt-Tier` is the least-trusted author of
@@ -2441,8 +2443,18 @@ machine's own limits.
   the archive's signature verifies against the same release key. A server
   that serves no signature leaves the installed skills in place, unless
   `local.json` sets `skills_unsigned`.
-
-The machine's key lets it claim and report on its own runners' jobs and
+- Raise a job to the owner tier on its own word, once owner keys are
+  pinned. With `owner_keys` in the ceiling (pinned by a person at the
+  machine with `slipdock-runner trust-owner`), a job the server says is
+  `owner` tier runs as `owner` only when its card's title, description
+  and bar carry a signature by one of those passkeys. The daemon checks
+  it itself: the challenge is its own SHA-256 of the text, with the
+  server's origin, the card and when it was signed; the origin and
+  relying party are the pinned key's; the owner was present and
+  verified; and the signature is no older than the ceiling allows. Any
+  other job runs as `member` at most, and the daemon logs why. A
+  signature never raises a job above the tier the server gives it.
+ lets it claim and report on its own runners' jobs and
 read their settings, and nothing else. It is not an API token. Revoking
 the machine on the Machines page ends the key at once.
 
@@ -2466,6 +2478,15 @@ the machine on the Machines page ends the key at once.
   server publishes: a server can then change the program the agent calls.
   Set `no_skills_update` (and `no_cli_update`) in `local.json` to keep your
   own.
+- What an owner's signature doesn't cover. Signed text is the owner's
+  for certain, and only that text: the server is still trusted for the
+  rest of the prompt (a rejection, a wait's answer, a handoff), for what
+  the agent reads while it works, and for the prompt carrying the signed
+  text at all. A server serving a tampered page can ask the owner to tap
+  for other text than the page shows. The keys are pinned on the
+  server's word when `trust-owner` runs, so compare their fingerprints
+  with the owner's own list. With no `owner_keys` pinned, a job's tier is
+  the server's word alone.
 - Network access. A job can reach the network, and so can send anything
   it can read to anywhere, unless its runner uses the `container`
   executor with the network off. No other executor limits the network.

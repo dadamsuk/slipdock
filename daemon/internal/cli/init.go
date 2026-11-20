@@ -28,7 +28,8 @@ func cmdInit(args []string, env Env) error {
 	maxTimeout := fs.Int("max-timeout", 0, "the longest a job may run, in minutes (default: 60)")
 	asMe := fs.Bool("as-me", false, "run jobs as you, for a laptop that is only yours (asked if neither this nor --user)")
 	user := fs.String("user", "", "run jobs as this dedicated account, made if it isn't there (the question's default: "+DefaultAccount+")")
-	noSetup := fs.Bool("no-setup", false, "don't offer to set the machine up (Claude, or a shell as the account)")
+	noSetup := fs.Bool("no-setup", false, "don't offer to set the machine up (Claude, or a shell as the account), nor to pin the owners' passkeys")
+	noTrustOwner := fs.Bool("no-trust-owner", false, "don't offer to pin the board owners' passkeys (later: slipdock-runner trust-owner)")
 	if err := parse(fs, args); err != nil {
 		return err
 	}
@@ -141,6 +142,9 @@ func cmdInit(args []string, env Env) error {
 	printCeiling(env, ceiling)
 	if !*noSetup {
 		offerSetup(ctx, client, res.Key, who, ceiling.Roots[0], env)
+	}
+	if !*noSetup && !*noTrustOwner {
+		offerTrustOwner(d, env)
 	}
 	fmt.Fprintf(env.Stdout, "\nNext: add its runners on the Machines page, then `slipdock-runner service install`.\n"+
 		"`slipdock-runner show` says what the server can and cannot make this machine do.\n")
