@@ -224,6 +224,23 @@ defmodule Slipdock.Runners.PoolGrantsTest do
       assert renamed.name == "kept"
     end
 
+    test "once its grant is revoked, it stays settable on its pool but can't move", ctx do
+      grant!(ctx, "dev", ctx.writer)
+      {:ok, runner} = add(ctx, "dev")
+      :ok = PoolGrants.revoke(ctx.board, "dev", ctx.writer.email, as(ctx.owner))
+
+      assert {:ok, renamed} =
+               MachineRunners.set_runner(runner, %{"name" => "kept", "pool" => "dev"})
+
+      assert renamed.name == "kept"
+      assert renamed.pool == "dev"
+
+      assert {:error, :invalid, message} =
+               MachineRunners.set_runner(renamed, %{"pool" => "verify"})
+
+      assert message =~ "pool “verify”"
+    end
+
     test "one already in the pool is kept, but takes nothing until granted again", ctx do
       grant!(ctx, "dev", ctx.writer)
       {:ok, runner} = add(ctx, "dev")
