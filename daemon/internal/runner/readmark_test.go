@@ -3,6 +3,7 @@ package runner
 import (
 	"encoding/json"
 	"net/http"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -70,7 +71,11 @@ func TestAClaudeJobGetsTheHookAndWhatItAsksWith(t *testing.T) {
 	if pre[0].Matcher != hookMatcher || !strings.Contains(pre[0].Matcher, "Bash") || !strings.Contains(pre[0].Matcher, "WebFetch") {
 		t.Errorf("matcher = %q", pre[0].Matcher)
 	}
-	if h := pre[0].Hooks[0]; h.Type != "command" || h.Command != `'/opt/slipdock it'\''s/slipdock-runner' hook pretooluse` {
+	want := `'/opt/slipdock it'\''s/slipdock-runner' hook pretooluse`
+	if runtime.GOOS == "windows" {
+		want = `"/opt/slipdock it's/slipdock-runner" hook pretooluse`
+	}
+	if h := pre[0].Hooks[0]; h.Type != "command" || h.Command != want {
 		t.Errorf("hook = %+v; want the daemon's own binary, quoted", h)
 	}
 	if strings.Contains(settings, "sdh_key130") {

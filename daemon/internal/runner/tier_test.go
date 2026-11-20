@@ -2,6 +2,7 @@ package runner
 
 import (
 	"net/http"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -69,6 +70,9 @@ func TestATiersLimitsApplyToTheJob(t *testing.T) {
 		}
 		if !got.executorSettings().NetworkOff {
 			t.Fatalf("%q: the container's network is on", tier)
+		}
+		if runtime.GOOS == "windows" {
+			continue // the container executor is Linux and macOS only
 		}
 		if got.Executor == nil || got.Executor.Name() != executor.Container {
 			t.Fatalf("%q: the job's executor is %v, %v; want the container", tier, got.Executor, got.executorErr)
