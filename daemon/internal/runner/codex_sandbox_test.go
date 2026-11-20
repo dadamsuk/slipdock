@@ -1,6 +1,7 @@
 package runner
 
 import (
+	"runtime"
 	"strings"
 	"testing"
 
@@ -102,5 +103,44 @@ func TestCodexUnderTheConfinedExecutor(t *testing.T) {
 	_, err := codexSandbox("acceptEdits", executor.Confined, "darwin")
 	if err == nil || !strings.Contains(err.Error(), "bypassPermissions") {
 		t.Fatalf("the refusal says what runs: %v", err)
+	}
+}
+
+// The worker decides a codex job's sandbox from its own executor and OS:
+// on macOS under confined, only bypassPermissions runs, with Codex's
+// sandbox off.
+func TestACodexJobUnderTheConfinedExecutorOnMacOS(t *testing.T) {
+	for _, c := range []struct {
+		mode, executor string
+		sandbox        string // "" for refused
+	}{
+		{"acceptEdits", executor.Confined, ""},
+		{"plan", executor.Confined, ""},
+		{"bypassPermissions", executor.Confined, "danger-full-access"},
+		{"acceptEdits", executor.Me, "workspace-write"},
+	} {
+		t.Run(c.mode+"/"+c.executor, func(t *testing.T) {
+			r := newRig(t, Config{Agent: "codex", Model: "o4", PermissionMode: c.mode})
+			me, err := executor.New(executor.Me, executor.Settings{GOOS: runtime.GOOS})
+			if err != nil {
+				t.Fatal(err)
+			}
+			r.w.Executor = named{me, c.executor}
+			r.w.GOOS = "darwin"
+			f := r.runJob(fakeJob{id: 143, kind: "codex", card: 1, prompt: "Do it"})
+			saw := r.agentSaw()
+			if c.sandbox == "" {
+				if saw != "" {
+					t.Fatalf("codex ran:\n%s", saw)
+				}
+				if f.exit != 127 || f.status != "failed" || !strings.Contains(f.body, "can't run inside the confined executor") {
+					t.Fatalf("finish = %+v; want refused, saying why", f)
+				}
+				return
+			}
+			if f.exit != 0 || !strings.Contains(saw, "arg=exec\narg=--sandbox\narg="+c.sandbox+"\n") {
+				t.Fatalf("finish = %+v; want codex run with --sandbox %s, it saw:\n%s", f, c.sandbox, saw)
+			}
+		})
 	}
 }
