@@ -554,6 +554,8 @@ with the tail of the log — and a Cancel button.
   and the machine's trust tiers can tighten both by who wrote the card, or
   hold its network to an allowlist of the model API, the server and the
   repository ([A network allowlist](machines.md#a-network-allowlist)).
+  Below the owner's tier, a runner's after hook runs in a container, or
+  the job is refused ([Trust tiers](machines.md#trust-tiers)).
   A job reads its own card as it was when claimed, and once it reads text
   by someone less trusted than its prompt's authors, the machine's hook
   refuses its agent the shell, the network and pushing

@@ -85,6 +85,11 @@ type Worker struct {
 	// under a network allowlist (#3517).
 	allowHosts []string
 	egress     *executor.Egress
+	// hookContainer: the job is below owner tier and its executor isn't
+	// the container, so its after hook runs in a container of its own
+	// (#3518), hookEx, which prepare makes.
+	hookContainer bool
+	hookEx        executor.Executor
 	// ReleaseKey is the project's release key, which the server's CLI is
 	// checked against before it is installed (default release.Key).
 	ReleaseKey func() (ed25519.PublicKey, error)
@@ -185,6 +190,12 @@ func (w *Worker) defaults() {
 
 // executorSettings are what the executor needs from the machine's files.
 func (w *Worker) executorSettings() executor.Settings {
+	return w.settingsFor(w.Runner.Config.Executor)
+}
+
+// settingsFor are the settings for the executor name, from the runner's
+// config and the machine's local file.
+func (w *Worker) settingsFor(name string) executor.Settings {
 	s := executor.Settings{GOOS: w.GOOS, Home: w.Home, Getenv: w.Getenv, LookPath: w.LookPath, Launcher: w.Launcher,
 		Repo: w.Runner.Config.Directory}
 	if u := w.Local.User; u != nil {
@@ -194,7 +205,7 @@ func (w *Worker) executorSettings() executor.Settings {
 	if len(s.Writable) == 0 && w.Runner.Config.Agent == "claude" && w.Home != "" {
 		s.Writable = []string{filepath.Join(w.Home, ".claude")}
 	}
-	if w.Runner.Config.Executor == executor.Container {
+	if name == executor.Container {
 		w.containerSettings(&s)
 		if w.verify {
 			w.verifyLogins(&s)
@@ -557,6 +568,56 @@ func (w *Worker) ownerCheck(ctx context.Context, j *jobRun) {
 // permission mode and its network. A tier the ceiling doesn't name is an
 // error: the job is refused.
 func (w *Worker) forTier(job *Job) (*Worker, error) {
+	tw, err := w.tierLimits(job)
+	if err != nil {
+		return nil, err
+	}
+	return tw.hookLimits(job)
+}
+
+// hookLimits holds the after hook of a job below owner tier to a
+// container (#3518): the hook runs what the agent wrote, and the agent's
+// text isn't the owner's. A job whose executor is the container already
+// runs its hooks there. With no container offered, or no allowed image
+// for one, the job is refused before anything runs. An owner-tier job's
+// hooks run as the runner says.
+func (w *Worker) hookLimits(job *Job) (*Worker, error) {
+	c := w.Runner.Config
+	if job.Tier == "owner" || c.AfterHook == "" || c.Executor == executor.Container {
+		return w, nil
+	}
+	tier := job.Tier
+	if tier == "" {
+		tier = "anyone"
+	}
+	why := ""
+	goos := w.GOOS
+	if goos == "" {
+		goos = runtime.GOOS
+	}
+	switch {
+	case !contains(w.Offered, executor.Container):
+		why = "this machine's ceiling offers no container"
+	case executor.Supported(executor.Container, goos) != nil:
+		why = executor.Supported(executor.Container, goos).Error()
+	case c.Network == machine.NetworkAllowlist && goos != "linux":
+		why = "a container holds a hook to the network allowlist on Linux only, not " + goos
+	default:
+		if err := executor.ImageAllowed(c.Image, w.Images); err != nil {
+			why = "the runner's image: " + err.Error()
+		}
+	}
+	if why != "" {
+		return nil, fmt.Errorf("a job of trust tier %s runs the runner's after hook in a container, and %s, so the job was not run", tier, why)
+	}
+	w.say("job #%d: trust tier %s: the after hook runs in a container (image %s)", job.ID, tier, c.Image)
+	jw := *w
+	jw.hookContainer, jw.hookEx = true, nil
+	return &jw, nil
+}
+
+// tierLimits is the worker under the ceiling's limits for the job's tier.
+func (w *Worker) tierLimits(job *Job) (*Worker, error) {
 	if len(w.Tiers) == 0 {
 		return w, nil
 	}
@@ -626,6 +687,10 @@ func (w *Worker) prepare(j *jobRun) ([]string, *machine.Command, error) {
 	if err := w.Executor.Ready(); err != nil {
 		return nil, nil, fmt.Errorf("executor %s: %v, so the job was not run", w.Executor.Name(), err)
 	}
+	hookEx, err := w.hookExecutor()
+	if err != nil {
+		return nil, nil, fmt.Errorf("the after hook's container: %v, so the job was not run", err)
+	}
 	agent, ok := w.Local.Agent(c.Agent)
 	if !ok {
 		return nil, nil, fmt.Errorf("agent %q is not defined in this machine's %s, so the job was not run", c.Agent, machine.LocalFile)
@@ -646,7 +711,11 @@ func (w *Worker) prepare(j *jobRun) ([]string, *machine.Command, error) {
 		if !ok {
 			return nil, nil, fmt.Errorf("the %s hook %q is not defined in this machine's %s, so the job was not run", h.which, h.name, machine.LocalFile)
 		}
-		resolved, err := w.Executor.Resolve(hook.Path)
+		ex := w.Executor
+		if h.which == "after" {
+			ex = hookEx
+		}
+		resolved, err := ex.Resolve(hook.Path)
 		if err != nil {
 			return nil, nil, fmt.Errorf("the %s hook %q: %s is not on the PATH, so the job was not run", h.which, h.name, hook.Path)
 		}
@@ -1138,7 +1207,11 @@ func (w *Worker) runRelease(ctx context.Context, j *jobRun) {
 // repository (where the job may have planted git config), not to the
 // job's directory alone.
 func (w *Worker) hook(ctx context.Context, j *jobRun, h machine.Command, env []string) int {
-	ex := w.Executor
+	return w.hookIn(ctx, w.Executor, j, h, env)
+}
+
+// hookIn is hook, run by the executor ex.
+func (w *Worker) hookIn(ctx context.Context, ex executor.Executor, j *jobRun, h machine.Command, env []string) int {
 	var cmd *exec.Cmd
 	var err error
 	if hk, ok := ex.(executor.Hooker); ok {
@@ -1165,6 +1238,31 @@ func (w *Worker) hook(ctx context.Context, j *jobRun, h machine.Command, env []s
 	}
 }
 
+// hookExecutor is the executor the job's after hook runs in: the job's
+// own, or, held to a container (hookLimits), a container made from the
+// runner's image and network, behind the job's proxy when it has one, and
+// ready to run.
+func (w *Worker) hookExecutor() (executor.Executor, error) {
+	if !w.hookContainer || w.Executor.Name() == executor.Container {
+		return w.Executor, nil
+	}
+	if w.hookEx == nil {
+		newExecutor := executor.New
+		if w.newExecutor != nil {
+			newExecutor = w.newExecutor
+		}
+		ex, err := newExecutor(executor.Container, w.settingsFor(executor.Container))
+		if err != nil {
+			return nil, err
+		}
+		if err := ex.Ready(); err != nil {
+			return nil, err
+		}
+		w.hookEx = ex
+	}
+	return w.hookEx, nil
+}
+
 // afterHook runs the after hook, if the runner names one, however the job
 // ended, with SLIPDOCK_EXIT and SLIPDOCK_STATUS (done, failed, cancelled,
 // timeout, or requeued when the agent couldn't run, #2920).
@@ -1173,7 +1271,14 @@ func (w *Worker) afterHook(ctx context.Context, j *jobRun, rc int, status string
 		return
 	}
 	env := append(append([]string(nil), j.env...), fmt.Sprintf("SLIPDOCK_EXIT=%d", rc), "SLIPDOCK_STATUS="+status)
-	if code := w.hook(ctx, j, *j.after, env); code != 0 {
+	ex, err := w.hookExecutor()
+	if err != nil {
+		// Never in the job's own executor instead.
+		w.say("job #%d: the after hook was not run: its container: %v", j.job.ID, err)
+		j.note("slipdock-runner: the after hook was not run: its container: " + err.Error())
+		return
+	}
+	if code := w.hookIn(ctx, ex, j, *j.after, env); code != 0 {
 		w.say("job #%d: the after hook failed (exit %d)", j.job.ID, code)
 	}
 }

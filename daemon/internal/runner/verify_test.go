@@ -174,7 +174,7 @@ func TestAVerifyJobUnderAnAllowlistTierRunsBehindItsProxy(t *testing.T) {
 	r, fake, sha := verifyRig(t, Config{})
 	r.w.Tiers = map[string]machine.Tier{"anyone": {Executor: executor.Container, Network: machine.NetworkAllowlist}}
 
-	f := r.runJob(fakeJob{id: 402, kind: "verify", card: 42, prompt: "Check #42", token: testJobToken, sha: sha})
+	f := r.runJob(fakeJob{id: 402, kind: "verify", card: 42, tier: "none", prompt: "Check #42", token: testJobToken, sha: sha})
 	if f.exit != 0 || f.status != "" {
 		t.Fatalf("finish = %+v", f)
 	}
@@ -194,7 +194,7 @@ func TestAVerifyJobWhoseAllowlistCantStartIsNotRun(t *testing.T) {
 	r.w.Tiers = map[string]machine.Tier{"anyone": {Executor: executor.Container, Network: machine.NetworkAllowlist,
 		AllowHosts: []string{"https://x"}}}
 
-	f := r.runJob(fakeJob{id: 403, kind: "verify", card: 42, prompt: "Check #42", token: testJobToken, sha: sha})
+	f := r.runJob(fakeJob{id: 403, kind: "verify", card: 42, tier: "none", prompt: "Check #42", token: testJobToken, sha: sha})
 	if f.exit != 127 || f.status != "failed" || !strings.Contains(f.body, "the ceiling's allow_hosts") {
 		t.Fatalf("finish = %+v", f)
 	}
@@ -246,7 +246,7 @@ func TestARunnerThatCantRunAContainerTakesNoVerifyJob(t *testing.T) {
 
 func TestAVerifyJobARunnerCantContainIsRefused(t *testing.T) {
 	r := newRig(t, Config{})
-	f := r.runJob(fakeJob{id: 402, kind: "verify", card: 42, prompt: "Check", token: testJobToken})
+	f := r.runJob(fakeJob{id: 402, kind: "verify", card: 42, tier: "none", prompt: "Check", token: testJobToken})
 	if f.exit != 127 || f.status != "failed" || !strings.Contains(f.body, "no such job kind: verify") {
 		t.Fatalf("finish = %+v", f)
 	}
@@ -279,7 +279,7 @@ func TestAVerifyJobWaitsForThePullRequestsChecks(t *testing.T) {
 	}
 	r.w.CIPoll = 20 * time.Millisecond
 
-	f := r.runJob(fakeJob{id: 403, kind: "verify", card: 42, prompt: "Check", token: testJobToken, sha: sha, pr: pr})
+	f := r.runJob(fakeJob{id: 403, kind: "verify", card: 42, tier: "none", prompt: "Check", token: testJobToken, sha: sha, pr: pr})
 	if f.exit != 0 {
 		t.Fatalf("finish = %+v", f)
 	}

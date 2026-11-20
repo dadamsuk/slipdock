@@ -171,6 +171,8 @@ type fakeJob struct {
 	kind    string
 	card    int64
 	profile string
+	// tier is X-Prompt-Tier: "" sends owner, as the server would for the
+	// owner's own card; "none" sends no header.
 	tier    string
 	hookKey string
 	prompt  string
@@ -391,7 +393,11 @@ func (s *server) handle(w http.ResponseWriter, r *http.Request) {
 			}
 			h.Set("X-Board-Id", "3")
 			h.Set("X-Lease-Seconds", "90")
-			if j.tier != "" {
+			switch j.tier {
+			case "":
+				h.Set("X-Prompt-Tier", "owner")
+			case "none":
+			default:
 				h.Set("X-Prompt-Tier", j.tier)
 			}
 			if j.hookKey != "" {

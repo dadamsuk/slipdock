@@ -262,7 +262,28 @@ With `tiers` set, a job whose tier has no entry is refused before
 anything runs, and one from a server that doesn't say its tier counts as
 `anyone`. A tier's `container` executor runs the runner's own `image`,
 which must be on `container_images`. A ceiling without `tiers` runs every
-job as its runner says.
+job as its runner says, but for its after hook (below).
+
+**Where the after hook runs** (#3518). The after hook runs what the
+agent wrote (a test suite, a build), so it is held by the job's tier,
+with or without `tiers` in the ceiling:
+
+- an `owner` job's after hook runs as the runner says, as before;
+- a `member` or `anyone` job's runs in a container of its own, from the
+  runner's `image` (on `container_images`), with the job's network: under
+  an allowlist, behind the job's proxy (Linux only). The agent still runs
+  under the job's executor; a `container` job's hook runs in its own
+  container, as ever;
+- where that can't be (the ceiling offers no `container`, the runner has
+  no allowed `image`, or the runtime isn't there), a `member` or `anyone`
+  job of a runner with an after hook is refused before anything runs, and
+  its log says why.
+
+The hook's program is then the image's or the repository's, as under
+`container` (below); its exit code and output are reported as before.
+On a machine that can't run a container, keep after hooks to runners
+that only the owner's cards reach, or pin the owners' keys so a card's
+tier is checked on the machine (*Cards signed by their owner*, below).
 
 **What an `anyone` job's agent sees** (#3531). A build job at the `anyone`
 tier never gets its card's text. At claim, the server has a model with no
@@ -665,7 +686,8 @@ optional, and with no file at all `claude` and `codex` are found on your
   `$SLIPDOCK_PROMPT`, never on its command line.
 - `hooks`: what a runner's before, after and probe hooks run, by name. A
   before hook that fails stops the job; the after hook runs however the job
-  ended, with `$SLIPDOCK_EXIT` and `$SLIPDOCK_STATUS` (`done`, `failed`,
+  ended (in a container for a job below `owner` tier: *Trust tiers*,
+  above), with `$SLIPDOCK_EXIT` and `$SLIPDOCK_STATUS` (`done`, `failed`,
   `cancelled`, `timeout`, or `requeued` when the agent couldn't run at all
   and the job went back to the queue: see
   [Runners](runners.md)). The probe hook runs at the end of a probe
