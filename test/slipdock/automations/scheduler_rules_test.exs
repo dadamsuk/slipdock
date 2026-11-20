@@ -1,7 +1,7 @@
 defmodule Slipdock.Automations.SchedulerRulesTest do
   # A tick runs the periodic jobs and then the scheduled rules, and answers
-  # how many rules fired (#2004). Driven through `handle_call(:tick, …)` in
-  # the test's own process, so the sandbox needs no sharing.
+  # how many rules fired (#2004). Each test starts a scheduler of its own,
+  # allowed into the test's sandbox; its jobs' tasks reach it through it.
   use Slipdock.DataCase, async: true
 
   import Ecto.Query
@@ -31,21 +31,28 @@ defmodule Slipdock.Automations.SchedulerRulesTest do
     card
   end
 
+  defp scheduler do
+    pid = start_supervised!({Scheduler, name: nil, cluster_lock: false})
+    Ecto.Adapters.SQL.Sandbox.allow(Repo, self(), pid)
+    pid
+  end
+
   test "a tick runs the scheduled rules and answers how many fired" do
     card = stale_card_rule()
+    s = scheduler()
 
-    assert {:reply, 1, %{}} = Scheduler.handle_call(:tick, {self(), make_ref()}, %{})
+    assert 1 = Scheduler.run_now(s)
     assert Boards.Cards.get_card!(card.id).flags == ["waiting"]
 
     # Fired once per occasion: the next tick has nothing to do.
-    assert {:reply, 0, %{}} = Scheduler.handle_call(:tick, {self(), make_ref()}, %{})
+    assert 0 = Scheduler.run_now(s)
   end
 
   test "a tick with no rules due answers 0" do
-    assert {:reply, 0, %{}} = Scheduler.handle_call(:tick, {self(), make_ref()}, %{})
+    assert 0 = Scheduler.run_now(scheduler())
   end
 
-  test "a tick whose rules raise logs it, answers 0 and still runs the jobs before them" do
+  test "a tick whose rules raise logs it, answers 0 and still runs the jobs" do
     board = board_fixture(%{"name" => "Launch"})
 
     # Stored straight, past the spec's checks: an hour of 25 makes
@@ -59,11 +66,11 @@ defmodule Slipdock.Automations.SchedulerRulesTest do
 
     log =
       capture_log(fn ->
-        assert {:reply, 0, %{}} = Scheduler.handle_call(:tick, {self(), make_ref()}, %{})
+        assert 0 = Scheduler.run_now(scheduler())
       end)
 
     assert log =~ "Automation scheduler failed: cannot build time"
-    # The periodic jobs ran first: the pulse is the first of them.
+    # The periodic jobs still ran: the pulse is the first of them.
     assert %DateTime{} = Pulse.last("scheduler")
   end
 end

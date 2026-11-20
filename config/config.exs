@@ -110,11 +110,15 @@ config :slipdock, :rate_limit, enabled: true
 # Automation rules (see Slipdock.Automations). `enabled: false` turns every
 # rule off; `interval` is how often the time-based triggers are checked;
 # `async: false` sends the emails and webhooks inline (the test env does);
-# `cluster_lock: false` ticks on every node rather than on the one that leads.
+# `cluster_lock: false` ticks on every node rather than on the one that leads;
+# each of a tick's jobs runs as its own task, `max_jobs` at a time, and is
+# stopped after `job_timeout` (see Slipdock.Automations.Scheduler).
 config :slipdock, :automations,
   enabled: true,
   interval: :timer.minutes(1),
   cluster_lock: true,
+  max_jobs: 3,
+  job_timeout: :timer.minutes(5),
   async: true
 
 # Configure the endpoint
