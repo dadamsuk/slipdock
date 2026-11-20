@@ -2096,7 +2096,8 @@ decides what a job of each tier may do (`tiers`, in the manual's
 *Machines* page): its executor, permission mode and network, which a
 tier's `allowlist` holds to the agent's model API, this server, the
 repository's origin and the hosts the tier names, through a proxy the
-daemon runs for the job.
+daemon runs for the job. Below `owner`, the runner's after hook runs in a
+container from the runner's `image`, or the machine refuses the job.
 
 **An `anyone` job's prompt** (#3531). A build job at the `anyone` tier is
 handed a prompt without its card's text: a model with no tools reads the

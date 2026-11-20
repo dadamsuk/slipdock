@@ -39,7 +39,7 @@ func (w *Worker) startEgress(ctx context.Context, j *jobRun) (stop func(), err e
 		}
 	}
 	socket, dir := "", ""
-	if w.Runner.Config.Executor == executor.Container {
+	if w.Runner.Config.Executor == executor.Container || w.hookContainer {
 		// Short, for a unix socket's path, and outside JobsDir, which is
 		// never mounted.
 		if dir, err = os.MkdirTemp("", "slipdock-egress-"); err != nil {

@@ -191,7 +191,7 @@ func TestAnAgentJobsProxyEndsWithTheJob(t *testing.T) {
 	r.w.Images = []string{"ghcr.io/example/agent:*"}
 	r.w.Runner.Config.Image = "ghcr.io/example/agent:1"
 
-	f := r.runJob(fakeJob{id: 404, kind: "claude", card: 42, prompt: "Build #42"})
+	f := r.runJob(fakeJob{id: 404, kind: "claude", card: 42, tier: "none", prompt: "Build #42"})
 	if f.exit != 0 || f.status != "" {
 		t.Fatalf("finish = %+v", f)
 	}

@@ -1595,6 +1595,9 @@ of each tier may run as (its executor, permission mode and network, which
 `allowlist` holds to the model API, the server, the repository's origin
 and the tier's `allow_hosts`, through a proxy the daemon runs for the
 job), and a job whose tier they don't name is refused on the machine.
+A `member` or `anyone` job's after hook runs in a container from the
+runner's image, whatever the tiers say, or the job is refused where the
+machine can't run one; an `owner` job's runs as the runner says.
 A job's agent reading a card with `x-slipdock-job` (REST or MCP `get_card`) reads its own card as it was at claim (`as_at_claim`),
 and text by an author less trusted than the job's tier marks the job
 (`marked_at`, `mark_reason`); the daemon's `PreToolUse` hook asks for the
