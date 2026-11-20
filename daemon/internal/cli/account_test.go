@@ -229,3 +229,11 @@ func TestConfineIsACommand(t *testing.T) {
 		t.Fatalf("%d %s", code, w.errOut)
 	}
 }
+
+// The job's way to its proxy (#3517) is a command of the daemon's binary.
+func TestEgressIsACommand(t *testing.T) {
+	w := newWorld(t)
+	if code := w.main("egress"); code != 2 || !strings.Contains(w.errOut.String(), "usage: slipdock-runner egress forward|connect") {
+		t.Fatalf("%d %s", code, w.errOut)
+	}
+}

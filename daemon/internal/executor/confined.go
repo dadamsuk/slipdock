@@ -35,8 +35,9 @@ type confined struct {
 
 func (c *confined) Name() string { return Confined }
 
-// sandboxExec is macOS's.
-const sandboxExec = "/usr/bin/sandbox-exec"
+// sandboxExec is macOS's (a variable for the tests, which build macOS's
+// command line anywhere).
+var sandboxExec = "/usr/bin/sandbox-exec"
 
 func (c *confined) Ready() error {
 	switch c.s.GOOS {

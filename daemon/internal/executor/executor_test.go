@@ -304,6 +304,13 @@ func TestConfineMainRefusesABadCommandLine(t *testing.T) {
 	if code := ConfineMain([]string{"--", "no-such-program-here"}, &errs); code != 127 {
 		t.Errorf("a program that isn't there: %d", code)
 	}
+	// --connect takes a port, 1 to 65535 (#3517).
+	for _, args := range [][]string{{"--connect"}, {"--connect", "x"}, {"--connect", "0"}, {"--connect", "65536"}} {
+		errs.Reset()
+		if code := ConfineMain(args, &errs); code != 2 || !strings.Contains(errs.String(), "--connect needs a port") {
+			t.Errorf("%v: exit %d (%s)", args, code, errs.String())
+		}
+	}
 }
 
 func TestConfinedIsntReadyWithoutWhatItNeeds(t *testing.T) {

@@ -56,27 +56,41 @@ func TestAConfinedJobsCommandUnderAnAllowlist(t *testing.T) {
 	landlock := landlockABI
 	landlockABI = func() int { return landlockNetABI }
 	defer func() { landlockABI = landlock }()
-	if runtime.GOOS != "linux" && runtime.GOOS != "darwin" {
-		t.Skip("confined is Linux and macOS only")
+	// Both systems' command lines, on either: sandbox-exec stands in.
+	defer func(p string) { sandboxExec = p }(sandboxExec)
+	sandboxExec = launcher
+	for _, goos := range []string{"linux", "darwin"} {
+		c.s.GOOS = goos
+		cmd, err := c.Command(Proc{Dir: dir, Env: []string{"HTTPS_PROXY=http://evil.example.net:1"}}, "/bin/true")
+		if err != nil {
+			t.Fatal(err)
+		}
+		args := strings.Join(cmd.Args, " ")
+		if goos == "linux" && !strings.Contains(args, " --connect 4100 --connect 5432 -- /bin/true") {
+			t.Fatalf("linux: the ports aren't the job's only way out: %s", args)
+		}
+		if goos == "darwin" && (!strings.Contains(args, "(deny network-outbound)") ||
+			!strings.Contains(args, `(remote ip "localhost:4100")`) || !strings.Contains(args, `(remote ip "localhost:5432")`)) {
+			t.Fatalf("darwin: the ports aren't the job's only way out: %s", args)
+		}
+		if last := envValue(cmd.Env, "HTTPS_PROXY"); last != "http://127.0.0.1:4100" {
+			t.Fatalf("%s: HTTPS_PROXY = %q: the job's own won", goos, last)
+		}
+		if v := envValue(cmd.Env, "GIT_SSH_COMMAND"); !strings.Contains(v, launcher+" egress connect 127.0.0.1:4100 %h %p") {
+			t.Fatalf("%s: GIT_SSH_COMMAND = %q", goos, v)
+		}
 	}
-	c.s.GOOS = runtime.GOOS
-	cmd, err := c.Command(Proc{Dir: dir, Env: []string{"HTTPS_PROXY=http://evil.example.net:1"}}, "/bin/true")
-	if err != nil {
-		t.Fatal(err)
-	}
-	args := strings.Join(cmd.Args, " ")
-	if runtime.GOOS == "linux" && !strings.Contains(args, " --connect 4100 --connect 5432 -- /bin/true") {
-		t.Fatalf("the ports aren't the job's only way out: %s", args)
-	}
-	if runtime.GOOS == "darwin" && (!strings.Contains(args, "(deny network-outbound)") ||
-		!strings.Contains(args, `(remote ip "localhost:4100")`) || !strings.Contains(args, `(remote ip "localhost:5432")`)) {
-		t.Fatalf("the ports aren't the job's only way out: %s", args)
-	}
-	if last := envValue(cmd.Env, "HTTPS_PROXY"); last != "http://127.0.0.1:4100" {
-		t.Fatalf("HTTPS_PROXY = %q: the job's own won", last)
-	}
-	if v := envValue(cmd.Env, "GIT_SSH_COMMAND"); !strings.Contains(v, launcher+" egress connect 127.0.0.1:4100 %h %p") {
-		t.Fatalf("GIT_SSH_COMMAND = %q", v)
+	// Without an allowlist, neither limits the network.
+	c.s.Egress = nil
+	for _, goos := range []string{"linux", "darwin"} {
+		c.s.GOOS = goos
+		cmd, err := c.Command(Proc{Dir: dir}, "/bin/true")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if args := strings.Join(cmd.Args, " "); strings.Contains(args, "--connect") || strings.Contains(args, "network-outbound") {
+			t.Fatalf("%s: no allowlist, but %s", goos, args)
+		}
 	}
 }
 

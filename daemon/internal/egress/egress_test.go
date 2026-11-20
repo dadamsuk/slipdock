@@ -410,6 +410,21 @@ func TestMain(m *testing.M) {
 		}
 		os.Exit(1)
 	}
+	if len(os.Args) == 3 && os.Args[1] == "helper-dial" {
+		// Dials forward's port twice, reads to the end each time, and exits 5.
+		for i := 0; i < 2; i++ {
+			c, err := net.Dial("tcp", os.Args[2])
+			if err != nil {
+				os.Exit(1)
+			}
+			c.SetReadDeadline(time.Now().Add(5 * time.Second))
+			if _, err := io.Copy(io.Discard, c); err != nil {
+				os.Exit(1)
+			}
+			c.Close()
+		}
+		os.Exit(5)
+	}
 	os.Exit(m.Run())
 }
 
