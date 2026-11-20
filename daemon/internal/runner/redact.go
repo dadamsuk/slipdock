@@ -56,7 +56,7 @@ var secretShapes = []*regexp.Regexp{
 	regexp.MustCompile(`\bgithub_pat_[A-Za-z0-9_]{30,}`),
 	regexp.MustCompile(`\bglpat-[A-Za-z0-9_-]{20,}`),
 	regexp.MustCompile(`\bxox[abposr]-[A-Za-z0-9-]{10,}`),
-	regexp.MustCompile(`\bsk-ant-[A-Za-z0-9_-]{20,}`),
+	// sk-ant- (Anthropic), sk-proj- and plain sk- (OpenAI).
 	regexp.MustCompile(`\bsk-(?:proj-)?[A-Za-z0-9_-]{20,}`),
 	regexp.MustCompile(`\b[sr]k_(?:live|test)_[A-Za-z0-9]{16,}`),
 	regexp.MustCompile(`\bAIza[0-9A-Za-z_-]{35}`),

@@ -32,6 +32,13 @@ var (
 	fakeAWSKeyLetters = strings.Repeat("Fake", 10)
 	fakeAWSKeyDigits  = strings.Repeat("0/+9", 10)
 	fakeJWT           = fakeTok("ey", "J", fakeBody, ".ey", "J", fakeBody, ".", fakeBody)
+	fakeMachine       = fakeTok("sd", "m_", fakeBody)
+	fakeGitLab        = fakeTok("gl", "pat-", fakeBody)
+	fakeSlack         = fakeTok("xo", "xb-", "1234-", fakeBody)
+	fakeStripe        = fakeTok("sk", "_live_", fakeBody)
+	fakeStripeR       = fakeTok("rk", "_test_", fakeBody)
+	fakeGoogle        = fakeTok("AI", "za", strings.Repeat("Fake0", 7))
+	fakeShort         = "Fake0Fake0Fake0" // 15: long enough for a named value
 )
 
 func TestTheRedactorTakesOutEachShape(t *testing.T) {
@@ -64,6 +71,26 @@ func TestTheRedactorTakesOutEachShape(t *testing.T) {
 		{"a password setting", `password = "` + fakeBody + `"`, fakeBody, `password = "[redacted]"`},
 		{"a private key", "before\n" + key + "\nafter", fakeBody, "before\n[redacted]\nafter"},
 		{"a JWT", "jwt " + fakeJWT, fakeBody, "jwt [redacted]"},
+		// Each shape on its own, with no name before it for the
+		// assignment rule to catch.
+		{"a Slipdock machine key", "run with " + fakeMachine, fakeBody, "run with [redacted]"},
+		{"a GitLab token", "run with " + fakeGitLab, fakeBody, "run with [redacted]"},
+		{"a Slack token", "run with " + fakeSlack, fakeBody, "run with [redacted]"},
+		{"a Stripe secret key", "run with " + fakeStripe, fakeBody, "run with [redacted]"},
+		{"a Stripe restricted key", "run with " + fakeStripeR, fakeBody, "run with [redacted]"},
+		{"a Google API key", "run with " + fakeGoogle, "Fake0Fake0", "run with [redacted]"},
+		// Each name the assignment rule knows, on its own.
+		{"a passwd setting", "passwd=" + fakeBody, fakeBody, "passwd=[redacted]"},
+		{"a client secret", "client_secret=" + fakeBody, fakeBody, "client_secret=[redacted]"},
+		{"a name after the keyword", "SECRET_KEY=" + fakeBody, fakeBody, "SECRET_KEY=[redacted]"},
+		{"an api key header", "x-api-key: " + fakeBody, fakeBody, "x-api-key: [redacted]"},
+		{"an apikey setting", "apikey=" + fakeBody, fakeBody, "apikey=[redacted]"},
+		{"an access key setting", "access_key=" + fakeBody, fakeBody, "access_key=[redacted]"},
+		{"a token setting", "token=" + fakeBody, fakeBody, "token=[redacted]"},
+		{"a short named value", "password=" + fakeShort, fakeShort, "password=[redacted]"},
+		{"a named value in escaped JSON", `{\"api_key\": \"` + fakeBody + `\"}`, fakeBody, `{\"api_key\": \"[redacted]\"}`},
+		{"an AWS secret key in escaped JSON", `{\"aws_secret_access_key\": \"` + fakeAWSKeyLetters + `\"}`, fakeAWSKeyLetters,
+			`{\"aws_secret_access_key\": \"[redacted]\"}`},
 	} {
 		got := string(r.redact([]byte(c.in)).bytes())
 		if strings.Contains(got, c.secret) || got != c.want {
@@ -73,7 +100,8 @@ func TestTheRedactorTakesOutEachShape(t *testing.T) {
 }
 
 func TestTheRedactorLeavesOrdinaryTextAlone(t *testing.T) {
-	r := newRedactor(nil)
+	// A literal too short to be a secret is left, and so is an empty one.
+	r := newRedactor([]string{"short", ""})
 	for _, in := range []string{
 		"commit 3f786850e387550fdab836ed7e6dc881de23001b merged",
 		"job 123e4567-e89b-12d3-a456-426614174000 started",
@@ -83,6 +111,7 @@ func TestTheRedactorLeavesOrdinaryTextAlone(t *testing.T) {
 		"see https://example.com/path/to/thing and ssh://git@example.com/repo",
 		"sk-short and ghp_short and sdm_short",
 		"internal/thing/file.go:12: ok",
+		"token_expires_at=1700000000000",
 	} {
 		if got := string(r.redact([]byte(in)).bytes()); got != in {
 			t.Errorf("%q redacted to %q", in, got)
@@ -161,6 +190,15 @@ func TestATailCutThroughAPrivateKeyLeavesNoneOfIt(t *testing.T) {
 	if got := string(r.scrub([]byte(key[cut:]+pad), true)); leaksPart(got, fakeBody) {
 		t.Fatalf("a key whose start was cut off: %q", got)
 	}
+	// A read that starts in one key and holds another: both go.
+	tailThenKey := key[cut:] + "between\n" + key + "after"
+	if got := string(r.scrub([]byte(tailThenKey), true)); leaksPart(got, fakeBody) || got != "[redacted]\nbetween\n[redacted]\nafter" {
+		t.Fatalf("a cut key then a whole one: %q", got)
+	}
+	// A read that holds a whole key keeps what comes before it.
+	if got := string(r.scrub([]byte("before\n"+key+"after"), true)); got != "before\n[redacted]\nafter" {
+		t.Fatalf("a whole key in a cut read: %q", got)
+	}
 	// The end of the key is still unwritten: it goes to the end.
 	if got := string(r.redact([]byte("x\n" + key[:40])).bytes()); got != "x\n[redacted]" {
 		t.Fatalf("a key not yet ended: %q", got)
@@ -177,6 +215,17 @@ func TestASmallLogIsSentWholeRedacted(t *testing.T) {
 	}
 	if got := newRedactor(nil).tail(filepath.Join(t.TempDir(), "none"), 10).bytes(); len(got) != 0 {
 		t.Fatalf("no log: %q", got)
+	}
+}
+
+// A tail that would start inside a character starts at the next one.
+func TestATailStartsOnACharacter(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "job.log")
+	if err := os.WriteFile(path, []byte(strings.Repeat("\u00e9", 100)), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if got := string(newRedactor(nil).tail(path, 51).bytes()); got != strings.Repeat("\u00e9", 25) {
+		t.Fatalf("tail = %q", got)
 	}
 }
 
