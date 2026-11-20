@@ -847,7 +847,15 @@ the local file sets `skills_unsigned: true`. While a job
 runs, its log's tail goes to the board every 20 seconds and Claude Code's
 transcript about once a minute, with this machine's keys and tokens taken
 out. Cancelling the job on the board, or its timeout, stops it and every
-process it started. With `worktree` on (or `auto`, when two runners share a
+process it started, including one that left its process group (`setsid`,
+`nohup`, a daemon that forked away, #3490): each carries the job's tag in
+its environment, and stopping the job looks for it, on Linux in
+`/proc/<pid>/environ` and on macOS with `ps -E`. macOS hides its own
+programs' environment (`/bin/sh`, `sleep`), so there a job in a worktree
+also loses every process of yours with no terminal working in the
+worktree. A process that clears its environment escapes (and on macOS
+one outside the worktree); a container job's are its runtime's to stop,
+and on Windows `taskkill /T` stops the tree a parent at a time. With `worktree` on (or `auto`, when two runners share a
 directory) each job gets a git worktree of its own, on the branch
 `card-<id>`: it starts from the origin's default branch, fetched first,
 never from whatever the runner's checkout has out. A card branch already

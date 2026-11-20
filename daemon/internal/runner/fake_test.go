@@ -166,8 +166,15 @@ func helper(mode string, args []string) int {
 		fmt.Fprintln(os.Stderr, "sudo: a password is required")
 		return 1
 	}
+	if h, ok := helpers[mode]; ok {
+		return h(args)
+	}
 	return 99
 }
+
+// helpers are more of helper's modes, by name, which an OS's own test
+// files add.
+var helpers = map[string]func(args []string) int{}
 
 // version is the agent's --version, as a probe runs it: it writes where it
 // ran, its TMPDIR and the job's variables to $HELPER_VERSION_OUT, prints
