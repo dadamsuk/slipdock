@@ -38,6 +38,9 @@ type Proxy struct {
 
 const dialTimeout = 30 * time.Second
 
+// listenTCP is net.Listen, for the proxy's port: a test's stands in.
+var listenTCP = net.Listen
+
 // quiet: what goes wrong for a job is the job's to see, not the daemon's log.
 var quiet = log.New(io.Discard, "", 0)
 
@@ -60,7 +63,7 @@ func start(rules []Rule, socket string, logf func(string),
 		d := &net.Dialer{Timeout: dialTimeout, Control: p.refuseLoopback}
 		p.dial = d.DialContext
 	}
-	tcp, err := net.Listen("tcp", "127.0.0.1:0")
+	tcp, err := listenTCP("tcp", "127.0.0.1:0")
 	if err != nil {
 		return nil, err
 	}

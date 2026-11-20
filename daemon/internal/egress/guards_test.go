@@ -69,6 +69,29 @@ func TestConnectSaysWhyItGotNoTunnel(t *testing.T) {
 	}
 }
 
+// mute is a connection to a proxy that can't be written to, whatever it
+// would answer.
+type mute struct {
+	net.Conn
+	r io.Reader
+}
+
+func (m mute) Read(b []byte) (int, error)  { return m.r.Read(b) }
+func (m mute) Write([]byte) (int, error)   { return 0, errors.New("broken pipe") }
+func (m mute) Close() error                { return nil }
+func (m mute) SetDeadline(time.Time) error { return nil }
+
+func TestConnectStopsWhenItCantAskForATunnel(t *testing.T) {
+	defer func(f func(string, string) (net.Conn, error)) { dialProxy = f }(dialProxy)
+	dialProxy = func(string, string) (net.Conn, error) {
+		return mute{r: strings.NewReader("HTTP/1.1 200 Connection established\r\n\r\n")}, nil
+	}
+	err := Connect("127.0.0.1:1", "example.com", "22", strings.NewReader("data"), io.Discard)
+	if err == nil || !strings.Contains(err.Error(), "broken pipe") {
+		t.Fatalf("a CONNECT that couldn't be sent: %v", err)
+	}
+}
+
 func TestMainNamesItsCommands(t *testing.T) {
 	var errs bytes.Buffer
 	if code := Main(nil, nil, io.Discard, &errs); code != 2 || !strings.Contains(errs.String(), "usage") {
@@ -164,6 +187,18 @@ func TestAProxyWithNoLogStillRefuses(t *testing.T) {
 	defer p.Close()
 	if p.allowed("evil.example.net", 443) {
 		t.Fatal("allowed")
+	}
+}
+
+func TestAProxyWithNoPortDoesntStart(t *testing.T) {
+	defer func(f func(string, string) (net.Listener, error)) { listenTCP = f }(listenTCP)
+	listenTCP = func(string, string) (net.Listener, error) { return nil, errors.New("no ports left") }
+	p, err := Start(nil, "", nil)
+	if err == nil || !strings.Contains(err.Error(), "no ports left") {
+		if p != nil {
+			p.Close()
+		}
+		t.Fatalf("started with no port: %v", err)
 	}
 }
 

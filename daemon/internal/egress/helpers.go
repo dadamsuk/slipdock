@@ -46,10 +46,13 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	return 2
 }
 
+// dialProxy is net.Dial, for Connect: a test's stands in.
+var dialProxy = net.Dial
+
 // Connect opens a tunnel to host:port through the proxy and copies stdin
 // into it and what comes back to stdout.
 func Connect(proxy, host, port string, stdin io.Reader, stdout io.Writer) error {
-	c, err := net.Dial("tcp", proxy)
+	c, err := dialProxy("tcp", proxy)
 	if err != nil {
 		return err
 	}
