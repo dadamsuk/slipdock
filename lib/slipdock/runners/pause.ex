@@ -60,18 +60,15 @@ defmodule Slipdock.Runners.Pause do
   the label alone when no person did (a runner's tripwire, #3524).
   """
   def who(%__MODULE__{} = pause) do
-    name =
-      case pause.paused_by do
-        %{name: name} when is_binary(name) and name != "" -> name
-        %{email: email} when is_binary(email) -> email
-        _ -> nil
-      end
-
-    cond do
-      name && pause.agent -> "#{name} (#{pause.agent})"
-      name -> name
-      pause.agent -> pause.agent
-      true -> "someone"
+    case {person(pause.paused_by), pause.agent} do
+      {nil, nil} -> "someone"
+      {nil, agent} -> agent
+      {name, nil} -> name
+      {name, agent} -> "#{name} (#{agent})"
     end
   end
+
+  defp person(%{name: name}) when is_binary(name) and name != "", do: name
+  defp person(%{email: email}) when is_binary(email), do: email
+  defp person(_), do: nil
 end
