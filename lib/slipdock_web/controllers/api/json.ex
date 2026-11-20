@@ -1822,7 +1822,22 @@ defmodule SlipdockWeb.API.JSON do
     }
   end
 
-  def job(%Slipdock.Runners.Job{} = j) do
+  @doc """
+  A runner job as a reader sees it (#3535): `text?` is whether they see an
+  `anyone`-tier job's text (`SlipdockWeb.API.Authorize.job_text?/2`). One
+  who doesn't gets such a job (`Slipdock.Runners.Quarantine.text_withheld?/1`)
+  without its prompt and its card's title, and `text_withheld: true`.
+  """
+  def job(%Slipdock.Runners.Job{} = j, true = _text?), do: job_view(j)
+
+  def job(%Slipdock.Runners.Job{} = j, false = _text?) do
+    if Slipdock.Runners.Quarantine.text_withheld?(j),
+      do: %{job_view(j) | prompt: nil, card: nil, text_withheld: true},
+      else: job_view(j)
+  end
+
+  # Every door picks what its reader sees through `job/2`.
+  defp job_view(%Slipdock.Runners.Job{} = j) do
     %{
       id: j.id,
       card_id: j.card_id,
@@ -1854,6 +1869,9 @@ defmodule SlipdockWeb.API.JSON do
       exit_code: j.exit_code,
       error: j.error,
       prompt: j.prompt,
+      # True when a reader below the board's owner gets an `anyone`-tier
+      # job without its prompt and card title (`job/2`, #3535).
+      text_withheld: false,
       log_tail: j.log_tail,
       # Its live log (#1870): the transcript lines held so far, read with
       # GET /api/jobs/:id/transcript.
@@ -1900,14 +1918,61 @@ defmodule SlipdockWeb.API.JSON do
   defp ids_only(%{id: id}), do: %{id: id}
 
   @doc """
-  A claimed job as a JSON claim answers it: `job/1` with the prompt the
+  A claimed job as a JSON claim answers it: `job/2`'s view with the prompt the
   agent is handed (`Runners.claimed_prompt/1`). For a job the quarantined
   reader reads (#3531) the card's title is left out with the rest of its
   text.
   """
   def claimed_job(%Slipdock.Runners.Job{} = j) do
-    view = j |> Map.put(:prompt, Slipdock.Runners.claimed_prompt(j)) |> job()
+    view = j |> Map.put(:prompt, Slipdock.Runners.claimed_prompt(j)) |> job_view()
     if Slipdock.Runners.Quarantine.applies?(j), do: %{view | card: nil}, else: view
+  end
+
+  # What a card read under a quarantined job keeps of the card (#3535):
+  # where it is and its state, none of its text.
+  @quarantined_card_keys ~w(id board_id column_id column position kind priority tags
+                            start_date due_date date_precision completed completed_at
+                            percent_complete color archived_at assignee assignees
+                            inserted_at updated_at profile profile_source origin
+                            origin_job_id loop)a
+
+  @doc """
+  A card as a read naming `job` returns its own card when the claim quoted
+  its text through the quarantined reader (#3535,
+  `Slipdock.Runners.ReadMark.quarantined_job/3`): where it is and its
+  state, and in place of its text the fields the job was handed at claim,
+  as `quarantined` and, quoted under their header, as `description`. No
+  title, bar, paths, comments, checklist, wait, handoff or evidence.
+  `card` comes with its state (`Boards.with_state/1`).
+  """
+  def quarantined_card(%Card{} = card, %Slipdock.Runners.Job{} = job) do
+    read = job.quarantined_read
+
+    card
+    |> card()
+    |> Map.take(@quarantined_card_keys)
+    |> Map.merge(%{
+      title: nil,
+      description: Slipdock.Runners.Quarantine.quoted(job),
+      bar: nil,
+      paths: [],
+      flags: [],
+      blocked_by: [],
+      blocks: [],
+      links: [],
+      urls: [],
+      attachments: [],
+      checklist: %{done: 0, total: 0, items: []},
+      comments: [],
+      wait: nil,
+      last_wait: nil,
+      text_withheld: true,
+      quarantined:
+        if(is_map(read) and read["agent_directed"] == false,
+          do: Map.drop(read, ["hash", "agent_directed"])
+        ),
+      as_at_claim: job.claimed_at
+    })
   end
 
   def errors(%Ecto.Changeset{} = changeset), do: Slipdock.ChangesetErrors.by_field(changeset)

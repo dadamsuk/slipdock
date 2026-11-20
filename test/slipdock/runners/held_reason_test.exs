@@ -35,7 +35,7 @@ defmodule Slipdock.Runners.HeldReasonTest do
       {:ok, job} = queue(card_fixture(ctx.todo))
 
       assert Runners.held_reason(job) == "No runner online for pool dev"
-      assert SlipdockWeb.API.JSON.job(job).waiting_on == "No runner online for pool dev"
+      assert SlipdockWeb.API.JSON.job(job, true).waiting_on == "No runner online for pool dev"
     end
 
     test "not for a runner seen within three leases", ctx do

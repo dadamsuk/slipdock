@@ -74,54 +74,63 @@ defmodule SlipdockWeb.API.CardController do
   def show(conn, %{"id" => id}) do
     with {:ok, card} <- fetch_card(id),
          :ok <- Authorize.card(conn, card, :read) do
-      # A read under a runner job (#3520): its own card as it was at claim,
-      # and a mark on the job when the text is less trusted than its tier.
-      {card, as_at} =
-        ReadMark.read_card_as(card, Actor.from_conn(conn).job_id, conn.assigns.current_user)
+      job_id = Actor.from_conn(conn).job_id
 
-      # The wiki pages that talk about this card, pinned first. Only here and
-      # not in listings: it is one query per card, and a board listing would
-      # pay it hundreds of times for something nobody reads in a table.
-      docs =
-        card
-        |> Slipdock.Wiki.pages_for_card(conn.assigns.current_user)
-        |> Enum.map(
-          &%{
-            code: &1.page.code,
-            title: &1.page.title,
-            pinned: &1.pinned,
-            url: V.page_url(&1.page)
-          }
-        )
-
-      # Times in words are the reader's (#2022).
-      zone = Slipdock.Timezones.of(conn.assigns.current_user)
-
-      json(conn, %{
-        card:
-          conn
-          |> Authorize.visible(Boards.with_state(card))
-          |> V.card()
-          |> Map.put(:docs, docs)
-          |> Map.put(:wait, V.wait(Boards.Waits.current_wait(card)))
-          |> Map.put(:last_wait, V.wait(Boards.Waits.last_wait(card)))
-          |> V.put_delivery(card, zone)
-          |> V.put_outcome(card, zone)
-          |> V.put_lead_time(card)
-          |> V.put_shipping(card)
-          |> V.put_findings(card)
-          |> V.put_copied_from(card, conn.assigns.current_user)
-          |> V.put_authors(card)
-          |> V.put_incidents(card, conn.assigns.current_user, conn.assigns[:api_token])
-          |> V.put_handbook(card, conn.assigns.current_user, conn.assigns[:api_token])
-          # What in its tree waits on the caller (#2095).
-          |> Map.put(
-            :waiting_on_me,
-            SlipdockWeb.API.WaitingJSON.for_card(conn.assigns.current_user, card)
-          )
-          |> ReadMark.put_as_at_claim(as_at)
-      })
+      case ReadMark.quarantined_job(card, job_id, conn.assigns.current_user) do
+        nil -> show_card(conn, card, job_id)
+        # Its own card, under a job its claim quoted (#3535): the quoted fields.
+        job -> json(conn, %{card: V.quarantined_card(Boards.with_state(card), job)})
+      end
     end
+  end
+
+  defp show_card(conn, card, job_id) do
+    # A read under a runner job (#3520): its own card as it was at claim,
+    # and a mark on the job when the text is less trusted than its tier.
+    {card, as_at} = ReadMark.read_card_as(card, job_id, conn.assigns.current_user)
+
+    # The wiki pages that talk about this card, pinned first. Only here and
+    # not in listings: it is one query per card, and a board listing would
+    # pay it hundreds of times for something nobody reads in a table.
+    docs =
+      card
+      |> Slipdock.Wiki.pages_for_card(conn.assigns.current_user)
+      |> Enum.map(
+        &%{
+          code: &1.page.code,
+          title: &1.page.title,
+          pinned: &1.pinned,
+          url: V.page_url(&1.page)
+        }
+      )
+
+    # Times in words are the reader's (#2022).
+    zone = Slipdock.Timezones.of(conn.assigns.current_user)
+
+    json(conn, %{
+      card:
+        conn
+        |> Authorize.visible(Boards.with_state(card))
+        |> V.card()
+        |> Map.put(:docs, docs)
+        |> Map.put(:wait, V.wait(Boards.Waits.current_wait(card)))
+        |> Map.put(:last_wait, V.wait(Boards.Waits.last_wait(card)))
+        |> V.put_delivery(card, zone)
+        |> V.put_outcome(card, zone)
+        |> V.put_lead_time(card)
+        |> V.put_shipping(card)
+        |> V.put_findings(card)
+        |> V.put_copied_from(card, conn.assigns.current_user)
+        |> V.put_authors(card)
+        |> V.put_incidents(card, conn.assigns.current_user, conn.assigns[:api_token])
+        |> V.put_handbook(card, conn.assigns.current_user, conn.assigns[:api_token])
+        # What in its tree waits on the caller (#2095).
+        |> Map.put(
+          :waiting_on_me,
+          SlipdockWeb.API.WaitingJSON.for_card(conn.assigns.current_user, card)
+        )
+        |> ReadMark.put_as_at_claim(as_at)
+    })
   end
 
   # `POST /api/boards/:board/cards` and `PATCH /api/cards/:id` are made from

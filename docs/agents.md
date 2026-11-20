@@ -1733,7 +1733,12 @@ drops what fails. The agent's prompt holds those fields under a header
 saying they are quoted from an untrusted author, and nothing else of the
 card. Text that speaks to an agent, a failed or invalid read, or no AI key
 on the server holds the job on a `security` wait for a person instead;
-it never runs on the raw text.
+it never runs on the raw text. The agent can't read the text another way
+either: a read of its own card under the job (`x-slipdock-job`) gives the
+same quoted fields (`quarantined`) and no title, description, bar or
+comments, and every job view (`slipdock job`, the job lists) leaves such a
+job's prompt and card title out (`text_withheld`) for anyone below the
+board's owner and for any read made under a job.
 
 **What that doesn't stop.** Telling a model is not a boundary: a well-made
 request can still be followed. What bounds a job is on the machine, in the
