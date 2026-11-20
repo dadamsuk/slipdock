@@ -2653,6 +2653,12 @@ defmodule SlipdockCLI.Render do
     end
   end
 
+  # An anyone-tier job read below the board's owner comes without it (#3535).
+  defp job_prompt(%{"text_withheld" => true}),
+    do: IO.puts("\nprompt:   withheld: its card's text is by an untrusted author")
+
+  defp job_prompt(j), do: IO.puts("\nprompt:\n" <> indent(j["prompt"] || ""))
+
   def job(j) do
     IO.puts("job ##{j["id"]}  #{job_status(j)}  card ##{j["card_id"]}  #{j["pool"]}/#{j["kind"]}")
     if j["runner"], do: IO.puts("runner:   #{j["runner"]} (attempt #{j["attempts"]})")
@@ -2663,12 +2669,7 @@ defmodule SlipdockCLI.Render do
     if j["finished_at"], do: IO.puts("finished: #{stamp(j["finished_at"])}")
     job_log_fate(j)
 
-    if j["text_withheld"] do
-      # An anyone-tier job read below the board's owner (#3535).
-      IO.puts("\nprompt:   withheld: its card's text is by an untrusted author")
-    else
-      IO.puts("\nprompt:\n" <> indent(j["prompt"] || ""))
-    end
+    job_prompt(j)
 
     case j["output"] || j["log_tail"] do
       text when text in [nil, ""] -> :ok
