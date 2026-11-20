@@ -186,7 +186,7 @@ func TestMeKeepsTheDaemonsEnvironmentButNotItsJobVariables(t *testing.T) {
 }
 
 func TestSandboxProfile(t *testing.T) {
-	p := SandboxProfile([]string{"/Users/me/src/repo", `/tmp/a "quoted" \ dir`})
+	p := SandboxProfile([]string{"/Users/me/src/repo", `/tmp/a "quoted" \ dir`}, nil, nil)
 	for _, want := range []string{
 		"(allow default)", "(deny file-write*)",
 		`(subpath "/Users/me/src/repo")`,
@@ -199,6 +199,27 @@ func TestSandboxProfile(t *testing.T) {
 	}
 	if strings.Index(p, "(deny file-write*)") > strings.Index(p, "(allow file-write*") {
 		t.Error("the allowances come after the denial, so they win")
+	}
+	if strings.Contains(p, "file-read") {
+		t.Errorf("nothing unreadable, no read rules:\n%s", p)
+	}
+	p = SandboxProfile([]string{"/Users/me/src/repo"}, []string{"/Users/me/.aws", "/Users/me/machine"},
+		[]string{"/Users/me/machine/jobs/1/tmp", "/Users/me/machine/bin"})
+	deny, allow := strings.Index(p, "(deny file-read-data\n"), strings.Index(p, "(allow file-read-data\n")
+	if deny < 0 || allow < deny {
+		t.Fatalf("the read allowances come after the denial, so they win:\n%s", p)
+	}
+	for _, c := range []struct {
+		want  string
+		after int
+	}{{`(subpath "/Users/me/.aws")`, deny}, {`(subpath "/Users/me/machine")`, deny},
+		{`(subpath "/Users/me/machine/jobs/1/tmp")`, allow}, {`(subpath "/Users/me/machine/bin")`, allow}} {
+		if i := strings.Index(p[c.after:], c.want); i < 0 || (c.after == deny && c.after+i > allow) {
+			t.Errorf("%s in the wrong rule:\n%s", c.want, p)
+		}
+	}
+	if p := SandboxProfile(nil, []string{"/Users/me/.aws"}, nil); strings.Contains(p, "(allow file-read") {
+		t.Errorf("nothing readable beneath, no allowance:\n%s", p)
 	}
 }
 
@@ -304,7 +325,8 @@ func TestAccountSetupScript(t *testing.T) {
 
 func TestConfineMainRefusesABadCommandLine(t *testing.T) {
 	var errs strings.Builder
-	for _, args := range [][]string{{}, {"--write"}, {"--bogus"}, {"--write", "/tmp"}, {"--"}} {
+	for _, args := range [][]string{{}, {"--write"}, {"--bogus"}, {"--write", "/tmp"}, {"--"},
+		{"--deny-read"}, {"--deny-read", "relative"}, {"--read"}, {"--read", "relative", "--", "/bin/true"}} {
 		errs.Reset()
 		if code := ConfineMain(args, &errs); code != 2 {
 			t.Errorf("%v: exit %d (%s)", args, code, errs.String())
@@ -353,13 +375,16 @@ func TestConfinedIsntReadyWithoutWhatItNeeds(t *testing.T) {
 	}
 }
 
-// confinedReady is a confined executor on this machine, or a skip.
+// confinedReady is a confined executor on this machine, or a skip. A
+// directory of the daemon's own, which the job may not read, makes it
+// limit reads as well as writes.
 func confinedReady(t *testing.T, writable ...string) Executor {
 	t.Helper()
 	if runtime.GOOS != "linux" && runtime.GOOS != "darwin" {
 		t.Skip("confined is Linux and macOS only")
 	}
-	ex, err := New(Confined, Settings{GOOS: runtime.GOOS, Launcher: os.Args[0], Writable: writable})
+	ex, err := New(Confined, Settings{GOOS: runtime.GOOS, Launcher: os.Args[0], Writable: writable,
+		Protected: []string{t.TempDir()}})
 	if err != nil {
 		t.Fatal(err)
 	}

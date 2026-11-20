@@ -222,6 +222,13 @@ func (w *Worker) settingsFor(name string) executor.Settings {
 	if len(s.Writable) == 0 && w.Runner.Config.Agent == "claude" && w.Home != "" {
 		s.Writable = []string{filepath.Join(w.Home, ".claude")}
 	}
+	s.Protected = w.protected()
+	if name == executor.Confined {
+		// The daemon's copy of the CLI, the jobs' when it is there.
+		if cli := w.daemonCLI(); cli != "" {
+			s.Readable = append(s.Readable, filepath.Dir(cli))
+		}
+	}
 	if name == executor.Container {
 		w.containerSettings(&s)
 		if w.verify {
@@ -240,17 +247,24 @@ func (w *Worker) containerSettings(s *executor.Settings) {
 	if ct := w.Local.Container; ct != nil {
 		s.Runtime, s.Pull, s.Login, s.PassEnv = ct.Runtime, ct.Pull, ct.Login, ct.Env
 	}
-	for _, p := range []string{w.machineDir(), w.JobsDir} {
-		if p != "" {
-			s.Protected = append(s.Protected, p)
-		}
-	}
 	s.CLI = w.Local.CLI
 	if s.CLI == "" {
 		if p, err := w.LookPath("slipdock"); err == nil && filepath.IsAbs(p) {
 			s.CLI = p
 		}
 	}
+}
+
+// protected is the daemon's own directory (the machine key) and its jobs'
+// logs, which a container never mounts and a confined job never reads.
+func (w *Worker) protected() []string {
+	var out []string
+	for _, p := range []string{w.machineDir(), w.JobsDir} {
+		if p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 // jobHome is the home of the account jobs run as.

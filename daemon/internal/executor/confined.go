@@ -17,7 +17,8 @@ import (
 
 // confined runs a job as the daemon's account, unable to write outside its
 // working directory, its scratch directory, the terminal devices and the
-// agent's own state.
+// agent's own state, or to read the daemon's own directory and the logins
+// no job needs (readLimits).
 //
 // The daemon's own git and gh for the runner (its worktrees, the merge)
 // and the runner's hooks run confined too, able to write only the
@@ -106,11 +107,18 @@ func (c *confined) Command(p Proc, prog string, args ...string) (*exec.Cmd, erro
 	}
 	var cmd *exec.Cmd
 	w := c.writable(p)
+	deny, allow := c.readLimits(p, w)
 	switch c.s.GOOS {
 	case "linux":
 		full := []string{"confine"}
 		for _, path := range w {
 			full = append(full, "--write", path)
+		}
+		for _, path := range deny {
+			full = append(full, "--deny-read", path)
+		}
+		for _, path := range allow {
+			full = append(full, "--read", path)
 		}
 		if c.s.Egress != nil {
 			for _, port := range c.s.Egress.ports() {
@@ -124,7 +132,7 @@ func (c *confined) Command(p Proc, prog string, args ...string) (*exec.Cmd, erro
 		if c.s.Egress != nil {
 			ports = c.s.Egress.ports()
 		}
-		cmd = exec.Command(sandboxExec, append([]string{"-p", SandboxProfile(w, ports...), prog}, args...)...)
+		cmd = exec.Command(sandboxExec, append([]string{"-p", SandboxProfile(w, deny, allow, ports...), prog}, args...)...)
 	}
 	cmd.Dir = p.Dir
 	cmd.Env = append(append(c.environ(), p.Env...), "PWD="+p.Dir)
@@ -227,10 +235,11 @@ func shellSafe(path string) string {
 
 // SandboxProfile is macOS's sandbox profile for a confined job: anything
 // but writing, which only the paths in writable (real paths) and the
-// terminal devices allow. With connect (a network allowlist, #3517), no
-// outbound connection either, but to those ports of localhost (the job's
-// proxy first) and to unix sockets.
-func SandboxProfile(writable []string, connect ...int) string {
+// terminal devices allow, and reading what is in unreadable, but for what
+// readable names beneath it (readLimits'). With connect (a network
+// allowlist, #3517), no outbound connection either, but to those ports of
+// localhost (the job's proxy first) and to unix sockets.
+func SandboxProfile(writable, unreadable, readable []string, connect ...int) string {
 	var b strings.Builder
 	b.WriteString("(version 1)\n(allow default)\n(deny file-write*)\n(allow file-write*\n")
 	for _, w := range writable {
@@ -238,6 +247,23 @@ func SandboxProfile(writable []string, connect ...int) string {
 	}
 	b.WriteString("  (literal \"/dev/null\") (literal \"/dev/zero\") (literal \"/dev/tty\") (literal \"/dev/dtracehelper\")\n")
 	b.WriteString("  (regex #\"^/dev/ttys[0-9]+$\") (regex #\"^/dev/fd/\"))\n")
+	// A file's contents and a directory's listing; a path's metadata stays
+	// readable, so resolving a path through one still works. The later
+	// rule wins.
+	if len(unreadable) > 0 {
+		b.WriteString("(deny file-read-data\n")
+		for _, u := range unreadable {
+			fmt.Fprintf(&b, "  (subpath %s)\n", sbplString(u))
+		}
+		b.WriteString(")\n")
+		if len(readable) > 0 {
+			b.WriteString("(allow file-read-data\n")
+			for _, r := range readable {
+				fmt.Fprintf(&b, "  (subpath %s)\n", sbplString(r))
+			}
+			b.WriteString(")\n")
+		}
+	}
 	if len(connect) > 0 {
 		b.WriteString("(deny network-outbound)\n(allow network-outbound (remote unix-socket))\n")
 		for _, port := range connect {

@@ -24,6 +24,8 @@ const (
 	netConnectTCP = 1 << 1 // ABI 4
 
 	fsWriteFile  = 1 << 1
+	fsReadFile   = 1 << 2
+	fsReadDir    = 1 << 3
 	fsRemoveDir  = 1 << 4
 	fsRemoveFile = 1 << 5
 	fsMakeChar   = 1 << 6
@@ -78,21 +80,31 @@ type netPort struct {
 }
 
 // restrict denies this thread, and what it runs, every write outside
-// writable (and the devices) and, when connect names any, every TCP
-// connection but to those ports. It must be followed by exec on the same,
-// locked, thread.
-func restrict(writable []string, connect []int) error {
+// c.write (and the devices), every read of c.deny but c.read beneath them
+// and, when c.connect names any, every TCP connection but to those ports.
+// It must be followed by exec on the same, locked, thread.
+//
+// Landlock only allows, so reads are handled only when c.deny names a
+// path, and then allowed everywhere else by rules (readRules): each
+// directory on the way to a denied path may be listed, and all else in it
+// read. A writable path that holds a denied one may be written, not read:
+// its reads come from those rules.
+func restrict(c confinement) error {
 	abi := landlockABI()
 	if abi < minLandlockABI {
 		return fmt.Errorf("this kernel's Landlock is ABI %d, and confined needs %d", abi, minLandlockABI)
 	}
-	if len(connect) > 0 && abi < landlockNetABI {
+	if len(c.connect) > 0 && abi < landlockNetABI {
 		return fmt.Errorf("this kernel's Landlock is ABI %d, and a network allowlist needs %d", abi, landlockNetABI)
 	}
-	handled := writeRights()
+	reads := uint64(0)
+	if len(c.deny) > 0 {
+		reads = fsReadFile | fsReadDir
+	}
+	handled := writeRights() | reads
 	var fd uintptr
 	var e syscall.Errno
-	if len(connect) > 0 {
+	if len(c.connect) > 0 {
 		attr := struct{ fs, net uint64 }{handled, netConnectTCP}
 		fd, _, e = syscall.Syscall(sysLandlockCreateRuleset, uintptr(unsafe.Pointer(&attr)), unsafe.Sizeof(attr), 0)
 	} else {
@@ -103,30 +115,41 @@ func restrict(writable []string, connect []int) error {
 		return fmt.Errorf("landlock_create_ruleset: %v", e)
 	}
 	defer syscall.Close(int(fd))
-	for _, port := range connect {
+	for _, port := range c.connect {
 		rule := netPort{allowed: netConnectTCP, port: uint64(port)}
 		if _, _, e := syscall.Syscall6(sysLandlockAddRule, fd, landlockRuleNetPort, uintptr(unsafe.Pointer(&rule)), 0, 0, 0); e != 0 {
 			return fmt.Errorf("landlock_add_rule port %d: %v", port, e)
 		}
 	}
-	for _, path := range append(append([]string(nil), writable...), devices...) {
-		pfd, err := syscall.Open(path, oPath|syscall.O_CLOEXEC, 0)
-		if err != nil {
-			if os.IsNotExist(err) {
+	deny := outermost(append([]string(nil), c.deny...))
+	for _, path := range append(append([]string(nil), c.write...), devices...) {
+		allowed := handled
+		if holdsAny(path, deny) {
+			allowed &^= reads
+		}
+		if err := addPathRule(fd, path, allowed, false); err != nil {
+			return err
+		}
+	}
+	if reads != 0 {
+		dirs, others := readRules(deny)
+		for _, path := range dirs {
+			if err := addPathRule(fd, path, fsReadDir, true); err != nil {
+				return err
+			}
+		}
+		// Only what was there a moment ago: one gone since, or one the
+		// rule can't be put on, is left unreadable.
+		for _, path := range others {
+			_ = addPathRule(fd, path, reads, true)
+		}
+		for _, path := range c.read {
+			if holdsAny(path, deny) {
 				continue
 			}
-			return fmt.Errorf("%s: %v", path, err)
-		}
-		var st syscall.Stat_t
-		allowed := handled
-		if syscall.Fstat(pfd, &st) == nil && st.Mode&syscall.S_IFMT != syscall.S_IFDIR {
-			allowed &= fsWriteFile | fsTruncate
-		}
-		rule := pathBeneath{allowed: allowed, fd: int32(pfd)}
-		_, _, e := syscall.Syscall6(sysLandlockAddRule, fd, landlockRulePathBeneath, uintptr(unsafe.Pointer(&rule)), 0, 0, 0)
-		syscall.Close(pfd)
-		if e != 0 {
-			return fmt.Errorf("landlock_add_rule %s: %v", path, e)
+			if err := addPathRule(fd, path, reads, false); err != nil {
+				return err
+			}
 		}
 	}
 	if _, _, e := syscall.RawSyscall6(syscall.SYS_PRCTL, prSetNoNewPrivs, 1, 0, 0, 0, 0); e != 0 {
@@ -138,10 +161,50 @@ func restrict(writable []string, connect []int) error {
 	return nil
 }
 
+// fileRights are the rights Landlock takes on a rule for a file, not a
+// directory.
+const fileRights = fsReadFile | fsWriteFile | fsTruncate
+
+// addPathRule allows path the rights (those a file can take, when it isn't
+// a directory). A path that isn't there needs none; nofollow puts the rule
+// on a symbolic link itself, never its target.
+func addPathRule(fd uintptr, path string, allowed uint64, nofollow bool) error {
+	flags := oPath | syscall.O_CLOEXEC
+	if nofollow {
+		flags |= syscall.O_NOFOLLOW
+	}
+	pfd, err := syscall.Open(path, flags, 0)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("%s: %v", path, err)
+	}
+	defer syscall.Close(pfd)
+	var st syscall.Stat_t
+	if err := syscall.Fstat(pfd, &st); err != nil {
+		return fmt.Errorf("%s: %v", path, err)
+	}
+	if st.Mode&syscall.S_IFMT == syscall.S_IFLNK {
+		return nil
+	}
+	if st.Mode&syscall.S_IFMT != syscall.S_IFDIR {
+		allowed &= fileRights
+	}
+	if allowed == 0 {
+		return nil
+	}
+	rule := pathBeneath{allowed: allowed, fd: int32(pfd)}
+	if _, _, e := syscall.Syscall6(sysLandlockAddRule, fd, landlockRulePathBeneath, uintptr(unsafe.Pointer(&rule)), 0, 0, 0); e != 0 {
+		return fmt.Errorf("landlock_add_rule %s: %v", path, e)
+	}
+	return nil
+}
+
 // confineExec restricts and runs prog in this process's place.
-func confineExec(writable []string, connect []int, prog string, args []string) error {
+func confineExec(c confinement, prog string, args []string) error {
 	runtime.LockOSThread()
-	if err := restrict(writable, connect); err != nil {
+	if err := restrict(c); err != nil {
 		return err
 	}
 	return syscall.Exec(prog, append([]string{prog}, args...), os.Environ())

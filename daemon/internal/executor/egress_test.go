@@ -22,7 +22,7 @@ import (
 // proxy (and the machine's own ports the allowlist names).
 
 func TestTheSandboxProfileOfAnAllowlistLetsOutOnlyItsPorts(t *testing.T) {
-	p := SandboxProfile([]string{"/Users/me/src/repo"}, 4100, 5432)
+	p := SandboxProfile([]string{"/Users/me/src/repo"}, nil, nil, 4100, 5432)
 	for _, want := range []string{"(deny network-outbound)", "(allow network-outbound (remote unix-socket))",
 		`(allow network-outbound (remote ip "localhost:4100"))`, `(allow network-outbound (remote ip "localhost:5432"))`} {
 		if !strings.Contains(p, want) {
@@ -32,7 +32,7 @@ func TestTheSandboxProfileOfAnAllowlistLetsOutOnlyItsPorts(t *testing.T) {
 	if strings.Index(p, "(deny network-outbound)") > strings.Index(p, "(allow network-outbound") {
 		t.Error("the allowances come before the denial, which would win")
 	}
-	if strings.Contains(SandboxProfile([]string{"/x"}), "network") {
+	if strings.Contains(SandboxProfile([]string{"/x"}, nil, nil), "network") {
 		t.Error("with no allowlist the network is left as it was")
 	}
 }

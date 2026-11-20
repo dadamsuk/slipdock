@@ -52,8 +52,11 @@ var Limits = map[string]string{
 		"their own temporary directory, the terminal devices and the agent's own " +
 		"state (~/.claude for claude); in a worktree, a job whose card has paths writes " +
 		"only those in it. The runner's hooks and the daemon's own git " +
-		"for it are confined to its repository and worktrees. Jobs can still read " +
-		"your files, and reach the network unless a trust tier holds them to an allowlist. Linux (Landlock ABI 3: kernel 6.2 or " +
+		"for it are confined to its repository and worktrees. Jobs can't read the daemon's " +
+		"own directory (the machine key) or the logins no job needs (~/.aws, ~/.netrc, " +
+		"~/.docker/config.json, ~/.kube, ~/.config/gcloud, ~/.azure, ~/.gnupg); they can still " +
+		"read your other files, ~/.ssh and the gh and slipdock logins included, and reach the " +
+		"network unless a trust tier holds them to an allowlist. Linux (Landlock ABI 3: kernel 6.2 or " +
 		"later) and macOS (sandbox-exec) only.",
 	Container: "Jobs run in a short-lived Docker or Podman container, from an image on " +
 		"this machine's allow-list. They see only what is mounted: their directory " +
@@ -165,9 +168,13 @@ type Settings struct {
 	Agent   string
 	// CLI is the machine's slipdock CLI, mounted read-only over the image's.
 	CLI string
-	// Protected are never mounted, nor anything holding them: the
-	// daemon's own directory.
+	// Protected, under container, are never mounted, nor anything holding
+	// them; under confined, never read, but for what Readable names
+	// beneath them: the daemon's own directory.
 	Protected []string
+	// Readable, under confined: what beneath Protected a job still reads
+	// (the daemon's copy of the CLI).
+	Readable []string
 	// UID and GID are who the container runs as (default: the daemon's).
 	UID, GID int
 

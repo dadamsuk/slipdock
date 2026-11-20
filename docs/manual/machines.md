@@ -534,7 +534,8 @@ runner's:
 
 - **The executor**: `me` stops nothing, so the agent can read and change
   whatever you can; `user` keeps it out of your home; `confined` stops it
-  writing outside the job's directory; `container` stops it reading or
+  writing outside the job's directory and reading the machine key and the
+  logins no job needs; `container` stops it reading or
   writing outside what is mounted, and the network when that is off
   ([What each executor stops](#what-each-executor-stops)).
 - **The permission mode**: `plan` changes nothing, `default` asks before
@@ -557,7 +558,7 @@ is gone, say), the job fails before anything starts, and its log says why.
 | Executor | Jobs run as | What it stops | What it doesn't |
 |---|---|---|---|
 | `user` | a dedicated account, `slipdock` by default, with its own home, clones and logins | reading your home: a job is refused while your home is open to the account | reading what every account can, writing its own home and `/tmp`, the network |
-| `confined` | you, unable to write outside the job's directory | writing anywhere else: your home, other repositories, the system; under a tier's network allowlist, reaching any host off it | reading your files, the network (but for an allowlist). It may also write its own temporary directory, the terminal devices and the agent's own state (`~/.claude` for `claude`) |
+| `confined` | you, unable to write outside the job's directory | writing anywhere else: your home, other repositories, the system; reading the daemon's own directory (the machine key) and the logins no job needs (`~/.aws`, `~/.netrc`, `~/.docker/config.json`, `~/.kube`, `~/.config/gcloud`, `~/.azure`, `~/.gnupg`); under a tier's network allowlist, reaching any host off it | reading your other files (`~/.ssh` and the `gh` and `slipdock` logins included), the network (but for an allowlist). It may also write its own temporary directory, the terminal devices and the agent's own state (`~/.claude` for `claude`) |
 | `me` | you, as you are | nothing: an agent can read and change what you can | |
 | `container` | you, in a short-lived Docker or Podman container from an image on the machine's allow-list | seeing anything not mounted: your home is an empty one; writing outside the job's directory and repository; the network, when the runner turns it off; any host off a tier's network allowlist (Linux) | the network when it is on; what the mounted logins allow; the image itself, and the runtime (an account in the `docker` group is root on the machine) |
 
@@ -586,6 +587,20 @@ hooks run confined too, able to write only the repository and its worktrees:
 git config or a hook the job planted there runs inside the same walls.
 `confined_writable` in the local file lists more paths a confined job may
 write.
+
+A confined job reads your files but not the daemon's own directory (the
+machine key, the jobs' logs; its copy of the `slipdock` CLI, its
+scratch directory and the job's own directory stay readable) or the
+logins no job needs: `~/.aws`, `~/.netrc`, `~/.docker/config.json`,
+`~/.kube`, `~/.config/gcloud`, `~/.azure` and `~/.gnupg`. So a confined
+job can't use those tools' logins (`aws`, `docker login`, `kubectl`,
+`gcloud`, `az`, `gpg` signing, `.netrc` for git over HTTPS); `~/.ssh`,
+`gh`'s login and the CLI's stay readable, as a job pushes, opens pull
+requests and uses the board. On macOS the sandbox denies the contents;
+on Linux Landlock allows reading everything else, as it was when the job
+started: a file that appears later beside one of those paths (in your
+home, say) isn't readable until the next job, and their names can be
+listed.
 
 **A card's paths.** When a confined or container job runs in a worktree
 and its card has paths (`slipdock edit <id> --paths`), it may write only
@@ -1152,9 +1167,14 @@ the machine allows, and a job never runs under a weaker one in its place.
   its repository only what a commit needs. The daemon's own git for the
   runner and the runner's hooks are confined to the repository and its
   worktrees. It stops a job writing to your home, other repositories
-  and the system. It doesn't stop the job reading your files, your SSH
-  keys and logins included, or the network (unless a network allowlist
-  holds it), so a confined job can still read a secret and send it.
+  and the system, and reading the daemon's own directory (the machine
+  key) and the logins no job needs: `~/.aws`, `~/.netrc`,
+  `~/.docker/config.json`, `~/.kube`, `~/.config/gcloud`, `~/.azure` and
+  `~/.gnupg`. It doesn't stop the job reading your other files, your SSH
+  keys and the `gh` and `slipdock` logins included (a job pushes, opens
+  pull requests and uses the board), or the network (unless a network
+  allowlist holds it), so a confined job can still read a secret and
+  send it.
 - `container`: jobs run in a short-lived Docker or Podman container,
   from an image the machine's own allow-list names, with the repository
   or worktree mounted at the same path, the agent's login mounted
