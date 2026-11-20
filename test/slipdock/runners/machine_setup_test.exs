@@ -22,6 +22,13 @@ defmodule Slipdock.Runners.MachineSetupTest do
     %{user: user, board: board, machine: machine}
   end
 
+  test "asks Claude to tell the person who steers the runners' agent (#3481)", ctx do
+    prompt = MachineSetup.prompt(ctx.machine, "https://slipdock.example.com/")
+
+    assert prompt =~ "When you report, tell me this too"
+    assert String.ends_with?(prompt, Slipdock.Runners.Steering.notice())
+  end
+
   test "names the board's machine-setup page, and asks for a check, installs, a proof and a write-back",
        ctx do
     {:ok, _} = Handbook.install(ctx.user, ctx.board)

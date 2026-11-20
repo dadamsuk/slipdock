@@ -21,6 +21,7 @@ defmodule Slipdock.Runners.MachineSetup do
   alias Slipdock.Machines.Machine
   alias Slipdock.Repo
   alias Slipdock.Runners.MachineRunners
+  alias Slipdock.Runners.Steering
 
   @doc """
   The prompt for `machine` as it is now: the boards it serves (archived ones
@@ -77,6 +78,10 @@ defmodule Slipdock.Runners.MachineSetup do
     4. **Write back.** Correct the page where it was wrong or left something out, so the next machine is set up from it alone: edit only that section (`slipdock page section <page> "<path>" --body - --message "Machine setup on #{machine.name}: <what changed>"`, its current text first), written as how things are now, with nothing personal in it (no names, hostnames, addresses or tokens). A board with no page gets a `### A runner machine` under its Testing & tooling page's `## Local setup`. Then tell me what you checked, what you installed, the suite's result, and what you changed on the page and why.
 
     Don't change the runner daemon's files (its ceiling, local file and key), and don't start jobs: when this is done I add the machine's runners on its page.
+
+    When you report, tell me this too, in your own words, since it decides how I set the runners up:
+
+    #{Steering.notice()}\
     """
   end
 

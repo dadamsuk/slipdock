@@ -22,7 +22,7 @@ defmodule SlipdockWeb.API.MachineController do
 
   alias Slipdock.Machines
   alias Slipdock.Machines.{Enrolment, EnrolmentKey, Machine}
-  alias Slipdock.Runners.{MachineRunners, MachineSetup, Probe}
+  alias Slipdock.Runners.{MachineRunners, MachineSetup, Probe, Steering}
   alias SlipdockWeb.API.MachineJSON
   alias Slipdock.RateLimit
 
@@ -388,13 +388,16 @@ defmodule SlipdockWeb.API.MachineController do
   @doc """
   POST /api/machines/:id/runners — add a runner to the machine (#2571):
   `board` (one it serves), `pool`, optional `name`, and its typed `config`.
+  The answer carries `notice`, what the runner's agent is open to (#3481).
   """
   def add_runner(conn, %{"id" => id} = params) do
     with {:ok, machine} <- fetch(conn, id),
          {:ok, board} <- serving_board(conn, machine, params["board"]) do
       case MachineRunners.add_runner(machine, board, params) do
         {:ok, runner} ->
-          conn |> put_status(:created) |> json(%{runner: MachineJSON.runner(runner)})
+          conn
+          |> put_status(:created)
+          |> json(%{runner: MachineJSON.runner(runner), notice: Steering.notice()})
 
         {:error, :invalid, message} ->
           unprocessable(conn, message)

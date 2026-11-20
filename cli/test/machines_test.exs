@@ -244,6 +244,56 @@ defmodule SlipdockCLI.MachinesTest do
       assert out =~ "added runner #9 build-box build (v1)"
     end
 
+    test "add-runner prints what the runner's agent is open to (#3481)" do
+      notice = "Anyone who can write or comment on a board a runner serves can steer its agent.\n"
+
+      serve([
+        {201,
+         JSON.encode!(%{
+           "runner" => %{"id" => 9, "name" => "b", "config_version" => 1},
+           "notice" => notice
+         })}
+      ])
+
+      out =
+        capture_io(fn ->
+          Machines.run("machine", ["add-runner", "4", "slipdock"], pool: "build", dir: "/srv/a")
+        end)
+
+      assert out =~ "added runner #9 b (v1)"
+      assert out =~ "\n\n" <> notice
+    end
+
+    test "add-runner prints no notice when an older server sends none" do
+      serve([
+        {201, JSON.encode!(%{"runner" => %{"id" => 9, "name" => "b", "config_version" => 1}})}
+      ])
+
+      out =
+        capture_io(fn ->
+          Machines.run("machine", ["add-runner", "4", "slipdock"], pool: "build", dir: "/srv/a")
+        end)
+
+      assert out == "added runner #9 b (v1): the machine has it within seconds\n"
+    end
+
+    test "add-runner prints nothing more when the notice is empty" do
+      serve([
+        {201,
+         JSON.encode!(%{
+           "runner" => %{"id" => 9, "name" => "b", "config_version" => 1},
+           "notice" => ""
+         })}
+      ])
+
+      out =
+        capture_io(fn ->
+          Machines.run("machine", ["add-runner", "4", "slipdock"], pool: "build", dir: "/srv/a")
+        end)
+
+      assert out == "added runner #9 b (v1): the machine has it within seconds\n"
+    end
+
     test "add-runner needs a pool and a directory" do
       assert {:error, "usage: " <> _} = Machines.plan(["add-runner", "4", "b"], pool: "x")
       assert {:error, "usage: " <> _} = Machines.plan(["add-runner", "4", "b"], dir: "/x")

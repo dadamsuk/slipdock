@@ -547,6 +547,10 @@ with the tail of the log — and a Cancel button.
 - **Slipdock never decides what runs.** A job carries data — its kind, the
   card and the prompt. What each kind of job runs is in a config file on the
   runner's machine, and a kind it doesn't know is refused there.
+- **Board writers steer the agent.** Anyone who can write or comment on a
+  board a runner serves gives its agent instructions; the runner's
+  executor and permission mode are what limit them
+  ([Who steers a runner's agent](machines.md#who-steers-a-runners-agent)).
 - **A list in order, or every card that arrives.** *Send cards to a runner*
   queues each card as it lands in a list; *Work a list with a runner*
   (trigger `list_top`) keeps one job open at a time, always for the top

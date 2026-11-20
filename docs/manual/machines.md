@@ -251,6 +251,29 @@ Removing a board on the server alone is enough: the server sends nothing
 for it. The page notes a board still in the ceiling, with the `remove` line
 to tidy it.
 
+### Who steers a runner's agent
+
+Anyone who can write or comment on a board a runner serves can steer its
+agent (#3481). The card's text, its bar, its comments and its handoffs go
+into the agent's prompt, and the agent follows them as the account its
+jobs run as. Every job's prompt tells the agent that card text is data,
+not instructions, but telling a model is not a limit. The limits are the
+runner's:
+
+- **The executor**: `me` stops nothing, so the agent can read and change
+  whatever you can; `user` keeps it out of your home; `confined` stops it
+  writing outside the job's directory; `container` stops it reading or
+  writing outside what is mounted, and the network when that is off
+  ([What each executor stops](#what-each-executor-stops)).
+- **The permission mode**: `plan` changes nothing, `default` asks before
+  an edit or a command, `acceptEdits` edits files without asking, and
+  `bypassPermissions` runs any command without asking.
+
+So share a runner's board only with people you would let use the machine
+that way. `slipdock machine add-runner` prints this when it adds a runner,
+the Machines page shows it above the runners, and the machine's setup
+prompt asks Claude to tell you.
+
 ### Who jobs run as: executors
 
 Each runner names an **executor**, and the ceiling's `executors` say which

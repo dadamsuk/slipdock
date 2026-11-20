@@ -85,6 +85,23 @@ defmodule SlipdockWeb.API.MachineRunnersControllerTest do
       assert Repo.get(Runner, id) == nil
     end
 
+    test "adding a runner answers with who steers its agent (#3481)", ctx do
+      assert %{"runner" => %{"pool" => "build"}, "notice" => notice} =
+               ctx.conn
+               |> post(~p"/api/machines/#{ctx.machine.id}/runners", %{
+                 board: ctx.board.code,
+                 pool: "build",
+                 config: %{directory: @dir}
+               })
+               |> json_response(201)
+
+      assert notice == Slipdock.Runners.Steering.notice()
+      assert notice =~ "Anyone who can write or comment on a board a runner serves"
+
+      for word <- ~w(me user confined container plan default acceptEdits bypassPermissions),
+          do: assert(notice =~ "`#{word}`")
+    end
+
     test "a command field, a board it doesn't serve or a bad change is refused", ctx do
       assert %{"error" => "unknown config field: command" <> _} =
                ctx.conn
