@@ -770,7 +770,11 @@ func (w *Worker) prepare(j *jobRun) ([]string, *machine.Command, error) {
 	if !w.Executor.IsDir(c.Directory) {
 		return nil, nil, fmt.Errorf("the working directory %s is not there, so the job was not run", c.Directory)
 	}
-	return w.agentCommand(c, agent, path, j.job), before, nil
+	argv, err := w.agentCommand(c, agent, path, j.job)
+	if err != nil {
+		return nil, nil, err
+	}
+	return argv, before, nil
 }
 
 // prompt is the server's prompt, with this runner's standing instructions
@@ -794,7 +798,7 @@ func (w *Worker) model(job *Job) string {
 // agentCommand is the agent's command line, its program first: claude and
 // codex as the shell runner's installer writes them, a custom command as
 // the local file has it, with the prompt only in $SLIPDOCK_PROMPT.
-func (w *Worker) agentCommand(c Config, agent machine.Command, path string, job *Job) []string {
+func (w *Worker) agentCommand(c Config, agent machine.Command, path string, job *Job) ([]string, error) {
 	args := append([]string(nil), agent.Args...)
 	prompt, model := w.prompt(job), w.model(job)
 	switch c.Agent {
@@ -810,13 +814,62 @@ func (w *Worker) agentCommand(c Config, agent machine.Command, path string, job 
 			args = append(args, "--model", model)
 		}
 	case "codex":
+		sandbox, err := codexSandbox(c.PermissionMode, w.Executor.Name(), w.GOOS)
+		if err != nil {
+			return nil, err
+		}
 		args = append(args, "exec")
+		args = append(args, sandbox...)
 		if model != "" {
 			args = append(args, "-m", model)
 		}
 		args = append(args, prompt)
 	}
-	return append([]string{path}, args...)
+	return append([]string{path}, args...), nil
+}
+
+// codexSandboxes are Codex's sandbox modes for the runner's permission
+// modes (#3487), which Runner.Check has held within the machine ceiling
+// and tierLimits within the job's trust tier: plan only reads; default
+// and acceptEdits write the working directory and its temporary
+// directories; bypassPermissions writes anywhere.
+var codexSandboxes = map[string]string{
+	"plan":              "read-only",
+	"default":           "workspace-write",
+	"acceptEdits":       "workspace-write",
+	"bypassPermissions": "danger-full-access",
+}
+
+// codexSandbox is the sandbox and approval flags of a codex job, from the
+// runner's permission mode. A mode with no sandbox here is refused, never
+// run with more.
+//
+// codex exec has no one to ask, so it never asks: what the sandbox
+// refuses fails. The workspace-write sandbox reaches the network, as a
+// Claude job does: jobs push, open pull requests and write on the board,
+// and what limits a job's network is the runner's network setting and its
+// executor, which hold codex as they hold any agent.
+//
+// On macOS, Codex's sandbox is sandbox-exec, which can't run inside
+// another: under the confined executor the job is already in one. There
+// a codex job with bypassPermissions runs with Codex's sandbox off, held
+// by confined's; any lower mode is refused rather than given more than
+// it says.
+func codexSandbox(mode, executorName, goos string) ([]string, error) {
+	sandbox, ok := codexSandboxes[mode]
+	if !ok {
+		return nil, fmt.Errorf("codex has no sandbox for permission mode %q, so the job was not run", mode)
+	}
+	if goos == "darwin" && executorName == executor.Confined && sandbox != "danger-full-access" {
+		return nil, fmt.Errorf("codex's own sandbox can't run inside the confined executor's on macOS, "+
+			"so a codex job runs confined only with permission mode bypassPermissions (confined then holds it), "+
+			"not %s; the job was not run", mode)
+	}
+	flags := []string{"--sandbox", sandbox, "-c", `approval_policy="never"`}
+	if sandbox == "workspace-write" {
+		flags = append(flags, "-c", "sandbox_workspace_write.network_access=true")
+	}
+	return flags, nil
 }
 
 // jobEnv is the environment a job and its hooks get: what the machine's

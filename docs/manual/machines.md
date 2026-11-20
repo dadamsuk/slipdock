@@ -540,6 +540,15 @@ runner's:
 - **The permission mode**: `plan` changes nothing, `default` asks before
   an edit or a command, `acceptEdits` edits files without asking, and
   `bypassPermissions` runs any command without asking.
+  A `codex` job gets the same limits from Codex's own sandbox, and never
+  asks: `plan` runs it `--sandbox read-only`, `default` and `acceptEdits`
+  `--sandbox workspace-write` (it writes the job's directory and reaches
+  the network, which the executor and a tier's network then limit), and
+  `bypassPermissions` `--sandbox danger-full-access`. On macOS, Codex's
+  sandbox can't run inside the `confined` executor's, so a confined
+  `codex` runner needs `bypassPermissions` there, and confined holds it;
+  any lower mode is refused. A mode the ceiling or the job's tier doesn't
+  allow never reaches Codex.
 
 So share a runner's board only with people you would let use the machine
 that way. `slipdock machine add-runner` prints this when it adds a runner,

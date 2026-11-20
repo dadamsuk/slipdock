@@ -88,8 +88,9 @@ func TestCodexAndACustomCommand(t *testing.T) {
 	r := newRig(t, Config{Agent: "codex", Model: "o4"})
 	r.runJob(fakeJob{id: 103, kind: "codex", card: 1, prompt: "Do it"})
 	saw := r.agentSaw()
-	if !strings.Contains(saw, "arg=exec\narg=-m\narg=o4\narg=Do it\n") {
-		t.Fatalf("codex runs as `codex exec -m MODEL PROMPT`:\n%s", saw)
+	if !strings.Contains(saw, "arg=exec\narg=--sandbox\narg=workspace-write\n") ||
+		!strings.Contains(saw, "arg=-m\narg=o4\narg=Do it\n") {
+		t.Fatalf("codex runs as `codex exec --sandbox MODE ... -m MODEL PROMPT`:\n%s", saw)
 	}
 	if strings.Contains(saw, "CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS") {
 		t.Fatalf("codex gets no Claude settings:\n%s", saw)
