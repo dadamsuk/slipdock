@@ -160,6 +160,15 @@ defmodule SlipdockWeb.Ops.SetBoard do
              "unanswered before its proposal stands: 4h, 90m, 2d or minutes; off or null " <>
              "turns it off (the default). Never for product, ux, security or release waits."
        }},
+      {"sensitivity",
+       %{
+         type: "string",
+         enum: ["low", "medium", "high"],
+         description:
+           "How carefully agents proceed on the tree (root boards only): low (decide " <>
+             "for themselves; nothing held by its profile), medium (the default) or high " <>
+             "(ask more; feature cards held before merging; approvals never default)."
+       }},
       {"wait_routes",
        %{
          type: "object",
@@ -230,6 +239,7 @@ defmodule SlipdockWeb.Ops.SetBoard do
           "verify_audit" => %{param: "verify_audit"},
           "findings_propose_at" => %{param: "findings_propose_at"},
           "wait_default_after" => %{param: "wait_default_after"},
+          "sensitivity" => %{param: "sensitivity"},
           # pull-request is pull_request, on-merge on_merge; off and default "".
           "ship_via" => %{param: "ship_via", read: :parsed},
           "release_mode" => %{param: "release_mode", read: :parsed},

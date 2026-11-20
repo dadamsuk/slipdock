@@ -3,7 +3,7 @@ defmodule Slipdock.AgenticBuilding do
   Agentic Building (#2011): the board's one switch for how agents build on
   it. On, the board menu has an **Agentic Building** item opening a page
   (`SlipdockWeb.AgenticLive.Index`) that holds every setting about it:
-  verified work, releases (#2834), profiles and the human tier, findings, who gets
+  sensitivity (#3552), verified work, releases (#2834), profiles and the human tier, findings, who gets
   asked, handoffs, WIP limits holding automated work and runner job logs.
 
   The switch only shows and hides: off, every setting keeps its value and
@@ -17,6 +17,7 @@ defmodule Slipdock.AgenticBuilding do
   # Each setting the page holds, with its default and what it is called.
   # A setting away from its default is a live rule.
   @rules [
+    {:sensitivity, "medium", "Sensitivity"},
     {:bar_required, false, "A bar before work starts"},
     {:evidence_required, false, "Evidence on completion"},
     {:verify_work, false, "A second agent verifies"},

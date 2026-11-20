@@ -202,11 +202,15 @@ defmodule Slipdock.Profiles do
   A card's human tier (#1952): `none` when its board has profiles off,
   else its profile's tier on its tree (the root board's `profile_tiers`
   over the defaults). A card with no profile is judged by the one its paths
-  and tags infer, so an unprofiled schema change still waits. `card` needs
-  its board; its tags are loaded if they aren't.
+  and tags infer, so an unprofiled schema change still waits. The tree's
+  sensitivity (#3552, `Slipdock.Sensitivity.tier/3`) has the last word:
+  low holds nothing, high holds a `feature` too. `card` needs its board;
+  its tags are loaded if they aren't.
   """
   def tier(%{board: %{profiles: true} = board} = card) do
-    tiers_with(root_overrides(board))[profile_of(card)] || "none"
+    profile = profile_of(card)
+    tier = tiers_with(root_overrides(board))[profile] || "none"
+    Slipdock.Sensitivity.tier(Slipdock.Sensitivity.of(board), profile, tier)
   end
 
   def tier(%{board: %Ecto.Association.NotLoaded{}} = card),

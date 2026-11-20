@@ -784,6 +784,13 @@ next pass:
   card says so, the person asked is told, and the card comes back to you.
   Product, ux, security and release questions, and a wait with no
   default, never do.
+
+  **The board's sensitivity moves where that line falls.** When the job's
+  prompt or the guide's board line says `sensitivity: low`, a choice
+  between implementation options or two readings is yours: take the one
+  you would recommend, say so in a comment, and carry on. At `high`, open
+  the wait for any material choice, a reading you have settled included.
+  A `security` question is asked at every level.
 - **Bigger than a card.** Break it up where it stands: `slipdock check` for steps
   inside one sitting's work, subcards under it for anything larger (`slipdock
   subboard <id> --template T`, then `slipdock add N ...`). Then work the first one

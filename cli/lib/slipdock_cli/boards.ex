@@ -1174,6 +1174,8 @@ defmodule SlipdockCLI.Boards do
         "findings_propose_at" => o[:findings_propose_at],
         # An approval wait's proposal stands after this long (#2096): 4h; off.
         "wait_default_after" => o[:wait_default_after],
+        # How carefully agents proceed on the tree (#3552): low, medium, high.
+        "sensitivity" => o[:sensitivity],
         # How accepted work ships (#1654): push, or pull-request.
         "ship_via" => o[:ship_via] && String.replace(o[:ship_via], "-", "_"),
         # How merged work reaches production (#2834): on-merge or batched,

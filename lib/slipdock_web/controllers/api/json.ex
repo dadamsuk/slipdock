@@ -386,6 +386,8 @@ defmodule SlipdockWeb.API.JSON do
       findings_propose_at: b.findings_propose_at,
       # An approval wait's proposal stands after this long (#2096): "4h"; nil off.
       wait_default_after: Slipdock.WaitDefaults.format(b.wait_default_after),
+      # How carefully agents proceed on the tree (#3552), the root's.
+      sensitivity: Slipdock.Sensitivity.of(b),
       # Who each kind of question goes to (#1949): kind => people, first is on.
       wait_routes: wait_routes(b),
       ship_via: b.ship_via,
@@ -509,6 +511,8 @@ defmodule SlipdockWeb.API.JSON do
       findings_propose_at: b.findings_propose_at,
       # An approval wait's proposal stands after this long (#2096): "4h"; nil off.
       wait_default_after: Slipdock.WaitDefaults.format(b.wait_default_after),
+      # How carefully agents proceed on the tree (#3552), the root's.
+      sensitivity: Slipdock.Sensitivity.of(b),
       # Who each kind of question goes to (#1949): kind => people, first is on.
       wait_routes: wait_routes(b),
       ship_via: b.ship_via,

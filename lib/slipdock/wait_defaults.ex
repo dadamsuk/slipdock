@@ -76,9 +76,15 @@ defmodule Slipdock.WaitDefaults do
 
   @doc """
   The `wait_default_after` that applies to `card`'s waits, in minutes: its
-  board's, else the nearest board above it that sets one; nil when none.
+  board's, else the nearest board above it that sets one; nil when none, and
+  nil on a tree whose sensitivity is high (#3552), where a person answers
+  every approval.
   """
-  def after_minutes(%Card{board_id: board_id}) do
+  def after_minutes(%Card{board_id: board_id} = card) do
+    if Slipdock.Sensitivity.of(card) == "high", do: nil, else: set_minutes(board_id)
+  end
+
+  defp set_minutes(board_id) do
     ids = Boards.PubSub.ancestor_board_ids(board_id)
 
     set =

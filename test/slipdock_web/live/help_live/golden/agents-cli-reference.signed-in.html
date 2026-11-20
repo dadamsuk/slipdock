@@ -4721,6 +4721,8 @@ set-board</span>
 <span class="inline-block max-w-full">
 [--wait-default-after TIME|off]</span>
 <span class="inline-block max-w-full">
+[--sensitivity low|medium|high]</span>
+<span class="inline-block max-w-full">
 [--ship-via push|pull-request]</span>
 <span class="inline-block max-w-full">
 [--release-mode on-merge|batched]</span>
@@ -4807,6 +4809,14 @@ other, with choices and a --default) unanswered
 that long goes ahead with its default, and the
 person asked is told (90m, 4h, 2d; off, the
 default, never; never other kinds)
+--sensitivity low|medium|high: how carefully
+agents proceed on the tree (root board only).
+low: they decide implementation choices
+themselves and no card is held by its
+profile; medium (default) as before; high:
+they ask before material choices, feature
+cards are held before merging, and approvals
+never go ahead by their default
 --ship-via pull-request: agents open a pull request,
 never push the default branch, and accepting the
 card has a runner merge it (needs --verify-work)

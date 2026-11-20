@@ -148,6 +148,9 @@ defmodule Slipdock.Boards.Board do
     # (#2096, `Slipdock.WaitDefaults`), in minutes; nil is off. Given as
     # `4h`, `90m`, `2d` or minutes at every door.
     field :wait_default_after, :integer
+    # How carefully agents proceed on the tree (#3552, `Slipdock.Sensitivity`):
+    # `low`, `medium` (as before) or `high`. Only the root's is read.
+    field :sensitivity, :string, default: "medium"
     # Who a question goes to (#1949, `Slipdock.WaitRoutes`): a question kind
     # => the ids of the board's users it goes to, the first being who the
     # wait is on. Set through `WaitRoutes.set/3`, never cast.
@@ -685,6 +688,7 @@ defmodule Slipdock.Boards.Board do
       :verify_audit,
       :findings_propose_at,
       :wait_default_after,
+      :sensitivity,
       :ship_via,
       :release_mode,
       :release_age_cap_hours,
@@ -730,6 +734,11 @@ defmodule Slipdock.Boards.Board do
       less_than_or_equal_to: Slipdock.WaitDefaults.max_minutes(),
       message: "must be a time like 4h, 90m or 2d (at most 30d), or off"
     )
+    |> update_change(:sensitivity, &Slipdock.Sensitivity.normalize/1)
+    |> validate_inclusion(:sensitivity, Slipdock.Sensitivity.levels(),
+      message: "must be low, medium or high"
+    )
+    |> validate_sensitivity_on_root()
     |> update_change(:profile_tiers, &Slipdock.Profiles.overrides/1)
     |> validate_change(:profile_tiers, fn _, tiers -> Slipdock.Profiles.tier_errors(tiers) end)
     |> put_ship_via()
@@ -908,4 +917,15 @@ defmodule Slipdock.Boards.Board do
 
   # An unescaped `(` that doesn't start a non-capturing or other `(?…)` group.
   defp capturing_group?(pattern), do: Regex.match?(~r/(?<!\\)\((?!\?)/, pattern)
+
+  # A tree's sensitivity is its root's (#3552): a sub-board's is never read,
+  # so a write to one is refused rather than ignored.
+  defp validate_sensitivity_on_root(changeset) do
+    case get_change(changeset, :sensitivity) &&
+           Slipdock.Sensitivity.sub_board_error(changeset.data) do
+      nil -> changeset
+      false -> changeset
+      message -> add_error(changeset, :sensitivity, message)
+    end
+  end
 end

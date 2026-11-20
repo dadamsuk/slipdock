@@ -532,7 +532,8 @@ defmodule Slipdock.Portable.Import do
           kind: if(Enum.member?(Board.kinds(), doc[:kind]), do: doc[:kind])
         }
         |> put_agentic(doc)
-        |> Map.merge(release_settings(doc, root_id)),
+        |> Map.merge(release_settings(doc, root_id))
+        |> Map.merge(sensitivity_setting(doc, root_id)),
         named("board", doc[:name]) <> if(root_id, do: ", and everything on it,", else: "")
       )
 
@@ -1224,6 +1225,22 @@ defmodule Slipdock.Portable.Import do
   end
 
   defp release_settings(_doc, _root_id), do: %{}
+
+  # How carefully agents proceed (#3552): a root board's; anything not a
+  # level is the default.
+  defp sensitivity_setting(doc, nil) do
+    level = doc[:sensitivity]
+
+    %{
+      sensitivity:
+        if(Enum.member?(Slipdock.Sensitivity.levels(), level),
+          do: level,
+          else: Slipdock.Sensitivity.default()
+        )
+    }
+  end
+
+  defp sensitivity_setting(_doc, _root_id), do: %{}
 
   # One line, as the board's changeset asks (#2835); anything else is the
   # default.

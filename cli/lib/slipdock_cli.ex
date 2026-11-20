@@ -114,6 +114,8 @@ defmodule SlipdockCLI do
     findings_propose_at: :integer,
     # An approval wait's proposal stands after this long (#2096): 4h, off.
     wait_default_after: :string,
+    # How carefully agents proceed on the tree (#3552): low, medium, high.
+    sensitivity: :string,
     # `wait <id> "…" --choice X --choice Y --default 2`: the proposed choice (#2096).
     default: :integer,
     # How long runner job logs stay (#1872), and `job <id> --keep`.
