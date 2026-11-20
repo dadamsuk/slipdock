@@ -1789,7 +1789,8 @@ trust contract above:
   refused, as nobody is there to approve it.
 - **The executor** decides what the job can reach: under `me` everything you
   can, your keys and logins included; `user` keeps it out of your home;
-  `confined` stops writes outside the job but not reads; `container` stops
+  `confined` stops writes outside the job and reads of the machine key and
+  the logins no job needs, but not your other files; `container` stops
   both, and the network when the runner turns it off. Nothing but a
   container with the network off stops a job sending what it can read,
   or a trust tier's network `allowlist` (under `confined` or `container`)

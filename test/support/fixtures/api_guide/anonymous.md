@@ -2557,9 +2557,14 @@ the machine allows, and a job never runs under a weaker one in its place.
   its repository only what a commit needs. The daemon's own git for the
   runner and the runner's hooks are confined to the repository and its
   worktrees. It stops a job writing to your home, other repositories
-  and the system. It doesn't stop the job reading your files, your SSH
-  keys and logins included, or the network (unless a network allowlist
-  holds it), so a confined job can still read a secret and send it.
+  and the system, and reading the daemon's own directory (the machine
+  key) and the logins no job needs: `~/.aws`, `~/.netrc`,
+  `~/.docker/config.json`, `~/.kube`, `~/.config/gcloud`, `~/.azure` and
+  `~/.gnupg`. It doesn't stop the job reading your other files, your SSH
+  keys and the `gh` and `slipdock` logins included (a job pushes, opens
+  pull requests and uses the board), or the network (unless a network
+  allowlist holds it), so a confined job can still read a secret and
+  send it.
 - `container`: jobs run in a short-lived Docker or Podman container,
   from an image the machine's own allow-list names, with the repository
   or worktree mounted at the same path, the agent's login mounted

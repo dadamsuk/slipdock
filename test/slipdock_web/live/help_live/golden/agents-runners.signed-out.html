@@ -757,9 +757,32 @@ worktree, a job whose card has paths writes only those in it, and of
 its repository only what a commit needs. The daemon&#39;s own git for the
 runner and the runner&#39;s hooks are confined to the repository and its
 worktrees. It stops a job writing to your home, other repositories
-and the system. It doesn&#39;t stop the job reading your files, your SSH
-keys and logins included, or the network (unless a network allowlist
-holds it), so a confined job can still read a secret and send it.</li>
+and the system, and reading the daemon&#39;s own directory (the machine
+key) and the logins no job needs: <code>
+~/.aws</code>
+, <code>
+~/.netrc</code>
+,
+<code>
+~/.docker/config.json</code>
+, <code>
+~/.kube</code>
+, <code>
+~/.config/gcloud</code>
+, <code>
+~/.azure</code>
+ and
+<code>
+~/.gnupg</code>
+. It doesn&#39;t stop the job reading your other files, your SSH
+keys and the <code>
+gh</code>
+ and <code>
+slipdock</code>
+ logins included (a job pushes, opens
+pull requests and uses the board), or the network (unless a network
+allowlist holds it), so a confined job can still read a secret and
+send it.</li>
 <li>
 <code>
 container</code>

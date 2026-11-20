@@ -314,3 +314,23 @@ func TestCodeAConfinedJobPlantsInItsRepositoryStaysConfined(t *testing.T) {
 		t.Fatalf("code the job planted ran outside the sandbox, from the daemon's git or a hook:\n%s", data)
 	}
 }
+
+// TestAConfinedJobIsToldWhatOfTheDaemonsItMayNotRead: the daemon's own
+// directory, as a container's never mounts it, but for its copy of the
+// CLI, the jobs' own.
+func TestAConfinedJobIsToldWhatOfTheDaemonsItMayNotRead(t *testing.T) {
+	r := newRig(t, Config{})
+	s := r.w.settingsFor(executor.Confined)
+	md := filepath.Dir(r.w.JobsDir)
+	if !oneOfAll(s.Protected, md, r.w.JobsDir) || !contains(s.Readable, filepath.Join(md, "bin")) || s.Home != r.w.Home {
+		t.Fatalf("protected %v, readable %v, home %q", s.Protected, s.Readable, s.Home)
+	}
+	r.w.MachineDir = t.TempDir()
+	s = r.w.settingsFor(executor.Confined)
+	if !oneOfAll(s.Protected, r.w.MachineDir, r.w.JobsDir) || !contains(s.Readable, filepath.Join(r.w.MachineDir, "bin")) {
+		t.Fatalf("with a machine directory of its own: protected %v, readable %v", s.Protected, s.Readable)
+	}
+	if s := r.w.settingsFor(executor.Me); len(s.Readable) != 0 {
+		t.Fatalf("only confined reads by exception: %v", s.Readable)
+	}
+}
