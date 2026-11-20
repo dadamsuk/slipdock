@@ -56,7 +56,7 @@ func TestAConfinedClaudeJobWritesOnlyItsSessionState(t *testing.T) {
 			t.Fatalf("%s wasn't made, owner-only: %v %v", d, fi, err)
 		}
 	}
-	profile := executor.SandboxProfile(w)
+	profile := executor.SandboxProfile(w, nil, nil)
 	// The profile quotes a path as SBPL does (a Windows path's backslashes
 	// doubled), so the paths are looked for quoted the same way.
 	subpath := func(p string) string { return `(subpath "` + strings.ReplaceAll(p, `\`, `\\`) + `")` }
@@ -91,7 +91,11 @@ func TestAConfinedClaudeJobWritesOnlyItsSessionState(t *testing.T) {
 		case a == "--write" && i+1 < len(cmd.Args):
 			granted = append(granted, cmd.Args[i+1])
 		case strings.HasPrefix(a, "(version 1)"):
-			for _, line := range strings.Split(a, "\n") {
+			// Only the write grants: the profile's read rules name
+			// subpaths too.
+			_, block, _ := strings.Cut(a, "(allow file-write*\n")
+			block, _, _ = strings.Cut(block, `(literal "/dev/null")`)
+			for _, line := range strings.Split(block, "\n") {
 				if p, ok := strings.CutPrefix(strings.TrimSpace(line), `(subpath "`); ok {
 					granted = append(granted, strings.TrimSuffix(p, `")`))
 				}
@@ -195,6 +199,9 @@ func TestAConfinedClaudeJobCantWriteItsConfig(t *testing.T) {
 	}
 	r := newRig(t, Config{})
 	r.w.Runner.Config.Executor = executor.Confined
+	// The daemon's own directory, which a confined job can't read, beside
+	// the home as on a machine, not holding it as the rig's would.
+	r.w.MachineDir = filepath.Join(filepath.Dir(r.w.JobsDir), "machine")
 	claude := filepath.Join(r.w.Home, ".claude")
 	mcp := filepath.Join(r.w.Home, ".claude.json")
 	settings, skill := filepath.Join(claude, "settings.json"), filepath.Join(claude, "skills", "s", "SKILL.md")
