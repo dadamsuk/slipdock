@@ -232,6 +232,12 @@ the rule that queued it, a rejection, a wait's answer, a handoff).
 | `member` | someone else who may write or comment on the card |
 | `anyone` | anyone else: a permitted email sender, someone whose access has gone |
 
+Text an agent writes counts at its job's tier, not its login's: an agent
+using the owner's login, in a `member` job, leaves the card it rewrites at
+`member`. An agent that names no live job of that person's (the CLI sends
+it when it runs under a runner job) counts as a `member` at most. A
+person's own edit, in the web or the CLI, counts as theirs.
+
 The server only reports the tier; `tiers` in `ceiling.json` decides what
 each gets. Each entry may set the `executor` the job runs under (one the
 ceiling's `executors` offers), the `max_permission_mode` it is held to (at

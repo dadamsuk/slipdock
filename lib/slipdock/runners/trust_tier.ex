@@ -14,6 +14,12 @@ defmodule Slipdock.Runners.TrustTier do
   queued the job, and, for a job that isn't a verify, whoever rejected the
   card, opened or answered its wait, and left its handoff.
 
+  An agent's write (an actor of kind agent, or one carrying a job id)
+  counts at most at its job's tier, not its login's (#3534): the person's
+  id, plus `-1` (an agent at member tier) or `0` when the job is below
+  owner. An agent with no job of that person's that is live counts as a
+  member at most: it can't show it had the owner's trust.
+
   The server only reports the tier. The machine decides what each tier may
   do, in its ceiling's `tiers` (W-1945 §The runner daemon).
   """
@@ -24,9 +30,12 @@ defmodule Slipdock.Runners.TrustTier do
   alias Slipdock.Accounts.User
   alias Slipdock.Automations.Rule
   alias Slipdock.Boards.{Board, Card, CardMove}
-  alias Slipdock.Runners.Job
+  alias Slipdock.Runners.{Job, Runner}
 
   @tiers ~w(owner member anyone)
+
+  # In `text_by`: an agent's write at member tier (0 is anyone's).
+  @agent_member -1
 
   # The text fields whose author counts.
   @text_fields [:title, :description, :bar]
@@ -45,21 +54,22 @@ defmodule Slipdock.Runners.TrustTier do
     if Enum.any?(@text_fields, &Map.has_key?(changeset.changes, &1)) do
       base = earlier(card)
 
-      case writer_id(writer, opts) do
-        nil when is_nil(card) -> Ecto.Changeset.put_change(changeset, :text_by, base)
-        nil -> changeset
-        id -> Ecto.Changeset.put_change(changeset, :text_by, Enum.uniq(base ++ [id]))
+      case writer_ids(writer, opts) do
+        [] when is_nil(card) -> Ecto.Changeset.put_change(changeset, :text_by, base)
+        [] -> changeset
+        ids -> Ecto.Changeset.put_change(changeset, :text_by, Enum.uniq(base ++ ids))
       end
     else
       changeset
     end
   end
 
-  defp writer_id(writer, opts) do
+  defp writer_ids(writer, opts) do
     cond do
-      opts[:outside_author] -> 0
-      match?(%{user_id: id} when is_integer(id), writer) -> writer.user_id
-      true -> nil
+      opts[:outside_author] -> [0]
+      agent?(writer) -> ids([writer[:user_id]]) ++ agent_cap(writer)
+      match?(%{user_id: id} when is_integer(id), writer) -> [writer.user_id]
+      true -> []
     end
   end
 
@@ -89,6 +99,48 @@ defmodule Slipdock.Runners.TrustTier do
   @doc "Whether tier `a` is less trusted than tier `b` (an unknown word is `anyone`)."
   @spec less_trusted?(String.t(), String.t() | nil) :: boolean
   def less_trusted?(a, b), do: rank(a) > rank(b)
+
+  defp agent?(%{kind: "agent"}), do: true
+  defp agent?(%{job_id: id}) when is_integer(id), do: true
+  defp agent?(_writer), do: false
+
+  # The most an agent's write may count as: its job's tier, or member when
+  # no live job of the person's is known.
+  defp agent_cap(writer) do
+    case writing_job(writer) do
+      nil -> [@agent_member]
+      job -> cap(of(job))
+    end
+  end
+
+  defp cap("owner"), do: []
+  defp cap("member"), do: [@agent_member]
+  defp cap(_anyone), do: [0]
+
+  # The job named by the write, when it is live and the person's: on a
+  # runner they made, or in a tree they own. The id is the agent's own
+  # word, so one that isn't theirs counts for nothing.
+  defp writing_job(%{job_id: job_id, user_id: user_id})
+       when is_integer(job_id) and is_integer(user_id) do
+    with %Job{status: status} = job when status in ["claimed", "running"] <-
+           Repo.get(Job, job_id),
+         true <- persons_job?(job, user_id) do
+      job
+    else
+      _ -> nil
+    end
+  end
+
+  defp writing_job(_writer), do: nil
+
+  defp persons_job?(%Job{} = job, user_id) do
+    runner_by =
+      job.runner_id &&
+        Repo.one(from(r in Runner, where: r.id == ^job.runner_id, select: r.created_by_id))
+
+    runner_by == user_id or
+      (is_integer(job.board_id) and board_owner(job.board_id) == user_id)
+  end
 
   defp earlier(nil), do: []
   defp earlier(%Card{text_by: ids}) when is_list(ids), do: ids
@@ -184,6 +236,7 @@ defmodule Slipdock.Runners.TrustTier do
   defp ids(list), do: Enum.filter(list, &is_integer/1)
 
   defp tier_of(0, _owner_id, _card), do: "anyone"
+  defp tier_of(@agent_member, _owner_id, _card), do: "member"
   defp tier_of(id, id, _card), do: "owner"
 
   defp tier_of(id, _owner_id, %Card{} = card) do
