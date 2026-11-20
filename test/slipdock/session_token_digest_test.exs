@@ -171,6 +171,31 @@ defmodule Slipdock.SessionTokenDigestTest do
       refute Accounts.get_user_by_session_token(token)
     end
 
+    test "going down ends every browser session and keeps the other tokens" do
+      user = user_fixture("down@example.com")
+      session = Accounts.generate_session_token(user)
+      {api, _} = Accounts.create_api_token(user, "a robot")
+      assert stored(user) != []
+
+      # The migration's own `down`, run by Ecto's runner in this process (so
+      # inside the test's transaction); `Ecto.Migrator.down/4` would take a
+      # lock on a second connection the sandbox can't give it.
+      Ecto.Migration.Runner.run(
+        Repo,
+        Repo.config(),
+        20_261_120_020_000,
+        @migration,
+        :forward,
+        :down,
+        :down,
+        log: false
+      )
+
+      assert stored(user) == []
+      refute Accounts.get_user_by_session_token(session)
+      assert {%Accounts.User{}, _} = Accounts.get_api_token(api)
+    end
+
     test "leaves every other kind of token alone" do
       user = user_fixture("others@example.com")
       {api, _} = Accounts.create_api_token(user, "a robot")
