@@ -205,6 +205,55 @@ defmodule SlipdockWeb.VerifyJobTokenTest do
       end
     end
 
+    test "reads a page's revisions, for the Handbook line's check", ctx do
+      page = page_fixture(ctx.board, %{"body" => "Rules"}, user: ctx.owner)
+      path = "/api/pages/#{page.id}/revisions"
+
+      conn = ctx.token |> as_job() |> get(path)
+      assert is_list(json_response(conn, 200)["revisions"])
+      assert ctx.token |> as_job() |> head(path) |> Map.get(:status) == 200
+
+      # Only the list of revisions: not the page, a revision's text or another of its views.
+      for other <- [
+            "/api/pages/#{page.id}",
+            "/api/pages/#{page.id}/render",
+            "/api/pages/#{page.id}/sections",
+            "/api/pages/#{page.id}/revisions/1"
+          ] do
+        conn = ctx.token |> as_job() |> get(other)
+        assert conn.status == 403, "#{other}: #{conn.status}"
+      end
+    end
+
+    test "changes no page's revisions", ctx do
+      page = page_fixture(ctx.board, %{"body" => "Rules"}, user: ctx.owner)
+
+      conn = ctx.token |> as_job() |> post("/api/pages/#{page.id}/revisions/purge", %{})
+      assert json_response(conn, 403)["error"] =~ "a verify job's token"
+
+      # The path takes no POST (no route, 404); the token refuses it all the same.
+      conn = ctx.token |> as_job() |> post("/api/pages/#{page.id}/revisions", %{})
+      assert conn.status in [403, 404]
+
+      for diff_only? <- [true, false] do
+        refute JobToken.allowed?(
+                 ctx.job,
+                 "POST",
+                 ["api", "pages", "#{page.id}", "revisions"],
+                 diff_only?
+               )
+
+        refute JobToken.allowed?(
+                 ctx.job,
+                 "DELETE",
+                 ["api", "pages", "#{page.id}", "revisions"],
+                 diff_only?
+               )
+      end
+
+      assert Repo.get!(Slipdock.Wiki.Page, page.id).body == "Rules"
+    end
+
     test "reads nothing else of the board: not the card, its comments or another", ctx do
       for path <- [
             "/api/cards/#{ctx.card.id}",
@@ -323,6 +372,40 @@ defmodule SlipdockWeb.VerifyJobTokenTest do
       refute token |> as_job() |> get(~p"/api/cards/#{ctx.other.id}") |> Map.get(:status) == 200
 
       conn = token |> as_job() |> post(~p"/api/cards/#{card.id}/comments", %{"body" => "x"})
+      assert conn.status == 403
+    end
+
+    test "an audit's token reads a page's revisions too", ctx do
+      page = page_fixture(ctx.board, %{"body" => "Rules"}, user: ctx.owner)
+      card = submit(ctx)
+
+      {:ok, job} =
+        Runners.queue(card, %{pool: "check", kind: "verify", prompt: "Audit", audit: true})
+
+      Repo.update_all(from(j in Job, where: j.id == ^job.id), set: [status: "claimed"])
+      job = Repo.get!(Job, job.id)
+      refute JobToken.diff_only?(job)
+      token = JobToken.mint(job, ctx.verifier)
+
+      conn = token |> as_job() |> get("/api/pages/#{page.id}/revisions")
+      assert is_list(json_response(conn, 200)["revisions"])
+
+      conn = token |> as_job() |> post("/api/pages/#{page.id}/revisions/purge", %{})
+      assert conn.status == 403
+    end
+
+    test "a card with no change to check: its verify token reads a page's revisions", ctx do
+      page = page_fixture(ctx.board, %{"body" => "Rules"}, user: ctx.owner)
+      submit(ctx, %{"evidence_commit" => nil, "evidence_no_code" => "a sweep"})
+      conn = claim(ctx)
+      job = Repo.get!(Job, String.to_integer(header(conn, "x-job-id")))
+      refute JobToken.diff_only?(job)
+      token = header(conn, "x-job-token")
+
+      conn = token |> as_job() |> get("/api/pages/#{page.id}/revisions")
+      assert is_list(json_response(conn, 200)["revisions"])
+
+      conn = token |> as_job() |> post("/api/pages/#{page.id}/revisions/purge", %{})
       assert conn.status == 403
     end
 
