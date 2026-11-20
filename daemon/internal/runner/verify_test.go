@@ -187,6 +187,22 @@ func TestAVerifyJobUnderAnAllowlistTierRunsBehindItsProxy(t *testing.T) {
 	}
 }
 
+// A verify job whose allowlist can't start is failed, and its agent never
+// runs in the container: it never runs with no allowlist.
+func TestAVerifyJobWhoseAllowlistCantStartIsNotRun(t *testing.T) {
+	r, fake, sha := verifyRig(t, Config{})
+	r.w.Tiers = map[string]machine.Tier{"anyone": {Executor: executor.Container, Network: machine.NetworkAllowlist,
+		AllowHosts: []string{"https://x"}}}
+
+	f := r.runJob(fakeJob{id: 403, kind: "verify", card: 42, prompt: "Check #42", token: testJobToken, sha: sha})
+	if f.exit != 127 || f.status != "failed" || !strings.Contains(f.body, "the ceiling's allow_hosts") {
+		t.Fatalf("finish = %+v", f)
+	}
+	if len(fake.commands) != 0 || strings.Contains(r.agentSaw(), "Check #42") {
+		t.Fatalf("the agent ran: %v", fake.commands)
+	}
+}
+
 func TestAVerifyJobsTokenNeverReachesTheTranscript(t *testing.T) {
 	w := &Worker{Client: &Client{Key: "sdm_k"}, Getenv: func(string) string { return "" }, jobToken: testJobToken}
 	if !contains(w.secrets(), testJobToken) {
