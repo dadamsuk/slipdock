@@ -2029,12 +2029,24 @@ but `sh` and `curl` can speak it:
 
 ```
 POST /api/runner/claim?wait=25             204, or 200 with X-Job-Id, X-Job-Kind, X-Card-Id,
-                                           X-Card-Ref, X-Card-Url, X-Lease-Seconds; prompt as body
+                                           X-Card-Ref, X-Card-Url, X-Lease-Seconds, X-Prompt-Tier;
+                                           prompt as body
 POST /api/runner/jobs/:id/heartbeat        body = log tail  → ok | cancel
 POST /api/runner/jobs/:id/finish?exit=N&status=S   body = last output → ok
                                            (status=requeue&trouble=K&until=T&reason=R → ok queued)
 POST /api/runner/jobs/:id/transcript?from=N  body = transcript lines from N → ok L | capped L
 ```
+
+**A job's trust tier.** `X-Prompt-Tier` is the least-trusted author of
+the text in the prompt: `owner` (the owner of the card's board tree, or
+the server's own text), `member` (someone else who may write or comment
+on the card) or `anyone` (anyone else, such as a permitted email sender or
+a person whose access has gone). It counts who wrote the card's title,
+description and bar, the rule that queued the job and, for a job that
+isn't a verify, whoever rejected the card, opened or answered its wait and
+left its handoff. The server only says the tier: the machine's ceiling
+decides what a job of each tier may do (`tiers`, in the manual's
+*Machines* page).
 
 **A job's live log.** While a job runs, its runner sends the agent's
 Claude Code transcript about once a minute, and once more as the job

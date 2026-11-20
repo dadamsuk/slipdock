@@ -88,6 +88,7 @@ func Build(mc *MachineConfig, ceil machine.Ceiling, base Worker) (workers []*Wor
 		w := base
 		w.Runner = r
 		w.Images = append([]string(nil), ceil.ContainerImages...)
+		w.Tiers = ceil.Tiers
 		w.SharedDir = dirs[filepath.Clean(r.Config.Directory)] > 1
 		workers = append(workers, &w)
 	}

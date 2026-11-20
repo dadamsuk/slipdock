@@ -90,6 +90,36 @@ defmodule SlipdockWeb.API.RunnersTest do
     end
   end
 
+  describe "the claim's trust tier (#3516)" do
+    test "the owner's card is owner", ctx do
+      {:ok, _} = queue(ctx.card)
+      conn = post(runner_conn(ctx.token), "/api/runner/claim?wait=0")
+      assert get_resp_header(conn, "x-prompt-tier") == ["owner"]
+    end
+
+    test "a member's edit makes it member", ctx do
+      other = Slipdock.Fixtures.user_fixture("tier-writer@example.com")
+
+      Repo.insert!(
+        Slipdock.Access.Grant.changeset(%Slipdock.Access.Grant{}, %{
+          level: "write",
+          user_id: other.id,
+          board_id: ctx.board.id
+        })
+      )
+
+      {:ok, card} =
+        Slipdock.Boards.Cards.update_card(ctx.card, %{"description" => "x"},
+          by: other,
+          via: "web"
+        )
+
+      {:ok, _} = queue(card)
+      conn = post(runner_conn(ctx.token), "/api/runner/claim?wait=0")
+      assert get_resp_header(conn, "x-prompt-tier") == ["member"]
+    end
+  end
+
   describe "heartbeat and finish" do
     setup ctx do
       {:ok, _} = queue(ctx.card)

@@ -68,6 +68,10 @@ defmodule Slipdock.Boards.Card do
     # before work starts; `bar_locked_at` is when work started and it locked.
     # Set only through `Slipdock.Verified`'s checks in `Boards.Cards.update_card/3`.
     field :bar, :string
+    # Who wrote the title, description and bar (#3516): user ids, 0 for
+    # someone with no account here (`Slipdock.Runners.TrustTier`). Nil on a
+    # card from before it was kept. Set by `Boards.Cards`, never cast.
+    field :text_by, {:array, :integer}
     # The paths this card's work will touch (#1628), as globs relative to
     # the repository: `lib/slipdock/runners/**`. See `Slipdock.Lanes`.
     field :paths, {:array, :string}, default: []

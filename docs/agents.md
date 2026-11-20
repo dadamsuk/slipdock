@@ -1582,7 +1582,11 @@ and says what it did with each config: `POST
 /api/machine/runners/:runner_id/report` with `version` and `outcome`
 `accepted`, or `rejected` and a `reason` (a stale version answers 409).
 `GET /api/machines/:id` shows the ceiling, the runners with what falls
-outside it, and the log of accepted and rejected changes. The runner
+outside it, and the log of accepted and rejected changes. A claimed
+job's `X-Prompt-Tier` header is the least-trusted author of its prompt's
+text (`owner`, `member` or `anyone`); the ceiling's `tiers` say what a job
+of each tier may run as, and a job whose tier they don't name is refused
+on the machine. The runner
 protocol takes the machine key with `X-Runner-Id`, for that machine's own
 runners only; each runner keeps its own identity, so a verify job still
 goes to a runner other than its builder.

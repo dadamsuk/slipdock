@@ -204,6 +204,7 @@ writes; only someone at the machine changes it.
 | `boards` | the boards the machine serves | the ones chosen on the approval page; `slipdock-runner boards add\|remove` changes them later |
 | `executors` | who a runner's jobs may run as (below) | `user` with a dedicated account; `me` and `confined` without one (`me` only on Windows) |
 | `container_images` | the images a `container` runner may run (below) | none: no image runs until you list one |
+| `tiers` | what a job may do by who wrote its card (below) | none: every job runs as its runner says |
 
 `init --root DIR --agent NAME --max-mode MODE --max-timeout MINUTES` sets
 them as it writes the file (`--root` and `--agent` repeat). `init --replace`
@@ -217,6 +218,39 @@ takes no more jobs once the one it holds has finished, and the change goes
 into `changes.log` (`ceiling changed at this machine: boards [3] → [3 5]`).
 An edit that isn't a valid ceiling is logged and ignored, and the one in use
 stays.
+
+#### Trust tiers
+
+Anyone who can write or comment on a board a runner serves puts words in
+front of its agent. So each job carries a **trust tier**: the least-trusted
+author of the text in its prompt (the card's title, description and bar,
+the rule that queued it, a rejection, a wait's answer, a handoff).
+
+| Tier | Who wrote all of it |
+|---|---|
+| `owner` | the owner of the card's board, or the server itself |
+| `member` | someone else who may write or comment on the card |
+| `anyone` | anyone else: a permitted email sender, someone whose access has gone |
+
+The server only reports the tier; `tiers` in `ceiling.json` decides what
+each gets. Each entry may set the `executor` the job runs under (one the
+ceiling's `executors` offers), the `max_permission_mode` it is held to (at
+most the ceiling's own) and the container's `network` (`on` or `off`;
+`off` only under `container`). A field left out keeps the runner's own.
+
+```json
+"tiers": {
+  "owner":  {"executor": "me", "max_permission_mode": "acceptEdits"},
+  "member": {"executor": "container", "network": "on"},
+  "anyone": {"executor": "container", "network": "off", "max_permission_mode": "plan"}
+}
+```
+
+With `tiers` set, a job whose tier has no entry is refused before
+anything runs, and one from a server that doesn't say its tier counts as
+`anyone`. A tier's `container` executor runs the runner's own `image`,
+which must be on `container_images`. A ceiling without `tiers` runs every
+job as its runner says.
 
 #### Changing the boards a machine serves
 

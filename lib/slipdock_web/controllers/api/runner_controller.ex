@@ -171,6 +171,9 @@ defmodule SlipdockWeb.API.RunnerController do
     # model by (`MODEL_<profile>`); the server never says what to run.
     |> then(&if(profile, do: put_resp_header(&1, "x-card-profile", profile), else: &1))
     |> then(&if(wait, do: put_resp_header(&1, "x-wait-id", to_string(wait.id)), else: &1))
+    # The least-trusted author of the prompt's text (#3516): the machine's
+    # ceiling decides what a job of each tier may do.
+    |> put_resp_header("x-prompt-tier", Slipdock.Runners.TrustTier.of(job))
     |> then(
       &if(handoff, do: put_resp_header(&1, "x-handoff-id", to_string(handoff.id)), else: &1)
     )

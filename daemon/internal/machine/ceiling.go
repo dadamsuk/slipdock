@@ -36,7 +36,24 @@ type Ceiling struct {
 	// may run (#2577): patterns in which * is any run of characters but /.
 	// None allows none.
 	ContainerImages []string `json:"container_images,omitempty"`
+	// Tiers, when set, are what a job may do by the trust tier of its
+	// prompt (#3516): the least-trusted author of the text in it, as the
+	// server reports it (owner, member or anyone). A job whose tier has no
+	// entry is refused. No tiers: every job runs as its runner says.
+	Tiers map[string]Tier `json:"tiers,omitempty"`
 }
+
+// Tier is what a job of one trust tier may do: the executor it runs
+// under, the highest permission mode and the container's network. An
+// empty field leaves the runner's own.
+type Tier struct {
+	Executor          string `json:"executor,omitempty"`
+	MaxPermissionMode string `json:"max_permission_mode,omitempty"`
+	Network           string `json:"network,omitempty"`
+}
+
+// TierNames are the trust tiers, most trusted first.
+var TierNames = []string{"owner", "member", "anyone"}
 
 // Offered is the executors the machine allows: me alone for a ceiling
 // written before there were any.
@@ -121,10 +138,54 @@ func (c Ceiling) Validate() error {
 			problems = append(problems, "container_images: "+err.Error())
 		}
 	}
+	problems = append(problems, c.tierProblems()...)
 	if len(problems) > 0 {
 		return errors.New(strings.Join(problems, "; "))
 	}
 	return nil
+}
+
+// tierProblems are what is wrong with the ceiling's tiers: each is a tier's
+// name, offers only the machine's executors and modes within its own, and
+// turns the network off only under the container executor.
+func (c Ceiling) tierProblems() []string {
+	var problems []string
+	names := make([]string, 0, len(c.Tiers))
+	for name := range c.Tiers {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		t := c.Tiers[name]
+		at := "tiers." + name
+		if !oneOf(TierNames, name) {
+			problems = append(problems, fmt.Sprintf("tiers: %q is not one of %s", name, strings.Join(TierNames, ", ")))
+			continue
+		}
+		if t.Executor != "" && !oneOf(c.Offered(), t.Executor) {
+			problems = append(problems, fmt.Sprintf("%s.executor: %q is not one this machine offers (%s)",
+				at, t.Executor, strings.Join(c.Offered(), ", ")))
+		}
+		if t.MaxPermissionMode != "" {
+			if r := ModeRank(t.MaxPermissionMode); r < 0 {
+				problems = append(problems, fmt.Sprintf("%s.max_permission_mode: %q is not one of %s",
+					at, t.MaxPermissionMode, strings.Join(PermissionModes, ", ")))
+			} else if r > ModeRank(c.MaxPermissionMode) {
+				problems = append(problems, fmt.Sprintf("%s.max_permission_mode: %q is above the ceiling's %q",
+					at, t.MaxPermissionMode, c.MaxPermissionMode))
+			}
+		}
+		switch t.Network {
+		case "", "on":
+		case "off":
+			if t.Executor != "" && t.Executor != executor.Container {
+				problems = append(problems, fmt.Sprintf("%s.network: off needs the container executor", at))
+			}
+		default:
+			problems = append(problems, fmt.Sprintf("%s.network: %q is not on or off", at, t.Network))
+		}
+	}
+	return problems
 }
 
 // sourceFolders are the home's usual source folders, in the order init

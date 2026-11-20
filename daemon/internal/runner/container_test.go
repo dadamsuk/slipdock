@@ -73,6 +73,12 @@ func TestAContainerRunnersImageMustBeOnTheMachinesAllowList(t *testing.T) {
 	if strings.Join(workers[0].Images, ",") != "ghcr.io/me/agent:*" {
 		t.Fatalf("the worker's allow-list: %v", workers[0].Images)
 	}
+	ceil := allowing("ghcr.io/me/agent:*")
+	ceil.Tiers = map[string]machine.Tier{"owner": {MaxPermissionMode: "plan"}}
+	workers, _ = Build(mc, ceil, Worker{})
+	if len(workers) != 1 || workers[0].Tiers["owner"].MaxPermissionMode != "plan" {
+		t.Fatalf("the worker's tiers: %v", workers[0].Tiers)
+	}
 }
 
 func TestAContainerWorkersExecutorIsTheRunnersAndTheMachines(t *testing.T) {

@@ -86,6 +86,9 @@ type Job struct {
 	MergePR      string
 	MergeCommit  string
 	Prompt       string
+	// Tier is the trust tier of the prompt's text (#3516): owner, member
+	// or anyone; "" from a server that doesn't say.
+	Tier string
 }
 
 // Claim is what the claim's answer said besides a job.
@@ -241,6 +244,13 @@ func parseJob(h http.Header, body []byte) (*Job, error) {
 	switch p := h.Get("X-Card-Profile"); p {
 	case "docs", "fix", "feature", "schema", "security", "spike":
 		job.Profile = p
+	}
+	switch t := h.Get("X-Prompt-Tier"); t {
+	case "owner", "member", "anyone":
+		job.Tier = t
+	case "":
+	default:
+		job.Tier = "anyone"
 	}
 	job.MergePR = h.Get("X-Merge-Pr")
 	job.MergeCommit = h.Get("X-Merge-Commit")
