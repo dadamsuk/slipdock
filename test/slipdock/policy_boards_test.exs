@@ -21,6 +21,9 @@ defmodule Slipdock.PolicyBoardsTest do
   setup do
     owner = user_fixture("boards.policy.owner@example.com")
     root = board_fixture(%{"name" => "Policy boards"}, owner: owner)
+    # The share rows' table level (write) holds where the owner lets editors
+    # share (#3558); `share_onward_test.exs` has the board that doesn't.
+    root = Repo.update!(Ecto.Changeset.change(root, editors_may_share: true))
     card = card_fixture(hd(root.columns), %{"title" => "Card"})
     %{owner: owner, root: root, card: card}
   end
@@ -106,6 +109,10 @@ defmodule Slipdock.PolicyBoardsTest do
 
     Access.grant(view, stranger(), "read", user)
   end
+
+  # Turning editors' sharing off again, on a board that has it on.
+  defp act(:let_editors_share, ctx, _user),
+    do: Boards.update_board(ctx.root, %{"editors_may_share" => false})
 
   defp act(:share_card, ctx, user), do: Access.grant(ctx.card, stranger(), "read", user)
 

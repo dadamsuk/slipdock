@@ -70,6 +70,7 @@ defmodule SlipdockCLI do
     wiki_sort: :string,
     show_pulse: :boolean,
     close_on_complete: :boolean,
+    editors_may_share: :boolean,
     show_age: :boolean,
     show_images: :boolean,
     # `slipdock deploy` (#1134).

@@ -99,4 +99,11 @@ defmodule SlipdockWeb.MCP.ShareToolTest do
   test "list_pages still needs a board when it isn't asked for what is shared", c do
     assert c.conn |> call("list_pages", %{}) |> error!() =~ "board"
   end
+
+  test "its description says who may share: the owner, or writers the owner allows" do
+    text = SlipdockWeb.MCP.Tools.Share.description()
+    assert text =~ "The owner shares"
+    assert text =~ "editors_may_share"
+    refute text =~ "Only the board's writers share"
+  end
 end

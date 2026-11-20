@@ -238,6 +238,7 @@ defmodule Slipdock.Portable.Export do
       simple: board.simple,
       show_pulse: board.show_pulse,
       close_on_complete: board.close_on_complete,
+      editors_may_share: board.editors_may_share,
       delivery_metrics: board.delivery_metrics,
       card_ref_pattern: board.card_ref_pattern,
       incident_tag: board.incident_tag,

@@ -76,6 +76,24 @@ defmodule SlipdockCLI.SetBoardTest do
     assert JSON.decode!(body) == %{"close_on_complete" => false}
   end
 
+  test "--editors-may-share and --no-editors-may-share send the board's setting (#3558)" do
+    {opts, ["set-board", "docs"], []} =
+      OptionParser.parse(["set-board", "docs", "--no-editors-may-share"],
+        strict: SlipdockCLI.switches()
+      )
+
+    assert opts[:editors_may_share] == false
+
+    serve([{200, @updated}, {200, @updated}])
+    capture_io(fn -> Boards.run("set-board", ["docs"], editors_may_share: true) end)
+    assert_received {:request, "PATCH", "/api/boards/docs", body}
+    assert JSON.decode!(body) == %{"editors_may_share" => true}
+
+    capture_io(fn -> Boards.run("set-board", ["docs"], editors_may_share: false) end)
+    assert_received {:request, "PATCH", "/api/boards/docs", body}
+    assert JSON.decode!(body) == %{"editors_may_share" => false}
+  end
+
   test "--wiki-sort goes to the tree's own route, which a writer may use" do
     {opts, ["set-board", "docs"], []} =
       OptionParser.parse(["set-board", "docs", "--wiki-sort", "modified"],

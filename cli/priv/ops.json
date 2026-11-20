@@ -1463,6 +1463,11 @@
         "required": false
       },
       {
+        "name": "editors_may_share",
+        "type": "any",
+        "required": false
+      },
+      {
         "name": "vote_budget",
         "type": "any",
         "required": false
@@ -1659,6 +1664,9 @@
         "desc": {
           "param": "description",
           "read": "stdin"
+        },
+        "editors_may_share": {
+          "param": "editors_may_share"
         },
         "evidence_required": {
           "param": "evidence_required"

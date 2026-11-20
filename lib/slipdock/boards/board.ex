@@ -62,6 +62,12 @@ defmodule Slipdock.Boards.Board do
     # it on; marking it incomplete again never closes it.
     field :close_on_complete, :boolean, default: false
 
+    # Whether people who can edit the board may share its cards, pages and
+    # folders with others (#3558). Off unless the owner turns it on, and only
+    # the owner may; read on the tree's top board, so a sub-board's own
+    # value is never asked (`Slipdock.Policy`).
+    field :editors_may_share, :boolean, default: false
+
     # Whether the board records deploys and shows delivery metrics (#1134,
     # `Slipdock.Deployments`, `Slipdock.Dora`). Off unless the owner turns it
     # on, and invisible while off: the deploy endpoint refuses posts for it.
@@ -657,6 +663,7 @@ defmodule Slipdock.Boards.Board do
       :simple,
       :show_pulse,
       :close_on_complete,
+      :editors_may_share,
       :delivery_metrics,
       :card_ref_pattern,
       :incident_tag,

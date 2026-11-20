@@ -21,9 +21,9 @@ defmodule SlipdockWeb.MCP.Tools.Share do
   @impl true
   def description,
     do:
-      "Shares a wiki page (code) or a folder (with its board) with a person by email " <>
-        "or a group: read, comment (no edits) or write. off = true takes it back; " <>
-        "neither with nor group lists who has it. Only the board's writers share."
+      "Shares a wiki page (code) or a folder (with board) with a person by email or a " <>
+        "group: read, comment or write. off = true takes it back; neither with nor group " <>
+        "lists who has it. The owner shares, or writers if editors_may_share is on."
 
   @impl true
   def input_schema do

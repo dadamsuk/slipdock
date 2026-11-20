@@ -306,6 +306,18 @@ value that is neither an on word nor an off word is named in a warning at boot
 and leaves it off. Anyone who can reach the sign-in page can create these
 files, so only enable it on machines used for automated testing.
 
+**Who may share** (#3558) — sharing a board is its owner's alone. Sharing a
+card (and so its sub-board), a wiki page or a folder is the owner's too,
+unless the owner turns on **Editors may share** in the board's settings
+(Features tab; `slipdock set-board <board> --editors-may-share`, or
+`editors_may_share` on `PATCH /api/boards/:board` and MCP `update_board`).
+With it on, anyone who can edit the board may share them as well. It is off
+for every board until the owner turns it on, only the owner can change it,
+and it is set on the top board of a tree: the boards under its cards follow
+it. Taking a share back asks the same as making one. Shares made before
+the owner turned it off stay until someone who may share takes them back.
+An editor who tries while it is off is told the owner has to allow it.
+
 **Groups** (`/groups`) are named sets of people you can share with at once.
 Members are added by email; the group's creator manages it.
 
@@ -316,8 +328,9 @@ sub-boards inside them. **Can comment** (#863) is a reader who may also join
 the discussion: comment, post a status update and vote, and take back their
 own comments — but not change the card's title, dates, assignees, flags, list,
 checklist or anything else. A commenter's card modal keeps the comment box,
-status updates and votes live and the rest disabled. A single card can be shared the same way from its modal (by the owner
-or anyone who can edit it): the recipient sees that card, listed under
+status updates and votes live and the rest disabled. A single card can be shared the same way from its modal (by the owner,
+or by anyone who can edit it where the owner allows it: see **Who may share**
+below): the recipient sees that card, listed under
 "Cards shared with you" on the home page, and nothing else on the board. A
 card grant can also raise a board reader to a commenter or an editor on that
 one card. An editor of a card can edit its sub-board too, but a board's tags

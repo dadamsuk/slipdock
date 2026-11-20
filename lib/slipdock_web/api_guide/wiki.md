@@ -149,7 +149,9 @@ folder once, at home. MCP: `file_folder`.
 see the board: a person by email (a stranger is invited) or a group of
 yours, `read`, `comment` or `write`. A folder share covers everything whose *home*
 is in its subtree (pages, files, drawings, subfolders), never what is only
-also filed there. Only the board's writers share.
+also filed there. Only the board's owner shares, or its writers where the
+owner has turned on `editors_may_share` (`PATCH /api/boards/:board`); the
+same holds for sharing a card.
 
 ```bash
 curl -s -X POST -H "$H" -H 'content-type: application/json' \

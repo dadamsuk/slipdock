@@ -366,8 +366,9 @@ WIKI  (Markdown pages on a board: how it works, what was decided and why.
                                       invited) or a group of yours, read only (default),
                                       --comment (read, comment, report a status, vote;
                                       no edits) or --write; --off takes it back; nobody
-                                      named lists who has it. Only its board's writers
-                                      can share
+                                      named lists who has it. Only its board's owner
+                                      can share, or its writers where the owner set
+                                      --editors-may-share
   shared                              what other people have shared with you, by owner;
                                       `page read` and `page edit` take the codes it lists
   export [<board>...] [--out FILE]    whole board trees as one JSON document: lists, cards,
@@ -821,6 +822,7 @@ WRITE
       [--no-add-card] [--no-add-page] [--no-add-document] [--sprints | --no-sprints]
       [--simple | --no-simple] [--page-card-features | --no-page-card-features]
       [--show-pulse | --no-show-pulse] [--close-on-complete | --no-close-on-complete]
+      [--editors-may-share | --no-editors-may-share]
       [--automation-wip | --no-automation-wip]
       [--agentic-building on|off]
       [--job-log-hours N] [--failure-log-hours N]
@@ -850,6 +852,9 @@ WRITE
                                       --show-pulse puts the board's pulse over its lists;
                                       --close-on-complete makes an open card's Complete
                                       icon close the card and return to the board;
+                                      --editors-may-share lets people who can edit the
+                                      board share its cards, pages and folders (off: only
+                                      the owner; set on the top board);
                                       --automation-wip makes the first in-progress list's
                                       WIP limit hold runner jobs and list sends;
                                       --agentic-building on puts an Agentic Building item

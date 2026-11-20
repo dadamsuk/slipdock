@@ -179,6 +179,18 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent.Panels do
           returns to the board.
         </.switch_field>
       </div>
+      <%!-- Who may share part of the board onward (#3558). Off by default,
+                the owner's alone, and read on the top board of the tree. --%>
+      <div :if={is_nil(@board.parent_card_id)} class="space-y-1">
+        <.switch_field
+          field={@form[:editors_may_share]}
+          id="board-editors-may-share"
+          label="Editors may share"
+        >
+          People who can edit this board may share its cards, pages and folders
+          with others. Off, only you can. Covers the boards under its cards too.
+        </.switch_field>
+      </div>
       <%!-- Deploys and DORA metrics (#1134). Off by default, and while
                 off the deploy endpoint refuses posts for the board. --%>
       <div class="space-y-1">

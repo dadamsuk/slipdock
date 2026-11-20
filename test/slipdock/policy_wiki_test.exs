@@ -671,6 +671,8 @@ defmodule Slipdock.PolicyWikiTest do
     end
 
     test "sharing a page or folder asks the person sharing, a writer", ctx do
+      # A writer shares only where the owner lets editors share (#3558).
+      Repo.update!(Ecto.Changeset.change(ctx.root, editors_may_share: true))
       {writer, _} = person(ctx, "write")
       token_writer = scoped(writer, board_fixture(%{}, owner: writer))
       as(writer, token_writer)

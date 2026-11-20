@@ -166,7 +166,8 @@ board: `slipdock page share <page> sam@example.com --write` (a group by name
 works too; read only is the default; `--comment` lets them comment, report
 a status and vote without editing; `--off` takes it back), `slipdock folder
 share <board> <folder> …` for a folder and everything at home in it. Only the
-board's writers can share. What others shared with you: `slipdock shared`,
+board's owner can share, or its writers where the owner has turned on
+`set-board --editors-may-share`. What others shared with you: `slipdock shared`,
 then `page read` / `page edit` by code as usual. A sharee with write edits,
 renames, adds inside a shared folder and moves within it, but never deletes,
 archives, moves anything out, organises, re-shares, publishes or encrypts —
