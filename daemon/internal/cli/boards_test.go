@@ -80,7 +80,8 @@ func TestBoardsListsAddsAndRemovesKeepingTheRest(t *testing.T) {
 	if strings.Contains(string(data), "executors") {
 		t.Errorf("the edit wrote executors the file left out:\n%s", data)
 	}
-	if fi, _ := os.Stat(path); fi.Mode().Perm() != 0o640 {
+	// Windows keeps no Unix mode: a file there reads as 0666.
+	if fi, _ := os.Stat(path); runtime.GOOS != "windows" && fi.Mode().Perm() != 0o640 {
 		t.Errorf("mode %o after the edit, want the file's own 0640", fi.Mode().Perm())
 	}
 
