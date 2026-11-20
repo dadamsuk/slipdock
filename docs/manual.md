@@ -120,6 +120,7 @@ The manual is in parts, one page each. Every section and what it covers:
 - [Running](manual/running.md)
   - [With Docker](manual/running.md#with-docker)
   - [From a checkout](manual/running.md#from-a-checkout)
+  - [One app node](manual/running.md#one-app-node)
   - [A local model instead](manual/running.md#a-local-model-instead)
   - [The server's models, and fallbacks](manual/running.md#the-servers-models-and-fallbacks)
   - [AI for search and automations](manual/running.md#ai-for-search-and-automations)
