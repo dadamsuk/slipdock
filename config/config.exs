@@ -109,10 +109,12 @@ config :slipdock, :rate_limit, enabled: true
 
 # Automation rules (see Slipdock.Automations). `enabled: false` turns every
 # rule off; `interval` is how often the time-based triggers are checked;
-# `async: false` sends the emails and webhooks inline (the test env does).
+# `async: false` sends the emails and webhooks inline (the test env does);
+# `cluster_lock: false` ticks on every node rather than on the one that leads.
 config :slipdock, :automations,
   enabled: true,
   interval: :timer.minutes(1),
+  cluster_lock: true,
   async: true
 
 # Configure the endpoint
