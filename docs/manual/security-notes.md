@@ -32,6 +32,9 @@ these are decisions only you can make.
   named boards, and made to expire; Account › API tokens shows when each was last
   used and from where. A read-only token is refused anything that would change
   something, and a board-scoped one cannot even list boards outside its scope.
+  The `slipdock` CLI sends its token only to the server it was pointed at: it
+  follows a redirect on the same host (http to https included) and stops with
+  an error at one to anywhere else.
 - **A machine running runners has a key of its own, not your token.**
   `slipdock-runner init` shows a code and the machine's fingerprint; you
   approve it at Account › Machines (`/account/machines/approve`), seeing its

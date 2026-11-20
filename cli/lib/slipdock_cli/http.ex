@@ -300,10 +300,13 @@ defmodule SlipdockCLI.HTTP do
   def download(path, dest) do
     {url, headers} = prepare(path, client_headers())
 
-    case :httpc.request(:get, {url, headers}, [{:timeout, 600_000}],
+    case follow(:get, url, headers, nil, [{:timeout, 600_000}],
            stream: String.to_charlist(dest),
            body_format: :binary
          ) do
+      {:elsewhere, status, location} ->
+        {:error, status, elsewhere_error(location)}
+
       {:ok, :saved_to_file} ->
         :ok
 
@@ -390,34 +393,107 @@ defmodule SlipdockCLI.HTTP do
     {url, headers} =
       prepare(path, [{~c"accept", ~c"application/json"} | client_headers()])
 
-    {req, timeout} =
+    {content, timeout} =
       case body do
         nil ->
-          {{url, headers}, 15_000}
+          {nil, 15_000}
 
         {:multipart, boundary, segments} ->
           {body, length} = multipart_body(segments)
 
-          {{url, length ++ headers,
-            String.to_charlist("multipart/form-data; boundary=" <> boundary), body}, 600_000}
+          {{length, String.to_charlist("multipart/form-data; boundary=" <> boundary), body},
+           600_000}
 
         body ->
-          {{url, headers, ~c"application/json", encode(body)}, 15_000}
+          {{[], ~c"application/json", encode(body)}, 15_000}
       end
 
-    case :httpc.request(method, req, [{:timeout, timeout}], body_format: :binary) do
-      {:ok, {{_, status, _}, _headers, resp_body}} ->
-        decoded =
-          case resp_body do
-            "" -> %{}
-            b -> try_decode(b)
-          end
+    method
+    |> follow(url, headers, content, [{:timeout, timeout}], body_format: :binary)
+    |> response()
+  end
 
-        if Enum.member?(200..299, status), do: {:ok, decoded}, else: {:error, status, decoded}
+  defp response({:elsewhere, status, location}), do: {:error, status, elsewhere_error(location)}
+  defp response({:error, reason}), do: {:error, :connect, reason}
 
-      {:error, reason} ->
-        {:error, :connect, reason}
+  defp response({:ok, {{_, status, _}, _headers, resp_body}}) do
+    decoded =
+      case resp_body do
+        "" -> %{}
+        b -> try_decode(b)
+      end
+
+    if Enum.member?(200..299, status), do: {:ok, decoded}, else: {:error, status, decoded}
+  end
+
+  # Redirects are followed here rather than by :httpc, so this module decides
+  # where a request goes next. A redirect is followed only to the same
+  # scheme, host and port, or from http to https on the same host, since the
+  # token is bound to its origin (`origin/1`); one anywhere else comes back
+  # as `{:elsewhere, status, location}` and is not requested.
+  @max_redirects 5
+  @redirects [301, 302, 303, 307, 308]
+
+  defp follow(method, url, headers, content, http_opts, opts, hops \\ 0) do
+    req =
+      case content do
+        nil -> {url, headers}
+        {extra, type, body} -> {url, extra ++ headers, type, body}
+      end
+
+    case :httpc.request(method, req, [{:autoredirect, false} | http_opts], opts) do
+      {:ok, {{_, status, _}, resp_headers, _}} = response
+      when status in @redirects and hops < @max_redirects ->
+        case location(resp_headers) do
+          nil ->
+            response
+
+          location ->
+            hop(status, location, {method, url, headers, content}, http_opts, opts, hops)
+        end
+
+      other ->
+        other
     end
+  end
+
+  defp hop(status, location, {method, url, headers, content}, http_opts, opts, hops) do
+    next = url |> to_string() |> URI.merge(location) |> URI.to_string()
+
+    if same_origin?(to_string(url), next) do
+      {method, content} = redirected(status, method, content)
+      follow(method, String.to_charlist(next), headers, content, http_opts, opts, hops + 1)
+    else
+      {:elsewhere, status, next}
+    end
+  end
+
+  # 307 and 308 repeat the request as it was; the others turn a POST (and a
+  # 303 anything) into a GET without a body, as browsers do.
+  defp redirected(status, method, content) when status in [307, 308], do: {method, content}
+  defp redirected(303, _method, _content), do: {:get, nil}
+  defp redirected(_status, :post, _content), do: {:get, nil}
+  defp redirected(_status, method, content), do: {method, content}
+
+  defp location(headers) do
+    Enum.find_value(headers, fn {name, value} ->
+      if String.downcase(to_string(name)) == "location", do: to_string(value)
+    end)
+  end
+
+  @doc false
+  def same_origin?(from, to) do
+    a = URI.parse(from)
+    b = URI.parse(to)
+    same_host? = is_binary(a.host) and String.downcase(a.host) == String.downcase(b.host || "")
+
+    same_host? and
+      ((a.scheme == b.scheme and a.port == b.port) or
+         (a.scheme == "http" and b.scheme == "https"))
+  end
+
+  defp elsewhere_error(location) do
+    %{"error" => "the server redirected to #{origin(location)}, another host: not followed"}
   end
 
   # OTP's :json maps JSON null to the atom :null; we want Elixir's nil.
