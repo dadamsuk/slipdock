@@ -87,6 +87,12 @@ defmodule Slipdock.Settings.Instance do
     # `Slipdock.Transcription.Voiceprints`): off unless turned on.
     field :transcription_voiceprints, :boolean, default: false
 
+    # Whether pictures from other hosts may be shown (#3559). On, the
+    # Content-Security-Policy allows images and media only from this server,
+    # and the renderers show an external picture as a link to it instead
+    # (`SlipdockWeb.ExternalImages`). Off by default.
+    field :block_external_images, :boolean, default: false
+
     # Whose AI settings unattended work runs on: the search indexer, every
     # search query, scheduled automations. An admin, because those settings
     # receive every board's content — see `Slipdock.AI.Keys.system_settings/0`.
@@ -153,7 +159,7 @@ defmodule Slipdock.Settings.Instance do
                     posthog_respect_dnt ai_system_user_id
                     transcription_server_url transcription_server_token
                     transcription_voiceprints ai_model ai_quick_model ai_organise_model
-                    ai_fallback_models)a
+                    ai_fallback_models block_external_images)a
 
   # The admin address and the SMTP details each have a flow that proves
   # something first (a code to the new address, a test message that arrived),

@@ -123,7 +123,8 @@ defmodule SlipdockCLI.Admin do
                                         ai_system_user=<admin email> (empty to clear),
                                         ai_model, ai_quick_model, ai_organise_model,
                                         ai_fallback_models=a,b (empty: env/config),
-                                        transcription_server_url, transcription_server_token
+                                        transcription_server_url, transcription_server_token,
+                                        block_external_images=true|false
     admin allow <entry> | disallow <entry>
     admin users                         who is here
     admin overview [--sort S]           usage: accounts, activity, and what each person owns
@@ -218,6 +219,7 @@ defmodule SlipdockCLI.Admin do
     Search & rules AI:#{render_ai(s["ai"])}
     AI models:        #{render_models(s["ai"])}
     Transcription:    #{render_transcription_server(s["transcription_server"])}
+    Outside pictures: #{if s["block_external_images"], do: "blocked (shown as links)", else: "shown"}
     Waiting:          #{s["pending_signups"]}\
     """)
   end

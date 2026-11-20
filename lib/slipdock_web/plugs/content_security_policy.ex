@@ -18,7 +18,10 @@ defmodule SlipdockWeb.Plugs.ContentSecurityPolicy do
       element (`SlipdockWeb.Wiki.Renderer.allowed_style?/2`).
     * `img-src` and `media-src` include `https:` because wiki pages and card
       descriptions may point at pictures elsewhere, and `data:`/`blob:` because
-      previews of a file being uploaded are made in the browser.
+      previews of a file being uploaded are made in the browser. An admin can
+      take `https:` off both (`Slipdock.Settings.block_external_images?/0`,
+      #3559): then only this server's pictures load, and the renderers show
+      a picture from elsewhere as a link to it (`SlipdockWeb.ExternalImages`).
     * `connect-src 'self'` covers the LiveView WebSocket, which is same-origin.
     * `frame-ancestors 'self'` rather than `'none'`: other sites cannot frame
       this one, but development's live-reload frame is same-origin and would
@@ -63,12 +66,27 @@ defmodule SlipdockWeb.Plugs.ContentSecurityPolicy do
         conn
 
       :default ->
-        policy = @default |> with_posthog(Slipdock.Settings.posthog()) |> Enum.join("; ")
+        policy =
+          @default
+          |> without_external_images(Slipdock.Settings.block_external_images?())
+          |> with_posthog(Slipdock.Settings.posthog())
+          |> Enum.join("; ")
+
         Plug.Conn.put_resp_header(conn, "content-security-policy", policy)
 
       policy when is_binary(policy) ->
         Plug.Conn.put_resp_header(conn, "content-security-policy", policy)
     end
+  end
+
+  defp without_external_images(directives, false), do: directives
+
+  defp without_external_images(directives, true) do
+    Enum.map(directives, fn
+      "img-src " <> _ -> "img-src 'self' data: blob:"
+      "media-src " <> _ -> "media-src 'self' data: blob:"
+      other -> other
+    end)
   end
 
   defp with_posthog(directives, nil), do: directives

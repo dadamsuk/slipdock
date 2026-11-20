@@ -111,6 +111,8 @@ admin set key=value...              signup_mode=open|allowlist|approval|closed,
                                     transcription server: Transcribe on a card's recording;
                                     empty: off),
                                     transcription_server_token=<key> (empty: none)
+                                    block_external_images=true: pages and cards load
+                                    pictures only from this server, showing others as links
 admin allow <entry>                 let an address or a whole domain register
 admin disallow <entry>
 admin users                         who is here, what they use, when last seen

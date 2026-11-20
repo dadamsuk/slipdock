@@ -464,6 +464,10 @@ and MCP) and a link to the page that covers it.
   - Plus
     [a device flow for signing an agent in](accounts-and-sharing.md#signing-an-agent-in)
     from anywhere, with scoped, expiring, revocable tokens.
+  - An admin can [keep pages and cards to this server's own
+    pictures](security-notes.md) (Configuration, or `slipdock admin set
+    block_external_images=true`): a picture from another site then shows as a
+    link to it.
 - **Boards that can leave** — [a whole board tree as one JSON file another
   Slipdock reads back](moving-boards-between-servers.md): lists,
   cards, subcards, tags, checklists, comments, custom fields, dependencies and

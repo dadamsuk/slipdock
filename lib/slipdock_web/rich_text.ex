@@ -19,7 +19,12 @@ defmodule SlipdockWeb.RichText do
   `markdown/2` is what the card panel shows (#868): the same text read as
   Markdown — paragraphs, lists, headings, emphasis, code, quotes, tables and
   task lists — with each run of plain text still going through `render/2`.
+
+  When an admin has turned external pictures off, both show a picture from
+  another host as a link to it (`SlipdockWeb.ExternalImages`, #3559).
   """
+
+  alias SlipdockWeb.ExternalImages
 
   @pattern ~r{!\[([^\]]*)\]\(([^)\s]+)\)|\[([^\]]+)\]\(([^)\s]+)\)|https?://[^\s<]+}
 
@@ -42,7 +47,10 @@ defmodule SlipdockWeb.RichText do
     linked = Regex.replace(@pattern, escaped, &replace/5)
 
     {:safe,
-     linked |> wiki_links(opts[:board], opts[:as]) |> mentions(opts[:board], opts[:members])}
+     linked
+     |> wiki_links(opts[:board], opts[:as])
+     |> mentions(opts[:board], opts[:members])
+     |> ExternalImages.as_links()}
   end
 
   @extension [table: true, tasklist: true, strikethrough: true]
@@ -92,7 +100,7 @@ defmodule SlipdockWeb.RichText do
          {:ok, html} <-
            %{doc | nodes: expand(doc.nodes, opts)}
            |> MDEx.to_html(extension: @extension, render: @render, sanitize: @sanitize) do
-      {:safe, html}
+      {:safe, ExternalImages.as_links(html)}
     else
       _ -> render(text, opts)
     end
