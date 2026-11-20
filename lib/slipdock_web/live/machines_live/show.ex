@@ -28,7 +28,7 @@ defmodule SlipdockWeb.MachinesLive.Show do
 
   alias Slipdock.{Access, Machines}
   alias Slipdock.Machines.Machine
-  alias Slipdock.Runners.{Ceiling, Config, MachineRunners, MachineSetup, Probe}
+  alias Slipdock.Runners.{Ceiling, Config, MachineRunners, MachineSetup, Probe, Steering}
 
   @config_fields ~w(agent directory permission_mode timeout_minutes model worktree verbosity
                     instructions executor before_hook after_hook probe_hook image network)
@@ -697,6 +697,13 @@ defmodule SlipdockWeb.MachinesLive.Show do
               >
                 Add a runner
               </button>
+            </div>
+
+            <div
+              id="machine-runners-steering"
+              class="card-prose mt-2 text-sm text-base-content/70"
+            >
+              {SlipdockWeb.RichText.markdown(Steering.notice())}
             </div>
 
             <.runner_form

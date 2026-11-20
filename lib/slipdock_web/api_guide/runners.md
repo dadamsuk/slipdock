@@ -372,7 +372,10 @@ machine and is configured as data: `POST /api/machines/:id/runners` with
 `board` (one the machine serves), `pool`, an optional `name` and a
 `config`; `PATCH /api/machines/:id/runners/:runner_id` changes `pool`,
 `name` or any config field; `DELETE …/runners/:runner_id` removes it (the
-daemon finishes its job, then stops it). The config is closed and typed:
+daemon finishes its job, then stops it). The `POST` answers with the
+`runner` and a `notice` (#3481): anyone who can write or comment on the
+board steers the runner's agent, and what its executor and permission mode
+limit. The config is closed and typed:
 `agent`, `directory`, `permission_mode` (`plan`, `default`, `acceptEdits`,
 `bypassPermissions`), `timeout_minutes`, `model`, `worktree` (`auto`,
 `on`, `off`), `verbosity`, `instructions`, `executor` (`me`, `user`,

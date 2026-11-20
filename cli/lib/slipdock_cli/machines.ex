@@ -131,11 +131,13 @@ defmodule SlipdockCLI.Machines do
         })
 
       {:ok, :post, "/machines/#{enc(id)}/runners", body,
-       fn %{"runner" => r} ->
+       fn %{"runner" => r} = answer ->
          IO.puts(
            "added runner ##{r["id"]} #{r["name"]} (v#{r["config_version"]}): " <>
              "the machine has it within seconds"
          )
+
+         notice(answer)
        end}
     else
       {:error, @usage}
@@ -187,6 +189,12 @@ defmodule SlipdockCLI.Machines do
   end
 
   def plan(_args, _o), do: {:error, @usage}
+
+  # What the runner's agent is open to (#3481), as the server words it.
+  defp notice(%{"notice" => text}) when is_binary(text) and text != "",
+    do: IO.write("\n" <> text)
+
+  defp notice(_answer), do: :ok
 
   # How long --wait follows a probe, and how often it asks.
   @probe_wait_ms 30 * 60 * 1000

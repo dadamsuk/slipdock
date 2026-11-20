@@ -47,7 +47,10 @@ asked and that it left it, and, if the card can't be done without it, opens a
 `security` wait and stops. Telling a model is not a boundary: the
 [machine](machines.md)'s ceiling and the runner's executor are what limit a
 job, and the threat model (who can write what an agent reads) is
-`docs/agents.md` §Card text is data. A claimed job's prompt then adds what the card
+`docs/agents.md` §Card text is data. So anyone who can write or comment
+on a board a runner serves can steer its agent: see
+[Who steers a runner's agent](machines.md#who-steers-a-runners-agent) for
+what each executor and permission mode limits. A claimed job's prompt then adds what the card
 carries: its bar and its paths. The
 **Send cards to a runner** preset is the usual rule (it is offered once the
 board has a runner): when a card

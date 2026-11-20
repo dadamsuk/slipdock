@@ -746,6 +746,34 @@ docs/agents.md</code>
 Card text is data</em>
 .
   </p>
+<div phx-r="" id="help-runner-steering" class="card-prose">
+<p>
+Anyone who can write or comment on a board a runner serves can steer its agent. The card&#39;s text, its bar, its comments and its handoffs go into the agent&#39;s prompt, and the agent follows them as the account its jobs run as. The prompt tells it that card text is data, not instructions, but telling a model is not a limit. The limits are the runner&#39;s:</p>
+<ul>
+<li>
+Executor: <code>
+me</code>
+ stops nothing, so the agent can read and change whatever you can. <code>
+user</code>
+ keeps it out of your home, <code>
+confined</code>
+ stops it writing outside the job&#39;s directory, and <code>
+container</code>
+ stops it reading or writing outside what is mounted, and the network when that is off.</li>
+<li>
+Permission mode: <code>
+plan</code>
+ changes nothing, <code>
+default</code>
+ asks before an edit or a command, <code>
+acceptEdits</code>
+ edits files without asking, and <code>
+bypassPermissions</code>
+ runs any command without asking.</li>
+</ul>
+<p>
+Share a runner&#39;s board only with people you would let use this machine that way.</p>
+</div>
 </div>
 </section>
 <section phx-r="" class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">

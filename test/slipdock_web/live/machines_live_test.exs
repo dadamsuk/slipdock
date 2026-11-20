@@ -52,6 +52,18 @@ defmodule SlipdockWeb.MachinesLiveTest do
 
   defp page(ctx), do: live(ctx.conn, ~p"/machines/#{ctx.machine.id}")
 
+  describe "who steers a runner's agent (#3481)" do
+    test "the page says it above the runners, to the owner", ctx do
+      {:ok, view, _} = page(ctx)
+
+      assert view
+             |> element("#machine-runners #machine-runners-steering")
+             |> render() =~ "Anyone who can write or comment on a board a runner serves"
+
+      assert has_element?(view, "#machine-runners-steering li", "bypassPermissions")
+    end
+  end
+
   describe "the owner" do
     test "sees the machine: state, system, ceiling, executors, runners and the log", ctx do
       runner = add(ctx)
