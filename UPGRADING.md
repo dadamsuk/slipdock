@@ -1,5 +1,23 @@
 # Upgrading
 
+## Session tokens are stored as digests
+
+Browser sessions are now stored the way API and sign-in tokens already
+were: the database keeps a SHA-256 digest of each session token, and only
+the browser's signed cookie holds the token itself (#3503). The migration
+`20261120020000_hash_session_tokens` digests the existing sessions in place
+(Postgres's built-in `sha256`), so **nobody is signed out** by the upgrade
+and nothing needs doing. A session's age is kept, so it still ends 30 days
+after it started.
+
+Rolling back to an image from before it signs everybody out: the older code
+looks sessions up by the raw token and finds none. A session started while
+on the older image is stored raw and doesn't work after rolling forward
+again, so its holder signs in once more. Its row lapses after 30 days, or
+`DELETE FROM users_tokens WHERE context = 'session' AND inserted_at >= '<when
+you rolled back>'` removes it at once. The migration's
+`down` ends every browser session, since the raw tokens can't be recovered.
+
 ## Deployment defaults got stricter
 
 - **`deploy/slipdock.service` runs a production release now**, not

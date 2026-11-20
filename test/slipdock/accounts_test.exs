@@ -28,7 +28,7 @@ defmodule Slipdock.AccountsTest do
     token = Accounts.generate_session_token(user)
     assert Accounts.get_user_by_session_token(token).id == user.id
 
-    Repo.update_all(UserToken.by_token_and_context(token, "session"),
+    Repo.update_all(UserToken.by_session_token(token),
       set: [inserted_at: DateTime.add(DateTime.utc_now(:second), -31, :day)]
     )
 

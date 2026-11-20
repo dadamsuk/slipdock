@@ -107,7 +107,7 @@ defmodule SlipdockWeb.AuthLiveTest do
 
   test "signing out disconnects the session's open tabs", %{conn: conn} do
     token = get_session(conn, :user_token)
-    topic = "users_sessions:#{Base.url_encode64(token)}"
+    topic = "users_sessions:#{Base.url_encode64(:crypto.hash(:sha256, token))}"
     assert get_session(conn, :live_socket_id) == topic
     SlipdockWeb.Endpoint.subscribe(topic)
 

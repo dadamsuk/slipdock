@@ -2,9 +2,9 @@ defmodule Slipdock.Accounts.UserToken do
   @moduledoc """
   Tokens for magic-link sign-in ("magic"), browser sessions ("session"),
   API access ("api") and confirming a change of the instance's admin
-  address ("admin_email", a code sent to the new address). Every token but
-  the session one is stored hashed; the session token is random and stored
-  as-is (it only ever lives in the signed session cookie).
+  address ("admin_email", a code sent to the new address). Every token is
+  stored hashed: the session cookie keeps the raw session token and the row
+  keeps its SHA-256 digest (`session_digest/1`), like the others.
   """
   use Ecto.Schema
   import Ecto.Query
@@ -72,14 +72,32 @@ defmodule Slipdock.Accounts.UserToken do
 
   ## Sessions
 
+  @doc "Returns `{token, struct}`: the raw token for the cookie, its digest in the row."
   def build_session_token(user) do
     token = :crypto.strong_rand_bytes(@rand_size)
-    {token, %__MODULE__{token: token, context: "session", user_id: user.id}}
+    {token, %__MODULE__{token: session_digest(token), context: "session", user_id: user.id}}
   end
+
+  @doc """
+  The digest a session token is stored as. The migration
+  `20261120020000_hash_session_tokens` turned the rows from before it into
+  the same digest with Postgres's `sha256/1`, so the two must agree.
+  """
+  def session_digest(token) when is_binary(token), do: :crypto.hash(@hash_algorithm, token)
+
+  @doc """
+  The id a browser session's LiveViews connect under, made from the stored
+  digest so it can be worked out from the row alone (to disconnect them).
+  """
+  def live_socket_id(digest) when is_binary(digest),
+    do: "users_sessions:#{Base.url_encode64(digest)}"
+
+  @doc "The session row for a raw session token, the cookie's."
+  def by_session_token(token), do: by_token_and_context(session_digest(token), "session")
 
   def verify_session_token_query(token) do
     query =
-      from(t in by_token_and_context(token, "session"),
+      from(t in by_session_token(token),
         join: u in assoc(t, :user),
         where: t.inserted_at > ago(@session_validity_days, "day"),
         select: u

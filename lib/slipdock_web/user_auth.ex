@@ -49,7 +49,23 @@ defmodule SlipdockWeb.UserAuth do
     user = token && Accounts.get_user_by_session_token(token)
     SlipdockWeb.Dates.put_zone(user && Slipdock.Timezones.of(user))
     put_actor(user && Slipdock.Actor.web(user), user)
-    assign(conn, :current_user, user)
+
+    conn
+    |> refresh_live_socket_id(user && token)
+    |> assign(:current_user, user)
+  end
+
+  # A cookie from before session tokens were stored as digests (#3503) holds a
+  # LiveView id made from the raw token, which a disconnect no longer reaches.
+  # Its next request swaps in the id made from the digest.
+  defp refresh_live_socket_id(conn, nil), do: conn
+
+  defp refresh_live_socket_id(conn, token) do
+    id = Accounts.session_live_socket_id(token)
+
+    if get_session(conn, :live_socket_id) == id,
+      do: conn,
+      else: put_session(conn, :live_socket_id, id)
   end
 
   @doc """
@@ -293,7 +309,7 @@ defmodule SlipdockWeb.UserAuth do
   defp put_token_in_session(conn, token) do
     conn
     |> put_session(:user_token, token)
-    |> put_session(:live_socket_id, "users_sessions:#{Base.url_encode64(token)}")
+    |> put_session(:live_socket_id, Accounts.session_live_socket_id(token))
   end
 
   defp maybe_store_return_to(%{method: "GET"} = conn) do
