@@ -1,8 +1,10 @@
 defmodule SlipdockWeb.API.CardController do
   use SlipdockWeb, :controller
 
+  alias Slipdock.Actor
   alias Slipdock.Boards
   alias Slipdock.Boards.Comment
+  alias Slipdock.Runners.ReadMark
   alias Slipdock.Swimlanes.Config
   alias SlipdockWeb.API.Authorize
   alias SlipdockWeb.API.Uploads
@@ -72,6 +74,11 @@ defmodule SlipdockWeb.API.CardController do
   def show(conn, %{"id" => id}) do
     with {:ok, card} <- fetch_card(id),
          :ok <- Authorize.card(conn, card, :read) do
+      # A read under a runner job (#3520): its own card as it was at claim,
+      # and a mark on the job when the text is less trusted than its tier.
+      {card, as_at} =
+        ReadMark.read_card_as(card, Actor.from_conn(conn).job_id, conn.assigns.current_user)
+
       # The wiki pages that talk about this card, pinned first. Only here and
       # not in listings: it is one query per card, and a board listing would
       # pay it hundreds of times for something nobody reads in a table.
@@ -112,6 +119,7 @@ defmodule SlipdockWeb.API.CardController do
             :waiting_on_me,
             SlipdockWeb.API.WaitingJSON.for_card(conn.assigns.current_user, card)
           )
+          |> ReadMark.put_as_at_claim(as_at)
       })
     end
   end

@@ -2028,12 +2028,13 @@ but `sh` and `curl` can speak it:
 
 ```
 POST /api/runner/claim?wait=25             204, or 200 with X-Job-Id, X-Job-Kind, X-Card-Id,
-                                           X-Card-Ref, X-Card-Url, X-Lease-Seconds, X-Prompt-Tier;
-                                           prompt as body
+                                           X-Card-Ref, X-Card-Url, X-Lease-Seconds, X-Prompt-Tier,
+                                           X-Job-Hook-Key; prompt as body
 POST /api/runner/jobs/:id/heartbeat        body = log tail  → ok | cancel
 POST /api/runner/jobs/:id/finish?exit=N&status=S   body = last output → ok
                                            (status=requeue&trouble=K&until=T&reason=R → ok queued)
 POST /api/runner/jobs/:id/transcript?from=N  body = transcript lines from N → ok L | capped L
+GET  /api/runner/jobs/:id/mark             with the job's hook key → clear | marked <reason>
 ```
 
 **A job's trust tier.** `X-Prompt-Tier` is the least-trusted author of
@@ -2046,6 +2047,21 @@ isn't a verify, whoever rejected the card, opened or answered its wait and
 left its handoff. The server only says the tier: the machine's ceiling
 decides what a job of each tier may do (`tiers`, in the manual's
 *Machines* page).
+
+**What a job reads while it runs.** A read of a card that sends a job's
+id as `x-slipdock-job` (`GET /api/cards/:id`, which `slipdock card` uses,
+and MCP `get_card`), by the person whose runner holds the job, is held to
+the job's claim. Its own card comes back as it was at claim: the title,
+description and bar the claim saw, no comment written since, and
+`as_at_claim`, the claim's time. Any card read whose text has an author
+less trusted than the job's tier (its title, description and bar, except
+on the job's own card, and its comments) marks the job: the job JSON's
+`marked_at` and `mark_reason`, beside its `prompt_tier`. The mark lasts the
+run. The claim's `X-Job-Hook-Key` is a key that reads that one job's mark,
+`GET /api/runner/jobs/:id/mark` with `Authorization: Bearer sdh_…`:
+`clear`, or `marked` and the reason. The runner daemon gives a Claude Code
+agent a `PreToolUse` hook that asks it before each shell, web or MCP call
+(Slipdock's own MCP aside) and refuses the call once the job is marked.
 
 **A job's live log.** While a job runs, its runner sends the agent's
 Claude Code transcript about once a minute, and once more as the job
@@ -4314,6 +4330,7 @@ POST   /api/runner/claim
     POST   /api/runner/jobs/:id/heartbeat
     POST   /api/runner/jobs/:id/transcript
     POST   /api/runner/jobs/:id/finish
+    GET    /api/runner/jobs/:id/mark
     GET    /api/deployments/last
     POST   /api/deployments
     POST   /api/deployments/failed

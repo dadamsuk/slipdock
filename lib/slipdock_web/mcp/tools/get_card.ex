@@ -2,7 +2,8 @@ defmodule SlipdockWeb.MCP.Tools.GetCard do
   @moduledoc "One card in full: handoff, description, checklist, comments, dependencies and docs."
   @behaviour SlipdockWeb.MCP.Tool
 
-  alias Slipdock.Boards
+  alias Slipdock.{Actor, Boards}
+  alias Slipdock.Runners.ReadMark
   alias SlipdockWeb.API.Authorize
   alias SlipdockWeb.API.JSON, as: V
   alias SlipdockWeb.MCP.Args
@@ -50,6 +51,8 @@ defmodule SlipdockWeb.MCP.Tools.GetCard do
     with {:ok, id} <- Args.id(args, "card"),
          {:ok, card} <- fetch(id),
          :ok <- Args.refusal(Authorize.card(auth, card, :read)) do
+      # A read under a runner job (#3520), as `GET /api/cards/:id` does.
+      {card, as_at} = ReadMark.read_card_as(card, Actor.current().job_id, context.user)
       docs = card |> Slipdock.Wiki.pages_for_card(context.user) |> Enum.map(&doc/1)
       zone = Slipdock.Timezones.of(context.user)
 
@@ -73,7 +76,8 @@ defmodule SlipdockWeb.MCP.Tools.GetCard do
        |> V.put_handbook(card, context.user, context[:token])
        |> Map.put(:waiting_on_me, SlipdockWeb.API.WaitingJSON.for_card(context.user, card))
        |> put_timeline(card, args["timeline"] == true)
-       |> put_waits(card, args["waits"] == true)}
+       |> put_waits(card, args["waits"] == true)
+       |> ReadMark.put_as_at_claim(as_at)}
     end
   end
 

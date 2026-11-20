@@ -102,6 +102,15 @@ defmodule Slipdock.Runners.Job do
     field :tool_seconds, :integer
     field :tokens, :map
     field :cost_lines, :integer, default: 0
+    # What its reads are held to (#3520, `Slipdock.Runners.ReadMark`): its
+    # tier at claim, its card's title, description and bar as they were
+    # then, the hash of the key its machine's hook asks with, and when and
+    # why a read of less-trusted text marked it. Set by the server alone.
+    field :prompt_tier, :string
+    field :claim_text, :map
+    field :hook_key_hash, :binary, redact: true
+    field :marked_at, :utc_datetime
+    field :mark_reason, :string
 
     belongs_to :board, Slipdock.Boards.Board
     belongs_to :root_board, Slipdock.Boards.Board

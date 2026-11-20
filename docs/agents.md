@@ -1588,7 +1588,12 @@ outside it, and the log of accepted and rejected changes. A claimed
 job's `X-Prompt-Tier` header is the least-trusted author of its prompt's
 text (`owner`, `member` or `anyone`); the ceiling's `tiers` say what a job
 of each tier may run as, and a job whose tier they don't name is refused
-on the machine. The runner
+on the machine. A job's agent reading a card with `x-slipdock-job` (REST
+or MCP `get_card`) reads its own card as it was at claim (`as_at_claim`),
+and text by an author less trusted than the job's tier marks the job
+(`marked_at`, `mark_reason`); the daemon's `PreToolUse` hook asks for the
+mark with the claim's `X-Job-Hook-Key` (`GET /api/runner/jobs/:id/mark`)
+and refuses the shell, the network and pushing once it is set. The runner
 protocol takes the machine key with `X-Runner-Id`, for that machine's own
 runners only; each runner keeps its own identity, so a verify job still
 goes to a runner other than its builder.

@@ -587,6 +587,9 @@ func (w *Worker) agentCommand(c Config, agent machine.Command, path string, job 
 	switch c.Agent {
 	case "claude":
 		args = append(args, "-p", prompt, "--permission-mode", c.PermissionMode)
+		if settings := w.hookSettings(job); settings != "" {
+			args = append(args, "--settings", settings)
+		}
 		if len(agent.AllowedTools) > 0 {
 			args = append(args, "--allowedTools", strings.Join(agent.AllowedTools, ","))
 		}
@@ -620,6 +623,10 @@ func (w *Worker) jobEnv(j *jobRun) []string {
 	)
 	if j.lane != nil {
 		env = append(env, "SLIPDOCK_WORKTREE="+j.lane.path)
+	}
+	if w.hooked(job) {
+		// What the read-mark hook asks with (#3520): see hookSettings.
+		env = append(env, "SLIPDOCK_HOOK_KEY="+job.HookKey, "SLIPDOCK_HOOK_URL="+w.markURL(job))
 	}
 	if w.Runner.Config.Agent == "claude" {
 		// Print mode stops a run's background tasks (the subagents a pass

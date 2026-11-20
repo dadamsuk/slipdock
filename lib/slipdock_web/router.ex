@@ -169,6 +169,9 @@ defmodule SlipdockWeb.Router do
     post "/jobs/:id/heartbeat", RunnerController, :heartbeat
     post "/jobs/:id/transcript", RunnerController, :transcript
     post "/jobs/:id/finish", RunnerController, :finish
+    # Whether a read marked the job (#3520), asked by its hook with the
+    # job's own hook key.
+    get "/jobs/:id/mark", JobMarkController, :show
   end
 
   # Recording deploys from CI (see `SlipdockWeb.API.DeploymentController`):

@@ -63,6 +63,33 @@ defmodule Slipdock.Runners.TrustTier do
     end
   end
 
+  @doc """
+  The ids of the people who wrote `card`'s title, description and bar (0
+  for someone with no account here).
+  """
+  @spec text_authors(Card.t()) :: [integer]
+  def text_authors(%Card{} = card), do: earlier(card)
+
+  @doc """
+  The least-trusted tier among `ids`, as authors on `job`'s card: the
+  owner of its board tree is `owner`, someone who may write or comment on
+  the card `member`, anyone else (and 0) `anyone`. No ids is `owner`.
+  """
+  @spec least_of([integer], Job.t()) :: String.t()
+  def least_of(ids, %Job{} = job) do
+    card = (job.card_id && Repo.get(Card, job.card_id)) || []
+    owner_id = owner_id(card, job)
+
+    ids
+    |> Enum.uniq()
+    |> Enum.map(&tier_of(&1, owner_id, card))
+    |> Enum.max_by(&rank/1, fn -> "owner" end)
+  end
+
+  @doc "Whether tier `a` is less trusted than tier `b` (an unknown word is `anyone`)."
+  @spec less_trusted?(String.t(), String.t() | nil) :: boolean
+  def less_trusted?(a, b), do: rank(a) > rank(b)
+
   defp earlier(nil), do: []
   defp earlier(%Card{text_by: ids}) when is_list(ids), do: ids
   defp earlier(%Card{id: id}), do: creators(id)
@@ -173,5 +200,5 @@ defmodule Slipdock.Runners.TrustTier do
 
   defp tier_of(_id, _owner_id, _card), do: "anyone"
 
-  defp rank(tier), do: Enum.find_index(@tiers, &(&1 == tier))
+  defp rank(tier), do: Enum.find_index(@tiers, &(&1 == tier)) || length(@tiers) - 1
 end

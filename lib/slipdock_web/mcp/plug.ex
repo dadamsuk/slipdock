@@ -99,7 +99,7 @@ defmodule SlipdockWeb.MCP.Plug do
         # An agent's writes, for the activity log (#1735).
         # The user and token beside it, for `Slipdock.Policy` (#3168).
         Slipdock.Actor.put(
-          Slipdock.Actor.mcp(%{user: user, token: api_token}),
+          Slipdock.Actor.mcp(%{user: user, token: api_token, job_id: job_id(conn)}),
           nil,
           {user, api_token}
         )
@@ -116,6 +116,17 @@ defmodule SlipdockWeb.MCP.Plug do
              "unauthorized: connect with OAuth, or pass an API token as " <>
                "`Authorization: Bearer <token>` (Account → API tokens)"
          })}
+    end
+  end
+
+  # A runner job's agent may name its job (`x-slipdock-job`), as the CLI
+  # does: its reads are then held to the job's claim (#3520).
+  defp job_id(conn) do
+    with [value | _] <- get_req_header(conn, "x-slipdock-job"),
+         {id, ""} when id > 0 <- Integer.parse(String.trim(value)) do
+      id
+    else
+      _ -> nil
     end
   end
 
