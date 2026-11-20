@@ -443,6 +443,47 @@ defmodule Slipdock.Access do
   def can_edit_tags?(user, %Board{root_id: root_id}),
     do: can_write?(board_permission(user, Repo.get!(Board, root_id)))
 
+  @doc """
+  Whether the person `user` (a `%User{}` or an id) takes runner pool
+  `pool`'s jobs on the tree of `board` (a `%Board{}` or a board id, #3492):
+  they own its root, or they can write the root and its owner granted them
+  the pool (`Slipdock.Runners.PoolGrants`).
+  """
+  def may_take_pool?(nil, _board, _pool), do: false
+
+  def may_take_pool?(user_id, board, pool) when is_integer(user_id) do
+    case Accounts.get_user(user_id) do
+      nil -> false
+      user -> may_take_pool?(user, board, pool)
+    end
+  end
+
+  def may_take_pool?(%User{} = user, board, pool) do
+    pool = pool |> to_string() |> String.trim() |> String.downcase()
+
+    case pool_root(board) do
+      nil ->
+        false
+
+      %Board{owner_id: owner} when owner == user.id ->
+        true
+
+      %Board{} = root ->
+        pool_granted?(user.id, root.id, pool) and can_write?(board_permission(user, root))
+    end
+  end
+
+  defp pool_root(%Board{} = board), do: pool_root(Board.root_id(board))
+  defp pool_root(id) when is_integer(id), do: Repo.get(Board, id)
+
+  defp pool_granted?(user_id, root_id, pool) do
+    Repo.exists?(
+      from(g in Slipdock.Runners.PoolGrant,
+        where: g.board_id == ^root_id and g.pool == ^pool and g.user_id == ^user_id
+      )
+    )
+  end
+
   def can_read?(level), do: @rank[level] >= @rank[:read]
   def can_comment?(level), do: @rank[level] >= @rank[:comment]
   def can_write?(level), do: @rank[level] >= @rank[:write]

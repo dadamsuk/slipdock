@@ -45,7 +45,7 @@ defmodule SlipdockWeb.PoolGrantsLiveTest do
   test "somebody who can't write the board isn't granted it", %{conn: conn, board: board} do
     {:ok, view, _} = live(conn, ~p"/boards/#{board}/automations")
 
-    html = grant(view, "dev", "stranger@example.com")
+    html = grant(view, "dev", fixture_email("stranger@example.com"))
     assert html =~ "share it with them first"
     assert PoolGrants.list(board) == []
   end

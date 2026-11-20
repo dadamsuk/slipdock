@@ -22,33 +22,8 @@ defmodule Slipdock.Runners.PoolGrants do
   def normalize(pool) when is_binary(pool), do: pool |> String.trim() |> String.downcase()
   def normalize(pool), do: pool |> to_string() |> normalize()
 
-  @doc """
-  Whether the person `user` (a `%User{}` or an id) takes `pool`'s jobs on
-  the tree of `board` (a `%Board{}` or a board id): they own its root, or
-  they can write the root and its owner granted them the pool.
-  """
-  def may_take?(nil, _board, _pool), do: false
-
-  def may_take?(user_id, board, pool) when is_integer(user_id) do
-    case Accounts.get_user(user_id) do
-      nil -> false
-      user -> may_take?(user, board, pool)
-    end
-  end
-
-  def may_take?(%User{} = user, board, pool) do
-    case root(board) do
-      nil ->
-        false
-
-      %Board{owner_id: owner} when owner == user.id ->
-        true
-
-      %Board{} = root ->
-        granted?(user.id, root.id, normalize(pool)) and
-          Access.can_write?(Access.board_permission(user, root))
-    end
-  end
+  @doc "Whether `user` takes `pool`'s jobs on `board`'s tree: `Access.may_take_pool?/3`."
+  defdelegate may_take?(user, board, pool), to: Access, as: :may_take_pool?
 
   @doc """
   Whether `runner` may take its pool's jobs, read afresh (a grant can be
@@ -154,14 +129,6 @@ defmodule Slipdock.Runners.PoolGrants do
       from(g in PoolGrant,
         where: g.board_id == ^root_id and g.pool == ^pool and g.user_id == ^user_id,
         preload: [:user, :granted_by]
-      )
-    )
-  end
-
-  defp granted?(user_id, root_id, pool) do
-    Repo.exists?(
-      from(g in PoolGrant,
-        where: g.board_id == ^root_id and g.pool == ^pool and g.user_id == ^user_id
       )
     )
   end

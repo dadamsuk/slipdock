@@ -95,7 +95,7 @@ defmodule Slipdock.Runners.PoolGrantsTest do
       reader = person("reader")
       {:ok, _} = Access.grant(ctx.board, reader, "read", ctx.owner)
 
-      for email <- [stranger.email, reader.email, "nobody@example.com"] do
+      for email <- [stranger.email, reader.email, fixture_email("nobody@example.com")] do
         assert {:error, :invalid, message} =
                  PoolGrants.grant(ctx.board, "dev", email, as(ctx.owner))
 
@@ -106,7 +106,7 @@ defmodule Slipdock.Runners.PoolGrantsTest do
                PoolGrants.grant(ctx.board, "dev", ctx.owner.email, as(ctx.owner))
 
       assert PoolGrants.list(ctx.board) == []
-      refute Repo.get_by(Accounts.User, email: "nobody@example.com")
+      refute Accounts.get_user_by_email(fixture_email("nobody@example.com"))
     end
 
     test "a pool name is checked, and granting twice keeps one grant", ctx do

@@ -8,6 +8,7 @@ defmodule SlipdockWeb.API.PoolGrantController do
 
   alias Slipdock.Runners.PoolGrants
   alias SlipdockWeb.API.Authorize
+  alias SlipdockWeb.API.JSON, as: V
 
   action_fallback SlipdockWeb.API.FallbackController
 
@@ -24,7 +25,7 @@ defmodule SlipdockWeb.API.PoolGrantController do
             PoolGrants.list(board)
         end
 
-      json(conn, %{pool_grants: Enum.map(grants, &grant/1)})
+      json(conn, %{pool_grants: Enum.map(grants, &V.pool_grant/1)})
     end
   end
 
@@ -34,7 +35,7 @@ defmodule SlipdockWeb.API.PoolGrantController do
          {:ok, pool} <- need(params, "pool"),
          {:ok, email} <- need(params, "email") do
       case PoolGrants.grant(board, pool, email) do
-        {:ok, g} -> conn |> put_status(:created) |> json(%{pool_grant: grant(g)})
+        {:ok, g} -> conn |> put_status(:created) |> json(%{pool_grant: V.pool_grant(g)})
         {:error, :invalid, message} -> {:error, :unprocessable_entity, message}
         other -> other
       end
@@ -59,15 +60,5 @@ defmodule SlipdockWeb.API.PoolGrantController do
       value when is_binary(value) and value != "" -> {:ok, value}
       _ -> {:error, :unprocessable_entity, "#{key} is required"}
     end
-  end
-
-  defp grant(g) do
-    %{
-      id: g.id,
-      pool: g.pool,
-      user: %{id: g.user.id, email: g.user.email, name: g.user.name},
-      granted_by: g.granted_by && g.granted_by.email,
-      inserted_at: g.inserted_at
-    }
   end
 end

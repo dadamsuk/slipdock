@@ -158,7 +158,7 @@ defmodule SlipdockWeb.API.PoolGrantsTest do
         ctx.conn
         |> post("/api/boards/#{ctx.board.id}/pool-grants", %{
           pool: "dev",
-          email: "nobody@example.com"
+          email: fixture_email("nobody@example.com")
         })
         |> json_response(422)
 
