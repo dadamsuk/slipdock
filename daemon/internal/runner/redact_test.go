@@ -2,6 +2,11 @@ package runner
 
 import (
 	"encoding/base64"
+	"runtime"
+	"time"
+
+	"github.com/dadamsuk/slipdock/daemon/internal/executor"
+	"github.com/dadamsuk/slipdock/daemon/internal/machine"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -286,6 +291,86 @@ func TestNothingAJobUploadsCarriesASecret(t *testing.T) {
 					if strings.Contains(body, s) {
 						t.Errorf("the %s carries %q:\n%s", where, s, body)
 					}
+				}
+			}
+		})
+	}
+}
+
+// A job whose tier runs it as another account: that account's tokens, read
+// once the job's worker is known, are taken out of what it uploads, and so
+// is the job's own token.
+func TestAJobRunAsAnotherAccountUploadsNoneOfItsTokens(t *testing.T) {
+	account, jobTok := "account-literal-value", "job-token-literal-value-0"
+	acctHome := t.TempDir()
+	writeFile(t, filepath.Join(acctHome, ".config", "slipdock", "token"), account+"\n")
+	r := newRig(t, Config{})
+	r.w.Tiers = map[string]machine.Tier{"owner": {Executor: executor.User}}
+	r.w.newExecutor = func(name string, _ executor.Settings) (executor.Executor, error) {
+		me, err := executor.New(executor.Me, executor.Settings{GOOS: runtime.GOOS})
+		if name != executor.User {
+			return me, err
+		}
+		return asAccount{&recorder{Executor: me, home: acctHome}}, err
+	}
+	r.w.Local.Agents["claude"] = self("say-wait")
+	t.Setenv("HELPER_SAY", "the account's "+account+" and the job's "+jobTok)
+	f := r.runJob(fakeJob{id: 612, kind: "claude", card: 7, prompt: "x", token: jobTok})
+	r.srv.mu.Lock()
+	beats := r.srv.beats[612]
+	r.srv.mu.Unlock()
+	if !strings.Contains(f.body, "the account's [redacted] and the job's [redacted]") {
+		t.Fatalf("finish = %+v, want the agent's line, redacted", f)
+	}
+	for where, body := range map[string]string{"finish body": f.body, "heartbeats": strings.Join(beats, "\n")} {
+		for _, s := range []string{account, jobTok} {
+			if strings.Contains(body, s) {
+				t.Errorf("the %s carries %q:\n%s", where, s, body)
+			}
+		}
+	}
+}
+
+// What the daemon writes itself, when there is no job log to send, goes
+// through the redactor too: the machine's tokens and the job's.
+func TestTheDaemonsOwnMessagesAreRedacted(t *testing.T) {
+	literal, jobTok := "plain-env-literal-value", "job-token-literal-value-0"
+	for _, c := range []struct {
+		name  string
+		setup func(r *rig)
+	}{
+		{"no job log", func(r *rig) {
+			// The jobs folder is under a file, so the job's log can't be
+			// made, and the error names the file.
+			file := filepath.Join(t.TempDir(), literal+"."+jobTok)
+			writeFile(t, file, "x")
+			r.w.JobsDir = filepath.Join(file, "jobs")
+		}},
+		{"given back unrun", func(r *rig) {
+			// Held while it waited in its claim, as in
+			// TestAJobClaimedWhileHeldIsGivenBackUnrun.
+			r.w.Holds = NewHolds()
+			r.w.Client.HTTP.Transport = holdOnClaim{r.w.Client.HTTP.Transport, func() {
+				r.w.Holds.Limit("claude", time.Now().Add(time.Hour), time.Now(), "held with "+literal+" and "+jobTok)
+			}}
+		}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			r := newRig(t, Config{})
+			r.w.Getenv = func(k string) string {
+				if k == "SLIPDOCK_TOKEN" {
+					return literal
+				}
+				return ""
+			}
+			c.setup(r)
+			f := r.runJob(fakeJob{id: 613, kind: "claude", card: 7, prompt: "x", token: jobTok})
+			if !strings.Contains(f.body, "slipdock-runner: ") || !strings.Contains(f.body, "[redacted]") {
+				t.Fatalf("finish = %+v, want the daemon's message, redacted", f)
+			}
+			for _, s := range []string{literal, jobTok} {
+				if strings.Contains(f.body, s) {
+					t.Errorf("the finish body carries %q: %q", s, f.body)
 				}
 			}
 		})
