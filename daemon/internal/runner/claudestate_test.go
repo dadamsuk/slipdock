@@ -57,7 +57,10 @@ func TestAConfinedClaudeJobWritesOnlyItsSessionState(t *testing.T) {
 		}
 	}
 	profile := executor.SandboxProfile(w)
-	if strings.Contains(profile, `(subpath "`+claude+`")`) || !strings.Contains(profile, `(subpath "`+filepath.Join(claude, "projects")+`")`) {
+	// The profile quotes a path as SBPL does (a Windows path's backslashes
+	// doubled), so the paths are looked for quoted the same way.
+	subpath := func(p string) string { return `(subpath "` + strings.ReplaceAll(p, `\`, `\\`) + `")` }
+	if strings.Contains(profile, subpath(claude)) || !strings.Contains(profile, subpath(filepath.Join(claude, "projects"))) {
 		t.Fatalf("the macOS profile:\n%s", profile)
 	}
 
