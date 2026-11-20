@@ -135,6 +135,11 @@ Slipdock.Recordings.resolve/3 a read: its only writes cache where a recording is
 Slipdock.Recurrence.card_archived/1 archiving a series' current instance pauses the series, with a comment saying so
 Slipdock.Recurrence.completion_changed/1 completing or reopening an after-done instance sets when the next is made
 Slipdock.Recurrence.tick/1 the scheduler's clock makes each series' next instance
+Slipdock.Runners.Quarantine.gate/2 the runner protocol's claim (#3531): keeps the quarantined reader's fields on the job just claimed, or parks it on a wait for a person (hold/3); no person is behind it
+Slipdock.Runners.Quarantine.hold/3 the server parking a job it won't hand out on a security wait for a person (#3531), as the runner protocol's claim; the wait's open asks, under Policy.as_system
+Slipdock.Runners.Quarantine.prompt/1 a read of a claimed job's prompt: its only write keeps the quarantined reader's fields on the job (#3531)
+Slipdock.Runners.Quarantine.read/1 a read of a job's card text: its only write keeps the quarantined reader's fields on the job (#3531)
+Slipdock.Runners.claimed_prompt/1 a read of a claimed job's prompt: its only write keeps the quarantined reader's fields on the job (#3531, Runners.Quarantine.read/1)
 Slipdock.Settings.allowlisted?/1 a read at the sign-in page: its only write makes the server's settings row the first time it is read
 Slipdock.Settings.complete_setup/1 the setup wizard or the command line, before anybody can sign in
 Slipdock.Settings.ensure_setup_token/0 the setup wizard's token, made the first time an unclaimed server is visited

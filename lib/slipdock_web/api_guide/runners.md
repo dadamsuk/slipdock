@@ -247,6 +247,20 @@ owner's; with no live job of that person's named, at `member` at most. The serve
 decides what a job of each tier may do (`tiers`, in the manual's
 *Machines* page).
 
+**An `anyone` job's prompt** (#3531). A build job at the `anyone` tier is
+handed a prompt without its card's text: a model with no tools reads the
+text at claim and quotes from it into `requirement`, `files`,
+`expected_behaviour`, `acceptance`, `context` and `open_questions`, each
+value checked by the server (copied word for word, files inside the
+repository, links only in the context, a length cap), and the prompt
+holds only those, under a header saying they are quoted from an untrusted
+author. A read that speaks to an agent, fails, is invalid or finds no AI
+key is never handed out: the job ends `parked` on a `security` wait on the
+card, and the claim answers the next job, or 204. A JSON claim of such a
+job (`POST /api/boards/:board/jobs/claim`, MCP `claim_job`) gives its
+`wait` and `handoff` as `{"id": …}` alone and no card title: their text is
+what the prompt leaves out.
+
 **What a job reads while it runs.** A read of a card that sends a job's
 id as `x-slipdock-job` (`GET /api/cards/:id`, which `slipdock card` uses,
 and MCP `get_card`), by the person whose runner holds the job, is held to

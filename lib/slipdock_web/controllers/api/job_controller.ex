@@ -362,8 +362,7 @@ defmodule SlipdockWeb.API.JobController do
               %{
                 job:
                   job
-                  |> Map.put(:prompt, Runners.claimed_prompt(job))
-                  |> V.job()
+                  |> V.claimed_job()
                   # The card's profile (#1953), nil with profiles off.
                   |> Map.put(:profile, Runners.job_profile(job)),
                 lease_seconds: Runners.lease_for(runner)
@@ -377,10 +376,8 @@ defmodule SlipdockWeb.API.JobController do
 
   # The answered question a job carries on from, and the card's handoff,
   # beside the prompt that already says them (#1115).
-  defp context(job) do
-    %{wait: wait, handoff: handoff} = Runners.claim_context(job)
-    %{wait: V.wait(wait), handoff: handoff && V.handoff(handoff)}
-  end
+  # An `anyone`-tier job's are their ids alone (#3531, `V.claim_context/1`).
+  defp context(job), do: job |> V.claim_context() |> Map.take([:wait, :handoff])
 
   # No job to take, but work held (paused, WIP full, waiting on a card in
   # progress): say why, so an empty answer isn't read as an empty queue.

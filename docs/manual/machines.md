@@ -261,6 +261,30 @@ anything runs, and one from a server that doesn't say its tier counts as
 which must be on `container_images`. A ceiling without `tiers` runs every
 job as its runner says.
 
+**What an `anyone` job's agent sees** (#3531). A build job at the `anyone`
+tier never gets its card's text. At claim, the server has a model with no
+tools read the text (title, description, bar, paths, a rejection, a wait's
+question and answer, the handoff) and quote from it into fixed fields: the
+requirement, the files it names, the expected behaviour, the bar's items,
+the context and the open questions. The server checks every value: each
+must be copied word for word from the text, a file must stay inside the
+repository (no `..`, no `~`, no leading `/`), a link may appear only in the
+context, and each field has a length cap. A value that fails is dropped.
+The agent's prompt holds only these fields, under a header saying they are
+quoted from an untrusted author, with the server's own paragraphs (how the
+card ships, its list, the rules for working unattended).
+
+The job waits for a person instead of running, as a `security` wait on its
+card, when the read speaks to an agent (a hidden comment, a note to AI
+agents, an item telling the agent to run something), fails, comes back in
+the wrong form, or finds no AI key on the server. It never falls back to
+the text itself. Take out what was aimed at an agent and answer the wait,
+and the card is sent again and read afresh. The read uses the server's
+quick model and the key unattended work spends, once per version of the
+text. It stops notes aimed at agents and smuggled paths; it does not stop a
+hostile request written as the card's requirement, which the tier's
+ceiling and a person reviewing the change still must.
+
 #### What a job reads while it runs
 
 A job's agent reads more than its prompt: it looks cards up with
