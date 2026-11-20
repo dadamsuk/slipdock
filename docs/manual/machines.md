@@ -274,6 +274,14 @@ The agent's prompt holds only these fields, under a header saying they are
 quoted from an untrusted author, with the server's own paragraphs (how the
 card ships, its list, the rules for working unattended).
 
+The agent can't reach the text another way either. Reading its own card
+under the job (`slipdock card`, MCP `get_card`) gives the same quoted
+fields and none of the card's title, description, bar or comments. A view
+of the job itself (`slipdock job`, `slipdock jobs`, the job lists in the
+API) leaves its prompt and its card's title out, marked `text_withheld`,
+for everyone but the board's owner, and for the owner too when the read is
+made under a runner job. Owner and member jobs show as ever.
+
 The job waits for a person instead of running, as a `security` wait on its
 card, when the read speaks to an agent (a hidden comment, a note to AI
 agents, an item telling the agent to run something), fails, comes back in

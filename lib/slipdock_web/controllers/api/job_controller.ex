@@ -97,6 +97,7 @@ defmodule SlipdockWeb.API.JobController do
     with {:ok, board} <- Authorize.fetch_board(conn, ref, :owner),
          {:ok, runner} <- Runners.find_runner(board, id) do
       d = Runners.runner_details(runner, limit: min(limit(params["limit"], 10), 50))
+      text? = Authorize.job_text?(conn, board)
 
       json(conn, %{
         runner:
@@ -112,12 +113,15 @@ defmodule SlipdockWeb.API.JobController do
                   last_used_at: d.api_token.last_used_at,
                   expires_at: d.api_token.expires_at
                 },
-            current_job: d.current_job && V.job(d.current_job),
+            current_job: d.current_job && V.job(d.current_job, text?),
             job_counts: d.job_counts,
             jobs_total: d.jobs_total,
             # The list, not the logs: `slipdock job <id>` has those.
             recent_jobs:
-              Enum.map(d.recent_jobs, &(&1 |> V.job() |> Map.drop([:prompt, :log_tail, :output]))),
+              Enum.map(
+                d.recent_jobs,
+                &(&1 |> V.job(text?) |> Map.drop([:prompt, :log_tail, :output]))
+              ),
             rules: Enum.map(d.rules, &%{id: &1.id, name: &1.name, board_id: &1.board_id})
           })
       })
@@ -208,20 +212,22 @@ defmodule SlipdockWeb.API.JobController do
   def index(conn, %{"board" => ref} = params) do
     with {:ok, board} <- Authorize.fetch_board(conn, ref, :read) do
       jobs = Runners.list_jobs(board, status: params["status"], limit: limit(params["limit"]))
-      json(conn, %{jobs: Enum.map(jobs, &V.job/1)})
+      text? = Authorize.job_text?(conn, board)
+      json(conn, %{jobs: Enum.map(jobs, &V.job(&1, text?))})
     end
   end
 
   def card_jobs(conn, %{"id" => id}) do
     with {:ok, card} <- CardWrites.fetch_card(id),
          :ok <- Authorize.card(conn, card, :read) do
-      json(conn, %{jobs: Enum.map(Runners.list_card_jobs(card.id), &V.job/1)})
+      text? = Authorize.job_text?(conn, card)
+      json(conn, %{jobs: Enum.map(Runners.list_card_jobs(card.id), &V.job(&1, text?))})
     end
   end
 
   def show(conn, %{"id" => id}) do
-    with {:ok, job, _card} <- fetch_job(conn, id, :read) do
-      json(conn, %{job: V.job(job)})
+    with {:ok, job, card} <- fetch_job(conn, id, :read) do
+      json(conn, %{job: V.job(job, Authorize.job_text?(conn, card))})
     end
   end
 
@@ -283,9 +289,9 @@ defmodule SlipdockWeb.API.JobController do
   def keep(conn, params), do: SlipdockWeb.Ops.REST.run(conn, SlipdockWeb.Ops.KeepJobLog, params)
 
   def cancel(conn, %{"id" => id}) do
-    with {:ok, job, _card} <- fetch_job(conn, id, :write) do
+    with {:ok, job, card} <- fetch_job(conn, id, :write) do
       case Runners.cancel_job(job) do
-        {:ok, job} -> json(conn, %{job: V.job(job)})
+        {:ok, job} -> json(conn, %{job: V.job(job, Authorize.job_text?(conn, card))})
         {:error, message} -> {:error, :unprocessable_entity, message}
       end
     end
@@ -451,7 +457,7 @@ defmodule SlipdockWeb.API.JobController do
 
       case Runners.finish_waiting(runner, job.id, open, %{output: params["summary"]}) do
         {:ok, job, wait} ->
-          json(conn, %{job: V.job(job), wait: V.wait(wait)})
+          json(conn, %{job: V.job(job, Authorize.job_text?(conn, card)), wait: V.wait(wait)})
 
         {:error, :not_found} ->
           {:error, :forbidden, "this job wasn't claimed with this token"}
@@ -468,7 +474,7 @@ defmodule SlipdockWeb.API.JobController do
   def finish(conn, %{"id" => id} = params) do
     outcome = params["outcome"] || "done"
 
-    with {:ok, job, _card} <- fetch_job(conn, id, :write),
+    with {:ok, job, card} <- fetch_job(conn, id, :write),
          {:ok, runner} <- session_job(job, conn),
          :ok <- outcome(outcome),
          {:ok, job} <-
@@ -477,7 +483,7 @@ defmodule SlipdockWeb.API.JobController do
              exit: if(outcome == "done", do: 0, else: 1),
              output: params["summary"]
            }) do
-      json(conn, %{job: V.job(job)})
+      json(conn, %{job: V.job(job, Authorize.job_text?(conn, card))})
     end
   end
 

@@ -118,6 +118,27 @@ defmodule SlipdockWeb.API.Authorize do
     |> check(need, "card")
   end
 
+  @doc """
+  Whether this request sees an `anyone`-tier job's text (#3535): the prompt
+  it was queued with, filled from its card, and its card's title
+  (`SlipdockWeb.API.JSON.job/2`). The owner of `subject` (the job's card,
+  or the board a list of jobs is read from) does, their token's scope
+  allowing; nobody below them does, and neither does a read made under a
+  runner job (`x-slipdock-job`), which is an agent's, not the owner's.
+  """
+  def job_text?(conn, %Slipdock.Boards.Board{} = board),
+    do: board(conn, board, :owner) == :ok and not under_job?(conn)
+
+  def job_text?(conn, %Slipdock.Boards.Card{} = card),
+    do: card(conn, card, :owner) == :ok and not under_job?(conn)
+
+  defp under_job?(conn) do
+    Enum.any?(
+      [Slipdock.Actor.from_conn(conn), Slipdock.Actor.current()],
+      &is_integer(Map.get(&1, :job_id))
+    )
+  end
+
   def page(conn, page, need) do
     conn
     |> level(Access.page_permission(conn.assigns.current_user, page), page.board_id)

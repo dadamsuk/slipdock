@@ -52,7 +52,7 @@ defmodule SlipdockWeb.Ops.KeepJobLog do
          %{} = card <- Boards.Cards.get_card(job.card_id) || {:error, :not_found, "job"},
          :ok <- Authorize.card(auth, card, :write),
          {:ok, page, job} <- keep(job, auth) do
-      {:ok, %{job: V.job(job), page: V.page_summary(page)}}
+      {:ok, %{job: V.job(job, Authorize.job_text?(auth, card)), page: V.page_summary(page)}}
     end
   end
 

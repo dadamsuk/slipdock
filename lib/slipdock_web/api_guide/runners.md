@@ -261,6 +261,16 @@ job (`POST /api/boards/:board/jobs/claim`, MCP `claim_job`) gives its
 `wait` and `handoff` as `{"id": …}` alone and no card title: their text is
 what the prompt leaves out.
 
+Every other view of a job whose tier is `anyone` (`GET /api/jobs/:id`, the
+board's and a card's job lists, a cancel or finish, a runner's details,
+Keep this log over REST and MCP) leaves out its `prompt` and its `card`
+title, with `text_withheld: true`, for anyone below the board's owner and
+for any read that sends `x-slipdock-job`; the owner reading in person sees
+them. Owner and member jobs are unchanged. A read of its own card under
+such a job (below) gives no card text either: `quarantined`, the fields
+the claim quoted, the same fields under their header as `description`,
+and `title`, `bar`, comments and checklist empty.
+
 **What a job reads while it runs.** A read of a card that sends a job's
 id as `x-slipdock-job` (`GET /api/cards/:id`, which `slipdock card` uses,
 and MCP `get_card`), by the person whose runner holds the job, is held to

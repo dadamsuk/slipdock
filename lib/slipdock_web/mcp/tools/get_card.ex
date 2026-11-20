@@ -51,34 +51,51 @@ defmodule SlipdockWeb.MCP.Tools.GetCard do
     with {:ok, id} <- Args.id(args, "card"),
          {:ok, card} <- fetch(id),
          :ok <- Args.refusal(Authorize.card(auth, card, :read)) do
-      # A read under a runner job (#3520), as `GET /api/cards/:id` does.
-      {card, as_at} = ReadMark.read_card_as(card, Actor.current().job_id, context.user)
-      docs = card |> Slipdock.Wiki.pages_for_card(context.user) |> Enum.map(&doc/1)
-      zone = Slipdock.Timezones.of(context.user)
+      job_id = Actor.current().job_id
 
-      {:ok,
-       auth
-       |> Authorize.visible(Boards.with_state(card))
-       |> V.card()
-       |> Map.put(:docs, docs)
-       |> Map.put(:wait, V.wait(Boards.Waits.current_wait(card)))
-       |> Map.put(:last_wait, V.wait(Boards.Waits.last_wait(card)))
-       |> Map.put(:url, url(card, context.base_url))
-       |> Map.put(:rejection, Slipdock.Verified.rejection(card))
-       |> V.put_delivery(card, zone)
-       |> V.put_outcome(card, zone)
-       |> V.put_lead_time(card)
-       |> V.put_shipping(card)
-       |> V.put_findings(card)
-       |> V.put_copied_from(card, context.user)
-       |> V.put_authors(card)
-       |> V.put_incidents(card, context.user, context[:token])
-       |> V.put_handbook(card, context.user, context[:token])
-       |> Map.put(:waiting_on_me, SlipdockWeb.API.WaitingJSON.for_card(context.user, card))
-       |> put_timeline(card, args["timeline"] == true)
-       |> put_waits(card, args["waits"] == true)
-       |> ReadMark.put_as_at_claim(as_at)}
+      case ReadMark.quarantined_job(card, job_id, context.user) do
+        nil ->
+          full(auth, card, job_id, args, context)
+
+        # Its own card, under a job its claim quoted (#3535), as REST does.
+        job ->
+          {:ok,
+           card
+           |> Boards.with_state()
+           |> V.quarantined_card(job)
+           |> Map.put(:url, url(card, context.base_url))}
+      end
     end
+  end
+
+  defp full(auth, card, job_id, args, context) do
+    # A read under a runner job (#3520), as `GET /api/cards/:id` does.
+    {card, as_at} = ReadMark.read_card_as(card, job_id, context.user)
+    docs = card |> Slipdock.Wiki.pages_for_card(context.user) |> Enum.map(&doc/1)
+    zone = Slipdock.Timezones.of(context.user)
+
+    {:ok,
+     auth
+     |> Authorize.visible(Boards.with_state(card))
+     |> V.card()
+     |> Map.put(:docs, docs)
+     |> Map.put(:wait, V.wait(Boards.Waits.current_wait(card)))
+     |> Map.put(:last_wait, V.wait(Boards.Waits.last_wait(card)))
+     |> Map.put(:url, url(card, context.base_url))
+     |> Map.put(:rejection, Slipdock.Verified.rejection(card))
+     |> V.put_delivery(card, zone)
+     |> V.put_outcome(card, zone)
+     |> V.put_lead_time(card)
+     |> V.put_shipping(card)
+     |> V.put_findings(card)
+     |> V.put_copied_from(card, context.user)
+     |> V.put_authors(card)
+     |> V.put_incidents(card, context.user, context[:token])
+     |> V.put_handbook(card, context.user, context[:token])
+     |> Map.put(:waiting_on_me, SlipdockWeb.API.WaitingJSON.for_card(context.user, card))
+     |> put_timeline(card, args["timeline"] == true)
+     |> put_waits(card, args["waits"] == true)
+     |> ReadMark.put_as_at_claim(as_at)}
   end
 
   # Only when asked: most reads want the brief, not the history (#1131).

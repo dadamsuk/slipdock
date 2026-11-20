@@ -2662,7 +2662,13 @@ defmodule SlipdockCLI.Render do
     IO.puts("queued:   #{stamp(j["queued_at"])}")
     if j["finished_at"], do: IO.puts("finished: #{stamp(j["finished_at"])}")
     job_log_fate(j)
-    IO.puts("\nprompt:\n" <> indent(j["prompt"] || ""))
+
+    if j["text_withheld"] do
+      # An anyone-tier job read below the board's owner (#3535).
+      IO.puts("\nprompt:   withheld: its card's text is by an untrusted author")
+    else
+      IO.puts("\nprompt:\n" <> indent(j["prompt"] || ""))
+    end
 
     case j["output"] || j["log_tail"] do
       text when text in [nil, ""] -> :ok

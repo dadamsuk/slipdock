@@ -27,7 +27,7 @@ defmodule Slipdock.Runners.ReadMark do
   alias Slipdock.Accounts.User
   alias Slipdock.Boards.{Card, Comment}
   alias Slipdock.Repo
-  alias Slipdock.Runners.{Job, Runner, TrustTier}
+  alias Slipdock.Runners.{Job, Quarantine, Runner, TrustTier}
 
   @key_prefix "sdh_"
   @text_fields ~w(title description bar)
@@ -114,6 +114,25 @@ defmodule Slipdock.Runners.ReadMark do
   @spec read_card_as(Card.t(), term, User.t() | nil) :: {Card.t(), DateTime.t() | nil}
   def read_card_as(%Card{} = card, job_id, user),
     do: read_card(card, reading_job(job_id, user))
+
+  @doc """
+  The job a read of `card` naming `job_id` is made under, when that read
+  gives the job's quarantined read rather than the card (#3535): the job's
+  own card, on a job whose card text the claim quoted through
+  `Slipdock.Runners.Quarantine` (`card_read_quarantined?/1`). Else nil, and
+  the read goes through `read_card_as/3`. Such a read returns none of the
+  card's text, so it marks nothing.
+  """
+  @spec quarantined_job(Card.t(), term, User.t() | nil) :: Job.t() | nil
+  def quarantined_job(%Card{id: card_id}, job_id, user) do
+    case reading_job(job_id, user) do
+      %Job{card_id: ^card_id} = job ->
+        if Quarantine.card_read_quarantined?(job), do: job
+
+      _ ->
+        nil
+    end
+  end
 
   @doc "Puts `as_at_claim` on a card's JSON when the read was held to a claim."
   @spec put_as_at_claim(map, DateTime.t() | nil) :: map
