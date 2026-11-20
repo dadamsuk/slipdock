@@ -55,4 +55,6 @@ Raw HTML is rendered and then sanitised: `<script>`, event handlers and
 `<a href>` and the usual formatting tags do, without any `id` you gave them:
 link to a heading (`[[#Heading]]`) or a block (`^a1b2`) instead. A `class`
 keeps only the wiki's own classes and `language-…`; any other class is
-dropped, so style with Markdown rather than CSS classes.
+dropped, so style with Markdown rather than CSS classes. A `style` keeps
+only `color`, `background-color`, `text-align` and a `width` in percent;
+any other declaration is dropped.

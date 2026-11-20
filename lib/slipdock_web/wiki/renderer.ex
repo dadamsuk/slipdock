@@ -56,10 +56,20 @@ defmodule SlipdockWeb.Wiki.Renderer do
       "article" => ["data-transcript"],
       "li" => ["data-speaker", "data-start-ms", "data-end-ms"]
     },
-    # The sanitiser lets `class` through on any tag; `allowed_classes/1`
-    # then keeps only the classes listed in `@classes`.
+    # The sanitiser lets `class` through on any tag, and `style` on a `div`,
+    # `span`, `pre` and `code`; `allowed_attributes/1` then keeps only the
+    # classes listed in `@classes` and the declarations `allowed_style/2`
+    # lets through.
     add_generic_attributes: ["class"]
   ]
+
+  # The only inline style a page's HTML may carry (#3529): a colour, a
+  # background colour and a text alignment, which stay inside the element
+  # they are on, and a width given as a percentage, which the progress bar
+  # this module draws is made of. Any other declaration, and any value not in
+  # these simple forms, is taken off.
+  @style_properties ~w(color background-color text-align width)
+  @text_aligns ~w(left right center justify start end)
 
   # The only classes a page's HTML may carry (#3504): the ones this module,
   # comrak and the transcript view (`SlipdockWeb.TranscriptView`) put there,
@@ -149,7 +159,7 @@ defmodule SlipdockWeb.Wiki.Renderer do
              doc
              |> expand(context)
              |> MDEx.to_html(extension: extension, render: @render, sanitize: @sanitize) do
-        html |> allowed_classes() |> settle_ids(context)
+        html |> allowed_attributes() |> settle_ids(context)
       else
         _ -> "<pre>" <> escape(body) <> "</pre>"
       end
@@ -193,18 +203,60 @@ defmodule SlipdockWeb.Wiki.Renderer do
   # ever opens a tag, and an attribute's value is always in double quotes
   # with any quote inside it escaped.
   # Each tag's `class` keeps the classes in `@classes` and loses the rest,
-  # and goes altogether when none is left. Attributes are matched one after
-  # another from the tag's name, a quoted value whole, so the word class
-  # inside another attribute's value is never taken for the attribute. Like
-  # `own_ids/2`, this relies on the sanitiser's output: every value quoted.
-  defp allowed_classes(html) do
+  # and its `style` the declarations `allowed_style/2` allows; either goes
+  # altogether when nothing is left. Attributes are matched one after
+  # another from the tag's name, a quoted value whole, so the word class or
+  # style inside another attribute's value is never taken for the attribute.
+  # Like `own_ids/2`, this relies on the sanitiser's output: every value
+  # quoted.
+  defp allowed_attributes(html) do
     Regex.replace(~r/<[a-z](?:[^>"]|"[^"]*")*>/, html, fn tag ->
       Regex.replace(~r/\s([^\s"'>\/=]+)(?:="([^"]*)")?/, tag, fn
         _whole, "class", value -> class_attribute(value)
+        _whole, "style", value -> style_attribute(value)
         whole, _name, _value -> whole
       end)
     end)
   end
+
+  # A value is split on `;` as the sanitiser wrote it, so an escaped
+  # character (`&amp;`) splits a declaration too; no allowed value has an
+  # `&` in it, so such a piece is dropped whole, never rejoined.
+  defp style_attribute(value) do
+    kept =
+      for declaration <- String.split(value, ";"),
+          [name, setting] <- [String.split(declaration, ":", parts: 2)],
+          property = name |> String.trim() |> String.downcase(),
+          setting = String.trim(setting),
+          allowed_style?(property, setting),
+          do: property <> ": " <> setting
+
+    case Enum.uniq(kept) do
+      [] -> ""
+      kept -> ~s| style="#{Enum.join(kept, "; ")}"|
+    end
+  end
+
+  @doc false
+  # Public for the tests of what inline style is kept.
+  def allowed_style?(property, value) when property in @style_properties,
+    do: allowed_style_value?(property, String.downcase(value))
+
+  def allowed_style?(_property, _value), do: false
+
+  defp allowed_style_value?("text-align", value), do: Enum.member?(@text_aligns, value)
+
+  defp allowed_style_value?("width", value) do
+    case Regex.run(~r/\A(\d{1,3})%\z/, value) do
+      [_, n] -> String.to_integer(n) <= 100
+      nil -> false
+    end
+  end
+
+  defp allowed_style_value?(_colour, value),
+    do:
+      value =~
+        ~r/\A(?:#[0-9a-f]{3,8}|[a-z]+|(?:rgb|rgba|hsl|hsla)\([0-9 .,%\/-]*\))\z/
 
   defp class_attribute(value) do
     case value |> String.split() |> Enum.filter(&allowed_class?/1) |> Enum.uniq() do

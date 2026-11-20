@@ -496,7 +496,10 @@ get ids, so a section can be linked to. Those, a footnote's and a block's
 (`^a1b2`) are the only ids on a page: an `id` written in raw HTML is dropped,
 since an id names a property of the page's `window`. Classes are kept only
 from a short list, the ones the wiki itself draws with (and a code block's
-`language-…`); any other class written in raw HTML is dropped.
+`language-…`); any other class written in raw HTML is dropped. Inline
+`style` keeps only a colour, a background colour, a text alignment and a
+percentage width; any other declaration (a position, a `z-index`, a size in
+other units) is dropped.
 
 The editor is **raw Markdown with a live preview**, deliberately and for good:
 the source stays diffable, greppable and identical to what an agent reads and
