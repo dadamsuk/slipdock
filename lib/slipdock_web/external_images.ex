@@ -88,7 +88,7 @@ defmodule SlipdockWeb.ExternalImages do
   """
   @spec external?(String.t()) :: boolean()
   def external?(src) do
-    src = src |> String.replace("&amp;", "&") |> String.trim()
+    src = String.trim(src)
 
     case URI.parse(src) do
       %URI{scheme: scheme, host: host}

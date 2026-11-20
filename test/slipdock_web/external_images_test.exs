@@ -124,6 +124,14 @@ defmodule SlipdockWeb.ExternalImagesTest do
       assert html =~ "logo</a>"
     end
 
+    test "a raw HTML picture with no alt attribute is named by its address" do
+      block(true)
+      html = Renderer.to_html(~s|<img src="https://images.example.com/l.png">|)
+
+      refute html =~ "<img"
+      assert html =~ ~s|>https://images.example.com/l.png</a>|
+    end
+
     test "a picture inside a link becomes that link's text" do
       block(true)
       html = Renderer.to_html("[![logo](https://images.example.com/l.png)](https://example.com/)")
@@ -146,6 +154,15 @@ defmodule SlipdockWeb.ExternalImagesTest do
       refute ExternalImages.external?("data:image/png;base64,AAAA")
       refute ExternalImages.external?("blob:https://images.example.com/x")
       refute ExternalImages.external?("https://#{SlipdockWeb.Endpoint.host()}/uploads/a.png")
+    end
+
+    test "reads an address with an escaped ampersand by its host" do
+      assert ExternalImages.external?("https://images.example.com/a.png?w=1&amp;h=2")
+      assert ExternalImages.external?("//images.example.com/a.png?w=1&amp;h=2")
+
+      refute ExternalImages.external?(
+               "https://#{SlipdockWeb.Endpoint.host()}/uploads/a.png?w=1&amp;h=2"
+             )
     end
   end
 
