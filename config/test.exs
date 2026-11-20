@@ -55,9 +55,13 @@ config :slipdock, :wiki_autosave_after_ms, :timer.hours(1)
 # AI answers are spent on it.
 config :slipdock, :findings, async: false, group: false
 
+# `cluster_lock: false`: the node's scheduler ticks without asking for the
+# lead (see `Slipdock.Automations.Scheduler`), so two test runs sharing a
+# database don't take ticks from each other.
 config :slipdock, :automations,
   enabled: true,
   interval: :manual,
+  cluster_lock: false,
   async: false,
   req_options: [plug: {Req.Test, Slipdock.Automations.Notifier}]
 

@@ -8,6 +8,18 @@ defmodule Slipdock.Automations.Scheduler do
   as the tests do. A test then drives it with `run_now/0` (a whole tick: the
   periodic jobs, then the rules) or calls `Slipdock.Automations.run_scheduled/1`
   directly to run the rules at a chosen time.
+
+  ## One node ticks (#3496)
+
+  Every app node starts a scheduler, but only one of them runs the ticks:
+  the leader, which holds a Postgres session advisory lock on a connection
+  of its own (`Slipdock.Automations.Scheduler.Leader`). The others check at
+  each tick whether they can take it, and skip the tick while they can't, so
+  a sweep, a recurrence or a release tick runs once however many nodes
+  there are. A node that dies closes its connection, Postgres lets the lock
+  go, and the next node to tick takes over. `config :slipdock, :automations,
+  cluster_lock: false` ticks on every node without asking (the test env:
+  tests drive the node's scheduler with `run_now/0`).
   """
 
   use GenServer
@@ -19,20 +31,38 @@ defmodule Slipdock.Automations.Scheduler do
   # worth of rules while the database is still warming up.
   @startup_delay :timer.seconds(20)
 
-  def start_link(opts), do: GenServer.start_link(__MODULE__, opts, name: __MODULE__)
+  alias Slipdock.Automations.Scheduler.Leader
 
-  @doc "Asks the running scheduler to tick now, and waits for it."
-  def run_now, do: GenServer.call(__MODULE__, :tick, 30_000)
+  @doc """
+  Starts the scheduler. The node's own takes no options; a test starting
+  others can give `:name`, `:jobs` (a list of `{label, fun}` run in place
+  of the node's jobs and rules) and `:cluster_lock` (`false`, or the
+  `{key1, key2}` advisory lock to lead by).
+  """
+  def start_link(opts) do
+    {name, opts} = Keyword.pop(opts, :name, __MODULE__)
+    GenServer.start_link(__MODULE__, opts, if(name, do: [name: name], else: []))
+  end
+
+  @doc """
+  Asks the running scheduler to tick now, and waits for it. Returns how
+  many rules fired, or `:not_leader` when another node holds the lead.
+  """
+  def run_now(server \\ __MODULE__), do: GenServer.call(server, :tick, 30_000)
 
   @impl true
-  def init(_opts) do
+  def init(opts) do
     if interval() != :manual, do: Process.send_after(self(), :tick, @startup_delay)
-    {:ok, %{}}
+
+    lock = Keyword.get_lazy(opts, :cluster_lock, &configured_lock/0)
+    leader = if lock, do: Leader.start_link(lock)
+
+    {:ok, %{jobs: opts[:jobs], leader: leader, leading: nil}}
   end
 
   @impl true
   def handle_info(:tick, state) do
-    safe_tick()
+    {_result, state} = safe_tick(state)
     if interval() != :manual, do: Process.send_after(self(), :tick, interval())
     {:noreply, state}
   end
@@ -40,14 +70,43 @@ defmodule Slipdock.Automations.Scheduler do
   def handle_info(_message, state), do: {:noreply, state}
 
   @impl true
-  def handle_call(:tick, _from, state), do: {:reply, safe_tick(), state}
+  def handle_call(:tick, _from, state) do
+    {result, state} = safe_tick(state)
+    {:reply, result, state}
+  end
+
+  # Ticks only on the node that leads (see the moduledoc), and says so in
+  # the log when that changes.
+  defp safe_tick(state) do
+    leader = Map.get(state, :leader)
+    leading = leader == nil or Leader.leading?(leader)
+    if leader && leading != Map.get(state, :leading), do: log_lead(leading)
+    state = Map.put(state, :leading, leading)
+
+    if leading, do: {tick(Map.get(state, :jobs)), state}, else: {:not_leader, state}
+  end
+
+  defp log_lead(true), do: Logger.info("Automation scheduler: this node leads the ticks")
+
+  defp log_lead(false),
+    do: Logger.info("Automation scheduler: another node leads the ticks; this one waits")
 
   # A job or rule that blows up must not take the scheduler with it, nor
   # skip the jobs after it: each runs through `guarded/3` on its own. Returns
   # how many rules fired.
-  defp safe_tick do
+  defp tick(nil) do
     run_jobs(jobs())
     guarded("Automation scheduler", &Slipdock.Automations.run_scheduled/0, 0)
+  end
+
+  defp tick(jobs) do
+    run_jobs(jobs)
+    0
+  end
+
+  defp configured_lock do
+    if Keyword.get(Slipdock.Config.get(:automations, []), :cluster_lock, true),
+      do: Leader.default_lock()
   end
 
   @doc false
