@@ -20,6 +20,12 @@ these are decisions only you can make.
 - **Responses carry a Content-Security-Policy** that allows script from this
   origin only — unless an admin turns on PostHog, which adds PostHog's script
   host and nothing else.
+- **Pictures from other sites can be turned off.** By default a card or page
+  may show a picture from any `https:` address, which each reader's browser
+  fetches from that site. An admin who would rather it didn't turns on **Block
+  pictures from other sites** (Configuration, or `slipdock admin set
+  block_external_images=true`): the policy then allows pictures and media from
+  this server only, and a picture from elsewhere is shown as a link to it.
 - **Administering the server needs its own token scope.** The admin pages
   (**Configuration** for registration and mail, **Users** for the people and the
   signup queue) are behind an admin account, and

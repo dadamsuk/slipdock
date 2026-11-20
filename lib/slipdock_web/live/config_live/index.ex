@@ -151,7 +151,8 @@ defmodule SlipdockWeb.ConfigLive.Index do
                       storage_limit_mb storage_limit_enabled trial_days trial_enabled
                       terms_url privacy_url terms_version posthog_key posthog_host
                       posthog_respect_dnt ai_system_user_id
-                      ai_model ai_quick_model ai_organise_model ai_fallback_models)
+                      ai_model ai_quick_model ai_organise_model ai_fallback_models
+                      block_external_images)
 
   @mail_fields ~w(smtp_host smtp_port smtp_username smtp_password smtp_tls smtp_from_email
                   smtp_from_name)
@@ -850,6 +851,40 @@ defmodule SlipdockWeb.ConfigLive.Index do
               <span class="block text-xs text-base-content/60">
                 On, a visitor whose browser asks not to be tracked (Do-Not-Track or Global
                 Privacy Control) is left out of analytics. Off, everyone is counted.
+              </span>
+            </span>
+          </label>
+          <button type="submit" class="btn btn-primary btn-sm">Save</button>
+        </.form>
+      </div>
+
+      <div id="external-images" class="mt-6 border-t border-base-content/10 pt-6">
+        <h3 class="font-medium">Pictures from other sites</h3>
+        <p class="mt-1 text-xs text-base-content/60">
+          A picture a card or page shows from another site is fetched from that site by each
+          reader's browser. For privacy, you can keep them to this server's own pictures.
+        </p>
+
+        <.form
+          for={@form}
+          id="external-images-form"
+          phx-submit="save-settings"
+          class="mt-3 space-y-3"
+        >
+          <label class="flex cursor-pointer items-start gap-3 text-sm">
+            <input type="hidden" name="settings[block_external_images]" value="false" />
+            <input
+              type="checkbox"
+              name="settings[block_external_images]"
+              value="true"
+              checked={@settings.block_external_images}
+              class="checkbox mt-0.5"
+            />
+            <span>
+              <span class="block font-medium">Block pictures from other sites</span>
+              <span class="block text-xs text-base-content/60">
+                On, pages and cards load pictures only from this server, and a picture from
+                anywhere else is shown as a link to it. Off, they load as written.
               </span>
             </span>
           </label>

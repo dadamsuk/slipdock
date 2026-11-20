@@ -43,6 +43,11 @@ all under **Configuration → Server**, with the people themselves under
   requests, no widened Content-Security-Policy. From a terminal: `slipdock admin set
   posthog_key=phc_... posthog_host=https://eu.i.posthog.com`, and
   `posthog_key=` to turn it off again.
+- **Whether pages show pictures from other sites.** Off by default, a picture
+  a card or page points at elsewhere loads from there in each reader's browser.
+  Turn on **Block pictures from other sites** (or `slipdock admin set
+  block_external_images=true`) and only this server's pictures load; the rest
+  show as links to them. See [Security notes](security-notes.md).
 - **Whose AI key search and automations use.** Semantic search, the search
   index and scheduled automations run with nobody signed in, so they spend one
   admin's AI settings, chosen on the Configuration page (`slipdock admin set

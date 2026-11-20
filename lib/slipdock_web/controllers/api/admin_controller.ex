@@ -69,6 +69,8 @@ defmodule SlipdockWeb.API.AdminController do
           token_set: Settings.transcription_token_set?(),
           voiceprints: settings.transcription_voiceprints
         },
+        # On, pages and cards load pictures only from this server (#3559).
+        block_external_images: settings.block_external_images,
         pending_signups: Accounts.count_pending_signups()
       }
     })

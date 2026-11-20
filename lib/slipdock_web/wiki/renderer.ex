@@ -19,6 +19,9 @@ defmodule SlipdockWeb.Wiki.Renderer do
   does not. The sanitiser is therefore load-bearing: `<script>`, event
   handlers and `javascript:` URLs never reach the page, whoever wrote them.
 
+  When an admin has turned external pictures off, a picture from another
+  host is shown as a link to it instead (`SlipdockWeb.ExternalImages`, #3559).
+
   `SlipdockWeb.Markdown` still renders assistant replies. It is eighty lines of
   regex for paragraphs, lists and bold, which is the right size for that job
   and the wrong size for this one.
@@ -31,6 +34,7 @@ defmodule SlipdockWeb.Wiki.Renderer do
   alias Slipdock.Boards.{Card, Column}
   alias Slipdock.Wiki
   alias Slipdock.Wiki.{Drawings, Embeds, Excalidraw, Links, Markup, Meld, Page, Query, Section}
+  alias SlipdockWeb.ExternalImages
 
   @extension [
     table: true,
@@ -159,7 +163,7 @@ defmodule SlipdockWeb.Wiki.Renderer do
              doc
              |> expand(context)
              |> MDEx.to_html(extension: extension, render: @render, sanitize: @sanitize) do
-        html |> allowed_attributes() |> settle_ids(context)
+        html |> allowed_attributes() |> settle_ids(context) |> ExternalImages.as_links()
       else
         _ -> "<pre>" <> escape(body) <> "</pre>"
       end

@@ -206,6 +206,15 @@ defmodule Slipdock.Settings do
   @spec invites_create_accounts?() :: boolean()
   def invites_create_accounts?, do: get().invites_create_accounts
 
+  @doc """
+  Whether pictures and media from other hosts are kept off pages and cards
+  (#3559): the Content-Security-Policy then allows them only from this
+  server, and the renderers show an external picture as a link to it. Off by
+  default.
+  """
+  @spec block_external_images?() :: boolean()
+  def block_external_images?, do: get().block_external_images == true
+
   @doc "Whether mail can actually be sent — a host is the whole of it."
   @spec smtp_configured?() :: boolean()
   def smtp_configured?, do: smtp_configured?(get())
