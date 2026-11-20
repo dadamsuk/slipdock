@@ -153,11 +153,15 @@ defmodule Slipdock.Inbound.PermittedSendersTest do
       assert card.title == "Gate"
       assert card.description == "*Sent by Ann Smith <ann@example.com>.*\n\nIt sticks."
       assert email.user_id == ctx.user.id
+      # Written by someone with no account here, for a job's trust tier (#3516).
+      assert card.text_by == [0]
     end
 
     test "the owner's own mail says nothing about who sent it", ctx do
       assert {:accepted, email} = send_to(ctx.address, ctx.user.email, "Gate", "It sticks.")
-      assert Repo.get!(Card, email.card_id).description == "It sticks."
+      card = Repo.get!(Card, email.card_id)
+      assert card.description == "It sticks."
+      assert card.text_by == [ctx.user.id]
     end
 
     test "[#id] comments on the card, saying who sent it", ctx do

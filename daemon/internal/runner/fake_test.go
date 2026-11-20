@@ -162,6 +162,7 @@ type fakeJob struct {
 	kind    string
 	card    int64
 	profile string
+	tier    string
 	prompt  string
 	pr, sha string
 	// round is the server's round when the job was added: only a claim
@@ -370,6 +371,9 @@ func (s *server) handle(w http.ResponseWriter, r *http.Request) {
 			}
 			h.Set("X-Board-Id", "3")
 			h.Set("X-Lease-Seconds", "90")
+			if j.tier != "" {
+				h.Set("X-Prompt-Tier", j.tier)
+			}
 			if j.profile != "" {
 				h.Set("X-Card-Profile", j.profile)
 			}

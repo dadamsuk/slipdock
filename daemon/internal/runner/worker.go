@@ -58,6 +58,10 @@ type Worker struct {
 	// (default: JobsDir's parent).
 	Images     []string
 	MachineDir string
+	// Tiers are the ceiling's limits by the trust tier of a job's prompt
+	// (#3516), which Build sets: none means every job runs as the runner
+	// says.
+	Tiers map[string]machine.Tier
 	// ReleaseKey is the project's release key, which the server's CLI is
 	// checked against before it is installed (default release.Key).
 	ReleaseKey func() (ed25519.PublicKey, error)
@@ -451,7 +455,65 @@ func (w *Worker) runJob(ctx context.Context, job *Job) {
 		w.runProbe(ctx, j)
 		return
 	}
-	w.runAgent(ctx, j)
+	jw, err := w.forTier(job)
+	if err != nil {
+		w.say("job #%d: %v", job.ID, err)
+		j.note("slipdock-runner: " + err.Error())
+		w.finish(ctx, job, j, 127, "failed", "", "")
+		return
+	}
+	jw.runAgent(ctx, j)
+}
+
+// forTier is the worker an agent job runs on (#3516): this one when the
+// ceiling has no tiers; else a copy under the limits of the job's trust
+// tier (anyone, when the server doesn't say), its executor, its highest
+// permission mode and its network. A tier the ceiling doesn't name is an
+// error: the job is refused.
+func (w *Worker) forTier(job *Job) (*Worker, error) {
+	if len(w.Tiers) == 0 {
+		return w, nil
+	}
+	tier := job.Tier
+	if tier == "" {
+		tier = "anyone"
+	}
+	t, ok := w.Tiers[tier]
+	if !ok {
+		return nil, fmt.Errorf("the machine's ceiling sets nothing for a job of trust tier %q, so the job was not run", tier)
+	}
+	c := w.Runner.Config
+	if t.Executor != "" {
+		c.Executor = t.Executor
+	}
+	if t.MaxPermissionMode != "" && machine.ModeRank(c.PermissionMode) > machine.ModeRank(t.MaxPermissionMode) {
+		c.PermissionMode = t.MaxPermissionMode
+	}
+	if t.Network != "" {
+		c.Network = t.Network
+	}
+	if c.Network == "off" && c.Executor != executor.Container {
+		return nil, fmt.Errorf("trust tier %q turns the network off, which needs the container executor (the runner's is %q), so the job was not run",
+			tier, c.Executor)
+	}
+	w.say("job #%d: trust tier %s: executor %s, permission mode %s", job.ID, tier, executorName(c.Executor), c.PermissionMode)
+	if c == w.Runner.Config {
+		return w, nil
+	}
+	jw := *w
+	jw.Runner.Config = c
+	if c.Executor != w.Runner.Config.Executor || c.Network != w.Runner.Config.Network {
+		jw.Executor, jw.executorErr, jw.Exec = nil, nil, nil
+		jw.defaults()
+	}
+	return &jw, nil
+}
+
+func executorName(e string) string {
+	if e == "" {
+		return executor.Me
+	}
+	return e
 }
 
 // prepare checks everything the job needs before anything runs: the agent's

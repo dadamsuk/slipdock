@@ -118,7 +118,13 @@ defmodule Slipdock.Inbound.Cards do
       extra = with_sender(attrs["description"], user, message)
       attrs = Map.put(attrs, "description", join_description(extra, description))
 
-      case Boards.Cards.create_card(column, attrs, by: user, actor: Actor.email(user)) do
+      opts = [
+        by: user,
+        actor: Actor.email(user),
+        outside_author: is_binary(sender_line(user, message))
+      ]
+
+      case Boards.Cards.create_card(column, attrs, opts) do
         {:ok, card} ->
           attach(card, user, message, extra)
           {:ok, %{card_id: card.id, user_id: user.id}}

@@ -499,6 +499,8 @@ defmodule Slipdock.Boards.Cards do
     # Created straight into a doing list (#1815), the card meets the checks
     # a move into it makes: the bar (#1620).
     |> Slipdock.Verified.check_create(column, Slipdock.Actor.resolve(opts))
+    # Who wrote its text, for the trust tier of a job on it (#3516).
+    |> Slipdock.Runners.TrustTier.track(nil, creator(opts), opts)
     |> save_with_assignees(&Repo.insert/1, assignees)
     |> Boards.Shared.tap_ok(fn card ->
       Boards.ActivityLog.log(
@@ -692,6 +694,7 @@ defmodule Slipdock.Boards.Cards do
       |> percent_by_hand(opts)
       |> profile_source(opts)
       |> raise_profile(raised)
+      |> Slipdock.Runners.TrustTier.track(card, creator(opts), opts)
 
     titled? = Map.has_key?(changeset.changes, :title)
     named? = titled? or Map.has_key?(changeset.changes, :short_name)
