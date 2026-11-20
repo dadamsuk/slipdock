@@ -55,13 +55,13 @@ func (c *confined) readLimits(p Proc, writable []string) (deny, allow []string) 
 			continue
 		}
 		seen[a] = true
-		inside, over := false, false
+		// Strictly inside one: as deny has none inside another, what is
+		// inside one never holds one.
 		for _, d := range deny {
-			inside = inside || (a != d && holds(d, a))
-			over = over || holds(a, d)
-		}
-		if inside && !over {
-			allow = append(allow, a)
+			if a != d && holds(d, a) {
+				allow = append(allow, a)
+				break
+			}
 		}
 	}
 	return deny, allow
