@@ -1341,7 +1341,9 @@ accepting a card there queues the merge, and the merge completes it (a
 failed merge sends it back rejected with the reason; one that finds the
 pull request already merged at the accepted commit completes it with that
 merge commit, and at another head leaves it merging, says which head and
-counts as no rejection). The merge goes to a
+counts as no rejection; one whose pull request changes the board's
+sensitive paths, `sensitive_paths`, is held for a person's Merge / Send
+back first). The merge goes to a
 runner that is idle now, else to the one that accepted the card, so it
 doesn't wait for a pass to end; a runner that can't merge in that
 repository hands it on rather than failing the card. The skills

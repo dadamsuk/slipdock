@@ -1523,6 +1523,11 @@
         "required": false
       },
       {
+        "name": "sensitive_paths",
+        "type": "any",
+        "required": false
+      },
+      {
         "name": "bar_required",
         "type": "any",
         "required": false
@@ -1723,6 +1728,9 @@
         "route": {
           "param": "wait_routes",
           "read": "parsed"
+        },
+        "sensitive_paths": {
+          "param": "sensitive_paths"
         },
         "ship_via": {
           "param": "ship_via",

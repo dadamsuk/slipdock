@@ -578,7 +578,9 @@ A worktree kept from an earlier job (it had uncommitted changes) is used
 as it is. A runner alone in its
 directory gets none under `auto`, so set `on` for a checkout people or
 other tools also use. A merge job merges the card's pull request only if it is in the
-runner's repository, still open, and at the accepted commit. A runner that
+runner's repository, still open, and at the accepted commit, and one that
+changes the board's sensitive paths only once a person has approved that
+commit (see *Sensitive paths* in the manual's Profiles page). A runner that
 crashes is started again, and the machine's other runners carry on.
 
 ### The Machines page

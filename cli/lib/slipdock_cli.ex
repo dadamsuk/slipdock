@@ -88,6 +88,7 @@ defmodule SlipdockCLI do
     not_shipped_minutes: :integer,
     handoff_label: :string,
     inbound_senders: :string,
+    sensitive_paths: :string,
     handoff_prompt: :string,
     handoff_prompt_file: :string,
     card_ref_pattern: :string,

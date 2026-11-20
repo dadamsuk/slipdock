@@ -276,6 +276,22 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent.Panels do
           placeholder="ann@example.com"
         />
       </div>
+      <%!-- What a person approves before a pull request changing it merges
+                (#3519, `Board.sensitive_paths/1`): on a board that ships by pull request. --%>
+      <div :if={Slipdock.Boards.Board.ships_by_pr?(@board)} class="space-y-1">
+        <span class="text-sm font-medium">Sensitive paths</span>
+        <p class="text-xs text-base-content/50">
+          A pull request that changes one of these merges only once a person approves it, one
+          glob per line (`**` any folders, `*` any name). Empty: none; `default`: the defaults.
+        </p>
+        <.input
+          field={@form[:sensitive_paths]}
+          id="board-form-sensitive-paths"
+          type="textarea"
+          rows="4"
+          value={paths_text(@form[:sensitive_paths].value, @board)}
+        />
+      </div>
       <%!-- Every board has a wiki: this is the whole wiki's switch for
                 the card contents under a page's prose. Hidden, not removed. --%>
       <div class="space-y-1">
@@ -740,6 +756,11 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent.Panels do
       do: [],
       else: Slipdock.AgenticBuilding.live_rules(board)
   end
+
+  # The sensitive paths, one per line: the defaults when the board has none.
+  defp paths_text(nil, board), do: Enum.join(Slipdock.Boards.Board.sensitive_paths(board), "\n")
+  defp paths_text(paths, _board) when is_list(paths), do: Enum.join(paths, "\n")
+  defp paths_text(paths, _board), do: paths
 
   # The permitted senders, one per line, as the textarea shows them.
   defp senders_text(senders) when is_list(senders), do: Enum.join(senders, "\n")

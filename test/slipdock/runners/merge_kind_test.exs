@@ -72,8 +72,8 @@ defmodule Slipdock.Runners.MergeKindTest do
     test "the PR and the verifier's commit, else the builder's", ctx do
       {:ok, job} = queue(ctx.card, "merge")
 
-      assert Runners.merge_target(job) ==
-               %{pr: "https://github.com/acme/widgets/pull/7", commit: "abc1234"}
+      assert %{pr: "https://github.com/acme/widgets/pull/7", commit: "abc1234"} =
+               Runners.merge_target(job)
 
       ctx.card |> Ecto.Changeset.change(verify_commit: "def5678") |> Repo.update!()
       assert Runners.merge_target(job).commit == "def5678"

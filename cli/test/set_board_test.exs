@@ -216,6 +216,13 @@ defmodule SlipdockCLI.SetBoardTest do
       assert_received {:request, "PATCH", "/api/boards/docs", body}
       assert JSON.decode!(body) == %{"inbound_senders" => ""}
     end
+
+    test "--sensitive-paths sends the list as given (#3519)" do
+      serve([{200, @updated}])
+      capture_io(fn -> Boards.run("set-board", ["docs"], sensitive_paths: "ci/**,Makefile") end)
+      assert_received {:request, "PATCH", "/api/boards/docs", body}
+      assert JSON.decode!(body) == %{"sensitive_paths" => "ci/**,Makefile"}
+    end
   end
 
   # #2834: batched releases.

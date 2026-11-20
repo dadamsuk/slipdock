@@ -203,6 +203,9 @@ defmodule Slipdock.Verified.Merging do
           job.status == "done" ->
             complete_merged(card, job.merged_sha, actor, nil, merged_line(job, runner_name))
 
+          needs_approval?(job) ->
+            Slipdock.Verified.Decisions.hold_for_approval(card, merge_reason(job), actor)
+
           runner_refused?(job) ->
             hand_on(card, job, runner_name)
 
@@ -286,6 +289,13 @@ defmodule Slipdock.Verified.Merging do
   # How many runners an acceptance's merge is handed to before the card
   # waits for a person.
   @merge_hand_ons 2
+
+  # The runner found the pull request changes a sensitive path nobody has
+  # approved (#3519): the daemon's `merge: needs a person's approval:` line.
+  defp needs_approval?(%{status: "failed"} = job),
+    do: String.starts_with?(merge_reason(job), "merge: needs a person's approval:")
+
+  defp needs_approval?(_job), do: false
 
   defp runner_refused?(%{status: "failed"} = job) do
     said = merge_reason(job)

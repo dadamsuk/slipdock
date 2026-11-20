@@ -400,6 +400,9 @@ defmodule SlipdockWeb.API.JSON do
       # Who else may mail the board's card addresses (#1289): the owner's
       # to see, nil for anybody else.
       inbound_senders: if(owner?(b, viewer), do: b.inbound_senders),
+      # What a person approves before a pull request changing it merges
+      # (#3519): the board's list, or the defaults.
+      sensitive_paths: Board.sensitive_paths(b),
       default_view: Board.home_view(b),
       owner: owner_ref(b),
       shared: shared?(b, viewer),

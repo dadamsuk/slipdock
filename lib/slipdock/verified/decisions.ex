@@ -724,6 +724,10 @@ defmodule Slipdock.Verified.Decisions do
         "#{card.evidence_pr || "its pull request"} merges: merge it, or send it back " <>
         "(say why: the reason goes back to the builder)?"
 
+    open_held_wait(card, needs, actor, user)
+  end
+
+  defp open_held_wait(card, needs, actor, user) do
     case Slipdock.Boards.Waits.open_wait(card, actor, %{
            needs: String.slice(needs, 0, 990),
            choices: [@merge_choice, @send_back_choice],
@@ -809,14 +813,54 @@ defmodule Slipdock.Verified.Decisions do
     end
   end
 
+  @doc """
+  A merge the runner stopped because the pull request changes the board's
+  sensitive paths and no person has approved it (#3519): the card is held
+  as an acceptance held for its tier is, with the runner's words, and a
+  wait asks a person to merge it or send it back. Merge approves this
+  commit, so the next merge job goes ahead.
+  """
+  def hold_for_approval(%Card{} = card, said, actor) do
+    changes = [verify_state: "held"]
+    flags = Enum.uniq(card.flags ++ ["review"])
+
+    with {:ok, card} <-
+           Slipdock.Boards.Cards.update_card(card, %{"flags" => flags},
+             actor: actor,
+             verify_changes: changes
+           ) do
+      files = said |> String.replace_prefix("merge: ", "") |> String.slice(0, 600)
+
+      Outcome.comment(
+        card,
+        "**Held for a person before merging**: the pull request changes the board's " <>
+          "sensitive paths, which a person approves first.",
+        "- " <> files,
+        nil
+      )
+
+      needs =
+        "Card ##{card.id}'s pull request #{card.evidence_pr || ""} changes the board's " <>
+          "sensitive paths (#{files}). A person approves that before it merges: merge it, or " <>
+          "send it back (say why: the reason goes back to the builder)?"
+
+      open_held_wait(card, needs, actor, nil)
+      {:ok, Repo.get!(Card, card.id)}
+    end
+    |> Outcome.api_error()
+  end
+
   # Merge: the card is merging and its merge job queued, as an acceptance
-  # without the tier does.
+  # without the tier does. A person approved this commit, so a pull request
+  # that changes the sensitive paths merges too (#3519).
   defp approve_merge(card, actor, user) do
+    approved = card.verify_commit || card.evidence_commit
+
     with {:ok, card} <-
            Slipdock.Boards.Cards.update_card(card, %{"flags" => card.flags -- ["review"]},
              actor: actor,
              by: user,
-             verify_changes: [verify_state: "merging"]
+             verify_changes: [verify_state: "merging", merge_approved_commit: approved]
            ) do
       Outcome.comment(
         card,

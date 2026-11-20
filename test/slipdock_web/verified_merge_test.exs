@@ -91,7 +91,8 @@ defmodule SlipdockWeb.VerifiedMergeTest do
       refute "review" in card.flags
       assert card.column_id == ctx.doing.id
       assert [%Job{pool: "dev", status: "queued"} = job] = merge_jobs(card)
-      assert Runners.merge_target(job) == %{pr: @pr, commit: "abc1234"}
+      assert %{pr: @pr, commit: "abc1234", approved: false} = Runners.merge_target(job)
+      assert Runners.merge_target(job).sensitive == Boards.Board.default_sensitive_paths()
       assert Verified.merge_status(card) == :queued
       assert Enum.any?(comments(card), &(&1 =~ "merging #{@pr}"))
     end
@@ -219,6 +220,57 @@ defmodule SlipdockWeb.VerifiedMergeTest do
       assert card.column_id == ctx.done.id
       assert Enum.any?(comments(card), &(&1 =~ "**Merged** by runner m-dev as `#{@sha}`"))
       assert SlipdockWeb.API.JSON.card(Boards.Cards.get_card!(card.id)).merge_sha == @sha
+    end
+
+    # #3519: a pull request that changes a sensitive path waits for a person.
+    test "one that needs a person's approval holds the card with a Merge / Send back wait",
+         ctx do
+      said =
+        "merge: needs a person's approval: #{@pr} changes .github/workflows/ci.yml, so a " <>
+          "person approves it first; nothing merged"
+
+      {:ok, _} = Runners.finish(ctx.runner, ctx.job_id, %{exit: "4", output: "x\n#{said}\n"})
+
+      card = Repo.get!(Card, ctx.merging.id)
+      refute card.completed
+      assert card.verify_state == "held"
+      assert "review" in card.flags
+      assert card.merge_approved_commit == nil
+      assert card.column_id == ctx.doing.id
+      assert Enum.any?(comments(card), &(&1 =~ "**Held for a person before merging**"))
+      assert Enum.any?(comments(card), &(&1 =~ ".github/workflows/ci.yml"))
+
+      wait = Boards.Waits.current_wait(card)
+      assert wait.choices == ["Merge", "Send back"]
+      assert wait.needs =~ ".github/workflows/ci.yml"
+
+      # An agent can't answer it.
+      assert {:error, _} = Boards.Waits.answer_wait(card, ctx.checker, %{"choice" => 1})
+
+      # A person's Merge approves the commit and queues the merge again.
+      {:ok, _} = Boards.Waits.answer_wait(card, Actor.web(ctx.user), %{"choice" => 1})
+      card = Repo.get!(Card, card.id)
+      assert card.verify_state == "merging"
+      assert card.merge_approved_commit == "abc1234"
+      queued = Enum.find(merge_jobs(card), &(&1.status == "queued"))
+      assert %{approved: true} = Runners.merge_target(queued)
+    end
+
+    test "Send back on a held approval sends it back rejected with the reason", ctx do
+      said = "merge: needs a person's approval: #{@pr} changes Makefile; nothing merged"
+      {:ok, _} = Runners.finish(ctx.runner, ctx.job_id, %{exit: "4", output: said})
+      card = Repo.get!(Card, ctx.merging.id)
+
+      {:ok, _} =
+        Boards.Waits.answer_wait(card, Actor.web(ctx.user), %{
+          "choice" => 2,
+          "answer" => "No CI edits"
+        })
+
+      card = Repo.get!(Card, card.id)
+      assert card.verify_state == "rejected"
+      assert card.verify_note =~ "Sent back before merging"
+      assert card.merge_approved_commit == nil
     end
 
     test "failed sends it back to the top of To Do with the reason, for rework", ctx do

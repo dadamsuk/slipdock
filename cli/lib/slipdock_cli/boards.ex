@@ -1196,6 +1196,9 @@ defmodule SlipdockCLI.Boards do
         # Who else may mail the board's card addresses (#1289): the whole
         # list, comma-separated; "" clears it.
         "inbound_senders" => o[:inbound_senders],
+        # The paths a person approves before a pull request changing them
+        # merges (#3519): comma-separated, "default" the defaults, "" none.
+        "sensitive_paths" => o[:sensitive_paths],
         # Who each kind of question goes to (#1949): --route KIND=EMAIL[,EMAIL]
         # and --no-route KIND, each repeatable.
         "wait_routes" => wait_routes(o),
@@ -1214,7 +1217,7 @@ defmodule SlipdockCLI.Boards do
       do:
         fail(
           "nothing to change — pass --name, --code, --shortcut, --desc, --color, " <>
-            "--[no-]add-card / --[no-]add-page / --[no-]add-document, --[no-]sprints, --[no-]simple, --[no-]page-card-features, --[no-]show-pulse, --[no-]close-on-complete, --[no-]automation-wip, --agentic-building on|off, --[no-]delivery-metrics, --incident-tag, --hotfix-hours, --not-shipped-minutes, --card-ref-pattern, --default-view, --handoff-label, --handoff-prompt(-file), --inbound-senders, --wiki-sort, --[no-]bar-required, --[no-]evidence-required, --[no-]verify-work, --verify-pool, --ship-via, --release-mode, --release-age-cap, --release-command, --profiles on|off, --profile-tier PROFILE=TIER or --route KIND=EMAIL / --no-route KIND"
+            "--[no-]add-card / --[no-]add-page / --[no-]add-document, --[no-]sprints, --[no-]simple, --[no-]page-card-features, --[no-]show-pulse, --[no-]close-on-complete, --[no-]automation-wip, --agentic-building on|off, --[no-]delivery-metrics, --incident-tag, --hotfix-hours, --not-shipped-minutes, --card-ref-pattern, --default-view, --handoff-label, --handoff-prompt(-file), --inbound-senders, --sensitive-paths, --wiki-sort, --[no-]bar-required, --[no-]evidence-required, --[no-]verify-work, --verify-pool, --ship-via, --release-mode, --release-age-cap, --release-command, --profiles on|off, --profile-tier PROFILE=TIER or --route KIND=EMAIL / --no-route KIND"
         )
 
     # The wiki's sort has its own route: a writer may set it, not only the owner.

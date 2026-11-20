@@ -90,6 +90,9 @@ defmodule Slipdock.Boards.Card do
     # The pull request the work is in (#1654), on a board that ships by
     # pull request: an http(s) URL. A merge job merges it once accepted.
     field :evidence_pr, :string
+    # The commit a person approved merging (#3519), when its pull request
+    # changes the board's sensitive paths. Set by `Slipdock.Verified`.
+    field :merge_approved_commit, :string
     # Why the card changes no code (#1938): on a board that ships by pull
     # request, a card with nothing to commit names this in place of a pull
     # request, and accepting it merges nothing.

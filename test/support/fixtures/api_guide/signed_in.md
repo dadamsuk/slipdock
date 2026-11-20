@@ -4108,6 +4108,13 @@ A pull request already merged at the accepted commit completes the
 card with that merge commit; one merged at another head leaves it
 merging and says which head, and neither counts as a rejection. A
 person can say they merged it by hand (`verify_card` `merged`).
+A pull request that changes one of the board's **sensitive paths** (CI
+workflows, git hooks and config, `.claude/**`, and the files a package
+install runs, unless the board sets its own list with `sensitive_paths`)
+merges only once a person approves it: the runner stops before merging,
+and the card is held for a person with a Merge / Send back wait. The
+merge job carries the list as `X-Sensitive-Paths` and a person's approval
+of that commit as `X-Merge-Approved: 1`.
 
 
 
@@ -4473,8 +4480,8 @@ POST   /api/runner/claim
            add_card, add_page, add_document, page_card_features, show_pulse, close_on_complete,
            vote_budget, vote_max, automation_wip, agentic_building, delivery_metrics, incident_tag,
            hotfix_window_hours, not_shipped_minutes, card_ref_pattern, handoff_label,
-           handoff_prompt, inbound_senders, bar_required, evidence_required, verify_work,
-           verify_pool, verify_rejection_limit, verify_audit, ship_via, release_mode,
+           handoff_prompt, inbound_senders, sensitive_paths, bar_required, evidence_required,
+           verify_work, verify_pool, verify_rejection_limit, verify_audit, ship_via, release_mode,
            release_age_cap_hours, release_command, profiles, profile_tiers, job_log_hours,
            failure_log_hours, findings_propose_at, wait_default_after, wait_routes; needs to own
            the board

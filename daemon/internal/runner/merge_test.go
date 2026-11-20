@@ -3,6 +3,7 @@ package runner
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -18,6 +19,12 @@ type fakeGit struct {
 	mergeSays           string
 	mergeFails          bool
 	ran                 []string
+	// files are the pull request's, and changed its count (len(files) if 0).
+	files   []string
+	changed int
+	// filesSay, when set, is what gh prints for the files; filesFail fails it.
+	filesSay  string
+	filesFail bool
 }
 
 func (g *fakeGit) exec(_ context.Context, dir, name string, args ...string) (string, error) {
@@ -36,6 +43,18 @@ func (g *fakeGit) exec(_ context.Context, dir, name string, args ...string) (str
 		return "", nil
 	case strings.HasPrefix(line, "gh pr view 7") && strings.Contains(line, "state,headRefOid"):
 		return g.state + " " + g.head + "\n", nil
+	case strings.HasPrefix(line, "gh pr view 7") && strings.Contains(line, "changedFiles,files"):
+		if g.filesFail {
+			return "HTTP 502", errors.New("exit 1")
+		}
+		if g.filesSay != "" {
+			return g.filesSay, nil
+		}
+		n := g.changed
+		if n == 0 {
+			n = len(g.files)
+		}
+		return fmt.Sprintf("%d\n%s\n", n, strings.Join(g.files, "\n")), nil
 	case strings.HasPrefix(line, "gh pr merge 7"):
 		if g.mergeFails {
 			return g.mergeSays, errors.New("exit 1")
@@ -208,5 +227,113 @@ func TestFinishTriesAgainAndTakesA404AsReported(t *testing.T) {
 	codes, got = []int{503}, nil
 	if err := c.Finish(context.Background(), 1, 2, 0, "", "", nil, sleep); err == nil || len(got) != 5 {
 		t.Fatalf("five tries, then the error: err %v, tries %d", err, len(got))
+	}
+}
+
+// #3519: a pull request that changes a sensitive file merges only once a
+// person has approved it.
+func TestMergeWaitsForAPersonOnASensitiveFile(t *testing.T) {
+	sensitive := []string{".github/workflows/**", "**/Makefile", ".claude/**"}
+	for _, tc := range []struct {
+		files    []string
+		changed  int
+		approved bool
+		wantHit  string
+	}{
+		{files: []string{"lib/a.ex", ".github/workflows/ci.yml"}, wantHit: ".github/workflows/ci.yml"},
+		{files: []string{"Makefile"}, wantHit: "Makefile"},
+		{files: []string{"cli/Makefile"}, wantHit: "cli/Makefile"},
+		{files: []string{".claude/settings.json"}, wantHit: ".claude/settings.json"},
+		{files: []string{"lib/a.ex"}, changed: 120, wantHit: "119 more files gh doesn't list"},
+		{files: []string{"lib/a.ex", "docs/Makefile.md"}},
+		{files: []string{".github/workflows/ci.yml"}, approved: true},
+	} {
+		g := &fakeGit{origin: "https://github.com/dadamsuk/slipdock.git", state: "OPEN", head: "abc123", files: tc.files, changed: tc.changed}
+		job := mergeJob()
+		job.SensitivePaths, job.MergeApproved = sensitive, tc.approved
+		_, err := merge(context.Background(), g.exec, "/repo", job, func(string) {})
+		merged := false
+		for _, line := range g.ran {
+			merged = merged || strings.HasPrefix(line, "gh pr merge")
+		}
+		if tc.wantHit == "" {
+			if err != nil || !merged {
+				t.Errorf("%v: %v, merged %v; want it merged", tc.files, err, merged)
+			}
+			continue
+		}
+		var me *mergeExit
+		if !errors.As(err, &me) || me.code != 4 || !strings.HasPrefix(me.msg, "merge: "+NeedsApproval) ||
+			!strings.Contains(me.msg, tc.wantHit) || merged {
+			t.Errorf("%v: %v, merged %v; want exit 4 naming %s", tc.files, err, merged, tc.wantHit)
+		}
+	}
+}
+
+func TestMergeFromAnOlderServerChecksNoFiles(t *testing.T) {
+	g := &fakeGit{origin: "https://github.com/dadamsuk/slipdock.git", state: "OPEN", head: "abc123"}
+	if _, err := merge(context.Background(), g.exec, "/repo", mergeJob(), func(string) {}); err != nil {
+		t.Fatal(err)
+	}
+	for _, line := range g.ran {
+		if strings.Contains(line, "changedFiles") {
+			t.Fatalf("listed the files with no sensitive paths: %s", line)
+		}
+	}
+}
+
+func TestTheSensitivePathsAreReadFromTheClaim(t *testing.T) {
+	h := http.Header{}
+	h.Set("X-Job-Id", "5")
+	h.Set("X-Sensitive-Paths", ".github/workflows/**, Makefile,,")
+	h.Set("X-Merge-Approved", "1")
+	job, err := parseJob(h, nil)
+	if err != nil || strings.Join(job.SensitivePaths, "|") != ".github/workflows/**|Makefile" || !job.MergeApproved {
+		t.Fatalf("job = %+v, %v", job, err)
+	}
+	h.Set("X-Merge-Approved", "yes")
+	if job, _ := parseJob(h, nil); job.MergeApproved {
+		t.Fatal("approved from a header that isn't 1")
+	}
+}
+
+// The file check never lets a merge through when it can't read the files.
+func TestMergeStopsWhenItCantReadTheFiles(t *testing.T) {
+	for name, g := range map[string]*fakeGit{
+		"gh fails":       {filesFail: true},
+		"not a number":   {filesSay: "oops\nMakefile\n"},
+		"nothing at all": {filesSay: " "},
+	} {
+		g.origin, g.state, g.head = "https://github.com/dadamsuk/slipdock.git", "OPEN", "abc123"
+		job := mergeJob()
+		job.SensitivePaths = []string{"Makefile"}
+		_, err := merge(context.Background(), g.exec, "/repo", job, func(string) {})
+		var me *mergeExit
+		if !errors.As(err, &me) || me.code != 2 || !strings.Contains(me.msg, "could not list") {
+			t.Errorf("%s: %v; want exit 2, could not list", name, err)
+		}
+		for _, line := range g.ran {
+			if strings.HasPrefix(line, "gh pr merge") {
+				t.Errorf("%s: merged: %s", name, line)
+			}
+		}
+	}
+}
+
+func TestAGlobNamingAFolderHoldsWhatIsUnderIt(t *testing.T) {
+	for glob, path := range map[string]string{
+		"deploy":    "deploy/a/b.sh",
+		".github":   ".github/workflows/ci.yml",
+		"scripts/*": "scripts/x/install.sh",
+		"**/hooks":  "tools/git/hooks/pre-commit",
+	} {
+		if !globMatch(glob, path) {
+			t.Errorf("%s doesn't match %s", glob, path)
+		}
+	}
+	for glob, path := range map[string]string{"deploy": "deployer/x", "docs/*.md": "docs/a/b.txt"} {
+		if globMatch(glob, path) {
+			t.Errorf("%s matches %s", glob, path)
+		}
 	}
 }
