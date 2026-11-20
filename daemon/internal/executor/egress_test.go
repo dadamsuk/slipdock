@@ -337,3 +337,29 @@ wget -q -T 5 -O /dev/null http://1.1.1.1/ 2>/dev/null && echo "direct yes" || ec
 		t.Errorf("the container has a network:\n%s", got)
 	}
 }
+
+// TestAnAllowlistNeedsLandlockABI4: on Linux, confined is ready for an
+// allowlist only where Landlock limits TCP connections (ABI 4); ABI 3 is
+// enough without one.
+func TestAnAllowlistNeedsLandlockABI4(t *testing.T) {
+	launcher := filepath.Join(t.TempDir(), "slipdock-runner")
+	_ = os.WriteFile(launcher, []byte("#!/bin/sh\n"), 0o755)
+	landlock := landlockABI
+	defer func() { landlockABI = landlock }()
+	ready := func(abi int, eg *Egress) error {
+		landlockABI = func() int { return abi }
+		return (&confined{local: &local{s: Settings{GOOS: "linux", Launcher: launcher, Egress: eg}}}).Ready()
+	}
+	if err := ready(3, &Egress{Port: 4100}); err == nil || !strings.Contains(err.Error(), "needs Landlock ABI 4 or later") ||
+		!strings.Contains(err.Error(), "offers ABI 3") {
+		t.Fatalf("ABI 3 with an allowlist: %v", err)
+	}
+	if err := ready(3, nil); err != nil {
+		t.Fatalf("ABI 3 without an allowlist: %v", err)
+	}
+	for _, abi := range []int{4, 5} {
+		if err := ready(abi, &Egress{Port: 4100}); err != nil {
+			t.Fatalf("ABI %d with an allowlist: %v", abi, err)
+		}
+	}
+}
