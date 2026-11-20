@@ -18,10 +18,8 @@ defmodule Slipdock.Runners.SharedBypass do
   (`inbound_senders`).
   """
 
-  import Ecto.Query
-
-  alias Slipdock.Access.Grant
-  alias Slipdock.Boards.{Board, Card}
+  alias Slipdock.Access
+  alias Slipdock.Boards.Board
   alias Slipdock.Repo
   alias Slipdock.Runners.{Config, Runner}
 
@@ -55,34 +53,13 @@ defmodule Slipdock.Runners.SharedBypass do
 
   @doc """
   Whether anyone but `owner_id` can write or comment on the tree under the
-  root board `board_id`, or mail it.
+  root board `board_id`, or mail it (`Slipdock.Access.others_write_on_tree?/2`).
   """
   @spec shared?(integer, integer | nil) :: boolean
-  def shared?(_board_id, nil), do: true
-
   def shared?(board_id, owner_id) do
     case Repo.get(Board, board_id) do
       nil -> false
-      %Board{} = board -> board_shared?(board, owner_id)
+      %Board{} = board -> Access.others_write_on_tree?(board, owner_id)
     end
-  end
-
-  defp board_shared?(board, owner_id) do
-    root = Board.root_id(board)
-
-    board.owner_id != owner_id or (board.inbound_senders || []) != [] or
-      Repo.exists?(
-        from(g in Grant,
-          left_join: b in Board,
-          on: b.id == g.board_id,
-          left_join: c in Card,
-          on: c.id == g.card_id,
-          left_join: cb in Board,
-          on: cb.id == c.board_id,
-          where: g.level in ["comment", "write"],
-          where: is_nil(g.user_id) or g.user_id != ^owner_id,
-          where: b.id == ^root or b.root_id == ^root or cb.id == ^root or cb.root_id == ^root
-        )
-      )
   end
 end
