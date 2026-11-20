@@ -99,6 +99,22 @@ defmodule Slipdock.Runners.SharedBypassTest do
     assert SharedBypass.warnings(r) == [SharedBypass.warning()]
   end
 
+  test "a runner with no machine: no warning, even on a shared board", ctx do
+    grant(%{level: "write", user_id: user_fixture().id, board_id: ctx.board.id})
+    r = runner(ctx)
+    assert SharedBypass.warnings(r) == [SharedBypass.warning()]
+    assert SharedBypass.warnings(%{r | machine_id: nil}) == []
+  end
+
+  test "an unknown owner counts as shared", ctx do
+    assert Slipdock.Access.others_write_on_tree?(ctx.board, nil)
+    refute Slipdock.Access.others_write_on_tree?(ctx.board, ctx.owner.id)
+
+    r = runner(ctx)
+    assert SharedBypass.warnings(r) == []
+    assert SharedBypass.warnings(%{r | created_by_id: nil}) == [SharedBypass.warning()]
+  end
+
   test "on a shared board, any other mode or executor: no warning", ctx do
     grant(%{level: "write", user_id: user_fixture().id, board_id: ctx.board.id})
 

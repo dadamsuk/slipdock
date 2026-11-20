@@ -28,7 +28,16 @@ defmodule SlipdockWeb.MachinesLive.Show do
 
   alias Slipdock.{Access, Machines}
   alias Slipdock.Machines.Machine
-  alias Slipdock.Runners.{Ceiling, Config, MachineRunners, MachineSetup, Probe, SharedBypass, Steering}
+
+  alias Slipdock.Runners.{
+    Ceiling,
+    Config,
+    MachineRunners,
+    MachineSetup,
+    Probe,
+    SharedBypass,
+    Steering
+  }
 
   @config_fields ~w(agent directory permission_mode timeout_minutes model worktree verbosity
                     instructions executor before_hook after_hook probe_hook image network)
