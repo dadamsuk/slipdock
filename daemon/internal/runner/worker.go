@@ -18,6 +18,7 @@ import (
 	"github.com/dadamsuk/slipdock/daemon/internal/daemonlog"
 	"github.com/dadamsuk/slipdock/daemon/internal/daemonstate"
 	"github.com/dadamsuk/slipdock/daemon/internal/executor"
+	"github.com/dadamsuk/slipdock/daemon/internal/intent"
 	"github.com/dadamsuk/slipdock/daemon/internal/link"
 	"github.com/dadamsuk/slipdock/daemon/internal/machine"
 	"github.com/dadamsuk/slipdock/daemon/internal/release"
@@ -75,6 +76,11 @@ type Worker struct {
 	jobToken string
 	// newExecutor makes the executor (executor.New): a test's stands in.
 	newExecutor func(string, executor.Settings) (executor.Executor, error)
+	// Owner is the boards' owners' passkeys the person at the machine
+	// pinned in its ceiling (#3533), which Build sets. With any, a job the
+	// server says is owner tier runs as owner only when its card's text is
+	// signed by one of them (ownerCheck); otherwise as member.
+	Owner intent.Pin
 	// ReleaseKey is the project's release key, which the server's CLI is
 	// checked against before it is installed (default release.Key).
 	ReleaseKey func() (ed25519.PublicKey, error)
@@ -484,6 +490,7 @@ func (w *Worker) runJob(ctx context.Context, job *Job) {
 		w.runProbe(ctx, j)
 		return
 	}
+	w.ownerCheck(ctx, j)
 	if job.Kind == verifyKind && w.Runner.Config.Agent != verifyKind {
 		w.runVerify(ctx, j)
 		return
@@ -496,6 +503,41 @@ func (w *Worker) runJob(ctx context.Context, job *Job) {
 		return
 	}
 	jw.runAgent(ctx, j)
+}
+
+// ownerCheck holds a job the server says is owner tier to member unless
+// the machine can check for itself that the card's text is the owner's
+// (#3533): with owner keys pinned, it fetches the card's signed text and
+// verifies the signature against them. The signature is necessary, not
+// sufficient: a job the server puts below owner stays there. No keys
+// pinned: the server's tier, as before. The reason a job is held to
+// member goes to the daemon's log and the job's.
+func (w *Worker) ownerCheck(ctx context.Context, j *jobRun) {
+	job := j.job
+	if len(w.Owner.Keys) == 0 || job.Tier != "owner" {
+		return
+	}
+	reason := ""
+	switch s, err := w.Client.Intent(ctx, w.Runner.ID, job.ID); {
+	case err != nil:
+		reason = "couldn't fetch the card's signed text: " + err.Error()
+	default:
+		f, a, err := s.Parts()
+		if err == nil {
+			err = intent.Verify(w.Owner, f, a, job.CardID, w.Now())
+		}
+		if err != nil {
+			reason = err.Error()
+		}
+	}
+	if reason == "" {
+		w.say("job #%d: the card's text is signed by a pinned owner key: owner tier", job.ID)
+		j.note("slipdock-runner: the card's text is signed by a pinned owner key: owner tier")
+		return
+	}
+	job.Tier = "member"
+	w.say("warn: job #%d: held to trust tier member, not owner: %s", job.ID, reason)
+	j.note("slipdock-runner: held to trust tier member, not owner: " + reason)
 }
 
 // forTier is the worker an agent job runs on (#3516): this one when the

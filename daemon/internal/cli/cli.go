@@ -1,5 +1,5 @@
 // Package cli is slipdock-runner's commands: init, setup, show, status,
-// log, config, boards, doctor, service, run, update and version. Everything outside the process (the terminal, the
+// log, config, boards, trust-owner, doctor, service, run, update and version. Everything outside the process (the terminal, the
 // environment, the network, the clock, other programs) comes in through
 // Env, so each command can be tested on its own.
 package cli
@@ -150,7 +150,7 @@ func openBrowser(goos, url string, start func(string, ...string) error) error {
 const usage = `slipdock-runner: the Slipdock runner daemon, one per machine.
 
 Usage:
-  slipdock-runner init [--server URL] [--allow-http] [--key KEY] [--replace] [--user NAME | --as-me] [--no-setup]
+  slipdock-runner init [--server URL] [--allow-http] [--key KEY] [--replace] [--user NAME | --as-me] [--no-setup] [--no-trust-owner]
                                           enrol this machine, and choose who jobs run as
   slipdock-runner setup [--print]         set this machine up with Claude, from the server's prompt
   slipdock-runner show                    the trust contract, with this machine's limits
@@ -161,6 +161,7 @@ Usage:
                                           the ceiling, local.json and each runner's accepted settings
   slipdock-runner boards [add|remove ID...]
                                           the boards this machine serves (its ceiling), or change them
+  slipdock-runner trust-owner [--yes]     pin the board owners' passkeys, so only cards they sign run at the owner tier
   slipdock-runner doctor                  check this machine is ready to run jobs
   slipdock-runner service install|uninstall|print
   slipdock-runner run [--log FILE] [--log-level debug|info|warn|error]
@@ -206,6 +207,8 @@ func Main(args []string, env Env) int {
 		err = cmdDoctor(rest, env)
 	case "boards":
 		err = cmdBoards(rest, env)
+	case "trust-owner":
+		err = cmdTrustOwner(rest, env)
 	case "service":
 		err = cmdService(rest, env)
 	case "run":

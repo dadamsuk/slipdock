@@ -602,11 +602,32 @@ local.json</code>
  sets <code>
 skills_unsigned</code>
 .</li>
-</ul>
-<p>
-The machine&#39;s key lets it claim and report on its own runners&#39; jobs and
+<li>
+Raise a job to the owner tier on its own word, once owner keys are
+pinned. With <code>
+owner_keys</code>
+ in the ceiling (pinned by a person at the
+machine with <code>
+slipdock-runner trust-owner</code>
+), a job the server says is
+<code>
+owner</code>
+ tier runs as <code>
+owner</code>
+ only when its card&#39;s title, description
+and bar carry a signature by one of those passkeys. The daemon checks
+it itself: the challenge is its own SHA-256 of the text, with the
+server&#39;s origin, the card and when it was signed; the origin and
+relying party are the pinned key&#39;s; the owner was present and
+verified; and the signature is no older than the ceiling allows. Any
+other job runs as <code>
+member</code>
+ at most, and the daemon logs why. A
+signature never raises a job above the tier the server gives it.
+lets it claim and report on its own runners&#39; jobs and
 read their settings, and nothing else. It is not an API token. Revoking
-the machine on the Machines page ends the key at once.</p>
+the machine on the Machines page ends the key at once.</li>
+</ul>
 <h4>
 What nothing here bounds</h4>
 <ul>
@@ -647,6 +668,20 @@ no_cli_update</code>
 local.json</code>
  to keep your
 own.</li>
+<li>
+What an owner&#39;s signature doesn&#39;t cover. Signed text is the owner&#39;s
+for certain, and only that text: the server is still trusted for the
+rest of the prompt (a rejection, a wait&#39;s answer, a handoff), for what
+the agent reads while it works, and for the prompt carrying the signed
+text at all. A server serving a tampered page can ask the owner to tap
+for other text than the page shows. The keys are pinned on the
+server&#39;s word when <code>
+trust-owner</code>
+ runs, so compare their fingerprints
+with the owner&#39;s own list. With no <code>
+owner_keys</code>
+ pinned, a job&#39;s tier is
+the server&#39;s word alone.</li>
 <li>
 Network access. A job can reach the network, and so can send anything
 it can read to anywhere, unless its runner uses the <code>

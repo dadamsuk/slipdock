@@ -205,6 +205,8 @@ writes; only someone at the machine changes it.
 | `executors` | who a runner's jobs may run as (below) | `user` with a dedicated account; `me` and `confined` without one (`me` only on Windows) |
 | `container_images` | the images a `container` runner may run (below) | none: no image runs until you list one |
 | `tiers` | what a job may do by who wrote its card (below) | none: every job runs as its runner says |
+| `owner_keys` | the board owners' passkeys pinned here: with any, only a card its owner signed runs at the `owner` tier (below) | none; `init` offers to pin them, `slipdock-runner trust-owner` does it later |
+| `owner_signature_max_age_days` | how old an owner's signature may be | 30 when left out |
 
 `init --root DIR --agent NAME --max-mode MODE --max-timeout MINUTES` sets
 them as it writes the file (`--root` and `--agent` repeat). `init --replace`
@@ -316,6 +318,37 @@ the signature against a key it pinned knows the text is the owner's even
 if the server, an agent using the owner's login or a leaked token wrote
 otherwise. It doesn't protect against a compromised server, which serves
 the page that asks for the tap.
+
+To have a machine check it, pin the owners' keys there:
+
+```sh
+slipdock-runner trust-owner         # shows each owner's passkeys and their fingerprints, asks, pins
+slipdock-runner trust-owner --yes   # the same without asking, for scripts
+```
+
+It asks the server, through each of the machine's runners, for the
+passkeys of the owner of that runner's board, shows each one's name,
+algorithm and fingerprint (worked out on the machine from the key itself),
+and writes the ones you confirm into `ceiling.json` as `owner_keys`, with
+the server's origin and relying party id. Compare the fingerprints with the
+owner's own list first (their account page, or `slipdock passkeys` signed
+in as them): the keys are as good as the server's word at that moment. Run
+it again after the owner adds or removes a passkey; it unpins the keys the
+owner no longer has. `init` offers the same step at its end (skip it with
+`--no-trust-owner`; it needs a runner, so after enrolment it usually waits
+for `trust-owner`). The server never writes `owner_keys`.
+
+With keys pinned, a job the server says is `owner` tier fetches the card's
+signed text and checks the signature itself: its own SHA-256 of the text as
+the challenge, the pinned key's origin and relying party, the owner present
+and verified, and signed within `owner_signature_max_age_days` (30 by
+default). If anything fails (the card is unsigned or edited since, the key
+isn't pinned, the signature is old or doesn't verify, the server doesn't
+answer), the job runs under the `member` tier's limits instead, and the
+daemon's log and the job's say why. A signature never lifts a job above the
+tier the server gives it. With no `owner_keys`, nothing changes. `doctor`
+warns about a pinned key the owner's account no longer has, and about keys
+pinned with no `tiers` for them to matter.
 
 #### What a job reads while it runs
 
@@ -889,8 +922,18 @@ machine's own limits.
   the archive's signature verifies against the same release key. A server
   that serves no signature leaves the installed skills in place, unless
   `local.json` sets `skills_unsigned`.
-
-The machine's key lets it claim and report on its own runners' jobs and
+- Raise a job to the owner tier on its own word, once owner keys are
+  pinned. With `owner_keys` in the ceiling (pinned by a person at the
+  machine with `slipdock-runner trust-owner`), a job the server says is
+  `owner` tier runs as `owner` only when its card's title, description
+  and bar carry a signature by one of those passkeys. The daemon checks
+  it itself: the challenge is its own SHA-256 of the text, with the
+  server's origin, the card and when it was signed; the origin and
+  relying party are the pinned key's; the owner was present and
+  verified; and the signature is no older than the ceiling allows. Any
+  other job runs as `member` at most, and the daemon logs why. A
+  signature never raises a job above the tier the server gives it.
+ lets it claim and report on its own runners' jobs and
 read their settings, and nothing else. It is not an API token. Revoking
 the machine on the Machines page ends the key at once.
 
@@ -914,6 +957,15 @@ the machine on the Machines page ends the key at once.
   server publishes: a server can then change the program the agent calls.
   Set `no_skills_update` (and `no_cli_update`) in `local.json` to keep your
   own.
+- What an owner's signature doesn't cover. Signed text is the owner's
+  for certain, and only that text: the server is still trusted for the
+  rest of the prompt (a rejection, a wait's answer, a handoff), for what
+  the agent reads while it works, and for the prompt carrying the signed
+  text at all. A server serving a tampered page can ask the owner to tap
+  for other text than the page shows. The keys are pinned on the
+  server's word when `trust-owner` runs, so compare their fingerprints
+  with the owner's own list. With no `owner_keys` pinned, a job's tier is
+  the server's word alone.
 - Network access. A job can reach the network, and so can send anything
   it can read to anywhere, unless its runner uses the `container`
   executor with the network off. No other executor limits the network.
@@ -977,7 +1029,9 @@ slipdock-runner doctor
 checks the machine is enrolled and the server still accepts its key, the
 key and directory are yours alone, the ceiling is valid and its roots exist,
 each agent in it answers `--version`, `git` is there, `gh` is logged in,
-the service is installed, and the last update check wasn't refused. Each line is `ok`, `warn` or `FAIL` with what to
+the service is installed, and the last update check wasn't refused. With
+owner keys pinned, it also warns about one the owner's account no longer
+has (run `trust-owner` again to unpin it). Each line is `ok`, `warn` or `FAIL` with what to
 do; any `FAIL` makes it exit non-zero.
 
 Three commands read what the daemon keeps in its directory. They need no

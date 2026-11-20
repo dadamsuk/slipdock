@@ -268,7 +268,9 @@ owner of the runner's board tree as `keys` (`credential_id`, `algorithm`,
 `spki`: SubjectPublicKeyInfo DER in base64url, `fingerprint`:
 `sha256:` and the hex of its SHA-256), with the `origin` and `rp_id` they
 sign for. A machine checks the signature itself against keys its person
-pinned, never ones fetched at job time; the server is still trusted for
+pinned (`slipdock-runner trust-owner`, into its ceiling's `owner_keys`),
+never ones fetched at job time, and runs a job the server says is `owner`
+as `member` when the check fails; the server is still trusted for
 everything else the agent reads.
 
 **A job's trust tier.** `X-Prompt-Tier` is the least-trusted author of

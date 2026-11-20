@@ -5,13 +5,16 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/dadamsuk/slipdock/daemon/internal/executor"
+	"github.com/dadamsuk/slipdock/daemon/internal/intent"
 )
 
 // Ceiling is the machine's own limits on what the server may configure
@@ -41,6 +44,53 @@ type Ceiling struct {
 	// server reports it (owner, member or anyone). A job whose tier has no
 	// entry is refused. No tiers: every job runs as its runner says.
 	Tiers map[string]Tier `json:"tiers,omitempty"`
+	// OwnerKeys are the passkeys of the boards' owners that the person at
+	// the machine pinned (#3533, slipdock-runner trust-owner). With any
+	// pinned, a job runs at the owner tier only when the server says owner
+	// and the card's text carries a signature by one of them; otherwise it
+	// runs as member at most. None: the server's tier, as before.
+	OwnerKeys []OwnerKey `json:"owner_keys,omitempty"`
+	// OwnerSignatureMaxAgeDays is how old an owner's signature may be
+	// (DefaultOwnerSignatureMaxAgeDays when 0).
+	OwnerSignatureMaxAgeDays int `json:"owner_signature_max_age_days,omitempty"`
+}
+
+// OwnerKey is one pinned passkey of a board's owner, as the server listed
+// it when the person at the machine confirmed its fingerprint. The
+// credential id and SPKI (SubjectPublicKeyInfo DER) are base64url.
+type OwnerKey struct {
+	OwnerID      int64  `json:"owner_id,omitempty"`
+	Name         string `json:"name,omitempty"`
+	CredentialID string `json:"credential_id"`
+	Algorithm    string `json:"algorithm,omitempty"`
+	SPKI         string `json:"spki"`
+	Fingerprint  string `json:"fingerprint"`
+	Origin       string `json:"origin"`
+	RPID         string `json:"rp_id"`
+}
+
+// DefaultOwnerSignatureMaxAgeDays is how old an owner's signature may be
+// when the ceiling doesn't say.
+const DefaultOwnerSignatureMaxAgeDays = 30
+
+// OwnerPin is the ceiling's pinned owner keys as the signature check reads
+// them. Validate has checked each, so one that doesn't read here is left
+// out rather than trusted.
+func (c Ceiling) OwnerPin() intent.Pin {
+	days := c.OwnerSignatureMaxAgeDays
+	if days <= 0 {
+		days = DefaultOwnerSignatureMaxAgeDays
+	}
+	p := intent.Pin{MaxAge: time.Duration(days) * 24 * time.Hour}
+	for _, k := range c.OwnerKeys {
+		id, err1 := intent.Decode64(k.CredentialID)
+		der, err2 := intent.Decode64(k.SPKI)
+		if err1 != nil || err2 != nil || len(id) == 0 {
+			continue
+		}
+		p.Keys = append(p.Keys, intent.Key{CredentialID: id, SPKI: der, Origin: k.Origin, RPID: k.RPID})
+	}
+	return p
 }
 
 // Tier is what a job of one trust tier may do: the executor it runs
@@ -71,6 +121,8 @@ func (c Ceiling) Offered() []string {
 func (c Ceiling) Reported() Ceiling {
 	r := c
 	r.Executors = append([]string(nil), c.Offered()...)
+	// The pinned owner keys are the machine's own business.
+	r.OwnerKeys, r.OwnerSignatureMaxAgeDays = nil, 0
 	if r.Roots == nil {
 		r.Roots = []string{}
 	}
@@ -139,6 +191,7 @@ func (c Ceiling) Validate() error {
 		}
 	}
 	problems = append(problems, c.tierProblems()...)
+	problems = append(problems, c.ownerKeyProblems()...)
 	if len(problems) > 0 {
 		return errors.New(strings.Join(problems, "; "))
 	}
@@ -184,6 +237,61 @@ func (c Ceiling) tierProblems() []string {
 		default:
 			problems = append(problems, fmt.Sprintf("%s.network: %q is not on or off", at, t.Network))
 		}
+	}
+	return problems
+}
+
+// ownerKeyProblems are what is wrong with the pinned owner keys: each has
+// a credential id and a key the daemon can check a signature with, its
+// fingerprint is that key's, and its origin and relying party id agree.
+func (c Ceiling) ownerKeyProblems() []string {
+	var problems []string
+	if c.OwnerSignatureMaxAgeDays < 0 || c.OwnerSignatureMaxAgeDays > 3650 {
+		problems = append(problems, "owner_signature_max_age_days: between 1 and 3650 (0 or left out: 30)")
+	}
+	seen := map[string]bool{}
+	for i, k := range c.OwnerKeys {
+		at := fmt.Sprintf("owner_keys[%d]", i)
+		if seen[k.CredentialID] {
+			problems = append(problems, at+".credential_id: pinned twice")
+		}
+		seen[k.CredentialID] = true
+		for _, p := range k.problems() {
+			problems = append(problems, at+"."+p)
+		}
+	}
+	return problems
+}
+
+// Check says what, if anything, is wrong with one owner key.
+func (k OwnerKey) Check() error {
+	if p := k.problems(); len(p) > 0 {
+		return errors.New(strings.Join(p, "; "))
+	}
+	return nil
+}
+
+func (k OwnerKey) problems() []string {
+	var problems []string
+	if id, err := intent.Decode64(k.CredentialID); err != nil || len(id) == 0 {
+		problems = append(problems, "credential_id: not base64url")
+	}
+	der, err := intent.Decode64(k.SPKI)
+	if err == nil {
+		_, _, err = intent.ParseKey(der)
+	}
+	switch {
+	case err != nil:
+		problems = append(problems, fmt.Sprintf("spki: %v", err))
+	case k.Fingerprint != intent.Fingerprint(der):
+		problems = append(problems, "fingerprint: not the key's (sha256: and the hex of SHA-256 over its SPKI)")
+	}
+	u, err := url.Parse(k.Origin)
+	if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" ||
+		k.Origin != u.Scheme+"://"+u.Host {
+		problems = append(problems, fmt.Sprintf("origin: %q is not a server's origin (https://host)", k.Origin))
+	} else if host := u.Hostname(); k.RPID == "" || (host != k.RPID && !strings.HasSuffix(host, "."+k.RPID)) {
+		problems = append(problems, fmt.Sprintf("rp_id: %q is not %s or a domain it is under", k.RPID, host))
 	}
 	return problems
 }

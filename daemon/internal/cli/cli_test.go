@@ -34,6 +34,9 @@ type fake struct {
 	// it 404, as a server that predates it does.
 	setupPrompt string
 	noSetup     bool
+	// ownerKeys is GET /api/runner/owner-keys's answer for each runner id
+	// (404 for one not listed).
+	ownerKeys map[string]string
 }
 
 func (f *fake) start(t *testing.T) *httptest.Server {
@@ -78,6 +81,13 @@ func (f *fake) start(t *testing.T) *httptest.Server {
 			}
 			f.claims[r.Header.Get("X-Runner-Id")]++
 			w.WriteHeader(f.claimStatus)
+		case "/api/runner/owner-keys":
+			answer, ok := f.ownerKeys[r.Header.Get("X-Runner-Id")]
+			if !ok || r.Header.Get("Authorization") != "Bearer sdm_key" {
+				w.WriteHeader(404)
+				return
+			}
+			w.Write([]byte(answer))
 		case "/api/machine/setup-prompt":
 			if f.noSetup {
 				w.WriteHeader(404)
