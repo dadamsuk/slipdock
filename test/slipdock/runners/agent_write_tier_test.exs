@@ -156,6 +156,72 @@ defmodule Slipdock.Runners.AgentWriteTierTest do
     assert tier(agent_edit(ctx, card_by(ctx, ctx.owner), 999_999_999)) == "member"
   end
 
+  # A live job on `runner`, on a card whose text `writer` wrote.
+  defp job_on(ctx, runner, pool, writer) do
+    card = card_by(ctx, writer, %{"description" => "Work"})
+    {:ok, _} = Runners.queue(card, %{pool: pool, kind: "work", prompt: "go"})
+    %Job{} = job = Runners.claim(runner)
+    job
+  end
+
+  # A runner the member made on the owner's board. Taking work from it needs a
+  # pool grant, so it is made by the owner and then put in the member's name.
+  defp members_runner(ctx) do
+    {:ok, runner, _} =
+      Runners.create_runner(ctx.board, %{"name" => "theirs", "pool" => "m"}, ctx.owner)
+
+    Repo.update_all(from(r in Runners.Runner, where: r.id == ^runner.id),
+      set: [created_by_id: ctx.member.id]
+    )
+
+    runner
+  end
+
+  defp edit_as(user, card, job_id) do
+    {:ok, card} =
+      Boards.Cards.update_card(card, %{"description" => "Rewritten"},
+        actor: %{Actor.runner(user, job_id, "cli") | via: "cli"}
+      )
+
+    card
+  end
+
+  test "an agent's person losing access after the write leaves the card at anyone", ctx do
+    runner = members_runner(ctx)
+
+    job = job_on(ctx, runner, "m", ctx.member)
+    assert TrustTier.of(job) == "member"
+
+    target = edit_as(ctx.member, card_by(ctx, ctx.owner), job.id)
+    assert target.text_by == [ctx.owner.id, ctx.member.id, -1]
+    assert tier(target) == "member"
+
+    Repo.delete_all(from(g in Grant, where: g.user_id == ^ctx.member.id))
+    assert tier(target) == "anyone"
+  end
+
+  test "a live job on a runner the person made, on a board they don't own, is theirs", ctx do
+    runner = members_runner(ctx)
+
+    job = job_on(ctx, runner, "m", ctx.owner)
+    assert TrustTier.of(job) == "owner"
+
+    target = edit_as(ctx.member, card_by(ctx, ctx.owner), job.id)
+    # The job's tier, owner, adds no cap: only the member's own id.
+    assert target.text_by == [ctx.owner.id, ctx.member.id]
+    assert tier(target) == "member"
+  end
+
+  test "a live job on a runner someone else made, in a tree the person owns, is theirs", ctx do
+    {:ok, runner, _} = Runners.create_runner(ctx.board, %{"name" => "shared", "pool" => "s"})
+    job = job_on(ctx, runner, "s", ctx.owner)
+    assert TrustTier.of(job) == "owner"
+
+    target = edit_as(ctx.owner, card_by(ctx, ctx.owner), job.id)
+    assert target.text_by == [ctx.owner.id]
+    assert tier(target) == "owner"
+  end
+
   test "a person's own CLI edit is unchanged", ctx do
     target = card_by(ctx, ctx.owner)
 

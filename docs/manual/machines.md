@@ -236,7 +236,10 @@ Text an agent writes counts at its job's tier, not its login's: an agent
 using the owner's login, in a `member` job, leaves the card it rewrites at
 `member`. An agent that names no live job of that person's (the CLI sends
 it when it runs under a runner job) counts as a `member` at most. A
-person's own edit, in the web or the CLI, counts as theirs.
+person's own edit, in the web or the CLI, counts as theirs. Their own
+integrations other than the plain CLI (a script calling the REST API with
+their token, an MCP client) count as agents, so what they write is
+`member` at most.
 
 The server only reports the tier; `tiers` in `ceiling.json` decides what
 each gets. Each entry may set the `executor` the job runs under (one the
