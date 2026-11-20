@@ -197,3 +197,4 @@ Slipdock.Wiki.SharedPlacements.cleanup/1 a share taken back (Access.revoke/2 has
 Slipdock.Wiki.Switcher.linkable_pool/2 a read: its only write makes the person's vault the first time it is wanted (Vaults.root/1)
 Slipdock.Wiki.Switcher.pool/2 a read: its only write makes the board owner's vault the first time it is wanted (Vaults.root/1)
 Slipdock.Wiki.resolve_waiting/2 a page or file arriving by a write that has asked brings other pages' waiting links to life
+Slipdock.Runners.JobToken.mint/2 the runner protocol's own: a claimed verify job's token, minted for the machine's daemon at the claim (#3522)

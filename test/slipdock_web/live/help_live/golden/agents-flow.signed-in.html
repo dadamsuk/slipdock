@@ -919,7 +919,10 @@ Runner pool for verify jobs</em>
   set, a <strong>
 verifier</strong>
 
-  in that pool, never the runner that built it, judges in order: does the bar cover the ask;
+  in that pool, never the runner that built it, judges in order: does the bar cover the ask
+  (not for a card with a change to check: that verifier sees only the bar and the change, never
+  the card&#39;s description or comments, and runs in a container on its machine with no login but its
+  agent&#39;s and a token that can only report its verdict and steps and read the handbook);
   is each part of the bar met; did the suite pass (on a pull request board, the pull
   request&#39;s checks); are the rules kept (<code>
 must</code>

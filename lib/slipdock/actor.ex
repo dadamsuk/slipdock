@@ -153,12 +153,26 @@ defmodule Slipdock.Actor do
     job_id = conn |> header("x-slipdock-job") |> parse_id()
 
     cond do
-      is_nil(token) -> web(user)
-      client == "cli" and not agent? -> build("human", "cli", user, label(token))
-      client == "cli" -> build("agent", "cli", user, label(token), job_id)
-      true -> build("agent", "api", user, label(token), job_id)
+      is_nil(token) ->
+        web(user)
+
+      # A verify job's own token (#3522) is always that job's agent.
+      is_integer(Map.get(token, :job_id)) ->
+        build("agent", via(client), user, label(token), token.job_id)
+
+      client == "cli" and not agent? ->
+        build("human", "cli", user, label(token))
+
+      client == "cli" ->
+        build("agent", "cli", user, label(token), job_id)
+
+      true ->
+        build("agent", "api", user, label(token), job_id)
     end
   end
+
+  defp via("cli"), do: "cli"
+  defp via(_client), do: "api"
 
   @doc """
   The actor a move's `opts` name: `opts[:actor]` as given, or one built from

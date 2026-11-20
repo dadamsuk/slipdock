@@ -1,7 +1,8 @@
 defmodule Slipdock.Accounts.UserToken do
   @moduledoc """
   Tokens for magic-link sign-in ("magic"), browser sessions ("session"),
-  API access ("api") and confirming a change of the instance's admin
+  API access ("api"), one runner job's narrow access ("job", see
+  `Slipdock.Runners.JobToken`) and confirming a change of the instance's admin
   address ("admin_email", a code sent to the new address). Every token is
   stored hashed: the session cookie keeps the raw session token and the row
   keeps its SHA-256 digest (`session_digest/1`), like the others.
@@ -46,6 +47,9 @@ defmodule Slipdock.Accounts.UserToken do
     field :oauth_client_id, :id
     field :refresh_token_hash, :binary, redact: true
     field :refresh_expires_at, :utc_datetime
+    # Set only on a runner job's token (context "job", #3522): the job it
+    # was minted for, and lives as long as (`Slipdock.Runners.JobToken`).
+    field :job_id, :id
     belongs_to :user, Slipdock.Accounts.User
     timestamps(type: :utc_datetime, updated_at: false)
   end

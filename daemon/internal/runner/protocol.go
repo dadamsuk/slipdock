@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -104,6 +105,14 @@ type Job struct {
 	// job is refused rather than run with the whole worktree.
 	Paths    []string
 	PathsBad bool
+
+	// Token is a verify job's own token (#3522), the only credential the
+	// job gets: it reports the verdict and the job's steps. VerifyCommit
+	// and VerifyPR are the change the job judges, which the daemon fetches
+	// before the job starts.
+	Token        string
+	VerifyCommit string
+	VerifyPR     string
 }
 
 // Claim is what the claim's answer said besides a job.
@@ -279,6 +288,16 @@ func parseJob(h http.Header, body []byte) (*Job, error) {
 	}
 	job.MergeApproved = h.Get("X-Merge-Approved") == "1"
 	job.Paths, job.PathsBad = parsePaths(h.Get("X-Card-Paths"))
+	if t := h.Get("X-Job-Token"); jobToken.MatchString(t) {
+		job.Token = t
+	}
+	if c := h.Get("X-Verify-Commit"); commitHex.MatchString(c) {
+		job.VerifyCommit = c
+	}
+	// A GitHub pull request, as the merge takes it: never an option for gh.
+	if pr := h.Get("X-Verify-Pr"); prURL.MatchString(pr) {
+		job.VerifyPR = pr
+	}
 	return job, nil
 }
 
@@ -321,6 +340,13 @@ func parsePaths(v string) (paths []string, bad bool) {
 	}
 	return paths, false
 }
+
+var (
+	// jobToken is a token as the server mints it: URL-safe base64.
+	jobToken = regexp.MustCompile(`^[A-Za-z0-9_-]{20,200}$`)
+	// commitHex is a commit, never an option for git.
+	commitHex = regexp.MustCompile(`^[0-9a-f]{4,64}$`)
+)
 
 func kindName(k string) bool {
 	if k == "" || len(k) > 40 {

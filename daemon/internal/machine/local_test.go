@@ -192,3 +192,14 @@ func TestTheLocalFileRefusesARunnersVariableItCantSet(t *testing.T) {
 		}
 	}
 }
+
+func TestAVerifyImageMustBeAnImage(t *testing.T) {
+	l := Local{Container: &ContainerSettings{VerifyImage: "--privileged"}}
+	if err := l.Validate(); err == nil || !strings.Contains(err.Error(), "container.verify_image") {
+		t.Fatalf("err = %v", err)
+	}
+	l.Container.VerifyImage = "ghcr.io/example/verify:1"
+	if err := l.Validate(); err != nil {
+		t.Fatal(err)
+	}
+}

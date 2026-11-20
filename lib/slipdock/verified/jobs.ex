@@ -9,6 +9,28 @@ defmodule Slipdock.Verified.Jobs do
   alias Slipdock.Repo
   alias Slipdock.Verified.{Actors, Audits, Prompts, Util}
 
+  @doc """
+  The change a verify job judges (#3522), for the machine to fetch before
+  the job starts: the submitted commit (hex, else nil) and, on a board that
+  ships by pull request, the pull request's http(s) URL (else nil).
+  """
+  def verify_target(%Slipdock.Runners.Job{card_id: card_id}) when is_integer(card_id) do
+    case Repo.get(Card, card_id) do
+      %Card{} = card ->
+        pr = if Board.ships_by_pr?(Util.board(card)), do: card.evidence_pr
+
+        %{
+          commit: Slipdock.Verified.Prompts.hex(card.evidence_commit),
+          pr: if(is_binary(pr) and pr =~ ~r{\Ahttps?://[^\s]+\z}, do: pr)
+        }
+
+      nil ->
+        %{commit: nil, pr: nil}
+    end
+  end
+
+  def verify_target(_job), do: %{commit: nil, pr: nil}
+
   # The runner whose job made a decision, if one did (#1666): it is about
   # to finish that job, so it can take the merge next (#1754).
   @doc false

@@ -105,14 +105,25 @@ func validEnv(name, daemons, reserved string) error {
 // nothing: the agent's login and the slipdock CLI's, under home. The ones
 // that aren't there are left out.
 func DefaultLogin(home, agent string) []string {
-	var out []string
-	switch agent {
-	case "claude":
-		out = append(out, filepath.Join(home, ".claude", ".credentials.json"), filepath.Join(home, ".claude", "skills"))
-	case "codex":
-		out = append(out, filepath.Join(home, ".codex", "auth.json"))
+	out := AgentLogin(home, agent)
+	if agent == "claude" {
+		out = append(out, filepath.Join(home, ".claude", "skills"))
 	}
 	return append(out, filepath.Join(home, ".config", "slipdock"))
+}
+
+// AgentLogin is the agent's own login under home and nothing else: what a
+// verify job's container mounts (#3522), which gets no CLI login, no git
+// or gh login and no keys of the machine's. Never nil, so it is never read
+// as "the default".
+func AgentLogin(home, agent string) []string {
+	switch agent {
+	case "claude":
+		return []string{filepath.Join(home, ".claude", ".credentials.json")}
+	case "codex":
+		return []string{filepath.Join(home, ".codex", "auth.json")}
+	}
+	return []string{}
 }
 
 // DefaultPassEnv is what passes from the daemon's environment when the

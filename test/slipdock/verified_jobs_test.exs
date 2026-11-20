@@ -85,9 +85,13 @@ defmodule Slipdock.VerifiedJobsTest do
       assert job.pool == "checkers"
       assert job.kind == "verify"
       assert job.status == "queued"
-      assert job.prompt =~ "Verify card ##{card.id} “Work”"
+      # Judged on the diff and the bar (#3522): the bar and the commit, never
+      # the title or the evidence's prose.
+      assert job.prompt =~ "Verify card ##{card.id} before it counts as done"
+      refute job.prompt =~ "“Work”"
       assert job.prompt =~ "The export has a header row"
-      assert job.prompt =~ "mix test: 4 passed"
+      refute job.prompt =~ "mix test: 4 passed"
+      assert job.prompt =~ "Commit: abc1234"
       assert job.prompt =~ "Check out abc1234 in a clean tree"
       assert job.prompt =~ "git worktree add /tmp/verify-#{card.id} abc1234"
       assert job.prompt =~ "slipdock verify #{card.id} accept --evidence-commit abc1234"

@@ -570,7 +570,27 @@ optional, and with no file at all `claude` and `codex` are found on your
   the built-in merge) and `env` (the daemon's variables a job gets, in
   place of the agent's key or token; `SLIPDOCK_*` and the container's own,
   such as `HOME` and `PATH`, are refused). Which images may run is the
-  ceiling's `container_images`, not this file's.
+  ceiling's `container_images`, not this file's. `verify_image` is the
+  image a verify job runs in when its runner isn't a `container` runner
+  (#3522; a container runner's verify jobs use its own `image`).
+
+**Verify jobs run in a container** (#3522), whatever the runner's
+executor: a machine whose ceiling offers `container` and has an image for
+them (`container.verify_image`, on `container_images`) takes them, and
+any other machine's runners don't say they take `verify`, so the board's
+verify jobs go to one that can. The daemon fetches `origin` with the
+machine's git and makes the job its own clone of the repository at the
+submitted commit (never the runner's own repository, so nothing the job
+writes reaches the daemon's git); on a board that ships by pull request it
+reads the pull request's head, base and checks with the machine's `gh`,
+waiting up to 30 minutes for running checks, and gives them to the job as
+`$SLIPDOCK_PR_STATE` and `$SLIPDOCK_BASE`. The container mounts the
+agent's own login alone (no `~/.config/slipdock`, `gh` login, `~/.ssh` or
+`login` list) and passes in the agent's key alone; the job's token is
+`$SLIPDOCK_TOKEN`, with `$SLIPDOCK_URL`, and a transcript never carries
+it. A runner that isn't a container runner runs no hooks for a verify job.
+The runner's own `network` and its trust tier's apply: a verify job needs
+the network for its agent and its verdict.
 - `transcripts`, `skills_dir` and `cli` say where Claude Code's
   transcripts, the slipdock skills and the `slipdock` CLI are, when they
   aren't in the usual places. `no_merge: true` turns off the built-in merge.

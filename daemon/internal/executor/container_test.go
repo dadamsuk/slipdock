@@ -649,3 +649,22 @@ try hooks 'echo x > .git/hooks/pre-commit'`)
 		t.Errorf("the job's write to its path isn't there: %v", err)
 	}
 }
+
+// A verify job's container (#3522) mounts the agent's own login alone:
+// never the slipdock CLI's, never the skills or anything else of the home.
+func TestAgentLoginIsTheAgentsAlone(t *testing.T) {
+	home := "/h"
+	for agent, want := range map[string]string{
+		"claude": "/h/.claude/.credentials.json",
+		"codex":  "/h/.codex/auth.json",
+		"lint":   "",
+	} {
+		got := AgentLogin(home, agent)
+		if got == nil || strings.Join(got, ",") != want {
+			t.Errorf("%s: %v, want %q (never nil)", agent, got, want)
+		}
+		if def := DefaultLogin(home, agent); !strings.Contains(strings.Join(def, ","), "/h/.config/slipdock") {
+			t.Errorf("%s: the default login lost the CLI's: %v", agent, def)
+		}
+	}
+}

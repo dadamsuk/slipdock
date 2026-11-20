@@ -95,6 +95,13 @@ defmodule SlipdockWeb.UserAuth do
     end
   end
 
+  defp job_user_from_bearer(conn) do
+    case bearer_token(conn) do
+      token when is_binary(token) -> Slipdock.Runners.JobToken.authenticate(token)
+      _ -> nil
+    end
+  end
+
   @doc """
   Plug: loads the current user from an `Authorization: Bearer` API token if one
   is there, and carries on regardless. For endpoints that are readable without
@@ -124,9 +131,34 @@ defmodule SlipdockWeb.UserAuth do
   defp put_actor(actor, user, token \\ nil),
     do: Slipdock.Actor.put(actor, user && Accounts.User.display_name(user), {user, token})
 
-  @doc "Plug: loads the current user from an `Authorization: Bearer` API token, else 401."
+  @doc """
+  Plug: loads the current user from an `Authorization: Bearer` API token, else 401.
+
+  A verify job's own token (`Slipdock.Runners.JobToken`, #3522) is taken
+  here too, and only here: it reaches the few routes its job needs
+  (`JobToken.allowed?/4`), and any other answers 403.
+  """
   def fetch_api_user(conn, _opts) do
-    case api_user_from_bearer(conn) do
+    case api_user_from_bearer(conn) || job_user_from_bearer(conn) do
+      {user, api_token, job} ->
+        if Slipdock.Runners.JobToken.allowed?(
+             job,
+             conn.method,
+             conn.path_info,
+             Slipdock.Runners.JobToken.diff_only?(job)
+           ) do
+          conn |> assign(:current_user, user) |> assign(:api_token, api_token) |> assign_actor()
+        else
+          conn
+          |> put_status(:forbidden)
+          |> json(%{
+            error:
+              "a verify job's token reports its verdict and progress and reads the handbook's rules; " <>
+                "it can't #{String.downcase(conn.method)} #{conn.request_path}"
+          })
+          |> halt()
+        end
+
       {user, api_token} ->
         conn |> assign(:current_user, user) |> assign(:api_token, api_token) |> assign_actor()
 

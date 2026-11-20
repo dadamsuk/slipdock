@@ -92,12 +92,14 @@ defmodule Slipdock.VerifiedGateTest do
   end
 
   test "parts, a person past the limit, and an audit that disagrees", ctx do
-    # 1. The verify prompt has the four checks, with the rules for the diff.
+    # 1. The verify prompt has the checks, with the rules for the diff. It
+    # is judged on the diff and the bar (#3522): no description, so no ask.
     verify = submit(ctx)
-    assert verify.prompt =~ "What the card asks (its description):\nAdd a header row and a footer"
+    refute verify.prompt =~ "Add a header row and a footer"
+    assert verify.prompt =~ "Handbook line: W-1944"
 
     assert verify.prompt =~
-             ~r/3\. The ask\..*4\. The bar\..*5\. The rules\..*6\. The Handbook line\./s
+             ~r/3\. The bar\..*4\. The rules\..*5\. The Handbook line\./s
 
     assert verify.prompt =~ "slipdock handbook #{ctx.board.code} --paths-from -"
 

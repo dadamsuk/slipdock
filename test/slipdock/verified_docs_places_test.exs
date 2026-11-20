@@ -143,9 +143,11 @@ defmodule Slipdock.VerifiedDocsPlacesTest do
 
       assert rules < places and places < line
       # The decision is still the step after the last check.
-      assert prompt =~ ~r/\n6\. The docs places/
-      assert prompt =~ ~r/\n7\. The Handbook line\. Find/
-      assert prompt =~ ~r/\n8\. Decide once/
+      # Judged on the diff and the bar (#3522): no ask step before them.
+      assert prompt =~ ~r/\n5\. The docs places/
+      # not a doc: the prompt's numbered steps
+      assert prompt =~ ~r/\n6\. The Handbook line\. Take the pages/
+      assert prompt =~ ~r/\n7\. Decide once/
 
       {:ok, accepted} =
         Verified.decide(

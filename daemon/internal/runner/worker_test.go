@@ -61,7 +61,8 @@ func TestClaudeJobRunsWithTheRunnersSettings(t *testing.T) {
 	}
 
 	h := r.srv.header(11)
-	if got := h.Get("X-Runner-Kinds"); got != "claude,verify,merge,release,probe" {
+	// No verify: the rig's machine can't run a container (#3522).
+	if got := h.Get("X-Runner-Kinds"); got != "claude,merge,release,probe" {
 		t.Errorf("X-Runner-Kinds = %q", got)
 	}
 	if got := h.Get("X-Runner-Version"); got != "daemon test" {
@@ -80,19 +81,6 @@ func TestClaudeJobRunsWithTheRunnersSettings(t *testing.T) {
 	}
 	if !strings.Contains(r.logged.String(), "prompt sha256") {
 		t.Errorf("the daemon's log names each job with its prompt's hash:\n%s", r.logged)
-	}
-}
-
-func TestTheProfilesModelWinsAndVerifyGetsNoInstructions(t *testing.T) {
-	r := newRig(t, Config{Model: "sonnet", Instructions: "Be brief."})
-	r.w.Local.Models = map[string]string{"schema": "opus"}
-	r.runJob(fakeJob{id: 102, kind: "verify", card: 42, profile: "schema", prompt: "Check #42"})
-	saw := r.agentSaw()
-	if !strings.Contains(saw, "arg=Check #42\n") || strings.Contains(saw, "Be brief.") {
-		t.Fatalf("a verify job runs on the server's prompt alone:\n%s", saw)
-	}
-	if !strings.Contains(saw, "arg=opus\n") || !strings.Contains(saw, "env=SLIPDOCK_MODEL=opus\n") {
-		t.Fatalf("the local file's model for the profile wins:\n%s", saw)
 	}
 }
 
@@ -117,7 +105,7 @@ func TestCodexAndACustomCommand(t *testing.T) {
 	if !strings.Contains(saw, "env=SLIPDOCK_PROMPT=Secret prompt\n") {
 		t.Fatalf("the prompt reaches a custom command as $SLIPDOCK_PROMPT:\n%s", saw)
 	}
-	if got := r.srv.header(11).Get("X-Runner-Kinds"); got != "lint,verify,merge,release,probe" {
+	if got := r.srv.header(11).Get("X-Runner-Kinds"); got != "lint,merge,release,probe" {
 		t.Fatalf("kinds = %q", got)
 	}
 }

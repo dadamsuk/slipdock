@@ -1600,8 +1600,17 @@ mark with the claim's `X-Job-Hook-Key` (`GET /api/runner/jobs/:id/mark`)
 and refuses the shell, the network and pushing once it is set. Text an
 agent writes counts at its job's tier, not its login's, and at `member`
 at most when it names no live job of its person's: an agent can't make a
-card owner-tier. The runner protocol takes the machine key with
-`X-Runner-Id`, for that machine's own runners only; each runner keeps its own identity, so a verify job still
+card owner-tier.
+A claimed `verify` job comes with its own token
+(`X-Job-Token`, #3522) and the change it judges (`X-Verify-Commit`,
+`X-Verify-PR`): the machine runs it in a container, in its own clone, with
+that token and its agent's login as its only credentials. The token
+decides the job's card, reports the job's steps and reads the tree's
+handbook, nothing else (403), and only while the job runs; a verify job
+for a card with a change to check sees the bar and the change's fields,
+never the card's words. The runner
+protocol takes the machine key with `X-Runner-Id`, for that machine's own
+runners only; each runner keeps its own identity, so a verify job still
 goes to a runner other than its builder.
 
 **A runner's warnings** (#3482). Every runner in an answer carries

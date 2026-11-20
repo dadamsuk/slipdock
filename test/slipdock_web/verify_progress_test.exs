@@ -93,11 +93,18 @@ defmodule SlipdockWeb.VerifyProgressTest do
       assert_states(prompt, "Check out abc1234 in a clean tree")
       assert_states(prompt, "Don't run the suite: the pull request's CI runs it at this commit.")
 
+      # The machine reads the pull request with its own gh (#3522); the
+      # job's own gh is the fallback. not a doc: the verify prompt's own text
+      assert prompt =~ "The pull request's head and checks are in `$SLIPDOCK_PR_STATE`"
+
+      # not a doc: the verify prompt's own text
       assert prompt =~
-               "`gh pr view #{@pr} --json headRefOid,statusCheckRollup`: the head must be abc1234"
+               "if it is empty, `gh pr view #{@pr} --json headRefOid,statusCheckRollup`): the head must be abc1234"
 
       assert_states(prompt, "reject it to be submitted again at its head")
-      assert prompt =~ "While any is still running, wait (`gh pr checks #{@pr} --watch`)"
+      assert prompt =~ "where gh works here, wait (`gh pr checks #{@pr} --watch`)"
+      # not a doc: the verify prompt's own text
+      assert prompt =~ "report the step `waiting for CI` and end the job without deciding"
       assert_states(prompt, "A failed check is a rejection: name it.")
 
       assert_states(
@@ -110,12 +117,17 @@ defmodule SlipdockWeb.VerifyProgressTest do
       refute prompt =~ "run the suite there"
       refute prompt =~ "`tests running: <which>`"
 
-      # The checkout, then the ask and the bar, the decision last.
-      assert prompt =~ ~r/^1\. Read the card.*\n2\. Check out abc1234/m
+      # The checkout, then the bar, the decision last: no step reads the
+      # card (#3522).
+      # not a doc: the prompt's numbered steps
+      assert prompt =~
+               ~r/^1\. Your inputs are the bar above and the change itself.*\n2\. Check out abc1234/m
+
+      refute prompt =~ "slipdock card #{ctx.card.id}"
 
       # not a doc: the order of the prompt's numbered steps
       assert prompt =~
-               ~r/\n3\. The ask\..*\n4\. The bar\..*`judging against the bar`\n5\. Decide once/
+               ~r/\n3\. The bar\..*`judging against the bar`\n4\. Decide once/
 
       refute prompt =~ "The rules."
       refute prompt =~ "The Handbook line."
@@ -154,8 +166,28 @@ defmodule SlipdockWeb.VerifyProgressTest do
       %{board: board, card: card}
     end
 
-    test "without a handbook: the ask and the bar, and nothing about rules", ctx do
+    test "without a handbook: the bar, and nothing about rules", ctx do
+      # Judged on the diff and the bar (#3522): no description, so no ask.
       prompt = Verified.verify_prompt(ctx.card, ctx.board)
+
+      refute prompt =~ "Add a header row to the export, and a footer."
+      refute prompt =~ "What the card asks"
+      refute prompt =~ "`judging the ask`"
+      assert prompt =~ "3. The bar. Each item"
+      assert prompt =~ "4. Decide once"
+      refute prompt =~ "--paths-from"
+      refute prompt =~ "Handbook:"
+      refute prompt =~ "rule id"
+      refute prompt =~ "--check ask=ok"
+
+      # A rejection cites the check it fails.
+      assert_states(prompt, "A rejection cites what it fails: the bar item (`bar 2: …`).")
+      assert prompt =~ ~s(reject --evidence-commit abc1234 --reason "<the check it fails>: )
+    end
+
+    test "a card with no diff to judge keeps the ask", ctx do
+      card = ctx.card |> Ecto.Changeset.change(evidence_commit: nil) |> Slipdock.Repo.update!()
+      prompt = Verified.verify_prompt(card, ctx.board)
 
       assert_states(
         prompt,
@@ -167,17 +199,11 @@ defmodule SlipdockWeb.VerifyProgressTest do
       assert prompt =~ "`judging the ask`"
       assert prompt =~ "4. The bar. Each item"
       assert prompt =~ "5. Decide once"
-      refute prompt =~ "--paths-from"
-      refute prompt =~ "Handbook:"
-      refute prompt =~ "rule id"
 
-      # A rejection cites the check it fails.
       assert_states(
         prompt,
         "A rejection cites what it fails: the bar item (`bar 2: …`) or the ask"
       )
-
-      assert prompt =~ ~s(reject --evidence-commit abc1234 --reason "<the check it fails>: )
     end
 
     test "with a handbook: the rules for the diff and the Handbook line too", ctx do
@@ -185,8 +211,8 @@ defmodule SlipdockWeb.VerifyProgressTest do
       prompt = Verified.verify_prompt(ctx.card, ctx.board)
 
       # not a doc: the order of the prompt's numbered steps
-      assert prompt =~ ~r/\n3\. The ask\..*\n4\. The bar\..*\n5\. The rules\./s
-      assert prompt =~ ~r/\n6\. The Handbook line\..*\n7\. Decide once/s
+      assert prompt =~ ~r/\n3\. The bar\..*\n4\. The rules\./s
+      assert prompt =~ ~r/\n5\. The Handbook line\..*\n6\. Decide once/s
 
       assert prompt =~
                "`git diff --name-only $(git merge-base origin/<default branch> abc1234) abc1234 | " <>
@@ -202,8 +228,7 @@ defmodule SlipdockWeb.VerifyProgressTest do
 
       assert_states(
         prompt,
-        "A rejection cites what it fails: a bar item (`bar 2: …`), the ask (`the ask: …`) " <>
-          "or a rule id (`ARCH-3: …`)."
+        "A rejection cites what it fails: a bar item (`bar 2: …`) or a rule id (`ARCH-3: …`)."
       )
 
       assert prompt =~ "`--check handbook_line=disputed:<what is missing>`"
@@ -233,12 +258,15 @@ defmodule SlipdockWeb.VerifyProgressTest do
       prompt = Verified.verify_prompt(card, board)
 
       assert prompt =~
-               "git merge-base origin/$(gh pr view #{@pr} --json baseRefName -q .baseRefName) abc1234"
+               "git merge-base ${SLIPDOCK_BASE:-origin/$(gh pr view #{@pr} --json baseRefName -q .baseRefName)} abc1234"
     end
 
     test "a long description is cut short", ctx do
       {:ok, card} =
         Boards.Cards.update_card(ctx.card, %{"description" => String.duplicate("a", 5000)})
+
+      # Shown only to a verifier of a card with no diff (#3522).
+      card = card |> Ecto.Changeset.change(evidence_commit: nil) |> Slipdock.Repo.update!()
 
       prompt = Verified.verify_prompt(card, ctx.board)
 

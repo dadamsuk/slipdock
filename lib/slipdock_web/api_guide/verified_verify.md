@@ -97,7 +97,10 @@ decide its own card (`403`): a different agent is a different token,
 or a different runner job. A board with a `verify_pool` also queues
 each submitted card for that runner pool as a job of kind `verify`,
 whose prompt carries the card's ask, the bar, the evidence and those
-checks, and asks
+checks (a card with a change to check, #3522: the bar and the evidence's
+checked fields alone, never the description, comments or the evidence's
+prose, so no ask step; its job's token decides and reports progress, and
+reads only the handbook), and asks
 its agent to report each step with `job-progress --step` (no note, so
 the card stays quiet until the decision). The
 runner that built the card never takes it. Whoever decides first

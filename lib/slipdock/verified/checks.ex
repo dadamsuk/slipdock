@@ -821,6 +821,27 @@ defmodule Slipdock.Verified.Checks do
 
   def lines(_), do: []
 
+  @doc """
+  `checks` with every note taken out (#3522): the parts' labels, results
+  and places stay, the words go (the `notes`, each item's `note`, a
+  mutant's `mutation`, an `n/a` mutants' reason), for a verifier that is
+  given no words a person or the builder wrote.
+  """
+  def without_notes(%{} = checks) do
+    checks
+    |> Map.delete("notes")
+    |> Map.new(fn
+      {"mutants", %{"n/a" => _}} -> {"mutants", %{"n/a" => nil}}
+      {key, list} when is_list(list) -> {key, Enum.map(list, &drop_words/1)}
+      other -> other
+    end)
+  end
+
+  def without_notes(checks), do: checks
+
+  defp drop_words(%{} = item), do: Map.drop(item, ["note", "mutation"])
+  defp drop_words(item), do: item
+
   defp defect_note(d) do
     place = "#{d["file"]}:#{d["line"]}"
     if d["note"], do: "#{place}; #{d["note"]}", else: place
