@@ -89,15 +89,17 @@ one Postgres (behind a load balancer, say, or a second container started
 by mistake) is not supported yet, because some of what the app does is
 kept in one node's memory:
 
-- **The scheduler** behind the time-based work (automation rules, recurring
-  cards, waking snoozed cards, taking back runner jobs whose lease ran out,
-  the health monitor) runs on every node, so with two nodes each of those
-  runs twice.
 - **A drawing somebody has open** is held by one process on the node they
   reached; two people on two nodes editing the same drawing would each have
   their own copy, and the later save wins.
 - **The sign-in form's rate limit** counts in each node's memory, so a
   second node doubles what it lets through.
+
+The scheduler behind the time-based work (automation rules, recurring
+cards, waking snoozed cards, taking back runner jobs whose lease ran out,
+the health monitor) is not one of them: every node starts one, but only
+the node holding a Postgres advisory lock runs its ticks, and if that node
+goes the next one takes over.
 
 Migrations run at boot, under Ecto's lock on `schema_migrations`, so a
 restart or an upgrade that starts a new node while the old one is stopping
