@@ -212,7 +212,7 @@ func TestFinishTriesAgainAndTakesA404AsReported(t *testing.T) {
 	c := &Client{Server: ts.URL, Key: "sdm_test_key", HTTP: &http.Client{}}
 	var waits []time.Duration
 	sleep := func(d time.Duration) { waits = append(waits, d) }
-	if err := c.Finish(context.Background(), 1, 2, 124, "timeout", "not-a-sha", nil, sleep); err != nil {
+	if err := c.Finish(context.Background(), 1, 2, 124, "timeout", "not-a-sha", scrubbed{}, sleep); err != nil {
 		t.Fatal(err)
 	}
 	if len(got) != 3 || got[0] != "exit=124&status=timeout" || len(waits) != 2 || waits[1] != 4*time.Second {
@@ -220,12 +220,12 @@ func TestFinishTriesAgainAndTakesA404AsReported(t *testing.T) {
 	}
 
 	codes, got, waits = []int{404}, nil, nil
-	if err := c.Finish(context.Background(), 1, 2, 0, "", "abc123", nil, sleep); err != nil || len(got) != 1 || got[0] != "exit=0&merged=abc123" {
+	if err := c.Finish(context.Background(), 1, 2, 0, "", "abc123", scrubbed{}, sleep); err != nil || len(got) != 1 || got[0] != "exit=0&merged=abc123" {
 		t.Fatalf("a 404 is a job the server doesn't hold: reported, err %v, sent %v", err, got)
 	}
 
 	codes, got = []int{503}, nil
-	if err := c.Finish(context.Background(), 1, 2, 0, "", "", nil, sleep); err == nil || len(got) != 5 {
+	if err := c.Finish(context.Background(), 1, 2, 0, "", "", scrubbed{}, sleep); err == nil || len(got) != 5 {
 		t.Fatalf("five tries, then the error: err %v, tries %d", err, len(got))
 	}
 }

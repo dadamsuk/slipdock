@@ -147,10 +147,19 @@ func TestAContainerJobsPlantedCredentialsAreItsOwn(t *testing.T) {
 		if f.exit != 0 || f.query.Get("tripwire") != "" {
 			t.Fatalf("a job that sent nothing: %+v", f)
 		}
-		if !strings.Contains(f.body, "aws_access_key_id = AKIA") || !strings.Contains(f.body, "oauth_token: ghp_") {
-			t.Fatalf("job #%d's home:\n%s", id, f.body)
+		// Read from the job's own log: what is uploaded is redacted.
+		data, err := os.ReadFile(filepath.Join(r.w.JobsDir, "11", "job.log"))
+		if err != nil {
+			t.Fatal(err)
 		}
-		seen = append(seen, f.body)
+		home := string(data)
+		if !strings.Contains(home, "aws_access_key_id = AKIA") || !strings.Contains(home, "oauth_token: ghp_") {
+			t.Fatalf("job #%d's home:\n%s", id, home)
+		}
+		if strings.Contains(f.body, "AKIA") || strings.Contains(f.body, "ghp_") {
+			t.Fatalf("job #%d's fake credentials were uploaded:\n%s", id, f.body)
+		}
+		seen = append(seen, home)
 		if dir := fake.last().Egress.Tripwire; dir == "" || filepath.Dir(dir) == r.w.Home {
 			t.Fatalf("planted in %q", dir)
 		}

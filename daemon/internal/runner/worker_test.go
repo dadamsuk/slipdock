@@ -444,7 +444,7 @@ func TestMachineSecretsIncludeTheCLIsTokens(t *testing.T) {
 			t.Errorf("%s missing from %q", want, got)
 		}
 	}
-	out := scrub([]byte("a sdk_env_token_3 b sdm_machine_key"), got)
+	out := newRedactor(got).redact([]byte("a sdk_env_token_3 b sdm_machine_key")).bytes()
 	if string(out) != "a [redacted] b [redacted]" {
 		t.Fatalf("scrub = %q", out)
 	}

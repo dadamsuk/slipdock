@@ -270,7 +270,7 @@ func TestClipKeepsWholeCharacters(t *testing.T) {
 func TestTheRequeueReasonIsClipped(t *testing.T) {
 	r := newRig(t, Config{})
 	long := strings.Repeat("é", 150) // 300 bytes
-	if err := r.w.Client.Requeue(context.Background(), 11, 154, 1, "limit", time.Now(), long, nil, func(time.Duration) {}); err != nil {
+	if err := r.w.Client.Requeue(context.Background(), 11, 154, 1, "limit", time.Now(), long, scrubbed{}, func(time.Duration) {}); err != nil {
 		t.Fatal(err)
 	}
 	f, _ := r.srv.finish(154)

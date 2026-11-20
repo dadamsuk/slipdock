@@ -7,7 +7,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -278,7 +277,7 @@ func (w *Worker) driftFiles() executor.Files {
 	return w.files()
 }
 
-// secrets are what a transcript must never carry: the machine's (the
+// secrets are what a job's uploads must never carry: the machine's (the
 // machine key, the daemon's own CLI tokens) and, under the user executor,
 // the account's CLI tokens too.
 func (w *Worker) secrets() []string {
@@ -405,7 +404,8 @@ func (w *Worker) giveBack(ctx context.Context, job *Job) bool {
 	text := fmt.Sprintf("slipdock-runner: given back unrun, as the agent %s is held on this machine until %s (%s); its card untouched",
 		w.Runner.Config.Agent, tr.until.Format(time.RFC3339), tr.reason)
 	sleep := func(d time.Duration) { _ = w.Sleep(ctx, d) }
-	if err := w.Client.Requeue(ctx, w.Runner.ID, job.ID, 0, tr.kind, tr.until, tr.reason, []byte(text), sleep); err != nil {
+	body := newRedactor(w.secrets(), []string{job.Token}).text(text)
+	if err := w.Client.Requeue(ctx, w.Runner.ID, job.ID, 0, tr.kind, tr.until, tr.reason, body, sleep); err != nil {
 		w.say("warn: job #%d: could not give it back: %v", job.ID, err)
 	}
 	return true
@@ -457,6 +457,9 @@ type jobRun struct {
 	job     *Job
 	log     *os.File
 	logPath string
+	// redact is the job's redactor, which everything it uploads goes
+	// through: the log's tail and the transcript.
+	redact  *redactor
 	env     []string
 	dir     string
 	lane    *lane
@@ -528,7 +531,8 @@ func (w *Worker) runJob(ctx context.Context, job *Job) {
 	}
 	defer f.Close()
 	w.recordJob()
-	j := &jobRun{job: job, log: f, logPath: logPath, dir: w.Runner.Config.Directory, trips: make(chan struct{}, 1)}
+	j := &jobRun{job: job, log: f, logPath: logPath, dir: w.Runner.Config.Directory, trips: make(chan struct{}, 1),
+		redact: newRedactor(w.secrets(), []string{job.Token})}
 
 	kinds := w.kinds()
 	if !contains(kinds, job.Kind) {
@@ -1019,8 +1023,11 @@ func (w *Worker) runAgent(ctx context.Context, j *jobRun) {
 		// After the before hook, which may write the worktree's git.
 		p.Paths, pinned = only, pin(j.lane.path, gitDir)
 	}
+	// The tier's or the verify job's worker may run as another account,
+	// whose tokens join the job's redactor before the agent starts.
+	j.redact = newRedactor(j.redact.secrets, w.secrets())
 	tx := &transcript{root: w.transcriptsDir(), cardURL: job.CardURL, started: time.Now().Add(-time.Second),
-		files: w.files(), secrets: w.secrets()}
+		files: w.files(), redact: j.redact}
 	if dir := w.containerTranscripts(j); dir != "" {
 		defer os.RemoveAll(dir)
 		p.Transcripts, tx.root, tx.files = dir, dir, executor.Beneath(dir, 0)
@@ -1064,7 +1071,7 @@ func (w *Worker) runAgent(ctx context.Context, j *jobRun) {
 // job ran and the failure is the card's.
 func (w *Worker) trouble(j *jobRun, started time.Time, rc int, tx *transcript) *trouble {
 	now, agent := w.Now(), w.Runner.Config.Agent
-	if ok, line, at := limitIn(w.tail(j), now); ok {
+	if ok, line, at := limitIn(w.tail(j).bytes(), now); ok {
 		reason := "the agent's limit: " + line
 		return &trouble{kind: "limit", until: w.Holds.Limit(agent, at, now, reason), reason: reason}
 	}
@@ -1401,7 +1408,7 @@ func (w *Worker) sendTranscript(ctx context.Context, j *jobRun, tx *transcript, 
 	}
 	for ; rounds > 0; rounds-- {
 		body := tx.next()
-		if len(body) == 0 {
+		if len(body.bytes()) == 0 {
 			return
 		}
 		held, capped, err := w.Client.Transcript(ctx, w.Runner.ID, j.job.ID, tx.lines, body)
@@ -1425,21 +1432,12 @@ func (w *Worker) sendTranscript(ctx context.Context, j *jobRun, tx *transcript, 
 	}
 }
 
-// tail is the end of the job's log.
-func (w *Worker) tail(j *jobRun) []byte {
+// tail is the end of the job's log, redacted.
+func (w *Worker) tail(j *jobRun) scrubbed {
 	if j == nil {
-		return nil
+		return scrubbed{}
 	}
-	f, err := os.Open(j.logPath)
-	if err != nil {
-		return nil
-	}
-	defer f.Close()
-	if fi, err := f.Stat(); err == nil && fi.Size() > int64(w.LogTail) {
-		_, _ = f.Seek(-int64(w.LogTail), io.SeekEnd)
-	}
-	data, _ := io.ReadAll(f)
-	return data
+	return j.redact.tail(j.logPath, w.LogTail)
 }
 
 // finish reports the job's end with its log's tail (or text, when there is
@@ -1450,9 +1448,11 @@ func (w *Worker) finish(ctx context.Context, job *Job, j *jobRun, rc int, status
 
 // report is finish, with the trouble that sends a job back (#2920).
 func (w *Worker) report(ctx context.Context, job *Job, j *jobRun, rc int, status, merged, text string, tr *trouble) {
-	body := []byte(text)
+	var body scrubbed
 	if j != nil {
 		body = w.tail(j)
+	} else {
+		body = newRedactor(w.secrets(), []string{job.Token}).text(text)
 	}
 	if ctx.Err() != nil {
 		var cancel context.CancelFunc
