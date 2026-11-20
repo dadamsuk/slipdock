@@ -62,6 +62,19 @@ type Worker struct {
 	// (#3516), which Build sets: none means every job runs as the runner
 	// says.
 	Tiers map[string]machine.Tier
+	// Offered are the executors the machine's ceiling offers, which Build
+	// sets: a verify job needs the container (#3522).
+	Offered []string
+	// CIWait is how long a verify job's pull request's checks are waited
+	// for before the job starts (30 minutes), read every CIPoll (30 s).
+	CIWait, CIPoll time.Duration
+	// verify marks a verify job's worker (forVerify): its container mounts
+	// the agent's login alone. jobToken is the job's own token, which a
+	// transcript never carries.
+	verify   bool
+	jobToken string
+	// newExecutor makes the executor (executor.New): a test's stands in.
+	newExecutor func(string, executor.Settings) (executor.Executor, error)
 	// ReleaseKey is the project's release key, which the server's CLI is
 	// checked against before it is installed (default release.Key).
 	ReleaseKey func() (ed25519.PublicKey, error)
@@ -128,7 +141,11 @@ func (w *Worker) defaults() {
 		w.Launcher, _ = os.Executable()
 	}
 	if w.Executor == nil && w.executorErr == nil {
-		w.Executor, w.executorErr = executor.New(w.Runner.Config.Executor, w.executorSettings())
+		newExecutor := executor.New
+		if w.newExecutor != nil {
+			newExecutor = w.newExecutor
+		}
+		w.Executor, w.executorErr = newExecutor(w.Runner.Config.Executor, w.executorSettings())
 	}
 	if w.Exec == nil {
 		w.Exec = realExec
@@ -169,6 +186,9 @@ func (w *Worker) executorSettings() executor.Settings {
 	}
 	if w.Runner.Config.Executor == executor.Container {
 		w.containerSettings(&s)
+		if w.verify {
+			w.verifyLogins(&s)
+		}
 	}
 	return s
 }
@@ -228,6 +248,9 @@ func (w *Worker) driftFiles() executor.Files {
 // the account's CLI tokens too.
 func (w *Worker) secrets() []string {
 	s := machineSecrets(w.Client.Key, w.Home, w.Getenv, executor.LocalFiles)
+	if w.jobToken != "" {
+		s = append(s, w.jobToken)
+	}
 	if w.Executor != nil && w.Executor.Name() == executor.User {
 		s = append(s, machineSecrets("", w.Executor.Home(), func(string) string { return "" }, w.Executor.Files())...)
 	}
@@ -280,6 +303,9 @@ func (w *Worker) Run(ctx context.Context) error {
 	w.defaults()
 	backoff := time.Second
 	w.say("taking jobs from %s (pool %s, board #%d)", w.Client.Server, w.Runner.Pool, w.Runner.BoardID)
+	if err := w.canVerify(); err != nil && w.Runner.Config.Agent != verifyKind {
+		w.say("taking no verify jobs: %v", err)
+	}
 	for ctx.Err() == nil {
 		if until := w.Holds.Until(w.Runner.Config.Agent); until.After(w.Now()) {
 			w.say("warn: taking no job until %s: the agent %s can't run on this machine (restart the daemon to try sooner)",
@@ -290,7 +316,7 @@ func (w *Worker) Run(ctx context.Context) error {
 			continue
 		}
 		woken := w.Client.woken()
-		headers := claimHeaders(w.Runner.Kinds(w.Local), w.Version, w.drift())
+		headers := claimHeaders(w.kinds(), w.Version, w.drift())
 		job, info, err := w.Client.Claim(ctx, w.Runner.ID, headers, w.Wait)
 		var refusal *Refused
 		switch {
@@ -401,6 +427,9 @@ type jobRun struct {
 	lane    *lane
 	after   *machine.Command
 	scratch string
+	// extra are the job's own variables besides the daemon's usual ones:
+	// a verify job's token, server and pull request (#3522).
+	extra []string
 }
 
 func (j *jobRun) note(line string) {
@@ -434,7 +463,7 @@ func (w *Worker) runJob(ctx context.Context, job *Job) {
 	w.recordJob()
 	j := &jobRun{job: job, log: f, logPath: logPath, dir: w.Runner.Config.Directory}
 
-	kinds := w.Runner.Kinds(w.Local)
+	kinds := w.kinds()
 	if !contains(kinds, job.Kind) {
 		w.say("job #%d: kind %q isn't one this runner takes (%s): refused, nothing run", job.ID, job.Kind, strings.Join(kinds, ", "))
 		j.note(fmt.Sprintf("no such job kind: %s (this runner takes %s)", job.Kind, strings.Join(kinds, ", ")))
@@ -453,6 +482,10 @@ func (w *Worker) runJob(ctx context.Context, job *Job) {
 	}
 	if job.Kind == ProbeKind {
 		w.runProbe(ctx, j)
+		return
+	}
+	if job.Kind == verifyKind && w.Runner.Config.Agent != verifyKind {
+		w.runVerify(ctx, j)
 		return
 	}
 	jw, err := w.forTier(job)
@@ -628,6 +661,7 @@ func (w *Worker) jobEnv(j *jobRun) []string {
 		// What the read-mark hook asks with (#3520): see hookSettings.
 		env = append(env, "SLIPDOCK_HOOK_KEY="+job.HookKey, "SLIPDOCK_HOOK_URL="+w.markURL(job))
 	}
+	env = append(env, j.extra...)
 	if w.Runner.Config.Agent == "claude" {
 		// Print mode stops a run's background tasks (the subagents a pass
 		// hands its builds to) 10 minutes after its last turn; 0 waits (#1812).

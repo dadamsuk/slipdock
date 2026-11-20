@@ -121,6 +121,12 @@ type ContainerSettings struct {
 	// Env are the daemon's variables a job gets (default: the agent's key
 	// or token). SLIPDOCK_* never pass.
 	Env []string `json:"env,omitempty"`
+	// VerifyImage is the image a verify job runs in when its runner's own
+	// executor isn't the container (#3522): a verify job always runs in a
+	// container, with no login but its agent's. It must be on the
+	// ceiling's container_images. A container runner's verify jobs use its
+	// own image. With neither, the machine's runners take no verify jobs.
+	VerifyImage string `json:"verify_image,omitempty"`
 }
 
 // Account is a dedicated account: its name, its home, and the PATH its
@@ -185,6 +191,11 @@ func (l Local) Validate() error {
 		for _, name := range ct.Env {
 			if err := executor.ValidPassEnv(name); err != nil {
 				problems = append(problems, "container.env: "+err.Error())
+			}
+		}
+		if ct.VerifyImage != "" {
+			if err := executor.ValidImage(ct.VerifyImage); err != nil {
+				problems = append(problems, "container.verify_image: "+err.Error())
 			}
 		}
 	}

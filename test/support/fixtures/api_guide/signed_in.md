@@ -2029,13 +2029,26 @@ but `sh` and `curl` can speak it:
 ```
 POST /api/runner/claim?wait=25             204, or 200 with X-Job-Id, X-Job-Kind, X-Card-Id,
                                            X-Card-Ref, X-Card-Url, X-Lease-Seconds, X-Prompt-Tier,
-                                           X-Job-Hook-Key; prompt as body
+                                           X-Job-Hook-Key (a verify job: X-Job-Token,
+                                           X-Verify-Commit, X-Verify-PR); prompt as body
 POST /api/runner/jobs/:id/heartbeat        body = log tail  → ok | cancel
 POST /api/runner/jobs/:id/finish?exit=N&status=S   body = last output → ok
                                            (status=requeue&trouble=K&until=T&reason=R → ok queued)
 POST /api/runner/jobs/:id/transcript?from=N  body = transcript lines from N → ok L | capped L
 GET  /api/runner/jobs/:id/mark             with the job's hook key → clear | marked <reason>
 ```
+
+**A verify job's own token** (#3522). A claimed `verify` job also comes
+with `X-Job-Token`, a token minted for that job, and the change it judges
+in `X-Verify-Commit` and (on a pull request board)
+`X-Verify-PR`. The machine runs the job in a container with that token as
+its only credential (`$SLIPDOCK_TOKEN`). It belongs to the machine's
+owner, is labelled `verify job #<id>`, works only while the job is
+claimed or running, and reaches only `POST /api/cards/:id/verify` for the
+job's card, `POST /api/jobs/:id/progress` for the job, and `GET
+/api/boards/:board/handbook`, `…/garden` and `/api/pages/:id/revisions`
+in its tree; any other route answers 403, and MCP doesn't take it. An
+audit's, or one for a card with no diff to judge, reads its tree too.
 
 **A job's trust tier.** `X-Prompt-Tier` is the least-trusted author of
 the text in the prompt: `owner` (the owner of the card's board tree, or
@@ -4088,7 +4101,10 @@ decide its own card (`403`): a different agent is a different token,
 or a different runner job. A board with a `verify_pool` also queues
 each submitted card for that runner pool as a job of kind `verify`,
 whose prompt carries the card's ask, the bar, the evidence and those
-checks, and asks
+checks (a card with a change to check, #3522: the bar and the evidence's
+checked fields alone, never the description, comments or the evidence's
+prose, so no ask step; its job's token decides and reports progress, and
+reads only the handbook), and asks
 its agent to report each step with `job-progress --step` (no note, so
 the card stays quiet until the decision). The
 runner that built the card never takes it. Whoever decides first

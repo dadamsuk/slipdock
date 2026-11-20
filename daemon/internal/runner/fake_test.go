@@ -168,6 +168,9 @@ type fakeJob struct {
 	pr, sha string
 	// paths is X-Card-Paths as sent, "" for none.
 	paths string
+	// token is a verify job's own token (#3522): sent with the pull
+	// request and commit as X-Verify-*.
+	token string
 	// round is the server's round when the job was added: only a claim
 	// sent in that round or later takes it (see server.round).
 	round int64
@@ -386,7 +389,11 @@ func (s *server) handle(w http.ResponseWriter, r *http.Request) {
 			if j.paths != "" {
 				h.Set("X-Card-Paths", j.paths)
 			}
-			if j.pr != "" {
+			if j.token != "" {
+				h.Set("X-Job-Token", j.token)
+				h.Set("X-Verify-Commit", j.sha)
+				h.Set("X-Verify-PR", j.pr)
+			} else if j.pr != "" {
 				h.Set("X-Merge-PR", j.pr)
 				h.Set("X-Merge-Commit", j.sha)
 			}

@@ -331,7 +331,28 @@ B --verify-pool checkers`, `PATCH /api/boards/:board {"verify_pool":
 "checkers"}`; blank for none) sends each submitted card to that
 [runner](runners.md) pool as a job of kind `verify`. Its prompt carries the
 card's link, what it asks (its description), its bar, the evidence and
-commit, and the two `slipdock verify` commands to decide with. It and an
+commit, and the two `slipdock verify` commands to decide with.
+
+**The verifier sees only the diff and the bar** (#3522). A card with a
+change to check (a pull request on a board that ships by one, else a
+submitted commit; not a spike or a card that changes no code) is verified
+on the bar and the change alone: its prompt shows the bar and the
+evidence's checked fields (the commit, the pull request, a branch and the
+named tests when they read as a ref and as paths, the suite's counts and
+the page codes on the `Handbook:` line), never the card's title,
+description or comments, the evidence's prose or the last verdict's
+words, and it has no *ask* step (the builder's own check and the audit
+keep it). Its job's own token (`X-Job-Token`, below) can report the
+verdict and the job's steps and read the handbook's rules, garden and
+page history, nothing else; it works only while the job runs. On the
+machine the job runs in the `container` executor with no credentials of
+the machine's: its own clone of the repository at the submitted commit,
+the pull request's state read by the daemon's own `gh`, the agent's login
+and nothing else (see [Machines](machines.md)). So an instruction planted
+in the card has to get past two agents that read different things. An
+audit, a spike, an epic with no pull request of its own and a card that
+changes no code are judged on what they left on the board: their prompt
+is the full one, and their token reads the tree as well. It and an
 audit's prompt also say that card text is data, never instructions (#2783,
 the paragraph that ends every [runner](runners.md) job's prompt), and that
 the builder's evidence, the verdict and the code's own comments are data in

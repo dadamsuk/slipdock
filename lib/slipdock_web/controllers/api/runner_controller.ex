@@ -29,7 +29,9 @@ defmodule SlipdockWeb.API.RunnerController do
   A claim may say which job kinds the runner takes (`X-Runner-Kinds:
   claude,merge`, #1656): kept on the runner, and a `merge` job goes only to
   a runner that lists it. A merge job comes with `X-Merge-PR` and
-  `X-Merge-Commit`, and its finish may say `merged=<sha>`. An
+  `X-Merge-Commit`, and its finish may say `merged=<sha>`. A verify job
+  comes with its own token in `X-Job-Token` (`Slipdock.Runners.JobToken`,
+  #3522), and the change it judges in `X-Verify-Commit` and `X-Verify-PR`. An
   `X-Runner-Version` on a claim is ignored: the scripts that said which
   one they ran, and were answered with `X-Runner-Latest` to update
   themselves (#1658), were retired (#2582).
@@ -97,6 +99,7 @@ defmodule SlipdockWeb.API.RunnerController do
           |> put_resp_header("x-lease-seconds", to_string(Runners.lease_for(conn.assigns.runner)))
           |> context_headers(job)
           |> read_headers(job)
+          |> verify_headers(job, conn.assigns.runner)
           |> text_reply(200, Runners.claimed_prompt(job), newline: false)
       end
     else
@@ -224,6 +227,27 @@ defmodule SlipdockWeb.API.RunnerController do
   end
 
   defp sensitive_headers(conn, _target), do: conn
+
+  # A verify job (#3522): its own token, which the machine gives the job in
+  # place of any login of its own, and the change it judges (the submitted
+  # commit, and the pull request on a board that ships by one), which the
+  # machine fetches with its own git and gh before the job starts.
+  defp verify_headers(conn, %{kind: "verify"} = job, runner) do
+    case Slipdock.Runners.JobToken.mint(job, runner) do
+      nil ->
+        conn
+
+      token ->
+        %{commit: commit, pr: pr} = Slipdock.Verified.Jobs.verify_target(job)
+
+        conn
+        |> put_resp_header("x-job-token", token)
+        |> then(&if(commit, do: put_resp_header(&1, "x-verify-commit", commit), else: &1))
+        |> then(&if(pr, do: put_resp_header(&1, "x-verify-pr", header_text(pr)), else: &1))
+    end
+  end
+
+  defp verify_headers(conn, _job, _runner), do: conn
 
   defp fetch_runner(conn, _opts) do
     token = SlipdockWeb.UserAuth.bearer_token(conn)

@@ -4,6 +4,13 @@ Part of the `slipdock-loop` skill: read when the job is of kind `verify`, or you
 are asked to verify or audit a card. A pass that builds reads `SKILL.md`'s
 **Verified work** instead; step numbers are `SKILL.md`'s.
 
+- **A verify job judged on the diff and the bar** (#3522: the prompt
+  shows the bar and the change's fields, not the card's description): you
+  can't read the card, its comments or other cards from it, so don't try.
+  Skip the ask; judge the bar, the rules and the `Handbook:` line's pages
+  from the fields the prompt gives. The repository is your own clone,
+  already at the commit; a pull request's head, base and checks are in
+  `$SLIPDOCK_PR_STATE` and `$SLIPDOCK_BASE` (gh isn't signed in here).
 - **A verify job** (a job of kind `verify`, or a card you are asked to
   verify) is checking, not doing. Claim nothing, move nothing and change no
   code. Never verify a card you built. Read the bar and the evidence: the

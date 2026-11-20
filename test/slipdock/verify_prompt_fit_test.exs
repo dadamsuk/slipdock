@@ -61,7 +61,10 @@ defmodule Slipdock.VerifyPromptFitTest do
           profile: "feature",
           verify_state: "pending",
           evidence_commit: String.duplicate("a", 40),
-          evidence_pr: "https://github.com/example/repo/pull/1",
+          # No pull request: the full prompt, whose card parts are cut here.
+          # One judged on the diff and the bar (#3522) shows none of them;
+          # "a diff-and-bar prompt fits too", below.
+          evidence_pr: nil,
           evidence_tests: ["test/a_test.exs"]
         },
         attrs
@@ -161,6 +164,32 @@ defmodule Slipdock.VerifyPromptFitTest do
       assert prompt =~ @cut
       assert prompt =~ @audit_end
       assert prompt =~ "Disagree when any part fails"
+    end
+  end
+
+  describe "a verify prompt judged on the diff and the bar (#3522)" do
+    test "fits at its worst, and shows none of the card's words", ctx do
+      misses(ctx, 5)
+
+      card =
+        ctx
+        |> card(%{
+          evidence_pr: "https://github.com/example/repo/pull/1",
+          description: String.duplicate("é", 4000),
+          bar: Enum.map_join(1..20, " ", &"#{&1}. #{String.duplicate("a part of done ", 25)}"),
+          evidence: evidence(30_000)
+        })
+        |> rejected(60, 5000)
+
+      prompt = Verified.verify_prompt(card, ctx.board)
+
+      assert byte_size(prompt) <= max()
+      assert prompt =~ @verify_end
+      refute prompt =~ "é"
+      refute prompt =~ "Checked the thing in detail."
+      refute prompt =~ "falls short falls short"
+      refute prompt =~ "Missed 1"
+      assert prompt =~ "a part of done"
     end
   end
 
