@@ -994,7 +994,11 @@ own.
 A Claude or ChatGPT session takes jobs from the same queue with the token it already
 has — the MCP tools `claim_job`, `job_progress` and `finish_job`, or
 `slipdock claim-job` — so a `/loop` and a machine's runner never work the same
-card. A job whose lease ran out goes back in the queue, and until another
+card. Taking a pool's jobs is the board owner's, and a writer's once the
+owner grants them that pool (`slipdock pool-grant <board> <pool> EMAIL`,
+`POST /api/boards/:id/pool-grants`, or the Automations panel); without one,
+the claim is refused saying so, and their machine can't add a runner to the
+pool. A job whose lease ran out goes back in the queue, and until another
 runner claims it the runner that held it takes it back with its next
 heartbeat, `job_progress` or finish (a machine that slept, a session that
 went quiet), at no cost to the job's three tries. A runner whose agent

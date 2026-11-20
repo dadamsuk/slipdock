@@ -1902,6 +1902,21 @@ on it too, sending the job's id as `x-slipdock-job` (the CLI does, from
 `$SLIPDOCK_JOB_ID`). Finishing the job does not close the card, so close it as usual.
 The session shows in the board's runner list as `<token label> (session)`.
 
+**Who takes a pool's jobs.** The board tree's owner, and a writer of its
+root board the owner granted that pool. Anybody else's claim is a 403
+saying so, and their machine can't add a runner to the pool or move one
+onto it (422); a runner already in the pool takes no job until its person
+is granted it again. The owner manages the grants:
+
+```sh
+curl -s -H "$H" B/api/boards/1/pool-grants            # {"pool_grants": [{"pool": "dev", "user": {"email": …}, …}]}; ?pool=dev for one
+curl -s -X POST -H "$H" -H 'content-type: application/json'   B/api/boards/1/pool-grants -d '{"pool": "dev", "email": "pat@example.com"}'
+curl -s -X DELETE -H "$H" 'B/api/boards/1/pool-grants?pool=dev&email=pat@example.com'
+```
+
+A grant needs a person who can already write the board (else 422, saying
+so); `slipdock pool-grant <board> <pool> [EMAIL] [--off]` does the same.
+
 **Parking on a question.** A job whose agent needs something only a
 person can give asks it as a wait (`update_card` `wait`, `POST
 /api/cards/:id/wait`, `slipdock wait <card> … --job <id>`) and stops:
@@ -4172,6 +4187,9 @@ POST   /api/runner/claim
     PUT    /api/boards/:board/runners/:id/setup
     POST   /api/boards/:board/runners/:id/token
     DELETE /api/boards/:board/runners/:id
+    GET    /api/boards/:board/pool-grants
+    POST   /api/boards/:board/pool-grants
+    DELETE /api/boards/:board/pool-grants
     GET    /api/boards/:board/jobs
     GET    /api/boards/:board/release
     POST   /api/boards/:board/release

@@ -573,6 +573,9 @@ with the tail of the log — and a Cancel button.
   takes jobs from the same queue through the MCP tools `claim_job`,
   `job_progress` and `finish_job`, or `slipdock claim-job`, so it never
   races a runner for the same card.
+- **A pool's jobs are the owner's to give.** Besides the board's owner, only
+  a writer the owner granted a pool takes its jobs, from a session or their
+  own machine (`slipdock pool-grant`, or the Automations panel).
 - **A question parks the job.** An agent that needs something only a person
   can give opens a wait and stops; the job ends `parked`, its card goes back
   on top of the list flagged waiting so the next card runs, and answering the

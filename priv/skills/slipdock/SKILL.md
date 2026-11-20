@@ -580,6 +580,9 @@ slipdock job <id> --keep                      # keep an ended job's log as a pag
 slipdock set-board <board> --job-log-hours 24 --failure-log-hours 168   # how long logs stay
 slipdock cancel-job <id>                      # queued: at once; running: on the next heartbeat
 slipdock claim-job <board> --pool P           # take the next job as this session ("nothing queued")
+                                              # the board owner's, or a writer's granted the pool: refused otherwise
+slipdock pool-grant <board> <pool> EMAIL [--off]   # owner: let a writer take that pool's jobs (--off: take it back)
+slipdock pool-grants <board>                  # owner: who besides you takes each pool's jobs
 slipdock pause <board> [--pool P] --reason "…"   # owner: hold runner work (tree or pool); a person resumes
 slipdock release <board>                      # owner, on a board with batched releases: Release now. A runner's release job runs the
                                               # board's release command for every merged card awaiting release; one at a time
