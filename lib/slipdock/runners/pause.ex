@@ -55,15 +55,20 @@ defmodule Slipdock.Runners.Pause do
   @doc "The held line: `\"paused by David: bad deploy\"`."
   def line(%__MODULE__{} = pause), do: "paused by #{who(pause)}: #{pause.reason}"
 
-  @doc "Who paused it: the person's name, or the agent's label on their token."
+  @doc """
+  Who paused it: the person's name, or the agent's label on their token;
+  the label alone when no person did (a runner's tripwire, #3524).
+  """
   def who(%__MODULE__{} = pause) do
-    name =
-      case pause.paused_by do
-        %{name: name} when is_binary(name) and name != "" -> name
-        %{email: email} when is_binary(email) -> email
-        _ -> "someone"
-      end
-
-    if pause.agent, do: "#{name} (#{pause.agent})", else: name
+    case {person(pause.paused_by), pause.agent} do
+      {nil, nil} -> "someone"
+      {nil, agent} -> agent
+      {name, nil} -> name
+      {name, agent} -> "#{name} (#{agent})"
+    end
   end
+
+  defp person(%{name: name}) when is_binary(name) and name != "", do: name
+  defp person(%{email: email}) when is_binary(email), do: email
+  defp person(_), do: nil
 end

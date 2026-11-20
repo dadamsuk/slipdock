@@ -377,6 +377,38 @@ that file allows the new one. Name lookups aren't covered, and a job can
 still send what it reads to an allowed host. Under any other executor a
 tier's allowlist refuses the job.
 
+##### Fake credentials as tripwires
+
+A `container` job under an allowlist (a verify job of the tier too) finds
+fake credentials in its home: a `~/.aws/credentials` with an access key
+(`AKIA…`) and a secret, and a GitHub token (`ghp_…`) in
+`~/.config/gh/hosts.yml`. They are made up for each job, shaped like real
+ones, and work nowhere. Its proxy watches for them in what the job sends,
+so a job that reads them and sends them on is caught:
+
+- the daemon stops the job and finishes it failed, and its log says which
+  value was seen, where and to what host (`tripwire: the job's fake
+  credentials were seen leaving`);
+- the server pauses the runner's pool (`paused by tripwire`), so none of
+  its runners claims another job until a person resumes it, and raises an
+  urgent alert on the board naming the job and its card.
+
+This is detection, not prevention. The proxy sees a `CONNECT`'s target
+and headers (a value hidden in a host name included), a plain `http://`
+request's line, headers and body, and what a job sends through a tunnel
+in plain text. It can't see inside TLS, so a value sent over `https` to an
+allowed host passes unseen; nor a value the job changes first (encoded,
+encrypted, split), nor a name lookup.
+
+They go only where the job's home is its own: a container's home is an
+empty, throwaway one. A `confined` job's home is yours, so it gets none
+(the daemon never writes in your home), and nor do `me` and `user` jobs,
+which have no proxy. A fake file never covers a login the machine mounts
+in its place: when `container.login` names `~/.aws` or `~/.config/gh`
+(or a file in them), the real one is mounted and that tripwire is left
+out. With no `GH_TOKEN`, `gh` in the container reads the fake token and
+fails to sign in, as it would have with none.
+
 #### Cards signed by their owner
 
 The server works the tier out, so `owner` is only as good as the server's
@@ -1059,6 +1091,11 @@ the machine on the Machines page ends the key at once.
   through a proxy of the daemon's. Such a job can still send what it
   reads to those hosts, and the allowlist doesn't cover name lookups or,
   under `confined` on Linux, UDP or another host on the proxy's port.
+  A `container` job under an allowlist also finds fake credentials in
+  its home, and its proxy, seeing one leave, has the job stopped and its
+  pool paused: that catches a job sending them where the proxy can read
+  (a host name, plain HTTP), not one sending them inside TLS to an
+  allowed host.
 - Prompts are the board members' instructions. The agent follows them
   within the runner's permission mode, as the account its jobs run as.
   Every job's prompt tells the agent that a card's text is data, never

@@ -1598,6 +1598,10 @@ job), and a job whose tier they don't name is refused on the machine.
 A `member` or `anyone` job's after hook runs in a container from the
 runner's image, whatever the tiers say, or the job is refused where the
 machine can't run one; an `owner` job's runs as the runner says.
+A `container` job under an allowlist has fake credentials in its home (a
+`~/.aws/credentials`, a GitHub token in `~/.config/gh/hosts.yml`); one
+seen by its proxy stops the job, which finishes with `tripwire`, pauses
+its runner's pool and raises an alert (the proxy can't see inside TLS).
 A job's agent reading a card with `x-slipdock-job` (REST or MCP `get_card`) reads its own card as it was at claim (`as_at_claim`),
 and text by an author less trusted than the job's tier marks the job
 (`marked_at`, `mark_reason`); the daemon's `PreToolUse` hook asks for the

@@ -699,7 +699,14 @@ through a proxy of the daemon&#39;s. Such a job can still send what it
 reads to those hosts, and the allowlist doesn&#39;t cover name lookups or,
 under <code>
 confined</code>
- on Linux, UDP or another host on the proxy&#39;s port.</li>
+ on Linux, UDP or another host on the proxy&#39;s port.
+A <code>
+container</code>
+ job under an allowlist also finds fake credentials in
+its home, and its proxy, seeing one leave, has the job stopped and its
+pool paused: that catches a job sending them where the proxy can read
+(a host name, plain HTTP), not one sending them inside TLS to an
+allowed host.</li>
 <li>
 Prompts are the board members&#39; instructions. The agent follows them
 within the runner&#39;s permission mode, as the account its jobs run as.

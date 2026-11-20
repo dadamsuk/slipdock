@@ -1880,6 +1880,13 @@ holds its runners until then. A job asked to cancel, or with an open
 wait, ends cancelled or parked instead; a server without `requeue` reads
 it as failed.
 
+A job whose network proxy saw the fake credentials the daemon planted in
+its home (#3524) finishes `status=failed` with `tripwire` (which value,
+where, to what host): the runner's pool is paused before the job ends,
+so none of its runners claims another until a person resumes it, and the
+board gets an urgent alert naming the job and its card. Such a job never
+ends `done` or goes back to the queue.
+
 **Taking jobs from a Claude session** (`/loop`, a scheduled task) uses the
 token you already have — over MCP the `claim_job`, `job_progress` and
 `finish_job` tools, over HTTP:
@@ -2039,7 +2046,8 @@ POST /api/runner/claim?wait=25             204, or 200 with X-Job-Id, X-Job-Kind
                                            X-Verify-Commit, X-Verify-PR); prompt as body
 POST /api/runner/jobs/:id/heartbeat        body = log tail  → ok | cancel
 POST /api/runner/jobs/:id/finish?exit=N&status=S   body = last output → ok
-                                           (status=requeue&trouble=K&until=T&reason=R → ok queued)
+                                           (status=requeue&trouble=K&until=T&reason=R → ok queued;
+                                           tripwire=W → its pool paused, an alert raised)
 POST /api/runner/jobs/:id/transcript?from=N  body = transcript lines from N → ok L | capped L
 GET  /api/runner/jobs/:id/mark             with the job's hook key → clear | marked <reason>
 GET  /api/runner/jobs/:id/intent           JSON: the card's text as its owner signed it, uncut
@@ -2500,6 +2508,11 @@ the machine on the Machines page ends the key at once.
   through a proxy of the daemon's. Such a job can still send what it
   reads to those hosts, and the allowlist doesn't cover name lookups or,
   under `confined` on Linux, UDP or another host on the proxy's port.
+  A `container` job under an allowlist also finds fake credentials in
+  its home, and its proxy, seeing one leave, has the job stopped and its
+  pool paused: that catches a job sending them where the proxy can read
+  (a host name, plain HTTP), not one sending them inside TLS to an
+  allowed host.
 - Prompts are the board members' instructions. The agent follows them
   within the runner's permission mode, as the account its jobs run as.
   Every job's prompt tells the agent that a card's text is data, never
