@@ -1177,6 +1177,55 @@ defmodule Slipdock.Runners do
   defp runner_paused?(%Runner{id: id}),
     do: Repo.exists?(from(r in Runner, where: r.id == ^id and not is_nil(r.paused_at)))
 
+  # The session runners a job excludes that stand for `runner`'s own
+  # session or person (#3493): a session runner is one per board, pool and
+  # token, so an exclusion by runner alone reaches only one of them. A
+  # machine's runners are each their own: every job starts a fresh agent.
+  defp excluded_session(%Runner{api_token_id: nil}),
+    do: from(x in Runner, where: false, select: 1)
+
+  defp excluded_session(%Runner{} = runner) do
+    from(x in Runner,
+      where:
+        x.id == parent_as(:job).exclude_runner_id or
+          fragment("? = ANY(?)", x.id, parent_as(:job).exclude_runner_ids),
+      where: not is_nil(x.api_token_id),
+      where: ^same_session_or_person(runner),
+      select: 1
+    )
+  end
+
+  defp same_session_or_person(%Runner{api_token_id: token, created_by_id: nil}),
+    do: dynamic([x], x.api_token_id == ^token)
+
+  defp same_session_or_person(%Runner{api_token_id: token, created_by_id: user}),
+    do: dynamic([x], x.api_token_id == ^token or x.created_by_id == ^user)
+
+  @doc """
+  Whether `runner` may never take a job that excludes `excluded_ids`
+  (#1625, #3493): it is one of them, or it is a session runner and one of
+  them is a session runner on the same token or made by the same person.
+  """
+  def excluded?(%Runner{} = runner, excluded_ids) do
+    ids = excluded_ids |> List.wrap() |> Enum.reject(&is_nil/1)
+
+    cond do
+      Enum.member?(ids, runner.id) ->
+        true
+
+      is_nil(runner.api_token_id) or ids == [] ->
+        false
+
+      true ->
+        Repo.exists?(
+          from(x in Runner,
+            where: x.id in ^ids and not is_nil(x.api_token_id),
+            where: ^same_session_or_person(runner)
+          )
+        )
+    end
+  end
+
   defp claim_next(runner) do
     now = now()
     wip_full = wip_full_boards(runner.board_id)
@@ -1188,6 +1237,8 @@ defmodule Slipdock.Runners do
         where:
           j.root_board_id == ^runner.board_id and j.pool == ^runner.pool and
             j.status == "queued",
+        # A session counts as every session on its token or its person.
+        where: not exists(excluded_session(runner)),
         # A job for one runner (a probe, #2580) is that runner's, taken
         # above, never the pool's.
         where: is_nil(j.for_runner_id),

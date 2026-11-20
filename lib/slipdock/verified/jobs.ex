@@ -146,8 +146,7 @@ defmodule Slipdock.Verified.Jobs do
     runners =
       Repo.all(
         from(r in Slipdock.Runners.Runner,
-          where: r.board_id == ^Board.root_id(board) and r.pool == ^board.verify_pool,
-          select: r.id
+          where: r.board_id == ^Board.root_id(board) and r.pool == ^board.verify_pool
         )
       )
 
@@ -156,9 +155,14 @@ defmodule Slipdock.Verified.Jobs do
         runners == [] ->
           "no runner is in pool `#{board.verify_pool}` yet"
 
-        builder && runners == [builder] ->
-          "the only runner in pool `#{board.verify_pool}` built this card, and a card's " <>
-            "builder doesn't verify it"
+        builder && Enum.all?(runners, &Slipdock.Runners.excluded?(&1, [builder])) ->
+          if Enum.map(runners, & &1.id) == [builder],
+            do:
+              "the only runner in pool `#{board.verify_pool}` built this card, and a card's " <>
+                "builder doesn't verify it",
+            else:
+              "every runner in pool `#{board.verify_pool}` is the session or person that " <>
+                "built this card, and a card's builder doesn't verify it"
 
         true ->
           nil

@@ -219,6 +219,95 @@ defmodule Slipdock.VerifiedJobsTest do
       assert Repo.get!(Job, verify.id).status == "queued"
     end
 
+    # #3493: a session runner is one per board, pool and token, so a
+    # session's other runners and its person's other sessions count as it.
+    defp session(ctx, user, pool, token \\ nil) do
+      api_token = token || elem(Slipdock.Accounts.create_api_token(user, "desk"), 1)
+      {:ok, runner} = Slipdock.Runners.session_runner(ctx.board, pool, api_token, user)
+      {runner, api_token}
+    end
+
+    defp built_by_session(ctx) do
+      {builder, api_token} = session(ctx, ctx.owner, "dev")
+
+      {:ok, work} =
+        Slipdock.Runners.queue(ctx.card, %{pool: "dev", kind: "claude", prompt: "Do"})
+
+      assert %{id: id} = Slipdock.Runners.claim(builder)
+      assert id == work.id
+
+      card = submit(%{ctx | builder: %{ctx.builder | job_id: work.id}})
+      [verify] = Enum.filter(jobs(card), &(&1.kind == "verify"))
+      assert verify.exclude_runner_id == builder.id
+      {card, verify, api_token}
+    end
+
+    test "the builder's session never takes the verify job from another pool", ctx do
+      {_card, verify, api_token} = built_by_session(ctx)
+      {same_token, _} = session(ctx, ctx.owner, "checkers", api_token)
+
+      assert Slipdock.Runners.claim(same_token) == nil
+      assert Repo.get!(Job, verify.id).status == "queued"
+    end
+
+    test "nor does its person's session on another token", ctx do
+      {_card, verify, _api_token} = built_by_session(ctx)
+      {new_token, _} = session(ctx, ctx.owner, "checkers")
+
+      assert Slipdock.Runners.claim(new_token) == nil
+      assert Repo.get!(Job, verify.id).status == "queued"
+    end
+
+    test "with only the builder's sessions in the pool, the card says the job waits", ctx do
+      {_runner, _} = session(ctx, ctx.owner, "checkers")
+      {card, verify, _} = built_by_session(ctx)
+
+      assert Enum.any?(
+               Boards.Cards.get_card!(card.id).comments,
+               &(&1.body =~
+                   "**Verify job ##{verify.id} waits:** every runner in pool `checkers` is " <>
+                     "the session or person that built this card")
+             )
+    end
+
+    test "another person's session, or a runner of the pool's own, takes it", ctx do
+      {_card, verify, _} = built_by_session(ctx)
+      other = user_fixture("other@example.com")
+      {theirs, _} = session(ctx, other, "checkers")
+
+      assert %{id: id} = Slipdock.Runners.claim(theirs)
+      assert id == verify.id
+    end
+
+    test "a runner with a token of its own still takes a session-built card", ctx do
+      {_card, verify, _} = built_by_session(ctx)
+
+      {:ok, runner, _} =
+        Slipdock.Runners.create_runner(ctx.board, %{"name" => "m", "pool" => "checkers"})
+
+      assert %{id: id} = Slipdock.Runners.claim(runner)
+      assert id == verify.id
+    end
+
+    test "a person's session still verifies what their own machine's runner built", ctx do
+      {:ok, machine, _} =
+        Slipdock.Runners.create_runner(ctx.board, %{"name" => "m", "pool" => "dev"}, ctx.owner)
+
+      {:ok, work} =
+        Slipdock.Runners.queue(ctx.card, %{pool: "dev", kind: "claude", prompt: "Do"})
+
+      assert %{id: id} = Slipdock.Runners.claim(machine)
+      assert id == work.id
+
+      card = submit(%{ctx | builder: %{ctx.builder | job_id: work.id}})
+      [verify] = Enum.filter(jobs(card), &(&1.kind == "verify"))
+      {mine, _} = session(ctx, ctx.owner, "checkers")
+
+      refute Slipdock.Runners.excluded?(mine, [machine.id])
+      assert %{id: claimed} = Slipdock.Runners.claim(mine)
+      assert claimed == verify.id
+    end
+
     test "with no runner in the pool at all, the card says the job waits for one", ctx do
       card = submit(ctx)
       [verify] = jobs(card)
