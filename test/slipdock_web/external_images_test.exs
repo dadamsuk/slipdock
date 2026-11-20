@@ -132,6 +132,14 @@ defmodule SlipdockWeb.ExternalImagesTest do
       assert html =~ ~s|>https://images.example.com/l.png</a>|
     end
 
+    test "a raw HTML picture whose address has spaces around it is still a link" do
+      block(true)
+      html = Renderer.to_html(~s|<img src="  https://images.example.com/l.png\n" alt="logo">|)
+
+      refute html =~ "<img"
+      assert html =~ "logo</a>"
+    end
+
     test "a picture inside a link becomes that link's text" do
       block(true)
       html = Renderer.to_html("[![logo](https://images.example.com/l.png)](https://example.com/)")
@@ -154,6 +162,14 @@ defmodule SlipdockWeb.ExternalImagesTest do
       refute ExternalImages.external?("data:image/png;base64,AAAA")
       refute ExternalImages.external?("blob:https://images.example.com/x")
       refute ExternalImages.external?("https://#{SlipdockWeb.Endpoint.host()}/uploads/a.png")
+    end
+
+    test "reads an address with spaces around it by its host" do
+      assert ExternalImages.external?(" https://images.example.com/a.png")
+      assert ExternalImages.external?("https://images.example.com/a.png ")
+      assert ExternalImages.external?("\t//images.example.com/a.png\n")
+
+      refute ExternalImages.external?(" https://#{SlipdockWeb.Endpoint.host()}/uploads/a.png ")
     end
 
     test "reads an address with an escaped ampersand by its host" do
