@@ -81,6 +81,10 @@ type Worker struct {
 	// server says is owner tier runs as owner only when its card's text is
 	// signed by one of them (ownerCheck); otherwise as member.
 	Owner intent.Pin
+	// allowHosts are the job's tier's allow_hosts, and egress its proxy,
+	// under a network allowlist (#3517).
+	allowHosts []string
+	egress     *executor.Egress
 	// ReleaseKey is the project's release key, which the server's CLI is
 	// checked against before it is installed (default release.Key).
 	ReleaseKey func() (ed25519.PublicKey, error)
@@ -196,6 +200,7 @@ func (w *Worker) executorSettings() executor.Settings {
 			w.verifyLogins(&s)
 		}
 	}
+	s.Egress = w.egress
 	return s
 }
 
@@ -496,6 +501,12 @@ func (w *Worker) runJob(ctx context.Context, job *Job) {
 		return
 	}
 	jw, err := w.forTier(job)
+	if err == nil && jw.Runner.Config.Network == machine.NetworkAllowlist {
+		var stop func()
+		if stop, err = jw.startEgress(ctx, j); err == nil {
+			defer stop()
+		}
+	}
 	if err != nil {
 		w.say("job #%d: %v", job.ID, err)
 		j.note("slipdock-runner: " + err.Error())
@@ -567,16 +578,29 @@ func (w *Worker) forTier(job *Job) (*Worker, error) {
 	if t.Network != "" {
 		c.Network = t.Network
 	}
-	if c.Network == "off" && c.Executor != executor.Container {
+	if c.Network == machine.NetworkOff && c.Executor != executor.Container {
 		return nil, fmt.Errorf("trust tier %q turns the network off, which needs the container executor (the runner's is %q), so the job was not run",
 			tier, c.Executor)
 	}
-	w.say("job #%d: trust tier %s: executor %s, permission mode %s", job.ID, tier, executorName(c.Executor), c.PermissionMode)
-	if c == w.Runner.Config {
+	allowlist := c.Network == machine.NetworkAllowlist
+	if allowlist && !contains(machine.AllowlistExecutors, c.Executor) {
+		return nil, fmt.Errorf("trust tier %q holds the network to an allowlist, which needs the confined or container executor (the runner's is %q), so the job was not run",
+			tier, executorName(c.Executor))
+	}
+	network := c.Network
+	if network == "" {
+		network = machine.NetworkOn
+	}
+	w.say("job #%d: trust tier %s: executor %s, permission mode %s, network %s", job.ID, tier, executorName(c.Executor), c.PermissionMode, network)
+	if c == w.Runner.Config && !allowlist {
 		return w, nil
 	}
 	jw := *w
 	jw.Runner.Config = c
+	if allowlist {
+		// Always a copy: the job's proxy is its own.
+		jw.allowHosts = append([]string(nil), t.AllowHosts...)
+	}
 	if c.Executor != w.Runner.Config.Executor || c.Network != w.Runner.Config.Network {
 		jw.Executor, jw.executorErr, jw.Exec = nil, nil, nil
 		jw.defaults()

@@ -550,7 +550,10 @@ with the tail of the log — and a Cancel button.
 - **Board writers steer the agent.** Anyone who can write or comment on a
   board a runner serves gives its agent instructions; the runner's
   executor and permission mode are what limit them
-  ([Who steers a runner's agent](machines.md#who-steers-a-runners-agent)).
+  ([Who steers a runner's agent](machines.md#who-steers-a-runners-agent)),
+  and the machine's trust tiers can tighten both by who wrote the card, or
+  hold its network to an allowlist of the model API, the server and the
+  repository ([A network allowlist](machines.md#a-network-allowlist)).
   A job reads its own card as it was when claimed, and once it reads text
   by someone less trusted than its prompt's authors, the machine's hook
   refuses its agent the shell, the network and pushing

@@ -19,6 +19,9 @@ const (
 
 	landlockCreateRulesetVersion = 1 << 0
 	landlockRulePathBeneath      = 1
+	landlockRuleNetPort          = 2 // ABI 4
+
+	netConnectTCP = 1 << 1 // ABI 4
 
 	fsWriteFile  = 1 << 1
 	fsRemoveDir  = 1 << 4
@@ -41,6 +44,10 @@ const (
 // minLandlockABI is the first that handles truncate(2): below it, a
 // confined job could empty any file it can open.
 const minLandlockABI = 3
+
+// landlockNetABI is the first that limits TCP connections: a network
+// allowlist needs it.
+const landlockNetABI = 4
 
 // landlockABI is this kernel's Landlock ABI, 0 for none (a variable, so a
 // test can be an older kernel).
@@ -65,21 +72,43 @@ type pathBeneath struct {
 	fd      int32
 } // the kernel reads the first 12 bytes: the struct is packed there
 
+type netPort struct {
+	allowed uint64
+	port    uint64
+}
+
 // restrict denies this thread, and what it runs, every write outside
-// writable (and the devices). It must be followed by exec on the same,
+// writable (and the devices) and, when connect names any, every TCP
+// connection but to those ports. It must be followed by exec on the same,
 // locked, thread.
-func restrict(writable []string) error {
+func restrict(writable []string, connect []int) error {
 	abi := landlockABI()
 	if abi < minLandlockABI {
 		return fmt.Errorf("this kernel's Landlock is ABI %d, and confined needs %d", abi, minLandlockABI)
 	}
+	if len(connect) > 0 && abi < landlockNetABI {
+		return fmt.Errorf("this kernel's Landlock is ABI %d, and a network allowlist needs %d", abi, landlockNetABI)
+	}
 	handled := writeRights()
-	attr := struct{ fs uint64 }{handled}
-	fd, _, e := syscall.Syscall(sysLandlockCreateRuleset, uintptr(unsafe.Pointer(&attr)), unsafe.Sizeof(attr), 0)
+	var fd uintptr
+	var e syscall.Errno
+	if len(connect) > 0 {
+		attr := struct{ fs, net uint64 }{handled, netConnectTCP}
+		fd, _, e = syscall.Syscall(sysLandlockCreateRuleset, uintptr(unsafe.Pointer(&attr)), unsafe.Sizeof(attr), 0)
+	} else {
+		attr := struct{ fs uint64 }{handled}
+		fd, _, e = syscall.Syscall(sysLandlockCreateRuleset, uintptr(unsafe.Pointer(&attr)), unsafe.Sizeof(attr), 0)
+	}
 	if e != 0 {
 		return fmt.Errorf("landlock_create_ruleset: %v", e)
 	}
 	defer syscall.Close(int(fd))
+	for _, port := range connect {
+		rule := netPort{allowed: netConnectTCP, port: uint64(port)}
+		if _, _, e := syscall.Syscall6(sysLandlockAddRule, fd, landlockRuleNetPort, uintptr(unsafe.Pointer(&rule)), 0, 0, 0); e != 0 {
+			return fmt.Errorf("landlock_add_rule port %d: %v", port, e)
+		}
+	}
 	for _, path := range append(append([]string(nil), writable...), devices...) {
 		pfd, err := syscall.Open(path, oPath|syscall.O_CLOEXEC, 0)
 		if err != nil {
@@ -110,9 +139,9 @@ func restrict(writable []string) error {
 }
 
 // confineExec restricts and runs prog in this process's place.
-func confineExec(writable []string, prog string, args []string) error {
+func confineExec(writable []string, connect []int, prog string, args []string) error {
 	runtime.LockOSThread()
-	if err := restrict(writable); err != nil {
+	if err := restrict(writable, connect); err != nil {
 		return err
 	}
 	return syscall.Exec(prog, append([]string{prog}, args...), os.Environ())

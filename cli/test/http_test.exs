@@ -208,4 +208,48 @@ defmodule SlipdockCLI.HTTPTest do
       refute_received {:request, _, _, _}
     end
   end
+
+  # A runner job held to a network allowlist reaches the server only
+  # through its proxy (#3517), which :httpc doesn't find for itself.
+  describe "a proxy" do
+    test "is read from the environment, as curl reads it" do
+      env = %{
+        "HTTPS_PROXY" => "http://127.0.0.1:4100",
+        "http_proxy" => "http://127.0.0.1:4101",
+        "NO_PROXY" => "localhost, 127.0.0.1,,::1"
+      }
+
+      assert HTTP.proxy_options(&env[&1]) == [
+               https_proxy: {{~c"127.0.0.1", 4100}, [~c"localhost", ~c"127.0.0.1", ~c"::1"]},
+               proxy: {{~c"127.0.0.1", 4101}, [~c"localhost", ~c"127.0.0.1", ~c"::1"]}
+             ]
+    end
+
+    test "none set, or one that isn't an http:// URL, is none" do
+      assert HTTP.proxy_options(fn _ -> nil end) == []
+
+      assert HTTP.proxy_options(
+               &%{"HTTPS_PROXY" => "socks5://127.0.0.1:1", "HTTP_PROXY" => "nonsense"}[&1]
+             ) == []
+    end
+
+    test "carries the request" do
+      proxy = FakeServer.start([{200, ~s({"ok":true})}])
+      saved = Map.new(~w(HTTP_PROXY http_proxy NO_PROXY no_proxy), &{&1, System.get_env(&1)})
+
+      on_exit(fn ->
+        Enum.each(saved, fn
+          {k, nil} -> System.delete_env(k)
+          {k, v} -> System.put_env(k, v)
+        end)
+      end)
+
+      Enum.each(~w(http_proxy NO_PROXY no_proxy), &System.delete_env/1)
+      System.put_env("HTTP_PROXY", proxy)
+      System.put_env("SLIPDOCK_URL", "http://board.example.com")
+
+      assert {:ok, %{"ok" => true}} = HTTP.get("/boards")
+      assert_received {:request, "GET", "http://board.example.com/api/boards", _}
+    end
+  end
 end

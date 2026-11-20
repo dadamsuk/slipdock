@@ -6,6 +6,7 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -63,13 +64,32 @@ func TestTheTiersAreChecked(t *testing.T) {
 	if err := good.Validate(); err != nil {
 		t.Fatalf("good tiers: %v", err)
 	}
+	// A network allowlist (#3517), under the container or confined
+	// executor or the runner's own, with hosts of its own.
+	allow := base
+	allow.Executors = []string{"me", "confined", "container"}
+	allow.Tiers = map[string]Tier{
+		"owner":  {Network: "allowlist"},
+		"member": {Executor: "confined", Network: "allowlist", AllowHosts: []string{"registry.npmjs.org", "*.example.com:8443", "localhost:5432"}},
+		"anyone": {Executor: "container", Network: "allowlist", AllowHosts: []string{"Example.COM."}},
+	}
+	if err := allow.Validate(); err != nil {
+		t.Fatalf("allowlist tiers: %v", err)
+	}
 	for tiers, want := range map[*map[string]Tier]string{
 		{"root": {}}:                       `tiers: "root" is not one of owner, member, anyone`,
 		{"member": {Executor: "confined"}}: `tiers.member.executor: "confined" is not one this machine offers`,
-		{"owner": {MaxPermissionMode: "bypassPermissions"}}: `above the ceiling's "acceptEdits"`,
-		{"owner": {MaxPermissionMode: "all"}}:               `tiers.owner.max_permission_mode: "all" is not one of`,
-		{"anyone": {Executor: "me", Network: "off"}}:        "tiers.anyone.network: off needs the container executor",
-		{"anyone": {Network: "allowlist"}}:                  `tiers.anyone.network: "allowlist" is not on or off`,
+		{"owner": {MaxPermissionMode: "bypassPermissions"}}:                             `above the ceiling's "acceptEdits"`,
+		{"owner": {MaxPermissionMode: "all"}}:                                           `tiers.owner.max_permission_mode: "all" is not one of`,
+		{"anyone": {Executor: "me", Network: "off"}}:                                    "tiers.anyone.network: off needs the container executor",
+		{"anyone": {Network: "wifi"}}:                                                   `tiers.anyone.network: "wifi" is not on, off or allowlist`,
+		{"anyone": {Executor: "me", Network: "allowlist"}}:                              "tiers.anyone.network: allowlist needs the confined or container executor",
+		{"anyone": {Network: "on", AllowHosts: []string{"example.com"}}}:                "tiers.anyone.allow_hosts: only with network allowlist",
+		{"anyone": {AllowHosts: []string{"example.com"}}}:                               "tiers.anyone.allow_hosts: only with network allowlist",
+		{"anyone": {Network: "allowlist", AllowHosts: []string{"https://example.com"}}}: `tiers.anyone.allow_hosts: "https://example.com"`,
+		{"anyone": {Network: "allowlist", AllowHosts: []string{"example.com:99999"}}}:   "the port must be a number",
+		{"anyone": {Network: "allowlist", AllowHosts: []string{"*"}}}:                   `"*" is not a host name`,
+		{"anyone": {Network: "allowlist", AllowHosts: []string{"localhost"}}}:           "name the port on this machine",
 	} {
 		c := base
 		c.Tiers = *tiers
@@ -87,7 +107,16 @@ func TestTheTiersAreReadFromTheFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := c.Tiers["anyone"]; got != (Tier{Executor: "container", Network: "off", MaxPermissionMode: "plan"}) {
+	if got := c.Tiers["anyone"]; !reflect.DeepEqual(got, Tier{Executor: "container", Network: "off", MaxPermissionMode: "plan"}) {
+		t.Fatalf("tiers = %+v", c.Tiers)
+	}
+	data = []byte(`{"roots":["/src"],"agents":["claude"],"max_permission_mode":"acceptEdits",
+		"max_timeout_minutes":30,"boards":[3],"executors":["me","confined"],
+		"tiers":{"anyone":{"executor":"confined","network":"allowlist","allow_hosts":["registry.npmjs.org"]}}}`)
+	if c, err = ParseCeiling("ceiling.json", data); err != nil {
+		t.Fatal(err)
+	}
+	if got := c.Tiers["anyone"]; !reflect.DeepEqual(got, Tier{Executor: "confined", Network: "allowlist", AllowHosts: []string{"registry.npmjs.org"}}) {
 		t.Fatalf("tiers = %+v", c.Tiers)
 	}
 }

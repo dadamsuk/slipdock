@@ -20,6 +20,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/dadamsuk/slipdock/daemon/internal/egress"
 	"github.com/dadamsuk/slipdock/daemon/internal/executor"
 	"github.com/dadamsuk/slipdock/daemon/internal/hook"
 	"github.com/dadamsuk/slipdock/daemon/internal/machine"
@@ -221,6 +222,9 @@ func Main(args []string, env Env) int {
 	case "hook":
 		// A job's Claude Code hook (#3520), run by the agent; not for people.
 		return hook.Main(rest, hook.Env{Stdin: env.Stdin, Stdout: env.Stdout, Stderr: env.Stderr, Getenv: env.Getenv})
+	case "egress":
+		// A job's way to its network allowlist's proxy (#3517); not for people.
+		return egress.Main(rest, os.Stdin, env.Stdout, env.Stderr)
 	case "version", "--version":
 		fmt.Fprintf(env.Stdout, "slipdock-runner %s (%s/%s)\n", Version, env.GOOS, env.GOARCH)
 	default:

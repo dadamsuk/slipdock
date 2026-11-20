@@ -204,7 +204,7 @@ writes; only someone at the machine changes it.
 | `boards` | the boards the machine serves | the ones chosen on the approval page; `slipdock-runner boards add\|remove` changes them later |
 | `executors` | who a runner's jobs may run as (below) | `user` with a dedicated account; `me` and `confined` without one (`me` only on Windows) |
 | `container_images` | the images a `container` runner may run (below) | none: no image runs until you list one |
-| `tiers` | what a job may do by who wrote its card (below) | none: every job runs as its runner says |
+| `tiers` | what a job may do by who wrote its card: its executor, permission mode and network, `allowlist` included (below) | none: every job runs as its runner says |
 | `owner_keys` | the board owners' passkeys pinned here: with any, only a card its owner signed runs at the `owner` tier (below) | none; `init` offers to pin them, `slipdock-runner trust-owner` does it later |
 | `owner_signature_max_age_days` | how old an owner's signature may be | 30 when left out |
 
@@ -246,8 +246,9 @@ their token, an MCP client) count as agents, so what they write is
 The server only reports the tier; `tiers` in `ceiling.json` decides what
 each gets. Each entry may set the `executor` the job runs under (one the
 ceiling's `executors` offers), the `max_permission_mode` it is held to (at
-most the ceiling's own) and the container's `network` (`on` or `off`;
-`off` only under `container`). A field left out keeps the runner's own.
+most the ceiling's own) and the job's `network`: `on`, `off` (only under
+`container`) or `allowlist` (below). A field left out keeps the runner's
+own.
 
 ```json
 "tiers": {
@@ -294,6 +295,65 @@ quick model and the key unattended work spends, once per version of the
 text. It stops notes aimed at agents and smuggled paths; it does not stop a
 hostile request written as the card's requirement, which the tier's
 ceiling and a person reviewing the change still must.
+
+##### A network allowlist
+
+`"network": "allowlist"` lets a tier's jobs reach only what they need,
+so a job can't send what it reads anywhere else. The daemon runs a small
+proxy for each such job, on a random port of `127.0.0.1`, which lets
+through only:
+
+- the agent's model API: `api.anthropic.com` and `console.anthropic.com`
+  for `claude`; `api.openai.com`, `auth.openai.com` and `chatgpt.com` for
+  `codex` (a custom agent gets none: name its hosts);
+- the Slipdock server the machine is enrolled with;
+- the repository's `origin` (its host and port, `https` or `ssh`), and
+  `api.github.com` when that is `github.com`, for `gh`;
+- the tier's own `allow_hosts`: `host` (port 443), `host:port`, `*.host`
+  for any name under it, and `localhost:port` for a port of the machine
+  itself (a test database, say), which a confined job reaches directly.
+
+```json
+"tiers": {
+  "owner":  {"executor": "me"},
+  "anyone": {"executor": "confined", "network": "allowlist",
+             "allow_hosts": ["registry.npmjs.org", "proxy.golang.org", "localhost:5432"]}
+}
+```
+
+The job's `HTTPS_PROXY`, `HTTP_PROXY` and `ALL_PROXY` (in both cases)
+name the proxy and `NO_PROXY` names `localhost`, so the agent, `git`,
+`gh`, `curl` and the `slipdock` CLI go through it; git over ssh goes
+through it too (`GIT_SSH_COMMAND` with a `ProxyCommand` of the daemon's
+own binary). The proxy refuses everything else with `403`, and the job's
+log says so once a host (`network allowlist: refused a connection to
+example.com:443`); the log's first lines list what was allowed.
+
+The sandbox stops a job going round the proxy:
+
+- `confined` on macOS: `sandbox-exec` denies every outbound connection
+  but to the proxy's port (and the `localhost:port`s) and unix sockets.
+- `confined` on Linux: Landlock denies every TCP connection but to those
+  ports. It needs Landlock ABI 4 (Linux 6.7); an older kernel refuses
+  the job. Landlock's rules are by port, not address, and it doesn't
+  cover UDP.
+- `container` (Linux only): the container has no network
+  (`--network=none`). The proxy's unix socket is mounted in, read-only, at
+  `/run/slipdock-egress`, with the daemon's own binary at
+  `/usr/local/libexec/slipdock-egress`, which runs the job and carries its
+  connections to the proxy's port inside the container to the socket.
+  The binary must be a static build (the release builds are); Docker
+  Desktop and Podman on macOS can't run it, so there a container job under
+  an allowlist is refused: use `confined`.
+
+The daemon's own git for the job (its worktree's fetch) and the runner's
+hooks are held to the same allowlist. The origin is the one first seen
+for the runner, kept in the daemon's own directory (`jobs/<runner>/
+egress-origin`), because a job can rewrite its repository's
+`.git/config`: if the origin changes, the job's log says so, and deleting
+that file allows the new one. Name lookups aren't covered, and a job can
+still send what it reads to an allowed host. Under any other executor a
+tier's allowlist refuses the job.
 
 #### Cards signed by their owner
 
@@ -443,9 +503,9 @@ is gone, say), the job fails before anything starts, and its log says why.
 | Executor | Jobs run as | What it stops | What it doesn't |
 |---|---|---|---|
 | `user` | a dedicated account, `slipdock` by default, with its own home, clones and logins | reading your home: a job is refused while your home is open to the account | reading what every account can, writing its own home and `/tmp`, the network |
-| `confined` | you, unable to write outside the job's directory | writing anywhere else: your home, other repositories, the system | reading your files, the network. It may also write its own temporary directory, the terminal devices and the agent's own state (`~/.claude` for `claude`) |
+| `confined` | you, unable to write outside the job's directory | writing anywhere else: your home, other repositories, the system; under a tier's network allowlist, reaching any host off it | reading your files, the network (but for an allowlist). It may also write its own temporary directory, the terminal devices and the agent's own state (`~/.claude` for `claude`) |
 | `me` | you, as you are | nothing: an agent can read and change what you can | |
-| `container` | you, in a short-lived Docker or Podman container from an image on the machine's allow-list | seeing anything not mounted: your home is an empty one; writing outside the job's directory and repository; the network, when the runner turns it off | the network when it is on; what the mounted logins allow; the image itself, and the runtime (an account in the `docker` group is root on the machine) |
+| `container` | you, in a short-lived Docker or Podman container from an image on the machine's allow-list | seeing anything not mounted: your home is an empty one; writing outside the job's directory and repository; the network, when the runner turns it off; any host off a tier's network allowlist (Linux) | the network when it is on; what the mounted logins allow; the image itself, and the runtime (an account in the `docker` group is root on the machine) |
 
 `init` asks which, and says what each does and doesn't stop:
 
@@ -550,7 +610,8 @@ token (`CLAUDE_CODE_OAUTH_TOKEN` and `ANTHROPIC_API_KEY`, or
 `OPENAI_API_KEY`) pass in; the daemon's own `SLIPDOCK_*` variables never
 do. The runner's `network` setting (`on` or `off`, from the board) turns
 the network off (`--network none`); an agent that calls its provider's API
-needs it on, and so does the built-in merge.
+needs it on, and so does the built-in merge. A trust tier's `allowlist`
+gives it only the hosts it needs instead (see *A network allowlist*).
 
 Under `container` the agent's and hooks' programs are the image's, found
 on its `PATH`. The live transcript is sent as it is for any other job, read
@@ -968,7 +1029,13 @@ the machine on the Machines page ends the key at once.
   the server's word alone.
 - Network access. A job can reach the network, and so can send anything
   it can read to anywhere, unless its runner uses the `container`
-  executor with the network off. No other executor limits the network.
+  executor with the network off. No other executor limits the network,
+  but for a network allowlist: a trust tier in the ceiling may hold its
+  jobs, under `confined` or `container`, to their agent's model API, the
+  Slipdock server, the repository's origin and the hosts it names,
+  through a proxy of the daemon's. Such a job can still send what it
+  reads to those hosts, and the allowlist doesn't cover name lookups or,
+  under `confined` on Linux, UDP or another host on the proxy's port.
 - Prompts are the board members' instructions. The agent follows them
   within the runner's permission mode, as the account its jobs run as.
   Every job's prompt tells the agent that a card's text is data, never
@@ -1001,8 +1068,8 @@ the machine allows, and a job never runs under a weaker one in its place.
   runner and the runner's hooks are confined to the repository and its
   worktrees. It stops a job writing to your home, other repositories
   and the system. It doesn't stop the job reading your files, your SSH
-  keys and logins included, or the network, so a confined job can still
-  read a secret and send it.
+  keys and logins included, or the network (unless a network allowlist
+  holds it), so a confined job can still read a secret and send it.
 - `container`: jobs run in a short-lived Docker or Podman container,
   from an image the machine's own allow-list names, with the repository
   or worktree mounted at the same path, the agent's login mounted
@@ -1011,7 +1078,8 @@ the machine allows, and a job never runs under a weaker one in its place.
   In a worktree, a job whose card has paths has only those mounted
   read-write, and of its repository only what a commit needs.
   It stops a job reading or writing anything outside what is mounted,
-  and, when the runner asks for the network off, the network.
+  and, when the runner asks for the network off, the network; under a
+  network allowlist (Linux only), every host but the allowlist's.
   It doesn't stop the job changing the mounted repository, using the
   agent's login (it can't change it, but can act with it), whatever the
   image itself does, or the network when it is left on. The runtime is

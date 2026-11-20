@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -77,6 +78,14 @@ func helper(mode string, args []string) int {
 		}
 		code, _ := strconv.Atoi(os.Getenv("HELPER_EXIT"))
 		return code
+	case "dial":
+		// A TCP connection straight to args[0]: exit 0 when it is made.
+		c, err := net.DialTimeout("tcp", args[0], 3*time.Second)
+		if err != nil {
+			return 1
+		}
+		c.Close()
+		return 0
 	case "tree", "stubborn-tree":
 		// Starts a child that ticks into $HELPER_TICK, then waits forever:
 		// stopping the job must stop both. A stubborn tree's child ignores

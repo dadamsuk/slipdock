@@ -1591,9 +1591,11 @@ and says what it did with each config: `POST
 outside it, and the log of accepted and rejected changes. A claimed
 job's `X-Prompt-Tier` header is the least-trusted author of its prompt's
 text (`owner`, `member` or `anyone`); the ceiling's `tiers` say what a job
-of each tier may run as, and a job whose tier they don't name is refused
-on the machine. A job's agent reading a card with `x-slipdock-job` (REST
-or MCP `get_card`) reads its own card as it was at claim (`as_at_claim`),
+of each tier may run as (its executor, permission mode and network, which
+`allowlist` holds to the model API, the server, the repository's origin
+and the tier's `allow_hosts`, through a proxy the daemon runs for the
+job), and a job whose tier they don't name is refused on the machine.
+A job's agent reading a card with `x-slipdock-job` (REST or MCP `get_card`) reads its own card as it was at claim (`as_at_claim`),
 and text by an author less trusted than the job's tier marks the job
 (`marked_at`, `mark_reason`); the daemon's `PreToolUse` hook asks for the
 mark with the claim's `X-Job-Hook-Key` (`GET /api/runner/jobs/:id/mark`)
@@ -1759,7 +1761,11 @@ trust contract above:
   can, your keys and logins included; `user` keeps it out of your home;
   `confined` stops writes outside the job but not reads; `container` stops
   both, and the network when the runner turns it off. Nothing but a
-  container with the network off stops a job sending what it can read.
+  container with the network off stops a job sending what it can read,
+  or a trust tier's network `allowlist` (under `confined` or `container`)
+  narrows where it can send it: the agent's model API, the server, the
+  repository's origin and the hosts the tier names, through the job's
+  proxy (`HTTPS_PROXY`).
 - **The token** the agent's `slipdock` uses is the one signed in for the
   account its jobs run as: under `me`, yours. The agent can do on the
   board whatever that token can; a token confined to the runner's boards

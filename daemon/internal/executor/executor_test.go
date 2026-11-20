@@ -2,12 +2,17 @@ package executor
 
 import (
 	"context"
+	"io"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/dadamsuk/slipdock/daemon/internal/egress"
 )
 
 // TestMain doubles as slipdock-runner's confine command, the launcher a
@@ -15,6 +20,15 @@ import (
 func TestMain(m *testing.M) {
 	if len(os.Args) >= 2 && os.Args[1] == "confine" {
 		os.Exit(ConfineMain(os.Args[2:], os.Stderr))
+	}
+	if len(os.Args) >= 2 && os.Args[1] == "egress" {
+		os.Exit(egress.Main(os.Args[2:], os.Stdin, os.Stdout, os.Stderr))
+	}
+	if len(os.Args) == 3 && os.Args[1] == "helper-dial" {
+		os.Exit(helperDial(os.Args[2]))
+	}
+	if len(os.Args) == 3 && os.Args[1] == "helper-via" {
+		os.Exit(helperVia(os.Args[2]))
 	}
 	// truncate(2) itself, not an open with O_TRUNC: Landlock handles the
 	// two apart, and below ABI 3 not truncate(2) at all.
@@ -25,6 +39,26 @@ func TestMain(m *testing.M) {
 		os.Exit(0)
 	}
 	os.Exit(m.Run())
+}
+
+// helperDial and helperVia are TestMain's: a TCP connection straight to
+// addr, and a CONNECT to it through the job's proxy.
+func helperDial(addr string) int {
+	c, err := net.DialTimeout("tcp", addr, 3*time.Second)
+	if err != nil {
+		return 1
+	}
+	c.Close()
+	return 0
+}
+
+func helperVia(target string) int {
+	u := os.Getenv("HTTPS_PROXY")
+	host, p, _ := net.SplitHostPort(target)
+	if err := egress.Connect(strings.TrimPrefix(u, "http://"), host, p, strings.NewReader(""), io.Discard); err != nil {
+		return 1
+	}
+	return 0
 }
 
 // strict: on CI's executor jobs a missing facility is a failure, not a skip.

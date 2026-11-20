@@ -687,7 +687,19 @@ Network access. A job can reach the network, and so can send anything
 it can read to anywhere, unless its runner uses the <code>
 container</code>
 
-executor with the network off. No other executor limits the network.</li>
+executor with the network off. No other executor limits the network,
+but for a network allowlist: a trust tier in the ceiling may hold its
+jobs, under <code>
+confined</code>
+ or <code>
+container</code>
+, to their agent&#39;s model API, the
+Slipdock server, the repository&#39;s origin and the hosts it names,
+through a proxy of the daemon&#39;s. Such a job can still send what it
+reads to those hosts, and the allowlist doesn&#39;t cover name lookups or,
+under <code>
+confined</code>
+ on Linux, UDP or another host on the proxy&#39;s port.</li>
 <li>
 Prompts are the board members&#39; instructions. The agent follows them
 within the runner&#39;s permission mode, as the account its jobs run as.
@@ -739,8 +751,8 @@ its repository only what a commit needs. The daemon&#39;s own git for the
 runner and the runner&#39;s hooks are confined to the repository and its
 worktrees. It stops a job writing to your home, other repositories
 and the system. It doesn&#39;t stop the job reading your files, your SSH
-keys and logins included, or the network, so a confined job can still
-read a secret and send it.</li>
+keys and logins included, or the network (unless a network allowlist
+holds it), so a confined job can still read a secret and send it.</li>
 <li>
 <code>
 container</code>
@@ -752,7 +764,8 @@ transcript, which the daemon reads only as regular files beneath it.
 In a worktree, a job whose card has paths has only those mounted
 read-write, and of its repository only what a commit needs.
 It stops a job reading or writing anything outside what is mounted,
-and, when the runner asks for the network off, the network.
+and, when the runner asks for the network off, the network; under a
+network allowlist (Linux only), every host but the allowlist&#39;s.
 It doesn&#39;t stop the job changing the mounted repository, using the
 agent&#39;s login (it can&#39;t change it, but can act with it), whatever the
 image itself does, or the network when it is left on. The runtime is
