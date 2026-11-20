@@ -1,6 +1,8 @@
 package runner
 
 import (
+	"context"
+	"fmt"
 	"net/http"
 	"os"
 	"os/exec"
@@ -315,5 +317,60 @@ func TestOnlyConfinedAndContainerKeepToPaths(t *testing.T) {
 	f := r.runJob(fakeJob{id: 316, kind: "claude", card: 9, prompt: "x", paths: `bad`})
 	if f.exit != 0 || !strings.Contains(f.body, "wrote") {
 		t.Fatalf("finish = %+v", f)
+	}
+}
+
+// TestAGlobThatClimbsOrNamesDotGitGrantsNothing: each refused glob says
+// why, by its own guard (a .. is refused before it is cleaned away; .git
+// before it is looked up).
+func TestAGlobThatClimbsOrNamesDotGitGrantsNothing(t *testing.T) {
+	_, root, gitDir, common := laneDirs(t)
+	cases := map[string]string{
+		"lib/../.github": "it has a ..",
+		"a/../../x":      "it has a ..",
+		"..":             "it has a ..",
+		".git":           "the worktree's .git is never writable",
+		".git/hooks":     "the worktree's .git is never writable",
+		".git/hooks/*":   "the worktree's .git is never writable",
+	}
+	for glob, why := range cases {
+		paths, notes, err := cardPaths(root, gitDir, common, []string{glob})
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := fmt.Sprintf("the card's path %q grants nothing: %s", glob, why)
+		if len(notes) != 1 || notes[0] != want {
+			t.Errorf("%q: notes %q, want %q", glob, notes, want)
+		}
+		for _, p := range paths {
+			if within(root, p) {
+				t.Errorf("%q granted %s", glob, p)
+			}
+		}
+	}
+	if _, err := os.Stat(filepath.Join(root, ".github")); err == nil {
+		t.Error("a refused glob made a directory")
+	}
+}
+
+// TestGitDirectoriesTheRunnerCantReadRefuseTheJob: keepToPaths needs both
+// of git's answers, else the job isn't run.
+func TestGitDirectoriesTheRunnerCantReadRefuseTheJob(t *testing.T) {
+	ex, err := executor.New(executor.Confined, executor.Settings{GOOS: runtime.GOOS})
+	if err != nil {
+		t.Skip(err)
+	}
+	log, err := os.CreateTemp(t.TempDir(), "log")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer log.Close()
+	for _, out := range []string{"", "/one/line\n", "/a\n/b\n/c\n"} {
+		w := &Worker{Executor: ex, Exec: func(context.Context, string, string, ...string) (string, error) { return out, nil }}
+		j := &jobRun{job: &Job{Paths: []string{"lib/**"}}, lane: &lane{path: t.TempDir()}, log: log}
+		if paths, _, err := w.keepToPaths(context.Background(), j); err == nil || paths != nil ||
+			!strings.Contains(err.Error(), "can't find the git directories") {
+			t.Errorf("git said %q: %q %v", out, paths, err)
+		}
 	}
 }
