@@ -1597,9 +1597,11 @@ or MCP `get_card`) reads its own card as it was at claim (`as_at_claim`),
 and text by an author less trusted than the job's tier marks the job
 (`marked_at`, `mark_reason`); the daemon's `PreToolUse` hook asks for the
 mark with the claim's `X-Job-Hook-Key` (`GET /api/runner/jobs/:id/mark`)
-and refuses the shell, the network and pushing once it is set. The runner
-protocol takes the machine key with `X-Runner-Id`, for that machine's own
-runners only; each runner keeps its own identity, so a verify job still
+and refuses the shell, the network and pushing once it is set. Text an
+agent writes counts at its job's tier, not its login's, and at `member`
+at most when it names no live job of its person's: an agent can't make a
+card owner-tier. The runner protocol takes the machine key with
+`X-Runner-Id`, for that machine's own runners only; each runner keeps its own identity, so a verify job still
 goes to a runner other than its builder.
 
 **A runner's warnings** (#3482). Every runner in an answer carries

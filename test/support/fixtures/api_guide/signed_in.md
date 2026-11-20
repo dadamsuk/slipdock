@@ -2044,7 +2044,9 @@ on the card) or `anyone` (anyone else, such as a permitted email sender or
 a person whose access has gone). It counts who wrote the card's title,
 description and bar, the rule that queued the job and, for a job that
 isn't a verify, whoever rejected the card, opened or answered its wait and
-left its handoff. The server only says the tier: the machine's ceiling
+left its handoff. Text an agent writes (an agent request, or one that
+sends `x-slipdock-job`) counts at its job's tier, not at its token's
+owner's; with no live job of that person's named, at `member` at most. The server only says the tier: the machine's ceiling
 decides what a job of each tier may do (`tiers`, in the manual's
 *Machines* page).
 
