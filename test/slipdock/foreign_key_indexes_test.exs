@@ -14,10 +14,11 @@ defmodule Slipdock.ForeignKeyIndexesTest do
 
   alias Slipdock.Repo
 
-  [{migration, _}] =
-    Code.require_file("priv/repo/migrations/20261120010951_index_growing_foreign_keys.exs")
+  # Required, not matched on: the other file testing it may have loaded it
+  # already, and then this returns nil.
+  Code.require_file("priv/repo/migrations/20261120010951_index_growing_foreign_keys.exs")
 
-  @migration migration
+  @migration Slipdock.Repo.Migrations.IndexGrowingForeignKeys
 
   # The keys #3500 indexed, written out rather than read off the migration,
   # so dropping one there fails here.
