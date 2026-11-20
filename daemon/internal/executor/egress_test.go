@@ -38,16 +38,21 @@ func TestTheSandboxProfileOfAnAllowlistLetsOutOnlyItsPorts(t *testing.T) {
 }
 
 func TestAConfinedJobsCommandUnderAnAllowlist(t *testing.T) {
-	s := Settings{GOOS: "linux", Launcher: "/usr/local/bin/slipdock-runner", Egress: &Egress{Port: 4100, Direct: []int{5432}}}
+	dir := t.TempDir()
+	launcher := filepath.Join(dir, "slipdock-runner")
+	_ = os.WriteFile(launcher, []byte("#!/bin/sh\n"), 0o755)
+	s := Settings{GOOS: "linux", Launcher: launcher, Egress: &Egress{Port: 4100, Direct: []int{5432}}}
 	c := &confined{local: &local{s: s}}
-	if err := c.Ready(); err != nil && landlockABI() >= landlockNetABI {
+	err := c.Ready()
+	switch abi := landlockABI(); {
+	case abi >= landlockNetABI && err != nil:
 		t.Fatalf("ready: %v", err)
-	} else if err == nil && landlockABI() < landlockNetABI {
+	case abi < landlockNetABI && err == nil:
 		t.Fatal("an allowlist is ready on a kernel whose Landlock can't limit TCP")
-	} else if err != nil && landlockABI() >= minLandlockABI && !strings.Contains(err.Error(), "Landlock ABI 4") {
+	case abi >= minLandlockABI && abi < landlockNetABI && !strings.Contains(err.Error(), "Landlock ABI 4"):
 		t.Fatalf("says why: %v", err)
 	}
-	// The command line, as Command builds it, without Ready.
+	// The command line, as Command builds it, whatever this kernel.
 	landlock := landlockABI
 	landlockABI = func() int { return landlockNetABI }
 	defer func() { landlockABI = landlock }()
@@ -55,10 +60,6 @@ func TestAConfinedJobsCommandUnderAnAllowlist(t *testing.T) {
 		t.Skip("confined is Linux and macOS only")
 	}
 	c.s.GOOS = runtime.GOOS
-	dir := t.TempDir()
-	launcher := filepath.Join(dir, "slipdock-runner")
-	_ = os.WriteFile(launcher, []byte("#!/bin/sh\n"), 0o755)
-	c.s.Launcher = launcher
 	cmd, err := c.Command(Proc{Dir: dir, Env: []string{"HTTPS_PROXY=http://evil.example.net:1"}}, "/bin/true")
 	if err != nil {
 		t.Fatal(err)

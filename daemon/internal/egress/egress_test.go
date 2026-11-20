@@ -136,15 +136,14 @@ func newRig(t *testing.T, h http.Handler, socket string, rules ...Rule) *rig {
 	srv := httptest.NewServer(h)
 	t.Cleanup(srv.Close)
 	logs := &lines{}
-	p, err := Start(rules, socket, logs.add)
+	up := strings.TrimPrefix(srv.URL, "http://")
+	p, err := start(rules, socket, logs.add, func(ctx context.Context, network, addr string) (net.Conn, error) {
+		return (&net.Dialer{}).DialContext(ctx, network, up) // every allowed host is the test server
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { p.Close() })
-	up := strings.TrimPrefix(srv.URL, "http://")
-	p.dial = func(ctx context.Context, network, addr string) (net.Conn, error) {
-		return (&net.Dialer{}).DialContext(ctx, network, up) // every allowed host is the test server
-	}
 	return &rig{p: p, logs: logs, up: up}
 }
 
@@ -311,12 +310,11 @@ func TestClosingTheProxyEndsItsTunnels(t *testing.T) {
 		}
 	}()
 	defer close(hold)
-	p, err := Start([]Rule{{"api.example.com", 443}}, "", nil)
+	p, err := start([]Rule{{"api.example.com", 443}}, "", nil, func(ctx context.Context, network, _ string) (net.Conn, error) {
+		return (&net.Dialer{}).DialContext(ctx, network, ln.Addr().String())
+	})
 	if err != nil {
 		t.Fatal(err)
-	}
-	p.dial = func(ctx context.Context, network, _ string) (net.Conn, error) {
-		return (&net.Dialer{}).DialContext(ctx, network, ln.Addr().String())
 	}
 	code, c, _ := connect(t, fmt.Sprintf("127.0.0.1:%d", p.Port()), "api.example.com:443")
 	if code != 200 {

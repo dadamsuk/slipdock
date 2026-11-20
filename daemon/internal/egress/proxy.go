@@ -44,13 +44,22 @@ var quiet = log.New(io.Discard, "", 0)
 // Start listens on a random port of 127.0.0.1, and on socket when it
 // isn't "", and serves until Close. logf gets each line for the job's log.
 func Start(rules []Rule, socket string, logf func(string)) (*Proxy, error) {
+	return start(rules, socket, logf, nil)
+}
+
+// start is Start, with dial (when not nil) in place of the real dialler.
+func start(rules []Rule, socket string, logf func(string),
+	dial func(ctx context.Context, network, addr string) (net.Conn, error)) (*Proxy, error) {
 	if logf == nil {
 		logf = func(string) {}
 	}
 	p := &Proxy{rules: append([]Rule(nil), rules...), denied: map[string]bool{}, logf: logf,
 		conns: map[net.Conn]struct{}{}}
-	d := &net.Dialer{Timeout: dialTimeout, Control: p.refuseLoopback}
-	p.dial = d.DialContext
+	p.dial = dial
+	if p.dial == nil {
+		d := &net.Dialer{Timeout: dialTimeout, Control: p.refuseLoopback}
+		p.dial = d.DialContext
+	}
 	tcp, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		return nil, err
