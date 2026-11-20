@@ -12,6 +12,12 @@ defmodule SlipdockWeb.API.RunnerController do
       POST /api/runner/jobs/:id/heartbeat     body = log tail → "ok" or "cancel"
       POST /api/runner/jobs/:id/finish?exit=N&status=S   body = last output → "ok"
       POST /api/runner/jobs/:id/transcript?from=N   body = transcript lines from N → "ok L"
+      GET  /api/runner/jobs/:id/mark          with the job's hook key → "clear" or "marked …"
+
+  A claim says the prompt's trust tier (`X-Prompt-Tier`, #3516) and gives
+  the job's hook key (`X-Job-Hook-Key`, #3520), with which the hook the
+  daemon gives a Claude Code agent asks whether a read marked the job
+  (`SlipdockWeb.API.JobMarkController`, `Slipdock.Runners.ReadMark`).
 
   The transcript (#1870) is the job's live log: whole lines of its agent's
   Claude Code transcript from line `N`, about once a minute and once more as
@@ -90,6 +96,7 @@ defmodule SlipdockWeb.API.RunnerController do
           |> put_resp_header("x-board-id", to_string(job.board_id))
           |> put_resp_header("x-lease-seconds", to_string(Runners.lease_for(conn.assigns.runner)))
           |> context_headers(job)
+          |> read_headers(job)
           |> text_reply(200, Runners.claimed_prompt(job), newline: false)
       end
     else
@@ -171,12 +178,20 @@ defmodule SlipdockWeb.API.RunnerController do
     # model by (`MODEL_<profile>`); the server never says what to run.
     |> then(&if(profile, do: put_resp_header(&1, "x-card-profile", profile), else: &1))
     |> then(&if(wait, do: put_resp_header(&1, "x-wait-id", to_string(wait.id)), else: &1))
-    # The least-trusted author of the prompt's text (#3516): the machine's
-    # ceiling decides what a job of each tier may do.
-    |> put_resp_header("x-prompt-tier", Slipdock.Runners.TrustTier.of(job))
     |> then(
       &if(handoff, do: put_resp_header(&1, "x-handoff-id", to_string(handoff.id)), else: &1)
     )
+  end
+
+  # The least-trusted author of the prompt's text (#3516): the machine's
+  # ceiling decides what a job of each tier may do. The hook key (#3520) is
+  # what the machine's hook asks with whether a read marked the job.
+  defp read_headers(conn, job) do
+    {tier, key} = Slipdock.Runners.ReadMark.on_claim(job)
+
+    conn
+    |> put_resp_header("x-prompt-tier", tier)
+    |> put_resp_header("x-job-hook-key", key)
   end
 
   # A merge job (#1656): the pull request and the accepted commit, for the

@@ -93,6 +93,10 @@ type Job struct {
 	// Tier is the trust tier of the prompt's text (#3516): owner, member
 	// or anyone; "" from a server that doesn't say.
 	Tier string
+	// HookKey is the key the job's PreToolUse hook asks the server with
+	// whether a read marked the job (#3520); "" from a server that gives
+	// none, and then the agent gets no hook.
+	HookKey string
 }
 
 // Claim is what the claim's answer said besides a job.
@@ -256,6 +260,9 @@ func parseJob(h http.Header, body []byte) (*Job, error) {
 	default:
 		job.Tier = "anyone"
 	}
+	if k := h.Get("X-Job-Hook-Key"); hookKeyOK(k) {
+		job.HookKey = k
+	}
 	job.MergePR = h.Get("X-Merge-Pr")
 	job.MergeCommit = h.Get("X-Merge-Commit")
 	for _, g := range strings.Split(h.Get("X-Sensitive-Paths"), ",") {
@@ -265,6 +272,21 @@ func parseJob(h http.Header, body []byte) (*Job, error) {
 	}
 	job.MergeApproved = h.Get("X-Merge-Approved") == "1"
 	return job, nil
+}
+
+// hookKeyOK is whether k reads as a hook key: sdh_ and base64url, short.
+// It goes into the job's environment, so nothing else is taken.
+func hookKeyOK(k string) bool {
+	rest, ok := strings.CutPrefix(k, "sdh_")
+	if !ok || rest == "" || len(rest) > 64 {
+		return false
+	}
+	for _, r := range rest {
+		if !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '-' || r == '_') {
+			return false
+		}
+	}
+	return true
 }
 
 func kindName(k string) bool {

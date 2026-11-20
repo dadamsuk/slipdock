@@ -101,6 +101,10 @@ Slipdock.Runners.MachineRunners.set_boards/3
 Slipdock.Runners.MachineRunners.set_runner/2
 Slipdock.Runners.Probe.claim/1
 Slipdock.Runners.Probe.send_probe/2
+Slipdock.Runners.ReadMark.mark/2
+Slipdock.Runners.ReadMark.on_claim/1
+Slipdock.Runners.ReadMark.read_card/2
+Slipdock.Runners.ReadMark.read_card_as/3
 Slipdock.Runners.Recovery.forget/1
 Slipdock.Runners.Recovery.recover/1
 Slipdock.Runners.Requeue.after_answer/1

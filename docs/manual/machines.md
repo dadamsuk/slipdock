@@ -252,6 +252,32 @@ anything runs, and one from a server that doesn't say its tier counts as
 which must be on `container_images`. A ceiling without `tiers` runs every
 job as its runner says.
 
+#### What a job reads while it runs
+
+A job's agent reads more than its prompt: it looks cards up with
+`slipdock card` or MCP `get_card` as it works, and a comment may have been
+written after the job was claimed. Those reads name the job (the CLI sends
+`$SLIPDOCK_JOB_ID`; an MCP server entry can send it as the
+`x-slipdock-job` header), and the server holds them to the claim:
+
+- the job's own card comes back as it was when the job was claimed: its
+  title, description and bar as the claim saw them, and none of the
+  comments written since;
+- a card whose text has an author less trusted than the job's tier marks
+  the job, for the rest of its run. The job shows `marked_at` and why.
+
+A Claude Code agent gets a `PreToolUse` hook from the daemon,
+`slipdock-runner hook pretooluse`, which asks the server whether its job
+is marked before each shell (`Bash`, `PowerShell`, `Monitor`), web
+(`WebFetch`, `WebSearch`) or MCP call (Slipdock's own MCP aside, so the
+agent can still report). Once the job is marked, the hook refuses those
+calls, and with the shell goes pushing; when it can't reach the server, it
+refuses them too. Reading, editing and writing files carry on. A job that
+reads only text as trusted as its own is never marked and never held
+back. The hook isn't given to a `container` job (its image hasn't the
+daemon), and under `user` the dedicated account has to be able to run the
+daemon's binary.
+
 #### Changing the boards a machine serves
 
 A machine's boards can change after it is enrolled, without enrolling it

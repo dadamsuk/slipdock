@@ -1845,6 +1845,12 @@ defmodule SlipdockWeb.API.JSON do
       # waiting on a card in progress, or no runner online for its pool.
       waiting_on: Slipdock.Runners.held_reason(j),
       cancel_requested: not is_nil(j.cancel_requested_at),
+      # Its tier at claim (#3516), and when and why a read of less-trusted
+      # text marked it (#3520): its hook then refuses the shell, the
+      # network and pushing.
+      prompt_tier: j.prompt_tier,
+      marked_at: j.marked_at,
+      mark_reason: j.mark_reason,
       exit_code: j.exit_code,
       error: j.error,
       prompt: j.prompt,

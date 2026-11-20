@@ -551,6 +551,10 @@ with the tail of the log — and a Cancel button.
   board a runner serves gives its agent instructions; the runner's
   executor and permission mode are what limit them
   ([Who steers a runner's agent](machines.md#who-steers-a-runners-agent)).
+  A job reads its own card as it was when claimed, and once it reads text
+  by someone less trusted than its prompt's authors, the machine's hook
+  refuses its agent the shell, the network and pushing
+  ([What a job reads while it runs](machines.md#what-a-job-reads-while-it-runs)).
 - **A list in order, or every card that arrives.** *Send cards to a runner*
   queues each card as it lands in a list; *Work a list with a runner*
   (trigger `list_top`) keeps one job open at a time, always for the top
