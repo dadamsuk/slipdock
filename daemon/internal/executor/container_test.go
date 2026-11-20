@@ -529,3 +529,123 @@ func TestOnlyTheAgentGetsTheTranscriptsMount(t *testing.T) {
 		}
 	}
 }
+
+// TestAContainerJobWithPathsMountsOnlyThemReadWrite: with Paths (#3521),
+// the worktree and the repository are mounted read-only and only the
+// paths read-write over them; a path outside both is refused, and a hook
+// mounts the repository read-write as before.
+func TestAContainerJobWithPathsMountsOnlyThemReadWrite(t *testing.T) {
+	r := newContainerRig(t)
+	lane := filepath.Join(r.repo+"-lanes", "card-7")
+	lib := filepath.Join(lane, "lib")
+	objects := filepath.Join(r.repo, ".git", "objects")
+	for _, d := range []string{lib, objects} {
+		if err := os.MkdirAll(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	_ = os.WriteFile(filepath.Join(lane, ".git"), []byte("gitdir: "+r.repo+"/.git/worktrees/card-7\n"), 0o644)
+	ex := r.new(t)
+	p := Proc{Dir: lane, Writable: []string{r.repo}, Paths: []string{lib, objects, filepath.Join(lib)}}
+	cmd, err := ex.Command(p, "claude")
+	if err != nil {
+		t.Fatal(err)
+	}
+	opts, _ := split(t, cmd.Args, "ghcr.io/me/agent:1")
+	var binds []string
+	for _, o := range opts {
+		if strings.HasPrefix(o, "--mount=type=bind,") && !strings.Contains(o, ".claude") && !strings.Contains(o, "/bin/slipdock") {
+			binds = append(binds, o)
+		}
+	}
+	want := []string{
+		"--mount=type=bind,source=" + lane + ",destination=" + lane + ",readonly",
+		"--mount=type=bind,source=" + r.repo + ",destination=" + r.repo + ",readonly",
+		"--mount=type=bind,source=" + lib + ",destination=" + lib,
+		"--mount=type=bind,source=" + objects + ",destination=" + objects,
+	}
+	if strings.Join(binds, "\n") != strings.Join(want, "\n") {
+		t.Fatalf("mounts:\n%s\nwant:\n%s", strings.Join(binds, "\n"), strings.Join(want, "\n"))
+	}
+
+	p.Paths = []string{r.home}
+	if _, err := ex.Command(p, "claude"); err == nil {
+		t.Fatal("a path outside the worktree and the repository was mounted")
+	}
+	other := t.TempDir()
+	p.Paths = []string{other}
+	if _, err := ex.Command(p, "claude"); err == nil || !strings.Contains(err.Error(), "not in the job's worktree or repository") {
+		t.Fatalf("a path outside the worktree and the repository: %v", err)
+	}
+
+	hook, err := ex.Hook(context.Background(), p, "/usr/local/bin/fresh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !has(hook.Args, "--mount=type=bind,source="+r.repo+",destination="+r.repo) || has(hook.Args, "--mount=type=bind,source="+other+",destination="+other) {
+		t.Errorf("a hook mounts the repository read-write, and not the agent's paths: %q", hook.Args)
+	}
+}
+
+// TestAContainerJobWithPathsWritesOnlyThemInARealContainer runs one on
+// Linux, when Docker or Podman runs here.
+func TestAContainerJobWithPathsWritesOnlyThemInARealContainer(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("the real-runtime test runs on Linux")
+	}
+	rt := ""
+	for _, n := range []string{"docker", "podman"} {
+		if p, err := exec.LookPath(n); err == nil && exec.Command(p, "info").Run() == nil {
+			rt = p
+			break
+		}
+	}
+	if rt == "" {
+		t.Skip("no Docker or Podman that runs here")
+	}
+	image := os.Getenv("SLIPDOCK_CONTAINER_TEST_IMAGE")
+	if image == "" {
+		image = "alpine:3"
+	}
+	r := newContainerRig(t)
+	r.s.Runtime, r.s.Image, r.s.Images, r.s.Pull = rt, image, []string{image}, "missing"
+	r.s.UID, r.s.GID = os.Getuid(), os.Getgid()
+	r.s.Environ = os.Environ
+	lib := filepath.Join(r.repo, "lib")
+	if err := os.MkdirAll(filepath.Join(r.repo, ".git", "hooks"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(lib, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	cmd, err := r.new(t).Command(Proc{Dir: r.repo, Paths: []string{lib}}, "/bin/sh", "-c", `
+try() { if sh -c "$2" 2>/dev/null; then echo "$1 yes"; else echo "$1 no"; fi; }
+try path  'echo x > lib/a.ex'
+try top   'echo x > top.md'
+try hooks 'echo x > .git/hooks/pre-commit'`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := cmd.CombinedOutput()
+	if ctx.Err() != nil {
+		t.Fatal("timed out")
+	}
+	if err != nil {
+		t.Fatalf("%v: %s", err, out)
+	}
+	for _, want := range []string{"path yes", "top no", "hooks no"} {
+		if !strings.Contains(string(out), want+"\n") {
+			t.Errorf("want %q; the job said:\n%s", want, out)
+		}
+	}
+	for _, f := range []string{"top.md", ".git/hooks/pre-commit"} {
+		if _, err := os.Stat(filepath.Join(r.repo, f)); err == nil {
+			t.Errorf("the job wrote %s", f)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(lib, "a.ex")); err != nil {
+		t.Errorf("the job's write to its path isn't there: %v", err)
+	}
+}

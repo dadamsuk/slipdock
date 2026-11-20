@@ -364,12 +364,14 @@ func (c *container) repository() []string {
 	return []string{c.top, lanes}
 }
 
-// mounts are the read-write mounts for p: its directory's repository (or
-// the directory), and what else it may write, none inside another.
-func (c *container) mounts(p Proc) ([]string, string, error) {
-	dir, err := c.mountable(p.Dir)
+// mounts are the read-write and read-only mounts for p: its directory's
+// repository (or the directory) and what else it may write, none inside
+// another, read-write; or, when p has Paths, those read-only and only its
+// Paths, each beneath one of them, read-write over them.
+func (c *container) mounts(p Proc) (rw, ro []string, dir string, err error) {
+	dir, err = c.mountable(p.Dir)
 	if err != nil {
-		return nil, "", err
+		return nil, nil, "", err
 	}
 	paths := []string{gitTop(dir)}
 	for _, w := range p.Writable {
@@ -377,11 +379,37 @@ func (c *container) mounts(p Proc) ([]string, string, error) {
 			paths = append(paths, w)
 		}
 	}
+	tops, err := c.outermost(paths)
+	if err != nil {
+		return nil, nil, "", err
+	}
+	if len(p.Paths) == 0 {
+		return tops, nil, dir, nil
+	}
+	only, err := c.outermost(p.Paths)
+	if err != nil {
+		return nil, nil, "", err
+	}
+	for _, o := range only {
+		beneath := false
+		for _, t := range tops {
+			beneath = beneath || holds(t, o)
+		}
+		if !beneath {
+			return nil, nil, "", fmt.Errorf("won't mount %s: it is not in the job's worktree or repository", o)
+		}
+	}
+	return only, tops, dir, nil
+}
+
+// outermost is paths, each mountable, as real paths, leaving out any
+// inside another.
+func (c *container) outermost(paths []string) ([]string, error) {
 	var out []string
 	for _, path := range paths {
 		r, err := c.mountable(path)
 		if err != nil {
-			return nil, "", err
+			return nil, err
 		}
 		out = append(out, r)
 	}
@@ -398,7 +426,7 @@ func (c *container) mounts(p Proc) ([]string, string, error) {
 			kept = append(kept, a)
 		}
 	}
-	return kept, dir, nil
+	return kept, nil
 }
 
 // newName is a container's name: slipdock-job-<random>.
@@ -438,7 +466,7 @@ func (c *container) Command(p Proc, prog string, args ...string) (*exec.Cmd, err
 // own environment: the variables a --env NAME takes its value from, so no
 // value is on a command line.
 func (c *container) runArgs(rt string, p Proc) ([]string, []string, error) {
-	rw, dir, err := c.mounts(p)
+	rw, below, dir, err := c.mounts(p)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -462,6 +490,11 @@ func (c *container) runArgs(rt string, p Proc) ([]string, []string, error) {
 		}
 	}
 	argv = append(argv, "--mount=type=tmpfs,destination="+home+",tmpfs-mode=1777")
+	// The worktree and repository read-only first, when the card's paths
+	// alone are read-write over them.
+	for _, m := range below {
+		argv = append(argv, "--mount=type=bind,source="+m+",destination="+m+",readonly")
+	}
 	for _, m := range rw {
 		argv = append(argv, "--mount=type=bind,source="+m+",destination="+m)
 	}
@@ -547,6 +580,7 @@ func (c *container) Exec(ctx context.Context, dir, name string, args ...string) 
 // and its worktrees.
 func (c *container) Hook(_ context.Context, p Proc, prog string, args ...string) (*exec.Cmd, error) {
 	p.Writable = append(append([]string(nil), p.Writable...), c.repository()...)
+	p.Paths = nil
 	return c.Command(p, prog, args...)
 }
 

@@ -97,6 +97,13 @@ type Job struct {
 	// whether a read marked the job (#3520); "" from a server that gives
 	// none, and then the agent gets no hook.
 	HookKey string
+	// Paths are the card's paths (#3521), globs relative to the
+	// repository: under confined and container, the only paths in its
+	// worktree the job may write. None: the whole worktree, as before.
+	// PathsBad says the server sent some the runner couldn't read: such a
+	// job is refused rather than run with the whole worktree.
+	Paths    []string
+	PathsBad bool
 }
 
 // Claim is what the claim's answer said besides a job.
@@ -271,6 +278,7 @@ func parseJob(h http.Header, body []byte) (*Job, error) {
 		}
 	}
 	job.MergeApproved = h.Get("X-Merge-Approved") == "1"
+	job.Paths, job.PathsBad = parsePaths(h.Get("X-Card-Paths"))
 	return job, nil
 }
 
@@ -287,6 +295,31 @@ func hookKeyOK(k string) bool {
 		}
 	}
 	return true
+}
+
+// The most card paths, and the longest, a job's header may carry: the
+// server's own limits (Slipdock.Lanes.limits/0).
+const (
+	maxCardPaths  = 50
+	maxPathLength = 200
+)
+
+// parsePaths reads X-Card-Paths, a JSON array of globs: nil for none, and
+// bad when it is there but not a list of at most maxCardPaths strings,
+// each non-empty and at most maxPathLength long.
+func parsePaths(v string) (paths []string, bad bool) {
+	if strings.TrimSpace(v) == "" {
+		return nil, false
+	}
+	if err := json.Unmarshal([]byte(v), &paths); err != nil || len(paths) > maxCardPaths {
+		return nil, true
+	}
+	for _, p := range paths {
+		if strings.TrimSpace(p) == "" || utf8.RuneCountInString(p) > maxPathLength {
+			return nil, true
+		}
+	}
+	return paths, false
 }
 
 func kindName(k string) bool {

@@ -2296,7 +2296,9 @@ defmodule Slipdock.Runners do
       %Card{paths: [_ | _] = paths} ->
         (prompt || "") <>
           "\n\nThe card's paths (what its handbook rules and profile go by); widen them " <>
-          "on the card first if the work goes beyond them:\n" <> Enum.join(paths, "\n")
+          "on the card first if the work goes beyond them. A runner that confines its " <>
+          "jobs lets this one write only these in its worktree, as they were when it " <>
+          "was claimed:\n" <> Enum.join(paths, "\n")
 
       _ ->
         prompt
@@ -2358,6 +2360,21 @@ defmodule Slipdock.Runners do
   end
 
   def job_profile(_job), do: nil
+
+  @doc """
+  The paths of a job's card (#1628), [] for none or no card. A runner whose
+  executor confines its jobs (confined, container) lets the job write only
+  these in its worktree (#3521): the claim sends them as data
+  (`x-card-paths`), never as a command.
+  """
+  def job_paths(%Job{card_id: card_id}) when is_integer(card_id) do
+    case Repo.get(Card, card_id) do
+      %Card{paths: [_ | _] = paths} -> paths
+      _ -> []
+    end
+  end
+
+  def job_paths(_job), do: []
 
   @doc "A card's jobs, newest first."
   def list_card_jobs(card_id, limit \\ 20) do

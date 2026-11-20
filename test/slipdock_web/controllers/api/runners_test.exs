@@ -120,6 +120,31 @@ defmodule SlipdockWeb.API.RunnersTest do
     end
   end
 
+  describe "the claim's card paths (#3521)" do
+    test "a card with paths sends them as a JSON list, non-ASCII escaped", ctx do
+      {:ok, card} =
+        Slipdock.Boards.Cards.update_card(ctx.card, %{"paths" => ["lib/foo/**", "docs/é.md"]},
+          by: ctx.user,
+          via: "web"
+        )
+
+      {:ok, _} = queue(card)
+      conn = post(runner_conn(ctx.token), "/api/runner/claim?wait=0")
+      assert conn.status == 200
+      assert [header] = get_resp_header(conn, "x-card-paths")
+      assert header == ~S(["lib/foo/**","docs/\u00E9.md"])
+      assert Jason.decode!(header) == ["lib/foo/**", "docs/é.md"]
+      assert conn.resp_body =~ "lets this one write only these in its worktree"
+    end
+
+    test "a card with no paths sends none", ctx do
+      {:ok, _} = queue(ctx.card)
+      conn = post(runner_conn(ctx.token), "/api/runner/claim?wait=0")
+      assert conn.status == 200
+      assert get_resp_header(conn, "x-card-paths") == []
+    end
+  end
+
   describe "heartbeat and finish" do
     setup ctx do
       {:ok, _} = queue(ctx.card)

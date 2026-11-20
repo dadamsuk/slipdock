@@ -195,6 +195,8 @@ whole card before touching it.
   <id> --paths "lib/foo/**,docs/manual.md"`. They decide which handbook
   rules the card carries and what its profile is inferred from; when the
   work goes beyond them, widen them so its rules and profile stay right.
+  A runner that confines its jobs lets a job write only the card's paths
+  in its worktree, as they were when it was claimed.
   Stage files by name, never `git add -A`, and check `git status` before
   committing. With another session active in the same repository, work in
   a git worktree of your own (`git worktree add ../<repo>-lanes/card-<id>

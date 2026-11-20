@@ -499,9 +499,10 @@ func TestAConfinedRunnersHookMayWriteTheRepositoryAndItsWorktrees(t *testing.T) 
 		t.Fatal(err)
 	}
 	// The hook runs in a directory of its own (the job's), so only the
-	// repository's own allowance lets it write the repository and the lane.
+	// repository's own allowance lets it write the repository and the lane;
+	// an agent's card paths (#3521) don't narrow a hook's.
 	dir := t.TempDir()
-	cmd, err := ex.(Hooker).Hook(context.Background(), Proc{Dir: dir}, "/bin/sh", "-c",
+	cmd, err := ex.(Hooker).Hook(context.Background(), Proc{Dir: dir, Paths: []string{t.TempDir()}}, "/bin/sh", "-c",
 		`try() { if sh -c "$2" 2>/dev/null; then echo "$1 yes"; else echo "$1 no"; fi; }
 try repo    'echo x > "$R/hooked"'
 try lane    'echo x > "$L/hooked"'
