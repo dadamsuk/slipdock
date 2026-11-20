@@ -115,9 +115,15 @@ func TestAContainerJobThatSendsItsFakeCredentialsIsStoppedAndReported(t *testing
 	r := newRig(t, Config{})
 	fake := tripRig(t, r)
 	r.w.Runner.Config.Executor, r.w.Runner.Config.Image = executor.Container, "ghcr.io/example/agent:1"
+	tick := filepath.Join(t.TempDir(), "tick")
+	t.Setenv("HELPER_TICK", tick)
 	start := time.Now()
 	f := r.runJob(fakeJob{id: 501, kind: "claude", card: 7, tier: "anyone", prompt: "x"})
 	tripped(t, r, fake, f, time.Since(start))
+	// Stopped, not just reported: an agent left running would tick.
+	if ticking(t, tick) {
+		t.Fatal("the tripped job's agent is still running")
+	}
 }
 
 func TestAVerifyJobThatSendsItsFakeCredentialsIsStoppedAndReported(t *testing.T) {
@@ -125,7 +131,7 @@ func TestAVerifyJobThatSendsItsFakeCredentialsIsStoppedAndReported(t *testing.T)
 	fake := tripRig(t, r)
 	r.w.Images = []string{"ghcr.io/example/verify:*"}
 	start := time.Now()
-	f := r.runJob(fakeJob{id: 502, kind: "verify", card: 42, prompt: "Check #42", token: testJobToken, sha: sha})
+	f := r.runJob(fakeJob{id: 502, kind: "verify", card: 42, tier: "anyone", prompt: "Check #42", token: testJobToken, sha: sha})
 	tripped(t, r, fake, f, time.Since(start))
 }
 

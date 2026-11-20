@@ -303,8 +303,10 @@ func (p *Proxy) connect(w http.ResponseWriter, r *http.Request) {
 		// isn't. Seen, the read fails and the tunnel closes.
 		in = tw.scan(in, "what the job sent through the tunnel", func(what string) {
 			p.trip(what, r.Host)
+			// Closing the upstream ends the other copy too, so the
+			// splice returns and untrack closes the job's end: the
+			// tunnel ends even if the upstream never hangs up.
 			up.Close()
-			down.Close()
 		})
 	}
 	splice(up, down, in)

@@ -1,6 +1,7 @@
 package egress
 
 import (
+	"context"
 	"encoding/base64"
 	"fmt"
 	"io"
@@ -9,6 +10,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -184,5 +186,98 @@ func TestAJobThatSendsNoFakeCredentialTripsNothing(t *testing.T) {
 	}
 	if s := seen(); len(s) != 0 {
 		t.Fatalf("tripped on nothing: %q", s)
+	}
+}
+
+// A request refused for carrying a fake value never reaches the upstream,
+// whatever part of it carried the value.
+func TestARefusedRequestNeverReachesTheUpstream(t *testing.T) {
+	for name, send := range map[string]func(r *rig, tw *Tripwire) (*http.Response, error){
+		"a header": func(r *rig, tw *Tripwire) (*http.Response, error) {
+			req, _ := http.NewRequest("GET", "http://pkg.example.com/", nil)
+			req.Header.Set("Authorization", "token "+tw.GitHubToken)
+			return r.client().Do(req)
+		},
+		"the URL": func(r *rig, tw *Tripwire) (*http.Response, error) {
+			return r.client().Get("http://pkg.example.com/?k=" + tw.AWSKeyID)
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			var reached atomic.Int32
+			h := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) { reached.Add(1) })
+			r, tw, seen := tripRig(t, h, Rule{"pkg.example.com", 80})
+			resp, err := send(r, tw)
+			if err != nil {
+				t.Fatal(err)
+			}
+			resp.Body.Close()
+			if resp.StatusCode != http.StatusForbidden {
+				t.Fatalf("status %d, want 403", resp.StatusCode)
+			}
+			time.Sleep(200 * time.Millisecond)
+			if n := reached.Load(); n != 0 || len(seen()) != 1 {
+				t.Fatalf("the upstream got %d requests; seen %q", n, seen())
+			}
+		})
+	}
+}
+
+// A tunnel that carried a fake value is closed at both ends at once, even
+// to an upstream that never hangs up: the job's side reads the end, and
+// nothing after the value reaches the upstream.
+func TestATrippedTunnelIsClosedAtBothEnds(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	got := make(chan string, 1)
+	hold := make(chan struct{})
+	defer close(hold)
+	go func() {
+		c, err := ln.Accept()
+		if err != nil {
+			return
+		}
+		defer c.Close()
+		b, _ := io.ReadAll(c)
+		got <- string(b)
+		<-hold // never hangs up by itself
+	}()
+	logs := &lines{}
+	p, err := start([]Rule{{"api.example.com", 80}}, "", logs.add, func(ctx context.Context, network, addr string) (net.Conn, error) {
+		return (&net.Dialer{}).DialContext(ctx, network, ln.Addr().String())
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer p.Close()
+	tw := newTripwire("AKIA"+"ABCDEFGHIJKLMNOP", strings.Repeat("s3cr3t", 6)+"Zz", "ghp_"+strings.Repeat("Tok3n", 7)+"X")
+	tripped := make(chan string, 1)
+	p.Watch(tw, func(what string) { tripped <- what })
+
+	code, c, br := connect(t, fmt.Sprintf("127.0.0.1:%d", p.Port()), "api.example.com:80")
+	if code != http.StatusOK {
+		t.Fatalf("CONNECT: %d", code)
+	}
+	fmt.Fprintf(c, "before ")
+	time.Sleep(50 * time.Millisecond)
+	fmt.Fprintf(c, "%s after", tw.GitHubToken)
+	select {
+	case <-tripped:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the tunnel didn't trip")
+	}
+	c.SetReadDeadline(time.Now().Add(3 * time.Second))
+	if _, err := br.ReadByte(); err != io.EOF {
+		t.Fatalf("the job's end of the tunnel: %v, want it closed (EOF)", err)
+	}
+	select {
+	case b := <-got:
+		if strings.Contains(b, "after") || strings.Contains(b, strings.TrimPrefix(tw.GitHubToken, "ghp_")) {
+			t.Fatalf("the upstream got past the value: %q", b)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("the upstream's end of the tunnel wasn't closed")
 	}
 }

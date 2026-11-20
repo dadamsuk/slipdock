@@ -99,7 +99,14 @@ func helper(mode string, args []string) int {
 			fmt.Println("sent:", resp.Status)
 			resp.Body.Close()
 		}
-		time.Sleep(time.Hour)
+		// Ticks into $HELPER_TICK, when it is set, while it waits: a job
+		// left running after the trip keeps ticking.
+		for i := 0; time.Duration(i)*20*time.Millisecond < time.Hour; i++ {
+			if tick := os.Getenv("HELPER_TICK"); tick != "" {
+				_ = os.WriteFile(tick, []byte(strconv.Itoa(i)), 0o600)
+			}
+			time.Sleep(20 * time.Millisecond)
+		}
 		return 0
 	case "dial":
 		// A TCP connection straight to args[0]: exit 0 when it is made.
