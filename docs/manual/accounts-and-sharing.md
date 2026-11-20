@@ -26,6 +26,10 @@ and code keep working; a passkey is another way in, not a replacement.
   stops it signing in at once. A lost phone can also be removed from a
   terminal: `slipdock passkeys`, then `slipdock passkeys remove <id>`, or
   `GET` / `DELETE /api/me/passkeys[/:id]`.
+- Each passkey's public key has a fingerprint (`sha256:…`, in
+  `slipdock passkeys` and `GET /api/me/passkeys`), for a machine to pin
+  when it checks cards you [signed with a
+  passkey](machines.md#cards-signed-by-their-owner).
 - A disabled account cannot sign in with a passkey either. A security key
   whose signature counter goes backwards (a copied key) is refused.
 

@@ -1600,7 +1600,12 @@ mark with the claim's `X-Job-Hook-Key` (`GET /api/runner/jobs/:id/mark`)
 and refuses the shell, the network and pushing once it is set. Text an
 agent writes counts at its job's tier, not its login's, and at `member`
 at most when it names no live job of its person's: an agent can't make a
-card owner-tier.
+card owner-tier. A card its board's owner signed with a passkey (in a
+browser, from the card) comes to the job's own runner uncut, with the
+assertion, from `GET /api/runner/jobs/:id/intent`; `GET
+/api/runner/owner-keys` lists the owner's passkeys as SPKI with
+fingerprints, to pin. An edit to a signed card's title, description or bar
+unsigns it, so an agent leaves a signed card's text alone unless asked.
 A claimed `verify` job comes with its own token
 (`X-Job-Token`, #3522) and the change it judges (`X-Verify-Commit`,
 `X-Verify-PR`): the machine runs it in a container, in its own clone, with

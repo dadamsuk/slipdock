@@ -70,7 +70,9 @@ defmodule SlipdockWeb.BoardLive.CardComponent.State do
         # itself, not only on this card.
         can_add: Access.can_write?(perm),
         can_comment: Access.can_comment?(level),
-        can_share: perm == :owner or writable
+        can_share: perm == :owner or writable,
+        # Only the root board's owner signs the card's text (#3532).
+        can_sign: perm == :owner and Slipdock.Intent.signer?(user, given)
       )
       |> assign_pages()
     else
@@ -81,7 +83,8 @@ defmodule SlipdockWeb.BoardLive.CardComponent.State do
         can_write: false,
         can_add: false,
         can_comment: false,
-        can_share: false
+        can_share: false,
+        can_sign: false
       )
     end
   end
@@ -116,7 +119,9 @@ defmodule SlipdockWeb.BoardLive.CardComponent.State do
           can_write: writable,
           can_add: Access.can_write?(perm),
           can_comment: Access.can_comment?(level),
-          can_share: perm == :owner or writable
+          can_share: perm == :owner or writable,
+          # Only the root board's owner signs the card's text (#3532).
+          can_sign: perm == :owner and Slipdock.Intent.signer?(socket.assigns.current_user, given)
         )
 
       {false, _level, _perm} ->
@@ -126,7 +131,8 @@ defmodule SlipdockWeb.BoardLive.CardComponent.State do
           can_write: false,
           can_add: false,
           can_comment: false,
-          can_share: false
+          can_share: false,
+          can_sign: false
         )
     end
   end

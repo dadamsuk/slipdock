@@ -403,6 +403,57 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
     """
   end
 
+  attr :card, Card, required: true
+  attr :can_sign, :boolean, default: false, doc: "the reader owns the tree's root"
+  attr :supported, :boolean, default: false, doc: "this browser has passkeys"
+  attr :target, :any, required: true
+
+  @doc """
+  Whether the card's text is signed by its owner with a passkey (#3532,
+  `Slipdock.Intent`), and, for the owner, the button that signs it: the
+  `CardSign` hook runs the ceremony with `SlipdockWeb.CardSignController`
+  and says how it ended. An edit to the title, description or bar unsigns
+  the card, and the row says so. Drawn for the owner, and for anyone on a
+  card that has been signed.
+  """
+  def sign_section(assigns) do
+    assigns = assign(assigns, :state, Slipdock.Intent.state(assigns.card))
+
+    ~H"""
+    <div
+      id="card-sign"
+      phx-hook={@can_sign && "CardSign"}
+      data-card-id={@card.id}
+      class="flex flex-wrap items-center gap-2 px-1 text-sm"
+    >
+      <.icon name="hero-finger-print" class="size-4 text-base-content/60" />
+      <span :if={match?({:signed, _}, @state)} id="card-signed" class="badge badge-success badge-sm">
+        Signed by the owner · {SlipdockWeb.Dates.long(elem(@state, 1))}
+      </span>
+      <span :if={@state == :edited} id="card-sign-edited" class="badge badge-warning badge-sm">
+        Edited since it was signed: sign again
+      </span>
+      <span
+        :if={@state == :unsigned}
+        id="card-unsigned"
+        class="text-base-content/60"
+      >
+        Not signed
+      </span>
+      <button
+        :if={@can_sign and @supported}
+        id="card-sign-button"
+        type="button"
+        data-card-sign-start
+        class="btn btn-ghost btn-xs"
+        title="Sign the title, description and bar with your passkey, so a machine that pins your key can tell the text is yours"
+      >
+        {if @state == :unsigned, do: "Sign with passkey", else: "Sign again"}
+      </button>
+    </div>
+    """
+  end
+
   @doc "Where a card's profile came from, as the panel and tile say it (#2018)."
   def profile_source_text("inferred"), do: "inferred"
   def profile_source_text(source) when source in ~w(person agent rule), do: "set by #{source}"

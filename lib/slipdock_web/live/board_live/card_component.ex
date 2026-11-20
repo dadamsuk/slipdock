@@ -45,12 +45,12 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
     edit_repeat repeat_change save_repeat cancel_repeat skip_repeat pause_repeat stop_repeat
     answer_wait withdraw_wait skip_wait wait_change suggest_answer
     ask_questions ask_change ask_add ask_remove ask_save ask_cancel verify_work
-    save_incident clear_incident reveal_sections)
+    save_incident clear_incident reveal_sections sign_support card_signed card_sign_failed)
   @events @own_events ++ ItemEvents.events()
   # What a reader who can't change the card may still do: nothing stored
   # changes, only what the panel is showing.
   @read_events ~w(stop_editing_description stop_editing_bar dep_direction dep_search link_search pick_template
-    reveal_sections)
+    reveal_sections sign_support card_signed card_sign_failed)
   # What a commenter (#863) may do besides: join the discussion, and nothing
   # that changes the card itself. Deleting a comment is only their own
   # (`ItemEvents`).
@@ -109,6 +109,8 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
        picking_template: false,
        editing_description: false,
        editing_bar: false,
+       sign_supported: false,
+       can_sign: false,
        handoff_history: [],
        editing_handoff: false,
        handoff_form: nil,
@@ -356,6 +358,8 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
         uploads={@uploads}
         editing_description={@editing_description}
         editing_bar={@editing_bar}
+        sign_supported={@sign_supported}
+        can_sign={@can_sign}
         handoff_history={@handoff_history}
         shipped={assigns[:card_shipped] || []}
         deploy_failed={assigns[:card_deploy_failed] || []}

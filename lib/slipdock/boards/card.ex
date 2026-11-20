@@ -73,6 +73,13 @@ defmodule Slipdock.Boards.Card do
     # (`Slipdock.Runners.TrustTier`). Nil on a
     # card from before it was kept. Set by `Boards.Cards`, never cast.
     field :text_by, {:array, :integer}
+    # The root owner's passkey signature over the title, description and bar
+    # (#3532, `Slipdock.Intent`): the assertion (base64url, with the origin
+    # and the signer), when it was signed, and SHA-256 of the canonical text.
+    # Set by `Slipdock.Intent`, cleared by `Boards.Cards` on an edit, never cast.
+    field :signature, :map
+    field :signed_at, :utc_datetime
+    field :signed_hash, :binary
     # The paths this card's work will touch (#1628), as globs relative to
     # the repository: `lib/slipdock/runners/**`. See `Slipdock.Lanes`.
     field :paths, {:array, :string}, default: []

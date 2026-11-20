@@ -112,6 +112,9 @@ defmodule Slipdock.Policy do
     {:edit_recurrence, :card, :write, "Changing how a card repeats"},
     {:snooze_card, :card, :write, "Snoozing a card"},
     {:vote, :owner, :read, "Voting"},
+    # Only the root board's owner, with a passkey (#3532):
+    # `Slipdock.Intent` also asks that the signer owns the tree's root.
+    {:sign_card, :tree_root, :owner, "Signing a card's text"},
     # Boards, lists, views, sprints and grants (#3170)
     {:create_board, :account, :owner, "Making a board"},
     {:update_board, :board, :write, "Changing a board's settings"},

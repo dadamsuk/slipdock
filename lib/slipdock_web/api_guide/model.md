@@ -212,8 +212,13 @@
   `slipdock-plan` uses it for a Playbook stage that names a skill: enabled
   on the board, else installed, else its own text.
 - **Passkeys** — `GET /api/me/passkeys` lists the token holder's own
-  passkeys (`id`, `name`, `created_at`, `last_used_at`; never the key), and
-  `DELETE /api/me/passkeys/:id` removes one so it can no longer sign in.
+  passkeys (`id`, `name`, `created_at`, `last_used_at`, and the public key
+  to pin: `credential_id`, `algorithm`, `spki` and its `fingerprint`;
+  never anything secret), and `DELETE /api/me/passkeys/:id` removes one so
+  it can no longer sign in. A board's owner signs a card's title,
+  description and bar with one from the card, in a browser; an edit to
+  those fields unsigns it. Don't edit the text of a card its owner signed
+  unless asked: it unsigns the card.
   Adding one needs the person's device, so it happens only in a browser,
   on their account page. Remove one only when the person asks: it is a way
   into their account, not clutter.

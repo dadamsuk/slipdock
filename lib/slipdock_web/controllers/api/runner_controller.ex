@@ -13,6 +13,17 @@ defmodule SlipdockWeb.API.RunnerController do
       POST /api/runner/jobs/:id/finish?exit=N&status=S   body = last output → "ok"
       POST /api/runner/jobs/:id/transcript?from=N   body = transcript lines from N → "ok L"
       GET  /api/runner/jobs/:id/mark          with the job's hook key → "clear" or "marked …"
+      GET  /api/runner/jobs/:id/intent        JSON: the card's owner-signed text and assertion
+      GET  /api/runner/owner-keys             JSON: the board owner's passkeys, to pin
+
+  The two JSON answers are for the runner daemon's check of a card signed
+  with its owner's passkey (#3532, `Slipdock.Intent`). The intent is the
+  job's own runner's while it holds the job, and nobody else's: the title,
+  description and bar uncut (the prompt cuts long text), with the origin,
+  card id and signed-at they were signed with, and the WebAuthn assertion,
+  or `{"signed": false, "state": "unsigned" | "edited"}`. The owner keys are
+  the passkeys of the owner of the runner's board tree, as SPKI with a
+  fingerprint, which the person at the machine confirms before pinning.
 
   A claim says the prompt's trust tier (`X-Prompt-Tier`, #3516) and gives
   the job's hook key (`X-Job-Hook-Key`, #3520), with which the hook the
@@ -160,6 +171,20 @@ defmodule SlipdockWeb.API.RunnerController do
       {:error, :ended} -> text_reply(conn, 409, "the job has ended")
       {:error, :not_found} -> text_reply(conn, 404, "no such job for this runner")
     end
+  end
+
+  def intent(conn, %{"id" => id}) do
+    case Slipdock.Intent.for_job(conn.assigns.runner, id) do
+      {:ok, intent} -> json(conn, intent)
+      {:error, :not_found} -> text_reply(conn, 404, "no such job for this runner")
+    end
+  end
+
+  def owner_keys(conn, _params) do
+    json(
+      conn,
+      Slipdock.Intent.owner_keys(conn.assigns.runner, Slipdock.Automations.Runner.base_url())
+    )
   end
 
   # A probe (#2580) has no card, and so no card headers.

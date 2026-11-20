@@ -25,8 +25,14 @@ defmodule SlipdockWeb.API.PasskeysTest do
     assert entry["name"] == "Laptop"
     assert entry["created_at"]
     assert entry["last_used_at"] == nil
-    # Nothing an attacker could use: no credential id, no key.
-    assert Map.keys(entry) |> Enum.sort() == ~w(created_at id last_used_at name)
+    # Only the public half, for a machine to pin (#3532): the credential id,
+    # the public key as SPKI and its fingerprint; nothing that signs.
+    assert Map.keys(entry) |> Enum.sort() ==
+             ~w(algorithm created_at credential_id fingerprint id last_used_at name spki)
+
+    {:ok, der} = Slipdock.Accounts.Passkeys.decode(entry["spki"])
+    assert entry["fingerprint"] == Slipdock.Accounts.Passkeys.fingerprint(der)
+    assert entry["credential_id"] == Slipdock.Accounts.Passkeys.encode(mine.credential_id)
   end
 
   test "removes one and answers with what is left", %{conn: conn, user: user} do

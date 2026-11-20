@@ -695,6 +695,8 @@ defmodule Slipdock.Boards.Cards do
       |> profile_source(opts)
       |> raise_profile(raised)
       |> Slipdock.Runners.TrustTier.track(card, creator(opts), opts)
+      # A signature covers the text it was made over (#3532).
+      |> Slipdock.Intent.unsign()
 
     titled? = Map.has_key?(changeset.changes, :title)
     named? = titled? or Map.has_key?(changeset.changes, :short_name)

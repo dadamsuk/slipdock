@@ -45,7 +45,7 @@ import {Mention} from "./mention"
 import {PasteImage} from "./paste_image"
 import {TranscriptPlayer} from "./transcript_player"
 import {typing} from "./typing"
-import {PasskeyLogin, PasskeyRegister} from "./passkey"
+import {CardSign, PasskeyLogin, PasskeyRegister} from "./passkey"
 import {DockDrag} from "./dock_drag"
 import {AutoDismiss} from "./auto_dismiss"
 import {BoardResync} from "./board_resync"
@@ -73,6 +73,7 @@ Hooks.Mention = Mention
 Hooks.PasteImage = PasteImage
 Hooks.PasskeyLogin = PasskeyLogin
 Hooks.PasskeyRegister = PasskeyRegister
+Hooks.CardSign = CardSign
 Hooks.DockDrag = DockDrag
 Hooks.DateField = DateField
 Hooks.FilePicker = FilePicker

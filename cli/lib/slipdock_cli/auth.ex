@@ -208,10 +208,12 @@ defmodule SlipdockCLI.Auth do
         to_string(p["id"]),
         Render.scrub(p["name"]),
         String.slice(p["created_at"] || "", 0, 10),
-        if(p["last_used_at"], do: String.slice(p["last_used_at"], 0, 10), else: "never")
+        if(p["last_used_at"], do: String.slice(p["last_used_at"], 0, 10), else: "never"),
+        # The public key's, for a machine to pin (#3532).
+        p["fingerprint"] || "-"
       ]
     end)
-    |> then(&Render.table(["ID", "NAME", "ADDED", "LAST USED"], &1))
+    |> then(&Render.table(["ID", "NAME", "ADDED", "LAST USED", "FINGERPRINT"], &1))
   end
 
   defp standing_lines(%{} = limits) do

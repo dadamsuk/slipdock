@@ -251,6 +251,20 @@ defmodule SlipdockWeb.BoardLive.CardComponent.FieldEvents do
   def handle_event("stop_editing_bar", _, socket),
     do: {:noreply, assign(socket, editing_bar: false)}
 
+  # Signing the card's text (#3532): the `CardSign` hook says whether this
+  # browser has passkeys, and how the ceremony it ran with
+  # `SlipdockWeb.CardSignController` ended. The signature itself is kept by
+  # the controller; here the panel only reads the card again.
+  def handle_event("sign_support", %{"supported" => supported}, socket),
+    do: {:noreply, assign(socket, sign_supported: supported == true)}
+
+  def handle_event("card_signed", _params, socket),
+    do: {:noreply, socket |> State.reload() |> notice(:info, "Signed with your passkey.")}
+
+  def handle_event("card_sign_failed", %{"message" => message}, socket)
+      when is_binary(message),
+      do: {:noreply, notice(socket, :error, String.slice(message, 0, 300))}
+
   def handle_event("validate_attachments", _, socket),
     do: {:noreply, drop_invalid_uploads(socket, :attachment)}
 
