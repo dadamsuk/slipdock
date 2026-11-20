@@ -4,7 +4,10 @@ defmodule SlipdockWeb.CLIShellInstallTest do
   # runs the Windows one. Its PATH is a folder of its own: links to the
   # ordinary tools it uses, and a stand-in `erl` and `escript` (or none), so
   # which Erlang this machine has doesn't matter and a missing one can be
-  # tested. A fake `uname` says which system it is on.
+  # tested. A fake `uname` says which system it is on. The CLI the server
+  # serves is signed with a key the test makes, written into the installer
+  # in place of the release key, as a release is signed (#3506: without a
+  # signature it checks, it installs nothing unless told to).
   #
   # Sync: `Application.put_env(:slipdock, :cli_escript, …)` is global.
   use Slipdock.DataCase, async: false
@@ -15,21 +18,11 @@ defmodule SlipdockWeb.CLIShellInstallTest do
   @tools ~w(cat chmod cp curl cut dirname head mkdir mktemp mv printf rm sed
             sha256sum shasum ssh-keygen tr perl)
 
-  # This app, but answering one path with a body of the test's choosing: a
-  # checksum that names other bytes, or a signature the release key never made.
-  defmodule Answering do
-    @behaviour Plug
-    def init({path, body}), do: {path, body}
+  alias SlipdockWeb.CLIInstallSigning, as: Signing
+  alias SlipdockWeb.CLIInstallSigning.Answering
 
-    def call(%{request_path: path} = conn, {path, body}), do: Plug.Conn.send_resp(conn, 200, body)
-    def call(conn, _), do: SlipdockWeb.Endpoint.call(conn, SlipdockWeb.Endpoint.init([]))
-  end
-
-  @wrong_sums {Answering,
-               {"/cli/SHA256SUMS", String.duplicate("0", 64) <> "  slipdock.escript\n"}}
-  @bad_signature {Answering,
-                  {"/cli/slipdock.escript.sig",
-                   "-----BEGIN SSH SIGNATURE-----\nU1NIU0lH\n-----END SSH SIGNATURE-----\n"}}
+  @wrong_sums Signing.wrong_sums()
+  @bad_signature Signing.bad_signature()
 
   setup do
     dir = Path.join(System.tmp_dir!(), "slipdock-cli-sh-#{System.unique_integer([:positive])}")
@@ -62,8 +55,20 @@ defmodule SlipdockWeb.CLIShellInstallTest do
     stub(ctx, "uname", "echo Linux")
     erlang(ctx, "27")
 
-    Map.put(ctx, :url, serve(SlipdockWeb.Endpoint))
+    ctx
+    |> Map.put(:url, serve(SlipdockWeb.Endpoint))
+    |> Map.put(:public_key, release_key(ctx))
+    |> tap(&sign/1)
   end
+
+  # A key of the test's own, standing in for the release key.
+  defp release_key(ctx), do: Signing.new_key(Path.join(ctx.dir, "release_key"))
+
+  # The CLI's bytes signed with `key` (the release key's stand-in by
+  # default), the signature beside them, where the server serves it from.
+  defp sign(ctx, key \\ "release_key"), do: Signing.sign(ctx.built, Path.join(ctx.dir, key))
+
+  defp unsign(ctx), do: Signing.unsign(ctx.built)
 
   defp serve(plug) do
     {:ok, server} =
@@ -103,12 +108,12 @@ defmodule SlipdockWeb.CLIShellInstallTest do
   defp url_file(ctx), do: Path.join([ctx.home, ".config", "slipdock", "url"])
 
   # Fetched from `url` as a person would, then run under sh with `args`.
-  # `opts`: `:edit`, a function given the script as served, for a test that
-  # needs another release key in it; `:env`, more of the environment;
-  # `:path`, the PATH (the test's own bin folder by default).
+  # `opts`: `:edit`, a function given the script as served (by default it
+  # swaps in the test's key for the release key); `:env`, more of the
+  # environment; `:path`, the PATH (the test's own bin folder by default).
   defp install(ctx, args \\ [], url \\ nil, opts \\ []) do
     script = Path.join(ctx.dir, "install-#{System.unique_integer([:positive])}.sh")
-    edit = Keyword.get(opts, :edit, & &1)
+    edit = Keyword.get(opts, :edit, with_release_key(ctx.public_key))
     File.write!(script, edit.(fetch(url || ctx.url)))
 
     cmd = [@sh, script | args]
@@ -126,6 +131,7 @@ defmodule SlipdockWeb.CLIShellInstallTest do
   test "installs the CLI the server built, executable, and the server's address", ctx do
     {out, 0} = install(ctx)
 
+    assert out =~ "signature checked against the release key"
     assert out =~ "slipdock: installed #{dest(ctx)}"
     assert out =~ "slipdock auth"
     assert File.read!(dest(ctx)) == ctx.bytes
@@ -154,6 +160,7 @@ defmodule SlipdockWeb.CLIShellInstallTest do
 
     newer = "#!/usr/bin/env escript\n%% newer\n"
     File.write!(ctx.built, newer)
+    sign(ctx)
     {_, 0} = install(ctx)
 
     assert File.read!(dest(ctx)) == newer
@@ -189,14 +196,95 @@ defmodule SlipdockWeb.CLIShellInstallTest do
   end
 
   test "a signature the release key didn't make is refused, and nothing installed", ctx do
-    if System.find_executable("ssh-keygen") do
-      {out, code} = install(ctx, [], serve(@bad_signature))
+    {out, code} = install(ctx, [], serve(@bad_signature))
 
-      assert code != 0
-      assert out =~ "REFUSED"
-      assert out =~ "nothing was installed"
+    assert code == 1
+    assert out =~ ~r/REFUSED: the CLI from http:\S+ is not signed with the project.s release key/
+    assert out =~ "nothing was installed"
+    nothing_installed(ctx)
+  end
+
+  test "a signature the release key didn't make is refused even with --allow-unsigned", ctx do
+    {out, code} = install(ctx, ["--allow-unsigned"], serve(@bad_signature))
+
+    assert code == 1
+    assert out =~ "is not signed with the project's release key"
+    nothing_installed(ctx)
+  end
+
+  test "a signature made by another key is refused", ctx do
+    Signing.new_key(Path.join(ctx.dir, "other"))
+    sign(ctx, "other")
+
+    {out, 1} = install(ctx)
+
+    assert out =~ "is not signed with the project's release key"
+    nothing_installed(ctx)
+  end
+
+  describe "a server that serves no signature, as one built from source" do
+    setup ctx do
+      unsign(ctx)
+      :ok
+    end
+
+    test "is refused with the reason and how to allow it, and nothing installed", ctx do
+      {out, code} = install(ctx)
+
+      assert code == 1
+
+      assert out =~
+               "REFUSED: #{ctx.url} serves no signature for the CLI (/cli/slipdock.escript.sig), " <>
+                 "so it can't be checked against the release key; nothing was installed."
+
+      assert out =~ "curl -fsSL #{ctx.url}/cli/install.sh | sh -s -- --allow-unsigned"
+      nothing_installed(ctx)
+    end
+
+    test "installs on the checksum with --allow-unsigned, and says so", ctx do
+      {out, 0} = install(ctx, ["--allow-unsigned"])
+
+      assert out =~ "warning: #{ctx.url} serves no signature for the CLI"
+      assert out =~ "installing it on the checksum alone, as --allow-unsigned says"
+      assert File.read!(dest(ctx)) == ctx.bytes
+    end
+
+    test "--allow-unsigned goes with a path of its own", ctx do
+      there = Path.join([ctx.dir, "elsewhere", "sd"])
+      {_, 0} = install(ctx, ["--allow-unsigned", there])
+
+      assert File.read!(there) == ctx.bytes
       refute File.exists?(dest(ctx))
     end
+
+    test "installs with SLIPDOCK_ALLOW_UNSIGNED=1", ctx do
+      {out, 0} = install(ctx, [], nil, env: [{"SLIPDOCK_ALLOW_UNSIGNED", "1"}])
+
+      assert out =~ "installing it on the checksum alone"
+      assert File.read!(dest(ctx)) == ctx.bytes
+    end
+
+    test "is still refused with SLIPDOCK_ALLOW_UNSIGNED set to anything but 1", ctx do
+      for value <- ["0", "", "yes"] do
+        {out, 1} = install(ctx, [], nil, env: [{"SLIPDOCK_ALLOW_UNSIGNED", value}])
+        assert out =~ "REFUSED"
+        nothing_installed(ctx)
+      end
+    end
+
+    test "a bad checksum is refused even with --allow-unsigned", ctx do
+      {out, 1} = install(ctx, ["--allow-unsigned"], serve(@wrong_sums))
+
+      assert out =~ "does not match its published checksum"
+      nothing_installed(ctx)
+    end
+  end
+
+  test "an option it doesn't know is refused, and nothing installed", ctx do
+    {out, 1} = install(ctx, ["--allow-unsigend"])
+
+    assert out =~ "unknown option --allow-unsigend"
+    nothing_installed(ctx)
   end
 
   test "a server built without the CLI installs nothing", ctx do
@@ -329,55 +417,40 @@ defmodule SlipdockWeb.CLIShellInstallTest do
     assert File.read!(dest(ctx)) == ctx.bytes
   end
 
-  # A key of the test's own, and the CLI's bytes signed with it as the
-  # release is signed: ed25519, namespace slipdock-cli.
-  defp sign(ctx, keygen) do
-    key = Path.join(ctx.dir, "release_key")
-    {_, 0} = System.cmd(keygen, ["-q", "-t", "ed25519", "-N", "", "-C", "release", "-f", key])
-
-    {_, 0} =
-      System.cmd(keygen, ["-q", "-Y", "sign", "-f", key, "-n", "slipdock-cli", ctx.built])
-
-    public = key |> Kernel.<>(".pub") |> File.read!() |> String.split(" ") |> Enum.take(2)
-
-    %{
-      public_key: Enum.join(public, " "),
-      signed: {Answering, {"/cli/slipdock.escript.sig", File.read!(ctx.built <> ".sig")}}
-    }
-  end
-
   describe "a signed release" do
-    setup ctx do
-      keygen = System.find_executable("ssh-keygen")
-      if keygen, do: Map.put(sign(ctx, keygen), :keygen, keygen), else: %{keygen: nil}
-    end
-
-    test "signed with the release key is checked, and installs", ctx do
-      if ctx.keygen do
-        {out, 0} = install(ctx, [], serve(ctx.signed), edit: with_release_key(ctx.public_key))
-
-        assert out =~ "signature checked against the release key"
-        assert File.read!(dest(ctx)) == ctx.bytes
-      end
-    end
-
     test "with no release key in the installer is refused, and nothing installed", ctx do
-      if ctx.keygen do
-        {out, code} = install(ctx, [], serve(ctx.signed), edit: with_release_key(""))
+      {out, code} = install(ctx, [], nil, edit: with_release_key(""))
 
-        assert code == 1
-        assert out =~ "serves a signature but this installer has no release key"
-        assert out =~ "nothing was installed"
-        nothing_installed(ctx)
-      end
+      assert code == 1
+      assert out =~ "REFUSED: #{ctx.url} serves a signature but this installer has no release key"
+      assert out =~ "nothing was installed"
+      assert out =~ "--allow-unsigned"
+      nothing_installed(ctx)
     end
 
-    test "with no ssh-keygen here is warned about, and installs on the checksum", ctx do
-      unlink(ctx, "ssh-keygen")
-      key = ctx[:public_key] || "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIA"
-      {out, 0} = install(ctx, [], serve(@bad_signature), edit: with_release_key(key))
+    test "with no release key in the installer installs with --allow-unsigned", ctx do
+      {out, 0} = install(ctx, ["--allow-unsigned"], nil, edit: with_release_key(""))
 
-      assert out =~ "warning: no ssh-keygen here, so the signature wasn't checked"
+      assert out =~ "warning: #{ctx.url} serves a signature but this installer has no release key"
+      assert File.read!(dest(ctx)) == ctx.bytes
+    end
+
+    test "with no ssh-keygen here is refused, and nothing installed", ctx do
+      unlink(ctx, "ssh-keygen")
+      {out, code} = install(ctx)
+
+      assert code == 1
+      assert out =~ "REFUSED: there is no ssh-keygen here to check the CLI's signature with"
+      assert out =~ "--allow-unsigned"
+      nothing_installed(ctx)
+    end
+
+    test "with no ssh-keygen here installs on the checksum with --allow-unsigned", ctx do
+      unlink(ctx, "ssh-keygen")
+      {out, 0} = install(ctx, ["--allow-unsigned"])
+
+      assert out =~ "warning: there is no ssh-keygen here"
+      refute out =~ "signature checked"
       assert File.read!(dest(ctx)) == ctx.bytes
     end
   end

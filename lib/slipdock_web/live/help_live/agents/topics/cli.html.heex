@@ -34,7 +34,7 @@
     and if there is none it says what to install (<code>brew install erlang</code>
     on a Mac) rather than running anything as root. It checks the download against
     <code>/cli/SHA256SUMS</code>
-    first, and against the release key's signature when there is one:
+    and the release key's signature (with <code>ssh-keygen</code>):
   </p>
   <.snippet
     id="help-cli-unix"
@@ -47,6 +47,12 @@
   </p>
   <p>On Windows, in PowerShell. This installs Erlang through winget if it isn't already there:</p>
   <.snippet id="help-cli-windows" text={"irm #{@base_url}/cli/install.ps1 | iex\nslipdock auth"} />
+  <p>
+    A server built from source serves no signature, and with none (or no <code>ssh-keygen</code>
+    to check it) both install nothing and say why. To install its CLI on the checksum alone, add <code>| sh -s -- --allow-unsigned</code>, or on Windows set
+    <code>$env:SLIPDOCK_ALLOW_UNSIGNED = '1'</code>
+    first.
+  </p>
   <p>From a checkout, build it from the repository (Elixir 1.17 or later):</p>
   <.snippet
     id="help-cli-build"

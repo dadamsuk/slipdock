@@ -6,14 +6,20 @@
 #       install it, or update it: running it again fetches the CLI afresh
 #   curl -fsSL __SLIPDOCK_BASE_COMMENT__/cli/install.sh | sh -s /some/where/slipdock
 #       install it somewhere other than ~/.local/bin/slipdock
+#   curl -fsSL __SLIPDOCK_BASE_COMMENT__/cli/install.sh | sh -s -- --allow-unsigned
+#       install a CLI the release key didn't sign (a server built from source
+#       serves none), checked against /cli/SHA256SUMS alone;
+#       SLIPDOCK_ALLOW_UNSIGNED=1 does the same
 #
 # This is the CLI. The agent skills are a different script, the server's
 # /install.sh (no /cli/ in it).
 #
 # It writes, with no root of its own:
 #   ~/.local/bin/slipdock     the CLI (or the path you gave), checked against
-#                             /cli/SHA256SUMS, and against the release key's
-#                             signature when the server serves one
+#                             /cli/SHA256SUMS and the release key's signature
+#                             (with ssh-keygen); with no signature, or nothing
+#                             to check it with, it installs nothing unless
+#                             --allow-unsigned says to
 #   ~/.config/slipdock/url    this server's address (unless it names another)
 #
 # The CLI is an Erlang escript, so it needs Erlang/OTP 27 or later. If there
@@ -25,10 +31,21 @@ BASE='__SLIPDOCK_BASE__'
 # The public half of the project's release key (SlipdockWeb.CLIInstallController
 # writes it in), for /cli/slipdock.escript.sig. Empty on a server built without it.
 RELEASE_KEY='__SLIPDOCK_RELEASE_KEY__'
-DEST="${1:-$HOME/.local/bin/slipdock}"
 
 say() { printf 'slipdock: %s\n' "$*" >&2; }
 die() { say "$*"; exit 1; }
+
+allow_unsigned=0
+[ "${SLIPDOCK_ALLOW_UNSIGNED:-}" = 1 ] && allow_unsigned=1
+DEST=''
+for arg in "$@"; do
+  case $arg in
+    --allow-unsigned) allow_unsigned=1 ;;
+    -*) die "unknown option $arg (the one there is: --allow-unsigned); nothing was installed" ;;
+    *) DEST=$arg ;;
+  esac
+done
+DEST=${DEST:-$HOME/.local/bin/slipdock}
 
 # Erlang first, so a machine without it is told before anything is fetched
 # or written.
@@ -112,24 +129,41 @@ got=$(sha256 "$tmp/slipdock.escript")
 [ "$got" = "$want" ] ||
   die "the CLI downloaded from $BASE does not match its published checksum (got $got, expected $want); nothing was installed"
 
-# A signed release serves a signature beside it; a server built from source
-# has none (404), and the checksum is all there is to go on.
-if fetch cli/slipdock.escript.sig "$tmp/slipdock.escript.sig" 2>/dev/null; then
-  case $RELEASE_KEY in
-    ssh-ed25519\ *) ;;
-    *) die "$BASE serves a signature but this installer has no release key to check it with; nothing was installed" ;;
-  esac
-  if command -v ssh-keygen >/dev/null 2>&1; then
-    printf 'slipdock-release namespaces="slipdock-cli" %s\n' "$RELEASE_KEY" >"$tmp/allowed_signers"
-    if ! ssh-keygen -Y verify -f "$tmp/allowed_signers" -I slipdock-release -n slipdock-cli \
-      -s "$tmp/slipdock.escript.sig" <"$tmp/slipdock.escript" >"$tmp/verify.out" 2>&1; then
-      cat "$tmp/verify.out" >&2
-      die "REFUSED: the CLI from $BASE is not signed with the project's release key; nothing was installed"
-    fi
-    say "signature checked against the release key"
-  else
-    say "warning: no ssh-keygen here, so the signature wasn't checked (the checksum was)"
+# The signature, checked against the release key. A CLI that can't be
+# checked (no signature served, no ssh-keygen, no key in this installer) is
+# installed only when --allow-unsigned or SLIPDOCK_ALLOW_UNSIGNED=1 asks for
+# it: a server built from source serves no signature (404), and then the
+# checksum is all there is to go on. A signature that doesn't verify is
+# refused either way.
+unsigned() {
+  if [ "$allow_unsigned" = 1 ]; then
+    say "warning: $1; installing it on the checksum alone, as --allow-unsigned says"
+    return 0
   fi
+  say "REFUSED: $1; nothing was installed."
+  say "To install it on the checksum alone (a server built from source has no signature),"
+  say "run this again with --allow-unsigned:"
+  say "  curl -fsSL $BASE/cli/install.sh | sh -s -- --allow-unsigned"
+  exit 1
+}
+
+if ! fetch cli/slipdock.escript.sig "$tmp/slipdock.escript.sig" 2>/dev/null; then
+  unsigned "$BASE serves no signature for the CLI (/cli/slipdock.escript.sig), so it can't be checked against the release key"
+elif ! command -v ssh-keygen >/dev/null 2>&1; then
+  unsigned "there is no ssh-keygen here to check the CLI's signature with (install OpenSSH's client)"
+else
+  case $RELEASE_KEY in
+    ssh-ed25519\ *)
+      printf 'slipdock-release namespaces="slipdock-cli" %s\n' "$RELEASE_KEY" >"$tmp/allowed_signers"
+      if ! ssh-keygen -Y verify -f "$tmp/allowed_signers" -I slipdock-release -n slipdock-cli \
+        -s "$tmp/slipdock.escript.sig" <"$tmp/slipdock.escript" >"$tmp/verify.out" 2>&1; then
+        cat "$tmp/verify.out" >&2
+        die "REFUSED: the CLI from $BASE is not signed with the project's release key; nothing was installed"
+      fi
+      say "signature checked against the release key"
+      ;;
+    *) unsigned "$BASE serves a signature but this installer has no release key to check it with" ;;
+  esac
 fi
 
 # Into the same folder first, so the move is one rename and a running

@@ -25,9 +25,13 @@ slipdock auth
 It puts the escript in `~/.local/bin/slipdock` (`| sh -s /some/where/slipdock`
 for another place), says so if that folder is not on your PATH, and saves the
 server's address in `~/.config/slipdock/url` (unless it already names another
-server). The download is checked against `/cli/SHA256SUMS`, and against the
-release key's signature (`/cli/slipdock.escript.sig`) when the server serves
-one, before anything is written; a mismatch installs nothing. The escript needs
+server). The download is checked against `/cli/SHA256SUMS` and against the
+release key's signature (`/cli/slipdock.escript.sig`, with `ssh-keygen`)
+before anything is written; a mismatch installs nothing. So does a server that
+serves no signature, or a machine with no `ssh-keygen`, and it says which: a
+server built from source has no signature, and `| sh -s -- --allow-unsigned`
+(or `SLIPDOCK_ALLOW_UNSIGNED=1`) installs its CLI on the checksum alone, with a
+warning. A signature that doesn't verify is refused either way. The escript needs
 Erlang/OTP 27 or later: with none, or an older one, the script stops and says
 what to run (`brew install erlang` on macOS, the distribution's package on
 Linux), and never runs anything as root itself. This is `/cli/install.sh`,
@@ -48,7 +52,11 @@ server's address in `~\.config\slipdock\url`. The escript needs Erlang/OTP 27
 or later: if there is none it is installed with winget (`Erlang.ErlangOTP`,
 which asks for admin rights once); `-NoErlang` stops instead, and `-Escript
 C:\path\to\escript.exe` names one it can't find. The download is checked
-against `/cli/SHA256SUMS` before anything is written. To take it away again:
+against `/cli/SHA256SUMS` and the release key's signature (with Windows'
+OpenSSH `ssh-keygen`) before anything is written, and with no signature or no
+`ssh-keygen` it installs nothing, as on Linux: `-AllowUnsigned`, or
+`$env:SLIPDOCK_ALLOW_UNSIGNED = '1'` before `irm | iex`, installs a server's
+unsigned CLI on the checksum alone. To take it away again:
 `& ([scriptblock]::Create((irm https://your-server/cli/install.ps1))) -Uninstall`
 (your sign-in is kept). The Docker image builds the escript from its own `cli/`
 and serves it at `/cli/slipdock.escript`; a server run from a checkout has none

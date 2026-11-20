@@ -100,7 +100,15 @@ defmodule SlipdockWeb.CLIInstallControllerTest do
       assert response_content_type(conn, :text) =~ "text/plain"
       assert body =~ "$Base = 'http://boards.example'"
       assert body =~ "irm http://boards.example/cli/install.ps1 | iex"
-      refute body =~ "__SLIPDOCK_BASE"
+      refute body =~ "__SLIPDOCK_"
+    end
+
+    test "carries the release key, to check a signature", %{conn: conn} do
+      body = conn |> get("/cli/install.ps1") |> response(200)
+      key = SlipdockWeb.CLIInstallController.release_key()
+
+      assert key =~ ~r/\Assh-ed25519 /
+      assert body =~ "$ReleaseKey = '#{key}'"
     end
 
     test "never calls exit, so `| iex` cannot close the person's PowerShell", %{conn: conn} do

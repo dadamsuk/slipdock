@@ -5,10 +5,16 @@
 #       install it, or update it: running it again fetches the CLI afresh
 #   & ([scriptblock]::Create((irm __SLIPDOCK_BASE_COMMENT__/cli/install.ps1))) -Uninstall
 #       take it away again (your sign-in in ~\.config\slipdock is kept)
+#   & ([scriptblock]::Create((irm __SLIPDOCK_BASE_COMMENT__/cli/install.ps1))) -AllowUnsigned
+#       install a CLI the release key didn't sign (a server built from source
+#       serves none), checked against /cli/SHA256SUMS alone;
+#       $env:SLIPDOCK_ALLOW_UNSIGNED = '1' before `irm | iex` does the same
 #
 # It writes, with no admin rights of its own:
 #   %LOCALAPPDATA%\Programs\slipdock\slipdock.escript   the CLI, checked against
-#                                                        /cli/SHA256SUMS first
+#                                                        /cli/SHA256SUMS and the
+#                                                        release key's signature
+#                                                        (with ssh-keygen) first
 #   %LOCALAPPDATA%\Programs\slipdock\slipdock.cmd       what runs it, so `slipdock`
 #                                                        works in PowerShell and cmd
 #   that folder on your PATH, and SLIPDOCK_CLI_DIR naming it
@@ -28,7 +34,8 @@ param(
   [string]$Escript,
   [switch]$NoErlang,
   [switch]$NoPath,
-  [switch]$Uninstall
+  [switch]$Uninstall,
+  [switch]$AllowUnsigned
 )
 
 & {
@@ -36,6 +43,10 @@ param(
   # this block, so the person's own session keeps its preference.
   $ErrorActionPreference = 'Stop'
   $Base = '__SLIPDOCK_BASE__'
+  # The public half of the project's release key (SlipdockWeb.CLIInstallController
+  # writes it in), for /cli/slipdock.escript.sig. Empty on a server built without it.
+  $ReleaseKey = '__SLIPDOCK_RELEASE_KEY__'
+  $Unsigned = $AllowUnsigned -or ($env:SLIPDOCK_ALLOW_UNSIGNED -eq '1')
   $OnWindows = ($PSVersionTable.PSEdition -ne 'Core') -or $IsWindows
 
   if (-not $Dir) {
@@ -116,10 +127,29 @@ param(
 
   New-Item -ItemType Directory -Force -Path $Dir -ErrorAction Stop | Out-Null
 
+  # A CLI that can't be checked against the release key (no signature
+  # served, no ssh-keygen, no key in this installer) is installed only when
+  # -AllowUnsigned or SLIPDOCK_ALLOW_UNSIGNED=1 asks for it: a server built
+  # from source serves no signature (404), and then the checksum is all there
+  # is to go on. A signature that doesn't verify is refused either way.
+  function Confirm-Unsigned([string]$reason) {
+    if ($Unsigned) {
+      Write-Warning "slipdock: $reason; installing it on the checksum alone, as -AllowUnsigned says"
+      return
+    }
+    throw ("slipdock: REFUSED: $reason; nothing was installed. To install it on the checksum " +
+      "alone (a server built from source has no signature), run this again with -AllowUnsigned: " +
+      "& ([scriptblock]::Create((irm $Base/cli/install.ps1))) -AllowUnsigned")
+  }
+
   $saved = $ProgressPreference
   $ProgressPreference = 'SilentlyContinue'
-  $download = Join-Path $Dir ('slipdock.escript.' + [guid]::NewGuid() + '.part')
+  # Everything fetched goes in a folder of its own beside the CLI, so the
+  # last step is one move, and the folder goes whatever happens.
+  $work = Join-Path $Dir ('.slipdock.' + [guid]::NewGuid() + '.part')
+  $download = Join-Path $work 'slipdock.escript'
   try {
+    New-Item -ItemType Directory -Force -Path $work | Out-Null
     $sums = (Invoke-WebRequest -UseBasicParsing -Uri "$Base/cli/SHA256SUMS" -ErrorAction Stop).Content
     # PowerShell 7 hands back bytes for anything not labelled text.
     if ($sums -is [byte[]]) { $sums = [Text.Encoding]::ASCII.GetString($sums) }
@@ -132,10 +162,53 @@ param(
     if ($got -ne $want) {
       throw "slipdock: the CLI downloaded from $Base does not match its published checksum (got $got, expected $want); nothing was installed"
     }
+
+    $sig = Join-Path $work 'slipdock.escript.sig'
+    $signed = $true
+    try {
+      Invoke-WebRequest -UseBasicParsing -Uri "$Base/cli/slipdock.escript.sig" -OutFile $sig -ErrorAction Stop
+    } catch {
+      $signed = $false
+    }
+    $keygen = Get-Command 'ssh-keygen' -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+    if (-not $signed) {
+      Confirm-Unsigned "$Base serves no signature for the CLI (/cli/slipdock.escript.sig), so it can't be checked against the release key"
+    } elseif (-not $keygen) {
+      Confirm-Unsigned "there is no ssh-keygen here to check the CLI's signature with (add Windows' OpenSSH Client)"
+    } elseif ($ReleaseKey -notmatch '^ssh-ed25519 ') {
+      Confirm-Unsigned "$Base serves a signature but this installer has no release key to check it with"
+    } else {
+      $signers = Join-Path $work 'allowed_signers'
+      [IO.File]::WriteAllText($signers, "slipdock-release namespaces=`"slipdock-cli`" $ReleaseKey`n", [Text.Encoding]::ASCII)
+      # ssh-keygen reads what was signed on its standard input. The bytes go
+      # in as they are: Start-Process and a PowerShell pipe would both pass
+      # them through as lines of text first.
+      $start = New-Object Diagnostics.ProcessStartInfo
+      $start.FileName = $keygen.Source
+      $start.Arguments = "-Y verify -f `"$signers`" -I slipdock-release -n slipdock-cli -s `"$sig`""
+      $start.UseShellExecute = $false
+      $start.RedirectStandardInput = $true
+      $start.RedirectStandardOutput = $true
+      $start.RedirectStandardError = $true
+      $verify = [Diagnostics.Process]::Start($start)
+      $said = $verify.StandardOutput.ReadToEndAsync()
+      $saidErr = $verify.StandardError.ReadToEndAsync()
+      $bytes = [IO.File]::ReadAllBytes($download)
+      # It may stop reading early, on a signature it can't parse.
+      try { $verify.StandardInput.BaseStream.Write($bytes, 0, $bytes.Length) } catch { }
+      try { $verify.StandardInput.Close() } catch { }
+      $verify.WaitForExit()
+      if ($verify.ExitCode -ne 0) {
+        $what = ($said.Result + $saidErr.Result).Trim()
+        throw "slipdock: REFUSED: the CLI from $Base is not signed with the project's release key ($what); nothing was installed"
+      }
+      Write-Host 'slipdock: signature checked against the release key'
+    }
+
     Move-Item -LiteralPath $download -Destination $Cli -Force
   } finally {
     $ProgressPreference = $saved
-    if (Test-Path -LiteralPath $download) { Remove-Item -LiteralPath $download -Force }
+    if (Test-Path -LiteralPath $work) { Remove-Item -LiteralPath $work -Recurse -Force }
   }
 
   # cmd reads its scripts in the console's code page, so this is ASCII. Erlang
