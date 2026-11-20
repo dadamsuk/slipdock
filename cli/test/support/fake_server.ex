@@ -1,7 +1,7 @@
 defmodule SlipdockCLI.FakeServer do
   @moduledoc """
   Just enough of an HTTP server to answer the CLI: each request gets the
-  next canned `{status, body}` in turn (or what a `fn method, path, body`
+  next canned `{status, body}` (or `{status, body, [{header, value}]}`) in turn (or what a `fn method, path, body`
   in its place answers, for a fake that keeps state), and is reported to the test process
   as `{:request, method, path, body}` so the test can see what was sent —
   and as `{:headers, method, path, %{name => value}}`, names lowercased, for
@@ -25,14 +25,18 @@ defmodule SlipdockCLI.FakeServer do
     {:ok, socket} = :gen_tcp.accept(listen)
     {method, path, request_body, headers} = read_request(socket)
 
-    {status, body} =
-      if is_function(response, 3), do: response.(method, path, request_body), else: response
+    {status, body, extra} =
+      case if(is_function(response, 3), do: response.(method, path, request_body), else: response) do
+        {status, body} -> {status, body, []}
+        {status, body, extra} -> {status, body, extra}
+      end
 
     send(test, {:request, method, path, request_body})
     send(test, {:headers, method, path, headers})
 
     :gen_tcp.send(socket, [
       "HTTP/1.1 #{status} X\r\ncontent-type: application/json\r\n",
+      Enum.map(extra, fn {k, v} -> "#{k}: #{v}\r\n" end),
       "content-length: #{byte_size(body)}\r\nconnection: close\r\n\r\n",
       body
     ])
