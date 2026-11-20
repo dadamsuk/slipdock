@@ -11,6 +11,14 @@ config :slipdock,
   ecto_repos: [Slipdock.Repo],
   generators: [timestamp_type: :utc_datetime]
 
+# Migrations lock with a Postgres advisory lock rather than Ecto's default
+# table lock (#3500): two nodes booting together still migrate once
+# (test/slipdock/migration_lock_test.exs, #3498), and a migration can build
+# an index `concurrently`, which can't run inside the table lock's
+# transaction. An advisory lock is held by a session, so a pooler in front
+# of Postgres must be in session mode.
+config :slipdock, Slipdock.Repo, migration_lock: :pg_advisory_lock
+
 # People's own timezones (recurring cards, snooze) need the IANA database;
 # Elixir only ships UTC.
 config :elixir, :time_zone_database, Tz.TimeZoneDatabase
