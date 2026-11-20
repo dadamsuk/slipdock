@@ -212,6 +212,9 @@ func runRunners(ctx context.Context, d string, st machine.State, key string, cei
 		LookPath: env.LookPath,
 		// One set of holds for every runner (#2920): they share the agents' accounts.
 		Holds: runner.NewHolds(),
+		// One list of worktrees in use and left dirty (#3489): runners on
+		// one repository share its worktrees.
+		Lanes: runner.NewLanes(d),
 	}
 	pool := runner.NewPool(ctx, logf)
 	ctx = pool.Context()

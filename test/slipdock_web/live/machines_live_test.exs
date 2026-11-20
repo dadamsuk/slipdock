@@ -108,6 +108,17 @@ defmodule SlipdockWeb.MachinesLiveTest do
       assert has_element?(view, "#machine-log", "accepted")
       refute has_element?(view, "#machine-owner")
 
+      # A worktree the daemon pruned (#3489) is in the log too.
+      {:ok, _} =
+        MachineRunners.report(ctx.machine, runner, %{
+          "outcome" => "worktree_pruned",
+          "reason" => "worktree /srv/src/app-lanes/card-5 was removed"
+        })
+
+      {:ok, view, _html} = page(ctx)
+      assert has_element?(view, "#machine-log .text-warning", "worktree pruned")
+      assert has_element?(view, "#machine-log", "worktree /srv/src/app-lanes/card-5 was removed")
+
       # Heard from just now: online.
       Machines.authenticate(ctx.key)
       {:ok, view, _html} = page(ctx)

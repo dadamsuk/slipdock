@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/dadamsuk/slipdock/daemon/internal/executor"
 )
@@ -92,6 +93,11 @@ type Local struct {
 	// Container is how the container executor runs a job here (#2577).
 	// Which images it may run is the ceiling's (container_images).
 	Container *ContainerSettings `json:"container,omitempty"`
+	// DirtyWorktreeDays is how long, in days, a worktree a job left with
+	// uncommitted changes is kept untouched before the daemon keeps its
+	// changes on a branch and removes it (#3489): default
+	// DefaultDirtyWorktreeDays, 0 or less never.
+	DirtyWorktreeDays *int `json:"dirty_worktree_days,omitempty"`
 	// Runners are this machine's own settings for a runner, by the name
 	// the board gives it (#2667). Runners that share a name share its
 	// entry, and a name no runner has does nothing.
@@ -137,6 +143,27 @@ type Account struct {
 	Path string `json:"path,omitempty"`
 }
 
+// DefaultDirtyWorktreeDays is dirty_worktree_days when the file doesn't
+// set it, and MaxDirtyWorktreeDays the most it may be (a hundred years:
+// more overflows a time.Duration).
+const (
+	DefaultDirtyWorktreeDays = 14
+	MaxDirtyWorktreeDays     = 36500
+)
+
+// DirtyWorktreeAge is how long a worktree left with uncommitted changes is
+// kept untouched before it is pruned: 0 is never.
+func (l Local) DirtyWorktreeAge() time.Duration {
+	days := DefaultDirtyWorktreeDays
+	if l.DirtyWorktreeDays != nil {
+		days = *l.DirtyWorktreeDays
+	}
+	if days <= 0 || days > MaxDirtyWorktreeDays {
+		return 0
+	}
+	return time.Duration(days) * 24 * time.Hour
+}
+
 // LogLevels are what log_level may be.
 var LogLevels = []string{"debug", "info", "warn", "error"}
 
@@ -172,6 +199,9 @@ func (l Local) Validate() error {
 		if !filepath.IsAbs(w) {
 			problems = append(problems, fmt.Sprintf("confined_writable: %q is not an absolute path", w))
 		}
+	}
+	if d := l.DirtyWorktreeDays; d != nil && *d > MaxDirtyWorktreeDays {
+		problems = append(problems, fmt.Sprintf("dirty_worktree_days: %d is more than %d (use 0 for never)", *d, MaxDirtyWorktreeDays))
 	}
 	if !oneOf(LogLevels, l.LogLevel) && l.LogLevel != "" {
 		problems = append(problems, fmt.Sprintf("log_level: %q is not one of %s", l.LogLevel, strings.Join(LogLevels, ", ")))

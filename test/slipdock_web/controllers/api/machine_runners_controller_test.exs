@@ -501,6 +501,47 @@ defmodule SlipdockWeb.API.MachineRunnersControllerTest do
       assert [%{"outside_ceiling" => ["timeout 120 minutes is over 60"]}] = detail["runners"]
     end
 
+    test "a pruned worktree is a line in the machine's log, whatever the version (#3489)", ctx do
+      runner = add(ctx)
+      said = "worktree /srv/src/app-lanes/card-5 was left with uncommitted changes 15 days ago"
+
+      assert %{"runner" => r} =
+               ctx.key
+               |> machine_conn()
+               |> post(~p"/api/machine/runners/#{runner.id}/report", %{
+                 version: 9,
+                 outcome: "worktree_pruned",
+                 reason: said
+               })
+               |> json_response(200)
+
+      assert r["accepted_version"] == nil
+      assert r["rejected_version"] == nil
+
+      assert %{"error" => "a pruned worktree says which" <> _} =
+               ctx.key
+               |> machine_conn()
+               |> post(~p"/api/machine/runners/#{runner.id}/report", %{outcome: "worktree_pruned"})
+               |> json_response(422)
+
+      assert %{"error" => "outcome must be accepted, rejected or worktree_pruned"} =
+               ctx.key
+               |> machine_conn()
+               |> post(~p"/api/machine/runners/#{runner.id}/report", %{
+                 version: 1,
+                 outcome: "pruned"
+               })
+               |> json_response(422)
+
+      assert %{"machine" => detail} =
+               ctx.conn |> get(~p"/api/machines/#{ctx.machine.id}") |> json_response(200)
+
+      assert [%{"outcome" => "worktree_pruned", "reason" => ^said, "version" => 1}] =
+               detail["changes"]
+
+      assert Repo.get!(Runner, runner.id).accepted_version == nil
+    end
+
     test "another machine's runner, an API token or a revoked machine is refused", ctx do
       runner = add(ctx)
       {:ok, key, _} = Machines.create_enrolment_key(ctx.user, [ctx.board.id])

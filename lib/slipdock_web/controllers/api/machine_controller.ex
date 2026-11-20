@@ -192,6 +192,9 @@ defmodule SlipdockWeb.API.MachineController do
   POST /api/machine/runners/:runner_id/report — the daemon says what it did
   with a runner's config at `version`: `outcome` `accepted`, or `rejected`
   with a `reason` (#2571). A stale version answers 409 with the current one.
+  Or `outcome` `worktree_pruned` with a `reason`: a worktree the runner's
+  jobs left with uncommitted changes, pruned (#3489), which needs no
+  version.
   """
   def report(conn, %{"runner_id" => runner_id} = params) do
     with {:ok, machine} <- machine_key(conn) do

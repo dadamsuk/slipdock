@@ -111,10 +111,7 @@ func (c *Client) serverCLISum(ctx context.Context) (string, error) {
 
 // daemonCLI is the daemon's own copy of the CLI: <machine dir>/bin/slipdock.
 func (w *Worker) daemonCLI() string {
-	md := w.MachineDir
-	if md == "" && w.JobsDir != "" {
-		md = filepath.Dir(w.JobsDir)
-	}
+	md := w.machineDir()
 	if md == "" {
 		return ""
 	}
