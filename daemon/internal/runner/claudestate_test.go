@@ -126,6 +126,43 @@ func TestClaudesStateFollowsItsConfigDirectory(t *testing.T) {
 	}
 }
 
+func TestARelativeConfigDirectoryIsNotClaudes(t *testing.T) {
+	r := newRig(t, Config{})
+	r.w.Getenv = func(k string) string {
+		if k == "CLAUDE_CONFIG_DIR" {
+			return filepath.Join("relative", "claude")
+		}
+		return ""
+	}
+	w := r.w.settingsFor(executor.Confined).Writable
+	if !slices.Contains(w, filepath.Join(r.w.Home, ".claude", "projects")) || covers(w, filepath.Join("relative", "claude", "projects")) {
+		t.Fatalf("a relative CLAUDE_CONFIG_DIR is ~/.claude's: %v", w)
+	}
+}
+
+func TestNoHomeMeansNoneOfClaudesState(t *testing.T) {
+	r := newRig(t, Config{})
+	r.w.Home = ""
+	r.w.Getenv = func(string) string { return "" }
+	if w := r.w.settingsFor(executor.Confined).Writable; len(w) != 0 {
+		t.Fatalf("with no home: %v", w)
+	}
+	cwd := t.TempDir()
+	t.Chdir(cwd)
+	r.w.makeClaudeState()
+	if _, err := os.Stat(filepath.Join(cwd, ".claude")); err == nil {
+		t.Fatal("with no home, the daemon made a relative .claude")
+	}
+}
+
+func TestAnotherAgentsStateIsNotMade(t *testing.T) {
+	r := newRig(t, Config{Agent: "codex"})
+	r.w.makeClaudeState()
+	if _, err := os.Stat(filepath.Join(r.w.Home, ".claude")); err == nil {
+		t.Fatal("the daemon made Claude's state for a codex runner")
+	}
+}
+
 func TestConfinedWritableOverridesClaudesSessionState(t *testing.T) {
 	r := newRig(t, Config{})
 	own := filepath.Join(t.TempDir(), "mine")
