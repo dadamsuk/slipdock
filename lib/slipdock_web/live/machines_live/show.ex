@@ -28,7 +28,16 @@ defmodule SlipdockWeb.MachinesLive.Show do
 
   alias Slipdock.{Access, Machines}
   alias Slipdock.Machines.Machine
-  alias Slipdock.Runners.{Ceiling, Config, MachineRunners, MachineSetup, Probe, Steering}
+
+  alias Slipdock.Runners.{
+    Ceiling,
+    Config,
+    MachineRunners,
+    MachineSetup,
+    Probe,
+    SharedBypass,
+    Steering
+  }
 
   @config_fields ~w(agent directory permission_mode timeout_minutes model worktree verbosity
                     instructions executor before_hook after_hook probe_hook image network)
@@ -73,6 +82,7 @@ defmodule SlipdockWeb.MachinesLive.Show do
       runners: runners,
       jobs: MachineRunners.running_jobs(runners),
       probes: Probe.latest(runners),
+      warnings: Map.new(runners, &{&1.id, SharedBypass.warnings(&1)}),
       changes:
         machine
         |> MachineRunners.reports()
@@ -793,6 +803,13 @@ defmodule SlipdockWeb.MachinesLive.Show do
                       do: "It still runs v#{r.accepted_version}, the last it accepted.",
                       else: "It has accepted no settings for this runner yet, so it runs nothing."}
                   </p>
+                </.callout>
+                <.callout
+                  :for={warning <- @warnings[r.id] || []}
+                  id={"machine-runner-#{r.id}-warning"}
+                  kind={:warning}
+                >
+                  {SlipdockWeb.RichText.markdown(warning)}
                 </.callout>
                 <.callout
                   :if={is_nil(r.rejected_version) and limits != []}

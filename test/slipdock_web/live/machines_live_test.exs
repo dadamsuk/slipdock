@@ -64,6 +64,28 @@ defmodule SlipdockWeb.MachinesLiveTest do
     end
   end
 
+  describe "a runner set to run anything as the machine's user (#3482)" do
+    test "is warned about on a shared board, and not on the owner's alone", ctx do
+      runner =
+        add(ctx, %{
+          "config" => %{
+            "directory" => @dir,
+            "permission_mode" => "bypassPermissions",
+            "executor" => "me"
+          }
+        })
+
+      {:ok, view, _} = page(ctx)
+      refute has_element?(view, "#machine-runner-#{runner.id}-warning")
+
+      {:ok, _} = Access.grant(ctx.board, user_fixture("writer@example.com"), "write", ctx.user)
+      {:ok, view, _} = page(ctx)
+
+      assert view |> element("#machine-runner-#{runner.id}-warning") |> render() =~
+               "bypassPermissions"
+    end
+  end
+
   describe "the owner" do
     test "sees the machine: state, system, ceiling, executors, runners and the log", ctx do
       runner = add(ctx)

@@ -102,6 +102,42 @@ defmodule SlipdockWeb.API.MachineRunnersControllerTest do
           do: assert(notice =~ "`#{word}`")
     end
 
+    test "a runner's answer warns of bypassPermissions as me on a shared board, and only then (#3482)",
+         ctx do
+      risky = %{directory: @dir, permission_mode: "bypassPermissions", executor: "me"}
+
+      assert %{"runner" => %{"id" => id, "warnings" => []}} =
+               ctx.conn
+               |> post(~p"/api/machines/#{ctx.machine.id}/runners", %{
+                 board: ctx.board.code,
+                 pool: "build",
+                 config: risky
+               })
+               |> json_response(201)
+
+      {:ok, _} =
+        Slipdock.Access.grant(ctx.board, user_fixture("writer@example.com"), "comment", ctx.user)
+
+      warning = Slipdock.Runners.SharedBypass.warning()
+
+      assert %{"runner" => %{"warnings" => [^warning]}} =
+               ctx.conn
+               |> patch(~p"/api/machines/#{ctx.machine.id}/runners/#{id}", %{
+                 config: %{model: "sonnet"}
+               })
+               |> json_response(200)
+
+      assert %{"machine" => %{"runners" => [%{"warnings" => [^warning]}]}} =
+               ctx.conn |> get(~p"/api/machines/#{ctx.machine.id}") |> json_response(200)
+
+      assert %{"runner" => %{"warnings" => []}} =
+               ctx.conn
+               |> patch(~p"/api/machines/#{ctx.machine.id}/runners/#{id}", %{
+                 config: %{permission_mode: "acceptEdits"}
+               })
+               |> json_response(200)
+    end
+
     test "a command field, a board it doesn't serve or a bad change is refused", ctx do
       assert %{"error" => "unknown config field: command" <> _} =
                ctx.conn

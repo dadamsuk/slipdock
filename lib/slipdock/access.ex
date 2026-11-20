@@ -780,6 +780,37 @@ defmodule Slipdock.Access do
   end
 
   @doc """
+  Whether anyone but the user `user_id` may write or comment somewhere in
+  the tree under `root` (#3482): someone else owns it, holds a `comment`
+  or `write` grant on a board in it or a card on one (a group's grant
+  counts whoever is in it), or may mail it (`inbound_senders`). Read and
+  view grants don't count: they put no words in front of anyone.
+  """
+  @spec others_write_on_tree?(Board.t(), integer | nil) :: boolean
+  def others_write_on_tree?(%Board{}, nil), do: true
+
+  def others_write_on_tree?(%Board{} = root, user_id) do
+    root_id = Board.root_id(root)
+
+    root.owner_id != user_id or (root.inbound_senders || []) != [] or
+      Repo.exists?(
+        from(g in Grant,
+          left_join: b in Board,
+          on: b.id == g.board_id,
+          left_join: c in Card,
+          on: c.id == g.card_id,
+          left_join: cb in Board,
+          on: cb.id == c.board_id,
+          where: g.level in ["comment", "write"],
+          where: is_nil(g.user_id) or g.user_id != ^user_id,
+          where:
+            b.id == ^root_id or b.root_id == ^root_id or cb.id == ^root_id or
+              cb.root_id == ^root_id
+        )
+      )
+  end
+
+  @doc """
   The ids of every board the user can read, sub-boards included. Used where
   something board-scoped has to be filtered for one reader, such as the
   alerts in the header bar.

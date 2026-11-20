@@ -5,7 +5,7 @@ defmodule SlipdockWeb.API.MachineJSON do
   """
 
   alias Slipdock.Machines.{Enrolment, Machine}
-  alias Slipdock.Runners.{ConfigReport, Job, MachineRunners, Probe, Runner}
+  alias Slipdock.Runners.{ConfigReport, Job, MachineRunners, Probe, Runner, SharedBypass}
 
   def machine(%Machine{} = m) do
     %{
@@ -73,8 +73,9 @@ defmodule SlipdockWeb.API.MachineJSON do
   end
 
   @doc """
-  A machine's runner (#2571): its pool, typed config and version, and what
-  the daemon last said of it.
+  A machine's runner (#2571): its pool, typed config and version, what
+  the daemon last said of it, and `warnings` on how it is set (#3482,
+  `Slipdock.Runners.SharedBypass`).
   """
   def runner(%Runner{} = r) do
     %{
@@ -93,7 +94,8 @@ defmodule SlipdockWeb.API.MachineJSON do
       last_seen_at: r.last_seen_at,
       current_job_id: r.current_job_id,
       paused: not is_nil(r.paused_at),
-      paused_at: r.paused_at
+      paused_at: r.paused_at,
+      warnings: SharedBypass.warnings(r)
     }
   end
 

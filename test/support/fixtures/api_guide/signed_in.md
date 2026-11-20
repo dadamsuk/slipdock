@@ -2229,6 +2229,16 @@ protocol takes the machine key with `X-Runner-Id`, for that machine's own
 runners only; each runner keeps its own identity, so a verify job still
 goes to a runner other than its builder.
 
+**A runner's warnings** (#3482). Every runner in an answer carries
+`warnings`, a list of sentences, empty unless the runner lets its agent run
+any command as the machine's own user (`permission_mode`
+`bypassPermissions` under `executor` `me`) on a board shared with anyone
+but the machine's owner: someone else owns it, holds a `comment` or
+`write` grant on it, a board in its tree or a card on one, or may mail it.
+Nothing is refused; the CLI prints them and the Machines page shows them.
+The daemon logs its own warning for those settings whenever it starts such
+a runner, as it can't see who shares the board.
+
 **The Machines page** (#2572). Each machine has a page at `/machines/:id`,
 opened from Account › Machines: whether it is online, its system, the
 executors and ceiling it reported (read-only), its runners with their

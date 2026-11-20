@@ -50,6 +50,24 @@ type Runner struct {
 	ConfigVersion int64  `json:"config_version"`
 }
 
+// RunsAnythingAsMe says whether the runner lets its agent run any command
+// without asking (bypassPermissions) as the machine's own user with nothing
+// in the way (the me executor, or none named) (#3482). The daemon can't
+// see who else writes on the runner's board, so it warns whenever the two
+// meet; the server warns only when the board is shared.
+func (r Runner) RunsAnythingAsMe() bool {
+	return r.Config.PermissionMode == "bypassPermissions" &&
+		(r.Config.Executor == executor.Me || r.Config.Executor == "")
+}
+
+// runsAnythingAsMeWarning is the daemon's line for such a runner: a
+// warning, by its level marker.
+const runsAnythingAsMeWarning = "warn: runner %s (#%d) runs its agent with permission mode " +
+	"bypassPermissions under executor me: it runs any command without asking, as this " +
+	"machine's user. Anyone who can write or comment on its board can have it do so. Use " +
+	"acceptEdits or lower, or the user, confined or container executor, unless you trust " +
+	"everyone who can write on the board"
+
 // MachineConfig is the machine's config: its runners, at a version.
 type MachineConfig struct {
 	Version int64    `json:"version"`

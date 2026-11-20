@@ -599,6 +599,13 @@ people that serve a board you're on. Each opens its own page, which shows:
   how it ended and the log it sent;
 - a **refusal** in full: the setting the machine refused, its reason, the
   limit it crossed, and the version it still runs;
+- a **warning** on a runner that lets its agent run any command as you
+  (permission mode `bypassPermissions` with the `me` executor) on a board
+  someone else can write or comment on, or mail: anyone who can do that can
+  then have it run commands on the machine as you. Nothing is refused, and
+  `slipdock machine add-runner`, `set-runner` and `show` print the same
+  warning; the daemon logs one whenever it starts such a runner, shared
+  board or not (#3482);
 - the **changes**: every setting the machine accepted or refused, and each
   board added or removed.
 
