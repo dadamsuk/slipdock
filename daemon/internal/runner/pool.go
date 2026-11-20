@@ -111,8 +111,12 @@ func same(a, b *Worker) bool {
 }
 
 // start runs w in a slot of its own once after (the worker it replaces)
-// has ended.
+// has ended. A runner set to run anything as the machine's user is logged
+// as a warning first (#3482).
 func (p *Pool) start(w *Worker, after <-chan struct{}) *slot {
+	if w.Runner.RunsAnythingAsMe() {
+		p.logf(runsAnythingAsMeWarning, w.Runner.Name, w.Runner.ID)
+	}
 	s := &slot{worker: w, stop: make(chan struct{}), done: make(chan struct{})}
 	client := *w.Client
 	client.Stop = s.stop

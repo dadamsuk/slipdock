@@ -53,6 +53,7 @@ test/slipdock_web/one_date_format_test.exs
 test/slipdock/directory_leaks_test.exs
 test/slipdock/machines_docs_test.exs
 test/slipdock/runner_steering_docs_test.exs
+test/slipdock/shared_bypass_docs_test.exs
 test/slipdock/mentions_test.exs
 test/slipdock_web/live/file_picker_live_test.exs
 test/slipdock_web/mcp/tool_descriptions_test.exs

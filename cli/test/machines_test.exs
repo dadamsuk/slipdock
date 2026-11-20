@@ -299,6 +299,57 @@ defmodule SlipdockCLI.MachinesTest do
       assert {:error, "usage: " <> _} = Machines.plan(["add-runner", "4", "b"], dir: "/x")
     end
 
+    test "add-runner and set-runner print the runner's warnings on stderr (#3482)" do
+      warned = %{"id" => 9, "name" => "b", "config_version" => 2, "warnings" => ["Risky."]}
+
+      serve([
+        {201, JSON.encode!(%{"runner" => warned})},
+        {200, JSON.encode!(%{"runner" => warned})}
+      ])
+
+      err =
+        capture_io(:stderr, fn ->
+          out =
+            capture_io(fn ->
+              Machines.run("machine", ["add-runner", "4", "b"], pool: "p", dir: "/srv/a")
+            end)
+
+          refute out =~ "Risky."
+        end)
+
+      assert err == "warning: Risky.\n"
+
+      err =
+        capture_io(:stderr, fn ->
+          capture_io(fn ->
+            Machines.run("machine", ["set-runner", "4", "9"],
+              permission_mode: "bypassPermissions"
+            )
+          end)
+        end)
+
+      assert err == "warning: Risky.\n"
+    end
+
+    test "a runner with no warnings prints none" do
+      serve([
+        {200, JSON.encode!(%{"runner" => %{"id" => 9, "name" => "b", "config_version" => 3}})},
+        {200,
+         JSON.encode!(%{
+           "runner" => %{"id" => 9, "name" => "b", "config_version" => 3, "warnings" => []}
+         })}
+      ])
+
+      for _ <- 1..2 do
+        err =
+          capture_io(:stderr, fn ->
+            capture_io(fn -> Machines.run("machine", ["set-runner", "4", "9"], model: "x") end)
+          end)
+
+        assert err == ""
+      end
+    end
+
     test "set-runner sends only what is given" do
       serve([
         {200, JSON.encode!(%{"runner" => %{"id" => 9, "name" => "b", "config_version" => 3}})}
@@ -423,7 +474,8 @@ defmodule SlipdockCLI.MachinesTest do
               "config" => %{},
               "config_version" => 1,
               "accepted_version" => 1,
-              "paused" => true
+              "paused" => true,
+              "warnings" => ["Shared and unsandboxed."]
             }
           ],
           "changes" => [
@@ -440,6 +492,8 @@ defmodule SlipdockCLI.MachinesTest do
       serve([{200, JSON.encode!(%{"machine" => machine})}])
       out = capture_io(fn -> Machines.run("machine", ["show", "4"], []) end)
 
+      assert out =~ "idle: warning: Shared and unsandboxed."
+      refute out =~ "builder: warning"
       assert out =~ "Max timeout: 60 minutes"
 
       assert out =~

@@ -41,14 +41,27 @@ defmodule SlipdockCLI.Machines do
     case plan(args, o) do
       {:ok, :get, path, render} -> HTTP.get(path) |> out(o, render)
       {:ok, :delete, path, render} -> HTTP.delete(path) |> out(o, render)
-      {:ok, :post, path, body, render} -> HTTP.post(path, body) |> out(o, render)
-      {:ok, :patch, path, body, render} -> HTTP.patch(path, body) |> out(o, render)
+      {:ok, :post, path, body, render} -> HTTP.post(path, body) |> out(o, warned(render))
+      {:ok, :patch, path, body, render} -> HTTP.patch(path, body) |> out(o, warned(render))
       {:ok, :probe_wait, path} -> probe_and_wait(path, o)
       {:error, usage} -> fail(usage)
     end
   end
 
   def run(_cmd, _args, _o), do: fail(@usage)
+
+  # A runner's answer prints its warnings (#3482) after what the command
+  # says, on stderr, so a script reading stdout sees the same lines as before.
+  defp warned(render) do
+    fn data ->
+      result = render.(data)
+
+      for warning <- get_in(data, ["runner", "warnings"]) || [],
+          do: IO.puts(:stderr, "warning: " <> warning)
+
+      result
+    end
+  end
 
   @doc false
   # What each `machine …` sends, and how its answer is shown; anything else
@@ -417,6 +430,10 @@ defmodule SlipdockCLI.Machines do
       for line <- r["outside_ceiling"] || [],
           do: IO.puts(Render.dim("  outside the ceiling: #{line}"))
     end
+
+    for r <- list,
+        warning <- r["warnings"] || [],
+        do: IO.puts(Render.red("#{r["name"]}: warning: #{warning}"))
 
     # A red probe's log, so the reason is in front of whoever reads it.
     for r <- list, match?(%{"result" => "red"}, r["probe"]) do

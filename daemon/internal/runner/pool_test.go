@@ -314,3 +314,52 @@ func TestDrainingAnIdlePoolReturnsAtOnce(t *testing.T) {
 		t.Fatal("a drain isn't a stop: the pool's context ended")
 	}
 }
+
+func TestRunsAnythingAsMe(t *testing.T) {
+	for _, c := range []struct {
+		mode, executor string
+		want           bool
+	}{
+		{"bypassPermissions", "me", true},
+		{"bypassPermissions", "", true},
+		{"bypassPermissions", "user", false},
+		{"bypassPermissions", "confined", false},
+		{"bypassPermissions", "container", false},
+		{"acceptEdits", "me", false},
+		{"plan", "me", false},
+		{"default", "", false},
+	} {
+		r := Runner{Config: Config{PermissionMode: c.mode, Executor: c.executor}}
+		if got := r.RunsAnythingAsMe(); got != c.want {
+			t.Errorf("%s under %q: RunsAnythingAsMe = %v, want %v", c.mode, c.executor, got, c.want)
+		}
+	}
+}
+
+// A runner that may run any command as the machine's user is logged as a
+// warning when the pool starts it, new or changed (#3482); others aren't.
+func TestAPoolWarnsWhenItStartsARunnerThatRunsAnythingAsMe(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // the workers end at once: only what start logs is wanted
+	logs := &logBuf{}
+	worker := func(id int64, mode, executor string) *Worker {
+		return &Worker{Runner: Runner{ID: id, Name: "r", Config: Config{PermissionMode: mode, Executor: executor}},
+			Client: &Client{HTTP: &http.Client{}}, Logf: logs.logf}
+	}
+	p := NewPool(ctx, logs.logf)
+	p.Apply([]*Worker{worker(1, "bypassPermissions", "me"), worker(2, "acceptEdits", "me"), worker(3, "bypassPermissions", "container")})
+	p.Wait()
+
+	log := logs.String()
+	if !strings.Contains(log, "warn: runner r (#1) runs its agent with permission mode bypassPermissions under executor me") {
+		t.Fatalf("no warning for runner 1:\n%s", log)
+	}
+	for _, id := range []string{"(#2)", "(#3)"} {
+		if strings.Contains(log, "runner r "+id+" runs its agent") {
+			t.Errorf("runner %s was warned about:\n%s", id, log)
+		}
+	}
+	if n := strings.Count(log, "warn: "); n != 1 {
+		t.Errorf("%d warnings, want 1:\n%s", n, log)
+	}
+}
