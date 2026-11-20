@@ -673,7 +673,33 @@ An approval&#39;s proposal stands after</em>
       (off until set; 4h, say) lets an unanswered wait of kind other that offers
       choices and proposes one go ahead with its proposal: the card says so and the
       person asked is told. Product, UX, security and release questions, and a wait
-      that proposes nothing, always wait for a person.
+      that proposes nothing, always wait for a person. On a board whose <em>
+Sensitivity</em>
+
+      is high, no wait goes ahead by its proposal.
+    </li>
+<li>
+<strong>
+Sensitivity</strong>
+: Agentic Building → <em>
+Sensitivity</em>
+
+      on the root board says how carefully agents proceed on the whole tree: <em>
+low</em>
+,
+      <em>
+medium</em>
+
+      (the default) or <em>
+high</em>
+. A sub-board follows its root and can&#39;t set its own.
+      At low, agents make the choices they would otherwise ask you about (between
+      implementation options, say), and no card is held for a person by its profile. At
+      medium, nothing changes. At high, agents ask before any material choice, feature
+      cards are held for you before merging as schema and security ones are, and an
+      approval never goes ahead by its proposal. At every level a security question is
+      still asked. A joke-telling internal tool might be low; a system holding a
+      customer&#39;s personal data, high.
     </li>
 <li>
 <strong>
@@ -693,7 +719,11 @@ Profile</em>
 Human tier, by profile</em>
 , on the same page, says
       whether an agent&#39;s acceptance merges the card, merges it onto the ledger or holds it
-      for a person: by default schema and security changes wait for you. A spike merges nothing:
+      for a person: by default schema and security changes wait for you. The tree&#39;s
+      <em>
+Sensitivity</em>
+
+      overrides it: low holds nothing, high holds features too. A spike merges nothing:
       its prototype stays on its branch.
     </li>
 <li>
