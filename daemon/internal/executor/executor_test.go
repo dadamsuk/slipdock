@@ -18,6 +18,11 @@ import (
 // TestMain doubles as slipdock-runner's confine command, the launcher a
 // confined job starts through on Linux.
 func TestMain(m *testing.M) {
+	if len(os.Args) >= 2 {
+		if h, ok := helpers[os.Args[1]]; ok {
+			os.Exit(h(os.Args[2:]))
+		}
+	}
 	if len(os.Args) >= 2 && os.Args[1] == "confine" {
 		os.Exit(ConfineMain(os.Args[2:], os.Stderr))
 	}
@@ -40,6 +45,10 @@ func TestMain(m *testing.M) {
 	}
 	os.Exit(m.Run())
 }
+
+// helpers are more of TestMain's, by name, which an OS's own test files
+// add.
+var helpers = map[string]func(args []string) int{}
 
 // helperDial and helperVia are TestMain's: a TCP connection straight to
 // addr, and a CONNECT to it through the job's proxy.
@@ -237,8 +246,8 @@ func TestAccountCommandLine(t *testing.T) {
 	line := strings.Join(cmd.Args, " ")
 	want := "sudo -n -u slipdock -- /usr/bin/env -i HOME=/srv/slipdock USER=slipdock LOGNAME=slipdock " +
 		"PATH=/srv/slipdock/.local/bin:/srv/slipdock/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin SHELL=/bin/sh LANG=C.UTF-8 " +
-		"SLIPDOCK_JOB_ID=9 PWD=/srv/slipdock/src/repo /bin/sh -c " + inDir + " sh /srv/slipdock/src/repo /usr/bin/claude -p Build it"
-	if line != want {
+		"SLIPDOCK_JOB_ID=9 PWD=/srv/slipdock/src/repo " + accountTag(cmd.Args) + " /bin/sh -c " + inDir + " sh /srv/slipdock/src/repo /usr/bin/claude -p Build it"
+	if line != want || !strings.HasPrefix(accountTag(cmd.Args), "SLIPDOCK_TREE=") {
 		t.Fatalf("command line\n got: %s\nwant: %s", line, want)
 	}
 	if cmd.Dir != "/" || strings.Contains(strings.Join(cmd.Env, " "), "secret") || strings.Contains(line, "secret") {

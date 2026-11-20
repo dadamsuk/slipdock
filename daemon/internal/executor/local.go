@@ -18,6 +18,7 @@ func (l *local) Command(p Proc, prog string, args ...string) (*exec.Cmd, error) 
 	cmd := exec.Command(prog, args...)
 	cmd.Dir = p.Dir
 	cmd.Env = append(append(l.environ(), p.Env...), "PWD="+p.Dir)
+	mark(cmd)
 	inGroup(cmd)
 	return cmd, nil
 }

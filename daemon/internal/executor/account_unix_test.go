@@ -241,6 +241,29 @@ func TestTheUserExecutor(t *testing.T) {
 		t.Fatal("the job's child still ticks after the forced stop")
 	}
 
+	// A child that left the job's group and session (setsid, #3490) is
+	// stopped too: it carries the job's tag, which the account reads.
+	escaped := filepath.Join(work, "escaped")
+	cmd, _ = ex.Command(Proc{Dir: work}, "/bin/sh", "-c",
+		`setsid /bin/sh -c 'while :; do date +%s%N > escaped; sleep 0.05; done' & wait`)
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	done = make(chan error, 1)
+	go func() { done <- cmd.Wait() }()
+	waitUntil(t, func() bool { _, err := files.ReadFile(escaped); return err == nil })
+	ex.Stop(cmd, false)
+	select {
+	case <-done:
+	case <-time.After(10 * time.Second):
+	}
+	ex.Stop(cmd, true)
+	a, _ = files.ReadFile(escaped)
+	time.Sleep(300 * time.Millisecond)
+	if b, _ := files.ReadFile(escaped); len(a) == 0 || string(a) != string(b) {
+		t.Fatal("a child that left the job's session still ticks after the stop")
+	}
+
 	// A home open to the account refuses the job before it starts.
 	if err := os.Chmod(ownerHome, 0o755); err != nil {
 		t.Fatal(err)

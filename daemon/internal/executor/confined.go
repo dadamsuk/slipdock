@@ -135,6 +135,7 @@ func (c *confined) Command(p Proc, prog string, args ...string) (*exec.Cmd, erro
 		// Last, so that they win over the job's own.
 		cmd.Env = append(cmd.Env, egress.Env(e.addr(), shellSafe(c.launcher()))...)
 	}
+	mark(cmd)
 	inGroup(cmd)
 	return cmd, nil
 }

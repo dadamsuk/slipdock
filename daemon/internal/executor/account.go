@@ -97,7 +97,9 @@ func (a *account) wrap(ctx context.Context, dir string, env []string, prog strin
 
 func (a *account) Command(p Proc, prog string, args ...string) (*exec.Cmd, error) {
 	env := append(a.baseEnv(), p.Env...)
-	env = append(env, "PWD="+p.Dir)
+	// The tag (see treeVar) goes in the account's environment: sudo
+	// passes none of the daemon's.
+	env = append(env, "PWD="+p.Dir, newTreeTag())
 	cmd := a.wrap(context.Background(), p.Dir, env, prog, args...)
 	inGroup(cmd)
 	return cmd, nil
@@ -109,9 +111,11 @@ func (a *account) Exec(ctx context.Context, dir, name string, args ...string) (s
 
 // Stop signals the account's processes the job started. sudo is root's
 // and the daemon can't signal them itself, so the signal is sent as the
-// account: to every process descended from sudo, and every other process
+// account: to every process descended from sudo, every other process
 // of the account in one of their process groups (a child that outlived
-// its parent).
+// its parent), and every one of the account's that carries the job's tag
+// (one that left the group: see treeVar), which only the account can
+// read. Forced, a stray forking as it was listed is looked for again.
 func (a *account) Stop(cmd *exec.Cmd, force bool) {
 	if cmd.Process == nil {
 		return
@@ -129,16 +133,66 @@ func (a *account) Stop(cmd *exec.Cmd, force bool) {
 		return
 	}
 	targets := jobProcesses(string(out), cmd.Process.Pid, uid)
-	if len(targets) == 0 {
-		return
+	tag := accountTag(cmd.Args)
+	for round := 0; round < 3; round++ {
+		ctx, cancel := context.WithTimeout(context.Background(), checkTimeout)
+		targets = union(targets, a.tagged(ctx, tag))
+		if len(targets) > 0 {
+			args := []string{"-s", sig, "--"}
+			for _, pid := range targets {
+				args = append(args, strconv.Itoa(pid))
+			}
+			_, _ = run(ctx, a.as(ctx, "/bin/kill", args...))
+		}
+		cancel()
+		if len(targets) == 0 || !force || tag == "" {
+			return
+		}
+		targets = nil
+		time.Sleep(50 * time.Millisecond)
 	}
-	args := []string{"-s", sig, "--"}
-	for _, pid := range targets {
-		args = append(args, strconv.Itoa(pid))
+}
+
+// accountTag is the tag in a command Command made: the last of the
+// variables env -i is given, before the shell.
+func accountTag(args []string) string {
+	for i, arg := range args {
+		if arg == "/bin/sh" {
+			return lastWith(args[:i], treeVar+"=")
+		}
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), checkTimeout)
-	defer cancel()
-	_, _ = run(ctx, a.as(ctx, "/bin/kill", args...))
+	return ""
+}
+
+// tagged are the account's processes that carry tag, read as the account:
+// on Linux the /proc/<pid>/environ files that hold it, on macOS ps -E.
+func (a *account) tagged(ctx context.Context, tag string) []int {
+	if tag == "" {
+		return nil
+	}
+	switch a.s.GOOS {
+	case "linux":
+		out, _ := run(ctx, a.as(ctx, "/bin/sh", "-c", `grep -lsxzF -- "$1" /proc/[0-9]*/environ; exit 0`, "sh", tag))
+		return environPids(out)
+	case "darwin":
+		out, _ := run(ctx, a.as(ctx, "/bin/ps", "-E", "-ww", "-x", "-o", "pid=,tty=,command="))
+		return strays(psProcs(out, tag), "", 0)
+	}
+	return nil
+}
+
+// union is a and b's pids, each once, in order.
+func union(a, b []int) []int {
+	seen := map[int]bool{}
+	var out []int
+	for _, pid := range append(append([]int(nil), a...), b...) {
+		if pid > 1 && !seen[pid] {
+			seen[pid] = true
+			out = append(out, pid)
+		}
+	}
+	sort.Ints(out)
+	return out
 }
 
 // jobProcesses reads `ps -o pid=,ppid=,pgid=,uid=`: the processes owned
