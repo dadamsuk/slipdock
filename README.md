@@ -280,6 +280,10 @@ The manual has the rest:
 - [Models and AI keys](docs/manual/running.md#the-servers-models-and-fallbacks),
   and [running it as a service](docs/manual/as-a-service.md) without Docker.
 
+Run one app node per database: the scheduler and a few other parts keep
+their state in one node's memory, so two nodes behind a load balancer are
+not supported yet ([why](docs/manual/running.md#one-app-node)).
+
 ### From a checkout
 
 You need Elixir 1.20 on Erlang/OTP 27, and a Postgres (`.tool-versions`
