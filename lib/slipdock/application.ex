@@ -33,7 +33,9 @@ defmodule Slipdock.Application do
       # The lock between making a folder for an uploaded file and taking an
       # empty one away (`Slipdock.Boards.Attachments.Folders`).
       Slipdock.Boards.Attachments.Folders,
-      # The clock behind the time-based automation triggers.
+      # The clock behind the time-based automation triggers, and the tasks
+      # it runs each of its jobs in (#3497).
+      {Task.Supervisor, name: Slipdock.Automations.Scheduler.Tasks},
       Slipdock.Automations.Scheduler,
       # Embeds changed cards for semantic search, off the saver's back.
       Slipdock.Search.Indexer,

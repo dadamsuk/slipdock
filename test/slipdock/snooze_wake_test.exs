@@ -80,7 +80,10 @@ defmodule Slipdock.SnoozeWakeTest do
         set: [snoozed_until: DateTime.add(DateTime.utc_now(:second), -1)]
       )
 
-      Scheduler.handle_info(:tick, %{})
+      # A scheduler of the test's own, allowed into its sandbox.
+      scheduler = start_supervised!({Scheduler, name: nil, cluster_lock: false})
+      Ecto.Adapters.SQL.Sandbox.allow(Repo, self(), scheduler)
+      Scheduler.run_now(scheduler)
       refute Repo.get!(Card, card.id).snoozed_until
     end
 
