@@ -699,12 +699,9 @@ defmodule SlipdockWeb.MachinesLive.Show do
               </button>
             </div>
 
-            <div
-              id="machine-runners-steering"
-              class="card-prose mt-2 text-sm text-base-content/70"
-            >
-              {SlipdockWeb.RichText.markdown(Steering.notice())}
-            </div>
+            <.callout id="machine-runners-steering" kind={:info} class="mt-2">
+              <div class="card-prose">{SlipdockWeb.RichText.markdown(Steering.notice())}</div>
+            </.callout>
 
             <.runner_form
               :if={@form}
