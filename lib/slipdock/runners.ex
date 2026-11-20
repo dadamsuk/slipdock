@@ -1297,10 +1297,15 @@ defmodule Slipdock.Runners do
 
     # An `anyone`-tier build is read by the quarantined reader first (#3531):
     # one it can't hand out parks on a wait, and the next job is looked for.
-    case claimed && Quarantine.gate(claimed, runner) do
+    hand_out(claimed, runner)
+  end
+
+  defp hand_out(nil, _runner), do: nil
+
+  defp hand_out(claimed, runner) do
+    case Quarantine.gate(claimed, runner) do
       :held -> claim_next(runner)
       :ok -> handed_out(claimed, runner)
-      nil -> nil
     end
   end
 

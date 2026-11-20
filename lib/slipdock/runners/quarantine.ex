@@ -334,17 +334,22 @@ defmodule Slipdock.Runners.Quarantine do
     text = String.trim(value)
 
     cond do
-      text == "" -> :drop
-      String.length(text) > max -> :drop
+      text == "" or String.length(text) > max -> :drop
       not verbatim?(text, texts) -> :drop
       Enum.any?(@agent_directed, &Regex.match?(&1, text)) -> :agent
-      name != "context" and Regex.match?(@url, text) -> :drop
-      name == "files" and not repo_path?(text) -> :drop
-      true -> {:ok, text}
+      shape_ok?(name, text) -> {:ok, text}
+      true -> :drop
     end
   end
 
   defp value(_value, _name, _max, _texts), do: :drop
+
+  # No link outside `context`, and a file stays inside the repository.
+  defp shape_ok?("context", _text), do: true
+  defp shape_ok?(name, text), do: not Regex.match?(@url, text) and file_ok?(name, text)
+
+  defp file_ok?("files", text), do: repo_path?(text)
+  defp file_ok?(_name, _text), do: true
 
   # A span of one source, whitespace runs counted as one space.
   defp verbatim?(text, texts) do
