@@ -23,21 +23,6 @@ const (
 
 	netConnectTCP = 1 << 1 // ABI 4
 
-	fsWriteFile  = 1 << 1
-	fsReadFile   = 1 << 2
-	fsReadDir    = 1 << 3
-	fsRemoveDir  = 1 << 4
-	fsRemoveFile = 1 << 5
-	fsMakeChar   = 1 << 6
-	fsMakeDir    = 1 << 7
-	fsMakeReg    = 1 << 8
-	fsMakeSock   = 1 << 9
-	fsMakeFifo   = 1 << 10
-	fsMakeBlock  = 1 << 11
-	fsMakeSym    = 1 << 12
-	fsRefer      = 1 << 13 // ABI 2
-	fsTruncate   = 1 << 14 // ABI 3
-
 	prSetNoNewPrivs = 38
 
 	oPath = 0x200000 // O_PATH: not in package syscall; the same on amd64 and arm64
@@ -61,14 +46,6 @@ var landlockABI = func() int {
 	return int(r)
 }
 
-// writeRights are the rights to change the file system that this kernel's
-// Landlock knows: all of them are handled, so all are denied outside the
-// rules.
-func writeRights() uint64 {
-	return uint64(fsWriteFile | fsRemoveDir | fsRemoveFile | fsMakeChar | fsMakeDir | fsMakeReg |
-		fsMakeSock | fsMakeFifo | fsMakeBlock | fsMakeSym | fsRefer | fsTruncate)
-}
-
 type pathBeneath struct {
 	allowed uint64
 	fd      int32
@@ -82,13 +59,8 @@ type netPort struct {
 // restrict denies this thread, and what it runs, every write outside
 // c.write (and the devices), every read of c.deny but c.read beneath them
 // and, when c.connect names any, every TCP connection but to those ports.
-// It must be followed by exec on the same, locked, thread.
-//
-// Landlock only allows, so reads are handled only when c.deny names a
-// path, and then allowed everywhere else by rules (readRules): each
-// directory on the way to a denied path may be listed, and all else in it
-// read. A writable path that holds a denied one may be written, not read:
-// its reads come from those rules.
+// It must be followed by exec on the same, locked, thread. The rules on
+// paths are pathRules'.
 func restrict(c confinement) error {
 	abi := landlockABI()
 	if abi < minLandlockABI {
@@ -97,11 +69,7 @@ func restrict(c confinement) error {
 	if len(c.connect) > 0 && abi < landlockNetABI {
 		return fmt.Errorf("this kernel's Landlock is ABI %d, and a network allowlist needs %d", abi, landlockNetABI)
 	}
-	reads := uint64(0)
-	if len(c.deny) > 0 {
-		reads = fsReadFile | fsReadDir
-	}
-	handled := writeRights() | reads
+	handled, rules := pathRules(c)
 	var fd uintptr
 	var e syscall.Errno
 	if len(c.connect) > 0 {
@@ -121,35 +89,9 @@ func restrict(c confinement) error {
 			return fmt.Errorf("landlock_add_rule port %d: %v", port, e)
 		}
 	}
-	deny := outermost(append([]string(nil), c.deny...))
-	for _, path := range append(append([]string(nil), c.write...), devices...) {
-		allowed := handled
-		if holdsAny(path, deny) {
-			allowed &^= reads
-		}
-		if err := addPathRule(fd, path, allowed, false); err != nil {
+	for _, r := range rules {
+		if err := addPathRule(fd, r.path, r.allowed, r.nofollow); err != nil && !r.optional {
 			return err
-		}
-	}
-	if reads != 0 {
-		dirs, others := readRules(deny)
-		for _, path := range dirs {
-			if err := addPathRule(fd, path, fsReadDir, true); err != nil {
-				return err
-			}
-		}
-		// Only what was there a moment ago: one gone since, or one the
-		// rule can't be put on, is left unreadable.
-		for _, path := range others {
-			_ = addPathRule(fd, path, reads, true)
-		}
-		for _, path := range c.read {
-			if holdsAny(path, deny) {
-				continue
-			}
-			if err := addPathRule(fd, path, reads, false); err != nil {
-				return err
-			}
 		}
 	}
 	if _, _, e := syscall.RawSyscall6(syscall.SYS_PRCTL, prSetNoNewPrivs, 1, 0, 0, 0, 0); e != 0 {

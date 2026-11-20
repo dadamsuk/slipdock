@@ -2,6 +2,7 @@ package executor
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net"
 	"os"
@@ -31,6 +32,10 @@ func TestMain(m *testing.M) {
 	}
 	if len(os.Args) == 3 && os.Args[1] == "helper-dial" {
 		os.Exit(helperDial(os.Args[2]))
+	}
+	if len(os.Args) == 2 && os.Args[1] == "helper-ran" {
+		fmt.Println("ran")
+		os.Exit(0)
 	}
 	if len(os.Args) == 3 && os.Args[1] == "helper-via" {
 		os.Exit(helperVia(os.Args[2]))
@@ -326,7 +331,7 @@ func TestAccountSetupScript(t *testing.T) {
 func TestConfineMainRefusesABadCommandLine(t *testing.T) {
 	var errs strings.Builder
 	for _, args := range [][]string{{}, {"--write"}, {"--bogus"}, {"--write", "/tmp"}, {"--"},
-		{"--deny-read"}, {"--deny-read", "relative"}, {"--read"}, {"--read", "relative", "--", "/bin/true"}} {
+		{"--deny-read"}, {"--deny-read", "relative"}, {"--read"}, {"--read", "relative"}} {
 		errs.Reset()
 		if code := ConfineMain(args, &errs); code != 2 {
 			t.Errorf("%v: exit %d (%s)", args, code, errs.String())
@@ -341,6 +346,38 @@ func TestConfineMainRefusesABadCommandLine(t *testing.T) {
 		if code := ConfineMain(args, &errs); code != 2 || !strings.Contains(errs.String(), "--connect needs a port") {
 			t.Errorf("%v: exit %d (%s)", args, code, errs.String())
 		}
+	}
+}
+
+// TestConfineMainRunsNothingWithARelativeReadLimit runs the confine
+// command as its own process: a relative --deny-read or --read is refused
+// before the program would run.
+func TestConfineMainRunsNothingWithARelativeReadLimit(t *testing.T) {
+	for _, flag := range []string{"--deny-read", "--read"} {
+		var stdout, stderr strings.Builder
+		cmd := exec.Command(os.Args[0], "confine", flag, "relative", "--", os.Args[0], "helper-ran")
+		cmd.Stdout, cmd.Stderr = &stdout, &stderr
+		err := cmd.Run()
+		code := -1
+		if e, ok := err.(*exec.ExitError); ok {
+			code = e.ExitCode()
+		}
+		if code != 2 || !strings.Contains(stderr.String(), flag+" needs a path") {
+			t.Errorf("%s relative: exit %d, %v (%s)", flag, code, err, stderr.String())
+		}
+		if strings.Contains(stdout.String(), "ran") {
+			t.Errorf("%s relative: the program ran", flag)
+		}
+	}
+	// The same command line with an absolute path gets past the flags.
+	dir := t.TempDir()
+	out, err := exec.Command(os.Args[0], "confine", "--read", dir, "--", os.Args[0], "helper-ran").Output()
+	if runtime.GOOS == "linux" && landlockABI() >= minLandlockABI {
+		if err != nil || !strings.Contains(string(out), "ran") {
+			t.Fatalf("--read %s: %v %q", dir, err, out)
+		}
+	} else if e, ok := err.(*exec.ExitError); !ok || e.ExitCode() != 126 {
+		t.Fatalf("--read %s here: %v", dir, err)
 	}
 }
 

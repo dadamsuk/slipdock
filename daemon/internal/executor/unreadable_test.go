@@ -122,8 +122,9 @@ func TestReadLimitsNeverAllowWhatHoldsADeniedPath(t *testing.T) {
 	ex, _ := New(Confined, m.settings("linux"))
 	c := ex.(*confined)
 	// The home holds the logins; .config the machine's directory: neither is
-	// allowed, though a job may write them.
-	deny, allow := c.readLimits(Proc{}, []string{m.home, filepath.Join(m.home, ".config"), m.scratch, "/elsewhere", "relative"})
+	// allowed, though a job may write them, nor is a denied path itself.
+	deny, allow := c.readLimits(Proc{}, []string{m.home, filepath.Join(m.home, ".config"), m.scratch, "/elsewhere", "relative",
+		m.md, filepath.Join(m.home, ".aws")})
 	if !slices.Contains(deny, filepath.Join(m.home, ".aws")) || len(deny) != len(Unreadable)+1 {
 		t.Fatalf("deny %v", deny)
 	}
@@ -181,6 +182,102 @@ func TestReadRulesCoverAllButTheDeniedPaths(t *testing.T) {
 	for _, d := range dirs {
 		if slices.Contains(others, d) || d == m.md || strings.HasPrefix(d, m.md+string(filepath.Separator)) {
 			t.Errorf("%s twice, or inside a denied path", d)
+		}
+	}
+}
+
+func TestAWritablePathThatHoldsADeniedOneIsWrittenNotRead(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Landlock's rules: Unix paths")
+	}
+	m := newMachine(t)
+	h := func(p string) string { return filepath.Join(m.home, filepath.FromSlash(p)) }
+	elsewhere := t.TempDir()
+	deny := []string{h(".aws"), m.md}
+	handled, rules := pathRules(confinement{write: []string{m.home, h(".config"), m.scratch, elsewhere},
+		deny: deny, read: []string{m.scratch, m.home, h(".config")}})
+	reads := uint64(fsReadFile | fsReadDir)
+	if handled != writeRights()|reads {
+		t.Fatalf("handled %b", handled)
+	}
+	allowed := map[string][]uint64{}
+	for _, r := range rules {
+		allowed[r.path] = append(allowed[r.path], r.allowed)
+		if r.allowed&fsReadFile != 0 && holdsAny(r.path, deny) {
+			t.Errorf("%s holds a denied path and is read: %+v", r.path, r)
+		}
+	}
+	// The write rules come first, in order: the home and .config, which
+	// hold a denied path, are written, not read; the rest are read too.
+	for i, want := range []pathRule{{path: m.home, allowed: writeRights()}, {path: h(".config"), allowed: writeRights()},
+		{path: m.scratch, allowed: handled}, {path: elsewhere, allowed: handled}} {
+		if i >= len(rules) || rules[i] != want {
+			t.Fatalf("write rule %d: %+v, want %+v", i, rules[min(i, len(rules)-1)], want)
+		}
+	}
+	// The home and .config are only listed beyond that: they are on the
+	// way to a denied path.
+	for _, path := range []string{m.home, h(".config")} {
+		if got := allowed[path]; !slices.Equal(got, []uint64{writeRights(), fsReadDir}) {
+			t.Errorf("%s: %b", path, got)
+		}
+	}
+	if got := allowed[m.scratch]; !slices.Contains(got, reads) {
+		t.Errorf("the scratch directory, inside a denied path: %b", got)
+	}
+	if got := allowed[h(".ssh")]; !slices.Equal(got, []uint64{reads}) {
+		t.Errorf("~/.ssh: %b", got)
+	}
+	// Nothing denied: reads aren't handled, and no rule names them.
+	handled, rules = pathRules(confinement{write: []string{m.home}, read: []string{m.scratch}})
+	if handled != writeRights() {
+		t.Fatalf("handled %b with nothing denied", handled)
+	}
+	for _, r := range rules {
+		if r.allowed != writeRights() || r.path == m.scratch {
+			t.Errorf("with nothing denied: %+v", r)
+		}
+	}
+}
+
+// TestAConfinedJobWithAWritableHomeStillCantReadItsDeniedPaths runs jobs
+// under the real sandbox that may write the home, or the directory that
+// holds the daemon's: they write there, and read what they need, not the
+// rest.
+func TestAConfinedJobWithAWritableHomeStillCantReadItsDeniedPaths(t *testing.T) {
+	if runtime.GOOS != "linux" && runtime.GOOS != "darwin" {
+		t.Skip("confined is Linux and macOS only")
+	}
+	m := newMachine(t)
+	ex, err := New(Confined, m.settings(runtime.GOOS))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := ex.Ready(); err != nil {
+		skipOrFail(t, err.Error())
+	}
+	script := `
+try() { if sh -c "$2" >/dev/null 2>&1; then echo "$1 yes"; else echo "$1 no"; fi; }
+try write    'echo fine > "$W/written" && test -s "$W/written"'
+try aws      'cat "$H/.aws/credentials"'
+try key      'cat "$H/.config/slipdock-runner/machine/machine-key"'
+try ssh      'cat "$H/.ssh/id_ed25519"'
+try gh       'cat "$H/.config/gh/hosts.yml"'
+`
+	for _, w := range []string{m.home, filepath.Join(m.home, ".config")} {
+		cmd, err := ex.Command(Proc{Dir: t.TempDir(), Writable: []string{w}, Scratch: m.scratch,
+			Env: []string{"H=" + m.home, "W=" + w}}, "/bin/sh", "-c", script)
+		if err != nil {
+			t.Fatal(err)
+		}
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("%v: %s", err, out)
+		}
+		for _, want := range []string{"write yes", "aws no", "key no", "ssh yes", "gh yes"} {
+			if !strings.Contains(string(out), want+"\n") {
+				t.Errorf("writing %s: want %q; the job said:\n%s", w, want, out)
+			}
 		}
 	}
 }
