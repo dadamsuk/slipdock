@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -17,10 +18,13 @@ import (
 	"github.com/dadamsuk/slipdock/daemon/internal/machineconfig"
 )
 
+// handRoot is an absolute root on every OS the daemon is tested on.
+var handRoot = map[bool]string{true: "C:/src", false: "/src"}[runtime.GOOS == "windows"]
+
 // handCeiling is a ceiling as a person might have written it: no
 // executors named, an image allow-list, mode 0640.
-const handCeiling = `{
-  "roots": ["/src"],
+var handCeiling = `{
+  "roots": ["` + handRoot + `"],
   "agents": ["claude", "codex"],
   "max_permission_mode": "plan",
   "max_timeout_minutes": 30,
@@ -69,7 +73,7 @@ func TestBoardsListsAddsAndRemovesKeepingTheRest(t *testing.T) {
 	if fmt.Sprint(c.Boards) != "[3 5 7]" {
 		t.Fatalf("boards %v after add, want [3 5 7]", c.Boards)
 	}
-	if fmt.Sprintf("%v %v %v %v %v", c.Agents, c.Roots, c.MaxPermissionMode, c.MaxTimeoutMinutes, c.ContainerImages) != "[claude codex] [/src] plan 30 [ghcr.io/example/*]" {
+	if fmt.Sprintf("%v %v %v %v %v", c.Agents, c.Roots, c.MaxPermissionMode, c.MaxTimeoutMinutes, c.ContainerImages) != "[claude codex] ["+handRoot+"] plan 30 [ghcr.io/example/*]" {
 		t.Errorf("the other fields changed: %+v", c)
 	}
 	data, _ := os.ReadFile(path)

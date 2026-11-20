@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -15,7 +16,7 @@ import (
 )
 
 func TestReportedNamesTheExecutorsAlways(t *testing.T) {
-	old := Ceiling{Roots: []string{"/src"}, Agents: []string{"claude"}, MaxPermissionMode: "plan", MaxTimeoutMinutes: 30, Boards: []int64{3}}
+	old := Ceiling{Roots: []string{srcRoot}, Agents: []string{"claude"}, MaxPermissionMode: "plan", MaxTimeoutMinutes: 30, Boards: []int64{3}}
 	if got := old.Reported().Executors; len(got) != 1 || got[0] != "me" {
 		t.Fatalf("a ceiling written before executors reports %v, want [me]", got)
 	}
@@ -48,9 +49,13 @@ func TestReportedSendsEveryRequiredFieldAsAList(t *testing.T) {
 	}
 }
 
+// srcRoot is an absolute root on every OS the daemon is tested on, written
+// with forward slashes so it goes into JSON as it is.
+var srcRoot = map[bool]string{true: "C:/src", false: "/src"}[runtime.GOOS == "windows"]
+
 // The ceiling's trust tiers (#3516).
 func TestTheTiersAreChecked(t *testing.T) {
-	base := Ceiling{Roots: []string{"/src"}, Agents: []string{"claude"}, MaxPermissionMode: "acceptEdits",
+	base := Ceiling{Roots: []string{srcRoot}, Agents: []string{"claude"}, MaxPermissionMode: "acceptEdits",
 		MaxTimeoutMinutes: 30, Boards: []int64{3}, Executors: []string{"me", "container"}}
 	if err := base.Validate(); err != nil {
 		t.Fatalf("a ceiling without tiers: %v", err)
@@ -100,7 +105,7 @@ func TestTheTiersAreChecked(t *testing.T) {
 }
 
 func TestTheTiersAreReadFromTheFile(t *testing.T) {
-	data := []byte(`{"roots":["/src"],"agents":["claude"],"max_permission_mode":"acceptEdits",
+	data := []byte(`{"roots":["` + srcRoot + `"],"agents":["claude"],"max_permission_mode":"acceptEdits",
 		"max_timeout_minutes":30,"boards":[3],"executors":["me","container"],
 		"tiers":{"anyone":{"executor":"container","network":"off","max_permission_mode":"plan"}}}`)
 	c, err := ParseCeiling("ceiling.json", data)
@@ -110,7 +115,7 @@ func TestTheTiersAreReadFromTheFile(t *testing.T) {
 	if got := c.Tiers["anyone"]; !reflect.DeepEqual(got, Tier{Executor: "container", Network: "off", MaxPermissionMode: "plan"}) {
 		t.Fatalf("tiers = %+v", c.Tiers)
 	}
-	data = []byte(`{"roots":["/src"],"agents":["claude"],"max_permission_mode":"acceptEdits",
+	data = []byte(`{"roots":["` + srcRoot + `"],"agents":["claude"],"max_permission_mode":"acceptEdits",
 		"max_timeout_minutes":30,"boards":[3],"executors":["me","confined"],
 		"tiers":{"anyone":{"executor":"confined","network":"allowlist","allow_hosts":["registry.npmjs.org"]}}}`)
 	if c, err = ParseCeiling("ceiling.json", data); err != nil {
@@ -139,7 +144,7 @@ func ownerKey(t *testing.T) OwnerKey {
 }
 
 func TestTheOwnerKeysAreChecked(t *testing.T) {
-	base := Ceiling{Roots: []string{"/src"}, Agents: []string{"claude"}, MaxPermissionMode: "acceptEdits",
+	base := Ceiling{Roots: []string{srcRoot}, Agents: []string{"claude"}, MaxPermissionMode: "acceptEdits",
 		MaxTimeoutMinutes: 30, Boards: []int64{3}}
 	good := base
 	good.OwnerKeys = []OwnerKey{ownerKey(t)}
@@ -190,7 +195,7 @@ func TestTheOwnerKeysAreChecked(t *testing.T) {
 
 func TestTheOwnerKeysAreTheMachinesOwnAndReadAsAPin(t *testing.T) {
 	k := ownerKey(t)
-	c := Ceiling{Roots: []string{"/src"}, Agents: []string{"claude"}, MaxPermissionMode: "plan", MaxTimeoutMinutes: 30,
+	c := Ceiling{Roots: []string{srcRoot}, Agents: []string{"claude"}, MaxPermissionMode: "plan", MaxTimeoutMinutes: 30,
 		Boards: []int64{3}, OwnerKeys: []OwnerKey{k}, OwnerSignatureMaxAgeDays: 9}
 	data, _ := json.Marshal(c.Reported())
 	if strings.Contains(string(data), "owner") {

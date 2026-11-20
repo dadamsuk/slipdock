@@ -308,6 +308,9 @@ func TestOnlyConfinedAndContainerKeepToPaths(t *testing.T) {
 		t.Fatalf("confinesPaths: %q", got)
 	}
 	// Under me, a job's paths change nothing it may write (or refuse it).
+	if runtime.GOOS == "windows" {
+		t.Skip("the job's agent is /bin/sh")
+	}
 	r := newRig(t, Config{Worktree: "on"})
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("no git")
