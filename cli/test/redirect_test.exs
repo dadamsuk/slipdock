@@ -117,6 +117,41 @@ defmodule SlipdockCLI.RedirectTest do
       assert_received {:request, "GET", "/api/cards/9", ""}
     end
 
+    for status <- [301, 302] do
+      test "a #{status} after a POST becomes a GET without the body" do
+        serve([
+          {unquote(status), "", [{"location", "/api/cards/9"}]},
+          {200, ~s({"id":9})}
+        ])
+
+        assert {:ok, %{"id" => 9}} = HTTP.post("/cards", %{"title" => "x"})
+        assert_received {:request, "POST", "/api/cards", _}
+        assert_received {:request, "GET", "/api/cards/9", ""}
+      end
+    end
+
+    test "a 308 repeats the method and the body" do
+      serve([
+        {308, "", [{"location", "/api/cards/new"}]},
+        {200, ~s({"id":9})}
+      ])
+
+      assert {:ok, %{"id" => 9}} = HTTP.post("/cards", %{"title" => "x"})
+      assert_received {:request, "POST", "/api/cards", _}
+      assert_received {:request, "POST", "/api/cards/new", ~s({"title":"x"})}
+    end
+
+    test "a 301 after a PATCH keeps the method and the body" do
+      serve([
+        {301, "", [{"location", "/api/cards/10"}]},
+        {200, ~s({"id":10})}
+      ])
+
+      assert {:ok, %{"id" => 10}} = HTTP.patch("/cards/9", %{"title" => "y"})
+      assert_received {:request, "PATCH", "/api/cards/9", _}
+      assert_received {:request, "PATCH", "/api/cards/10", ~s({"title":"y"})}
+    end
+
     test "a 307 repeats the method and the body" do
       serve([
         {307, "", [{"location", "/api/cards/new"}]},
