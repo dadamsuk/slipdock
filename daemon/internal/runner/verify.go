@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/dadamsuk/slipdock/daemon/internal/executor"
+	"github.com/dadamsuk/slipdock/daemon/internal/machine"
 )
 
 // A verify job (#3522) runs in the container executor, whatever its
@@ -173,6 +174,14 @@ func (w *Worker) runVerify(ctx context.Context, j *jobRun) {
 		return
 	}
 	j.dir = clone
+	if vw.Runner.Config.Network == machine.NetworkAllowlist {
+		stop, err := vw.startEgress(ctx, j)
+		if err != nil {
+			fail(err)
+			return
+		}
+		defer stop()
+	}
 	j.extra = []string{"SLIPDOCK_URL=" + w.Client.Server}
 	if job.Token != "" {
 		j.extra = append(j.extra, "SLIPDOCK_TOKEN="+job.Token)

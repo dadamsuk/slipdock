@@ -2,12 +2,17 @@ package executor
 
 import (
 	"context"
+	"io"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/dadamsuk/slipdock/daemon/internal/egress"
 )
 
 // TestMain doubles as slipdock-runner's confine command, the launcher a
@@ -15,6 +20,15 @@ import (
 func TestMain(m *testing.M) {
 	if len(os.Args) >= 2 && os.Args[1] == "confine" {
 		os.Exit(ConfineMain(os.Args[2:], os.Stderr))
+	}
+	if len(os.Args) >= 2 && os.Args[1] == "egress" {
+		os.Exit(egress.Main(os.Args[2:], os.Stdin, os.Stdout, os.Stderr))
+	}
+	if len(os.Args) == 3 && os.Args[1] == "helper-dial" {
+		os.Exit(helperDial(os.Args[2]))
+	}
+	if len(os.Args) == 3 && os.Args[1] == "helper-via" {
+		os.Exit(helperVia(os.Args[2]))
 	}
 	// truncate(2) itself, not an open with O_TRUNC: Landlock handles the
 	// two apart, and below ABI 3 not truncate(2) at all.
@@ -25,6 +39,26 @@ func TestMain(m *testing.M) {
 		os.Exit(0)
 	}
 	os.Exit(m.Run())
+}
+
+// helperDial and helperVia are TestMain's: a TCP connection straight to
+// addr, and a CONNECT to it through the job's proxy.
+func helperDial(addr string) int {
+	c, err := net.DialTimeout("tcp", addr, 3*time.Second)
+	if err != nil {
+		return 1
+	}
+	c.Close()
+	return 0
+}
+
+func helperVia(target string) int {
+	u := os.Getenv("HTTPS_PROXY")
+	host, p, _ := net.SplitHostPort(target)
+	if err := egress.Connect(strings.TrimPrefix(u, "http://"), host, p, strings.NewReader(""), io.Discard); err != nil {
+		return 1
+	}
+	return 0
 }
 
 // strict: on CI's executor jobs a missing facility is a failure, not a skip.
@@ -270,6 +304,13 @@ func TestConfineMainRefusesABadCommandLine(t *testing.T) {
 	if code := ConfineMain([]string{"--", "no-such-program-here"}, &errs); code != 127 {
 		t.Errorf("a program that isn't there: %d", code)
 	}
+	// --connect takes a port, 1 to 65535 (#3517).
+	for _, args := range [][]string{{"--connect"}, {"--connect", "x"}, {"--connect", "0"}, {"--connect", "65536"}} {
+		errs.Reset()
+		if code := ConfineMain(args, &errs); code != 2 || !strings.Contains(errs.String(), "--connect needs a port") {
+			t.Errorf("%v: exit %d (%s)", args, code, errs.String())
+		}
+	}
 }
 
 func TestConfinedIsntReadyWithoutWhatItNeeds(t *testing.T) {
@@ -481,6 +522,34 @@ func TestConfinedNeedsLandlockABI3(t *testing.T) {
 		err := ex.Ready()
 		if ready != (err == nil) || (err != nil && !strings.Contains(err.Error(), "ABI 3 or later (Linux 6.2")) {
 			t.Errorf("ABI %d: %v", abi, err)
+		}
+	}
+}
+
+// TestAnAllowlistNeedsLandlockABI4: on Linux, confined is ready for a
+// network allowlist only where Landlock limits TCP connections (ABI 4);
+// ABI 3 is enough without one. It fakes the kernel, so it runs on every OS.
+func TestAnAllowlistNeedsLandlockABI4(t *testing.T) {
+	defer func(f func() int) { landlockABI = f }(landlockABI)
+	ready := func(abi int, eg *Egress) error {
+		landlockABI = func() int { return abi }
+		ex, err := New(Confined, Settings{GOOS: "linux", Launcher: os.Args[0], Egress: eg})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return ex.Ready()
+	}
+	err := ready(3, &Egress{Port: 4100})
+	if err == nil || !strings.Contains(err.Error(), "needs Landlock ABI 4 or later") ||
+		!strings.Contains(err.Error(), "offers ABI 3") {
+		t.Fatalf("ABI 3 with an allowlist: %v", err)
+	}
+	if err := ready(3, nil); err != nil {
+		t.Fatalf("ABI 3 without an allowlist: %v", err)
+	}
+	for _, abi := range []int{4, 5} {
+		if err := ready(abi, &Egress{Port: 4100}); err != nil {
+			t.Fatalf("ABI %d with an allowlist: %v", abi, err)
 		}
 	}
 }

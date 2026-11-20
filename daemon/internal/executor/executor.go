@@ -52,14 +52,15 @@ var Limits = map[string]string{
 		"state (~/.claude for claude); in a worktree, a job whose card has paths writes " +
 		"only those in it. The runner's hooks and the daemon's own git " +
 		"for it are confined to its repository and worktrees. Jobs can still read " +
-		"your files, and reach the network. Linux (Landlock ABI 3: kernel 6.2 or " +
+		"your files, and reach the network unless a trust tier holds them to an allowlist. Linux (Landlock ABI 3: kernel 6.2 or " +
 		"later) and macOS (sandbox-exec) only.",
 	Container: "Jobs run in a short-lived Docker or Podman container, from an image on " +
 		"this machine's allow-list. They see only what is mounted: their directory " +
 		"and repository (read-write; in a worktree whose card has paths, only those " +
 		"paths and what a commit needs), the agent's and the CLI's logins (read-only), and " +
 		"an empty directory of the job's own for the agent's transcript, which the daemon " +
-		"reads only as regular files beneath it; the home is otherwise empty. The network is off when the runner asks. They " +
+		"reads only as regular files beneath it; the home is otherwise empty. The network is off when the runner asks, " +
+		"and held to an allowlist when a trust tier says (Linux). They " +
 		"still reach the network when it is on, carry the logins mounted in, and are " +
 		"only as safe as the image and the runtime (a user in the docker group is root " +
 		"on the machine). Linux and macOS only.",
@@ -168,7 +169,31 @@ type Settings struct {
 	Protected []string
 	// UID and GID are who the container runs as (default: the daemon's).
 	UID, GID int
+
+	// Egress, under confined and container, is the job's network
+	// allowlist (#3517): its proxy, the only way out.
+	Egress *Egress
 }
+
+// Egress is a job's proxy, which a confined or container job reaches
+// and nothing else: confined, its port on 127.0.0.1 (and the machine's
+// own ports the allowlist names); in a container with no network, its
+// unix socket, mounted in, which the daemon's own binary carries the
+// same port to.
+type Egress struct {
+	Port   int
+	Socket string
+	// Direct are ports of the machine itself a confined job may reach
+	// outside the proxy (allow_hosts' localhost:port).
+	Direct []int
+}
+
+// addr is the proxy's address, as the job's processes reach it.
+func (e *Egress) addr() string { return fmt.Sprintf("127.0.0.1:%d", e.Port) }
+
+// ports are the loopback ports the job may connect to: the proxy's, then
+// the direct ones.
+func (e *Egress) ports() []int { return append([]int{e.Port}, e.Direct...) }
 
 // Hooker is an executor whose hooks run differently from its agent.
 type Hooker interface {

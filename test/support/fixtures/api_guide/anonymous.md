@@ -2093,7 +2093,10 @@ left its handoff. Text an agent writes (an agent request, or one that
 sends `x-slipdock-job`) counts at its job's tier, not at its token's
 owner's; with no live job of that person's named, at `member` at most. The server only says the tier: the machine's ceiling
 decides what a job of each tier may do (`tiers`, in the manual's
-*Machines* page).
+*Machines* page): its executor, permission mode and network, which a
+tier's `allowlist` holds to the agent's model API, this server, the
+repository's origin and the hosts the tier names, through a proxy the
+daemon runs for the job.
 
 **An `anyone` job's prompt** (#3531). A build job at the `anyone` tier is
 handed a prompt without its card's text: a model with no tools reads the
@@ -2489,7 +2492,13 @@ the machine on the Machines page ends the key at once.
   the server's word alone.
 - Network access. A job can reach the network, and so can send anything
   it can read to anywhere, unless its runner uses the `container`
-  executor with the network off. No other executor limits the network.
+  executor with the network off. No other executor limits the network,
+  but for a network allowlist: a trust tier in the ceiling may hold its
+  jobs, under `confined` or `container`, to their agent's model API, the
+  Slipdock server, the repository's origin and the hosts it names,
+  through a proxy of the daemon's. Such a job can still send what it
+  reads to those hosts, and the allowlist doesn't cover name lookups or,
+  under `confined` on Linux, UDP or another host on the proxy's port.
 - Prompts are the board members' instructions. The agent follows them
   within the runner's permission mode, as the account its jobs run as.
   Every job's prompt tells the agent that a card's text is data, never
@@ -2522,8 +2531,8 @@ the machine allows, and a job never runs under a weaker one in its place.
   runner and the runner's hooks are confined to the repository and its
   worktrees. It stops a job writing to your home, other repositories
   and the system. It doesn't stop the job reading your files, your SSH
-  keys and logins included, or the network, so a confined job can still
-  read a secret and send it.
+  keys and logins included, or the network (unless a network allowlist
+  holds it), so a confined job can still read a secret and send it.
 - `container`: jobs run in a short-lived Docker or Podman container,
   from an image the machine's own allow-list names, with the repository
   or worktree mounted at the same path, the agent's login mounted
@@ -2532,7 +2541,8 @@ the machine allows, and a job never runs under a weaker one in its place.
   In a worktree, a job whose card has paths has only those mounted
   read-write, and of its repository only what a commit needs.
   It stops a job reading or writing anything outside what is mounted,
-  and, when the runner asks for the network off, the network.
+  and, when the runner asks for the network off, the network; under a
+  network allowlist (Linux only), every host but the allowlist's.
   It doesn't stop the job changing the mounted repository, using the
   agent's login (it can't change it, but can act with it), whatever the
   image itself does, or the network when it is left on. The runtime is

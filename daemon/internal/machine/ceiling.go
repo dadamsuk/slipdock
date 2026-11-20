@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dadamsuk/slipdock/daemon/internal/egress"
 	"github.com/dadamsuk/slipdock/daemon/internal/executor"
 	"github.com/dadamsuk/slipdock/daemon/internal/intent"
 )
@@ -94,13 +95,27 @@ func (c Ceiling) OwnerPin() intent.Pin {
 }
 
 // Tier is what a job of one trust tier may do: the executor it runs
-// under, the highest permission mode and the container's network. An
-// empty field leaves the runner's own.
+// under, the highest permission mode and its network. An empty field
+// leaves the runner's own. Network "allowlist" (#3517) lets the job reach
+// only its agent's model API, the Slipdock server, the repository's
+// origin and AllowHosts, through a proxy of its own, under the confined
+// or container executor.
 type Tier struct {
-	Executor          string `json:"executor,omitempty"`
-	MaxPermissionMode string `json:"max_permission_mode,omitempty"`
-	Network           string `json:"network,omitempty"`
+	Executor          string   `json:"executor,omitempty"`
+	MaxPermissionMode string   `json:"max_permission_mode,omitempty"`
+	Network           string   `json:"network,omitempty"`
+	AllowHosts        []string `json:"allow_hosts,omitempty"`
 }
+
+// The networks a tier may give its jobs.
+const (
+	NetworkOn        = "on"
+	NetworkOff       = "off"
+	NetworkAllowlist = "allowlist"
+)
+
+// AllowlistExecutors are the executors that can hold a job to an allowlist.
+var AllowlistExecutors = []string{executor.Confined, executor.Container}
 
 // TierNames are the trust tiers, most trusted first.
 var TierNames = []string{"owner", "member", "anyone"}
@@ -199,8 +214,10 @@ func (c Ceiling) Validate() error {
 }
 
 // tierProblems are what is wrong with the ceiling's tiers: each is a tier's
-// name, offers only the machine's executors and modes within its own, and
-// turns the network off only under the container executor.
+// name, offers only the machine's executors and modes within its own,
+// turns the network off only under the container executor, and holds it
+// to an allowlist only under confined or container, of hosts that are
+// host names.
 func (c Ceiling) tierProblems() []string {
 	var problems []string
 	names := make([]string, 0, len(c.Tiers))
@@ -229,13 +246,25 @@ func (c Ceiling) tierProblems() []string {
 			}
 		}
 		switch t.Network {
-		case "", "on":
-		case "off":
+		case "", NetworkOn:
+		case NetworkOff:
 			if t.Executor != "" && t.Executor != executor.Container {
 				problems = append(problems, fmt.Sprintf("%s.network: off needs the container executor", at))
 			}
+		case NetworkAllowlist:
+			if t.Executor != "" && !oneOf(AllowlistExecutors, t.Executor) {
+				problems = append(problems, fmt.Sprintf("%s.network: allowlist needs the confined or container executor", at))
+			}
 		default:
-			problems = append(problems, fmt.Sprintf("%s.network: %q is not on or off", at, t.Network))
+			problems = append(problems, fmt.Sprintf("%s.network: %q is not on, off or allowlist", at, t.Network))
+		}
+		if len(t.AllowHosts) > 0 && t.Network != NetworkAllowlist {
+			problems = append(problems, fmt.Sprintf("%s.allow_hosts: only with network allowlist", at))
+		}
+		for _, h := range t.AllowHosts {
+			if _, err := egress.ParseRule(h); err != nil {
+				problems = append(problems, fmt.Sprintf("%s.allow_hosts: %v", at, err))
+			}
 		}
 	}
 	return problems

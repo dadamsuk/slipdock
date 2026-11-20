@@ -284,7 +284,10 @@ left its handoff. Text an agent writes (an agent request, or one that
 sends `x-slipdock-job`) counts at its job's tier, not at its token's
 owner's; with no live job of that person's named, at `member` at most. The server only says the tier: the machine's ceiling
 decides what a job of each tier may do (`tiers`, in the manual's
-*Machines* page).
+*Machines* page): its executor, permission mode and network, which a
+tier's `allowlist` holds to the agent's model API, this server, the
+repository's origin and the hosts the tier names, through a proxy the
+daemon runs for the job.
 
 **An `anyone` job's prompt** (#3531). A build job at the `anyone` tier is
 handed a prompt without its card's text: a model with no tools reads the

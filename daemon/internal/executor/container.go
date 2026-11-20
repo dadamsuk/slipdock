@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"debug/elf"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -14,6 +15,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/dadamsuk/slipdock/daemon/internal/egress"
 )
 
 // container runs each of a job's processes in a short-lived Docker or
@@ -141,6 +144,68 @@ func DefaultPassEnv(agent string) []string {
 // cliTarget is where the machine's slipdock CLI is mounted, over the image's.
 const cliTarget = "/usr/local/bin/slipdock"
 
+// Under a network allowlist (#3517): where the directory holding the
+// proxy's socket is mounted, and the daemon's own binary, which carries
+// the job's connections to it.
+const (
+	egressDir    = "/run/slipdock-egress"
+	egressTarget = "/usr/local/libexec/slipdock-egress"
+)
+
+// egressMounts are the real paths of the proxy's socket's directory and
+// of the daemon's binary, to mount.
+func (c *container) egressMounts() (string, string, error) {
+	e := c.s.Egress
+	if e.Socket == "" {
+		return "", "", errors.New("the network allowlist needs the proxy's socket, and there is none")
+	}
+	sock, err := c.mountable(filepath.Dir(e.Socket))
+	if err != nil {
+		return "", "", fmt.Errorf("the network allowlist: %v", err)
+	}
+	launcher, err := c.mountable(c.s.Launcher)
+	if err != nil {
+		return "", "", fmt.Errorf("the network allowlist: the daemon's binary: %v", err)
+	}
+	return sock, launcher, nil
+}
+
+// egressReady: a container job's allowlist needs Linux, where the
+// daemon's own binary, statically linked, runs inside the container
+// (Docker Desktop and Podman machine on macOS run a Linux VM, which the
+// macOS binary can't run in, and pass no unix socket through).
+func (c *container) egressReady() error {
+	if c.s.Egress == nil {
+		return nil
+	}
+	if c.s.GOOS != "linux" {
+		return fmt.Errorf("the network allowlist runs container jobs on Linux only, not %s: use confined on this machine", c.s.GOOS)
+	}
+	if c.s.Launcher == "" {
+		return errors.New("the network allowlist needs the slipdock-runner binary, and the daemon can't find its own")
+	}
+	if err := staticELF(c.s.Launcher); err != nil {
+		return fmt.Errorf("the network allowlist runs %s inside the container: %v", c.s.Launcher, err)
+	}
+	return nil
+}
+
+// staticELF says why path can't run inside any Linux image: it must be an
+// ELF executable with no dynamic loader.
+func staticELF(path string) error {
+	f, err := elf.Open(path)
+	if err != nil {
+		return fmt.Errorf("not a Linux executable: %v", err)
+	}
+	defer f.Close()
+	for _, p := range f.Progs {
+		if p.Type == elf.PT_INTERP {
+			return errors.New("it is linked dynamically, so it may not run in the image: use a release build")
+		}
+	}
+	return nil
+}
+
 // allowed is the check made before anything runs in a container: the
 // runner's image is a name and on the machine's allow-list.
 func (c *container) allowed() error {
@@ -205,6 +270,9 @@ func (c *container) Ready() error {
 		}
 	}
 	if _, err := c.logins(); err != nil {
+		return err
+	}
+	if err := c.egressReady(); err != nil {
 		return err
 	}
 	rt, err := c.runtimePath()
@@ -466,7 +534,14 @@ func (c *container) Command(p Proc, prog string, args ...string) (*exec.Cmd, err
 	if err != nil {
 		return nil, err
 	}
-	cmd := exec.Command(rt, append(append(argv, c.s.Image, prog), args...)...)
+	argv = append(argv, c.s.Image)
+	if e := c.s.Egress; e != nil {
+		// The job's connections to its proxy's address go to the proxy's
+		// socket, by the daemon's own binary, while prog runs.
+		argv = append(argv, egressTarget, "egress", "forward", "--listen", e.addr(),
+			"--to", egressDir+"/"+filepath.Base(e.Socket), "--")
+	}
+	cmd := exec.Command(rt, append(append(argv, prog), args...)...)
 	cmd.Dir = "/"
 	cmd.Env = env
 	inGroup(cmd)
@@ -491,7 +566,7 @@ func (c *container) runArgs(rt string, p Proc) ([]string, []string, error) {
 	}
 	argv := []string{"run", "--rm", namePrefix + newName(), "--init", "--pull=" + c.s.Pull,
 		"--cap-drop=ALL", "--security-opt=no-new-privileges"}
-	if c.s.NetworkOff {
+	if c.s.NetworkOff || c.s.Egress != nil {
 		argv = append(argv, "--network=none")
 	}
 	if c.s.UID >= 0 && c.s.GOOS != "windows" {
@@ -523,6 +598,15 @@ func (c *container) runArgs(rt string, p Proc) ([]string, []string, error) {
 		if cli, err := realPath(c.s.CLI); err == nil && !badMountPath(cli) {
 			argv = append(argv, "--mount=type=bind,source="+cli+",destination="+cliTarget+",readonly")
 		}
+	}
+	if e := c.s.Egress; e != nil {
+		sock, launcher, err := c.egressMounts()
+		if err != nil {
+			return nil, nil, err
+		}
+		argv = append(argv, "--mount=type=bind,source="+sock+",destination="+egressDir+",readonly",
+			"--mount=type=bind,source="+launcher+",destination="+egressTarget+",readonly")
+		p.Env = append(append([]string(nil), p.Env...), egress.Env(e.addr(), egressTarget)...)
 	}
 	argv = append(argv, "--workdir="+dir, "--env=HOME="+home)
 

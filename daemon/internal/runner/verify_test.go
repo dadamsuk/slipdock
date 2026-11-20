@@ -168,6 +168,41 @@ func TestAVerifyJobRunsInAContainerInItsOwnCloneWithItsOwnToken(t *testing.T) {
 	}
 }
 
+// A verify job whose tier holds the network to an allowlist (#3517) runs
+// behind the job's proxy, as any other job of that tier does.
+func TestAVerifyJobUnderAnAllowlistTierRunsBehindItsProxy(t *testing.T) {
+	r, fake, sha := verifyRig(t, Config{})
+	r.w.Tiers = map[string]machine.Tier{"anyone": {Executor: executor.Container, Network: machine.NetworkAllowlist}}
+
+	f := r.runJob(fakeJob{id: 402, kind: "verify", card: 42, prompt: "Check #42", token: testJobToken, sha: sha})
+	if f.exit != 0 || f.status != "" {
+		t.Fatalf("finish = %+v", f)
+	}
+	if len(fake.settings) == 0 {
+		t.Fatal("the job didn't run in the container")
+	}
+	s := fake.settings[len(fake.settings)-1]
+	if s.Egress == nil || s.Egress.Port == 0 || s.Egress.Socket == "" {
+		t.Fatalf("the verify job's container isn't held to the allowlist: %+v", s.Egress)
+	}
+}
+
+// A verify job whose allowlist can't start is failed, and its agent never
+// runs in the container: it never runs with no allowlist.
+func TestAVerifyJobWhoseAllowlistCantStartIsNotRun(t *testing.T) {
+	r, fake, sha := verifyRig(t, Config{})
+	r.w.Tiers = map[string]machine.Tier{"anyone": {Executor: executor.Container, Network: machine.NetworkAllowlist,
+		AllowHosts: []string{"https://x"}}}
+
+	f := r.runJob(fakeJob{id: 403, kind: "verify", card: 42, prompt: "Check #42", token: testJobToken, sha: sha})
+	if f.exit != 127 || f.status != "failed" || !strings.Contains(f.body, "the ceiling's allow_hosts") {
+		t.Fatalf("finish = %+v", f)
+	}
+	if len(fake.commands) != 0 || strings.Contains(r.agentSaw(), "Check #42") {
+		t.Fatalf("the agent ran: %v", fake.commands)
+	}
+}
+
 func TestAVerifyJobsTokenNeverReachesTheTranscript(t *testing.T) {
 	w := &Worker{Client: &Client{Key: "sdm_k"}, Getenv: func(string) string { return "" }, jobToken: testJobToken}
 	if !contains(w.secrets(), testJobToken) {

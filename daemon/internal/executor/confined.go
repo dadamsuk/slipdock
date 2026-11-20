@@ -8,8 +8,11 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
+
+	"github.com/dadamsuk/slipdock/daemon/internal/egress"
 )
 
 // confined runs a job as the daemon's account, unable to write outside its
@@ -32,8 +35,9 @@ type confined struct {
 
 func (c *confined) Name() string { return Confined }
 
-// sandboxExec is macOS's.
-const sandboxExec = "/usr/bin/sandbox-exec"
+// sandboxExec is macOS's (a variable for the tests, which build macOS's
+// command line anywhere).
+var sandboxExec = "/usr/bin/sandbox-exec"
 
 func (c *confined) Ready() error {
 	switch c.s.GOOS {
@@ -41,6 +45,10 @@ func (c *confined) Ready() error {
 		if abi := landlockABI(); abi < minLandlockABI {
 			return fmt.Errorf("confined needs Landlock ABI %d or later (Linux 6.2, with landlock among its security modules), "+
 				"which handles truncating a file; this kernel offers ABI %d", minLandlockABI, abi)
+		}
+		if abi := landlockABI(); c.s.Egress != nil && abi < landlockNetABI {
+			return fmt.Errorf("the network allowlist under confined needs Landlock ABI %d or later (Linux 6.7), "+
+				"which limits TCP connections; this kernel offers ABI %d", landlockNetABI, abi)
 		}
 		if c.s.Launcher == "" {
 			return errors.New("confined needs the slipdock-runner binary to launch the job, and the daemon can't find its own")
@@ -104,15 +112,28 @@ func (c *confined) Command(p Proc, prog string, args ...string) (*exec.Cmd, erro
 		for _, path := range w {
 			full = append(full, "--write", path)
 		}
+		if c.s.Egress != nil {
+			for _, port := range c.s.Egress.ports() {
+				full = append(full, "--connect", strconv.Itoa(port))
+			}
+		}
 		full = append(append(full, "--", prog), args...)
 		cmd = exec.Command(c.s.Launcher, full...)
 	case "darwin":
-		cmd = exec.Command(sandboxExec, append([]string{"-p", SandboxProfile(w), prog}, args...)...)
+		var ports []int
+		if c.s.Egress != nil {
+			ports = c.s.Egress.ports()
+		}
+		cmd = exec.Command(sandboxExec, append([]string{"-p", SandboxProfile(w, ports...), prog}, args...)...)
 	}
 	cmd.Dir = p.Dir
 	cmd.Env = append(append(c.environ(), p.Env...), "PWD="+p.Dir)
 	if p.Scratch != "" {
 		cmd.Env = append(cmd.Env, "TMPDIR="+p.Scratch)
+	}
+	if e := c.s.Egress; e != nil {
+		// Last, so that they win over the job's own.
+		cmd.Env = append(cmd.Env, egress.Env(e.addr(), shellSafe(c.launcher()))...)
 	}
 	inGroup(cmd)
 	return cmd, nil
@@ -182,10 +203,33 @@ func (c *confined) run(ctx context.Context, p Proc, name string, args ...string)
 // devices a confined job may still write: the null and terminal devices.
 var devices = []string{"/dev/null", "/dev/zero", "/dev/full", "/dev/tty", "/dev/ptmx", "/dev/pts"}
 
+// launcher is the daemon's own binary, which git's ssh connects through
+// under a network allowlist.
+func (c *confined) launcher() string {
+	if c.s.Launcher != "" {
+		return c.s.Launcher
+	}
+	p, _ := os.Executable()
+	return p
+}
+
+// shellSafe is path when a shell reads it as itself, else "": git's ssh
+// isn't sent through the proxy then, and the sandbox stops it.
+func shellSafe(path string) string {
+	if path == "" || strings.IndexFunc(path, func(r rune) bool {
+		return !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || strings.ContainsRune("/._-+", r))
+	}) >= 0 {
+		return ""
+	}
+	return path
+}
+
 // SandboxProfile is macOS's sandbox profile for a confined job: anything
 // but writing, which only the paths in writable (real paths) and the
-// terminal devices allow.
-func SandboxProfile(writable []string) string {
+// terminal devices allow. With connect (a network allowlist, #3517), no
+// outbound connection either, but to those ports of localhost (the job's
+// proxy first) and to unix sockets.
+func SandboxProfile(writable []string, connect ...int) string {
 	var b strings.Builder
 	b.WriteString("(version 1)\n(allow default)\n(deny file-write*)\n(allow file-write*\n")
 	for _, w := range writable {
@@ -193,6 +237,12 @@ func SandboxProfile(writable []string) string {
 	}
 	b.WriteString("  (literal \"/dev/null\") (literal \"/dev/zero\") (literal \"/dev/tty\") (literal \"/dev/dtracehelper\")\n")
 	b.WriteString("  (regex #\"^/dev/ttys[0-9]+$\") (regex #\"^/dev/fd/\"))\n")
+	if len(connect) > 0 {
+		b.WriteString("(deny network-outbound)\n(allow network-outbound (remote unix-socket))\n")
+		for _, port := range connect {
+			fmt.Fprintf(&b, "(allow network-outbound (remote ip \"localhost:%d\"))\n", port)
+		}
+	}
 	return b.String()
 }
 

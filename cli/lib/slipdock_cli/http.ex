@@ -368,6 +368,63 @@ defmodule SlipdockCLI.HTTP do
     end
   end
 
+  @doc """
+  The proxies :httpc goes through, from HTTPS_PROXY and HTTP_PROXY (either
+  case) and NO_PROXY, as curl and git read them: a runner job held to a
+  network allowlist reaches the server only through its proxy. :httpc reads
+  none of them itself. None set, or one that isn't an http:// URL with a
+  host: no proxy.
+  """
+  def proxy_options(getenv) do
+    env = fn name -> getenv.(name) || getenv.(String.downcase(name)) end
+
+    no_proxy =
+      (env.("NO_PROXY") || "")
+      |> String.split(",", trim: true)
+      |> Enum.map(&(&1 |> String.trim() |> String.to_charlist()))
+      |> Enum.reject(&(&1 == []))
+
+    [{:https_proxy, env.("HTTPS_PROXY")}, {:proxy, env.("HTTP_PROXY")}]
+    |> Enum.flat_map(fn {key, url} ->
+      case proxy_host(url) do
+        nil -> []
+        host_port -> [{key, {host_port, no_proxy}}]
+      end
+    end)
+  end
+
+  # The :httpc profile a request goes by: the default one, or, with a proxy
+  # set, one of its own that has it.
+  defp profile do
+    case proxy_options(&System.get_env/1) do
+      [] ->
+        :default
+
+      options ->
+        Application.ensure_all_started(:inets)
+
+        case :inets.start(:httpc, profile: :slipdock_proxy) do
+          {:ok, _} -> :ok
+          {:error, {:already_started, _}} -> :ok
+        end
+
+        :ok = :httpc.set_options(options, :slipdock_proxy)
+        :slipdock_proxy
+    end
+  end
+
+  defp proxy_host(nil), do: nil
+
+  defp proxy_host(url) do
+    case URI.parse(url) do
+      %URI{scheme: "http", host: host, port: port} when is_binary(host) and host != "" ->
+        {String.to_charlist(host), port || 80}
+
+      _ ->
+        nil
+    end
+  end
+
   # What every request starts with: :httpc running, the API url, and the
   # token in front of `headers` when there is one — with the plain-http
   # warning whenever it goes out.
@@ -441,7 +498,7 @@ defmodule SlipdockCLI.HTTP do
         {extra, type, body} -> {url, extra ++ headers, type, body}
       end
 
-    case :httpc.request(method, req, [{:autoredirect, false} | http_opts], opts) do
+    case :httpc.request(method, req, [{:autoredirect, false} | http_opts], opts, profile()) do
       {:ok, {{_, status, _}, resp_headers, _}} = response
       when status in @redirects and hops < @max_redirects ->
         case location(resp_headers) do
