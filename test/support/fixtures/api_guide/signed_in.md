@@ -2551,7 +2551,8 @@ the machine allows, and a job never runs under a weaker one in its place.
   logins (its `gh` login pushes wherever it can), or the network.
 - `confined`: jobs run as you, unable to write outside the job's
   directory, its repository, a scratch temporary directory and the
-  agent's own state (Landlock on Linux, `sandbox-exec` on macOS). In a
+  agent's session state, never its settings, hooks or skills (Landlock
+  on Linux, `sandbox-exec` on macOS). In a
   worktree, a job whose card has paths writes only those in it, and of
   its repository only what a commit needs. The daemon's own git for the
   runner and the runner's hooks are confined to the repository and its

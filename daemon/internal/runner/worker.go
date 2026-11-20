@@ -217,10 +217,7 @@ func (w *Worker) settingsFor(name string) executor.Settings {
 	if u := w.Local.User; u != nil {
 		s.Account, s.AccountHome, s.AccountPath = u.Name, u.Home, u.Path
 	}
-	s.Writable = w.Local.ConfinedWritable
-	if len(s.Writable) == 0 && w.Runner.Config.Agent == "claude" && w.Home != "" {
-		s.Writable = []string{filepath.Join(w.Home, ".claude")}
-	}
+	s.Writable = w.confinedWritable()
 	s.Protected = w.protected()
 	if name == executor.Confined {
 		// The daemon's copy of the CLI, the jobs' when it is there.
@@ -947,11 +944,13 @@ func (w *Worker) proc(j *jobRun, env []string) executor.Proc {
 }
 
 // newScratch empties and makes the runner's scratch directory, a confined
-// job's TMPDIR. Only confined jobs get one: the others have /tmp.
+// job's TMPDIR, and the agent's state directories it may write. Only
+// confined jobs get one: the others have /tmp.
 func (w *Worker) newScratch(j *jobRun) error {
 	if w.Executor.Name() != executor.Confined {
 		return nil
 	}
+	w.makeClaudeState()
 	j.scratch = filepath.Join(w.JobsDir, fmt.Sprint(w.Runner.ID), "tmp")
 	if err := os.RemoveAll(j.scratch); err != nil {
 		return err

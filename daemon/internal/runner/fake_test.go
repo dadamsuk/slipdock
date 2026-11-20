@@ -68,6 +68,21 @@ func helper(mode string, args []string) int {
 				b.WriteString("scratch=writable\n")
 			}
 		}
+		// Tries to write each of $HELPER_WRITES and read each of
+		// $HELPER_READS (path lists), and says which it could.
+		for _, path := range filepath.SplitList(os.Getenv("HELPER_WRITES")) {
+			_ = os.MkdirAll(filepath.Dir(path), 0o700)
+			if err := os.WriteFile(path, []byte("from the job"), 0o600); err == nil {
+				fmt.Fprintf(&b, "wrote=%s\n", path)
+			} else {
+				fmt.Fprintf(&b, "refused=%s\n", path)
+			}
+		}
+		for _, path := range filepath.SplitList(os.Getenv("HELPER_READS")) {
+			if _, err := os.ReadFile(path); err == nil {
+				fmt.Fprintf(&b, "read=%s\n", path)
+			}
+		}
 		_ = os.WriteFile(os.Getenv("HELPER_OUT"), []byte(b.String()), 0o600)
 		if left := os.Getenv("HELPER_LEAVE"); left != "" {
 			// Leaves a file it never commits where it ran.
