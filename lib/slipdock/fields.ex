@@ -285,6 +285,23 @@ defmodule Slipdock.Fields do
 
   def web_link?(_), do: false
 
+  @doc """
+  Whether a value written straight to storage, not through `set_value/3`
+  (an import), keeps to `field`'s kind: `:ok`, or `{:error, message}` in
+  the words a form gets. A URL field's text must be an http(s) link
+  (#3613); other kinds have no check here yet.
+  """
+  def check_stored(%FieldDefinition{kind: "url"} = field, %{text: text}) do
+    if is_nil(text) or web_link?(text),
+      do: :ok,
+      else: {:error, url_refusal(field)}
+  end
+
+  def check_stored(%FieldDefinition{}, _attrs), do: :ok
+
+  defp url_refusal(field),
+    do: "#{field.name} needs an http or https link, like https://example.com."
+
   @doc "A URL field's value as it is shown: its host, without a leading `www.`."
   def url_host(url) do
     case URI.new(url) do
@@ -421,7 +438,7 @@ defmodule Slipdock.Fields do
 
     if web_link?(url),
       do: {:ok, %{text: url}},
-      else: {:error, "#{field.name} needs an http or https link, like https://example.com."}
+      else: {:error, url_refusal(field)}
   end
 
   # On is stored as 1.0; off clears the value, so off and empty are one.

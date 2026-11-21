@@ -604,7 +604,7 @@ defmodule Slipdock.Portable.Import do
           named("field", field[:name])
         )
 
-      if inserted, do: Map.put(acc, field[:ref], inserted.id), else: acc
+      if inserted, do: Map.put(acc, field[:ref], inserted), else: acc
     end)
   end
 
@@ -842,21 +842,27 @@ defmodule Slipdock.Portable.Import do
       )
     end
 
-    for value <- rows(doc, :fields), field_id = ids.fields[value[:field]] do
-      insert(
-        %FieldValue{},
-        Map.merge(owner, %{
-          field_id: field_id,
-          number: value[:number],
-          text: value[:text],
-          date: date(value[:date]),
-          option: value[:option]
-        }),
-        on.("A field value")
-      )
+    # A value is held to its field's kind as a form's would be (#3613): a
+    # URL field's text must be an http(s) link, else the row is left out.
+    for value <- rows(doc, :fields), field = ids.fields[value[:field]] do
+      insert_field_value(owner, field, value, on.("A field value"))
     end
 
     :ok
+  end
+
+  defp insert_field_value(owner, field, value, what) do
+    attrs = %{
+      number: value[:number],
+      text: value[:text],
+      date: date(value[:date]),
+      option: value[:option]
+    }
+
+    case Slipdock.Fields.check_stored(field, attrs) do
+      :ok -> insert(%FieldValue{}, Map.merge(owner, Map.put(attrs, :field_id, field.id)), what)
+      {:error, message} -> skip("#{what} was left out: #{message}")
+    end
   end
 
   # A card's handoffs in the order written, so the last is its handoff. Signed

@@ -95,4 +95,53 @@ defmodule Slipdock.UrlFieldTest do
     refute FieldDefinition.axis?(link)
     refute {"f:#{link.id}", "Link"} in Config.axes(%{board | fields: [link]})
   end
+
+  test "an import holds a URL field's value to http(s) too" do
+    importer = user_fixture("importer@example.com")
+
+    document =
+      Jason.encode!(%{
+        slipdock_portable: 1,
+        boards: [
+          %{
+            root: %{ref: "r", name: "Imported", code: "imp", lists: [%{ref: "l1", name: "To Do"}]},
+            boards: [],
+            fields: [%{ref: "f1", name: "Link", key: "link", kind: "url"}],
+            cards: [
+              %{
+                ref: "k1",
+                board: "r",
+                list: "l1",
+                title: "Bad",
+                fields: [%{field: "f1", text: "javascript:alert(1)"}]
+              },
+              %{ref: "k3", board: "r", list: "l1", title: "Empty", fields: [%{field: "f1"}]},
+              %{
+                ref: "k2",
+                board: "r",
+                list: "l1",
+                title: "Good",
+                fields: [%{field: "f1", text: "https://example.com/a"}]
+              }
+            ]
+          }
+        ]
+      })
+
+    {:ok, report} = Slipdock.Portable.import(importer, document)
+    board = Boards.get_board!(hd(report.boards).id)
+    [link] = Fields.list_fields(board.id)
+    cards = Boards.Cards.list_cards(board, %{}) |> Map.new(&{&1.title, &1})
+
+    assert Fields.value(cards["Good"], link) == "https://example.com/a"
+    assert Fields.value(cards["Bad"], link) == nil
+
+    assert Enum.any?(
+             report.skipped,
+             &(&1 =~ "A field value on “Bad” was left out: Link needs an http or https link")
+           )
+
+    # A row with no link says nothing wrong, so it isn't reported.
+    refute Enum.any?(report.skipped, &(&1 =~ "“Empty”"))
+  end
 end
