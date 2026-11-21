@@ -13,7 +13,7 @@ defmodule SlipdockWeb.MCP.Tools.UpdateCard do
   alias SlipdockWeb.Ops
 
   @fields ~w(title short_name description priority due_date start_date percent_complete bar paths profile color border_top
-             border_right border_bottom border_left caused_by missed_by)
+             border_right border_bottom border_left caused_by missed_by fields)
   @lists ~w(add_flags remove_flags add_tags remove_tags assignees add_assignees remove_assignees)
   @id_lists ~w(add_blocked_by remove_blocked_by check_items uncheck_items)
 
@@ -35,7 +35,7 @@ defmodule SlipdockWeb.MCP.Tools.UpdateCard do
   def description,
     do:
       "Changes a card: title, description, priority, dates, percent_complete, " <>
-        "colours, flags (blocked, waiting, review), tags, assignees, blockers, incident, " <>
+        "colours, custom fields, flags, tags, assignees, blockers, incident, " <>
         "checklist (item ids from get_card), recurrence, snoozed_until. Only what you " <>
         "pass changes."
 
