@@ -150,7 +150,7 @@ defmodule SlipdockWeb.SwimlaneComponents do
       <div class="space-y-2">
         <div
           :for={field <- @fields}
-          :if={field.kind in ~w(select rating number formula date text checkbox)}
+          :if={field.kind in ~w(select rating number formula date text url checkbox)}
           data-field-filter={field.key}
         >
           <% kept = Map.get(@kept, to_string(field.id), %{}) %>
@@ -237,7 +237,7 @@ defmodule SlipdockWeb.SwimlaneComponents do
             </label>
           </div>
           <input
-            :if={field.kind == "text"}
+            :if={field.kind in ~w(text url)}
             type="text"
             name={"#{name}[text]"}
             value={kept["text"]}

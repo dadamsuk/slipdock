@@ -1035,7 +1035,7 @@ WRITE
                                       ("" leaves one unanswered)
   answer <id> --skip                  skip the questions: the card moves on unanswered
   waits <id>                          the questions the card has asked, and the answers
-  new-field <board> <name> --kind K   add a custom field (K: number rating select date text checkbox formula)
+  new-field <board> <name> --kind K   add a custom field (K: number rating select date text url checkbox formula)
       [--options "Small=1, Large=3"] [--formula "{value} / {effort}"] [--sum]
       [--on-cards]  show its value on the front of each card
   delete-field <board> <field>

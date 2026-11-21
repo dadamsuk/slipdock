@@ -185,7 +185,7 @@
   priority, flag, due date, custom fields, hide completed. Each custom field
   is filtered the way its type reads: a choice field by the options picked, a
   rating by a least number of stars, a number or formula by a min and max, a
-  date by a from and to date, a text field by words it contains, and a
+  date by a from and to date, a text or URL field by words it contains, and a
   checkbox by on or off; a card with no value for a field is hidden by a
   filter on it, except a checkbox's, where empty is off. On the board, a
   search or filter shows its matches as one list down the page, grouped by
@@ -228,7 +228,7 @@
   status line at the top of the card and the comments' times keep up with
   the clock in the browser, without a reload
 - **Custom fields** per board tree (number, rating, choice with weights,
-  date, text, checkbox) and **formula fields** with RICE, ICE and value/effort
+  date, text, URL, checkbox) and **formula fields** with RICE, ICE and value/effort
   presets, usable as table columns, sorts and swimlane axes (a rating ×
   rating grid is the effort/impact matrix); summable fields roll up the
   tree and total in table groups

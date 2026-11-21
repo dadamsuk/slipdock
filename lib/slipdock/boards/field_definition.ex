@@ -7,6 +7,7 @@ defmodule Slipdock.Boards.FieldDefinition do
     * `select` – one of `options`, each `%{"key", "label", "weight", "color"}`;
       the weight is the option's value in formulas
     * `date`, `text`
+    * `url` – one http(s) link (#3613), kept as text and shown as its host
     * `checkbox` – on or off: on is stored as the number 1.0 and off as no
       value, so an empty one counts as off; it is 1 or 0 in formulas
     * `formula` – computed from other fields; `config["mode"]` is
@@ -26,6 +27,7 @@ defmodule Slipdock.Boards.FieldDefinition do
     {"select", "Choice"},
     {"date", "Date"},
     {"text", "Text"},
+    {"url", "URL"},
     {"checkbox", "Checkbox"},
     {"formula", "Formula"}
   ]

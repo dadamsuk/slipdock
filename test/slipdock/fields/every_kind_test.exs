@@ -77,6 +77,17 @@ defmodule Slipdock.Fields.EveryKindTest do
       editor: ~s|input[type="text"][name="value"]|,
       axis: false
     },
+    # One http(s) link, shown as its host (#3613); not an axis.
+    "url" => %{
+      attrs: %{},
+      low: "https://alpha.example.com/a",
+      high: "https://www.beta.example.com/b?x=1",
+      shown: "beta.example.com",
+      json: "https://www.beta.example.com/b?x=1",
+      filter: %{"text" => "BETA"},
+      editor: ~s|input[type="url"][name="value"]|,
+      axis: false
+    },
     # Off clears the value, so the low card is empty: empty counts as off.
     "checkbox" => %{
       attrs: %{},

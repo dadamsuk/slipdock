@@ -242,6 +242,7 @@ defmodule Slipdock.Fields do
   def format(%FieldDefinition{kind: "rating"}, n) when is_number(n), do: "#{round(n)}"
   def format(%FieldDefinition{kind: "date"}, %Date{} = d), do: Calendar.strftime(d, "%-d %b %Y")
   def format(%FieldDefinition{kind: "text"}, t), do: t
+  def format(%FieldDefinition{kind: "url"}, url) when is_binary(url), do: url_host(url)
   # On reads "Yes"; off is shown as nothing, as an empty field is.
   def format(%FieldDefinition{kind: "checkbox"}, n), do: if(n == 1.0, do: "Yes")
 
@@ -266,6 +267,34 @@ defmodule Slipdock.Fields do
   rather than a word written after it with a space ("12 people").
   """
   def tight_unit?(unit), do: Enum.member?(~w(% ‰ ° ′ ″), unit)
+
+  @doc """
+  Whether `url` is a link a URL field takes (#3613): http or https, with a
+  host, and nothing else (no `javascript:`, `mailto:` or bare words), so a
+  stored value is always safe to put in an `href`.
+  """
+  def web_link?(url) when is_binary(url) do
+    case URI.new(url) do
+      {:ok, %URI{scheme: scheme, host: host}} when scheme in ["http", "https"] ->
+        is_binary(host) and host != ""
+
+      _ ->
+        false
+    end
+  end
+
+  def web_link?(_), do: false
+
+  @doc "A URL field's value as it is shown: its host, without a leading `www.`."
+  def url_host(url) do
+    case URI.new(url) do
+      {:ok, %URI{host: host}} when is_binary(host) and host != "" ->
+        String.replace_prefix(host, "www.", "")
+
+      _ ->
+        url
+    end
+  end
 
   @doc """
   Stores `raw` (from a form or the API) as the card's — or the page's — value
@@ -386,6 +415,14 @@ defmodule Slipdock.Fields do
   end
 
   defp cast(%FieldDefinition{kind: "text"}, raw), do: {:ok, %{text: String.trim(to_string(raw))}}
+
+  defp cast(%FieldDefinition{kind: "url"} = field, raw) do
+    url = raw |> to_string() |> String.trim()
+
+    if web_link?(url),
+      do: {:ok, %{text: url}},
+      else: {:error, "#{field.name} needs an http or https link, like https://example.com."}
+  end
 
   # On is stored as 1.0; off clears the value, so off and empty are one.
   defp cast(%FieldDefinition{kind: "checkbox"} = field, raw) do
