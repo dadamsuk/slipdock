@@ -134,6 +134,109 @@ defmodule SlipdockWeb.SwimlaneComponents do
     """
   end
 
+  attr :fields, :list, required: true
+  attr :kept, :map, required: true, doc: "the config's `field_filters`"
+  attr :section_title, :string, required: true
+
+  # A view's custom-field filters (#3608), as inputs of the `swim_config`
+  # form (`field_filters[<id>][…]`), so they are kept in the address and a
+  # saved view like the rest of its filters. `_field_filters` tells the form
+  # they were on it, so none set clears them (`Config.from_form/2`).
+  defp view_field_filters(assigns) do
+    ~H"""
+    <div data-role="view-filter-fields">
+      <input type="hidden" name="_field_filters" value="1" />
+      <p class={["mb-1.5", @section_title]}>Fields</p>
+      <div class="space-y-2">
+        <div
+          :for={field <- @fields}
+          :if={field.kind in ~w(select rating number formula date text)}
+          data-field-filter={field.key}
+        >
+          <% kept = Map.get(@kept, to_string(field.id), %{}) %>
+          <% name = "field_filters[#{field.id}]" %>
+          <p class="mb-1 text-xs text-base-content/70">{field.name}</p>
+          <div :if={field.kind == "select"} class="flex flex-wrap gap-1">
+            <label :for={option <- field.options} class="cursor-pointer">
+              <input
+                type="checkbox"
+                name={"#{name}[options][]"}
+                value={option["key"]}
+                checked={option["key"] in List.wrap(kept["options"])}
+                class="peer sr-only"
+              />
+              <span class="btn btn-xs btn-ghost peer-checked:btn-primary">{option["label"]}</span>
+            </label>
+          </div>
+          <select
+            :if={field.kind == "rating"}
+            name={"#{name}[min]"}
+            class="select field w-full"
+            aria-label={"#{field.name} at least"}
+          >
+            <option value="">Any</option>
+            <option
+              :for={n <- 1..Slipdock.Boards.FieldDefinition.rating_max(field)//1}
+              value={n}
+              selected={kept["min"] == n}
+            >
+              {n}★ or more
+            </option>
+          </select>
+          <div :if={field.kind in ~w(number formula)} class="flex items-center gap-1">
+            <input
+              type="number"
+              step="any"
+              name={"#{name}[min]"}
+              value={kept["min"]}
+              placeholder="min"
+              aria-label={"#{field.name} from"}
+              phx-debounce="400"
+              class="input field w-full"
+            />
+            <input
+              type="number"
+              step="any"
+              name={"#{name}[max]"}
+              value={kept["max"]}
+              placeholder="max"
+              aria-label={"#{field.name} to"}
+              phx-debounce="400"
+              class="input field w-full"
+            />
+          </div>
+          <div :if={field.kind == "date"} class="flex items-center gap-1">
+            <.date_field
+              id={"view-filter-#{field.id}-from"}
+              name={"#{name}[from]"}
+              value={kept["from"]}
+              placeholder="From"
+              aria-label={"#{field.name} from"}
+            />
+            <.date_field
+              id={"view-filter-#{field.id}-to"}
+              name={"#{name}[to]"}
+              value={kept["to"]}
+              placeholder="To"
+              aria-label={"#{field.name} to"}
+            />
+          </div>
+          <input
+            :if={field.kind == "text"}
+            type="text"
+            name={"#{name}[text]"}
+            value={kept["text"]}
+            placeholder="contains…"
+            aria-label={"#{field.name} contains"}
+            phx-debounce="400"
+            class="input field w-full"
+          />
+        </div>
+      </div>
+    </div>
+    """
+  end
+
   attr :board, :any, required: true
   attr :config, Config, required: true
   attr :view, :any, default: nil, doc: "the saved view currently loaded, if any"
@@ -382,6 +485,12 @@ defmodule SlipdockWeb.SwimlaneComponents do
                 </label>
               </div>
             </div>
+            <.view_field_filters
+              :if={(Map.get(@board, :fields) || []) != []}
+              fields={@board.fields}
+              kept={@config.field_filters}
+              section_title={@section_title}
+            />
             <button
               :if={Config.filtering?(@config)}
               type="button"

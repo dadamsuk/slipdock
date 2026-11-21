@@ -126,8 +126,15 @@ defmodule Slipdock.Swimlanes do
       (config.colors == [] or Enum.member?(config.colors, card.color || "none")) and
       due_matches?(config.due, card, today) and
       done_matches?(config.done, card) and
-      deps_matches?(config.deps, card)
+      deps_and_fields_match?(config, card)
   end
+
+  # Its dependencies, then its custom fields (#3608), which a view keeps by
+  # the condition's shape (`Slipdock.Filters.saved_match?/2`).
+  defp deps_and_fields_match?(config, card),
+    do:
+      deps_matches?(config.deps, card) and
+        Slipdock.Filters.saved_match?(card, config.field_filters)
 
   # A card's id (`#123`) names it, as a piece of its title finds it (#2097).
   defp id_or_title?(card, q),
