@@ -68,6 +68,15 @@ defmodule SlipdockWeb.CardFrontFieldsTest do
            ]
   end
 
+  test "a text field holding only spaces is left out too", %{conn: conn} = ctx do
+    {:ok, note} = Fields.create_field(ctx.board, %{"name" => "Note", "kind" => "text"})
+    {:ok, _} = Fields.set_value(Slipdock.Boards.Cards.get_card!(ctx.card.id), note, "   ")
+    show_on_cards([note, ctx.company])
+
+    {:ok, view, _} = live(conn, ~p"/boards/#{ctx.board}")
+    assert chips(view, ctx.card) == [{"company", "Analytical Engines"}]
+  end
+
   test "a compact card shows the first two", %{conn: conn} = ctx do
     show_on_cards([ctx.company, ctx.stage, ctx.met])
     {:ok, view, _} = live(conn, ~p"/boards/#{ctx.board}?density=compact")
