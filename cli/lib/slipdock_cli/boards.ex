@@ -536,7 +536,12 @@ defmodule SlipdockCLI.Boards do
         "show_on_cards" => o[:on_cards] || false,
         "options" => options,
         "config" =>
-          if(o[:formula], do: %{"mode" => "expression", "expression" => o[:formula]}, else: %{})
+          cond do
+            o[:formula] -> %{"mode" => "expression", "expression" => o[:formula]}
+            # A choice field each card can hold several of (#3611).
+            o[:several] -> %{"several" => true}
+            true -> %{}
+          end
       }
 
     HTTP.post("/boards/#{enc(ref)}/fields", body)

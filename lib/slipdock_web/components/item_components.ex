@@ -333,6 +333,42 @@ defmodule SlipdockWeb.ItemComponents do
     """
   end
 
+  # A choice that allows several (#3611): a box per option, in the field's
+  # order. The hidden blank is sent with whatever is ticked, so ticking none
+  # sends only it, which clears the field.
+  def field_input(%{field: %{kind: "select", config: %{"several" => true}}} = assigns) do
+    assigns = assign(assigns, chosen: List.wrap(Fields.value(assigns.item, assigns.field)))
+
+    ~H"""
+    <form
+      phx-target={@target}
+      phx-change={@event}
+      phx-submit={@event}
+      id={@id}
+      class={["flex flex-wrap items-center gap-x-2 gap-y-0.5", @look == :boxed && "min-h-8"]}
+      data-several
+    >
+      <input :for={{k, v} <- @params} type="hidden" name={k} value={v} />
+      <input type="hidden" name="field_id" value={@field.id} />
+      <input type="hidden" name="value[]" value="" />
+      <label
+        :for={o <- @field.options}
+        class="flex cursor-pointer items-center gap-1 text-xs whitespace-nowrap"
+      >
+        <input
+          type="checkbox"
+          name="value[]"
+          value={o["key"]}
+          checked={Enum.member?(@chosen, o["key"])}
+          aria-label={"#{@field.name}: #{o["label"]}"}
+          class="checkbox"
+        />
+        {o["label"]}
+      </label>
+    </form>
+    """
+  end
+
   # A checkbox (#3612), in a form like the other kinds': unticked sends the
   # hidden "false", ticked the later "true", which wins.
   def field_input(%{field: %{kind: "checkbox"}} = assigns) do
@@ -480,6 +516,31 @@ defmodule SlipdockWeb.ItemComponents do
     ~H"""
     <.field_link :if={is_binary(@url)} url={@url} />
     <span :if={not is_binary(@url)} class="text-xs">—</span>
+    """
+  end
+
+  # A reader sees several options as chips, in the field's colours (#3611).
+  defp field_value(%{field: %{kind: "select", config: %{"several" => true}}} = assigns) do
+    chosen = List.wrap(Fields.value(assigns.item, assigns.field))
+
+    assigns =
+      assign(assigns,
+        chosen: Enum.filter(assigns.field.options, &Enum.member?(chosen, &1["key"]))
+      )
+
+    ~H"""
+    <span :if={@chosen == []} class={@look == :boxed && "text-xs"}>—</span>
+    <span :if={@chosen != []} class="flex flex-wrap gap-1" data-chosen>
+      <span
+        :for={o <- @chosen}
+        class={[
+          "chip text-2xs",
+          if(o["color"], do: Slipdock.Palette.chip(o["color"]), else: "chip-line")
+        ]}
+      >
+        {o["label"]}
+      </span>
+    </span>
     """
   end
 

@@ -12,6 +12,9 @@ defmodule Slipdock.Fields.EveryKindTest do
   (`low` sorts before `high`), a filter that keeps `high` and drops `low`,
   the editor the card panel draws, the value the API gives back, and
   whether it is an axis.
+
+  Beside the kinds, `@variants` are a kind set up another way that must
+  pass the same rule: a choice field that allows several (#3611).
   """
   use SlipdockWeb.ConnCase, async: true
 
@@ -99,6 +102,19 @@ defmodule Slipdock.Fields.EveryKindTest do
       editor: ~s|input[type="checkbox"][name="value"]|,
       axis: true
     },
+    # A choice that allows several (#3611): the high card holds two options,
+    # sorts after the low one by its first, and is in each of their lanes.
+    "select_several" => %{
+      kind: "select",
+      attrs: %{"options" => ["Cold", "Warm", "Hot"], "config" => %{"several" => true}},
+      low: "cold",
+      high: "Warm, Hot",
+      shown: "Hot",
+      json: ["warm", "hot"],
+      filter: %{"option" => "hot"},
+      editor: ~s|input[type="checkbox"][name="value[]"][value="hot"]|,
+      axis: true
+    },
     # Computed from the number field: 2 → 20, 9 → 90. Set by nobody.
     "formula" => %{
       attrs: %{"config" => %{"mode" => "expression", "expression" => "{number} * 10"}},
@@ -110,6 +126,10 @@ defmodule Slipdock.Fields.EveryKindTest do
       axis: false
     }
   }
+
+  # A kind set up another way, tested as one of the kinds: `{name, label}`,
+  # the name its entry in @samples and its field's key.
+  @variants [{"select_several", "Choice (allow several)"}]
 
   defp sample!(kind) do
     Map.get(@samples, kind) ||
@@ -126,11 +146,17 @@ defmodule Slipdock.Fields.EveryKindTest do
     [_backlog, todo | _] = board.columns
 
     # The number field first: the formula reads it.
-    kinds = ["number" | FieldDefinition.kind_keys() -- ["number"]]
+    kinds =
+      ["number" | FieldDefinition.kind_keys() -- ["number"]] ++ Enum.map(@variants, &elem(&1, 0))
 
     fields =
       for kind <- kinds, sample = Map.get(@samples, kind), into: %{} do
-        attrs = Map.merge(%{"name" => "F #{kind}", "key" => kind, "kind" => kind}, sample.attrs)
+        attrs =
+          Map.merge(
+            %{"name" => "F #{kind}", "key" => kind, "kind" => sample[:kind] || kind},
+            sample.attrs
+          )
+
         {:ok, field} = Fields.create_field(board, attrs)
         {kind, field}
       end
@@ -182,7 +208,7 @@ defmodule Slipdock.Fields.EveryKindTest do
     |> put_req_header("accept", "application/json")
   end
 
-  for {kind, _label} <- FieldDefinition.kinds() do
+  for {kind, _label} <- FieldDefinition.kinds() ++ @variants do
     describe "a #{kind} field" do
       @describetag kind: kind
 
@@ -372,8 +398,8 @@ defmodule Slipdock.Fields.EveryKindTest do
           buckets = Swimlanes.buckets(key, board, [low, high], Config.defaults("board"))
           bucket_keys = Enum.map(buckets, & &1.key)
 
-          for card <- [low, high] do
-            [card_key] = Swimlanes.card_keys(card, key, nil)
+          # A card holding several options has a lane for each (#3611).
+          for card <- [low, high], card_key <- Swimlanes.card_keys(card, key, nil) do
             assert card_key in bucket_keys, "#{card.title} has no lane on a #{kind} axis"
           end
 

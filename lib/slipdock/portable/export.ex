@@ -738,7 +738,8 @@ defmodule Slipdock.Portable.Export do
         number: &1.number,
         text: &1.text,
         date: &1.date,
-        option: &1.option
+        option: &1.option,
+        options: &1.options
       }
     )
     |> Enum.reject(&is_nil(&1.field))

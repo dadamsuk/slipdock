@@ -18,6 +18,21 @@ the board's cards and combines them by weight, so effort-like inputs with a
 negative weight pull a score down. Presets set a scheme up in one click:
 **RICE**, **ICE** and **Value ÷ Effort**.
 
+A choice field can switch on **Allow several**, in board settings (or
+`slipdock new-field … --kind select --several`, or `"config": {"several":
+true}` over the API): each card then holds any number of its options, ticked
+in the card and the table and shown to a reader as chips, in the field's
+option order. Set it with keys or labels, a list or a comma-separated
+string (`slipdock set 12 area=Web,API`); the API, MCP and a page's `fields`
+give the list of keys, and an option the field doesn't have is refused. Its
+filter keeps a card holding any of the options picked; on a swimlane axis
+the card sits in each of its options' lanes, as with tags, and dragging it
+between two swaps that one option and keeps the rest; in a formula it is
+the sum of the chosen options' weights; it sorts by its first option.
+Switching Allow several off where cards hold several asks first, then keeps
+each card's first option; over the API, changing the field's `config` does
+the same without asking.
+
 Each field has a **Show on cards** switch in board settings, off until you
 turn it on: the card front then shows that field's value as a small chip,
 in field order, leaving out the fields a card has no value for, and a

@@ -5097,7 +5097,7 @@ set</span>
 </code>
 </dt>
 <dd class="mt-1 break-words text-sm text-base-content/70">
-set custom fields on a card (&quot;&quot; clears; choice by label or key)</dd>
+set custom fields on a card (&quot;&quot; clears; choice by label or key, several comma-separated where the field allows several)</dd>
 </div>
 <div class="min-w-0 py-3" data-role="cli-command">
 <dt>
@@ -5351,7 +5351,8 @@ add a custom field (K: number rating select date text url checkbox formula)</dd>
 <dd class="mt-2 min-w-0">
 <pre class="overflow-x-auto rounded-xl bg-base-200 px-3 py-2 font-mono text-xs leading-relaxed">
 [--options &quot;Small=1, Large=3&quot;] [--formula &quot;{value} / {effort}&quot;] [--sum]
-[--on-cards]  show its value on the front of each card</pre>
+[--on-cards]  show its value on the front of each card
+[--several]   a choice field each card can hold several of</pre>
 </dd>
 </div>
 <div class="min-w-0 py-3" data-role="cli-command">

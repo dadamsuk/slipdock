@@ -437,6 +437,7 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent.Panels do
   attr :target, :any, required: true, doc: "the settings component, which takes the events"
   attr :source_choices, :list, required: true
   attr :form_key, :integer, required: true
+  attr :several_confirm, :any, default: nil, doc: "the field asking before Allow several goes off"
 
   @doc "The Planning tab: sprint sources, custom fields and milestones."
   def planning_panel(assigns) do
@@ -496,6 +497,21 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent.Panels do
               /> Show on cards
             </label>
             <label
+              :if={f.kind == "select"}
+              class="flex cursor-pointer items-center gap-1 text-2xs"
+              title="Let each card hold several of this field's options"
+            >
+              <input
+                phx-target={@target}
+                type="checkbox"
+                class="toggle"
+                phx-click="toggle_field_several"
+                phx-value-id={f.id}
+                checked={FieldDefinition.several?(f)}
+                aria-label={"Allow several #{f.name}"}
+              /> Allow several
+            </label>
+            <label
               :if={f.kind in ~w(number rating)}
               class="flex cursor-pointer items-center gap-1 text-2xs"
               title="Roll totals up the tree and show sums in table groups"
@@ -522,6 +538,37 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent.Panels do
             </button>
           </li>
         </ul>
+        <div
+          :for={f <- @board.fields}
+          :if={f.id == @several_confirm}
+          id={"field-several-confirm-#{f.id}"}
+          role="alertdialog"
+          class="space-y-2 rounded-box border border-warning/40 bg-warning/10 p-3 text-sm"
+        >
+          <p>
+            Some cards hold several {f.name} options. Switching Allow several off keeps
+            each card's first option, in the field's option order, and drops the rest.
+          </p>
+          <div class="flex justify-end gap-2">
+            <button
+              phx-target={@target}
+              type="button"
+              class="btn btn-ghost btn-sm"
+              phx-click="cancel_field_single"
+            >
+              Cancel
+            </button>
+            <button
+              phx-target={@target}
+              type="button"
+              class="btn btn-warning btn-sm"
+              phx-click="confirm_field_single"
+              phx-value-id={f.id}
+            >
+              Keep the first option
+            </button>
+          </div>
+        </div>
         <div class="flex flex-wrap items-center gap-1">
           <span class="text-xs text-base-content/60">Presets:</span>
           <button
@@ -570,9 +617,17 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent.Panels do
             autocomplete="off"
           />
           <div class="flex items-center justify-between">
-            <label class="flex cursor-pointer items-center gap-1 text-xs">
-              <input type="checkbox" name="sum" value="true" class="checkbox" /> Roll up totals
-            </label>
+            <div class="flex items-center gap-3">
+              <label class="flex cursor-pointer items-center gap-1 text-xs">
+                <input type="checkbox" name="sum" value="true" class="checkbox" /> Roll up totals
+              </label>
+              <label
+                class="flex cursor-pointer items-center gap-1 text-xs"
+                title="A choice field: let each card hold several of its options"
+              >
+                <input type="checkbox" name="several" value="true" class="checkbox" /> Allow several
+              </label>
+            </div>
             <button type="submit" class="btn btn-primary btn-sm">Add field</button>
           </div>
         </form>

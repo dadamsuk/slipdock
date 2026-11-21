@@ -1422,7 +1422,7 @@ defmodule SlipdockCLI.Render do
     if (c["votes"] || 0) > 0, do: field("Votes", c["votes"])
 
     if not Enum.member?([nil, %{}], c["fields"]) do
-      field("Fields", Enum.map_join(c["fields"], " · ", fn {k, v} -> "#{k}=#{v}" end))
+      field("Fields", Enum.map_join(c["fields"], " · ", fn {k, v} -> "#{k}=#{field_text(v)}" end))
     end
 
     if not Enum.member?([nil, %{}], c["scores"]) do
@@ -1604,13 +1604,14 @@ defmodule SlipdockCLI.Render do
 
   def field_line(f), do: "##{f["id"]} #{f["name"]} {#{f["key"]}} (#{f["kind"]})"
 
-  defp field_details(%{"kind" => "select", "options" => options}),
+  # A choice that allows several says so after its options (#3611).
+  defp field_details(%{"kind" => "select", "options" => options} = f),
     do:
       Enum.map_join(
         options,
         ", ",
         &"#{&1["label"]}#{if &1["weight"], do: "=#{&1["weight"]}", else: ""}"
-      )
+      ) <> if(get_in(f, ["config", "several"]) == true, do: " (several)", else: "")
 
   defp field_details(%{"kind" => "formula", "config" => %{"expression" => e}}), do: e
   defp field_details(%{"kind" => "formula"}), do: "weighted"
@@ -1623,6 +1624,10 @@ defmodule SlipdockCLI.Render do
   end
 
   defp field_details(_), do: ""
+
+  # A choice holding several is its option keys, comma-separated, as `set` takes them.
+  defp field_text(v) when is_list(v), do: Enum.join(v, ",")
+  defp field_text(v), do: v
 
   def milestones([]), do: IO.puts(dim("no milestones"))
 

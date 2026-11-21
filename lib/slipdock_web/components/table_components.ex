@@ -774,6 +774,19 @@ defmodule SlipdockWeb.TableComponents do
           </span>
         <% "url" -> %>
           <SlipdockWeb.ItemComponents.field_link url={@value} />
+        <% "select" when is_list(@value) -> %>
+          <%!-- A choice holding several: a chip each, in option order (#3611). --%>
+          <span class="inline-flex flex-wrap gap-1">
+            <span
+              :for={option <- Enum.filter(@fdef.options, &Enum.member?(@value, &1["key"]))}
+              class={[
+                "chip",
+                if(option["color"], do: Palette.chip(option["color"]), else: "chip-line")
+              ]}
+            >
+              {option["label"]}
+            </span>
+          </span>
         <% "select" -> %>
           <% option = Enum.find(@fdef.options, &(&1["key"] == @value)) %>
           <span class={[

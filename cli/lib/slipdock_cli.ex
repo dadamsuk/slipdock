@@ -271,6 +271,7 @@ defmodule SlipdockCLI do
     formula: :string,
     sum: :boolean,
     on_cards: :boolean,
+    several: :boolean,
     date: :string,
     spec: :string,
     preset: :string,
