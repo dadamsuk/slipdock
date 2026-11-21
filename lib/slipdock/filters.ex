@@ -92,7 +92,8 @@ defmodule Slipdock.Filters do
   The filters with the condition on custom `field` set from a control's
   `params`, read by the field's kind; a condition left empty is dropped.
 
-    * `select`: `"option"` toggles that option in or out (any of them passes)
+    * `select`: `"option"` toggles that option in or out (any of them passes;
+      a card holding several passes when it holds any of them, #3611)
     * `rating`: `"min"`, at least that many stars; the same again clears it
     * `number`, `formula`: `"min"` and `"max"`, either or both
     * `date`: `"from"` and `"to"` (ISO dates), either or both
@@ -240,6 +241,10 @@ defmodule Slipdock.Filters do
 
   defp kept_matches?(nil, _kept), do: false
 
+  # A choice that allows several passes when it holds any of them (#3611).
+  defp kept_matches?(keys, %{"options" => options}) when is_list(keys) and is_list(options),
+    do: Enum.any?(keys, &Enum.member?(options, &1))
+
   defp kept_matches?(value, %{"options" => options}) when is_list(options),
     do: Enum.member?(options, value)
 
@@ -327,6 +332,9 @@ defmodule Slipdock.Filters do
     value = Slipdock.Fields.value(item, field)
     not is_nil(value) and value_matches?(field.kind, value, condition)
   end
+
+  defp value_matches?("select", keys, %{options: options}) when is_list(keys),
+    do: Enum.any?(keys, &Enum.member?(options, &1))
 
   defp value_matches?("select", key, %{options: options}), do: Enum.member?(options, key)
 

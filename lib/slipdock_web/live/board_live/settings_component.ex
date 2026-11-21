@@ -28,12 +28,12 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
   import SlipdockWeb.ItemComponents, only: [panel_notice: 1]
 
   alias Slipdock.{Access, Boards, Fields, Gardener, Hotkeys, Sprints}
-  alias Slipdock.Boards.Board
+  alias Slipdock.Boards.{Board, FieldDefinition}
   alias SlipdockWeb.BoardLive.SettingsComponent.Panels
   alias SlipdockWeb.BoardLive.Sharing
 
   @events ~w(validate_board save_board set_board_color add_field delete_field toggle_field_sum
-    toggle_field_on_cards
+    toggle_field_on_cards toggle_field_several confirm_field_single cancel_field_single
     install_preset add_milestone delete_milestone delete_board archive_board unarchive_board
     save_as_template share revoke_grant set_sprint_sources set_gardening deploy_setup
     deploy_prompt settings_tab)
@@ -77,7 +77,10 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
          deploy_setup: nil,
          deploy_prompt: nil,
          deploy_arrived: nil,
-         panel_notice: nil
+         panel_notice: nil,
+         # The choice field whose Allow several is being switched off while
+         # cards hold several: it asks before keeping the first (#3611).
+         several_confirm: nil
        )}
 
   # A deploy arrived on this board while the panel is open (the board page
@@ -316,10 +319,16 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
       "sum" => params["sum"] == "true",
       "options" => parse_options(params["options"]),
       "config" =>
-        if(params["kind"] == "formula",
-          do: %{"mode" => "expression", "expression" => params["expression"]},
-          else: %{}
-        )
+        cond do
+          params["kind"] == "formula" ->
+            %{"mode" => "expression", "expression" => params["expression"]}
+
+          params["kind"] == "select" and params["several"] == "true" ->
+            %{"several" => true}
+
+          true ->
+            %{}
+        end
     }
 
     case Fields.create_field(socket.assigns.board, attrs) do
@@ -354,6 +363,40 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
 
     {:noreply, socket}
   end
+
+  # Allow several on a choice field (#3611). Switched off while some card
+  # holds several, it asks first (`several_confirm`); confirmed, each keeps
+  # its first option.
+  defp event("toggle_field_several", %{"id" => id}, socket) do
+    case Fields.get_board_field(root_id(socket), id) do
+      %FieldDefinition{kind: "select"} = field ->
+        several? = FieldDefinition.several?(field)
+
+        if several? and Fields.several_held?(field) do
+          {:noreply, assign(socket, several_confirm: field.id)}
+        else
+          {:ok, _} = Fields.update_field(field, %{"config" => put_several(field, not several?)})
+          {:noreply, assign(socket, several_confirm: nil)}
+        end
+
+      _ ->
+        {:noreply, socket}
+    end
+  end
+
+  defp event("confirm_field_single", %{"id" => id}, socket) do
+    if field = Fields.get_board_field(root_id(socket), id) do
+      {:ok, _} = Fields.update_field(field, %{"config" => put_several(field, false)})
+    end
+
+    {:noreply,
+     socket
+     |> assign(several_confirm: nil)
+     |> notice(:info, "Each card keeps its first option.")}
+  end
+
+  defp event("cancel_field_single", _, socket),
+    do: {:noreply, assign(socket, several_confirm: nil)}
 
   defp event("install_preset", %{"key" => key}, socket) do
     case Fields.install_preset(socket.assigns.board, key) do
@@ -421,6 +464,7 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
     <div id="board-settings">
       <.settings_modal
         form_key={@form_key}
+        several_confirm={@several_confirm}
         board={@board}
         form={@board_form}
         close_path={@close_path}
@@ -445,6 +489,8 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
   # The tree's root: fields and milestones belong to it, whichever of its
   # boards the settings are open on.
   defp root_id(socket), do: Slipdock.Boards.Board.root_id(socket.assigns.board)
+
+  defp put_several(field, on?), do: Map.put(field.config || %{}, "several", on?)
 
   defp put_hotkey(user, board, %{"hotkey" => value}) when is_nil(board.parent_card_id),
     do: Hotkeys.put(user, board, value)
@@ -486,6 +532,7 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
   attr :share_key, :integer, required: true
 
   attr :form_key, :integer, default: 0
+  attr :several_confirm, :any, default: nil
   attr :can_manage, :boolean, default: false
   attr :source_choices, :list, default: []
   attr :hotkey, :integer, default: nil
@@ -561,6 +608,7 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
           target={@target}
           source_choices={@source_choices}
           form_key={@form_key}
+          several_confirm={@several_confirm}
         />
         <Panels.gardening_panel board={@board} tab={@tab} target={@target} />
         <Panels.sharing_panel

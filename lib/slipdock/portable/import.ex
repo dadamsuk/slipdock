@@ -856,7 +856,9 @@ defmodule Slipdock.Portable.Import do
       number: value[:number],
       text: value[:text],
       date: date(value[:date]),
-      option: value[:option]
+      option: value[:option],
+      # A choice holding several (#3611); a document from before it has none.
+      options: with([] <- strings(value[:options]), do: nil)
     }
 
     case Slipdock.Fields.check_stored(field, attrs) do

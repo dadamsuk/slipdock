@@ -12,6 +12,9 @@ defmodule Slipdock.Boards.FieldValue do
     field :text, :string
     field :date, :date
     field :option, :string
+    # A choice field that allows several (#3611): its option keys, in the
+    # field's option order.
+    field :options, {:array, :string}
 
     belongs_to :card, Slipdock.Boards.Card
     belongs_to :page, Slipdock.Wiki.Page
@@ -22,12 +25,16 @@ defmodule Slipdock.Boards.FieldValue do
 
   def changeset(value, attrs) do
     value
-    |> cast(attrs, [:number, :text, :date, :option, :card_id, :page_id, :field_id])
+    |> cast(attrs, [:number, :text, :date, :option, :options, :card_id, :page_id, :field_id])
     |> Slipdock.Boards.Owned.validate_owner()
     |> validate_length(:text, max: 2000)
   end
 
-  @doc "The stored value, whichever column holds it."
+  @doc """
+  The stored value, whichever column holds it: a list of option keys for a
+  choice field that allows several.
+  """
+  def get(%__MODULE__{options: [_ | _] = keys}), do: keys
   def get(%__MODULE__{number: n}) when is_number(n), do: n
   def get(%__MODULE__{option: o}) when is_binary(o), do: o
   def get(%__MODULE__{date: %Date{} = d}), do: d

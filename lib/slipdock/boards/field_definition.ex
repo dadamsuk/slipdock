@@ -5,7 +5,10 @@ defmodule Slipdock.Boards.FieldDefinition do
     * `number` – a float; `config` may carry `min`, `max`, `step`, `unit`
     * `rating` – 1 to `config["max"]` (default 5) stars
     * `select` – one of `options`, each `%{"key", "label", "weight", "color"}`;
-      the weight is the option's value in formulas
+      the weight is the option's value in formulas. With `config["several"]`
+      (Allow several, #3611) a card holds any number of them, kept in option
+      order: its formula value is the sum of their weights, and on a swimlane
+      axis it sits in each of their lanes
     * `date`, `text`
     * `url` – one http(s) link (#3613), kept as text and shown as its host
     * `checkbox` – on or off: on is stored as the number 1.0 and off as no
@@ -72,6 +75,14 @@ defmodule Slipdock.Boards.FieldDefinition do
   not one, which `Slipdock.Fields.EveryKindTest` holds each kind to.
   """
   def axis?(%__MODULE__{kind: k}), do: Enum.member?(@axis_kinds, k)
+
+  @doc "Whether the field is a choice that allows several options per card (#3611)."
+  def several?(%__MODULE__{kind: "select", config: %{"several" => true}}), do: true
+  def several?(_), do: false
+
+  @doc "Where option `key` sits in the field's options, or nil when it has no such option."
+  def option_index(%__MODULE__{options: options}, key),
+    do: Enum.find_index(options || [], &(&1["key"] == key))
 
   @doc "The highest rating the field takes."
   def rating_max(%__MODULE__{kind: "rating", config: c}), do: int(c["max"], 5)
@@ -181,8 +192,9 @@ defmodule Slipdock.Boards.FieldDefinition do
     config = Map.new(config, fn {k, v} -> {to_string(k), v} end)
 
     config
-    |> Map.take(~w(min max step unit mode expression weights))
+    |> Map.take(~w(min max step unit mode expression weights several))
     |> Map.new(fn
+      {"several", v} -> {"several", Enum.member?([true, "true", "on", "1"], v)}
       {"weights", w} -> {"weights", normalize_weights(w)}
       {"expression", e} -> {"expression", to_string(e) |> String.trim()}
       {"mode", m} -> {"mode", to_string(m)}

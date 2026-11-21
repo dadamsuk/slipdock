@@ -126,15 +126,78 @@ defmodule Slipdock.Fields do
     |> tap_ok(fn _ -> Slipdock.Boards.PubSub.broadcast_tree(root_id) end)
   end
 
+  @doc """
+  Changes a field. Switching a choice field's Allow several (#3611) on turns
+  each value into a list of one; switching it off keeps each card's (and
+  page's) first option in the field's option order. Board settings asks
+  first when a card holds several (`several_held?/1`); this doesn't.
+  """
   def update_field(%FieldDefinition{} = field, attrs) do
     with :ok <- Policy.authorize(:edit_field, field), do: save_field(field, attrs)
   end
 
   defp save_field(field, attrs) do
-    field
-    |> FieldDefinition.changeset(attrs)
-    |> Repo.update()
+    Repo.transaction(fn ->
+      case field |> FieldDefinition.changeset(attrs) |> Repo.update() do
+        {:ok, updated} ->
+          reshape_values(field, updated)
+          updated
+
+        {:error, cs} ->
+          Repo.rollback(cs)
+      end
+    end)
     |> tap_ok(fn f -> Slipdock.Boards.PubSub.broadcast_tree(f.board_id) end)
+  end
+
+  # The values of a choice field moved to the column its new shape reads:
+  # `options` when it allows several, `option` when it holds one.
+  defp reshape_values(old, new) do
+    case {FieldDefinition.several?(old), FieldDefinition.several?(new)} do
+      {false, true} ->
+        from(v in FieldValue,
+          where: v.field_id == ^new.id and not is_nil(v.option),
+          update: [set: [options: fragment("ARRAY[?]::varchar[]", v.option), option: nil]]
+        )
+        |> Repo.update_all([])
+
+      {true, false} ->
+        to_single(new)
+
+      _ ->
+        :ok
+    end
+  end
+
+  # Each value keeps its first option in the field's option order; an option
+  # the field no longer has goes after the ones it has.
+  defp to_single(field) do
+    from(v in FieldValue, where: v.field_id == ^field.id and not is_nil(v.options))
+    |> Repo.all()
+    |> Enum.group_by(fn v -> first_option(field, v.options) end, & &1.id)
+    |> Enum.each(fn {key, ids} ->
+      Repo.update_all(from(v in FieldValue, where: v.id in ^ids),
+        set: [option: key, options: nil]
+      )
+    end)
+  end
+
+  defp first_option(field, keys) do
+    keys
+    |> Enum.sort_by(&(FieldDefinition.option_index(field, &1) || length(field.options)))
+    |> List.first()
+  end
+
+  @doc """
+  Whether any card or page holds more than one option of `field`, so
+  switching its Allow several off would drop some (#3611).
+  """
+  def several_held?(%FieldDefinition{id: id}) do
+    Repo.exists?(
+      from(v in FieldValue,
+        where: v.field_id == ^id and fragment("cardinality(?) > 1", v.options)
+      )
+    )
   end
 
   def delete_field(%FieldDefinition{} = field) do
@@ -195,6 +258,8 @@ defmodule Slipdock.Fields do
 
   @doc """
   The stored value for `field` (number, option key, date or text), or nil.
+  A choice field that allows several gives the list of its option keys, in
+  the field's option order (#3611).
 
   Takes a card or a wiki page: a page carries the board's custom fields too,
   in the same table (see `Slipdock.Boards.Owned`), so these match on shape.
@@ -202,20 +267,45 @@ defmodule Slipdock.Fields do
   def value(%{computed: computed}, %FieldDefinition{kind: "formula", id: id}),
     do: Map.get(computed || %{}, id)
 
-  def value(%{field_values: values}, %FieldDefinition{id: id}) when is_list(values) do
+  def value(%{field_values: values}, %FieldDefinition{id: id} = field) when is_list(values) do
     case Enum.find(values, &(&1.field_id == id)) do
       nil -> nil
-      v -> FieldValue.get(v)
+      v -> shaped(field, FieldValue.get(v))
     end
   end
 
   def value(_, _), do: nil
 
+  # A value read in the shape its field has now: a card moved from another
+  # tree may bring one option to a field that allows several, or several to
+  # one that holds one.
+  defp shaped(%FieldDefinition{kind: "select"} = field, value) do
+    case {FieldDefinition.several?(field), value} do
+      {true, key} when is_binary(key) -> [key]
+      {false, [first | _]} -> first
+      _ -> value
+    end
+  end
+
+  defp shaped(_field, value), do: value
+
   @doc "The value for `field` as a number: numbers and ratings as they are, options by weight."
+  # Several options are the sum of their weights (#3611); nil when none has one.
   def numeric(card, %FieldDefinition{kind: "select"} = field) do
     case value(card, field) do
-      nil -> nil
-      key -> FieldDefinition.option_weight(field, key)
+      nil ->
+        nil
+
+      keys when is_list(keys) ->
+        case keys
+             |> Enum.map(&FieldDefinition.option_weight(field, &1))
+             |> Enum.reject(&is_nil/1) do
+          [] -> nil
+          weights -> Enum.sum(weights)
+        end
+
+      key ->
+        FieldDefinition.option_weight(field, key)
     end
   end
 
@@ -235,6 +325,12 @@ defmodule Slipdock.Fields do
 
   @doc "A value shown as text."
   def format(_field, nil), do: nil
+
+  # Several options are their labels, in option order (#3611).
+  def format(%FieldDefinition{kind: "select"}, []), do: nil
+
+  def format(%FieldDefinition{kind: "select"} = field, keys) when is_list(keys),
+    do: Enum.map_join(keys, ", ", &FieldDefinition.option_label(field, &1))
 
   def format(%FieldDefinition{kind: "select"} = field, key),
     do: FieldDefinition.option_label(field, key)
@@ -340,7 +436,7 @@ defmodule Slipdock.Fields do
         |> struct!(Owned.owner_key(owner))
         |> FieldValue.changeset(attrs)
         |> Repo.insert(
-          on_conflict: {:replace, [:number, :text, :date, :option, :updated_at]},
+          on_conflict: {:replace, [:number, :text, :date, :option, :options, :updated_at]},
           conflict_target: conflict_target(owner)
         )
         |> case do
@@ -382,7 +478,7 @@ defmodule Slipdock.Fields do
   defp reload(%Card{id: id}), do: {:ok, Slipdock.Boards.Cards.get_card!(id)}
 
   # What to store for a raw value, by kind. Empty means "clear".
-  defp cast(_field, raw) when raw in [nil, ""], do: {:ok, nil}
+  defp cast(_field, raw) when raw in [nil, "", []], do: {:ok, nil}
 
   defp cast(%FieldDefinition{kind: "number", config: config} = field, raw) do
     with {:ok, n} <- number(raw),
@@ -400,18 +496,41 @@ defmodule Slipdock.Fields do
     end
   end
 
-  defp cast(%FieldDefinition{kind: "select", options: options} = field, raw) do
+  # Allow several (#3611): keys or labels, a list or a comma-separated
+  # string, stored in the field's option order without repeats.
+  defp cast(%FieldDefinition{kind: "select", config: %{"several" => true}} = field, raw) do
+    raw
+    |> several_refs(field)
+    |> Enum.reduce_while({:ok, []}, fn ref, {:ok, keys} ->
+      case option_key(field, ref) do
+        nil -> {:halt, {:error, "#{field.name} has no option “#{ref}”."}}
+        key -> {:cont, {:ok, [key | keys]}}
+      end
+    end)
+    |> case do
+      {:ok, []} ->
+        {:ok, nil}
+
+      {:ok, keys} ->
+        {:ok, %{options: for(o <- field.options, Enum.member?(keys, o["key"]), do: o["key"])}}
+
+      error ->
+        error
+    end
+  end
+
+  # One choice: a list of one is that option, a list of more is refused.
+  defp cast(%FieldDefinition{kind: "select"} = field, [one]), do: cast(field, one)
+
+  defp cast(%FieldDefinition{kind: "select"} = field, raw) when is_list(raw),
+    do: {:error, "#{field.name} takes one option."}
+
+  defp cast(%FieldDefinition{kind: "select"} = field, raw) do
     key = to_string(raw)
 
-    cond do
-      Enum.any?(options, &(&1["key"] == key)) ->
-        {:ok, %{option: key}}
-
-      match = Enum.find(options, &(String.downcase(&1["label"]) == String.downcase(key))) ->
-        {:ok, %{option: match["key"]}}
-
-      true ->
-        {:error, "#{field.name} has no option “#{key}”."}
+    case option_key(field, key) do
+      nil -> {:error, "#{field.name} has no option “#{key}”."}
+      key -> {:ok, %{option: key}}
     end
   end
 
@@ -448,6 +567,32 @@ defmodule Slipdock.Fields do
       false -> {:ok, nil}
       nil -> {:error, "#{field.name} takes true or false."}
     end
+  end
+
+  # An option named by its key, or its label in any case; nil when there is none.
+  defp option_key(%FieldDefinition{options: options}, ref) do
+    ref = String.trim(to_string(ref))
+    down = String.downcase(ref)
+
+    case Enum.find(options, &(&1["key"] == ref)) ||
+           Enum.find(options, &(String.downcase(&1["label"]) == down)) do
+      nil -> nil
+      option -> option["key"]
+    end
+  end
+
+  # The options a raw value names: each of a list's items, or a string's
+  # comma-separated parts (unless the whole string is an option, whose label
+  # has a comma in it). Blanks, which a form's empty box sends, are dropped.
+  defp several_refs(raw, _field) when is_list(raw),
+    do: raw |> Enum.map(&String.trim(to_string(&1))) |> Enum.reject(&(&1 == ""))
+
+  defp several_refs(raw, field) do
+    raw = to_string(raw)
+
+    if option_key(field, raw),
+      do: [raw],
+      else: raw |> String.split(",") |> several_refs(field)
   end
 
   @checked_on ~w(true 1 1.0 on yes)

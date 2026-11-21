@@ -228,7 +228,8 @@
   status line at the top of the card and the comments' times keep up with
   the clock in the browser, without a reload
 - **Custom fields** per board tree (number, rating, choice with weights,
-  date, text, URL, checkbox) and **formula fields** with RICE, ICE and value/effort
+  date, text, URL, checkbox; a choice field can allow several options per card)
+  and **formula fields** with RICE, ICE and value/effort
   presets, usable as table columns, sorts and swimlane axes (a rating ×
   rating grid is the effort/impact matrix); summable fields roll up the
   tree and total in table groups

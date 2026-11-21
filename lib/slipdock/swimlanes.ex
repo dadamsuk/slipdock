@@ -228,13 +228,30 @@ defmodule Slipdock.Swimlanes do
   defp sort_key(card, "votes"), do: Card.vote_total(card)
 
   # A custom field: a formula's computed value, else the stored value
-  # (numbers sort as numbers, everything else as text).
+  # (numbers sort as numbers, everything else as text). Several options
+  # sort by where the first sits in the field's options, then the next
+  # (#3611).
   defp sort_key(card, "f:" <> _ = key) do
     case field_value(card, key) do
       nil -> nil
+      keys when is_list(keys) -> options_sort_key(card, key, keys)
       n when is_number(n) -> n
       %Date{} = d -> Date.to_iso8601(d)
       other -> String.downcase(to_string(other))
+    end
+  end
+
+  # The options' positions, read off the field its value is loaded with;
+  # their keys as text when it isn't.
+  defp options_sort_key(card, key, keys) do
+    id = Config.custom_id(key)
+
+    case Enum.find(card.field_values || [], &(&1.field_id == id)) do
+      %{field: %Slipdock.Boards.FieldDefinition{} = field} ->
+        Enum.map(keys, &(Slipdock.Boards.FieldDefinition.option_index(field, &1) || 0))
+
+      _ ->
+        Enum.map(keys, &String.downcase/1)
     end
   end
 
@@ -284,6 +301,10 @@ defmodule Slipdock.Swimlanes do
   def card_keys(card, "f:" <> _ = key, unit) do
     case field_value(card, key) do
       nil -> ["none"]
+      # A choice holding several sits in each of its options' lanes, as a
+      # card with several tags does (#3611).
+      [] -> ["none"]
+      keys when is_list(keys) -> keys
       n when is_number(n) -> [number_key(n)]
       # A date field's value by the view's unit, as a due date (#3615).
       %Date{} = d -> [date_key(d, unit || "week")]
@@ -568,14 +589,15 @@ defmodule Slipdock.Swimlanes do
     * `{:column, id}` – move to the list with that id
     * `{:attrs, map}` – update the given card attributes
     * `{:tags, [tag_id]}` – replace the card's tags
-    * `{:field, field_id, raw}` – set a custom field (nil clears it)
+    * `{:field, field_id, raw}` – set a custom field (nil clears it; a list
+      for a choice that allows several)
     * `{:error, message}` – the move is impossible on this axis
   """
   @type op ::
           {:column, integer}
           | {:attrs, map}
           | {:tags, [integer]}
-          | {:field, integer, String.t() | nil}
+          | {:field, integer, String.t() | [String.t()] | nil}
           | {:error, String.t()}
 
   @doc """
@@ -651,8 +673,20 @@ defmodule Slipdock.Swimlanes do
   def move_ops("goal", _card, _from, _to, _config),
     do: [{:error, "Link a card to a goal from the card itself."}]
 
-  def move_ops("f:" <> _ = key, _card, _from, to, _config),
-    do: [{:field, Config.custom_id(key), if(to == "none", do: nil, else: to)}]
+  # A choice holding several (#3611) swaps the lane's option it came from
+  # for the one it went to and keeps the rest, as tags do; dropped on the
+  # lane with none, it loses only the one it came from.
+  def move_ops("f:" <> _ = key, card, from, to, _config) do
+    case card && field_value(card, key) do
+      keys when is_list(keys) ->
+        keys = List.delete(keys, from)
+        keys = if to == "none", do: keys, else: Enum.uniq(keys ++ [to])
+        [{:field, Config.custom_id(key), keys}]
+
+      _ ->
+        [{:field, Config.custom_id(key), if(to == "none", do: nil, else: to)}]
+    end
+  end
 
   defp current_tag_ids(nil), do: []
   defp current_tag_ids(%{tags: tags}) when is_list(tags), do: Enum.map(tags, & &1.id)
