@@ -100,6 +100,8 @@ defmodule Slipdock.Filters do
     * `text`, `url`: `"text"`, words the value contains, in any case
     * `checkbox`: `"checked"`, `"true"` (on) or `"false"` (off); the same
       again clears it
+    * `person`: `"person"` toggles a user id, or `"me"`, the viewer, in or
+      out; a card holding any of them passes (#3614)
 
   An item with no value for the field fails any condition on it, except a
   checkbox's: an empty checkbox is off.
@@ -174,6 +176,11 @@ defmodule Slipdock.Filters do
     %{options: Enum.filter(List.wrap(kept["options"]), &Enum.member?(known, &1))}
   end
 
+  # A person filter's ids and `me`, which stays the token so whoever opens
+  # the view is the one it means (#3614).
+  defp restore_condition("person", _field, kept),
+    do: %{people: kept["people"] |> List.wrap() |> Enum.map(&to_string/1) |> Enum.uniq()}
+
   defp restore_condition("rating", field, kept) do
     case parse_number(kept["min"]) do
       n when is_number(n) and n >= 1 -> %{min: min(round(n), FieldDefinition.rating_max(field))}
@@ -241,6 +248,10 @@ defmodule Slipdock.Filters do
 
   defp kept_matches?(nil, _kept), do: false
 
+  # A person field holding any of the people, `me` the viewer (#3614).
+  defp kept_matches?(ids, %{"people" => people}) when is_list(ids),
+    do: any_person?(ids, people)
+
   # A choice that allows several passes when it holds any of them (#3611).
   defp kept_matches?(keys, %{"options" => options}) when is_list(keys) and is_list(options),
     do: Enum.any?(keys, &Enum.member?(options, &1))
@@ -288,6 +299,15 @@ defmodule Slipdock.Filters do
       known? -> %{options: options ++ [key]}
       true -> %{options: options}
     end
+  end
+
+  defp condition(%FieldDefinition{kind: "person"}, current, %{"person" => ref}) do
+    people = (current && current.people) || []
+    ref = to_string(ref)
+
+    if Enum.member?(people, ref),
+      do: %{people: List.delete(people, ref)},
+      else: %{people: people ++ [ref]}
   end
 
   defp condition(%FieldDefinition{kind: "rating"} = field, current, %{"min" => min}) do
@@ -338,6 +358,9 @@ defmodule Slipdock.Filters do
 
   defp value_matches?("select", key, %{options: options}), do: Enum.member?(options, key)
 
+  defp value_matches?("person", ids, %{people: people}) when is_list(ids),
+    do: any_person?(ids, people)
+
   defp value_matches?("rating", n, %{min: min}) when is_number(n), do: n >= min
 
   defp value_matches?(kind, n, condition) when kind in ~w(number formula) and is_number(n),
@@ -353,6 +376,12 @@ defmodule Slipdock.Filters do
     do: String.contains?(String.downcase(text), String.downcase(words))
 
   defp value_matches?(_kind, _value, _condition), do: false
+
+  # Any of the field's people among those picked, `me` read as the viewer.
+  defp any_person?(ids, people) do
+    wanted = Slipdock.Fields.People.resolve_filter(people)
+    Enum.any?(ids, &Enum.member?(wanted, to_string(&1)))
+  end
 
   defp within?(value, low, high, at_least, at_most),
     do: (is_nil(low) or at_least.(value, low)) and (is_nil(high) or at_most.(value, high))

@@ -13,6 +13,9 @@ defmodule Slipdock.Boards.FieldDefinition do
     * `url` – one http(s) link (#3613), kept as text and shown as its host
     * `checkbox` – on or off: on is stored as the number 1.0 and off as no
       value, so an empty one counts as off; it is 1 or 0 in formulas
+    * `person` – several of the board tree's members (#3614), kept as their
+      user ids in the order picked; one who has left stays, marked as a
+      former member, and can't be picked again
     * `formula` – computed from other fields; `config["mode"]` is
       `"expression"` (an arithmetic expression over `{key}` references) or
       `"weighted"` (each input in `config["weights"]` normalised 0–100 across
@@ -32,6 +35,7 @@ defmodule Slipdock.Boards.FieldDefinition do
     {"text", "Text"},
     {"url", "URL"},
     {"checkbox", "Checkbox"},
+    {"person", "Person"},
     {"formula", "Formula"}
   ]
 
@@ -68,7 +72,8 @@ defmodule Slipdock.Boards.FieldDefinition do
   # The kinds whose values are fixed, so each can be a swimlane lane (#3607).
   # Every other kind is explicitly not an axis: its values are open-ended.
   # A date is bucketed by the view's unit, as due dates are (#3615).
-  @axis_kinds ~w(rating select date checkbox)
+  # A person field has a lane per person it holds (#3614).
+  @axis_kinds ~w(rating select date checkbox person)
 
   @doc """
   Whether the field can be a swimlane axis. Every kind is one or explicitly

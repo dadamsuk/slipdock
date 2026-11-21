@@ -756,6 +756,35 @@ defmodule SlipdockWeb.SlipdockComponents.Chrome do
     """
   end
 
+  # A person field (#3614): Me, whoever is looking, and each member.
+  defp field_filter(%{field: %{kind: "person"}} = assigns) do
+    assigns = assign(assigns, :choices, Slipdock.Fields.People.filter_choices(assigns.field))
+
+    ~H"""
+    <div data-field-filter={@field.key}>
+      <p class="mb-1 text-xs text-base-content/70">{@field.name}</p>
+      <div class="flex flex-wrap gap-1">
+        <button
+          :for={{value, label} <- @choices}
+          type="button"
+          class={[
+            "btn btn-xs",
+            if(@condition && Enum.member?(@condition.people, value),
+              do: "btn-primary",
+              else: "btn-ghost"
+            )
+          ]}
+          phx-click="filter_field"
+          phx-value-field={@field.id}
+          phx-value-person={value}
+        >
+          {label}
+        </button>
+      </div>
+    </div>
+    """
+  end
+
   defp field_filter(%{field: %{kind: "rating"}} = assigns) do
     assigns = assign(assigns, :max, Slipdock.Boards.FieldDefinition.rating_max(assigns.field))
 

@@ -774,6 +774,10 @@ defmodule SlipdockWeb.TableComponents do
           </span>
         <% "url" -> %>
           <SlipdockWeb.ItemComponents.field_link url={@value} />
+        <% "person" -> %>
+          <SlipdockWeb.ItemComponents.person_chips people={
+            Slipdock.Fields.People.people(@fdef, List.wrap(@value))
+          } />
         <% "select" when is_list(@value) -> %>
           <%!-- A choice holding several: a chip each, in option order (#3611). --%>
           <span class="inline-flex flex-wrap gap-1">

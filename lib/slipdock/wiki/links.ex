@@ -367,6 +367,26 @@ defmodule Slipdock.Wiki.Links do
   holds one must not be offered, linked or emailed from the rest of the tree.
   """
   def members(%Board{} = board) do
+    ids = member_candidate_ids(board)
+
+    from(u in User, where: u.id in ^ids, order_by: [asc: u.email])
+    |> Repo.all()
+    |> Enum.filter(&Access.can_read?(Access.board_permission(&1, board)))
+  end
+
+  @doc """
+  Which of `users` are `members/1` of `board`, without loading the rest: a
+  person field marks whoever it holds that has left the board (#3614).
+  """
+  def members_among(%Board{} = board, users) do
+    ids = MapSet.new(member_candidate_ids(board))
+
+    Enum.filter(users, fn user ->
+      MapSet.member?(ids, user.id) and Access.can_read?(Access.board_permission(user, board))
+    end)
+  end
+
+  defp member_candidate_ids(board) do
     root_id = Board.root_id(board)
 
     grant_user_ids =
@@ -390,11 +410,7 @@ defmodule Slipdock.Wiki.Links do
       )
       |> Repo.all()
 
-    ids = Enum.uniq([board.owner_id | grant_user_ids ++ group_user_ids]) |> Enum.reject(&is_nil/1)
-
-    from(u in User, where: u.id in ^ids, order_by: [asc: u.email])
-    |> Repo.all()
-    |> Enum.filter(&Access.can_read?(Access.board_permission(&1, board)))
+    Enum.uniq([board.owner_id | grant_user_ids ++ group_user_ids]) |> Enum.reject(&is_nil/1)
   end
 
   @doc ~S'The `@handle` a user answers to: the part of their email before the "@".'

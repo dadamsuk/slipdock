@@ -7,6 +7,7 @@ defmodule SlipdockWeb.SwimlaneComponents do
 
   import SlipdockWeb.SlipdockComponents
   import SlipdockWeb.ShareComponents
+  alias Slipdock.Fields.People
   alias Slipdock.Palette
   alias Slipdock.Swimlanes.Config
   alias Slipdock.Table
@@ -150,7 +151,7 @@ defmodule SlipdockWeb.SwimlaneComponents do
       <div class="space-y-2">
         <div
           :for={field <- @fields}
-          :if={field.kind in ~w(select rating number formula date text url checkbox)}
+          :if={field.kind in ~w(select rating number formula date text url checkbox person)}
           data-field-filter={field.key}
         >
           <% kept = Map.get(@kept, to_string(field.id), %{}) %>
@@ -166,6 +167,19 @@ defmodule SlipdockWeb.SwimlaneComponents do
                 class="peer sr-only"
               />
               <span class="btn btn-xs btn-ghost peer-checked:btn-primary">{option["label"]}</span>
+            </label>
+          </div>
+          <%!-- A person field (#3614): Me, whoever opens the view, and each member. --%>
+          <div :if={field.kind == "person"} class="flex flex-wrap gap-1">
+            <label :for={{value, label} <- People.filter_choices(field)} class="cursor-pointer">
+              <input
+                type="checkbox"
+                name={"#{name}[people][]"}
+                value={value}
+                checked={value in List.wrap(kept["people"])}
+                class="peer sr-only"
+              />
+              <span class="btn btn-xs btn-ghost peer-checked:btn-primary">{label}</span>
             </label>
           </div>
           <select

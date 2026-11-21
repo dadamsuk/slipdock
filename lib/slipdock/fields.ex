@@ -15,7 +15,7 @@ defmodule Slipdock.Fields do
 
   alias Slipdock.Boards.{Board, Card, FieldDefinition, FieldValue, Owned}
   alias Slipdock.Wiki.Page
-  alias Slipdock.Fields.Expression
+  alias Slipdock.Fields.{Expression, People}
   alias Slipdock.Policy
   alias Slipdock.Repo
 
@@ -335,6 +335,14 @@ defmodule Slipdock.Fields do
   def format(%FieldDefinition{kind: "select"} = field, key),
     do: FieldDefinition.option_label(field, key)
 
+  # A person field's people by name, a former member marked (#3614).
+  def format(%FieldDefinition{kind: "person"} = field, ids) when is_list(ids) do
+    case People.people(field, ids) do
+      [] -> nil
+      people -> Enum.map_join(people, ", ", &People.label/1)
+    end
+  end
+
   def format(%FieldDefinition{kind: "rating"}, n) when is_number(n), do: "#{round(n)}"
   def format(%FieldDefinition{kind: "date"}, %Date{} = d), do: Calendar.strftime(d, "%-d %b %Y")
   def format(%FieldDefinition{kind: "text"}, t), do: t
@@ -393,6 +401,15 @@ defmodule Slipdock.Fields do
       else: {:error, url_refusal(field)}
   end
 
+  # A person field's ids must each be a current member of the tree (#3614):
+  # an imported document's people are another tree's.
+  def check_stored(%FieldDefinition{kind: "person"} = field, %{options: ids}) when is_list(ids) do
+    case People.cast(field, ids, []) do
+      {:ok, _} -> :ok
+      error -> error
+    end
+  end
+
   def check_stored(%FieldDefinition{}, _attrs), do: :ok
 
   defp url_refusal(field),
@@ -422,7 +439,7 @@ defmodule Slipdock.Fields do
   end
 
   defp put_value(owner, field, raw) do
-    case cast(field, raw) do
+    case cast_for(owner, field, raw) do
       {:ok, nil} ->
         FieldValue
         |> where(^owner_clause(owner))
@@ -476,6 +493,27 @@ defmodule Slipdock.Fields do
 
   defp reload(%Page{id: id}), do: {:ok, Slipdock.Wiki.get_page!(id)}
   defp reload(%Card{id: id}), do: {:ok, Slipdock.Boards.Cards.get_card!(id)}
+
+  # A person field (#3614) reads who the owner holds now: a former member
+  # already there may stay, and nobody else who has left may be added.
+  defp cast_for(owner, %FieldDefinition{kind: "person"} = field, raw) do
+    case People.cast(field, raw, held_ids(owner, field)) do
+      {:ok, []} -> {:ok, nil}
+      {:ok, ids} -> {:ok, %{options: ids}}
+      error -> error
+    end
+  end
+
+  defp cast_for(_owner, field, raw), do: cast(field, raw)
+
+  defp held_ids(owner, field) do
+    FieldValue
+    |> where(^owner_clause(owner))
+    |> where([v], v.field_id == ^field.id)
+    |> select([v], v.options)
+    |> Repo.one()
+    |> List.wrap()
+  end
 
   # What to store for a raw value, by kind. Empty means "clear".
   defp cast(_field, raw) when raw in [nil, "", []], do: {:ok, nil}
@@ -621,10 +659,20 @@ defmodule Slipdock.Fields do
 
   @doc """
   A stored value as the API, MCP and a page's `fields` give it: a checkbox
-  as `true` when on (off has no value, so it is left out), any other kind
-  as it is.
+  as `true` when on (off has no value, so it is left out), a person field
+  as its people (`%{"id", "name", "email"}`, and `"former"` for one who has
+  left), any other kind as it is.
   """
   def external(%FieldDefinition{kind: "checkbox"}, value), do: if(value == 1.0, do: true)
+  # A person field is its people, shaped as a card's assignees, with
+  # `former` true for one who has left the board (#3614).
+  def external(%FieldDefinition{kind: "person"} = field, ids) when is_list(ids) do
+    for person <- People.people(field, ids) do
+      base = %{"id" => person.id, "name" => person.name, "email" => person.email}
+      if person.former, do: Map.put(base, "former", true), else: base
+    end
+  end
+
   def external(_field, value), do: value
 
   defp number(n) when is_number(n), do: {:ok, n * 1.0}
