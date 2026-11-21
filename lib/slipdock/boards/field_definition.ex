@@ -58,7 +58,8 @@ defmodule Slipdock.Boards.FieldDefinition do
 
   # The kinds whose values are fixed, so each can be a swimlane lane (#3607).
   # Every other kind is explicitly not an axis: its values are open-ended.
-  @axis_kinds ~w(rating select)
+  # A date is bucketed by the view's unit, as due dates are (#3615).
+  @axis_kinds ~w(rating select date)
 
   @doc """
   Whether the field can be a swimlane axis. Every kind is one or explicitly

@@ -64,7 +64,8 @@ defmodule Slipdock.Fields.EveryKindTest do
       json: "2027-03-01",
       filter: %{"from" => "2027-02-01"},
       editor: ~s|input[name="value"]|,
-      axis: false
+      # By the view's unit, as due dates (#3615).
+      axis: true
     },
     "text" => %{
       attrs: %{},

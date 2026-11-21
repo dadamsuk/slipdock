@@ -651,7 +651,7 @@ defmodule SlipdockWeb.SwimlaneComponents do
         <label
           :if={
             @mode == :timeline or
-              (Enum.member?([:swimlanes, :table], @mode) and Config.uses_dates?(@config))
+              (Enum.member?([:swimlanes, :table], @mode) and Config.uses_dates?(@config, @board))
           }
           class="flex items-center gap-1.5"
         >

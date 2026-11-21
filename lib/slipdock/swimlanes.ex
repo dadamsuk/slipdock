@@ -281,10 +281,12 @@ defmodule Slipdock.Swimlanes do
   def card_keys(card, "created", unit), do: [date_key(DateTime.to_date(card.inserted_at), unit)]
   def card_keys(card, "updated", unit), do: [date_key(DateTime.to_date(card.updated_at), unit)]
 
-  def card_keys(card, "f:" <> _ = key, _) do
+  def card_keys(card, "f:" <> _ = key, unit) do
     case field_value(card, key) do
       nil -> ["none"]
       n when is_number(n) -> [number_key(n)]
+      # A date field's value by the view's unit, as a due date (#3615).
+      %Date{} = d -> [date_key(d, unit || "week")]
       other -> [to_string(other)]
     end
   end
@@ -382,7 +384,7 @@ defmodule Slipdock.Swimlanes do
       bucket("free", "No dependencies")
     ]
 
-  def buckets("f:" <> _ = key, board, cards, _config, _today) do
+  def buckets("f:" <> _ = key, board, cards, config, today) do
     case Config.custom_field(key, board) do
       %{kind: "rating"} = field ->
         max = Slipdock.Boards.FieldDefinition.rating_max(field)
@@ -393,6 +395,9 @@ defmodule Slipdock.Swimlanes do
       %{kind: "select"} = field ->
         Enum.map(field.options, &bucket(&1["key"], &1["label"], &1["color"])) ++
           [bucket("none", "No #{String.downcase(field.name)}")]
+
+      %{kind: "date"} = field ->
+        field_date_buckets(key, field, cards, config, today)
 
       %{} = field ->
         keys = cards |> Enum.flat_map(&card_keys(&1, key, nil)) |> Enum.uniq()
@@ -428,6 +433,25 @@ defmodule Slipdock.Swimlanes do
 
       bucket(key, date_label(key, unit, today), nil, tone)
     end) ++ Enum.map(none, fn _ -> bucket("none", "No due date") end)
+  end
+
+  # A date field's lanes (#3615): one per week, month (or the view's other
+  # unit) its cards fall in, the gaps filled when empty lanes are shown, the
+  # current one marked, and the cards with no date in a lane of their own.
+  defp field_date_buckets(key, field, cards, %Config{unit: unit} = config, today) do
+    {dated, none} =
+      cards
+      |> Enum.flat_map(&card_keys(&1, key, unit))
+      |> Enum.uniq()
+      |> Enum.split_with(&(&1 != "none"))
+
+    dated = Enum.sort(dated)
+    dated = if config.empty == "show", do: fill_gaps(dated, unit), else: dated
+    today_key = date_key(today, unit)
+
+    Enum.map(dated, fn k ->
+      bucket(k, date_label(k, unit, today), nil, if(k == today_key, do: :current))
+    end) ++ Enum.map(none, fn _ -> bucket("none", "No #{String.downcase(field.name)}") end)
   end
 
   defp bucket(key, label, color \\ nil, tone \\ nil),

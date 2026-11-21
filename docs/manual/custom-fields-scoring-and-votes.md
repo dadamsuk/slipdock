@@ -25,7 +25,10 @@ element, *Fields* (see [Card views](card-views.md)). From the command line,
 Fields are edited in the card modal (stars for ratings), shown as table
 columns (*Display*), sortable, and rating and choice fields can be swimlane
 axes — *Value* on one axis and *Effort* on the other is the prioritisation
-matrix, and dragging a card between cells rescores it. A number or rating
+matrix, and dragging a card between cells rescores it. A date field is an
+axis too, grouped by the view's unit (week, month and the rest) as due dates
+are, with the undated cards in a lane of their own; dragging a card into a
+lane sets the date to its start. A number or rating
 field marked *Σ* rolls up the tree (totals per card, done and all) and
 totals in table group headers.
 
