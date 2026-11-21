@@ -177,6 +177,17 @@ defmodule Slipdock.Fields.EveryKindTest do
 
         assert ctx |> loaded() |> Enum.filter(&Filters.matches?(&1, filters)) |> titles() ==
                  ["High card"]
+
+        # Every view's Filter menu has it, and a view keeps it (#3608).
+        {:ok, table, _} = live(conn, ~p"/boards/#{ctx.board}/table")
+
+        assert has_element?(table, ~s|#swim-config [data-field-filter="#{field.key}"]|),
+               "a view's Filter menu has no control for a #{kind} field"
+
+        kept = %{Config.defaults("table") | field_filters: Filters.saved_fields(filters)}
+
+        assert ctx |> loaded() |> Enum.filter(&Swimlanes.matches?(&1, kept)) |> titles() ==
+                 ["High card"]
       end
 
       test "sorts the cards by its value", %{kind: kind} = ctx do

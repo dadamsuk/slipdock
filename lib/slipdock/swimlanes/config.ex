@@ -190,7 +190,7 @@ defmodule Slipdock.Swimlanes.Config do
   # not sent). The display choosers (`fields`, `show` and their compact
   # twins) are excluded: only the active density's chooser is on the form.
   @form_list_fields ~w(kinds tags priorities flags columns colors)a
-  @filter_fields ~w(q due done deps kinds tags priorities flags columns colors)a
+  @filter_fields ~w(q due done deps kinds tags priorities flags columns colors field_filters)a
   # What the Display menu sets (#1879): the part of a config the browser
   # remembers per board and view, so leaving the board and coming back keeps it.
   # What a card's front shows is not among them: card views decide it (#2031).
@@ -199,6 +199,10 @@ defmodule Slipdock.Swimlanes.Config do
   # link sets it: the browser never remembers it.
   @display_keys Enum.map(@display_fields, &Atom.to_string/1)
 
+  # A view's config is one flat set of URL parameters, each a field here, by
+  # design (W-2951: no view builder): grouping them would change every URL
+  # and saved view. So the struct is over credo's field count on purpose.
+  # credo:disable-for-next-line Credo.Check.Warning.StructFieldAmount
   defstruct mode: "swimlanes",
             rows: "priority",
             cols: "column",
@@ -227,6 +231,10 @@ defmodule Slipdock.Swimlanes.Config do
             flags: [],
             columns: [],
             colors: [],
+            # Custom-field filters (#3608): field id (a string) => its
+            # condition as `Slipdock.Filters.saved_fields/1` keeps it. In a
+            # URL as nested params, `field_filters[12][min]=5`.
+            field_filters: %{},
             fields: ~w(title column priority assignee tags due_date completed),
             fields_compact: ~w(title column priority assignee tags due_date completed),
             show: @default_show,
@@ -447,13 +455,72 @@ defmodule Slipdock.Swimlanes.Config do
   strings; an empty string clears the list.
   """
   def from_query(params, %__MODULE__{} = base \\ %__MODULE__{}) when is_map(params) do
-    Enum.reduce(@scalar_fields ++ @list_fields, base, fn field, acc ->
-      case Map.fetch(params, Atom.to_string(field)) do
-        {:ok, raw} -> put_field(acc, field, cast(field, raw, field(base, field)))
-        :error -> acc
-      end
-    end)
+    config =
+      Enum.reduce(@scalar_fields ++ @list_fields, base, fn field, acc ->
+        case Map.fetch(params, Atom.to_string(field)) do
+          {:ok, raw} -> put_field(acc, field, cast(field, raw, field(base, field)))
+          :error -> acc
+        end
+      end)
+
+    case Map.fetch(params, "field_filters") do
+      {:ok, raw} -> %{config | field_filters: field_filters(raw)}
+      :error -> config
+    end
   end
+
+  # Custom-field filters as they come from a URL, a form or a stored view:
+  # string field ids (digits only) to maps of the condition's known keys,
+  # empty ones dropped. "" (an emptied URL param) clears them all.
+  defp field_filters(raw) when is_map(raw) do
+    for {id, condition} <- raw,
+        id = to_string(id),
+        String.match?(id, ~r/^\d{1,12}$/),
+        is_map(condition),
+        kept = field_condition(condition),
+        kept != %{},
+        into: %{},
+        do: {id, kept}
+  end
+
+  defp field_filters(_), do: %{}
+
+  defp field_condition(condition) do
+    for {key, value} <- condition,
+        key = to_string(key),
+        Enum.member?(~w(options min max from to text), key),
+        value = condition_value(key, value),
+        not Enum.member?([nil, "", []], value),
+        into: %{},
+        do: {key, value}
+  end
+
+  defp condition_value("options", v) when is_list(v),
+    do: v |> Enum.map(&to_string/1) |> Enum.reject(&(&1 == "")) |> Enum.uniq()
+
+  defp condition_value("options", v) when is_binary(v),
+    do: condition_value("options", String.split(v, ",", trim: true))
+
+  defp condition_value(key, v) when key in ~w(min max) and is_number(v), do: v
+
+  defp condition_value(key, v) when key in ~w(min max) and is_binary(v) do
+    case Float.parse(String.trim(v)) do
+      {f, ""} -> if f == trunc(f), do: trunc(f), else: f
+      _ -> nil
+    end
+  end
+
+  defp condition_value(key, v) when key in ~w(from to) and is_binary(v) do
+    case Date.from_iso8601(String.trim(v)) do
+      {:ok, d} -> Date.to_iso8601(d)
+      _ -> nil
+    end
+  end
+
+  defp condition_value("text", v) when is_binary(v),
+    do: v |> String.trim() |> String.slice(0, 200)
+
+  defp condition_value(_key, _v), do: nil
 
   @doc """
   Builds a config from a submitted form. Like `from_query/2`, except that
@@ -462,6 +529,11 @@ defmodule Slipdock.Swimlanes.Config do
   """
   def from_form(params, %__MODULE__{} = current) do
     params = Map.merge(Map.new(@form_list_fields, &{Atom.to_string(&1), []}), params)
+    # The filter menu's field controls are on the form whenever the board
+    # has fields (#3608): none set sends none, which clears them.
+    params =
+      if params["_field_filters"], do: Map.put_new(params, "field_filters", %{}), else: params
+
     config = from_query(params, current)
 
     # A view's chooser only lists the facets it can show; the rest stay as they were.
@@ -531,10 +603,18 @@ defmodule Slipdock.Swimlanes.Config do
   query parameters.
   """
   def to_query(%__MODULE__{} = config, %__MODULE__{} = base \\ %__MODULE__{}) do
-    for field <- @scalar_fields ++ @list_fields,
-        value = field(config, field),
-        value != field(base, field) do
-      {field, encode(value)}
+    query =
+      for field <- @scalar_fields ++ @list_fields,
+          value = field(config, field),
+          value != field(base, field) do
+        {field, encode(value)}
+      end
+
+    # Nested params (`field_filters[12][min]=5`); "" when a view's are cleared.
+    cond do
+      config.field_filters == base.field_filters -> query
+      config.field_filters == %{} -> query ++ [field_filters: ""]
+      true -> query ++ [field_filters: config.field_filters]
     end
   end
 
@@ -561,6 +641,17 @@ defmodule Slipdock.Swimlanes.Config do
         fields: Enum.filter(config.fields, known?),
         fields_compact: Enum.filter(config.fields_compact, known?)
     }
+    |> drop_deleted_field_filters(field_ids)
+  end
+
+  # A filter on a field since deleted is dropped quietly (#3608).
+  defp drop_deleted_field_filters(config, field_ids) do
+    kept =
+      Map.filter(config.field_filters, fn {id, _} ->
+        MapSet.member?(field_ids, String.to_integer(id))
+      end)
+
+    %{config | field_filters: kept}
   end
 
   @doc "Returns the config with every filter reset."
@@ -572,9 +663,9 @@ defmodule Slipdock.Swimlanes.Config do
   def filtering?(%__MODULE__{} = config), do: active_filter_count(config) > 0
 
   def active_filter_count(%__MODULE__{} = config) do
-    Enum.count(@filter_fields, fn field ->
+    Enum.count(@filter_fields -- [:field_filters], fn field ->
       Map.fetch!(config, field) != Map.fetch!(%__MODULE__{}, field)
-    end)
+    end) + map_size(config.field_filters)
   end
 
   ## Casting -----------------------------------------------------------------

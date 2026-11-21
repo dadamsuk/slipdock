@@ -64,6 +64,7 @@ DELETE /api/boards/:board/tags/:id         GET    /api/boards/:board/activity?li
        POST .../tags answers {tag, created}: a tag of that name already there, in any case, comes back (200), not a second
 GET    /api/boards/:board/swimlanes         ?view= &rows= &cols= &unit= &sort= &dir= &q= &due= &done= &empty=
                                             &tags= &priorities= &flags= &columns= &colors=   (lists are comma-joined)
+                                            &field_filters[<field id>][options][]= |[min]= |[max]= |[from]= |[to]= |[text]=
 GET    /api/boards/:board/views            POST   /api/boards/:board/views   {name, ...config params}
 GET    /api/boards/:board/views/:id        PATCH  /api/boards/:board/views/:id   DELETE /api/boards/:board/views/:id
 GET    /api/favourites                     POST   /api/favourites   {kind: board|column|card|view|page, id}

@@ -25,7 +25,11 @@ totals in table group headers.
 The board's **Filter** menu has a *Fields* section with one filter per
 field, suited to its type: options to pick for a choice, a least number of
 stars for a rating, a min and max for a number or formula, a from and to
-for a date, and words to find for text.
+for a date, and words to find for text. Every view's Filter menu has the
+same section, and the filters are kept in the address and in a saved view
+like the others, so a reload or a saved view brings them back; a filter on
+a field since deleted is dropped. A view shared with someone shows them
+only the cards its field filters select.
 
 **Votes.** Everyone has a budget of votes to spend across a board tree
 (board settings: votes per person, max per card). The card modal shows the

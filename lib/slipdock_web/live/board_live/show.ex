@@ -427,6 +427,7 @@ defmodule SlipdockWeb.BoardLive.Show do
       socket
       |> assign_waiting_filter(params["waiting"] == "me")
       |> assign_swimlanes(params)
+      |> assign_field_filters()
       |> assign_paths()
       |> assign_page_jumps()
       |> apply_panel(panel, params)
@@ -451,6 +452,19 @@ defmodule SlipdockWeb.BoardLive.Show do
       {:noreply, scroll_to_list(socket, params["list"])}
     end
   end
+
+  # The toolbar's custom-field filters are the view's (#3608): read from the
+  # address or the saved view each time it changes; a field since deleted
+  # is dropped. The lists are drawn again only when they change.
+  defp assign_field_filters(%{assigns: %{swim: swim, board: board, filters: filters}} = socket) do
+    updated = Slipdock.Filters.put_saved_fields(filters, board.fields, swim.field_filters)
+
+    if updated == filters,
+      do: socket,
+      else: socket |> assign(filters: updated) |> assign_columns()
+  end
+
+  defp assign_field_filters(socket), do: socket
 
   # `?waiting=me`, from an epic's chip (#2095): only when it changes, since
   # the lists are drawn again for it.
@@ -1093,16 +1107,18 @@ defmodule SlipdockWeb.BoardLive.Show do
 
   # A custom field's condition (#3369), read by the field's kind
   # (`Slipdock.Filters.put_field/3`). A field not on this tree is ignored.
+  # The view keeps them (#3608): the address carries them, so a reload and a
+  # saved view do too, and `handle_params` puts them back on the filters.
   def handle_event("filter_field", %{"field" => id} = params, socket) do
     field = Enum.find(socket.assigns.board.fields, &(&1.id == Params.id(id)))
 
-    if field,
-      do:
-        {:noreply,
-         socket
-         |> assign(filters: Slipdock.Filters.put_field(socket.assigns.filters, field, params))
-         |> assign_columns()},
-      else: {:noreply, socket}
+    if field do
+      filters = Slipdock.Filters.put_field(socket.assigns.filters, field, params)
+      kept = Slipdock.Filters.saved_fields(filters)
+      {:noreply, patch_swim(socket, %{socket.assigns.swim | field_filters: kept})}
+    else
+      {:noreply, socket}
+    end
   end
 
   def handle_event("toggle_hide_completed", _, socket) do
@@ -1113,9 +1129,16 @@ defmodule SlipdockWeb.BoardLive.Show do
     socket =
       socket |> assign(filters: @empty_filters, page_hit: nil, card_hit: nil) |> assign_columns()
 
-    if socket.assigns.waiting_filter,
-      do: {:noreply, push_patch(socket, to: ~p"/boards/#{socket.assigns.board}")},
-      else: {:noreply, socket}
+    cond do
+      socket.assigns.waiting_filter ->
+        {:noreply, push_patch(socket, to: ~p"/boards/#{socket.assigns.board}")}
+
+      socket.assigns.swim.field_filters != %{} ->
+        {:noreply, patch_swim(socket, %{socket.assigns.swim | field_filters: %{}})}
+
+      true ->
+        {:noreply, socket}
+    end
   end
 
   ## Events: columns ---------------------------------------------------------
