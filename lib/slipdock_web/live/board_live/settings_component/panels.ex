@@ -482,6 +482,20 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent.Panels do
               {f.config["expression"] || "weighted"}
             </span>
             <label
+              class="flex cursor-pointer items-center gap-1 text-2xs"
+              title="Show this field's value on the front of each card"
+            >
+              <input
+                phx-target={@target}
+                type="checkbox"
+                class="toggle"
+                phx-click="toggle_field_on_cards"
+                phx-value-id={f.id}
+                checked={f.show_on_cards}
+                aria-label={"Show #{f.name} on cards"}
+              /> Show on cards
+            </label>
+            <label
               :if={f.kind in ~w(number rating)}
               class="flex cursor-pointer items-center gap-1 text-2xs"
               title="Roll totals up the tree and show sums in table groups"

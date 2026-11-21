@@ -576,7 +576,8 @@ defmodule SlipdockWeb.API.JSON do
       position: f.position,
       options: f.options,
       config: f.config,
-      sum: f.sum
+      sum: f.sum,
+      show_on_cards: f.show_on_cards
     }
   end
 

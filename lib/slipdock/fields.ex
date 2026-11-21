@@ -410,31 +410,51 @@ defmodule Slipdock.Fields do
   order, so a formula may use one defined before it.
   """
   def decorate(cards, fields) when is_list(cards) and is_list(fields) do
-    formulas = Enum.filter(fields, &(&1.kind == "formula"))
-
-    if formulas == [] do
-      Enum.map(cards, &Map.merge(&1, %{computed: %{}, scores: %{}}))
-    else
-      cards = Enum.map(cards, &Map.merge(&1, %{computed: %{}, scores: %{}}))
-      by_key = Map.new(fields, &{&1.key, &1})
-
-      Enum.reduce(formulas, cards, fn formula, cards ->
-        results = compute_formula(formula, cards, by_key)
-
-        Enum.map(cards, fn card ->
-          value = Map.get(results, card.id)
-
-          %{
-            card
-            | computed: Map.put(card.computed, formula.id, value),
-              scores: Map.put(card.scores, formula.key, value)
-          }
-        end)
-      end)
-    end
+    cards |> compute_formulas(fields) |> Enum.map(&put_front_fields(&1, fields))
   end
 
   def decorate(cards, _), do: cards
+
+  @doc """
+  The values a card's front shows (#3609): `[{field, text}]` for each field
+  switched to Show on cards, in field order, leaving out the ones it has no
+  value for.
+  """
+  def front_fields(card, fields) do
+    # A field the card has no value for formats to nil, which the binding
+    # filters out; an empty text is stored as no value, so there is no "".
+    for %FieldDefinition{show_on_cards: true} = field <- fields,
+        text = format(field, value(card, field)),
+        do: {field, text}
+  end
+
+  # Only a card has them; a page placed on the board shows no field chips.
+  defp put_front_fields(%Card{} = card, fields),
+    do: %{card | front_fields: front_fields(card, fields)}
+
+  defp put_front_fields(item, _fields), do: item
+
+  defp compute_formulas(cards, fields) do
+    cards = Enum.map(cards, &Map.merge(&1, %{computed: %{}, scores: %{}}))
+    by_key = Map.new(fields, &{&1.key, &1})
+
+    fields
+    |> Enum.filter(&(&1.kind == "formula"))
+    |> Enum.reduce(cards, &apply_formula(&1, &2, by_key))
+  end
+
+  defp apply_formula(formula, cards, by_key) do
+    results = compute_formula(formula, cards, by_key)
+    Enum.map(cards, &put_formula_value(&1, formula, Map.get(results, &1.id)))
+  end
+
+  defp put_formula_value(card, formula, value) do
+    %{
+      card
+      | computed: Map.put(card.computed, formula.id, value),
+        scores: Map.put(card.scores, formula.key, value)
+    }
+  end
 
   # Computes `formula` for every card: a map of card id to value (or nil).
   defp compute_formula(%FieldDefinition{config: config}, cards, by_key) do
@@ -524,7 +544,7 @@ defmodule Slipdock.Fields do
 
       [card | peers] |> decorate(fields) |> hd()
     else
-      Map.merge(card, %{computed: %{}, scores: %{}})
+      card |> Map.merge(%{computed: %{}, scores: %{}}) |> put_front_fields(fields)
     end
   end
 

@@ -43,7 +43,13 @@ defmodule SlipdockWeb.SlipdockComponents.CardFace do
         on.("state_line") and match?(%Slipdock.CardState{line: line} when is_binary(line), state),
       driver: on.("driver") and match?(%Slipdock.CardState{driver: d} when is_binary(d), state)
     }
+    |> Map.put(:custom_fields, fields_shown?(on, card))
   end
+
+  # Its custom fields switched to Show on cards (#3609), when it has a value
+  # for one.
+  defp fields_shown?(on, card),
+    do: on.("custom_fields") and Map.get(card, :front_fields, []) != []
 
   # The heart (#2031): an element like the marks.
   defp favourite_shown?(on, marks, card), do: on.("favourite") and favourite_mark?(marks, card)
@@ -60,6 +66,40 @@ defmodule SlipdockWeb.SlipdockComponents.CardFace do
       true -> asked
     end
   end
+
+  attr :fields, :list, required: true, doc: "`[{field, text}]`, `Slipdock.Fields.front_fields/2`"
+  attr :compact, :boolean, default: false
+
+  # A card's custom-field values as small chips (#3609), in field order: a
+  # choice in its option's colour, anything else in an outline, each titled
+  # with its field's name. The compact front passes at most two.
+  defp field_chips(assigns) do
+    ~H"""
+    <div
+      data-role="card-fields"
+      class={["flex min-w-0 flex-wrap gap-1", if(@compact, do: "shrink-0", else: "")]}
+    >
+      <span
+        :for={{field, text} <- @fields}
+        data-field={field.key}
+        title={"#{field.name}: #{text}"}
+        class={["chip max-w-40 truncate text-2xs", field_chip_tone(field, text)]}
+      >
+        {text}
+      </span>
+    </div>
+    """
+  end
+
+  # A choice's option colour, when it has one; every other value is outlined.
+  defp field_chip_tone(%{kind: "select", options: options}, text) do
+    case Enum.find(options, &(&1["label"] == text)) do
+      %{"color" => color} when is_binary(color) -> Palette.chip(color)
+      _ -> "chip-line"
+    end
+  end
+
+  defp field_chip_tone(_field, _text), do: "chip-line"
 
   @doc "The facets to show as a MapSet; `nil` means every facet."
   def show_set(nil), do: MapSet.new(Config.facet_keys() ++ Config.marks_on())
@@ -311,6 +351,8 @@ defmodule SlipdockWeb.SlipdockComponents.CardFace do
           <span :if={@actions != []} class="-mr-1 -mt-0.5 shrink-0">{render_slot(@actions)}</span>
         </div>
 
+        <.field_chips :if={@f.custom_fields} fields={@card.front_fields} />
+
         <%!-- `card-meta` (#1708): neutral chips in here are plain icon and
              text (app.css drops their outline); only the tinted ones, the
              states that need attention, keep a box. --%>
@@ -527,6 +569,7 @@ defmodule SlipdockWeb.SlipdockComponents.CardFace do
       </p>
       <.card_id :if={@f.id and not @page?} card={@card} />
       <.favourite_mark :if={@favourite?} class="size-3" />
+      <.field_chips :if={@f.custom_fields} fields={Enum.take(@card.front_fields, 2)} compact />
       <span
         :if={@f.tags}
         class="flex shrink-0 items-center gap-0.5"

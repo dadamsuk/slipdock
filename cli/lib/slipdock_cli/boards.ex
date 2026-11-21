@@ -533,6 +533,7 @@ defmodule SlipdockCLI.Boards do
         "name" => Enum.join(words, " "),
         "kind" => o[:kind] || "number",
         "sum" => o[:sum] || false,
+        "show_on_cards" => o[:on_cards] || false,
         "options" => options,
         "config" =>
           if(o[:formula], do: %{"mode" => "expression", "expression" => o[:formula]}, else: %{})

@@ -1037,6 +1037,7 @@ WRITE
   waits <id>                          the questions the card has asked, and the answers
   new-field <board> <name> --kind K   add a custom field (K: number rating select date text formula)
       [--options "Small=1, Large=3"] [--formula "{value} / {effort}"] [--sum]
+      [--on-cards]  show its value on the front of each card
   delete-field <board> <field>
   preset <board> <rice|ice|value_effort>  set a scoring scheme up (inputs + formula)
   milestone <board> <name> --date YYYY-MM-DD [--color C]

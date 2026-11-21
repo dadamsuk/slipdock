@@ -15,6 +15,13 @@ the board's cards and combines them by weight, so effort-like inputs with a
 negative weight pull a score down. Presets set a scheme up in one click:
 **RICE**, **ICE** and **Value ÷ Effort**.
 
+Each field has a **Show on cards** switch in board settings, off until you
+turn it on: the card front then shows that field's value as a small chip,
+in field order, leaving out the fields a card has no value for, and a
+compact card shows the first two. A card view hides them all as one
+element, *Fields* (see [Card views](card-views.md)). From the command line,
+`slipdock new-field … --on-cards`; over the API, `show_on_cards`.
+
 Fields are edited in the card modal (stars for ratings), shown as table
 columns (*Display*), sortable, and rating and choice fields can be swimlane
 axes — *Value* on one axis and *Effort* on the other is the prioritisation

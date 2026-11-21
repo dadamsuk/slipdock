@@ -137,6 +137,8 @@ defmodule Slipdock.Swimlanes.Config do
     {"driver", "Who drives it", true},
     {"profile", "Profile", true},
     {"recurrence", "Repeats", true},
+    # The custom fields switched to Show on cards (#3609), all as one.
+    {"custom_fields", "Fields", true},
     {"snoozed", "Snoozed", true},
     {"favourite", "Favourite heart", true}
   ]

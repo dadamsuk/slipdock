@@ -33,6 +33,7 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
   alias SlipdockWeb.BoardLive.Sharing
 
   @events ~w(validate_board save_board set_board_color add_field delete_field toggle_field_sum
+    toggle_field_on_cards
     install_preset add_milestone delete_milestone delete_board archive_board unarchive_board
     save_as_template share revoke_grant set_sprint_sources set_gardening deploy_setup
     deploy_prompt settings_tab)
@@ -341,6 +342,14 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
   defp event("toggle_field_sum", %{"id" => id}, socket) do
     if field = Fields.get_board_field(root_id(socket), id) do
       {:ok, _} = Fields.update_field(field, %{"sum" => not field.sum})
+    end
+
+    {:noreply, socket}
+  end
+
+  defp event("toggle_field_on_cards", %{"id" => id}, socket) do
+    if field = Fields.get_board_field(root_id(socket), id) do
+      {:ok, _} = Fields.update_field(field, %{"show_on_cards" => not field.show_on_cards})
     end
 
     {:noreply, socket}
