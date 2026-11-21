@@ -392,6 +392,9 @@ defmodule Slipdock.Swimlanes do
         Enum.map(max..1//-1, &bucket(number_key(&1 * 1.0), String.duplicate("★", &1))) ++
           [bucket("none", "Not rated")]
 
+      %{kind: "checkbox"} = field ->
+        checkbox_buckets(field, key, cards)
+
       %{kind: "select"} = field ->
         Enum.map(field.options, &bucket(&1["key"], &1["label"], &1["color"])) ++
           [bucket("none", "No #{String.downcase(field.name)}")]
@@ -452,6 +455,17 @@ defmodule Slipdock.Swimlanes do
     Enum.map(dated, fn k ->
       bucket(k, date_label(k, unit, today), nil, if(k == today_key, do: :current))
     end) ++ Enum.map(none, fn _ -> bucket("none", "No #{String.downcase(field.name)}") end)
+  end
+
+  # A checkbox's two lanes, on and off: a decorated card always has 1.0 or
+  # 0.0 (`Slipdock.Fields.decorate/2`), so an empty one is in the off lane.
+  # A page placed on the board carries no field values, so when one is there
+  # it gets the lane with no value, as it does on every field axis.
+  defp checkbox_buckets(field, key, cards) do
+    none? = Enum.any?(cards, &(card_keys(&1, key, nil) == ["none"]))
+
+    [bucket(number_key(1.0), "✓ #{field.name}"), bucket(number_key(0.0), "Not #{field.name}")] ++
+      if(none?, do: [bucket("none", "No #{String.downcase(field.name)}")], else: [])
   end
 
   defp bucket(key, label, color \\ nil, tone \\ nil),

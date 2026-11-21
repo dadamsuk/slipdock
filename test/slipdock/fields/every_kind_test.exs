@@ -77,6 +77,17 @@ defmodule Slipdock.Fields.EveryKindTest do
       editor: ~s|input[type="text"][name="value"]|,
       axis: false
     },
+    # Off clears the value, so the low card is empty: empty counts as off.
+    "checkbox" => %{
+      attrs: %{},
+      low: "false",
+      high: "true",
+      shown: "Yes",
+      json: true,
+      filter: %{"checked" => "true"},
+      editor: ~s|input[type="checkbox"][name="value"]|,
+      axis: true
+    },
     # Computed from the number field: 2 → 20, 9 → 90. Set by nobody.
     "formula" => %{
       attrs: %{"config" => %{"mode" => "expression", "expression" => "{number} * 10"}},

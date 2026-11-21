@@ -904,7 +904,7 @@ defmodule SlipdockWeb.API.JSON do
   defp field_values(%Card{field_values: values}) when is_list(values) do
     for %{field: %Slipdock.Boards.FieldDefinition{} = f} = v <- values,
         into: %{},
-        do: {f.key, Slipdock.Boards.FieldValue.get(v)}
+        do: {f.key, Slipdock.Fields.external(f, Slipdock.Boards.FieldValue.get(v))}
   end
 
   defp field_values(_), do: %{}
@@ -1262,7 +1262,7 @@ defmodule SlipdockWeb.API.JSON do
   defp page_field_values(%Page{field_values: values}) when is_list(values) do
     for %{field: %Slipdock.Boards.FieldDefinition{} = f} = v <- values,
         into: %{},
-        do: {f.key, Slipdock.Boards.FieldValue.get(v)}
+        do: {f.key, Slipdock.Fields.external(f, Slipdock.Boards.FieldValue.get(v))}
   end
 
   defp page_field_values(_), do: %{}

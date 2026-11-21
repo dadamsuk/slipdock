@@ -7,6 +7,8 @@ defmodule Slipdock.Boards.FieldDefinition do
     * `select` – one of `options`, each `%{"key", "label", "weight", "color"}`;
       the weight is the option's value in formulas
     * `date`, `text`
+    * `checkbox` – on or off: on is stored as the number 1.0 and off as no
+      value, so an empty one counts as off; it is 1 or 0 in formulas
     * `formula` – computed from other fields; `config["mode"]` is
       `"expression"` (an arithmetic expression over `{key}` references) or
       `"weighted"` (each input in `config["weights"]` normalised 0–100 across
@@ -24,6 +26,7 @@ defmodule Slipdock.Boards.FieldDefinition do
     {"select", "Choice"},
     {"date", "Date"},
     {"text", "Text"},
+    {"checkbox", "Checkbox"},
     {"formula", "Formula"}
   ]
 
@@ -54,12 +57,13 @@ defmodule Slipdock.Boards.FieldDefinition do
   end
 
   @doc "Whether values of the field are numbers (usable in formulas and sums)."
-  def numeric?(%__MODULE__{kind: k}), do: Enum.member?(~w(number rating select formula), k)
+  def numeric?(%__MODULE__{kind: k}),
+    do: Enum.member?(~w(number rating select checkbox formula), k)
 
   # The kinds whose values are fixed, so each can be a swimlane lane (#3607).
   # Every other kind is explicitly not an axis: its values are open-ended.
   # A date is bucketed by the view's unit, as due dates are (#3615).
-  @axis_kinds ~w(rating select date)
+  @axis_kinds ~w(rating select date checkbox)
 
   @doc """
   Whether the field can be a swimlane axis. Every kind is one or explicitly

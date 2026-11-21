@@ -506,8 +506,10 @@ defmodule Slipdock.Swimlanes.Config do
   defp field_condition(condition) do
     for {key, value} <- condition,
         key = to_string(key),
-        Enum.member?(~w(options min max from to text), key),
-        value = condition_value(key, value),
+        Enum.member?(~w(options min max from to text checked), key),
+        # A generator, not a match: a match that gives false (a checkbox's
+        # Off) would be taken as a filter and dropped.
+        value <- [condition_value(key, value)],
         not Enum.member?([nil, "", []], value),
         into: %{},
         do: {key, value}
@@ -537,6 +539,9 @@ defmodule Slipdock.Swimlanes.Config do
 
   defp condition_value("text", v) when is_binary(v),
     do: v |> String.trim() |> String.slice(0, 200)
+
+  # A checkbox's: true (on) or false (off).
+  defp condition_value("checked", v), do: Slipdock.Fields.parse_checked(v)
 
   defp condition_value(_key, _v), do: nil
 

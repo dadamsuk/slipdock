@@ -7,7 +7,8 @@ defmodule Slipdock.Fields do
   Values are read from a card's preloaded `field_values`; formula results
   live in the card's virtual `computed` map (field id to number), filled by
   `decorate/2` for a board's cards at once, since a weighted score
-  normalises each input across the whole board.
+  normalises each input across the whole board. `computed` holds each
+  checkbox too, as 1.0 or 0.0, so an empty one reads as off.
   """
 
   import Ecto.Query
@@ -218,6 +219,10 @@ defmodule Slipdock.Fields do
     end
   end
 
+  # A checkbox is 1 when on and 0 otherwise: an empty one counts as off.
+  def numeric(card, %FieldDefinition{kind: "checkbox"} = field),
+    do: if(value(card, field) == 1.0, do: 1.0, else: 0.0)
+
   def numeric(card, %FieldDefinition{kind: kind} = field)
       when kind in ~w(number rating formula) do
     case value(card, field) do
@@ -237,6 +242,8 @@ defmodule Slipdock.Fields do
   def format(%FieldDefinition{kind: "rating"}, n) when is_number(n), do: "#{round(n)}"
   def format(%FieldDefinition{kind: "date"}, %Date{} = d), do: Calendar.strftime(d, "%-d %b %Y")
   def format(%FieldDefinition{kind: "text"}, t), do: t
+  # On reads "Yes"; off is shown as nothing, as an empty field is.
+  def format(%FieldDefinition{kind: "checkbox"}, n), do: if(n == 1.0, do: "Yes")
 
   def format(%FieldDefinition{config: config}, n) when is_number(n) do
     text =
@@ -380,6 +387,47 @@ defmodule Slipdock.Fields do
 
   defp cast(%FieldDefinition{kind: "text"}, raw), do: {:ok, %{text: String.trim(to_string(raw))}}
 
+  # On is stored as 1.0; off clears the value, so off and empty are one.
+  defp cast(%FieldDefinition{kind: "checkbox"} = field, raw) do
+    case parse_checked(raw) do
+      true -> {:ok, %{number: 1.0}}
+      false -> {:ok, nil}
+      nil -> {:error, "#{field.name} takes true or false."}
+    end
+  end
+
+  @checked_on ~w(true 1 1.0 on yes)
+  @checked_off ~w(false 0 0.0 off no)
+
+  @doc """
+  Reads a checkbox's raw value: `true` or `false`, from a boolean, the
+  numbers 1 and 0, or `"true"`/`"false"`, `"1"`/`"0"` (`"1.0"`/`"0.0"`,
+  the keys of its swimlanes), `"on"`/`"off"` or `"yes"`/`"no"` in any case;
+  nil for anything else.
+  """
+  def parse_checked(b) when is_boolean(b), do: b
+  def parse_checked(n) when is_number(n) and (n == 1 or n == 0), do: n == 1
+
+  def parse_checked(s) when is_binary(s) do
+    word = s |> String.trim() |> String.downcase()
+
+    cond do
+      Enum.member?(@checked_on, word) -> true
+      Enum.member?(@checked_off, word) -> false
+      true -> nil
+    end
+  end
+
+  def parse_checked(_), do: nil
+
+  @doc """
+  A stored value as the API, MCP and a page's `fields` give it: a checkbox
+  as `true` when on (off has no value, so it is left out), any other kind
+  as it is.
+  """
+  def external(%FieldDefinition{kind: "checkbox"}, value), do: if(value == 1.0, do: true)
+  def external(_field, value), do: value
+
   defp number(n) when is_number(n), do: {:ok, n * 1.0}
 
   defp number(s) when is_binary(s) do
@@ -410,7 +458,10 @@ defmodule Slipdock.Fields do
   order, so a formula may use one defined before it.
   """
   def decorate(cards, fields) when is_list(cards) and is_list(fields) do
-    cards |> compute_formulas(fields) |> Enum.map(&put_front_fields(&1, fields))
+    cards
+    |> compute_formulas(fields)
+    |> Enum.map(&put_checkboxes(&1, fields))
+    |> Enum.map(&put_front_fields(&1, fields))
   end
 
   def decorate(cards, _), do: cards
@@ -424,8 +475,26 @@ defmodule Slipdock.Fields do
     # A field the card has no value for formats to nil, which the binding
     # filters out; an empty text is stored as no value, so there is no "".
     for %FieldDefinition{show_on_cards: true} = field <- fields,
-        text = format(field, value(card, field)),
+        text = front_text(field, value(card, field)),
         do: {field, text}
+  end
+
+  # A checked checkbox's chip names its field ("✓ Paid"); an unchecked one has none.
+  defp front_text(%FieldDefinition{kind: "checkbox", name: name}, value),
+    do: if(value == 1.0, do: "✓ #{name}")
+
+  defp front_text(field, value), do: format(field, value)
+
+  # Every checkbox as a number in `computed`, 1.0 or 0.0, so a sort, a
+  # swimlane axis and a view's kept filter read an empty one as off (#3612).
+  # `value/2` still gives what is stored.
+  defp put_checkboxes(item, fields) do
+    checkboxes =
+      for %FieldDefinition{kind: "checkbox"} = field <- fields,
+          into: %{},
+          do: {field.id, numeric(item, field)}
+
+    Map.put(item, :computed, Map.merge(Map.get(item, :computed) || %{}, checkboxes))
   end
 
   # Only a card has them; a page placed on the board shows no field chips.
@@ -544,7 +613,10 @@ defmodule Slipdock.Fields do
 
       [card | peers] |> decorate(fields) |> hd()
     else
-      card |> Map.merge(%{computed: %{}, scores: %{}}) |> put_front_fields(fields)
+      card
+      |> Map.merge(%{computed: %{}, scores: %{}})
+      |> put_checkboxes(fields)
+      |> put_front_fields(fields)
     end
   end
 

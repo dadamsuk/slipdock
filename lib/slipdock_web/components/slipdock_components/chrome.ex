@@ -840,6 +840,31 @@ defmodule SlipdockWeb.SlipdockComponents.Chrome do
     """
   end
 
+  # A checkbox (#3612): On or Off, the same again clears it. An empty one is off.
+  defp field_filter(%{field: %{kind: "checkbox"}} = assigns) do
+    ~H"""
+    <div data-field-filter={@field.key}>
+      <p class="mb-1 text-xs text-base-content/70">{@field.name}</p>
+      <div class="flex flex-wrap gap-1">
+        <button
+          :for={{checked, label} <- [{true, "On"}, {false, "Off"}]}
+          type="button"
+          class={[
+            "btn btn-xs",
+            if(@condition && @condition.checked == checked, do: "btn-primary", else: "btn-ghost")
+          ]}
+          phx-click="filter_field"
+          phx-value-field={@field.id}
+          phx-value-checked={to_string(checked)}
+          title={"#{@field.name}: #{String.downcase(label)}"}
+        >
+          {label}
+        </button>
+      </div>
+    </div>
+    """
+  end
+
   defp field_filter(assigns), do: ~H""
 
   defp input_value(nil), do: nil
