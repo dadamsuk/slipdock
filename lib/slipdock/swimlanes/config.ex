@@ -455,7 +455,16 @@ defmodule Slipdock.Swimlanes.Config do
           do: {"f:#{f.id}", f.name}
   end
 
-  def uses_dates?(%__MODULE__{rows: r, cols: c}), do: date_axis?(r) or date_axis?(c)
+  @doc """
+  Whether either axis is bucketed by date, so the view offers its unit: a
+  date attribute, or a date custom field on `board` (#3615).
+  """
+  def uses_dates?(%__MODULE__{rows: r, cols: c}, board \\ nil),
+    do: dated_axis?(r, board) or dated_axis?(c, board)
+
+  defp dated_axis?(axis, board) do
+    date_axis?(axis) or match?(%{kind: "date"}, board && custom_field(axis, board))
+  end
 
   @doc """
   Builds a config from URL/query params on top of `base`. Keys that are
