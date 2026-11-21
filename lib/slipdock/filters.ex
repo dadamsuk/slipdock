@@ -97,8 +97,11 @@ defmodule Slipdock.Filters do
     * `number`, `formula`: `"min"` and `"max"`, either or both
     * `date`: `"from"` and `"to"` (ISO dates), either or both
     * `text`: `"text"`, words the value contains, in any case
+    * `checkbox`: `"checked"`, `"true"` (on) or `"false"` (off); the same
+      again clears it
 
-  An item with no value for the field fails any condition on it.
+  An item with no value for the field fails any condition on it, except a
+  checkbox's: an empty checkbox is off.
   """
   def put_field(filters, %FieldDefinition{id: id} = field, params) when is_map(params) do
     current = Map.get(fields_of(filters), id)
@@ -183,6 +186,9 @@ defmodule Slipdock.Filters do
   defp restore_condition("text", _field, kept),
     do: %{text: String.trim(to_string(kept["text"] || ""))}
 
+  defp restore_condition("checkbox", _field, kept),
+    do: %{checked: Slipdock.Fields.parse_checked(kept["checked"])}
+
   defp restore_condition(_numeric, _field, kept),
     do: %{min: parse_number(kept["min"]), max: parse_number(kept["max"])}
 
@@ -190,8 +196,11 @@ defmodule Slipdock.Filters do
   Whether `item` meets every condition a view kept (`saved_fields/1`), read
   by the condition's shape rather than the field's definition, which a
   saved view's filters don't carry: `options` (its value is one of them),
-  `min`/`max` (a number), `from`/`to` (a date), `text` (words it contains).
-  An item with no value for a field, or a value of another sort, fails.
+  `min`/`max` (a number), `from`/`to` (a date), `text` (words it contains),
+  `checked` (a checkbox on, `true`, or off, `false`). An item with no value
+  for a field, or a value of another sort, fails, except that no value is
+  off to `checked`: a page placed on the board isn't decorated, so its empty
+  checkbox has no 0.0 in `computed`.
   A shared view grants access to what its filters select
   (`Slipdock.Access.view_shows_card?/2`), so this narrows that access too.
   """
@@ -225,6 +234,9 @@ defmodule Slipdock.Filters do
   rescue
     ArgumentError -> nil
   end
+
+  defp kept_matches?(value, %{"checked" => checked}) when is_boolean(checked),
+    do: value == 1.0 == checked
 
   defp kept_matches?(nil, _kept), do: false
 
@@ -294,6 +306,11 @@ defmodule Slipdock.Filters do
   defp condition(%FieldDefinition{kind: "text"}, _current, params),
     do: %{text: String.trim(to_string(params["text"] || ""))}
 
+  defp condition(%FieldDefinition{kind: "checkbox"}, current, params) do
+    checked = Slipdock.Fields.parse_checked(params["checked"])
+    if current && current.checked == checked, do: %{checked: nil}, else: %{checked: checked}
+  end
+
   defp condition(_field, current, _params), do: current || %{}
 
   defp empty_condition?(condition) do
@@ -301,6 +318,10 @@ defmodule Slipdock.Filters do
     |> Map.delete(:field)
     |> Enum.all?(fn {_k, v} -> Enum.member?([nil, "", []], v) end)
   end
+
+  # An empty checkbox is off, so it has no nil to fail on.
+  defp field_matches?(item, %{field: %FieldDefinition{kind: "checkbox"} = field} = condition),
+    do: Slipdock.Fields.numeric(item, field) == 1.0 == condition.checked
 
   defp field_matches?(item, %{field: field} = condition) do
     value = Slipdock.Fields.value(item, field)

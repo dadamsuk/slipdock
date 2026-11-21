@@ -150,7 +150,7 @@ defmodule SlipdockWeb.SwimlaneComponents do
       <div class="space-y-2">
         <div
           :for={field <- @fields}
-          :if={field.kind in ~w(select rating number formula date text)}
+          :if={field.kind in ~w(select rating number formula date text checkbox)}
           data-field-filter={field.key}
         >
           <% kept = Map.get(@kept, to_string(field.id), %{}) %>
@@ -220,6 +220,21 @@ defmodule SlipdockWeb.SwimlaneComponents do
               placeholder="To"
               aria-label={"#{field.name} to"}
             />
+          </div>
+          <div :if={field.kind == "checkbox"} class="flex flex-wrap gap-1">
+            <label
+              :for={{value, label} <- [{"", "Any"}, {"true", "On"}, {"false", "Off"}]}
+              class="cursor-pointer"
+            >
+              <input
+                type="radio"
+                name={"#{name}[checked]"}
+                value={value}
+                checked={to_string(kept["checked"]) == value}
+                class="peer sr-only"
+              />
+              <span class="btn btn-xs btn-ghost peer-checked:btn-primary">{label}</span>
+            </label>
           </div>
           <input
             :if={field.kind == "text"}

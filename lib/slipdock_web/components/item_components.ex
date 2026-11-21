@@ -272,7 +272,7 @@ defmodule SlipdockWeb.ItemComponents do
 
   @doc """
   One custom field's value, edited in place: the stars of a rating, a
-  select, a number, a date or text. The card and page panels
+  select, a number, a date, text or a checkbox. The card and page panels
   (`fields_section/1`) and the Prioritise table both draw their fields with
   it, so the two can't drift (#2878).
 
@@ -330,6 +330,34 @@ defmodule SlipdockWeb.ItemComponents do
         <.icon name="hero-x-mark" class="size-3" />
       </button>
     </div>
+    """
+  end
+
+  # A checkbox (#3612), in a form like the other kinds': unticked sends the
+  # hidden "false", ticked the later "true", which wins.
+  def field_input(%{field: %{kind: "checkbox"}} = assigns) do
+    assigns = assign(assigns, checked: Fields.value(assigns.item, assigns.field) == 1.0)
+
+    ~H"""
+    <form
+      phx-target={@target}
+      phx-change={@event}
+      phx-submit={@event}
+      id={@id}
+      class={["flex items-center", @look == :boxed && "min-h-8"]}
+    >
+      <input :for={{k, v} <- @params} type="hidden" name={k} value={v} />
+      <input type="hidden" name="field_id" value={@field.id} />
+      <input type="hidden" name="value" value="false" />
+      <input
+        type="checkbox"
+        name="value"
+        value="true"
+        checked={@checked}
+        aria-label={@field.name}
+        class="checkbox"
+      />
+    </form>
     """
   end
 

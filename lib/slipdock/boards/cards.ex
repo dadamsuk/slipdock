@@ -193,7 +193,7 @@ defmodule Slipdock.Boards.Cards do
 
       cards |> Kernel.++(peers) |> Slipdock.Fields.decorate(fields) |> Enum.take(length(cards))
     else
-      Enum.map(cards, &Map.merge(&1, %{computed: %{}, scores: %{}}))
+      Slipdock.Fields.decorate(cards, fields)
     end
   end
 
