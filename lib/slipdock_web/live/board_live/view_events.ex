@@ -110,7 +110,9 @@ defmodule SlipdockWeb.BoardLive.ViewEvents do
     attrs = %{
       "name" => params["name"],
       "kind" => params["kind"],
-      "options" => SlipdockWeb.BoardLive.Helpers.parse_options(params["options"])
+      "options" => SlipdockWeb.BoardLive.Helpers.parse_options(params["options"]),
+      # Allow several, for a choice only (#3606).
+      "config" => several_config(params)
     }
 
     case Fields.create_field(socket.assigns.board, attrs) do
@@ -491,4 +493,10 @@ defmodule SlipdockWeb.BoardLive.ViewEvents do
       _ -> List.first(board.columns)
     end
   end
+
+  defp several_config(%{"kind" => "select", "several" => several})
+       when several in ["true", "on"],
+       do: %{"several" => true}
+
+  defp several_config(_params), do: %{}
 end

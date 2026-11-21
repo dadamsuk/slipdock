@@ -24,7 +24,8 @@ made in. `slipdock table <board>` prints the same thing in the terminal.
 column (*Display*), and a writer edits its values in place, as on the card.
 Whoever may change the board's fields (a writer of the tree's top board,
 as in board settings) has a **+** at the end of the header: give the field
-a name and a type (and a choice its options), and it is added as a column
+a name and a type (and a choice its options, and whether it allows
+several), and it is added as a column
 with its first cell ready to type in. Units, a formula's expression and
 the rest are set in board settings.
 

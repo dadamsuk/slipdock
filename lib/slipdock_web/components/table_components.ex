@@ -358,6 +358,11 @@ defmodule SlipdockWeb.TableComponents do
           class="input field w-full"
           autocomplete="off"
         />
+        <%!-- A choice that holds several options per card (#3606, #3611). --%>
+        <label class="flex items-center gap-2 text-xs">
+          <input type="checkbox" name="several" value="true" class="checkbox" />
+          Allow several (for a choice)
+        </label>
         <p class="text-xs text-base-content/60">
           Units and formulas are set in board settings.
         </p>
