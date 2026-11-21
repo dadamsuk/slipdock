@@ -434,7 +434,7 @@ defmodule Slipdock.Swimlanes.Config do
   def axes(board) do
     @axes ++
       for f <- Map.get(board, :fields) || [],
-          Enum.member?(~w(rating select), f.kind),
+          Slipdock.Boards.FieldDefinition.axis?(f),
           do: {"f:#{f.id}", f.name}
   end
 

@@ -157,7 +157,7 @@ gives it, so a whole board reads in one call), `get_card`, `search`, `ask` (a
 model call, so slower), `read_page`, `list_pages`, `page_info`, `page_history`, `activity` (a
 board's log, or one card's), `download_file` (a file, by
 attachment id; `link: true`, a URL to curl), `list_automations`, and for
-writing `create_card`, `update_card` (fields, flags, tags, assignees,
+writing `create_card`, `update_card` (fields, custom fields, flags, tags, assignees,
 dependencies, the checklist, recurrence, snooze), `move_card` (to another board too),
 `comment`, `leave_handoff`, `upload_file` (onto a card or page;
 a shell: `link: true`), `complete_card`, `status_update` (a card's stated health, with

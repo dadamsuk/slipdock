@@ -54,6 +54,16 @@ defmodule Slipdock.Boards.FieldDefinition do
   @doc "Whether values of the field are numbers (usable in formulas and sums)."
   def numeric?(%__MODULE__{kind: k}), do: Enum.member?(~w(number rating select formula), k)
 
+  # The kinds whose values are fixed, so each can be a swimlane lane (#3607).
+  # Every other kind is explicitly not an axis: its values are open-ended.
+  @axis_kinds ~w(rating select)
+
+  @doc """
+  Whether the field can be a swimlane axis. Every kind is one or explicitly
+  not one, which `Slipdock.Fields.EveryKindTest` holds each kind to.
+  """
+  def axis?(%__MODULE__{kind: k}), do: Enum.member?(@axis_kinds, k)
+
   @doc "The highest rating the field takes."
   def rating_max(%__MODULE__{kind: "rating", config: c}), do: int(c["max"], 5)
   def rating_max(_), do: 5
