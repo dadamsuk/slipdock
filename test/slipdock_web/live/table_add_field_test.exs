@@ -12,6 +12,7 @@ defmodule SlipdockWeb.TableAddFieldTest do
   import Slipdock.Fixtures
 
   alias Slipdock.{Access, Boards, Fields}
+  alias Slipdock.Boards.FieldDefinition
 
   setup %{user: user} do
     board = board_fixture(%{"name" => "Contacts"}, owner: user)
@@ -56,6 +57,27 @@ defmodule SlipdockWeb.TableAddFieldTest do
 
     [field] = Fields.list_fields(board.id)
     assert Enum.map(field.options, & &1["label"]) == ["Lead", "Won"]
+  end
+
+  test "a choice can allow several from the same form; another kind ignores it",
+       %{conn: conn, board: board} do
+    {:ok, view, _} = live(conn, ~p"/boards/#{board}/table")
+    assert has_element?(view, ~s|#add-field-form input[type=checkbox][name=several]|)
+
+    add(view, %{
+      "name" => "Tags",
+      "kind" => "select",
+      "options" => "Friend, Work",
+      "several" => "true"
+    })
+
+    add(view, %{"name" => "Stage", "kind" => "select", "options" => "Lead, Won"})
+    add(view, %{"name" => "Notes", "kind" => "text", "options" => "", "several" => "true"})
+
+    by_name = Map.new(Fields.list_fields(board.id), &{&1.name, &1})
+    assert FieldDefinition.several?(by_name["Tags"])
+    refute FieldDefinition.several?(by_name["Stage"])
+    assert by_name["Notes"].config == %{}
   end
 
   test "a choice without options, or a blank name, is refused and says why",
