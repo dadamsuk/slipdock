@@ -96,7 +96,7 @@ defmodule Slipdock.Filters do
     * `rating`: `"min"`, at least that many stars; the same again clears it
     * `number`, `formula`: `"min"` and `"max"`, either or both
     * `date`: `"from"` and `"to"` (ISO dates), either or both
-    * `text`: `"text"`, words the value contains, in any case
+    * `text`, `url`: `"text"`, words the value contains, in any case
     * `checkbox`: `"checked"`, `"true"` (on) or `"false"` (off); the same
       again clears it
 
@@ -183,7 +183,7 @@ defmodule Slipdock.Filters do
   defp restore_condition("date", _field, kept),
     do: %{from: parse_date(kept["from"]), to: parse_date(kept["to"])}
 
-  defp restore_condition("text", _field, kept),
+  defp restore_condition(kind, _field, kept) when kind in ~w(text url),
     do: %{text: String.trim(to_string(kept["text"] || ""))}
 
   defp restore_condition("checkbox", _field, kept),
