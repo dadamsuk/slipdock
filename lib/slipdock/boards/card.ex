@@ -149,6 +149,9 @@ defmodule Slipdock.Boards.Card do
     # keyed by field id, `scores` by field key.
     field :computed, :map, virtual: true, default: %{}
     field :scores, :map, virtual: true, default: %{}
+    # The values its front shows (#3609): `[{field, text}]` for the fields
+    # with Show on cards, in field order, empty ones left out.
+    field :front_fields, {:array, :any}, virtual: true, default: []
     # Whether the card is a document — a file and nothing else (see
     # Slipdock.Kinds). nil means nobody has said, and a card loaded with its
     # attachments is asked directly; the rollup's light cards set it because

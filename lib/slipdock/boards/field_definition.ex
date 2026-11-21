@@ -35,6 +35,8 @@ defmodule Slipdock.Boards.FieldDefinition do
     field :options, {:array, :map}, default: []
     field :config, :map, default: %{}
     field :sum, :boolean, default: false
+    # Its value shows on the card front, as a chip (#3609).
+    field :show_on_cards, :boolean, default: false
 
     belongs_to :board, Slipdock.Boards.Board
 
@@ -98,7 +100,7 @@ defmodule Slipdock.Boards.FieldDefinition do
     attrs = normalize(attrs)
 
     field
-    |> cast(attrs, [:name, :key, :kind, :position, :options, :config, :sum])
+    |> cast(attrs, [:name, :key, :kind, :position, :options, :config, :sum, :show_on_cards])
     |> update_change(:name, &String.trim/1)
     |> validate_required([:name, :kind])
     |> validate_length(:name, min: 1, max: 60)

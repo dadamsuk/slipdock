@@ -51,8 +51,10 @@ for one board: while it is on, every element of the card front shows there
 
 The handoff note is two elements: *Handoff note (2 lines)* puts the next step
 and the start of the note on an open card's front, *Handoff note in full* all
-of it. Both are off until you show them. Agents' output (the API, MCP, the
-CLI) never follows card views.
+of it. Both are off until you show them. *Fields* is the custom fields
+switched to Show on cards, all as one element (see
+[Custom fields](custom-fields-scoring-and-votes.md)). Agents' output (the
+API, MCP, the CLI) never follows card views.
 
 From the command line, `slipdock card-views` lists yours (`--elements` lists
 every element and its default), `slipdock card-view new|show|edit|rm` works

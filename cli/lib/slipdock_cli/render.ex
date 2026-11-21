@@ -1559,7 +1559,7 @@ defmodule SlipdockCLI.Render do
 
   def fields(fields) do
     table(
-      ["ID", "NAME", "KEY", "KIND", "SUM", "DETAILS"],
+      ["ID", "NAME", "KEY", "KIND", "SUM", "CARDS", "DETAILS"],
       Enum.map(fields, fn f ->
         [
           to_string(f["id"]),
@@ -1567,6 +1567,7 @@ defmodule SlipdockCLI.Render do
           "{#{f["key"]}}",
           f["kind"],
           if(f["sum"], do: "yes", else: ""),
+          if(f["show_on_cards"], do: "shown", else: ""),
           field_details(f)
         ]
       end)

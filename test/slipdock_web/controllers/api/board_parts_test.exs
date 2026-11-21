@@ -204,6 +204,34 @@ defmodule SlipdockWeb.API.BoardPartsTest do
                conn |> get(~p"/api/boards/#{board.id}/fields") |> json_response(200)
     end
 
+    test "Show on cards (#3609) is off by default, and set on create and update",
+         %{conn: conn, board: board} do
+      plain =
+        conn
+        |> post(~p"/api/boards/#{board.id}/fields", %{"name" => "Phone", "kind" => "text"})
+        |> json_response(201)
+
+      assert plain["field"]["show_on_cards"] == false
+
+      shown =
+        conn
+        |> post(~p"/api/boards/#{board.id}/fields", %{
+          "name" => "Company",
+          "kind" => "text",
+          "show_on_cards" => true
+        })
+        |> json_response(201)
+
+      assert shown["field"]["show_on_cards"] == true
+
+      switched =
+        conn
+        |> patch(~p"/api/boards/#{board.id}/fields/phone", %{"show_on_cards" => true})
+        |> json_response(200)
+
+      assert switched["field"]["show_on_cards"] == true
+    end
+
     test "an unknown field is not found", %{conn: conn, board: board} do
       assert conn
              |> patch(~p"/api/boards/#{board.id}/fields/nope", %{"name" => "X"})

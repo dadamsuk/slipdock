@@ -405,7 +405,7 @@ defmodule SlipdockWeb.API.BoardController do
          {:ok, field} <-
            Slipdock.Fields.create_field(
              board,
-             Map.take(params, ~w(name key kind options config sum))
+             Map.take(params, ~w(name key kind options config sum show_on_cards))
            ) do
       conn |> put_status(:created) |> json(%{field: V.field_definition(field)})
     end
@@ -417,7 +417,7 @@ defmodule SlipdockWeb.API.BoardController do
          {:ok, field} <-
            Slipdock.Fields.update_field(
              field,
-             Map.take(params, ~w(name key options config sum position))
+             Map.take(params, ~w(name key options config sum position show_on_cards))
            ) do
       json(conn, %{field: V.field_definition(field)})
     end
