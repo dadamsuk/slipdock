@@ -57,6 +57,18 @@ defmodule SlipdockWeb.UrlFieldLiveTest do
              "https://www.example.com/read?id=7"
   end
 
+  test "field_link makes a link only of an http(s) value" do
+    good =
+      render_component(&SlipdockWeb.ItemComponents.field_link/1, url: "https://example.com/a")
+
+    assert good =~ ~s|href="https://example.com/a"|
+    assert good =~ ~s|target="_blank"|
+
+    bad = render_component(&SlipdockWeb.ItemComponents.field_link/1, url: "javascript:alert(1)")
+    refute bad =~ "href="
+    assert bad =~ "javascript:alert(1)"
+  end
+
   test "REST and MCP refuse a link that isn't http(s)", %{user: user, card: card, link: link} do
     {token, _} = Accounts.create_api_token(user, "url", scope: "write")
 
