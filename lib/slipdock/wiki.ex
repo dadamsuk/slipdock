@@ -1509,6 +1509,7 @@ defmodule Slipdock.Wiki do
   defdelegate pages_for_card(card, reader \\ nil), to: Links, as: :for_card
   defdelegate pages_for_cards(cards, reader \\ nil), to: Links, as: :for_cards
   defdelegate members(board), to: Links
+  defdelegate members_among(board, users), to: Links
   defdelegate reconcile_links(page), to: Links, as: :reconcile
 
   @doc """

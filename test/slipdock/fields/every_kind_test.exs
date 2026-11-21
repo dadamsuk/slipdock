@@ -115,6 +115,21 @@ defmodule Slipdock.Fields.EveryKindTest do
       editor: ~s|input[type="checkbox"][name="value[]"][value="hot"]|,
       axis: true
     },
+    # Several of the tree's members (#3614), two set up on the board: the
+    # high card holds both, Zed first, so it sorts by Zed. Its filter and
+    # its read are by user id, which `{:id_of, email}` stands in for; an
+    # async test's addresses are its own (`fixture_email/1`), which
+    # `{:emails, …}` stands in for.
+    "person" => %{
+      attrs: %{},
+      low: {:emails, ["evk-ann@example.com"]},
+      high: {:emails, ["evk-zed@example.com", "evk-ann@example.com"]},
+      shown: {:emails, ["evk-zed@example.com"]},
+      json: {:people, ["evk-zed@example.com", "evk-ann@example.com"]},
+      filter: %{"person" => {:id_of, "evk-zed@example.com"}},
+      editor: ~s|input[type="checkbox"][name="value[]"]|,
+      axis: true
+    },
     # Computed from the number field: 2 → 20, 9 → 90. Set by nobody.
     "formula" => %{
       attrs: %{"config" => %{"mode" => "expression", "expression" => "{number} * 10"}},
@@ -145,6 +160,11 @@ defmodule Slipdock.Fields.EveryKindTest do
     board = board_fixture(%{"name" => "Every kind", "code" => "evk"}, owner: user)
     [_backlog, todo | _] = board.columns
 
+    # The members a person field holds (#3614).
+    for email <- ~w(evk-ann@example.com evk-zed@example.com) do
+      {:ok, _} = Slipdock.Access.grant(board, user_fixture(email), "read", user)
+    end
+
     # The number field first: the formula reads it.
     kinds =
       ["number" | FieldDefinition.kind_keys() -- ["number"]] ++ Enum.map(@variants, &elem(&1, 0))
@@ -165,8 +185,11 @@ defmodule Slipdock.Fields.EveryKindTest do
     high = card_fixture(todo, %{"title" => "High card"})
 
     for {kind, field} <- fields, not Map.get(@samples[kind], :computed, false) do
-      {:ok, _} = Fields.set_value(Boards.Cards.get_card!(low.id), field, @samples[kind].low)
-      {:ok, _} = Fields.set_value(Boards.Cards.get_card!(high.id), field, @samples[kind].high)
+      {:ok, _} =
+        Fields.set_value(Boards.Cards.get_card!(low.id), field, resolved(@samples[kind].low))
+
+      {:ok, _} =
+        Fields.set_value(Boards.Cards.get_card!(high.id), field, resolved(@samples[kind].high))
     end
 
     %{board: board, fields: fields, low: low, high: high, todo: todo}
@@ -183,6 +206,22 @@ defmodule Slipdock.Fields.EveryKindTest do
   end
 
   defp titles(cards), do: Enum.map(cards, & &1.title)
+
+  # A sample's stand-ins for what is only known once the members exist: a
+  # person's user id, and people as the API gives them (#3614).
+  defp resolved({:emails, emails}), do: Enum.map_join(emails, ", ", &fixture_email/1)
+
+  defp resolved({:id_of, email}),
+    do: to_string(Slipdock.Accounts.get_user_by_email(fixture_email(email)).id)
+
+  defp resolved({:people, emails}) do
+    for email <- Enum.map(emails, &fixture_email/1) do
+      %{"id" => Slipdock.Accounts.get_user_by_email(email).id, "name" => email, "email" => email}
+    end
+  end
+
+  defp resolved(%{} = map), do: Map.new(map, fn {k, v} -> {k, resolved(v)} end)
+  defp resolved(value), do: value
 
   defp mcp(conn, tool, args) do
     conn
@@ -221,7 +260,7 @@ defmodule Slipdock.Fields.EveryKindTest do
         assert has_element?(view, ~s|[data-field-filter="#{field.key}"]|),
                "the Filter menu has no control for a #{kind} field"
 
-        filters = Filters.put_field(Filters.empty(), field, sample.filter)
+        filters = Filters.put_field(Filters.empty(), field, resolved(sample.filter))
         assert Filters.field_condition(filters, field), "#{inspect(sample.filter)} set no filter"
 
         assert ctx |> loaded() |> Enum.filter(&Filters.matches?(&1, filters)) |> titles() ==
@@ -293,7 +332,7 @@ defmodule Slipdock.Fields.EveryKindTest do
         case sample.editor do
           # A formula is computed: its value, no editor.
           nil ->
-            assert has_element?(view, row, sample.shown)
+            assert has_element?(view, row, resolved(sample.shown))
 
           selector ->
             assert has_element?(view, "#{row} [data-field-cell=#{field.key}] #{selector}"),
@@ -303,7 +342,7 @@ defmodule Slipdock.Fields.EveryKindTest do
         reader = user_fixture("reader-#{kind}@example.com")
         {:ok, _} = Slipdock.Access.grant(ctx.board, reader, "read", user)
         {:ok, read_view, _} = live(log_in_user(build_conn(), reader), path)
-        assert has_element?(read_view, row, sample.shown)
+        assert has_element?(read_view, row, resolved(sample.shown))
         refute has_element?(read_view, "#{row} [data-field-cell]")
       end
 
@@ -326,7 +365,7 @@ defmodule Slipdock.Fields.EveryKindTest do
           nil ->
             # A formula is computed: it shows its value and offers no input.
             assert Floki.find(doc, "input, select, button") == []
-            assert html =~ sample.shown
+            assert html =~ resolved(sample.shown)
 
           selector ->
             assert Floki.find(doc, selector) != [],
@@ -340,7 +379,7 @@ defmodule Slipdock.Fields.EveryKindTest do
         field = ctx.fields[kind]
         card = card_fixture(ctx.todo, %{"title" => "Through the doors"})
         api = api_conn(user)
-        value = sample[:high] || "1"
+        value = resolved(sample[:high]) || "1"
 
         rest =
           api |> patch("/api/cards/#{card.id}", %{fields: %{field.key => value}})
@@ -360,11 +399,11 @@ defmodule Slipdock.Fields.EveryKindTest do
           assert mcp_write["isError"] == false, inspect(mcp_write["content"])
 
           read = api |> get("/api/cards/#{card.id}") |> json_response(200)
-          assert read["card"]["fields"][field.key] == sample.json
+          assert read["card"]["fields"][field.key] == resolved(sample.json)
 
           got = mcp(api, "get_card", %{card: card.id})
           assert got["isError"] == false
-          assert mcp_data(got)["fields"][field.key] == sample.json
+          assert mcp_data(got)["fields"][field.key] == resolved(sample.json)
 
           # Cleared by "" through the MCP tool.
           assert mcp(api, "update_card", %{card: card.id, fields: %{field.key => ""}})["isError"] ==
@@ -380,7 +419,7 @@ defmodule Slipdock.Fields.EveryKindTest do
             |> patch("/api/pages/#{page.id}", %{fields: %{field.key => value}})
             |> json_response(200)
 
-          assert page_json["page"]["fields"][field.key] == sample.json
+          assert page_json["page"]["fields"][field.key] == resolved(sample.json)
         end
       end
 

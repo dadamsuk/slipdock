@@ -9,7 +9,8 @@ optional min, max, unit), rating (1–5 by default), choice (each option with
 an optional weight and colour), date, text, URL (one http or https link,
 shown as its host and opening in a new tab; anything else is refused),
 checkbox (on or off; an empty
-one counts as off, and it is 1 or 0 in a formula), and **formula**. Every field
+one counts as off, and it is 1 or 0 in a formula), person (several of the
+board tree's members), and **formula**. Every field
 has a short key, used in formulas as `{key}`; a formula is an arithmetic
 expression such as `{reach} * {impact} * ({confidence} / 100) / {effort}`,
 and may use `{votes}`, `{subcards}` and `{done}` too. A formula stored as a
@@ -33,6 +34,24 @@ Switching Allow several off where cards hold several asks first, then keeps
 each card's first option; over the API, changing the field's `config` does
 the same without asking.
 
+A **person** field holds several of the board tree's members, the people
+who can read its root board, in the order they were picked. The card and
+the table offer a box per member; set it with emails, user ids or `me`, a
+list or comma-separated (`slipdock set 12 reviewers=me,ann@example.com`),
+and anyone who isn't a member is refused, naming them. It reads as their
+names; the API, MCP and a page's `fields` give each as `id`, `name` and
+`email`, as a card's assignees are. Someone who leaves the board keeps
+their place on the cards that hold them, marked *(former member)* and
+struck through, with `"former": true` over the API: they can be taken off
+but not picked for a card again. Its filter offers *Me* (whoever is
+looking, even in a shared view or a saved address) and each member, and
+keeps a card holding any of those picked; as a swimlane axis it has a lane
+per person its cards hold and one for nobody, a card sits in each of its
+people's lanes, and dragging it between two swaps that one person and
+keeps the rest. It sorts by its first person's name, and is no number in
+a formula. An import keeps a person only where they are a member of the
+new board, and reports the rest.
+
 Each field has a **Show on cards** switch in board settings, off until you
 turn it on: the card front then shows that field's value as a small chip,
 in field order, leaving out the fields a card has no value for, and a
@@ -41,7 +60,7 @@ element, *Fields* (see [Card views](card-views.md)). From the command line,
 `slipdock new-field … --on-cards`; over the API, `show_on_cards`.
 
 Fields are edited in the card modal (stars for ratings), shown as table
-columns (*Display*), sortable, and rating, choice and checkbox fields can
+columns (*Display*), sortable, and rating, choice, checkbox and person fields can
 be swimlane axes (a checkbox's two lanes are *✓ Name* and *Not Name*; a
 checked one shows on the card front as *✓ Name*) — *Value* on one axis and
 *Effort* on the other is the prioritisation matrix, and dragging a card
@@ -55,8 +74,8 @@ totals in table group headers.
 The board's **Filter** menu has a *Fields* section with one filter per
 field, suited to its type: options to pick for a choice, a least number of
 stars for a rating, a min and max for a number or formula, a from and to
-for a date, words to find for text or a URL, and On or Off for a checkbox (Off
-keeps the cards with it empty). Every view's Filter menu has the
+for a date, words to find for text or a URL, On or Off for a checkbox (Off
+keeps the cards with it empty), and Me and the members for a person field. Every view's Filter menu has the
 same section, and the filters are kept in the address and in a saved view
 like the others, so a reload or a saved view brings them back; a filter on
 a field since deleted is dropped. A view shared with someone shows them

@@ -1626,6 +1626,10 @@ defmodule SlipdockCLI.Render do
   defp field_details(_), do: ""
 
   # A choice holding several is its option keys, comma-separated, as `set` takes them.
+  # A person field is its people's names, a former member marked (#3614).
+  defp field_text([%{"name" => _} | _] = people),
+    do: Enum.map_join(people, ", ", &"#{&1["name"]}#{if &1["former"], do: " (former member)"}")
+
   defp field_text(v) when is_list(v), do: Enum.join(v, ",")
   defp field_text(v), do: v
 

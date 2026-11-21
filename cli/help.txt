@@ -999,7 +999,8 @@ WRITE
                                       their image off the front (--show-images: on)
   new-tag <board> <name> [--color C]
   set <id> <key>=<value>...           set custom fields on a card ("" clears; choice by label or key,
-                                      several comma-separated where the field allows several)
+                                      several comma-separated where the field allows several;
+                                      a person field takes members' emails or "me", comma-separated)
   vote <id> <n>                       put n of your votes on a card or page (0 removes them)
   status <id> <on_track|at_risk|off_track> [note...]  report a card's or page's health
                                       (the note as words is one line; for a note of
@@ -1036,7 +1037,7 @@ WRITE
                                       ("" leaves one unanswered)
   answer <id> --skip                  skip the questions: the card moves on unanswered
   waits <id>                          the questions the card has asked, and the answers
-  new-field <board> <name> --kind K   add a custom field (K: number rating select date text url checkbox formula)
+  new-field <board> <name> --kind K   add a custom field (K: number rating select date text url checkbox person formula)
       [--options "Small=1, Large=3"] [--formula "{value} / {effort}"] [--sum]
       [--on-cards]  show its value on the front of each card
       [--several]   a choice field each card can hold several of

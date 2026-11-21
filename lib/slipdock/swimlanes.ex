@@ -247,6 +247,10 @@ defmodule Slipdock.Swimlanes do
     id = Config.custom_id(key)
 
     case Enum.find(card.field_values || [], &(&1.field_id == id)) do
+      # A person field by its first person's name (#3614).
+      %{field: %Slipdock.Boards.FieldDefinition{kind: "person"} = field} ->
+        field |> Slipdock.Fields.People.people(Enum.take(keys, 1)) |> person_sort_key()
+
       %{field: %Slipdock.Boards.FieldDefinition{} = field} ->
         Enum.map(keys, &(Slipdock.Boards.FieldDefinition.option_index(field, &1) || 0))
 
@@ -254,6 +258,9 @@ defmodule Slipdock.Swimlanes do
         Enum.map(keys, &String.downcase/1)
     end
   end
+
+  defp person_sort_key([person | _]), do: [String.downcase(person.name)]
+  defp person_sort_key([]), do: nil
 
   @doc "A card's raw value for a `f:<id>` key, without the field definition."
   def field_value(card, key) do
@@ -423,6 +430,9 @@ defmodule Slipdock.Swimlanes do
       %{kind: "date"} = field ->
         field_date_buckets(key, field, cards, config, today)
 
+      %{kind: "person"} = field ->
+        person_buckets(key, field, cards)
+
       %{} = field ->
         keys = cards |> Enum.flat_map(&card_keys(&1, key, nil)) |> Enum.uniq()
         {valued, none} = Enum.split_with(keys, &(&1 != "none"))
@@ -476,6 +486,20 @@ defmodule Slipdock.Swimlanes do
     Enum.map(dated, fn k ->
       bucket(k, date_label(k, unit, today), nil, if(k == today_key, do: :current))
     end) ++ Enum.map(none, fn _ -> bucket("none", "No #{String.downcase(field.name)}") end)
+  end
+
+  # A person field's lanes (#3614): one per person its cards hold, by name,
+  # a former member's marked, then the cards with nobody.
+  defp person_buckets(key, field, cards) do
+    ids = cards |> Enum.flat_map(&card_keys(&1, key, nil)) |> Enum.uniq() |> List.delete("none")
+
+    people =
+      field
+      |> Slipdock.Fields.People.people(ids)
+      |> Enum.sort_by(&{&1.former, String.downcase(&1.name)})
+
+    Enum.map(people, &bucket(to_string(&1.id), Slipdock.Fields.People.label(&1))) ++
+      [bucket("none", "No #{String.downcase(field.name)}")]
   end
 
   # A checkbox's two lanes, on and off: a decorated card always has 1.0 or

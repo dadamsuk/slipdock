@@ -506,7 +506,7 @@ defmodule Slipdock.Swimlanes.Config do
   defp field_condition(condition) do
     for {key, value} <- condition,
         key = to_string(key),
-        Enum.member?(~w(options min max from to text checked), key),
+        Enum.member?(~w(options people min max from to text checked), key),
         # A generator, not a match: a match that gives false (a checkbox's
         # Off) would be taken as a filter and dropped.
         value <- [condition_value(key, value)],
@@ -514,6 +514,9 @@ defmodule Slipdock.Swimlanes.Config do
         into: %{},
         do: {key, value}
   end
+
+  # A person filter's user ids and `me` (#3614), as a choice's options are.
+  defp condition_value("people", v), do: condition_value("options", v)
 
   defp condition_value("options", v) when is_list(v),
     do: v |> Enum.map(&to_string/1) |> Enum.reject(&(&1 == "")) |> Enum.uniq()

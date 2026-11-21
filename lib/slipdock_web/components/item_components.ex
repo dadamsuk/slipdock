@@ -369,6 +369,61 @@ defmodule SlipdockWeb.ItemComponents do
     """
   end
 
+  # A person field (#3614): a box per current member, and one for each former
+  # member the card holds, ticked and marked, so they can be taken off but
+  # never newly picked. The hidden blank clears it when nothing is ticked.
+  def field_input(%{field: %{kind: "person"}} = assigns) do
+    held =
+      Fields.People.people(assigns.field, List.wrap(Fields.value(assigns.item, assigns.field)))
+
+    held_ids = MapSet.new(held, & &1.id)
+
+    members =
+      Enum.map(Fields.People.members(assigns.field), fn u ->
+        %{id: u.id, name: Slipdock.Accounts.User.display_name(u), former: false}
+      end)
+
+    assigns =
+      assign(assigns,
+        choices: members ++ Enum.filter(held, & &1.former),
+        held_ids: held_ids
+      )
+
+    ~H"""
+    <form
+      phx-target={@target}
+      phx-change={@event}
+      phx-submit={@event}
+      id={@id}
+      class={["flex flex-wrap items-center gap-x-2 gap-y-0.5", @look == :boxed && "min-h-8"]}
+      data-people
+    >
+      <input :for={{k, v} <- @params} type="hidden" name={k} value={v} />
+      <input type="hidden" name="field_id" value={@field.id} />
+      <input type="hidden" name="value[]" value="" />
+      <label
+        :for={p <- @choices}
+        class={[
+          "flex cursor-pointer items-center gap-1 text-xs whitespace-nowrap",
+          p.former && "text-base-content/50 line-through"
+        ]}
+        title={p.former && "#{p.name} is a former member: untick to take them off"}
+        data-former={p.former}
+      >
+        <input
+          type="checkbox"
+          name="value[]"
+          value={p.id}
+          checked={MapSet.member?(@held_ids, p.id)}
+          aria-label={"#{@field.name}: #{Fields.People.label(p)}"}
+          class="checkbox"
+        />
+        {Fields.People.label(p)}
+      </label>
+    </form>
+    """
+  end
+
   # A checkbox (#3612), in a form like the other kinds': unticked sends the
   # hidden "false", ticked the later "true", which wins.
   def field_input(%{field: %{kind: "checkbox"}} = assigns) do
@@ -519,6 +574,24 @@ defmodule SlipdockWeb.ItemComponents do
     """
   end
 
+  # A reader sees a person field's people as chips, a former member's
+  # muted, struck through and marked (#3614).
+  defp field_value(%{field: %{kind: "person"}} = assigns) do
+    assigns =
+      assign(assigns,
+        people:
+          Fields.People.people(
+            assigns.field,
+            List.wrap(Fields.value(assigns.item, assigns.field))
+          )
+      )
+
+    ~H"""
+    <span :if={@people == []} class={@look == :boxed && "text-xs"}>—</span>
+    <.person_chips :if={@people != []} people={@people} />
+    """
+  end
+
   # A reader sees several options as chips, in the field's colours (#3611).
   defp field_value(%{field: %{kind: "select", config: %{"several" => true}}} = assigns) do
     chosen = List.wrap(Fields.value(assigns.item, assigns.field))
@@ -565,6 +638,27 @@ defmodule SlipdockWeb.ItemComponents do
   # placeholder.
   defp chars(nil), do: 1
   defp chars(v), do: v |> to_string() |> String.length() |> max(1)
+
+  attr :people, :list, required: true, doc: "`Slipdock.Fields.People.people/2`"
+
+  @doc """
+  A person field's people as chips (#3614): a former member's muted and
+  struck through, with "(former member)" after the name.
+  """
+  def person_chips(assigns) do
+    ~H"""
+    <span class="flex flex-wrap gap-1" data-people>
+      <span
+        :for={p <- @people}
+        class={["chip chip-line text-2xs", p.former && "text-base-content/50 line-through"]}
+        title={if(p.former, do: "#{p.name} has left this board", else: p.email)}
+        data-former={p.former}
+      >
+        {Fields.People.label(p)}
+      </span>
+    </span>
+    """
+  end
 
   attr :url, :string, required: true
 
