@@ -421,9 +421,10 @@ defmodule Slipdock.Fields do
   value for.
   """
   def front_fields(card, fields) do
+    # A field the card has no value for formats to nil, which the binding
+    # filters out; an empty text is stored as no value, so there is no "".
     for %FieldDefinition{show_on_cards: true} = field <- fields,
         text = format(field, value(card, field)),
-        not Enum.member?([nil, ""], text),
         do: {field, text}
   end
 
