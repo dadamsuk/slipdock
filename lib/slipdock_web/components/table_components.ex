@@ -772,6 +772,8 @@ defmodule SlipdockWeb.TableComponents do
           >
             {String.duplicate("★", round(@value))}
           </span>
+        <% "url" -> %>
+          <SlipdockWeb.ItemComponents.field_link url={@value} />
         <% "select" -> %>
           <% option = Enum.find(@fdef.options, &(&1["key"] == @value)) %>
           <span class={[

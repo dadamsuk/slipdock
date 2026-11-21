@@ -6,7 +6,9 @@ Board settings (root boards) hold the tree's **fields**, and only a writer
 of the root board adds, changes or removes one, from any door, as with tags;
 anyone who can edit a card sets its values. The fields are: number (with
 optional min, max, unit), rating (1–5 by default), choice (each option with
-an optional weight and colour), date, text, checkbox (on or off; an empty
+an optional weight and colour), date, text, URL (one http or https link,
+shown as its host and opening in a new tab; anything else is refused),
+checkbox (on or off; an empty
 one counts as off, and it is 1 or 0 in a formula), and **formula**. Every field
 has a short key, used in formulas as `{key}`; a formula is an arithmetic
 expression such as `{reach} * {impact} * ({confidence} / 100) / {effort}`,
@@ -38,7 +40,7 @@ totals in table group headers.
 The board's **Filter** menu has a *Fields* section with one filter per
 field, suited to its type: options to pick for a choice, a least number of
 stars for a rating, a min and max for a number or formula, a from and to
-for a date, words to find for text, and On or Off for a checkbox (Off
+for a date, words to find for text or a URL, and On or Off for a checkbox (Off
 keeps the cards with it empty). Every view's Filter menu has the
 same section, and the filters are kept in the address and in a saved view
 like the others, so a reload or a saved view brings them back; a filter on

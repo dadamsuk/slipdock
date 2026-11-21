@@ -783,7 +783,7 @@ defmodule SlipdockWeb.SlipdockComponents.Chrome do
   end
 
   defp field_filter(%{field: %{kind: kind}} = assigns)
-       when kind in ~w(number formula date text) do
+       when kind in ~w(number formula date text url) do
     c = assigns.condition || %{}
 
     values =
@@ -830,7 +830,7 @@ defmodule SlipdockWeb.SlipdockComponents.Chrome do
         <.date_field field={@form[:to]} placeholder="To" aria-label={"#{@field.name} to"} />
       </div>
       <.input
-        :if={@field.kind == "text"}
+        :if={@field.kind in ~w(text url)}
         field={@form[:text]}
         placeholder="contains…"
         aria-label={"#{@field.name} contains"}

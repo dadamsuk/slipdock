@@ -77,6 +77,17 @@ defmodule Slipdock.Fields.EveryKindTest do
       editor: ~s|input[type="text"][name="value"]|,
       axis: false
     },
+    # One http(s) link, shown as its host (#3613); not an axis.
+    "url" => %{
+      attrs: %{},
+      low: "https://alpha.example.com/a",
+      high: "https://www.beta.example.com/b?x=1",
+      shown: "beta.example.com",
+      json: "https://www.beta.example.com/b?x=1",
+      filter: %{"text" => "BETA"},
+      editor: ~s|input[type="url"][name="value"]|,
+      axis: false
+    },
     # Off clears the value, so the low card is empty: empty counts as off.
     "checkbox" => %{
       attrs: %{},
@@ -199,6 +210,30 @@ defmodule Slipdock.Fields.EveryKindTest do
         kept = %{Config.defaults("table") | field_filters: Filters.saved_fields(filters)}
 
         assert ctx |> loaded() |> Enum.filter(&Swimlanes.matches?(&1, kept)) |> titles() ==
+                 ["High card"]
+
+        # The kept condition comes back from the address and a saved view
+        # as the same filter (#3613): a kind without a restore is dropped.
+        from_url =
+          Config.from_query(
+            %{"field_filters" => Filters.saved_fields(filters)},
+            Config.defaults("table")
+          )
+
+        assert from_url.field_filters == kept.field_filters,
+               "a #{kind} filter isn't kept in the address"
+
+        restored =
+          Filters.put_saved_fields(
+            Filters.empty(),
+            Map.values(ctx.fields),
+            from_url.field_filters
+          )
+
+        assert Filters.field_condition(restored, field),
+               "a #{kind} filter is dropped when a saved view is opened again"
+
+        assert ctx |> loaded() |> Enum.filter(&Filters.matches?(&1, restored)) |> titles() ==
                  ["High card"]
       end
 

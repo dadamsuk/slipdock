@@ -441,6 +441,21 @@ defmodule SlipdockWeb.ItemComponents do
             aria-label={@field.name}
             class={if(look == :bare, do: "w-32", else: "w-full")}
           />
+        <% {"url", look} -> %>
+          <div class={["flex items-center gap-1", look == :boxed && "w-full"]}>
+            <input
+              type="url"
+              name="value"
+              value={@value}
+              aria-label={@field.name}
+              class={
+                if(look == :bare, do: "input field-bare prio-input w-36", else: "input field w-full")
+              }
+              placeholder={if(look == :bare, do: "—", else: "https://…")}
+              phx-debounce={@debounce}
+            />
+            <.field_link :if={is_binary(@value)} url={@value} />
+          </div>
         <% {_text, look} -> %>
           <input
             type="text"
@@ -455,6 +470,16 @@ defmodule SlipdockWeb.ItemComponents do
           />
       <% end %>
     </form>
+    """
+  end
+
+  # A reader's URL field is its link (#3613).
+  defp field_value(%{field: %{kind: "url"}} = assigns) do
+    assigns = assign(assigns, url: Fields.value(assigns.item, assigns.field))
+
+    ~H"""
+    <.field_link :if={is_binary(@url)} url={@url} />
+    <span :if={not is_binary(@url)} class="text-xs">—</span>
     """
   end
 
@@ -479,6 +504,31 @@ defmodule SlipdockWeb.ItemComponents do
   # placeholder.
   defp chars(nil), do: 1
   defp chars(v), do: v |> to_string() |> String.length() |> max(1)
+
+  attr :url, :string, required: true
+
+  @doc """
+  A URL field's link (#3613), shown as its host and opening in a new tab;
+  only an http(s) link is ever made one (`Slipdock.Fields.web_link?/1`), so
+  anything else stays text.
+  """
+  def field_link(assigns) do
+    ~H"""
+    <a
+      :if={Fields.web_link?(@url)}
+      href={@url}
+      target="_blank"
+      rel="noopener noreferrer"
+      class="link link-hover inline-flex min-w-0 items-center gap-0.5 text-xs"
+      title={@url}
+      data-role="field-link"
+    >
+      <span class="truncate">{Fields.url_host(@url)}</span>
+      <.icon name="hero-arrow-top-right-on-square" class="size-3 shrink-0" />
+    </a>
+    <span :if={not Fields.web_link?(@url)} class="text-xs">{@url}</span>
+    """
+  end
 
   attr :target, :any, default: nil, doc: "the LiveComponent the events go to"
   attr :item, :any, required: true
