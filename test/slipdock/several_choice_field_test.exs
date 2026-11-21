@@ -8,6 +8,7 @@ defmodule Slipdock.SeveralChoiceFieldTest do
   """
   use Slipdock.DataCase, async: true
 
+  import Ecto.Query, only: [where: 2]
   import Slipdock.Fixtures
 
   alias Slipdock.{Boards, Fields, Filters, Swimlanes}
@@ -48,6 +49,16 @@ defmodule Slipdock.SeveralChoiceFieldTest do
   end
 
   defp card(card), do: Boards.Cards.get_card!(card.id)
+
+  # A value written straight to storage, past the cast.
+  defp stored_options(card, field, keys) do
+    value = Enum.find(card(card).field_values, &(&1.field_id == field.id))
+
+    Slipdock.Repo.update_all(where(Slipdock.Boards.FieldValue, id: ^value.id),
+      set: [options: keys]
+    )
+  end
+
   defp titles(cards), do: Enum.map(cards, & &1.title)
   defp area_of(card, area), do: Fields.value(card(card), area)
 
@@ -115,6 +126,18 @@ defmodule Slipdock.SeveralChoiceFieldTest do
       assert message =~ "Size"
       assert Fields.value(card(both), size) == "l"
     end
+  end
+
+  test "a single stored option reads as a list of one on a field that allows several",
+       %{area: area} = ctx do
+    # As a card moved from a tree whose field holds one option brings it.
+    value = Enum.find(card(ctx.billing).field_values, &(&1.field_id == area.id))
+
+    Slipdock.Repo.update_all(where(Slipdock.Boards.FieldValue, id: ^value.id),
+      set: [option: "api", options: nil]
+    )
+
+    assert area_of(ctx.billing, area) == ["api"]
   end
 
   test "it reads as its labels in option order, and the API gives the keys",
@@ -290,6 +313,14 @@ defmodule Slipdock.SeveralChoiceFieldTest do
       {:ok, set} = Fields.set_value(card(both), several, "s, l")
       assert Fields.value(set, several) == ["s", "l"]
       assert Fields.several_held?(several)
+    end
+
+    test "off keeps an option the field has over one it no longer has", %{area: area} = ctx do
+      # Stored as if the field had lost an option since: "gone" is no option.
+      stored_options(ctx.billing, area, ["gone", "api"])
+
+      {:ok, single} = Fields.update_field(area, %{"config" => %{"several" => false}})
+      assert area_of(ctx.billing, single) == "api"
     end
 
     test "a card holding one option doesn't count as holding several", %{area: area} = ctx do
