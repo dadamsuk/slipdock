@@ -171,10 +171,12 @@ defmodule SlipdockWeb.FieldsLiveTest do
     value = Fields.find_field(fields, "value")
     {:ok, _} = Fields.set_value(card, value, 3)
 
-    {:ok, _lv, html} =
+    {:ok, table, _html} =
       live(conn, ~p"/boards/#{board}/table?fields=title,f:#{value.id}&sort=f:#{value.id}")
 
-    assert html =~ "★★★"
+    # A writer edits it in place (#3610): three of five stars lit.
+    lit = "#row-all-#{card.id} [data-field-cell=value] button.text-amber-500"
+    assert table |> render() |> Floki.parse_document!() |> Floki.find(lit) |> length() == 3
 
     {:ok, _lv, html} =
       live(conn, ~p"/boards/#{board}/swimlanes?rows=f:#{value.id}&cols=column&empty=show")

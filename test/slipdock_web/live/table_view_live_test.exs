@@ -264,9 +264,22 @@ defmodule SlipdockWeb.TableViewLiveTest do
       assert has_element?(view, "#{row} span", "Violet")
       assert has_element?(view, "#{row} [title=Votes]", "2")
       assert has_element?(view, "#{row} span", "##{card.id}")
-      assert has_element?(view, "#{row} [title='3 of 5']", "★★★")
-      assert has_element?(view, "#{row} .chip:not(.chip-line)", "Small")
-      assert has_element?(view, "#{row} span", "free text")
+      # Custom fields are edited in place by a writer (#3610).
+      assert has_element?(
+               view,
+               "#{row} [data-field-cell=#{ctx.rating.key}] button.text-amber-500[title='3 of 5']"
+             )
+
+      assert has_element?(
+               view,
+               "#{row} [data-field-cell=#{ctx.size.key}] select option[selected]",
+               "Small"
+             )
+
+      assert has_element?(
+               view,
+               "#{row} [data-field-cell=#{ctx.notes.key}] input[value='free text']"
+             )
 
       assert has_element?(
                view,
@@ -560,7 +573,14 @@ defmodule SlipdockWeb.TableViewLiveTest do
     test "Assignee is a default column, and the chooser hides it", %{conn: conn, board: board} do
       {:ok, view, _} = live(conn, ~p"/boards/#{board}/table")
 
-      thead = render(element(view, "#card-table thead"))
+      # The header's "+" (#3610) is a control, not a column.
+      thead =
+        Regex.replace(
+          ~r/<th[^>]*data-role="add-field-column".*?<\/th>/s,
+          render(element(view, "#card-table thead")),
+          ""
+        )
+
       label = ~r/<th[^>]*>.*?<(?:span|button)[^>]*>\s*([^<\s][^<]*?)\s*</s
 
       headers =

@@ -20,6 +20,14 @@ opens the card. The filter menu, search, density and saved views are shared
 with the swimlane view, and a saved view remembers which of the two it was
 made in. `slipdock table <board>` prints the same thing in the terminal.
 
+**Custom fields as columns.** Each of the board's custom fields can be a
+column (*Display*), and a writer edits its values in place, as on the card.
+Whoever may change the board's fields (a writer of the tree's top board,
+as in board settings) has a **+** at the end of the header: give the field
+a name and a type (and a choice its options), and it is added as a column
+with its first cell ready to type in. Units, a formula's expression and
+the rest are set in board settings.
+
 ---
 
 ← [Card views](card-views.md) · [Contents](../manual.md) · [Timeline](timeline.md) →

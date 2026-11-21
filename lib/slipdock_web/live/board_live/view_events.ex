@@ -24,7 +24,7 @@ defmodule SlipdockWeb.BoardLive.ViewEvents do
   alias Slipdock.Swimlanes.Config
   alias SlipdockWeb.Params
 
-  @events ~w(swim_config swim_set swim_clear_filters table_sort table_update prio_field prio_vote
+  @events ~w(swim_config swim_set swim_clear_filters table_sort table_update table_add_field prio_field prio_vote
     timeline_move timeline_schedule cal_move cal_quick_add cal_toggle_day swim_toggle_row
     swim_move swim_start_add swim_cancel_add swim_quick_add swim_save_view swim_update_view
     swim_rename_view swim_publish_view swim_unpublish_view swim_delete_view outline_add_sub
@@ -96,6 +96,40 @@ defmodule SlipdockWeb.BoardLive.ViewEvents do
       {:error, message} when is_binary(message) -> {:noreply, put_flash(socket, :error, message)}
       nil -> {:noreply, put_flash(socket, :error, "That field no longer exists.")}
       _ -> {:noreply, put_flash(socket, :error, "You have read-only access to that card.")}
+    end
+  end
+
+  # A field added from the table's header (#3610): made on the tree's root
+  # (`Fields.create_field/2` asks write there, as board settings do, so a
+  # forged event from anyone else is refused), then shown as a column with
+  # its first cell focused. A formula needs its expression: board settings.
+  def handle_event("table_add_field", %{"kind" => "formula"}, socket),
+    do: {:noreply, put_flash(socket, :error, "Set a formula up in board settings.")}
+
+  def handle_event("table_add_field", params, socket) do
+    attrs = %{
+      "name" => params["name"],
+      "kind" => params["kind"],
+      "options" => SlipdockWeb.BoardLive.Helpers.parse_options(params["options"])
+    }
+
+    case Fields.create_field(socket.assigns.board, attrs) do
+      {:ok, field} ->
+        key = "f:#{field.id}"
+        config = Config.put_table_field(socket.assigns.swim, key)
+
+        {:noreply, socket |> reload_board() |> assign(focus_field: key) |> patch_swim(config)}
+
+      {:error, %Ecto.Changeset{} = cs} ->
+        {:noreply,
+         put_flash(
+           socket,
+           :error,
+           "Couldn't add the field: #{Slipdock.ChangesetErrors.message(cs)}"
+         )}
+
+      {:error, %Slipdock.Policy.Refused{message: message}} ->
+        {:noreply, put_flash(socket, :error, message)}
     end
   end
 
