@@ -4,6 +4,8 @@ defmodule SlipdockWeb.TableComponents do
   alias SlipdockWeb.Dates
 
   import SlipdockWeb.SlipdockComponents
+  alias Phoenix.LiveView.JS
+  alias Slipdock.Boards.FieldDefinition
   alias Slipdock.Palette
   alias Slipdock.Swimlanes.Config
   alias Slipdock.Table
@@ -19,6 +21,12 @@ defmodule SlipdockWeb.TableComponents do
   attr :quick_preview, :map, default: %{}, doc: "quick-add previews by form id"
   attr :narrow, :boolean, default: false, doc: "stack each row instead of laying out columns"
 
+  attr :can_edit_fields, :boolean,
+    default: false,
+    doc: "may add a field from the header (a writer of the root board, as board settings ask)"
+
+  attr :focus_field, :string, default: nil, doc: "the `f:<id>` column just added, to focus"
+
   def table_view(%{narrow: true} = assigns), do: table_stack(assigns)
 
   def table_view(assigns) do
@@ -26,6 +34,9 @@ defmodule SlipdockWeb.TableComponents do
       assign(assigns,
         fields: Table.visible_fields(assigns.config, assigns.board),
         first_column: List.first(assigns.board.columns),
+        # The column just added from the header (#3610) is focused on the
+        # first row it has.
+        focus_card: first_row(assigns.rows, assigns.collapsed),
         # Each group gets its own add row when what it stands for can be set on a new card.
         group_add?:
           assigns.can_write and assigns.rows.grouped and
@@ -71,6 +82,9 @@ defmodule SlipdockWeb.TableComponents do
                 <.sort_header :if={sort} sort={sort} label={label} config={@config} />
                 <span :if={!sort}>{label}</span>
               </th>
+              <th :if={@can_edit_fields} class="w-10 text-right" data-role="add-field-column">
+                <.add_field_header />
+              </th>
             </tr>
           </thead>
           <tbody :for={group <- @rows.groups} id={"group-#{group.key}"}>
@@ -82,7 +96,7 @@ defmodule SlipdockWeb.TableComponents do
                 group.tone == :past && "text-error/80"
               ]}
             >
-              <td colspan={length(@fields)} class="p-0">
+              <td colspan={length(@fields) + if(@can_edit_fields, do: 1, else: 0)} class="p-0">
                 <span
                   role="button"
                   tabindex="0"
@@ -128,12 +142,26 @@ defmodule SlipdockWeb.TableComponents do
                 class={["align-middle", key == "title" && "max-w-0"]}
               >
                 <fieldset disabled={!@can_write} class="contents">
-                  <.cell field={key} card={card} board={@board} />
+                  <div
+                    :if={key == @focus_field and card == @focus_card}
+                    class="contents"
+                    phx-mounted={JS.focus_first()}
+                  >
+                    <.cell field={key} card={card} board={@board} can_write={@can_write} />
+                  </div>
+                  <.cell
+                    :if={not (key == @focus_field and card == @focus_card)}
+                    field={key}
+                    card={card}
+                    board={@board}
+                    can_write={@can_write}
+                  />
                 </fieldset>
               </td>
+              <td :if={@can_edit_fields}></td>
             </tr>
             <tr :if={@group_add? and not MapSet.member?(@collapsed, group.key)}>
-              <td colspan={length(@fields)} class="py-0.5">
+              <td colspan={length(@fields) + if(@can_edit_fields, do: 1, else: 0)} class="py-0.5">
                 <.quick_add_row
                   id={"table-add-#{group.key}"}
                   params={%{"group" => group.key}}
@@ -145,7 +173,7 @@ defmodule SlipdockWeb.TableComponents do
           </tbody>
           <tbody :if={@can_write and not @group_add? and not is_nil(@first_column)}>
             <tr>
-              <td colspan={length(@fields)} class="py-1">
+              <td colspan={length(@fields) + if(@can_edit_fields, do: 1, else: 0)} class="py-1">
                 <.quick_add_row
                   id="table-add"
                   placeholder={"Add a card to #{@first_column.name}…"}
@@ -284,9 +312,75 @@ defmodule SlipdockWeb.TableComponents do
     """
   end
 
+  # The "+" at the end of the header (#3610): a name and a kind make a
+  # field and its column. A choice takes its options here too, since a
+  # choice needs one; a formula's expression, units and the rest are set in
+  # board settings, so a formula isn't offered.
+  defp add_field_header(assigns) do
+    assigns =
+      assign(assigns, kinds: Enum.reject(FieldDefinition.kinds(), &(elem(&1, 0) == "formula")))
+
+    ~H"""
+    <div class="dropdown dropdown-end normal-case tracking-normal">
+      <div
+        tabindex="0"
+        role="button"
+        class="btn btn-ghost btn-xs btn-square"
+        title="Add a field"
+        aria-label="Add a field"
+        data-role="add-field"
+      >
+        <.icon name="hero-plus" class="size-4" />
+      </div>
+      <form
+        tabindex="0"
+        id="add-field-form"
+        phx-submit="table_add_field"
+        class="dropdown-content z-30 mt-2 w-64 space-y-2 rounded-2xl bg-base-100 p-3 text-sm font-normal shadow-xl ring-1 ring-base-content/10"
+      >
+        <input
+          type="text"
+          name="name"
+          placeholder="Field name"
+          aria-label="Field name"
+          class="input field w-full"
+          required
+          autocomplete="off"
+        />
+        <select name="kind" class="select field w-full" aria-label="Type">
+          <option :for={{k, l} <- @kinds} value={k}>{l}</option>
+        </select>
+        <input
+          type="text"
+          name="options"
+          placeholder="Choices, e.g. Lead, Won (for a choice)"
+          aria-label="Choices"
+          class="input field w-full"
+          autocomplete="off"
+        />
+        <p class="text-xs text-base-content/60">
+          Units and formulas are set in board settings.
+        </p>
+        <button type="submit" class="btn btn-primary btn-sm w-full">Add field</button>
+      </form>
+    </div>
+    """
+  end
+
+  # The first row the table draws, open groups only: where a new column's
+  # first cell is.
+  defp first_row(%{groups: groups}, collapsed) do
+    Enum.find_value(groups, fn group ->
+      if not MapSet.member?(collapsed, group.key), do: List.first(group.cards)
+    end)
+  end
+
+  defp first_row(_rows, _collapsed), do: nil
+
   attr :field, :string, required: true
   attr :card, :map, required: true
   attr :board, :any, required: true
+  attr :can_write, :boolean, default: false
 
   defp cell(%{field: "title"} = assigns) do
     ~H"""
@@ -631,6 +725,33 @@ defmodule SlipdockWeb.TableComponents do
       title={Enum.join(@lines, "; ")}
     ><.icon name="hero-arrows-right-left" class="size-3.5" /> {length(@lines)}</span>
     """
+  end
+
+  # A writer edits a custom field in place (#3610), with the editor the card
+  # and Prioritise use; a reader, and a formula, see the value.
+  defp cell(%{field: "f:" <> _, can_write: true} = assigns) do
+    case Config.custom_field(assigns.field, assigns.board) do
+      %FieldDefinition{kind: kind} = field when kind != "formula" ->
+        assigns =
+          assign(assigns, fdef: field, item: SlipdockWeb.SlipdockComponents.item_id(assigns.card))
+
+        ~H"""
+        <div data-field-cell={@fdef.key}>
+          <SlipdockWeb.ItemComponents.field_input
+            field={@fdef}
+            item={@card}
+            can_write
+            look={:bare}
+            event="prio_field"
+            params={[{"card_id", @item}]}
+            id={"tf-#{@item}-#{@fdef.id}"}
+          />
+        </div>
+        """
+
+      _ ->
+        cell(%{assigns | can_write: false})
+    end
   end
 
   defp cell(%{field: "f:" <> _} = assigns) do

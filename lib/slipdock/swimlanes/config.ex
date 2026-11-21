@@ -380,6 +380,13 @@ defmodule Slipdock.Swimlanes.Config do
   @doc "Sets the facets the board hides (see the `hidden` field)."
   def hide(%__MODULE__{} = config, keys), do: %{config | hidden: keys}
 
+  @doc "The table's columns with `key` added at the end, at the config's density (#3610)."
+  def put_table_field(%__MODULE__{density: "compact"} = config, key),
+    do: %{config | fields_compact: Enum.uniq(config.fields_compact ++ [key])}
+
+  def put_table_field(%__MODULE__{} = config, key),
+    do: %{config | fields: Enum.uniq(config.fields ++ [key])}
+
   @doc "The table columns chosen for the config's density."
   def table_fields(%__MODULE__{density: "compact", fields_compact: fields}), do: fields
   def table_fields(%__MODULE__{fields: fields}), do: fields

@@ -207,14 +207,31 @@ defmodule Slipdock.Fields.EveryKindTest do
                ]
       end
 
-      test "is a table column showing its value", %{kind: kind, conn: conn} = ctx do
+      test "is a table column, edited in place by a writer and shown to a reader",
+           %{kind: kind, conn: conn, user: user} = ctx do
         sample = sample!(kind)
         field = ctx.fields[kind]
+        path = ~p"/boards/#{ctx.board}/table?fields=title,f:#{field.id}"
 
-        {:ok, view, _} = live(conn, ~p"/boards/#{ctx.board}/table?fields=title,f:#{field.id}")
-
+        {:ok, view, _} = live(conn, path)
         assert has_element?(view, "#card-table th", field.name)
-        assert has_element?(view, "#row-all-#{ctx.high.id}", sample.shown)
+        row = "#row-all-#{ctx.high.id}"
+
+        case sample.editor do
+          # A formula is computed: its value, no editor.
+          nil ->
+            assert has_element?(view, row, sample.shown)
+
+          selector ->
+            assert has_element?(view, "#{row} [data-field-cell=#{field.key}] #{selector}"),
+                   "a #{kind} column has no editor (#{selector}) for a writer (#3610)"
+        end
+
+        reader = user_fixture("reader-#{kind}@example.com")
+        {:ok, _} = Slipdock.Access.grant(ctx.board, reader, "read", user)
+        {:ok, read_view, _} = live(log_in_user(build_conn(), reader), path)
+        assert has_element?(read_view, row, sample.shown)
+        refute has_element?(read_view, "#{row} [data-field-cell]")
       end
 
       test "is edited in the card", %{kind: kind} = ctx do
