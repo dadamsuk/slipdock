@@ -11,7 +11,6 @@ defmodule SlipdockWeb.SlipdockComponents.Chrome do
   import SlipdockWeb.SlipdockComponents.CardFace, only: [kind_icon: 1]
   import SlipdockWeb.SlipdockComponents.Marks
   import SlipdockWeb.SlipdockComponents.Schedule, only: [due_icon: 0]
-  import Slipdock.Boards.FieldDefinition, only: [is_text_kind: 1]
 
   @doc """
   A label with one letter marked: the key that jumps to it.
@@ -812,8 +811,39 @@ defmodule SlipdockWeb.SlipdockComponents.Chrome do
     """
   end
 
-  defp field_filter(%{field: %{kind: kind}} = assigns)
-       when kind in ~w(number formula date) or is_text_kind(kind) do
+  defp field_filter(%{field: %{kind: "checkbox"}} = assigns) do
+    ~H"""
+    <div data-field-filter={@field.key}>
+      <p class="mb-1 text-xs text-base-content/70">{@field.name}</p>
+      <div class="flex flex-wrap gap-1">
+        <button
+          :for={{checked, label} <- [{true, "On"}, {false, "Off"}]}
+          type="button"
+          class={[
+            "btn btn-xs",
+            if(@condition && @condition.checked == checked, do: "btn-primary", else: "btn-ghost")
+          ]}
+          phx-click="filter_field"
+          phx-value-field={@field.id}
+          phx-value-checked={to_string(checked)}
+          title={"#{@field.name}: #{String.downcase(label)}"}
+        >
+          {label}
+        </button>
+      </div>
+    </div>
+    """
+  end
+
+  defp field_filter(%{field: %{kind: kind}} = assigns) do
+    if kind in ~w(number formula date) or Slipdock.Boards.FieldDefinition.text_kind?(kind),
+      do: range_or_text_filter(assigns),
+      else: ~H""
+  end
+
+  # A range (number, formula, date) or the words a text kind's value
+  # contains (text, url, email).
+  defp range_or_text_filter(assigns) do
     c = assigns.condition || %{}
 
     values =
@@ -871,31 +901,6 @@ defmodule SlipdockWeb.SlipdockComponents.Chrome do
   end
 
   # A checkbox (#3612): On or Off, the same again clears it. An empty one is off.
-  defp field_filter(%{field: %{kind: "checkbox"}} = assigns) do
-    ~H"""
-    <div data-field-filter={@field.key}>
-      <p class="mb-1 text-xs text-base-content/70">{@field.name}</p>
-      <div class="flex flex-wrap gap-1">
-        <button
-          :for={{checked, label} <- [{true, "On"}, {false, "Off"}]}
-          type="button"
-          class={[
-            "btn btn-xs",
-            if(@condition && @condition.checked == checked, do: "btn-primary", else: "btn-ghost")
-          ]}
-          phx-click="filter_field"
-          phx-value-field={@field.id}
-          phx-value-checked={to_string(checked)}
-          title={"#{@field.name}: #{String.downcase(label)}"}
-        >
-          {label}
-        </button>
-      </div>
-    </div>
-    """
-  end
-
-  defp field_filter(assigns), do: ~H""
 
   defp input_value(nil), do: nil
   defp input_value(%Date{} = d), do: Date.to_iso8601(d)

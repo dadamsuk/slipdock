@@ -12,7 +12,6 @@ defmodule Slipdock.Filters do
   """
 
   alias Slipdock.Boards.FieldDefinition
-  import Slipdock.Boards.FieldDefinition, only: [is_text_kind: 1]
 
   @empty %{
     q: "",
@@ -111,7 +110,7 @@ defmodule Slipdock.Filters do
     current = Map.get(fields_of(filters), id)
 
     condition =
-      field
+      %{field | kind: by_kind(field.kind)}
       |> condition(current, params)
       |> then(&if(empty_condition?(&1), do: nil, else: Map.put(&1, :field, field)))
 
@@ -166,7 +165,7 @@ defmodule Slipdock.Filters do
 
   # A kept condition read back by the field's kind; nil when it says nothing.
   defp restore(field, kept) when is_map(kept) do
-    condition = restore_condition(field.kind, field, kept)
+    condition = restore_condition(by_kind(field.kind), field, kept)
     if empty_condition?(condition), do: nil, else: condition
   end
 
@@ -192,7 +191,7 @@ defmodule Slipdock.Filters do
   defp restore_condition("date", _field, kept),
     do: %{from: parse_date(kept["from"]), to: parse_date(kept["to"])}
 
-  defp restore_condition(kind, _field, kept) when is_text_kind(kind),
+  defp restore_condition("text", _field, kept),
     do: %{text: String.trim(to_string(kept["text"] || ""))}
 
   defp restore_condition("checkbox", _field, kept),
@@ -329,7 +328,7 @@ defmodule Slipdock.Filters do
   defp condition(%FieldDefinition{kind: "date"}, _current, params),
     do: %{from: parse_date(params["from"]), to: parse_date(params["to"])}
 
-  defp condition(%FieldDefinition{kind: kind}, _current, params) when is_text_kind(kind),
+  defp condition(%FieldDefinition{kind: "text"}, _current, params),
     do: %{text: String.trim(to_string(params["text"] || ""))}
 
   defp condition(%FieldDefinition{kind: "checkbox"}, current, params) do
@@ -351,7 +350,7 @@ defmodule Slipdock.Filters do
 
   defp field_matches?(item, %{field: field} = condition) do
     value = Slipdock.Fields.value(item, field)
-    not is_nil(value) and value_matches?(field.kind, value, condition)
+    not is_nil(value) and value_matches?(by_kind(field.kind), value, condition)
   end
 
   defp value_matches?("select", keys, %{options: options}) when is_list(keys),
@@ -373,10 +372,14 @@ defmodule Slipdock.Filters do
         Date.compare(a, b) != :gt
       end)
 
-  defp value_matches?(kind, text, %{text: words}) when is_text_kind(kind) and is_binary(text),
+  defp value_matches?("text", text, %{text: words}) when is_binary(text),
     do: String.contains?(String.downcase(text), String.downcase(words))
 
   defp value_matches?(_kind, _value, _condition), do: false
+
+  # Every text kind (text, url, email) is filtered as text: on the words its
+  # value contains (#3647).
+  defp by_kind(kind), do: if(FieldDefinition.text_kind?(kind), do: "text", else: kind)
 
   # Any of the field's people among those picked, `me` read as the viewer.
   defp any_person?(ids, people) do

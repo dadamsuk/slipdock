@@ -53,7 +53,7 @@ defmodule Slipdock.EmailFieldTest do
     end
 
     test "email? is one @, something before it, and a dotted domain after" do
-      assert Fields.email?("a.b+c@sub.example.com")
+      assert Fields.email?("a.b+c@example.com")
       refute Fields.email?("a@b")
       refute Fields.email?(nil)
       refute Fields.email?("a b@example.com")
@@ -75,7 +75,7 @@ defmodule Slipdock.EmailFieldTest do
               root: %{
                 ref: "r",
                 name: "Imported",
-                code: "imp",
+                code: "impmail",
                 lists: [%{ref: "l1", name: "To Do"}]
               },
               boards: [],

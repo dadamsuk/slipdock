@@ -64,11 +64,11 @@ defmodule Slipdock.Boards.FieldDefinition do
 
   # The kinds whose value is a line of text: filtered on the words it
   # contains, edited in a box. One list, so a new one is added once (#3647).
+  # A function, not a guard: a guard imported elsewhere is a compile-time
+  # dependency on this schema (`boundaries_test.exs` counts them).
   @text_kinds ~w(text url email)
 
-  @doc "Whether values of `kind` are text (filtered on words they contain)."
-  defguard is_text_kind(kind) when kind in @text_kinds
-
+  @doc "Whether values of `kind` are text (filtered on the words they contain)."
   def text_kind?(kind), do: kind in @text_kinds
   def kind_keys, do: Enum.map(@kinds, &elem(&1, 0))
 
