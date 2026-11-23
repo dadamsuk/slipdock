@@ -85,4 +85,27 @@ defmodule SlipdockCLI.WhoamiLimitsTest do
 
     refute out =~ "items:"
   end
+
+  test "a guardrail with no remaining count, or a limit that isn't a number, isn't stated as a limit" do
+    out =
+      whoami(
+        limits(
+          false,
+          %{"used" => 249_999, "limit" => 250_000, "limited?" => true},
+          %{"used" => 999, "limit" => "1000", "remaining" => 1, "limited?" => true},
+          status(0, 1000)
+        )
+      )
+
+    assert out =~ "items: 249999 used\n"
+    assert out =~ "boards: 999 used\n"
+    refute out =~ " of "
+  end
+
+  test "a small limit is near with one left, since a fifth of it rounds up to one" do
+    out = whoami(limits(false, status(1, 1000), status(2, 3), status(0, 1000)))
+
+    assert out =~ "boards: 2 of 3 used"
+    assert out =~ "items: 1 used\n"
+  end
 end
