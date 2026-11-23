@@ -2,6 +2,8 @@ defmodule Slipdock.Boards.FieldDefinition do
   @moduledoc """
   A custom field on a board tree. Kinds:
 
+    * `text` (the default) – `config` may carry `max_length`, the most
+      characters a value takes (#3647)
     * `number` – a float; `config` may carry `min`, `max`, `step`, `unit`
     * `rating` – 1 to `config["max"]` (default 5) stars
     * `select` – one of `options`, each `%{"key", "label", "weight", "color"}`;
@@ -9,8 +11,9 @@ defmodule Slipdock.Boards.FieldDefinition do
       (Allow several, #3611) a card holds any number of them, kept in option
       order: its formula value is the sum of their weights, and on a swimlane
       axis it sits in each of their lanes
-    * `date`, `text`
+    * `date`
     * `url` – one http(s) link (#3613), kept as text and shown as its host
+    * `email` – one email address (#3647), kept as text
     * `checkbox` – on or off: on is stored as the number 1.0 and off as no
       value, so an empty one counts as off; it is 1 or 0 in formulas
     * `person` – several of the board tree's members (#3614), kept as their
@@ -27,13 +30,15 @@ defmodule Slipdock.Boards.FieldDefinition do
   use Ecto.Schema
   import Ecto.Changeset
 
+  # Text first: it is the type a new field starts as (#3647).
   @kinds [
+    {"text", "Text"},
     {"number", "Number"},
     {"rating", "Rating"},
     {"select", "Choice"},
     {"date", "Date"},
-    {"text", "Text"},
     {"url", "URL"},
+    {"email", "Email"},
     {"checkbox", "Checkbox"},
     {"person", "Person"},
     {"formula", "Formula"}
@@ -56,6 +61,15 @@ defmodule Slipdock.Boards.FieldDefinition do
   end
 
   def kinds, do: @kinds
+
+  # The kinds whose value is a line of text: filtered on the words it
+  # contains, edited in a box. One list, so a new one is added once (#3647).
+  @text_kinds ~w(text url email)
+
+  @doc "Whether values of `kind` are text (filtered on words they contain)."
+  defguard is_text_kind(kind) when kind in @text_kinds
+
+  def text_kind?(kind), do: kind in @text_kinds
   def kind_keys, do: Enum.map(@kinds, &elem(&1, 0))
 
   def kind_label(kind) do
@@ -133,6 +147,7 @@ defmodule Slipdock.Boards.FieldDefinition do
       message: "must be letters, digits and underscores, starting with a letter"
     )
     |> validate_options()
+    |> validate_config()
     |> validate_formula()
     |> unique_constraint([:board_id, :key],
       error_key: :key,
@@ -197,9 +212,10 @@ defmodule Slipdock.Boards.FieldDefinition do
     config = Map.new(config, fn {k, v} -> {to_string(k), v} end)
 
     config
-    |> Map.take(~w(min max step unit mode expression weights several))
+    |> Map.take(~w(min max step unit mode expression weights several max_length))
     |> Map.new(fn
       {"several", v} -> {"several", Enum.member?([true, "true", "on", "1"], v)}
+      {"max_length", v} -> {"max_length", whole(v)}
       {"weights", w} -> {"weights", normalize_weights(w)}
       {"expression", e} -> {"expression", to_string(e) |> String.trim()}
       {"mode", m} -> {"mode", to_string(m)}
@@ -241,6 +257,59 @@ defmodule Slipdock.Boards.FieldDefinition do
        else: changeset
   end
 
+  # What each type's settings may be (#3647): a range that runs forwards, a
+  # most characters of at least one, between 2 and 10 stars, and a choice's
+  # options each named once.
+  defp validate_config(changeset) do
+    config = get_field(changeset, :config) || %{}
+
+    case get_field(changeset, :kind) do
+      "number" ->
+        min = config["min"]
+        max = config["max"]
+
+        cond do
+          is_number(min) and is_number(max) and min > max ->
+            add_error(changeset, :config, "least must not be more than most")
+
+          is_number(config["step"]) and config["step"] <= 0 ->
+            add_error(changeset, :config, "step must be more than 0")
+
+          true ->
+            changeset
+        end
+
+      "text" ->
+        case config["max_length"] do
+          nil ->
+            changeset
+
+          n when is_integer(n) and n >= 1 ->
+            changeset
+
+          _ ->
+            add_error(changeset, :config, "most characters must be a whole number of at least 1")
+        end
+
+      "rating" ->
+        case config["max"] do
+          nil -> changeset
+          n when is_number(n) and n >= 2 and n <= 10 and n == trunc(n) -> changeset
+          _ -> add_error(changeset, :config, "stars must be a whole number from 2 to 10")
+        end
+
+      "select" ->
+        keys = Enum.map(get_field(changeset, :options) || [], & &1["key"])
+
+        if length(keys) == length(Enum.uniq(keys)),
+          do: changeset,
+          else: add_error(changeset, :options, "each choice needs a different name")
+
+      _ ->
+        changeset
+    end
+  end
+
   defp validate_formula(changeset) do
     if get_field(changeset, :kind) == "formula" do
       config = get_field(changeset, :config) || %{}
@@ -264,6 +333,20 @@ defmodule Slipdock.Boards.FieldDefinition do
       changeset
     end
   end
+
+  # A whole number from a form: "120" or 120. Anything else is kept, so the
+  # changeset can say what is wrong with it rather than drop it.
+  defp whole(n) when is_integer(n), do: n
+  defp whole(n) when is_float(n) and n == trunc(n), do: trunc(n)
+
+  defp whole(s) when is_binary(s) do
+    case Integer.parse(String.trim(s)) do
+      {i, ""} -> i
+      _ -> if String.trim(s) == "", do: nil, else: s
+    end
+  end
+
+  defp whole(other), do: other
 
   defp float(nil), do: nil
   defp float(""), do: nil

@@ -38,7 +38,7 @@ defmodule SlipdockWeb.BoardSettingsTabsTest do
   test "opens on General, with a tab for each panel", %{conn: conn, board: board} do
     {:ok, view, _} = live(conn, ~p"/boards/#{board}/settings")
 
-    assert keys() == ~w(general features planning deploys gardening sharing manage)
+    assert keys() == ~w(general features planning fields deploys gardening sharing manage)
     for key <- keys(), do: assert(has_element?(view, "#settings-tab-#{key}"))
     assert_showing(view, "general")
   end
@@ -49,7 +49,8 @@ defmodule SlipdockWeb.BoardSettingsTabsTest do
     where = %{
       "general" => "#settings-panel-general #board_name",
       "features" => "#settings-panel-features #board-show-pulse",
-      "planning" => "#settings-panel-planning #board-fields",
+      "planning" => "#settings-panel-planning #planning-fields-link",
+      "fields" => "#settings-panel-fields #new-field #field-editor-new-form",
       "deploys" => "#settings-panel-deploys #deploy-setup-form",
       "gardening" => "#settings-panel-gardening #gardening-form",
       "sharing" => "#settings-panel-sharing",
@@ -73,6 +74,17 @@ defmodule SlipdockWeb.BoardSettingsTabsTest do
       hidden? = has_element?(view, save <> ".hidden")
       if key in ~w(general features), do: refute(hidden?), else: assert(hidden?, key)
     end
+  end
+
+  # Custom fields have a tab of their own (#3647); Planning points there.
+  test "Planning's link opens the Fields tab", %{conn: conn, board: board} do
+    {:ok, view, _} = live(conn, ~p"/boards/#{board}/settings?tab=planning")
+
+    view
+    |> element("#planning-fields-link button", "Custom fields, including RICE, ICE, etc")
+    |> render_click()
+
+    assert_showing(view, "fields")
   end
 
   test "?tab= opens on that tab", %{conn: conn, board: board} do

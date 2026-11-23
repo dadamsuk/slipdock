@@ -83,7 +83,7 @@ defmodule SlipdockWeb.TableComponents do
                 <span :if={!sort}>{label}</span>
               </th>
               <th :if={@can_edit_fields} class="w-10 text-right" data-role="add-field-column">
-                <.add_field_header />
+                <.add_field_header board={@board} />
               </th>
             </tr>
           </thead>
@@ -312,15 +312,18 @@ defmodule SlipdockWeb.TableComponents do
     """
   end
 
-  # The "+" at the end of the header (#3610): a name and a kind make a
-  # field and its column. A choice takes its options here too, since a
-  # choice needs one; a formula's expression, units and the rest are set in
-  # board settings, so a formula isn't offered.
+  # The "+" at the end of the header (#3610): the field editor board
+  # settings uses (#3647), so a field takes the same settings either way.
+  # A formula needs other fields to refer to, so it is set up in board
+  # settings and isn't offered here.
   #
-  # The form is a native popover placed by `AnchoredPopover`: as an ordinary
-  # dropdown it sat inside the table's scrollbox, which clipped it and let it
-  # run off the right of the screen. The browser's top layer is above every
-  # overflow, and the hook holds it inside the screen.
+  # The editor is a native popover placed by `AnchoredPopover`: as an
+  # ordinary dropdown it sat inside the table's scrollbox, which clipped it
+  # and let it run off the right of the screen (#3646). The browser's top
+  # layer is above every overflow, and the hook holds it inside the screen.
+  # Once a field is added, the board closes it (`popover:hide`).
+  attr :board, :any, required: true
+
   defp add_field_header(assigns) do
     assigns =
       assign(assigns, kinds: Enum.reject(FieldDefinition.kinds(), &(elem(&1, 0) == "formula")))
@@ -345,41 +348,15 @@ defmodule SlipdockWeb.TableComponents do
         data-anchor="add-field"
         class="pop-menu"
       >
-        <form
-          id="add-field-form"
-          phx-submit="table_add_field"
-          class="w-64 max-w-[calc(100vw-1rem)] space-y-2 rounded-2xl bg-base-100 p-3 text-left text-sm font-normal whitespace-normal normal-case tracking-normal text-base-content shadow-xl ring-1 ring-base-content/10"
-        >
-          <input
-            type="text"
-            name="name"
-            placeholder="Field name"
-            aria-label="Field name"
-            class="input field w-full"
-            required
-            autocomplete="off"
+        <div class="max-h-[80vh] w-80 max-w-[calc(100vw-1rem)] overflow-y-auto rounded-2xl bg-base-100 p-3 text-base-content shadow-xl ring-1 ring-base-content/10">
+          <.live_component
+            module={SlipdockWeb.FieldEditorComponent}
+            id="table-field-editor"
+            board={@board}
+            kinds={@kinds}
+            compact
           />
-          <select name="kind" class="select field w-full" aria-label="Type">
-            <option :for={{k, l} <- @kinds} value={k}>{l}</option>
-          </select>
-          <input
-            type="text"
-            name="options"
-            placeholder="Choices, e.g. Lead, Won (for a choice)"
-            aria-label="Choices"
-            class="input field w-full"
-            autocomplete="off"
-          />
-          <%!-- A choice that holds several options per card (#3606, #3611). --%>
-          <label class="flex items-center gap-2 text-xs">
-            <input type="checkbox" name="several" value="true" class="checkbox" />
-            Allow several (for a choice)
-          </label>
-          <p class="text-xs text-base-content/60">
-            Units and formulas are set in board settings.
-          </p>
-          <button type="submit" class="btn btn-primary btn-sm w-full">Add field</button>
-        </form>
+        </div>
       </div>
     </div>
     """
@@ -792,6 +769,8 @@ defmodule SlipdockWeb.TableComponents do
           </span>
         <% "url" -> %>
           <SlipdockWeb.ItemComponents.field_link url={@value} />
+        <% "email" -> %>
+          <SlipdockWeb.ItemComponents.email_link email={@value} />
         <% "person" -> %>
           <SlipdockWeb.ItemComponents.person_chips people={
             Slipdock.Fields.People.people(@fdef, List.wrap(@value))

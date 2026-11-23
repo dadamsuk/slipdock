@@ -11,6 +11,7 @@ defmodule SlipdockWeb.SlipdockComponents.Chrome do
   import SlipdockWeb.SlipdockComponents.CardFace, only: [kind_icon: 1]
   import SlipdockWeb.SlipdockComponents.Marks
   import SlipdockWeb.SlipdockComponents.Schedule, only: [due_icon: 0]
+  import Slipdock.Boards.FieldDefinition, only: [is_text_kind: 1]
 
   @doc """
   A label with one letter marked: the key that jumps to it.
@@ -812,7 +813,7 @@ defmodule SlipdockWeb.SlipdockComponents.Chrome do
   end
 
   defp field_filter(%{field: %{kind: kind}} = assigns)
-       when kind in ~w(number formula date text url) do
+       when kind in ~w(number formula date) or is_text_kind(kind) do
     c = assigns.condition || %{}
 
     values =
@@ -859,7 +860,7 @@ defmodule SlipdockWeb.SlipdockComponents.Chrome do
         <.date_field field={@form[:to]} placeholder="To" aria-label={"#{@field.name} to"} />
       </div>
       <.input
-        :if={@field.kind in ~w(text url)}
+        :if={Slipdock.Boards.FieldDefinition.text_kind?(@field.kind)}
         field={@form[:text]}
         placeholder="contains…"
         aria-label={"#{@field.name} contains"}

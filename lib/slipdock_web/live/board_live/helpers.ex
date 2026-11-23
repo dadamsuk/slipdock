@@ -92,21 +92,6 @@ defmodule SlipdockWeb.BoardLive.Helpers do
     end
   end
 
-  # "Small=1, Large=3" → option maps; a bare label has no weight.
-  def parse_options(nil), do: []
-
-  def parse_options(text) do
-    text
-    |> String.split(",", trim: true)
-    |> Enum.map(fn item ->
-      case String.split(item, "=", parts: 2) do
-        [label, weight] -> %{"label" => String.trim(label), "weight" => String.trim(weight)}
-        [label] -> %{"label" => String.trim(label)}
-      end
-    end)
-    |> Enum.reject(&(&1["label"] == ""))
-  end
-
   def view_error(%Ecto.Changeset{} = cs) do
     case cs.errors[:name] do
       nil -> "Couldn't save that view."

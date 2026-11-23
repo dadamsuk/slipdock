@@ -74,7 +74,7 @@ defmodule SlipdockWeb.BoardLive.Show do
   # Events whose handler checks the permission itself, because what it acts
   # on is not the open board or the open card: a card named by id, a page,
   # another board, a sprint picked from several boards.
-  @self_checked_events ~w(share revoke_grant toggle_complete table_update table_add_field prio_field prio_vote timeline_move
+  @self_checked_events ~w(share revoke_grant toggle_complete table_update prio_field prio_vote timeline_move
     timeline_schedule cal_move toggle_favourite dismiss_stand_in toggle_show_all mute_waiting unmute_waiting)
   # Events that change nothing stored: filters, panels opening and closing,
   # forms being typed into, the keyboard's place on the board.
@@ -798,6 +798,16 @@ defmodule SlipdockWeb.BoardLive.Show do
     do:
       {:noreply,
        assign(socket, release: board_release(socket.assigns.board, socket.assigns.current_user))}
+
+  # The table header's field editor added a field (#3647).
+  def handle_info(
+        {SlipdockWeb.FieldEditorComponent, "table-field-editor", {:saved, field}},
+        socket
+      ),
+      do: {:noreply, SlipdockWeb.BoardLive.ViewEvents.field_added(socket, field)}
+
+  def handle_info({SlipdockWeb.FieldEditorComponent, _id, _message}, socket),
+    do: {:noreply, socket}
 
   def handle_info({:card_views_changed, _user_id}, socket) do
     {:noreply, socket |> assign_card_views() |> refresh_swimlanes()}

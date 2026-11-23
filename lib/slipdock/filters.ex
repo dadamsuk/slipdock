@@ -12,6 +12,7 @@ defmodule Slipdock.Filters do
   """
 
   alias Slipdock.Boards.FieldDefinition
+  import Slipdock.Boards.FieldDefinition, only: [is_text_kind: 1]
 
   @empty %{
     q: "",
@@ -97,7 +98,7 @@ defmodule Slipdock.Filters do
     * `rating`: `"min"`, at least that many stars; the same again clears it
     * `number`, `formula`: `"min"` and `"max"`, either or both
     * `date`: `"from"` and `"to"` (ISO dates), either or both
-    * `text`, `url`: `"text"`, words the value contains, in any case
+    * `text`, `url`, `email`: `"text"`, words the value contains, in any case
     * `checkbox`: `"checked"`, `"true"` (on) or `"false"` (off); the same
       again clears it
     * `person`: `"person"` toggles a user id, or `"me"`, the viewer, in or
@@ -191,7 +192,7 @@ defmodule Slipdock.Filters do
   defp restore_condition("date", _field, kept),
     do: %{from: parse_date(kept["from"]), to: parse_date(kept["to"])}
 
-  defp restore_condition(kind, _field, kept) when kind in ~w(text url),
+  defp restore_condition(kind, _field, kept) when is_text_kind(kind),
     do: %{text: String.trim(to_string(kept["text"] || ""))}
 
   defp restore_condition("checkbox", _field, kept),
@@ -328,7 +329,7 @@ defmodule Slipdock.Filters do
   defp condition(%FieldDefinition{kind: "date"}, _current, params),
     do: %{from: parse_date(params["from"]), to: parse_date(params["to"])}
 
-  defp condition(%FieldDefinition{kind: kind}, _current, params) when kind in ~w(text url),
+  defp condition(%FieldDefinition{kind: kind}, _current, params) when is_text_kind(kind),
     do: %{text: String.trim(to_string(params["text"] || ""))}
 
   defp condition(%FieldDefinition{kind: "checkbox"}, current, params) do
@@ -372,7 +373,7 @@ defmodule Slipdock.Filters do
         Date.compare(a, b) != :gt
       end)
 
-  defp value_matches?(kind, text, %{text: words}) when kind in ~w(text url) and is_binary(text),
+  defp value_matches?(kind, text, %{text: words}) when is_text_kind(kind) and is_binary(text),
     do: String.contains?(String.downcase(text), String.downcase(words))
 
   defp value_matches?(_kind, _value, _condition), do: false

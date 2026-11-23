@@ -437,9 +437,8 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent.Panels do
   attr :target, :any, required: true, doc: "the settings component, which takes the events"
   attr :source_choices, :list, required: true
   attr :form_key, :integer, required: true
-  attr :several_confirm, :any, default: nil, doc: "the field asking before Allow several goes off"
 
-  @doc "The Planning tab: sprint sources, custom fields and milestones."
+  @doc "The Planning tab: sprint sources, a link to the Fields tab, and milestones."
   def planning_panel(assigns) do
     ~H"""
     <div id="settings-panel-planning" role="tabpanel" class={panel_class(@tab, "planning")}>
@@ -458,179 +457,20 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent.Panels do
         </p>
         <.sources_fields choices={@source_choices} chosen={chosen(@board)} />
       </form>
-      <div class="space-y-2" id="board-fields">
+      <%!-- Custom fields have a tab of their own (#3647). --%>
+      <div class="space-y-1" id="planning-fields-link">
         <span class="text-sm font-medium">Fields</span>
-        <p class="text-xs text-base-content/50">
-          Custom fields for every card in this tree. Start from a scoring preset, or add
-          your own; a formula refers to fields as <code class="font-mono">{"{key}"}</code>.
-        </p>
-        <ul :if={@board.fields != []} class="space-y-1">
-          <li
-            :for={f <- @board.fields}
-            id={"field-#{f.id}"}
-            class="flex items-center gap-2 text-sm"
-          >
-            <span class="chip chip-line shrink-0 text-2xs">{FieldDefinition.kind_label(f.kind)}</span>
-            <span class="min-w-0 flex-1 truncate">
-              {f.name}
-              <span class="font-mono text-2xs text-base-content/50">{"{#{f.key}}"}</span>
-            </span>
-            <span
-              :if={f.kind == "formula"}
-              class="max-w-40 truncate font-mono text-2xs text-base-content/60"
-              title={f.config["expression"] || "weighted score"}
-            >
-              {f.config["expression"] || "weighted"}
-            </span>
-            <label
-              class="flex cursor-pointer items-center gap-1 text-2xs"
-              title="Show this field's value on the front of each card"
-            >
-              <input
-                phx-target={@target}
-                type="checkbox"
-                class="toggle"
-                phx-click="toggle_field_on_cards"
-                phx-value-id={f.id}
-                checked={f.show_on_cards}
-                aria-label={"Show #{f.name} on cards"}
-              /> Show on cards
-            </label>
-            <label
-              :if={f.kind == "select"}
-              class="flex cursor-pointer items-center gap-1 text-2xs"
-              title="Let each card hold several of this field's options"
-            >
-              <input
-                phx-target={@target}
-                type="checkbox"
-                class="toggle"
-                phx-click="toggle_field_several"
-                phx-value-id={f.id}
-                checked={FieldDefinition.several?(f)}
-                aria-label={"Allow several #{f.name}"}
-              /> Allow several
-            </label>
-            <label
-              :if={f.kind in ~w(number rating)}
-              class="flex cursor-pointer items-center gap-1 text-2xs"
-              title="Roll totals up the tree and show sums in table groups"
-            >
-              <input
-                phx-target={@target}
-                type="checkbox"
-                class="checkbox"
-                phx-click="toggle_field_sum"
-                phx-value-id={f.id}
-                checked={f.sum}
-              /> Σ
-            </label>
-            <button
-              phx-target={@target}
-              type="button"
-              class="btn btn-ghost btn-error btn-xs btn-square"
-              phx-click="delete_field"
-              phx-value-id={f.id}
-              data-confirm={"Delete the field “#{f.name}” and every value of it?"}
-              title="Delete"
-            >
-              <.icon name="hero-x-mark" class="size-3.5" />
-            </button>
-          </li>
-        </ul>
-        <div
-          :for={f <- @board.fields}
-          :if={f.id == @several_confirm}
-          id={"field-several-confirm-#{f.id}"}
-          role="alertdialog"
-          class="space-y-2 rounded-box border border-warning/40 bg-warning/10 p-3 text-sm"
-        >
-          <p>
-            Some cards hold several {f.name} options. Switching Allow several off keeps
-            each card's first option, in the field's option order, and drops the rest.
-          </p>
-          <div class="flex justify-end gap-2">
-            <button
-              phx-target={@target}
-              type="button"
-              class="btn btn-ghost btn-sm"
-              phx-click="cancel_field_single"
-            >
-              Cancel
-            </button>
-            <button
-              phx-target={@target}
-              type="button"
-              class="btn btn-warning btn-sm"
-              phx-click="confirm_field_single"
-              phx-value-id={f.id}
-            >
-              Keep the first option
-            </button>
-          </div>
-        </div>
-        <div class="flex flex-wrap items-center gap-1">
-          <span class="text-xs text-base-content/60">Presets:</span>
+        <p>
           <button
-            :for={preset <- Fields.presets()}
-            phx-target={@target}
             type="button"
-            class="btn btn-xs"
-            phx-click="install_preset"
-            phx-value-key={preset.key}
-            title={preset.blurb}
+            class="link link-primary text-sm"
+            phx-target={@target}
+            phx-click="settings_tab"
+            phx-value-tab="fields"
           >
-            + {preset.name}
+            Custom fields, including RICE, ICE, etc
           </button>
-        </div>
-        <form
-          phx-target={@target}
-          id={"field-form-#{@form_key}"}
-          phx-submit="add_field"
-          class="space-y-1.5"
-        >
-          <div class="flex gap-1">
-            <input
-              type="text"
-              name="name"
-              placeholder="Field name"
-              class="input field min-w-0 flex-1"
-              required
-              autocomplete="off"
-            />
-            <select name="kind" class="select field w-28" title="Kind">
-              <option :for={{k, l} <- FieldDefinition.kinds()} value={k}>{l}</option>
-            </select>
-          </div>
-          <input
-            type="text"
-            name="options"
-            placeholder="Choices, e.g. Small=1, Medium=2, Large=3"
-            class="input field w-full"
-            autocomplete="off"
-          />
-          <input
-            type="text"
-            name="expression"
-            placeholder="Formula, e.g. {value} / {effort}"
-            class="input field w-full field-mono"
-            autocomplete="off"
-          />
-          <div class="flex items-center justify-between">
-            <div class="flex items-center gap-3">
-              <label class="flex cursor-pointer items-center gap-1 text-xs">
-                <input type="checkbox" name="sum" value="true" class="checkbox" /> Roll up totals
-              </label>
-              <label
-                class="flex cursor-pointer items-center gap-1 text-xs"
-                title="A choice field: let each card hold several of its options"
-              >
-                <input type="checkbox" name="several" value="true" class="checkbox" /> Allow several
-              </label>
-            </div>
-            <button type="submit" class="btn btn-primary btn-sm">Add field</button>
-          </div>
-        </form>
+        </p>
       </div>
       <div class="space-y-2 border-t border-base-content/10 pt-4">
         <span class="text-sm font-medium">Milestones</span>
@@ -684,6 +524,258 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent.Panels do
     </div>
     """
   end
+
+  attr :board, :any, required: true
+  attr :tab, :string, required: true, doc: "the tab showing"
+  attr :target, :any, required: true, doc: "the settings component, which takes the events"
+  attr :several_confirm, :any, default: nil, doc: "the field asking before Allow several goes off"
+  attr :editing_field, :any, default: nil, doc: "the id of the field open in the editor"
+
+  @doc """
+  The Fields tab (#3647): the tree's custom fields as a table, each with
+  its switches, an Edit that opens it in the field editor under its row,
+  and Delete; then the scoring presets and the editor for a new field. The
+  editor is `SlipdockWeb.FieldEditorComponent`, the one the table view's
+  "+" opens.
+  """
+  def fields_panel(assigns) do
+    ~H"""
+    <div
+      id="settings-panel-fields"
+      role="tabpanel"
+      class={["space-y-5", @tab != "fields" && "hidden"]}
+    >
+      <div class="space-y-2" id="board-fields">
+        <p class="text-xs text-base-content/60">
+          Custom fields for every card in this tree. A formula refers to other fields by
+          their key, like <code class="font-mono">{"{reach}"}</code>.
+        </p>
+        <p :if={@board.fields == []} class="text-sm text-base-content/60" id="no-fields">
+          No fields yet. Add one below, or start from a scoring preset.
+        </p>
+        <div :if={@board.fields != []} class="overflow-x-auto">
+          <table id="fields-table" class="table table-sm">
+            <thead>
+              <tr class="text-xs text-base-content/60">
+                <th>Name</th>
+                <th>Type</th>
+                <th>Settings</th>
+                <th class="text-center" title="Show the value on the front of each card">On cards</th>
+                <th class="text-center" title="A choice: let each card hold several of its options">
+                  Several
+                </th>
+                <th class="text-center" title="Roll totals up the tree and show sums in table groups">
+                  Σ
+                </th>
+                <th><span class="sr-only">Edit or delete</span></th>
+              </tr>
+            </thead>
+            <tbody :for={f <- @board.fields} id={"field-#{f.id}"}>
+              <tr class={@editing_field == f.id && "bg-base-200/60"}>
+                <td class="min-w-40">
+                  <div class="font-medium">{f.name}</div>
+                  <div class="font-mono text-2xs text-base-content/50">{"{#{f.key}}"}</div>
+                </td>
+                <td>
+                  <span class="chip chip-line text-2xs">{FieldDefinition.kind_label(f.kind)}</span>
+                </td>
+                <td
+                  class={[
+                    "max-w-56 truncate text-xs text-base-content/70",
+                    f.kind == "formula" && "font-mono"
+                  ]}
+                  title={field_summary(f)}
+                  data-role="field-summary"
+                >
+                  {field_summary(f)}
+                </td>
+                <td class="text-center">
+                  <input
+                    phx-target={@target}
+                    type="checkbox"
+                    class="toggle"
+                    phx-click="toggle_field_on_cards"
+                    phx-value-id={f.id}
+                    checked={f.show_on_cards}
+                    aria-label={"Show #{f.name} on cards"}
+                  />
+                </td>
+                <td class="text-center">
+                  <input
+                    :if={f.kind == "select"}
+                    phx-target={@target}
+                    type="checkbox"
+                    class="toggle"
+                    phx-click="toggle_field_several"
+                    phx-value-id={f.id}
+                    checked={FieldDefinition.several?(f)}
+                    aria-label={"Allow several #{f.name}"}
+                  />
+                </td>
+                <td class="text-center">
+                  <input
+                    :if={f.kind in ~w(number rating)}
+                    phx-target={@target}
+                    type="checkbox"
+                    class="checkbox"
+                    phx-click="toggle_field_sum"
+                    phx-value-id={f.id}
+                    checked={f.sum}
+                    aria-label={"Roll up #{f.name}"}
+                  />
+                </td>
+                <td class="whitespace-nowrap text-right">
+                  <button
+                    phx-target={@target}
+                    type="button"
+                    class="btn btn-ghost btn-xs btn-square"
+                    phx-click="edit_field"
+                    phx-value-id={f.id}
+                    title={"Edit #{f.name}"}
+                    aria-label={"Edit #{f.name}"}
+                    aria-expanded={to_string(@editing_field == f.id)}
+                    data-role="edit-field"
+                  >
+                    <.icon name="hero-pencil-square" class="size-4" />
+                  </button>
+                  <button
+                    phx-target={@target}
+                    type="button"
+                    class="btn btn-ghost btn-error btn-xs btn-square"
+                    phx-click="delete_field"
+                    phx-value-id={f.id}
+                    data-confirm={"Delete the field “#{f.name}” and every value of it?"}
+                    title={"Delete #{f.name}"}
+                    aria-label={"Delete #{f.name}"}
+                  >
+                    <.icon name="hero-trash" class="size-4" />
+                  </button>
+                </td>
+              </tr>
+              <tr :if={@editing_field == f.id} id={"field-edit-row-#{f.id}"}>
+                <td colspan="7" class="bg-base-200/40">
+                  <.live_component
+                    module={SlipdockWeb.FieldEditorComponent}
+                    id={"field-editor-#{f.id}"}
+                    board={@board}
+                    field={f}
+                    parent={{SlipdockWeb.BoardLive.SettingsComponent, "settings"}}
+                  />
+                </td>
+              </tr>
+              <tr
+                :if={f.id == @several_confirm}
+                id={"field-several-confirm-#{f.id}"}
+                role="alertdialog"
+              >
+                <td colspan="7">
+                  <div class="space-y-2 rounded-box border border-warning/40 bg-warning/10 p-3 text-sm">
+                    <p>
+                      Some cards hold several {f.name} options. Switching Allow several off keeps
+                      each card's first option, in the field's option order, and drops the rest.
+                    </p>
+                    <div class="flex justify-end gap-2">
+                      <button
+                        phx-target={@target}
+                        type="button"
+                        class="btn btn-ghost btn-sm"
+                        phx-click="cancel_field_single"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        phx-target={@target}
+                        type="button"
+                        class="btn btn-warning btn-sm"
+                        phx-click="confirm_field_single"
+                        phx-value-id={f.id}
+                      >
+                        Keep the first option
+                      </button>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="space-y-2 border-t border-base-content/10 pt-4" id="field-presets">
+        <span class="text-sm font-medium">Scoring presets</span>
+        <p class="text-xs text-base-content/60">
+          Adds a preset's input fields that aren't here yet, and its score.
+        </p>
+        <div class="flex flex-wrap items-center gap-1">
+          <button
+            :for={preset <- Fields.presets()}
+            phx-target={@target}
+            type="button"
+            class="btn btn-xs"
+            phx-click="install_preset"
+            phx-value-key={preset.key}
+            title={preset.blurb}
+          >
+            + {preset.name}
+          </button>
+        </div>
+      </div>
+
+      <div class="settings-column space-y-2 border-t border-base-content/10 pt-4" id="new-field">
+        <span class="text-sm font-medium">Add a field</span>
+        <.live_component
+          module={SlipdockWeb.FieldEditorComponent}
+          id="field-editor-new"
+          board={@board}
+          parent={{SlipdockWeb.BoardLive.SettingsComponent, "settings"}}
+        />
+      </div>
+    </div>
+    """
+  end
+
+  # What a field's settings come to, in a few words, for the Fields table.
+  defp field_summary(%FieldDefinition{kind: "text", config: %{"max_length" => n}}),
+    do: "Up to #{n} characters"
+
+  defp field_summary(%FieldDefinition{kind: "number", config: c}) do
+    unit = c["unit"]
+
+    range =
+      case {c["min"], c["max"]} do
+        {nil, nil} -> nil
+        {min, nil} -> "At least #{num(min)}"
+        {nil, max} -> "At most #{num(max)}"
+        {min, max} -> "#{num(min)} to #{num(max)}"
+      end
+
+    [range, c["step"] && "step #{num(c["step"])}", unit]
+    |> Enum.reject(&is_nil/1)
+    |> case do
+      [] -> "Any number"
+      parts -> Enum.join(parts, " · ")
+    end
+  end
+
+  defp field_summary(%FieldDefinition{kind: "rating"} = f),
+    do: "#{FieldDefinition.rating_max(f)} stars"
+
+  defp field_summary(%FieldDefinition{kind: "select", options: options} = f) do
+    labels = Enum.map_join(options || [], ", ", & &1["label"])
+    n = length(options || [])
+    several = if FieldDefinition.several?(f), do: ", several per card", else: ""
+    "#{n} #{if n == 1, do: "choice", else: "choices"}#{several}: #{labels}"
+  end
+
+  defp field_summary(%FieldDefinition{kind: "formula", config: c}),
+    do: c["expression"] || "Weighted score"
+
+  defp field_summary(%FieldDefinition{kind: "url"}), do: "http(s) links"
+  defp field_summary(%FieldDefinition{kind: "email"}), do: "Email addresses"
+  defp field_summary(_), do: "—"
+
+  defp num(n) when is_float(n) and n == trunc(n), do: Integer.to_string(trunc(n))
+  defp num(n), do: to_string(n)
 
   attr :board, :any, required: true
   attr :tab, :string, required: true, doc: "the tab showing"

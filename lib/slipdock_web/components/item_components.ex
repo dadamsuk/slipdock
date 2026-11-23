@@ -547,11 +547,27 @@ defmodule SlipdockWeb.ItemComponents do
             />
             <.field_link :if={is_binary(@value)} url={@value} />
           </div>
+        <% {"email", look} -> %>
+          <div class={["flex items-center gap-1", look == :boxed && "w-full"]}>
+            <input
+              type="email"
+              name="value"
+              value={@value}
+              aria-label={@field.name}
+              class={
+                if(look == :bare, do: "input field-bare prio-input w-36", else: "input field w-full")
+              }
+              placeholder={if(look == :bare, do: "—", else: "name@example.com")}
+              phx-debounce={@debounce}
+            />
+            <.email_link :if={is_binary(@value)} email={@value} icon />
+          </div>
         <% {_text, look} -> %>
           <input
             type="text"
             name="value"
             value={@value}
+            maxlength={@field.config["max_length"]}
             aria-label={@field.name}
             class={
               if(look == :bare, do: "input field-bare prio-input w-36", else: "input field w-full")
@@ -571,6 +587,16 @@ defmodule SlipdockWeb.ItemComponents do
     ~H"""
     <.field_link :if={is_binary(@url)} url={@url} />
     <span :if={not is_binary(@url)} class="text-xs">—</span>
+    """
+  end
+
+  # A reader's email field is its mailto link (#3647).
+  defp field_value(%{field: %{kind: "email"}} = assigns) do
+    assigns = assign(assigns, email: Fields.value(assigns.item, assigns.field))
+
+    ~H"""
+    <.email_link :if={is_binary(@email)} email={@email} />
+    <span :if={not is_binary(@email)} class="text-xs">—</span>
     """
   end
 
@@ -682,6 +708,31 @@ defmodule SlipdockWeb.ItemComponents do
       <.icon name="hero-arrow-top-right-on-square" class="size-3 shrink-0" />
     </a>
     <span :if={not Fields.web_link?(@url)} class="text-xs">{@url}</span>
+    """
+  end
+
+  attr :email, :string, required: true
+  attr :icon, :boolean, default: false, doc: "only the envelope, beside a box showing the address"
+
+  @doc """
+  An email field's address as a `mailto:` link (#3647). Only an address the
+  field takes (`Slipdock.Fields.email?/1`) is made a link; anything else
+  stays text.
+  """
+  def email_link(assigns) do
+    ~H"""
+    <a
+      :if={Fields.email?(@email)}
+      href={"mailto:" <> @email}
+      class="link link-hover inline-flex min-w-0 items-center gap-0.5 text-xs"
+      title={"Email " <> @email}
+      aria-label={"Email " <> @email}
+      data-role="field-email"
+    >
+      <span :if={!@icon} class="truncate">{@email}</span>
+      <.icon name="hero-envelope" class="size-3 shrink-0" />
+    </a>
+    <span :if={not Fields.email?(@email) and !@icon} class="text-xs">{@email}</span>
     """
   end
 

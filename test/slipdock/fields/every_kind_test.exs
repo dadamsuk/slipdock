@@ -91,6 +91,17 @@ defmodule Slipdock.Fields.EveryKindTest do
       editor: ~s|input[type="url"][name="value"]|,
       axis: false
     },
+    # One email address (#3647), shown as it is; not an axis.
+    "email" => %{
+      attrs: %{},
+      low: "ada@example.com",
+      high: "zoe@example.com",
+      shown: "zoe@example.com",
+      json: "zoe@example.com",
+      filter: %{"text" => "ZOE"},
+      editor: ~s|input[type="email"][name="value"]|,
+      axis: false
+    },
     # Off clears the value, so the low card is empty: empty counts as off.
     "checkbox" => %{
       attrs: %{},
