@@ -42,3 +42,9 @@ table#card-table form[data-derived] .date-field-placeholder { font-style: italic
 @media (hover: hover) {
   table#card-table tbody tr:not(:hover) [data-title-cell]:not(:focus-within) .table-rename { opacity: 0; }
 }
+/* The Assignee, Tags and Flags cells' picker buttons (#3671), like the
+   rename pencil: hidden until the row is hovered or the button focused,
+   where there is hover; a touch screen always shows them (UX-6). */
+@media (hover: hover) {
+  table#card-table tbody tr:not(:hover) .table-pick:not(:focus-visible) { opacity: 0; }
+}

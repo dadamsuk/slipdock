@@ -19,7 +19,13 @@ first two and *+N*, with every tag in the tooltip, so rows are all one
 height. On a phone the stacked rows keep their controls showing. The title
 opens the card; to rename it without opening, point at the row and click
 the pencil beside it, type, and press Enter or click away (a blank title is
-refused). The filter menu, search, density and saved views are shared
+refused). Assignees, tags and flags are picked the same way: point at the
+row and click the button in the cell (a pencil, or *+* when it is empty) to
+open the list of the board's people, its tags or the flags, and click each
+one to put it on the card or take it off; the list stays open while you
+pick several. A wiki page placed on the board takes one assignee. The
+derived columns (checklist, comments, dependencies, subcards, health,
+votes, time, created, updated) only show their values. The filter menu, search, density and saved views are shared
 with the swimlane view, and a saved view remembers which of the two it was
 made in. `slipdock table <board>` prints the same thing in the terminal.
 

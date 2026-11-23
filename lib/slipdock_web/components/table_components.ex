@@ -27,6 +27,10 @@ defmodule SlipdockWeb.TableComponents do
 
   attr :focus_field, :string, default: nil, doc: "the `f:<id>` column just added, to focus"
 
+  attr :assignable, :list,
+    default: [],
+    doc: "the people the Assignee cell's picker offers (`BoardLive.State.assignable_users/2`)"
+
   def table_view(%{narrow: true} = assigns), do: table_stack(assigns)
 
   def table_view(assigns) do
@@ -155,7 +159,14 @@ defmodule SlipdockWeb.TableComponents do
                     class="contents"
                     phx-mounted={JS.focus_first()}
                   >
-                    <.cell field={key} card={card} board={@board} can_write={@can_write} />
+                    <.cell
+                      field={key}
+                      card={card}
+                      board={@board}
+                      can_write={@can_write}
+                      assignable={@assignable}
+                      row={group.key}
+                    />
                   </div>
                   <.cell
                     :if={not (key == @focus_field and card == @focus_card)}
@@ -163,6 +174,8 @@ defmodule SlipdockWeb.TableComponents do
                     card={card}
                     board={@board}
                     can_write={@can_write}
+                    assignable={@assignable}
+                    row={group.key}
                   />
                 </fieldset>
               </td>
@@ -380,10 +393,95 @@ defmodule SlipdockWeb.TableComponents do
 
   defp first_row(_rows, _collapsed), do: nil
 
+  # The Assignee, Tags and Flags cells' pickers (#3671): a button beside the
+  # values that opens a popover of every choice, each a checkbox item that
+  # sends `table_toggle`. The popover stays open while you pick several; the
+  # card panel's Flags and Tags menus are the model. Put it after the cell's
+  # values in a `data-role="cell-values"` box that is always drawn: a patch
+  # that inserts a sibling before it moves the popover, which closes it.
+  attr :id, :string, required: true
+  attr :label, :string, required: true
+  attr :empty, :boolean, default: false
+  slot :inner_block, required: true
+
+  defp cell_picker(assigns) do
+    ~H"""
+    <button
+      type="button"
+      id={"#{@id}-open"}
+      popovertarget={"#{@id}-menu"}
+      data-role="cell-picker"
+      class={[
+        "table-pick btn btn-ghost btn-xs btn-square shrink-0",
+        !@empty && "table-pick-set"
+      ]}
+      aria-label={"Edit #{String.downcase(@label)}"}
+      title={"Edit #{String.downcase(@label)}"}
+    >
+      <.icon name={if @empty, do: "hero-plus", else: "hero-pencil"} class="size-3.5" />
+    </button>
+    <div
+      id={"#{@id}-menu"}
+      popover
+      phx-hook="AnchoredPopover"
+      data-anchor={"#{@id}-open"}
+      data-align="start"
+      class="pop-menu"
+    >
+      <ul
+        class="menu max-h-72 w-56 flex-nowrap overflow-y-auto rounded-xl bg-base-100 p-1 text-sm normal-case shadow-xl ring-1 ring-base-content/10"
+        aria-label={@label}
+      >
+        {render_slot(@inner_block)}
+      </ul>
+    </div>
+    """
+  end
+
+  attr :card, :map, required: true
+  attr :field, :string, required: true
+  attr :value, :any, required: true
+  attr :on, :boolean, required: true
+  slot :inner_block, required: true
+
+  defp picker_option(assigns) do
+    ~H"""
+    <button
+      type="button"
+      role="menuitemcheckbox"
+      aria-checked={to_string(@on)}
+      data-pick={"#{@field}-#{@value}"}
+      phx-click="table_toggle"
+      phx-value-card_id={item_id(@card)}
+      phx-value-field={@field}
+      phx-value-choice={@value}
+      class="flex items-center gap-2"
+    >
+      <.icon name="hero-check" class={["size-4", if(@on, do: "text-primary", else: "invisible")]} />
+      {render_slot(@inner_block)}
+    </button>
+    """
+  end
+
+  defp picker_id(kind, row, card), do: "#{kind}-#{row}-#{item_id(card)}"
+
+  # Who the picker offers: the board's people, and whoever is on the card
+  # already (so they can be taken off even if the reader can't see them).
+  defp assignee_options(card, assignable) do
+    (assignable ++ Slipdock.Boards.Card.assignees(card))
+    |> Enum.uniq_by(& &1.id)
+    |> Enum.sort_by(&String.downcase(Slipdock.Accounts.User.display_name(&1)))
+  end
+
   attr :field, :string, required: true
   attr :card, :map, required: true
   attr :board, :any, required: true
   attr :can_write, :boolean, default: false
+  attr :assignable, :list, default: [], doc: "who the Assignee picker offers"
+
+  attr :row, :string,
+    default: "s",
+    doc: "the row's group, so a card shown twice keeps its ids apart"
 
   defp cell(%{field: "title"} = assigns) do
     ~H"""
@@ -496,13 +594,43 @@ defmodule SlipdockWeb.TableComponents do
   defp cell(%{field: "assignee"} = assigns) do
     ~H"""
     <div class="flex min-w-0 max-w-48 flex-nowrap items-center gap-1">
-      <%!-- The runner loop holding the card (#2027), beside the people. --%>
-      <SlipdockWeb.LoopComponents.loop_chip
-        id={"table-loop-#{@card.id}"}
-        loop={Slipdock.CardState.loop(@card)}
-        href={SlipdockWeb.LoopComponents.job_href(@card, Slipdock.CardState.loop(@card))}
-      />
-      <.assignee_chips users={Slipdock.Boards.Card.assignees(@card)} size="xs" with_name />
+      <%!-- The runner loop holding the card (#2027), beside the people.
+            The values sit in a box that is always there, so a patch that
+            adds the first one doesn't move the picker's open popover (a
+            moved popover closes). --%>
+      <span class="contents" data-role="cell-values">
+        <SlipdockWeb.LoopComponents.loop_chip
+          id={"table-loop-#{@card.id}"}
+          loop={Slipdock.CardState.loop(@card)}
+          href={SlipdockWeb.LoopComponents.job_href(@card, Slipdock.CardState.loop(@card))}
+        />
+        <.assignee_chips users={Slipdock.Boards.Card.assignees(@card)} size="xs" with_name />
+      </span>
+      <.cell_picker
+        :if={@can_write}
+        id={picker_id("assignee", @row, @card)}
+        label="Assignees"
+        empty={Slipdock.Boards.Card.assignees(@card) == []}
+      >
+        <li :for={user <- assignee_options(@card, @assignable)}>
+          <.picker_option
+            card={@card}
+            field="assignee"
+            value={user.id}
+            on={Slipdock.Boards.Card.assigned_to?(@card, user.id)}
+          >
+            <span class="min-w-0 flex-1 truncate text-left">
+              {Slipdock.Accounts.User.display_name(user)}
+            </span>
+          </.picker_option>
+        </li>
+        <li
+          :if={assignee_options(@card, @assignable) == []}
+          class="px-3 py-1.5 text-xs text-base-content/50"
+        >
+          Nobody to assign.
+        </li>
+      </.cell_picker>
     </div>
     """
   end
@@ -631,12 +759,24 @@ defmodule SlipdockWeb.TableComponents do
 
   defp cell(%{field: "flags"} = assigns) do
     ~H"""
-    <span class="flex items-center gap-1"><.flag_icon
+    <span class="flex items-center gap-1"><span class="contents" data-role="cell-values"><.flag_icon
       :for={flag <- @card.flags}
       flag={flag}
       card={@card}
       class="size-3.5"
-    /></span>
+    /></span><.cell_picker
+      :if={@can_write}
+      id={picker_id("flags", @row, @card)}
+      label="Flags"
+      empty={@card.flags == []}
+    >
+      <li :for={{flag, label, icon, color, _} <- flags()}>
+        <.picker_option card={@card} field="flag" value={flag} on={flag in @card.flags}>
+          <.icon name={icon} class={["size-4", color]} />
+          <span class="flex-1 text-left">{label}</span>
+        </.picker_option>
+      </li>
+    </.cell_picker></span>
     """
   end
 
@@ -653,14 +793,42 @@ defmodule SlipdockWeb.TableComponents do
       )
 
     ~H"""
-    <span :if={@shown != []} class="table-tags flex flex-nowrap items-center gap-1" title={@names}><span
+    <span class="flex min-w-0 flex-nowrap items-center gap-1"><span
+      class="contents"
+      data-role="cell-values"
+    ><span
+      :if={@shown != []}
+      class="table-tags flex flex-nowrap items-center gap-1"
+      title={@names}
+    ><span
       :for={tag <- @shown}
       class="table-tag"
     ><.tag_chip tag={tag} size="xs" /></span><span
       :if={@more > 0}
       data-role="more-tags"
       class="inline-flex shrink-0 items-center rounded-md px-1.5 py-0.5 text-2xs font-medium leading-none text-base-content/70 ring-1 ring-inset ring-base-content/20"
-    >+{@more}</span></span>
+    >+{@more}</span></span></span>
+    <.cell_picker
+      :if={@can_write}
+      id={picker_id("tags", @row, @card)}
+      label="Tags"
+      empty={@card.tags == []}
+    >
+      <li :for={tag <- @board.tags}>
+        <.picker_option
+          card={@card}
+          field="tag"
+          value={tag.id}
+          on={Enum.any?(@card.tags, &(&1.id == tag.id))}
+        >
+          <span class={["size-2 shrink-0 rounded-full", Palette.dot(tag.color)]}></span>
+          <span class="min-w-0 flex-1 truncate text-left">{tag.name}</span>
+        </.picker_option>
+      </li>
+      <li :if={@board.tags == []} class="px-3 py-1.5 text-xs text-base-content/50">
+        This board has no tags yet.
+      </li>
+    </.cell_picker></span>
     """
   end
 

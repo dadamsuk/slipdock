@@ -438,6 +438,158 @@ defmodule SlipdockWeb.TableViewLiveTest do
     end
   end
 
+  describe "assignees, tags and flags edit in their cells (#3671)" do
+    setup %{user: user} do
+      board = board_fixture(%{"name" => "Pickers"})
+      bug = tag_fixture(board, "bug", "red")
+      ux = tag_fixture(board, "ux", "sky")
+      mate = user_fixture("table-mate@example.com")
+      {:ok, _} = Access.grant(board, mate, "write", user)
+      card = card_fixture(hd(board.columns), %{"title" => "Pick on me"})
+      {:ok, card} = Boards.Cards.update_card(card, %{"assignee_id" => user.id})
+      Boards.Tags.toggle_card_tag(card, bug)
+      {:ok, card} = Boards.Cards.toggle_flag(card, "blocked")
+
+      %{board: board, card: card, bug: bug, ux: ux, mate: mate}
+    end
+
+    defp pickers(board), do: ~p"/boards/#{board}/table?fields=title,assignee,tags,flags"
+
+    defp pick(view, item, field, value) do
+      render_click(view, "table_toggle", %{
+        "card_id" => to_string(item),
+        "field" => field,
+        "choice" => to_string(value)
+      })
+    end
+
+    test "each cell's picker lists every choice, the card's own checked",
+         %{conn: conn, board: board, card: card, bug: bug, ux: ux, mate: mate, user: user} do
+      {:ok, view, _} = live(conn, pickers(board))
+
+      for kind <- ~w(assignee tags flags) do
+        id = "#{kind}-all-#{card.id}"
+        assert has_element?(view, "button##{id}-open[popovertarget=#{id}-menu]")
+        assert has_element?(view, "##{id}-menu[popover]")
+      end
+
+      menu = "#assignee-all-#{card.id}-menu"
+      assert has_element?(view, "#{menu} [data-pick=assignee-#{user.id}][aria-checked=true]")
+      assert has_element?(view, "#{menu} [data-pick=assignee-#{mate.id}][aria-checked=false]")
+
+      menu = "#tags-all-#{card.id}-menu"
+      assert has_element?(view, "#{menu} [data-pick=tag-#{bug.id}][aria-checked=true]")
+      assert has_element?(view, "#{menu} [data-pick=tag-#{ux.id}][aria-checked=false]", "ux")
+
+      menu = "#flags-all-#{card.id}-menu"
+      assert has_element?(view, "#{menu} [data-pick=flag-blocked][aria-checked=true]")
+
+      for flag <- Slipdock.Boards.Card.flags(),
+          do: assert(has_element?(view, "#{menu} [data-pick=flag-#{flag}]"))
+
+      # In the browser a clicked button's own value overwrites a
+      # `phx-value-value`, so the choice travels under another name.
+      assert has_element?(view, "#{menu} button[phx-value-choice=blocked]")
+      refute has_element?(view, "#card-table [phx-click=table_toggle][phx-value-value]")
+    end
+
+    test "an empty cell still has its values box before the picker",
+         %{conn: conn, board: board} do
+      bare = card_fixture(hd(board.columns), %{"title" => "Bare"})
+      {:ok, view, _} = live(conn, pickers(board))
+
+      # The first value is added inside the box, so the patch never moves the
+      # open popover after it (a moved popover closes: tools/e2e/table-pickers.sh).
+      for kind <- ~w(assignee tags flags) do
+        assert has_element?(
+                 view,
+                 "#row-all-#{bare.id} [data-role=cell-values] + button##{kind}-all-#{bare.id}-open"
+               )
+      end
+    end
+
+    test "picking adds a person, a tag and a flag; picking again takes it off",
+         %{conn: conn, board: board, card: card, bug: bug, ux: ux, mate: mate, user: user} do
+      {:ok, view, _} = live(conn, pickers(board))
+
+      view
+      |> element("#assignee-all-#{card.id}-menu [data-pick=assignee-#{mate.id}]")
+      |> render_click()
+
+      view |> element("#tags-all-#{card.id}-menu [data-pick=tag-#{ux.id}]") |> render_click()
+      view |> element("#flags-all-#{card.id}-menu [data-pick=flag-starred]") |> render_click()
+
+      got = Boards.Cards.get_card!(card.id)
+      assert got.assignees |> Enum.map(& &1.id) |> Enum.sort() == Enum.sort([user.id, mate.id])
+      assert got.tags |> Enum.map(& &1.id) |> Enum.sort() == Enum.sort([bug.id, ux.id])
+      assert got.flags == ~w(blocked starred)
+
+      assert has_element?(
+               view,
+               "#tags-all-#{card.id}-menu [data-pick=tag-#{ux.id}][aria-checked=true]"
+             )
+
+      assert has_element?(view, "#row-all-#{card.id} .table-tags", "ux")
+
+      view
+      |> element("#assignee-all-#{card.id}-menu [data-pick=assignee-#{user.id}]")
+      |> render_click()
+
+      view |> element("#tags-all-#{card.id}-menu [data-pick=tag-#{bug.id}]") |> render_click()
+      view |> element("#flags-all-#{card.id}-menu [data-pick=flag-blocked]") |> render_click()
+
+      got = Boards.Cards.get_card!(card.id)
+      assert Enum.map(got.assignees, & &1.id) == [mate.id]
+      assert Enum.map(got.tags, & &1.id) == [ux.id]
+      assert got.flags == ~w(starred)
+    end
+
+    test "a flag outside the set, another board's tag or a stranger changes nothing",
+         %{conn: conn, board: board, card: card} do
+      other = board_fixture(%{"name" => "Elsewhere"})
+      theirs = tag_fixture(other, "theirs")
+      stranger = user_fixture("table-stranger@example.com")
+      {:ok, view, _} = live(conn, pickers(board))
+
+      assert pick(view, card.id, "flag", "on-fire") =~ "That isn&#39;t a flag."
+      assert pick(view, card.id, "tag", theirs.id) =~ "That tag isn&#39;t on this board."
+      assert pick(view, card.id, "tag", "nope") =~ "That tag isn&#39;t on this board."
+
+      assert pick(view, card.id, "assignee", stranger.id) =~
+               "That person can&#39;t be put on this card."
+
+      refute has_element?(view, "[data-pick=assignee-#{stranger.id}]")
+
+      got = Boards.Cards.get_card!(card.id)
+      assert got.flags == ~w(blocked)
+      assert Enum.map(got.tags, & &1.name) == ["bug"]
+      refute Enum.any?(got.assignees, &(&1.id == stranger.id))
+    end
+
+    test "a placed page takes one assignee, and its tags and flags",
+         %{conn: conn, board: board, ux: ux, mate: mate, user: user} do
+      page =
+        page_fixture(board, %{"title" => "A placed page", "status" => "published"}, user: user)
+
+      {:ok, _} = Slipdock.Wiki.place(page, hd(board.columns))
+      {:ok, view, _} = live(conn, pickers(board))
+      ref = "page-#{page.id}"
+
+      assert has_element?(view, "#tags-all-#{ref}-menu")
+      pick(view, ref, "assignee", mate.id)
+      pick(view, ref, "tag", ux.id)
+      pick(view, ref, "flag", "flagged")
+
+      got = Slipdock.Repo.preload(Slipdock.Wiki.get_page!(page.id), :tags, force: true)
+      assert got.assignee_id == mate.id
+      assert Enum.map(got.tags, & &1.id) == [ux.id]
+      assert got.flags == ~w(flagged)
+
+      pick(view, ref, "assignee", mate.id)
+      assert is_nil(Slipdock.Wiki.get_page!(page.id).assignee_id)
+    end
+  end
+
   # Every built-in column and the three custom ones.
   defp query(ctx) do
     custom = ["f:#{ctx.rating.id}", "f:#{ctx.size.id}", "f:#{ctx.notes.id}"]
@@ -489,6 +641,29 @@ defmodule SlipdockWeb.TableViewLiveTest do
 
       card = Boards.Cards.get_card!(card.id)
       assert card.title == "Look, don't touch" and is_nil(card.color)
+    end
+
+    test "a reader gets no pickers, and a toggle is refused (#3671)",
+         %{conn: conn, board: board, card: card} do
+      bug = tag_fixture(board, "bug")
+      {:ok, view, _} = live(conn, ~p"/boards/#{board}/table?fields=title,assignee,tags,flags")
+
+      refute has_element?(view, "[data-role=cell-picker]")
+      refute has_element?(view, "[phx-click=table_toggle]")
+
+      for {field, value} <- [{"flag", "starred"}, {"tag", bug.id}] do
+        html =
+          render_click(view, "table_toggle", %{
+            "card_id" => to_string(card.id),
+            "field" => field,
+            "choice" => to_string(value)
+          })
+
+        assert html =~ "read-only access"
+      end
+
+      card = Boards.Cards.get_card!(card.id)
+      assert card.flags == [] and card.tags == []
     end
 
     test "a reader still sorts: the heading is a real button outside every disabled fieldset",
