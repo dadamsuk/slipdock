@@ -152,6 +152,27 @@ defmodule SlipdockWeb.ViewToolbarLiveTest do
       assert has_element?(view, "#tools-toggle")
     end
 
+    # The popover draws each control as a row of icon · label · control
+    # (#3648), so each needs its own label, and sort shares its row with its
+    # direction.
+    test "every control has a label for the popover's rows; sort and its direction share one",
+         %{conn: conn, board: board} do
+      {:ok, view, _} = live(conn, at(board, "narrative"))
+
+      for label <- ["Group by", "Span", "from", "to", "Sort by"] do
+        assert has_element?(view, "#view-options .own-label", label), label
+      end
+
+      assert has_element?(view, "#view-options label[for=view-sort]", "Sort by")
+      assert has_element?(view, "#view-options .own-row select#view-sort[name=sort]")
+      assert has_element?(view, "#view-options .own-row button[phx-value-key=dir]")
+      # Nothing covers the popover with a tooltip as it opens.
+      refute has_element?(view, "#view-options-toggle[title]")
+
+      {:ok, view, _} = live(conn, at(board, "table"))
+      assert has_element?(view, "#view-options > a[download]", "CSV")
+    end
+
     test "a folded select still posts with the form", %{conn: conn, board: board} do
       {:ok, view, _} = live(conn, at(board, "narrative"))
 

@@ -748,6 +748,54 @@ select.field-bare { height: 1.75rem; padding-block: 0; padding-left: 0.25rem; fo
   .view-toolbar[data-folded][data-options-open][data-options-end] .view-own { left: auto; right: 0; }
   /* The separators between groups mean nothing in a column. */
   .view-toolbar[data-folded][data-options-open] .view-own > span:empty { display: none; }
+
+  /* In the popover the controls line up as rows of icon · label · control
+     (#3648): each row is a subgrid of the popover's three columns, every
+     label shows (in the row a few are only for screen readers), and the
+     controls take the column's width. An action (CSV) or the colour legend
+     is a row of its own across all three, under a hairline. */
+  .view-toolbar[data-folded][data-options-open] .view-own {
+    display: grid;
+    grid-template-columns: auto auto minmax(10rem, 1fr);
+    align-items: center;
+    column-gap: 0.5rem;
+    row-gap: 0.5rem;
+  }
+  .view-toolbar[data-folded][data-options-open] .view-own > :is(label, .own-row) {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: subgrid;
+    align-items: center;
+  }
+  .view-toolbar[data-folded][data-options-open] .view-own .own-pad { display: block; }
+  .view-toolbar[data-folded][data-options-open] .view-own .own-label {
+    position: static;
+    width: auto;
+    height: auto;
+    margin: 0;
+    overflow: visible;
+    clip-path: none;
+    white-space: nowrap;
+    font-size: 0.75rem;
+    color: color-mix(in oklab, var(--color-base-content) 60%, transparent);
+  }
+  .view-toolbar[data-folded][data-options-open] .view-own > label > :last-child,
+  .view-toolbar[data-folded][data-options-open] .view-own .own-ctl { min-width: 0; }
+  .view-toolbar[data-folded][data-options-open] .view-own select { width: 100%; }
+  .view-toolbar[data-folded][data-options-open] .view-own .own-ctl select { flex: 1; }
+  .view-toolbar[data-folded][data-options-open] .view-own > :is(a, div:not(.own-row)) {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+  .view-toolbar[data-folded][data-options-open] .view-own > a {
+    justify-self: stretch;
+    width: 100%;
+    justify-content: flex-start;
+    padding-inline: 0;
+    padding-top: 0.5rem;
+    border-top: 1px solid color-mix(in oklab, var(--color-base-content) 10%, transparent);
+    border-radius: 0;
+  }
 }
 
 /* A toolbar's search box (`search_box/1`). On a phone it is a magnifying
