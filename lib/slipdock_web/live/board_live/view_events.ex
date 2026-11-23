@@ -19,7 +19,7 @@ defmodule SlipdockWeb.BoardLive.ViewEvents do
   import SlipdockWeb.BoardLive.Helpers
   import SlipdockWeb.BoardLive.State
 
-  alias Slipdock.{Boards, Fields, Swimlanes, Timeline, Votes}
+  alias Slipdock.{Boards, Fields, Swimlanes, Timeline, ViewColumns, Votes}
   alias Slipdock.Boards.{Column, FieldDefinition}
   alias Slipdock.Swimlanes.Config
   alias SlipdockWeb.Params
@@ -28,14 +28,24 @@ defmodule SlipdockWeb.BoardLive.ViewEvents do
     timeline_move timeline_schedule cal_move cal_quick_add cal_toggle_day swim_toggle_row
     swim_move swim_start_add swim_cancel_add swim_quick_add swim_save_view swim_update_view
     swim_rename_view swim_publish_view swim_unpublish_view swim_delete_view outline_add_sub
-    outline_page)
+    outline_page col_move col_key col_width)
 
   @doc "The events handled here."
   def events, do: @events
 
   @doc "Handles one of `events/0`, after the board's guards."
   def handle_event("swim_config", params, socket) do
-    {:noreply, patch_swim(socket, Config.from_form(params, socket.assigns.swim))}
+    config = Config.from_form(params, socket.assigns.swim)
+    board = socket.assigns.board
+
+    config =
+      Enum.reduce(
+        ~w(outline prioritise),
+        config,
+        &Config.tidy_cols(&2, &1, ViewColumns.keys(&1, board))
+      )
+
+    {:noreply, patch_swim(socket, config)}
   end
 
   def handle_event("swim_set", %{"key" => key, "value" => value}, socket) do
@@ -45,6 +55,51 @@ defmodule SlipdockWeb.BoardLive.ViewEvents do
   def handle_event("swim_clear_filters", _, socket) do
     {:noreply, patch_swim(socket, Config.clear_filters(socket.assigns.swim))}
   end
+
+  # The Display menu's Columns (#3665): a column dragged to a new place (the
+  # Sortable hook sends the list's view as `to` and the column it was dropped
+  # before), or moved a place with the arrow keys on its grip.
+  def handle_event("col_move", %{"id" => key, "to" => view} = params, socket)
+      when view in ~w(table outline prioritise) do
+    %{swim: config, board: board} = socket.assigns
+    before = params["before"]
+
+    {:noreply,
+     patch_swim(socket, Config.move_col(config, view, ViewColumns.keys(view, board), key, before))}
+  end
+
+  def handle_event("col_key", %{"view" => view, "col" => key, "key" => dir}, socket)
+      when view in ~w(table outline prioritise) and dir in ~w(ArrowUp ArrowDown) do
+    %{swim: config, board: board} = socket.assigns
+    all = ViewColumns.keys(view, board)
+    order = config |> Config.col_order(view, all) |> Enum.map(&elem(&1, 0))
+
+    case key_target(order, key, dir) do
+      :stay -> {:noreply, socket}
+      before -> {:noreply, patch_swim(socket, Config.move_col(config, view, all, key, before))}
+    end
+  end
+
+  # A column's header edge dragged to a width, or double-clicked back to its
+  # own (`width` nil). Any other column or view is ignored.
+  def handle_event("col_width", %{"view" => view, "col" => key} = params, socket)
+      when view in ~w(table outline prioritise) do
+    %{swim: config, board: board} = socket.assigns
+
+    width =
+      case params["width"] do
+        n when is_integer(n) -> n
+        n when is_float(n) -> round(n)
+        _ -> nil
+      end
+
+    if ViewColumns.resizable?(view, board, key),
+      do: {:noreply, patch_swim(socket, Config.put_col_width(config, view, key, width))},
+      else: {:noreply, socket}
+  end
+
+  def handle_event(event, _params, socket) when event in ~w(col_move col_key col_width),
+    do: {:noreply, socket}
 
   def handle_event("table_sort", %{"sort" => sort}, socket) do
     config = socket.assigns.swim
@@ -473,5 +528,17 @@ defmodule SlipdockWeb.BoardLive.ViewEvents do
     |> assign(focus_field: key)
     |> push_event("popover:hide", %{id: "add-field-menu"})
     |> patch_swim(config)
+  end
+
+  # Where ↑ or ↓ on a column's grip puts it: before the column above it, or
+  # before the one two below (nil: last); `:stay` at the top or for a key the
+  # view doesn't have.
+  defp key_target(order, key, dir) do
+    case {Enum.find_index(order, &(&1 == key)), dir} do
+      {nil, _} -> :stay
+      {0, "ArrowUp"} -> :stay
+      {at, "ArrowUp"} -> Enum.at(order, at - 1)
+      {at, "ArrowDown"} -> Enum.at(order, at + 2)
+    end
   end
 end

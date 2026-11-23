@@ -613,6 +613,18 @@ select.field-bare { height: 1.75rem; padding-block: 0; padding-left: 0.25rem; fo
 }
 
 /* Slipdock ------------------------------------------------------------ */
+/* A dropdown is open while focus is in it, and Sortable moving the row that
+   holds the focused grip blurs it, so dragging a Display menu's column
+   (#3665) closed the menu under the pointer one row in. It stays open while
+   anything in it is being dragged, and until the Sortable hook has given the
+   grip its focus back (`data-hold-menu`, set on <html> where no patch reaches). */
+.dropdown:has(.sortable-chosen) > .dropdown-content,
+html[data-hold-menu] .dropdown:has([data-keep-focus]) > .dropdown-content {
+  display: block;
+  visibility: visible;
+  opacity: 1;
+  pointer-events: auto;
+}
 .sortable-ghost {
   opacity: 0.35;
   outline: 2px dashed var(--color-primary);
@@ -844,8 +856,10 @@ select.field-bare { height: 1.75rem; padding-block: 0; padding-left: 0.25rem; fo
 .swim-cell.sortable-over { background: color-mix(in oklch, var(--color-primary) 8%, transparent); }
 
 /* Outline view ------------------------------------------------------- */
-/* Outline view rows: card, list, progress, schedule, health, actions. */
-.ol-row { display: grid; grid-template-columns: minmax(0, 1fr) 8rem 10rem 13rem 6.5rem 3rem; align-items: center; }
+/* Outline view rows: card, list, progress, schedule, health, actions. The
+   reader may hide, move and resize all but the card and actions (#3665), so
+   `#outline` sets `--ol-cols` and every cell names its column in `data-col`. */
+.ol-row { display: grid; grid-template-columns: var(--ol-cols, minmax(0, 1fr) 8rem 10rem 13rem 6.5rem 3rem); align-items: center; }
 /* On a phone those six columns are 40rem wide, so the row keeps the two that
    identify a card — what it is and where it is — puts its schedule on a
    second line, and leaves the rest to the card itself, one tap away. The
@@ -853,10 +867,10 @@ select.field-bare { height: 1.75rem; padding-block: 0; padding-left: 0.25rem; fo
 @media (max-width: 39.999rem) {
   .ol-row { grid-template-columns: minmax(0, 1fr) auto; }
   .ol-row.ol-head { display: none; }
-  .ol-row > :nth-child(3), .ol-row > :nth-child(5), .ol-row > :nth-child(6) { display: none; }
-  .ol-row > :nth-child(4) { grid-column: 1 / -1; padding-left: 2.5rem; padding-bottom: 0.375rem; }
+  .ol-row > [data-col=progress], .ol-row > [data-col=health], .ol-row > [data-col=actions] { display: none; }
+  .ol-row > [data-col=schedule] { grid-column: 1 / -1; padding-left: 2.5rem; padding-bottom: 0.375rem; }
   /* A card with no dates would give the line an em-dash and nothing else. */
-  .ol-row > :nth-child(4):has(> .ol-nodate) { display: none; }
+  .ol-row > [data-col=schedule]:has(> .ol-nodate) { display: none; }
 }
 
 /* AI assistant: the chat drawer, generated prose and the thinking indicator. */

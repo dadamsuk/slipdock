@@ -12,7 +12,11 @@ and numbers use tabular digits so a column of them lines up. Rows are ranked by 
 first formula's score, highest first, or by votes when the board has no
 scoring model yet (the owner can install a preset from the header);
 click a column header to rank by that instead. Completed cards are hidden
-by default; the usual filters, search and saved views apply.
+by default; the usual filters, search and saved views apply. *Display*
+lists the columns after the card (priority, votes and each scoring field):
+drag them into another order, untick any to hide it, and drag a heading's
+right edge to resize it (double-click to reset). A scoring field added later
+shows up on its own, after the ones you placed.
 
 ---
 

@@ -84,7 +84,8 @@ defmodule SlipdockWeb.BoardLive.Show do
     quick_add_change open_card open_page focus_column focus_card focus_open focus_end
     validate_document swim_config swim_set swim_clear_filters table_sort cal_toggle_day
     swim_toggle_row swim_start_add swim_cancel_add outline_add_sub outline_page toggle_select_mode
-    clear_selection select_list select_all_in_list display_restore resync) ++
+    clear_selection select_list select_all_in_list display_restore resync col_move col_key
+    col_width) ++
                  SnoozeEvents.read_events() ++ SearchResults.read_events()
 
   # Events only the board owner may perform.

@@ -35,6 +35,7 @@ import {WikiTree} from "./wiki_tree"
 import {copyWithFeedback} from "./copy"
 import {EditorPrefs, WikiFileOpen, WikiTreeCollapse, WikiTreeResize, WikiTreeView, WikiWidthToggle} from "./wiki_pane"
 import {TimelineLabelResize, linkPath} from "./timeline_labels"
+import {ColumnResize} from "./column_resize"
 import {installMeld} from "./meld_view"
 import {installRelativeTime, refreshIncoming} from "./relative_time"
 import {MeldEditor} from "./meld_editor"
@@ -75,6 +76,7 @@ Hooks.PasskeyLogin = PasskeyLogin
 Hooks.PasskeyRegister = PasskeyRegister
 Hooks.CardSign = CardSign
 Hooks.DockDrag = DockDrag
+Hooks.ColumnResize = ColumnResize
 Hooks.DateField = DateField
 Hooks.FilePicker = FilePicker
 Hooks.ToolbarFold = ToolbarFold
@@ -289,6 +291,13 @@ Hooks.Sortable = {
           to: to.dataset.id,
           before: before,
         }
+        // A list in a dropdown (the Display menu's columns, #3665) gives the
+        // moved row's handle its focus back, so the menu stays open; the
+        // patch that reorders the rows keeps it there.
+        if (hook.el.dataset.keepFocus === "true" && hook.el.dataset.handle) {
+          const handle = item.querySelector(hook.el.dataset.handle)
+          if (handle && handle.id) hook.holdFocus(handle.id)
+        }
         const event = hook.el.dataset.event || "move_card"
         // data-push-to="self" sends it to the LiveComponent the list is drawn
         // in (a card's checklist, #1752), or the LiveView when it is in none.
@@ -307,7 +316,33 @@ Hooks.Sortable = {
     if (this.el.dataset.disabled === "true") opts.disabled = true
     this.sortable = new Sortable(this.el, opts)
   },
+  // A keep-focus list sits in a dropdown that is open while focus is in it
+  // (the Display menu's columns, #3665). Moving the row with the focused
+  // handle blurs it, by Sortable's drag or by the patch that reorders the
+  // rows (LiveView puts focus back only on text inputs), and the menu would
+  // shut. So the menu is held open (`data-hold-menu` on <html>, where no
+  // patch reaches; see app.css) until the handle has its focus back.
+  holdFocus(id) {
+    this.focusId = id
+    document.documentElement.setAttribute("data-hold-menu", "")
+    clearTimeout(this.holdTimer)
+    // A move the server turns down sends no patch: let go anyway.
+    this.holdTimer = setTimeout(() => this.restoreFocus(), 1500)
+  },
+  restoreFocus() {
+    clearTimeout(this.holdTimer)
+    const el = this.focusId && document.getElementById(this.focusId)
+    this.focusId = null
+    if (el && document.activeElement !== el) el.focus()
+    document.documentElement.removeAttribute("data-hold-menu")
+  },
+  beforeUpdate() {
+    const active = document.activeElement
+    if (this.el.dataset.keepFocus === "true" && active && active.id && this.el.contains(active))
+      this.holdFocus(active.id)
+  },
   updated() {
+    if (this.focusId) this.restoreFocus()
     if (this.sortable) {
       this.sortable.option("disabled", this.el.dataset.disabled === "true")
       this.sortable.option("sort", this.el.dataset.sort !== "false")
@@ -317,6 +352,7 @@ Hooks.Sortable = {
     }
   },
   destroyed() {
+    if (this.focusId) this.restoreFocus()
     this.untrackColumns()
     this.sortable && this.sortable.destroy()
   },

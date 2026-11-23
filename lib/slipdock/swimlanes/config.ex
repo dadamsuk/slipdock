@@ -181,13 +181,18 @@ defmodule Slipdock.Swimlanes.Config do
   @default_tell @tell_keys -- ["summary"]
 
   @modes ~w(board swimlanes table timeline calendar outline narrative prioritise)
+  # The outline's and Prioritise's columns after the card, which is always
+  # first (#3665). Prioritise's scoring fields are `f:<id>` keys besides.
+  @outline_cols ~w(list progress schedule health)
+  @prio_cols ~w(priority votes)
   @scalar_fields ~w(mode rows cols unit depth sort dir q due done deps empty snoozed density width date place color_by span from to card_view)a
   # Per-visit state that a saved view must not pin: the timeline/calendar
   # anchor date, and a narrative's explicit range (its span is kept, so a
   # saved narrative stays relative to today).
   @transient_fields ~w(date from to)a
   @spans ~w(7 14 30 90)
-  @list_fields ~w(kinds tags priorities flags columns colors fields fields_compact show show_compact tell)a
+  @list_fields ~w(kinds tags priorities flags columns colors fields fields_compact show show_compact tell
+                  widths widths_compact outline_cols outline_widths prio_cols prio_widths)a
   # Lists that a submitted form clears when absent (unchecked checkboxes are
   # not sent). The display choosers (`fields`, `show` and their compact
   # twins) are excluded: only the active density's chooser is on the form.
@@ -196,7 +201,8 @@ defmodule Slipdock.Swimlanes.Config do
   # What the Display menu sets (#1879): the part of a config the browser
   # remembers per board and view, so leaving the board and coming back keeps it.
   # What a card's front shows is not among them: card views decide it (#2031).
-  @display_fields ~w(density width place color_by fields fields_compact tell)a
+  @display_fields ~w(density width place color_by fields fields_compact tell widths widths_compact
+                     outline_cols outline_widths prio_cols prio_widths)a
   # A saved view's card view (#2031) is by name, and only a saved view or a
   # link sets it: the browser never remembers it.
   @display_keys Enum.map(@display_fields, &Atom.to_string/1)
@@ -239,6 +245,17 @@ defmodule Slipdock.Swimlanes.Config do
             field_filters: %{},
             fields: ~w(title column priority assignee tags due_date completed),
             fields_compact: ~w(title column priority assignee tags due_date completed),
+            # Column widths a reader has dragged (#3665), as `"key:px"`: the
+            # table's for each card size, the outline's and Prioritise's.
+            widths: [],
+            widths_compact: [],
+            # The outline's and Prioritise's columns (#3665) in the reader's
+            # order, a hidden one as `"-key"`; one not named is shown, after
+            # the named ones, so a new scoring field turns up by itself.
+            outline_cols: [],
+            outline_widths: [],
+            prio_cols: [],
+            prio_widths: [],
             show: @default_show,
             show_compact: @default_show_compact,
             tell: @default_tell,
@@ -392,6 +409,134 @@ defmodule Slipdock.Swimlanes.Config do
   @doc "The table columns chosen for the config's density."
   def table_fields(%__MODULE__{density: "compact", fields_compact: fields}), do: fields
   def table_fields(%__MODULE__{fields: fields}), do: fields
+
+  @min_width 48
+  @max_width 960
+
+  @doc "The narrowest and widest a dragged column may be, in pixels."
+  def width_range, do: {@min_width, @max_width}
+
+  @doc """
+  The config key holding a view's column widths: the table's depend on the
+  card size, as its columns do. `view` is "table", "outline" or "prioritise".
+  """
+  def widths_key(%__MODULE__{density: "compact"}, "table"), do: :widths_compact
+  def widths_key(_, "table"), do: :widths
+  def widths_key(_, "outline"), do: :outline_widths
+  def widths_key(_, "prioritise"), do: :prio_widths
+
+  @doc "A view's column widths as `%{key => px}`."
+  def col_widths(%__MODULE__{} = config, view) do
+    config |> Map.fetch!(widths_key(config, view)) |> Map.new(&split_width/1)
+  end
+
+  @doc "Sets (or, with nil, forgets) one column's width in a view."
+  def put_col_width(%__MODULE__{} = config, view, key, px) do
+    field = widths_key(config, view)
+    rest = Enum.reject(Map.fetch!(config, field), &(elem(split_width(&1), 0) == key))
+    Map.put(config, field, cast(field, if(px, do: rest ++ ["#{key}:#{px}"], else: rest), []))
+  end
+
+  @doc """
+  The config key holding a view's column order: the table's `fields` for
+  its card size, or the outline's or Prioritise's own list.
+  """
+  def cols_key(%__MODULE__{density: "compact"}, "table"), do: :fields_compact
+  def cols_key(_, "table"), do: :fields
+  def cols_key(_, "outline"), do: :outline_cols
+  def cols_key(_, "prioritise"), do: :prio_cols
+
+  @doc """
+  A view's columns in the reader's order, given every key it can show (in
+  its own order) and the keys shown until a reader says otherwise: `[{key,
+  shown?}]`. The table keeps only its shown columns, so the hidden ones
+  follow in their own order; the outline and Prioritise name a hidden one
+  as `"-key"`, and show a key they don't name.
+  """
+  def col_order(%__MODULE__{} = config, "table", all) do
+    chosen = Enum.filter(table_fields(config), &Enum.member?(all, &1))
+    Enum.map(chosen, &{&1, true}) ++ for(k <- all, not Enum.member?(chosen, k), do: {k, false})
+  end
+
+  def col_order(%__MODULE__{} = config, view, all) do
+    named =
+      for item <- Map.fetch!(config, cols_key(config, view)),
+          {key, shown?} = split_hidden(item),
+          Enum.member?(all, key),
+          do: {key, shown?}
+
+    named ++ for(k <- all, not List.keymember?(named, k, 0), do: {k, true})
+  end
+
+  @doc "The outline's columns after the card, in their own order."
+  def outline_col_keys, do: @outline_cols
+
+  @doc "Prioritise's columns after the card besides its scoring fields, in their own order."
+  def prio_col_keys, do: @prio_cols
+
+  @doc "A view's shown columns, in order, from `col_order/3`."
+  def shown_cols(config, view, all),
+    do: for({k, true} <- col_order(config, view, all), do: k)
+
+  @doc """
+  Moves column `key` before `before` (nil: to the end) in a view, keeping
+  what is shown and hidden. `all` is every key the view can show.
+  """
+  def move_col(%__MODULE__{} = config, view, all, key, before) do
+    order = col_order(config, view, all)
+
+    case List.keyfind(order, key, 0) do
+      nil ->
+        config
+
+      item ->
+        rest = List.keydelete(order, key, 0)
+        at = Enum.find_index(rest, &(elem(&1, 0) == before)) || length(rest)
+        put_col_order(config, view, all, List.insert_at(rest, at, item))
+    end
+  end
+
+  defp put_col_order(config, "table", _all, order) do
+    # The title is always first, and named so, as the Display form sends it.
+    Map.put(config, cols_key(config, "table"), [
+      "title" | for({k, true} <- order, k != "title", do: k)
+    ])
+  end
+
+  # A list that says only what the view does anyway (every column shown, in
+  # its own order) is no list at all.
+  defp put_col_order(config, view, all, order) do
+    items =
+      if Enum.all?(order, &elem(&1, 1)) and Enum.map(order, &elem(&1, 0)) == all,
+        do: [],
+        else: Enum.map(order, &hidden_item/1)
+
+    Map.put(config, cols_key(config, view), items)
+  end
+
+  defp hidden_item({key, true}), do: key
+  defp hidden_item({key, false}), do: "-" <> key
+
+  @doc """
+  The outline's or Prioritise's column list put in its shortest form: none at
+  all when every column is shown in the view's own order, so a Display form
+  sent unchanged leaves the URL as it was. `all` is every key the view can
+  show; the table's `fields` are left as they are.
+  """
+  def tidy_cols(%__MODULE__{} = config, "table", _all), do: config
+
+  def tidy_cols(%__MODULE__{} = config, view, all),
+    do: put_col_order(config, view, all, col_order(config, view, all))
+
+  defp split_hidden("-" <> key), do: {key, false}
+  defp split_hidden(key), do: {key, true}
+
+  # "f:12:240" names a custom field, so the width is after the last colon.
+  defp split_width(item) do
+    [px | key] = item |> String.split(":") |> Enum.reverse()
+    {key |> Enum.reverse() |> Enum.join(":"), String.to_integer(px)}
+  end
+
   def filter_fields, do: @filter_fields
   def list_fields, do: @list_fields
 
@@ -667,7 +812,21 @@ defmodule Slipdock.Swimlanes.Config do
         fields: Enum.filter(config.fields, known?),
         fields_compact: Enum.filter(config.fields_compact, known?)
     }
+    |> sanitize_columns(known?)
     |> drop_deleted_field_filters(field_ids)
+  end
+
+  # Widths and Prioritise's places for custom fields the board still has (#3665).
+  defp sanitize_columns(config, known?) do
+    width_known? = &known?.(elem(split_width(&1), 0))
+
+    config =
+      Enum.reduce([:widths, :widths_compact, :outline_widths, :prio_widths], config, fn key,
+                                                                                        acc ->
+        Map.update!(acc, key, &Enum.filter(&1, width_known?))
+      end)
+
+    %{config | prio_cols: Enum.filter(config.prio_cols, &known?.(elem(split_hidden(&1), 0)))}
   end
 
   # A filter on a field since deleted is dropped quietly (#3608).
@@ -758,18 +917,63 @@ defmodule Slipdock.Swimlanes.Config do
   defp cast(:priorities, v, _), do: str_list(v, Slipdock.Boards.Card.priorities())
   defp cast(:flags, v, _), do: str_list(v, Slipdock.Boards.Card.flags())
   defp cast(:colors, v, _), do: str_list(v, ["none" | Slipdock.Palette.names()])
-  # Fields are kept in display order so the same selection always encodes the
-  # same way; custom field columns (`f:<id>`) follow the built-in ones.
-  defp cast(:fields, v, _), do: ordered_with_custom(v, Slipdock.Table.field_keys())
-  defp cast(:fields_compact, v, _), do: ordered_with_custom(v, Slipdock.Table.field_keys())
+  # Fields are kept in the reader's order (#3665): it is the table's.
+  defp cast(:fields, v, _), do: known_or_custom(v, Slipdock.Table.field_keys())
+  defp cast(:fields_compact, v, _), do: known_or_custom(v, Slipdock.Table.field_keys())
+
+  defp cast(width, v, _) when width in [:widths, :widths_compact, :outline_widths, :prio_widths],
+    do: widths(v)
+
+  defp cast(:outline_cols, v, _), do: col_list(v, @outline_cols, false)
+  defp cast(:prio_cols, v, _), do: col_list(v, @prio_cols, true)
 
   defp cast(:show, v, _), do: ordered(v, @facet_keys)
   defp cast(:show_compact, v, _), do: ordered(v, @facet_keys)
   defp cast(:tell, v, _), do: ordered(v, @tell_keys)
 
-  defp ordered_with_custom(v, keys) do
-    all = v |> items() |> Enum.map(&to_string/1) |> Enum.uniq()
-    ordered(all, keys) ++ Enum.filter(all, &custom?/1)
+  defp known_or_custom(v, keys) do
+    v
+    |> items()
+    |> Enum.map(&to_string/1)
+    |> Enum.uniq()
+    |> Enum.filter(&(Enum.member?(keys, &1) or custom?(&1)))
+  end
+
+  # A column list where "-key" hides a key. A form sends a hidden "-key"
+  # before each ticked box's "key", so a later "key" wins; each key keeps
+  # the place it was first named in.
+  defp col_list(v, keys, custom?) do
+    v
+    |> items()
+    |> Enum.map(&(&1 |> to_string() |> split_hidden()))
+    |> Enum.filter(fn {k, _} -> Enum.member?(keys, k) or (custom? and custom?(k)) end)
+    |> Enum.reduce([], fn {k, shown?}, acc ->
+      case List.keyfind(acc, k, 0) do
+        nil -> acc ++ [{k, shown?}]
+        {_, was} -> List.keyreplace(acc, k, 0, {k, was or shown?})
+      end
+    end)
+    |> Enum.map(fn {k, shown?} -> if shown?, do: k, else: "-" <> k end)
+  end
+
+  # "key:px" items, the width between the limits, the last one for a key.
+  defp widths(v) do
+    v
+    |> items()
+    |> Enum.flat_map(fn item ->
+      with [px | key] when key != [] <- item |> to_string() |> String.split(":") |> Enum.reverse(),
+           key = key |> Enum.reverse() |> Enum.join(":"),
+           true <- Regex.match?(~r/^([a-z_]+|f:\d+)$/, key),
+           {n, ""} <- Integer.parse(px) do
+        [{key, n |> max(@min_width) |> min(@max_width)}]
+      else
+        _ -> []
+      end
+    end)
+    |> Enum.reverse()
+    |> Enum.uniq_by(&elem(&1, 0))
+    |> Enum.reverse()
+    |> Enum.map(fn {k, n} -> "#{k}:#{n}" end)
   end
 
   defp pick_or_custom(v, allowed, default) when is_binary(v) do

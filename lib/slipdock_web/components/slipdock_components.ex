@@ -238,6 +238,15 @@ defmodule SlipdockWeb.SlipdockComponents do
   @doc "A column heading that sorts a board view by its column (`table_sort`), marked when it is the sorted one."
   defdelegate sort_header(assigns), to: Chrome
 
+  @doc "The handle on a column heading's edge that resizes the column (`col_width`)."
+  defdelegate col_resize(assigns), to: Chrome
+
+  @doc "The CSS variable holding a column's dragged width."
+  defdelegate col_var(key), to: Chrome
+
+  @doc "The style putting a view's dragged column widths on its columns' element."
+  defdelegate col_vars(config, view), to: Chrome
+
   @doc false
   defdelegate view_tabs_list(), to: Chrome
 

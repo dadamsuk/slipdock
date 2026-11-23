@@ -20,6 +20,15 @@ opens the card. The filter menu, search, density and saved views are shared
 with the swimlane view, and a saved view remembers which of the two it was
 made in. `slipdock table <board>` prints the same thing in the terminal.
 
+**Arranging the columns.** *Display* lists the columns in the order the
+table draws them: drag one by its grip (or focus the grip and press ↑ or
+↓) to move it, and tick or untick it to show or hide it. The title is
+always first. Drag the right edge of a heading to make the column wider or
+narrower (←/→ when the edge has focus); double-click it to put the column
+back to its own width. The order and widths are part of the view, like the
+filters: they are in the link, a saved view keeps them, and comfortable and
+compact tables each have their own. The CSV export follows the order.
+
 **Custom fields as columns.** Each of the board's custom fields can be a
 column (*Display*), and a writer edits its values in place, as on the card.
 Whoever may change the board's fields (a writer of the tree's top board,
