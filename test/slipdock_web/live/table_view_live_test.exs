@@ -261,7 +261,7 @@ defmodule SlipdockWeb.TableViewLiveTest do
       assert has_element?(view, "#{row} input[type=number][value='40']")
       assert has_element?(view, "#{row} .font-mono", "1/2")
       assert has_element?(view, "#{row} .hero-chat-bubble-left")
-      assert has_element?(view, "#{row} span", "Violet")
+      assert has_element?(view, "#color-#{card.id} option[selected]", "Violet")
       assert has_element?(view, "#{row} [title=Votes]", "2")
       assert has_element?(view, "#{row} span", "##{card.id}")
       # Custom fields are edited in place by a writer (#3610).
@@ -322,7 +322,9 @@ defmodule SlipdockWeb.TableViewLiveTest do
              )
 
       assert has_element?(view, "#{row} td.max-w-0 div.min-w-0")
-      refute has_element?(view, "#{row} td.max-w-0 input")
+      # The title cell's only input is its rename box (#3670), hidden at rest.
+      refute has_element?(view, "#{row} td.max-w-0 input[type=date]")
+      refute has_element?(view, "#{row} td.max-w-0 input[type=number]")
       refute has_element?(view, "#{row} td.max-w-0 select")
 
       assert has_element?(
@@ -356,6 +358,62 @@ defmodule SlipdockWeb.TableViewLiveTest do
 
       view |> form("#start-#{card.id}", %{"value" => ""}) |> render_change()
       assert is_nil(Boards.Cards.get_card!(card.id).start_date)
+    end
+
+    test "the title is renamed in place, and the title still opens the card (#3670)",
+         %{conn: conn, card: card} = ctx do
+      {:ok, view, _} = live(conn, everything(ctx))
+      cell = "#row-all-#{card.id} [data-title-cell]"
+
+      assert has_element?(view, "#{cell} button[aria-label=Rename]")
+      assert has_element?(view, "#{cell} [data-role=title-text][phx-click]", "Loaded")
+      assert has_element?(view, "#title-input-#{card.id}[value=Loaded]")
+
+      view |> form("#title-#{card.id}", %{"value" => "  Renamed  "}) |> render_submit()
+      assert Boards.Cards.get_card!(card.id).title == "Renamed"
+      assert has_element?(view, "#{cell} [data-role=title-text]", "Renamed")
+
+      # Leaving the input sends the same change.
+      view |> form("#title-#{card.id}", %{"value" => "Again"}) |> render_change()
+      assert Boards.Cards.get_card!(card.id).title == "Again"
+    end
+
+    test "a blank title is refused and the card keeps its own (#3670)",
+         %{conn: conn, card: card} = ctx do
+      {:ok, view, _} = live(conn, everything(ctx))
+
+      html = view |> form("#title-#{card.id}", %{"value" => "   "}) |> render_change()
+
+      assert html =~ "A card needs a title."
+      assert Boards.Cards.get_card!(card.id).title == "Loaded"
+    end
+
+    test "the colour is picked in its cell, and cleared (#3670)",
+         %{conn: conn, card: card} = ctx do
+      {:ok, view, _} = live(conn, everything(ctx))
+
+      assert has_element?(view, "#color-#{card.id} option[selected][value=violet]")
+
+      view |> form("#color-#{card.id}", %{"value" => "lime"}) |> render_change()
+      assert Boards.Cards.get_card!(card.id).color == "lime"
+      assert has_element?(view, "#color-#{card.id} option[selected][value=lime]")
+
+      view |> form("#color-#{card.id}", %{"value" => ""}) |> render_change()
+      assert is_nil(Boards.Cards.get_card!(card.id).color)
+    end
+
+    test "a colour outside the palette is refused (#3670)", %{conn: conn, card: card} = ctx do
+      {:ok, view, _} = live(conn, everything(ctx))
+
+      html =
+        render_change(view, "table_update", %{
+          "card_id" => to_string(card.id),
+          "field" => "color",
+          "value" => "chartreuse"
+        })
+
+      assert html =~ "Couldn&#39;t save that change."
+      assert Boards.Cards.get_card!(card.id).color == "violet"
     end
 
     test "a list that isn't a number moves nothing", %{conn: conn, card: card} = ctx do
@@ -409,6 +467,28 @@ defmodule SlipdockWeb.TableViewLiveTest do
 
       assert html =~ "read-only access"
       assert Boards.Cards.get_card!(card.id).priority != "critical"
+    end
+
+    test "a reader can't rename or recolour (#3670)", %{conn: conn, board: board, card: card} do
+      {:ok, view, _} = live(conn, ~p"/boards/#{board}/table?fields=title,color")
+
+      refute has_element?(view, "#row-all-#{card.id} button[aria-label=Rename]")
+      refute has_element?(view, "#title-#{card.id}")
+      refute has_element?(view, "#color-#{card.id}")
+
+      for {field, value} <- [{"title", "Touched"}, {"color", "red"}] do
+        html =
+          render_change(view, "table_update", %{
+            "card_id" => to_string(card.id),
+            "field" => field,
+            "value" => value
+          })
+
+        assert html =~ "read-only access"
+      end
+
+      card = Boards.Cards.get_card!(card.id)
+      assert card.title == "Look, don't touch" and is_nil(card.color)
     end
 
     test "a reader still sorts: the heading is a real button outside every disabled fieldset",

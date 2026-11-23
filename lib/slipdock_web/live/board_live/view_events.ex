@@ -115,17 +115,15 @@ defmodule SlipdockWeb.BoardLive.ViewEvents do
   # The table's inline editors, which now set a placed wiki page's facets as
   # readily as a card's — the row sends `page-7` where a card sends a number.
   def handle_event("table_update", %{"card_id" => id, "field" => field, "value" => value}, socket)
-      when field in ~w(priority start_date due_date percent_complete column_id) do
+      when field in ~w(title color priority start_date due_date percent_complete column_id) do
     case writable_item(socket, id) do
       {:ok, item} when item.board_id == socket.assigns.board.id ->
-        case field do
-          "column_id" ->
-            if column_id = Params.id(value),
-              do: move_in_list(item, column_id, nil, socket.assigns.current_user)
-
-          _ ->
-            update_item(item, %{field => if(value == "", do: nil, else: value)})
-        end
+        socket =
+          case table_save(item, field, value, socket.assigns.current_user) do
+            {:error, message} when is_binary(message) -> put_flash(socket, :error, message)
+            {:error, %Ecto.Changeset{}} -> put_flash(socket, :error, "Couldn't save that change.")
+            _ -> socket
+          end
 
         {:noreply, reload_board(socket)}
 
@@ -541,4 +539,24 @@ defmodule SlipdockWeb.BoardLive.ViewEvents do
       {at, "ArrowDown"} -> Enum.at(order, at + 2)
     end
   end
+
+  # What `table_update` saves for each field.
+  defp table_save(item, "column_id", value, user) do
+    if column_id = Params.id(value), do: move_in_list(item, column_id, nil, user)
+  end
+
+  # Renamed in place (#3670): an unchanged title saves nothing, and a blank
+  # one is refused rather than cleared.
+  defp table_save(item, "title", value, _user) do
+    title = String.trim(value)
+
+    cond do
+      title == "" -> {:error, "A card needs a title."}
+      title == item.title -> :ok
+      true -> update_item(item, %{"title" => title})
+    end
+  end
+
+  defp table_save(item, field, value, _user),
+    do: update_item(item, %{field => if(value == "", do: nil, else: value)})
 end
