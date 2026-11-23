@@ -87,7 +87,6 @@ defmodule SlipdockWeb.SwimlaneComponents do
               aria-haspopup="true"
               aria-expanded="false"
               aria-controls="view-options"
-              title="This view's own options: grouping, sorting and the like"
             >
               <.icon name="hero-adjustments-vertical" class="size-4" /> View options
               <.icon name="hero-chevron-down" class="size-3" />
@@ -591,7 +590,7 @@ defmodule SlipdockWeb.SwimlaneComponents do
           <% @mode == :calendar -> %>
             <label class="flex items-center gap-1.5">
               <.icon name="hero-calendar-days" class="size-4 text-base-content/50" />
-              <span class="sr-only">Span</span>
+              <span class="own-label sr-only">Span</span>
               <select name="unit" class="select field w-auto" title="Show a month or a week">
                 <option
                   :for={{value, label} <- Slipdock.Calendar.units()}
@@ -614,7 +613,7 @@ defmodule SlipdockWeb.SwimlaneComponents do
             />
             <label class="flex items-center gap-1.5">
               <.icon name="hero-clock" class="size-4 text-base-content/50" />
-              <span class="sr-only">Span</span>
+              <span class="own-label sr-only">Span</span>
               <select name="span" class="select field w-auto" title="How far back to look">
                 <option
                   :for={{value, label} <- Slipdock.Narrative.spans()}
@@ -629,7 +628,8 @@ defmodule SlipdockWeb.SwimlaneComponents do
               class="flex items-center gap-1 text-xs text-base-content/60"
               title="Start of the range (leave empty for the span)"
             >
-              from
+              <span class="own-pad hidden"></span>
+              <span class="own-label">from</span>
               <.date_field
                 id="narrative-from"
                 name="from"
@@ -641,7 +641,9 @@ defmodule SlipdockWeb.SwimlaneComponents do
               class="flex items-center gap-1 text-xs text-base-content/60"
               title="End of the range (leave empty for today)"
             >
-              to <.date_field id="narrative-to" name="to" value={@config.to} placeholder="Today" />
+              <span class="own-pad hidden"></span>
+              <span class="own-label">to</span>
+              <.date_field id="narrative-to" name="to" value={@config.to} placeholder="Today" />
             </label>
           <% true -> %>
             <.axis_select
@@ -658,7 +660,7 @@ defmodule SlipdockWeb.SwimlaneComponents do
           class="flex items-center gap-1.5"
         >
           <.icon name="hero-bars-arrow-down" class="size-4 text-base-content/50" />
-          <span class="sr-only">Levels</span>
+          <span class="own-label sr-only">Levels</span>
           <select
             name="depth"
             class="select field w-auto"
@@ -688,7 +690,7 @@ defmodule SlipdockWeb.SwimlaneComponents do
             name={if @mode == :timeline, do: "hero-magnifying-glass-plus", else: "hero-calendar-days"}
             class="size-4 text-base-content/50"
           />
-          <span class="sr-only">{if @mode == :timeline, do: "Zoom", else: "Group dates by"}</span>
+          <span class="own-label sr-only">{if @mode == :timeline, do: "Zoom", else: "Group dates by"}</span>
           <select
             name="unit"
             class="select field w-auto"
@@ -706,37 +708,45 @@ defmodule SlipdockWeb.SwimlaneComponents do
 
         <span class="hidden h-5 w-px bg-base-300 sm:block"></span>
 
-        <label class="flex items-center gap-1.5">
+        <%!-- Sort and its direction are one row (#3648). --%>
+        <div class="own-row flex items-center gap-1.5">
           <.icon name="hero-arrows-up-down" class="size-4 text-base-content/50" />
-          <span class="sr-only">Sort by</span>
-          <select name="sort" class="select field w-auto" title="Sort cards within each cell">
-            <option
-              :for={{value, label} <- Config.sorts(@board)}
-              value={value}
-              selected={value == @config.sort}
+          <label for="view-sort" class="own-label sr-only">Sort by</label>
+          <span class="own-ctl flex items-center gap-1">
+            <select
+              id="view-sort"
+              name="sort"
+              class="select field w-auto"
+              title="Sort cards within each cell"
             >
-              {label}
-            </option>
-          </select>
-        </label>
-        <button
-          type="button"
-          class="btn btn-ghost btn-sm btn-square"
-          phx-click="swim_set"
-          phx-value-key="dir"
-          phx-value-value={if @config.dir == "asc", do: "desc", else: "asc"}
-          value={if @config.dir == "asc", do: "desc", else: "asc"}
-          title={
-            if @config.dir == "asc",
-              do: "Ascending — click for descending",
-              else: "Descending — click for ascending"
-          }
-        >
-          <.icon
-            name={if @config.dir == "asc", do: "hero-bars-arrow-up", else: "hero-bars-arrow-down"}
-            class="size-4"
-          />
-        </button>
+              <option
+                :for={{value, label} <- Config.sorts(@board)}
+                value={value}
+                selected={value == @config.sort}
+              >
+                {label}
+              </option>
+            </select>
+            <button
+              type="button"
+              class="btn btn-ghost btn-sm btn-square"
+              phx-click="swim_set"
+              phx-value-key="dir"
+              phx-value-value={if @config.dir == "asc", do: "desc", else: "asc"}
+              value={if @config.dir == "asc", do: "desc", else: "asc"}
+              title={
+                if @config.dir == "asc",
+                  do: "Ascending — click for descending",
+                  else: "Descending — click for ascending"
+              }
+            >
+              <.icon
+                name={if @config.dir == "asc", do: "hero-bars-arrow-up", else: "hero-bars-arrow-down"}
+                class="size-4"
+              />
+            </button>
+          </span>
+        </div>
         <a
           :if={@mode == :table}
           href={
@@ -1387,7 +1397,7 @@ defmodule SlipdockWeb.SwimlaneComponents do
     ~H"""
     <label class="flex items-center gap-1.5">
       <.icon name={@icon} class="size-4 text-base-content/50" />
-      <span class="text-xs text-base-content/60">{@label}</span>
+      <span class="own-label text-xs text-base-content/60">{@label}</span>
       <select name={@name} class="select field w-auto" title={"#{@label} axis"}>
         <option :for={{value, label} <- Config.axes(@board)} value={value} selected={value == @value}>
           {label}
