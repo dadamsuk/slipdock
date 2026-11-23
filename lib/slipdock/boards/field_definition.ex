@@ -69,7 +69,7 @@ defmodule Slipdock.Boards.FieldDefinition do
   @text_kinds ~w(text url email)
 
   @doc "Whether values of `kind` are text (filtered on the words they contain)."
-  def text_kind?(kind), do: kind in @text_kinds
+  def text_kind?(kind), do: Enum.member?(@text_kinds, kind)
   def kind_keys, do: Enum.map(@kinds, &elem(&1, 0))
 
   def kind_label(kind) do
@@ -263,52 +263,39 @@ defmodule Slipdock.Boards.FieldDefinition do
   defp validate_config(changeset) do
     config = get_field(changeset, :config) || %{}
 
-    case get_field(changeset, :kind) do
-      "number" ->
-        min = config["min"]
-        max = config["max"]
-
-        cond do
-          is_number(min) and is_number(max) and min > max ->
-            add_error(changeset, :config, "least must not be more than most")
-
-          is_number(config["step"]) and config["step"] <= 0 ->
-            add_error(changeset, :config, "step must be more than 0")
-
-          true ->
-            changeset
-        end
-
-      "text" ->
-        case config["max_length"] do
-          nil ->
-            changeset
-
-          n when is_integer(n) and n >= 1 ->
-            changeset
-
-          _ ->
-            add_error(changeset, :config, "most characters must be a whole number of at least 1")
-        end
-
-      "rating" ->
-        case config["max"] do
-          nil -> changeset
-          n when is_number(n) and n >= 2 and n <= 10 and n == trunc(n) -> changeset
-          _ -> add_error(changeset, :config, "stars must be a whole number from 2 to 10")
-        end
-
-      "select" ->
-        keys = Enum.map(get_field(changeset, :options) || [], & &1["key"])
-
-        if length(keys) == length(Enum.uniq(keys)),
-          do: changeset,
-          else: add_error(changeset, :options, "each choice needs a different name")
-
-      _ ->
-        changeset
+    case config_error(get_field(changeset, :kind), config, get_field(changeset, :options)) do
+      nil -> changeset
+      {field, message} -> add_error(changeset, field, message)
     end
   end
+
+  defp config_error("number", %{"min" => min, "max" => max})
+       when is_number(min) and is_number(max) and min > max,
+       do: {:config, "least must not be more than most"}
+
+  defp config_error("number", %{"step" => step}) when is_number(step) and step <= 0,
+    do: {:config, "step must be more than 0"}
+
+  defp config_error("text", %{"max_length" => n}) when not (is_integer(n) and n >= 1),
+    do: {:config, "most characters must be a whole number of at least 1"}
+
+  defp config_error("rating", %{"max" => n}) do
+    if is_number(n) and n >= 2 and n <= 10 and n == trunc(n),
+      do: nil,
+      else: {:config, "stars must be a whole number from 2 to 10"}
+  end
+
+  defp config_error(_kind, _config), do: nil
+
+  defp config_error("select", _config, options) do
+    keys = Enum.map(options || [], & &1["key"])
+
+    if length(keys) == length(Enum.uniq(keys)),
+      do: nil,
+      else: {:options, "each choice needs a different name"}
+  end
+
+  defp config_error(kind, config, _options), do: config_error(kind, config)
 
   defp validate_formula(changeset) do
     if get_field(changeset, :kind) == "formula" do

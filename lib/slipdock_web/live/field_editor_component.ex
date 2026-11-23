@@ -185,32 +185,29 @@ defmodule SlipdockWeb.FieldEditorComponent do
   # change while the field is new.
   defp merge(draft, params, field) do
     kind = if field, do: draft["kind"], else: params["kind"] || draft["kind"]
-    # A new type starts its settings afresh: a rating's 5 stars aren't a
-    # number's most. What the form sent was the old type's.
-    switched? = kind != draft["kind"]
 
     draft
     |> put_if(params, "name")
     |> Map.put("kind", kind)
-    |> then(fn d ->
-      case params["config"] do
-        _ when switched? -> %{d | "config" => %{}}
-        %{} = config -> %{d | "config" => Map.merge(d["config"], config)}
-        _ -> d
-      end
-    end)
-    |> then(fn d ->
-      case params["options"] do
-        %{} = rows ->
-          %{d | "options" => rows |> Enum.sort_by(&row_index/1) |> Enum.map(&elem(&1, 1))}
-
-        _ ->
-          d
-      end
-    end)
+    |> merge_config(params["config"], kind != draft["kind"])
+    |> merge_options(params["options"])
     |> Map.put("sum", params["sum"] == "true")
-    |> Map.put("several", (params["several"] == "true" or (field && draft["several"])) || false)
+    |> Map.put(
+      "several",
+      params["several"] == "true" or (field != nil and draft["several"] == true)
+    )
   end
+
+  # A new type starts its settings afresh: a rating's 5 stars aren't a
+  # number's most. What the form sent was the old type's.
+  defp merge_config(d, _config, true = _switched?), do: %{d | "config" => %{}}
+  defp merge_config(d, %{} = config, _), do: %{d | "config" => Map.merge(d["config"], config)}
+  defp merge_config(d, _config, _), do: d
+
+  defp merge_options(d, %{} = rows),
+    do: %{d | "options" => rows |> Enum.sort_by(&row_index/1) |> Enum.map(&elem(&1, 1))}
+
+  defp merge_options(d, _rows), do: d
 
   defp put_if(d, params, key),
     do: if(Map.has_key?(params, key), do: Map.put(d, key, params[key]), else: d)
@@ -242,7 +239,9 @@ defmodule SlipdockWeb.FieldEditorComponent do
       "config" => config
     }
     |> then(fn a ->
-      if field, do: a, else: Map.put(a, "sum", draft["sum"] and kind in ~w(number rating))
+      if field,
+        do: a,
+        else: Map.put(a, "sum", draft["sum"] and Enum.member?(~w(number rating), kind))
     end)
   end
 

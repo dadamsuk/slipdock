@@ -836,9 +836,10 @@ defmodule SlipdockWeb.SlipdockComponents.Chrome do
   end
 
   defp field_filter(%{field: %{kind: kind}} = assigns) do
-    if kind in ~w(number formula date) or Slipdock.Boards.FieldDefinition.text_kind?(kind),
-      do: range_or_text_filter(assigns),
-      else: ~H""
+    if Enum.member?(~w(number formula date), kind) or
+         Slipdock.Boards.FieldDefinition.text_kind?(kind),
+       do: range_or_text_filter(assigns),
+       else: ~H""
   end
 
   # A range (number, formula, date) or the words a text kind's value
