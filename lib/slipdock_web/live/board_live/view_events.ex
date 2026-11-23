@@ -20,11 +20,12 @@ defmodule SlipdockWeb.BoardLive.ViewEvents do
   import SlipdockWeb.BoardLive.State
 
   alias Slipdock.{Boards, Fields, Swimlanes, Timeline, ViewColumns, Votes}
-  alias Slipdock.Boards.{Column, FieldDefinition}
+  alias Slipdock.Boards.{Card, Column, FieldDefinition}
+  alias Slipdock.Policy.Refused
   alias Slipdock.Swimlanes.Config
   alias SlipdockWeb.Params
 
-  @events ~w(swim_config swim_set swim_clear_filters table_sort table_update prio_field prio_vote
+  @events ~w(swim_config swim_set swim_clear_filters table_sort table_update table_toggle prio_field prio_vote
     timeline_move timeline_schedule cal_move cal_quick_add cal_toggle_day swim_toggle_row
     swim_move swim_start_add swim_cancel_add swim_quick_add swim_save_view swim_update_view
     swim_rename_view swim_publish_view swim_unpublish_view swim_delete_view outline_add_sub
@@ -122,6 +123,33 @@ defmodule SlipdockWeb.BoardLive.ViewEvents do
           case table_save(item, field, value, socket.assigns.current_user) do
             {:error, message} when is_binary(message) -> put_flash(socket, :error, message)
             {:error, %Ecto.Changeset{}} -> put_flash(socket, :error, "Couldn't save that change.")
+            _ -> socket
+          end
+
+        {:noreply, reload_board(socket)}
+
+      _ ->
+        {:noreply, put_flash(socket, :error, "You have read-only access to that.")}
+    end
+  end
+
+  # The Assignee, Tags and Flags cells' pickers (#3671): each choice puts
+  # one person, tag or flag on the row's card or page, or takes it off. The
+  # choice is `choice`, not `value`: a clicked button's own (empty) value
+  # would overwrite a `phx-value-value` in the browser.
+  def handle_event(
+        "table_toggle",
+        %{"card_id" => id, "field" => field, "choice" => value},
+        socket
+      )
+      when field in ~w(assignee tag flag) do
+    case writable_item(socket, id) do
+      {:ok, item} when item.board_id == socket.assigns.board.id ->
+        socket =
+          case table_toggle(item, field, to_string(value), socket) do
+            {:error, message} when is_binary(message) -> put_flash(socket, :error, message)
+            {:error, %Refused{message: message}} -> put_flash(socket, :error, message)
+            {:error, _} -> put_flash(socket, :error, "Couldn't save that change.")
             _ -> socket
           end
 
@@ -559,4 +587,71 @@ defmodule SlipdockWeb.BoardLive.ViewEvents do
 
   defp table_save(item, field, value, _user),
     do: update_item(item, %{field => if(value == "", do: nil, else: value)})
+
+  # What `table_toggle` changes. A flag is one of the set, a tag one of the
+  # board's, and a person one the writer may put on it (`resolve_assignees`,
+  # as the card panel asks); anything else changes nothing.
+  defp table_toggle(item, "flag", flag, socket) do
+    if Enum.member?(Card.flags(), flag) do
+      flags =
+        if Enum.member?(item.flags, flag),
+          do: List.delete(item.flags, flag),
+          else: item.flags ++ [flag]
+
+      write_item(item, %{"flags" => flags}, socket)
+    else
+      {:error, "That isn't a flag."}
+    end
+  end
+
+  defp table_toggle(item, "tag", value, socket) do
+    with id when is_integer(id) <- Params.id(value),
+         %{} = tag <- Enum.find(socket.assigns.board.tags, &(&1.id == id)) do
+      tags =
+        if Enum.any?(item.tags, &(&1.id == id)),
+          do: Enum.reject(item.tags, &(&1.id == id)),
+          else: item.tags ++ [tag]
+
+      set_item_tags(item, tags)
+    else
+      _ -> {:error, "That tag isn't on this board."}
+    end
+  end
+
+  defp table_toggle(item, "assignee", value, socket) do
+    user = socket.assigns.current_user
+    id = Params.id(value)
+
+    cond do
+      is_nil(id) ->
+        {:error, "That person can't be put on this card."}
+
+      Card.assigned_to?(item, id) ->
+        write_item(item, unassign(item, id), socket)
+
+      match?({:ok, [_]}, Boards.Cards.resolve_assignees(item, user, [id])) ->
+        write_item(item, assign_to(item, id), socket)
+
+      true ->
+        {:error, "That person can't be put on this card."}
+    end
+  end
+
+  # A page has one assignee; a card a set.
+  defp unassign(%Slipdock.Wiki.Page{}, _id), do: %{"assignee_ids" => []}
+  defp unassign(_card, id), do: %{"remove_assignee_ids" => [id]}
+  defp assign_to(%Slipdock.Wiki.Page{}, id), do: %{"assignee_ids" => [id]}
+  defp assign_to(_card, id), do: %{"add_assignee_ids" => [id]}
+
+  # A card's change is the person's, as the card panel's is (ARCH-3).
+  defp write_item(%Card{} = card, attrs, socket) do
+    user = socket.assigns.current_user
+
+    Boards.Cards.update_card(Boards.Cards.get_card!(card.id), attrs,
+      by: user,
+      actor: Slipdock.Actor.web(user)
+    )
+  end
+
+  defp write_item(page, attrs, _socket), do: update_item(page, attrs)
 end
