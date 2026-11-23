@@ -535,12 +535,17 @@ defmodule SlipdockWeb.BoardLive.VisualiseComponents do
                   <td class="py-1.5 pr-2 font-mono text-xs">#{j.job_id}</td>
                   <td class="max-w-56 py-1.5 pr-2">
                     <.link
+                      :if={j.card_id}
                       navigate={~p"/boards/#{j.board_id}/cards/#{j.card_id}"}
                       class="block truncate hover:underline"
                       title={j.title}
                     >
                       {j.title || "card ##{j.card_id}"}
                     </.link>
+                    <%!-- A release job or a probe has no card (#3666). --%>
+                    <span :if={is_nil(j.card_id)} class="block truncate text-base-content/70">
+                      {j.kind} job
+                    </span>
                   </td>
                   <td class="py-1.5 pr-2"><.outcome_chip job={j} /></td>
                   <td class="py-1.5">
@@ -784,14 +789,20 @@ defmodule SlipdockWeb.BoardLive.VisualiseComponents do
         class="space-y-1.5 rounded-box bg-base-300/60 p-2.5"
       >
         <div class="text-2xs font-mono text-base-content/60">
-          Job #{@r.current.job_id} · card #{@r.current.card_id}
+          Job #{@r.current.job_id} · {if @r.current.card_id,
+            do: "card ##{@r.current.card_id}",
+            else: @r.current.kind}
         </div>
         <.link
+          :if={@r.current.card_id}
           navigate={~p"/boards/#{@r.current.board_id}/cards/#{@r.current.card_id}"}
           class="block truncate text-sm font-medium hover:underline"
         >
           {@r.current.title}
         </.link>
+        <div :if={is_nil(@r.current.card_id)} class="truncate text-sm font-medium">
+          {@r.current.kind} job
+        </div>
         <div class="h-1.5 overflow-hidden rounded-full bg-base-content/10" aria-hidden="true">
           <div
             class="h-full rounded-full bg-primary"

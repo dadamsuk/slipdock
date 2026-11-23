@@ -73,6 +73,41 @@ defmodule SlipdockCLI.RunnerStatsTest do
     assert out =~ "#41  parked: Which colour?  10m  card #1185 Visualise"
   end
 
+  test "a job with no card (a release or a probe) prints its kind, not a card" do
+    serve(%{
+      "days" => 30,
+      "runners" => [
+        %{
+          "name" => "dev-box",
+          "pool" => "dev",
+          "status" => "running",
+          "current" => %{"job_id" => 52, "kind" => "release", "card_id" => nil, "elapsed" => 60},
+          "outcomes" => %{"done" => 1, "parked" => 0, "failed" => 0, "running" => 1},
+          "success_rate" => 1.0,
+          "duration" => %{"p50" => 60, "p85" => 60},
+          "queue_wait" => %{"p50" => nil, "p85" => nil},
+          "waits" => %{"opened" => 0, "open" => 0, "answer" => %{"p50" => nil}},
+          "reopened" => %{"count" => 0, "card_ids" => []}
+        }
+      ],
+      "recent_jobs" => [
+        %{
+          "job_id" => 51,
+          "kind" => "release",
+          "card_id" => nil,
+          "title" => nil,
+          "outcome" => "done",
+          "duration" => 60
+        }
+      ]
+    })
+
+    out = capture_io(fn -> Runners.run("runner-stats", ["ship"], []) end)
+    assert out =~ "dev-box (dev) · running · job #52 release job for 1m"
+    assert out =~ "#51  done  1m  release job"
+    refute out =~ "card #"
+  end
+
   test "no runners says so" do
     serve(%{"days" => 30, "runners" => [], "recent_jobs" => []})
     out = capture_io(fn -> Runners.run("runner-stats", ["ship"], []) end)

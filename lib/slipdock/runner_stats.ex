@@ -8,7 +8,7 @@ defmodule Slipdock.RunnerStats do
   For each runner taking work from the board's tree, over the last `days`:
 
     * `status` — `running` while it holds an open job (with `current`: the
-      job, its card and the seconds since it was claimed), `idle` while seen
+      job, its kind, its card and the seconds since it was claimed), `idle` while seen
       within three of its leases (the claim's own reading of online), else
       `offline`;
     * `outcomes` — the window's jobs by how they ended: `done`, `parked`,
@@ -25,6 +25,8 @@ defmodule Slipdock.RunnerStats do
     * `recent` — its last 12 jobs.
 
   `recent_jobs` is the last 12 across all of them, for the page's table.
+  A job's `card_id` can be nil: a release job (#2835) or a probe (#2580)
+  has no card, and says what it is by its `kind` (#3666).
   """
 
   import Ecto.Query
@@ -110,6 +112,7 @@ defmodule Slipdock.RunnerStats do
         current &&
           %{
             job_id: current.id,
+            kind: current.kind,
             card_id: current.card_id,
             board_id: current.board_id,
             title: current.card && current.card.title,
@@ -167,6 +170,7 @@ defmodule Slipdock.RunnerStats do
 
     %{
       job_id: job.id,
+      kind: job.kind,
       card_id: job.card_id,
       board_id: job.board_id,
       title: job.card && job.card.title,
