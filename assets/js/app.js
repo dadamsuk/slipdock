@@ -130,6 +130,9 @@ Hooks.AnchoredPopover = {
     this.el.addEventListener("beforetoggle", e => {
       if (e.newState === "open") this.place()
     })
+    // A form in the menu closes it when sent: its submit button can't, as
+    // the browser ignores `popovertarget` on a form's submit button.
+    this.el.addEventListener("submit", () => this.el.hidePopover())
     // Escape closes the menu and nothing else: on the card panel the modal
     // closes on Escape too, from the window, so the menu takes it first.
     this.onKey = e => {
@@ -160,7 +163,11 @@ Hooks.AnchoredPopover = {
     if (!trigger) return
 
     const r = trigger.getBoundingClientRect()
-    const width = this.el.offsetWidth || 192
+    // Before it opens the menu has no box, so its width is its content's
+    // CSS width (a `w-64` form, a `w-48` list); 192 if that says nothing.
+    const content = this.el.firstElementChild
+    const width = this.el.offsetWidth ||
+      (content && parseFloat(getComputedStyle(content).width)) || 192
     const gap = 4
     const left = this.el.dataset.align === "start" ? r.left : r.right - width
 

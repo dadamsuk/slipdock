@@ -51,6 +51,20 @@ defmodule SlipdockWeb.TableAddFieldTest do
     assert Fields.value(Boards.Cards.get_card!(first.id), field) == "ada@example.com"
   end
 
+  # Inside the table's scrollbox an ordinary dropdown was clipped and ran off
+  # the right of the screen: the form opens in the browser's top layer,
+  # placed beside the "+" by AnchoredPopover.
+  test "the add-field form is a popover anchored to the +", %{conn: conn, board: board} do
+    {:ok, view, _} = live(conn, ~p"/boards/#{board}/table")
+
+    assert has_element?(view, "#card-table thead button#add-field[popovertarget=add-field-menu]")
+
+    assert has_element?(
+             view,
+             "#add-field-menu[popover][phx-hook=AnchoredPopover][data-anchor=add-field] #add-field-form"
+           )
+  end
+
   test "a choice takes its options from the same form", %{conn: conn, board: board} do
     {:ok, view, _} = live(conn, ~p"/boards/#{board}/table")
     add(view, %{"name" => "Stage", "kind" => "select", "options" => "Lead, Won"})

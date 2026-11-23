@@ -316,58 +316,71 @@ defmodule SlipdockWeb.TableComponents do
   # field and its column. A choice takes its options here too, since a
   # choice needs one; a formula's expression, units and the rest are set in
   # board settings, so a formula isn't offered.
+  #
+  # The form is a native popover placed by `AnchoredPopover`: as an ordinary
+  # dropdown it sat inside the table's scrollbox, which clipped it and let it
+  # run off the right of the screen. The browser's top layer is above every
+  # overflow, and the hook holds it inside the screen.
   defp add_field_header(assigns) do
     assigns =
       assign(assigns, kinds: Enum.reject(FieldDefinition.kinds(), &(elem(&1, 0) == "formula")))
 
     ~H"""
-    <div class="dropdown dropdown-end normal-case tracking-normal">
-      <div
-        tabindex="0"
-        role="button"
+    <div>
+      <button
+        type="button"
+        id="add-field"
+        popovertarget="add-field-menu"
         class="btn btn-ghost btn-xs btn-square"
         title="Add a field"
         aria-label="Add a field"
         data-role="add-field"
       >
         <.icon name="hero-plus" class="size-4" />
-      </div>
-      <form
-        tabindex="0"
-        id="add-field-form"
-        phx-submit="table_add_field"
-        class="dropdown-content z-30 mt-2 w-64 space-y-2 rounded-2xl bg-base-100 p-3 text-sm font-normal shadow-xl ring-1 ring-base-content/10"
+      </button>
+      <div
+        id="add-field-menu"
+        popover
+        phx-hook="AnchoredPopover"
+        data-anchor="add-field"
+        class="pop-menu"
       >
-        <input
-          type="text"
-          name="name"
-          placeholder="Field name"
-          aria-label="Field name"
-          class="input field w-full"
-          required
-          autocomplete="off"
-        />
-        <select name="kind" class="select field w-full" aria-label="Type">
-          <option :for={{k, l} <- @kinds} value={k}>{l}</option>
-        </select>
-        <input
-          type="text"
-          name="options"
-          placeholder="Choices, e.g. Lead, Won (for a choice)"
-          aria-label="Choices"
-          class="input field w-full"
-          autocomplete="off"
-        />
-        <%!-- A choice that holds several options per card (#3606, #3611). --%>
-        <label class="flex items-center gap-2 text-xs">
-          <input type="checkbox" name="several" value="true" class="checkbox" />
-          Allow several (for a choice)
-        </label>
-        <p class="text-xs text-base-content/60">
-          Units and formulas are set in board settings.
-        </p>
-        <button type="submit" class="btn btn-primary btn-sm w-full">Add field</button>
-      </form>
+        <form
+          id="add-field-form"
+          phx-submit="table_add_field"
+          class="w-64 max-w-[calc(100vw-1rem)] space-y-2 rounded-2xl bg-base-100 p-3 text-left text-sm font-normal whitespace-normal normal-case tracking-normal text-base-content shadow-xl ring-1 ring-base-content/10"
+        >
+          <input
+            type="text"
+            name="name"
+            placeholder="Field name"
+            aria-label="Field name"
+            class="input field w-full"
+            required
+            autocomplete="off"
+          />
+          <select name="kind" class="select field w-full" aria-label="Type">
+            <option :for={{k, l} <- @kinds} value={k}>{l}</option>
+          </select>
+          <input
+            type="text"
+            name="options"
+            placeholder="Choices, e.g. Lead, Won (for a choice)"
+            aria-label="Choices"
+            class="input field w-full"
+            autocomplete="off"
+          />
+          <%!-- A choice that holds several options per card (#3606, #3611). --%>
+          <label class="flex items-center gap-2 text-xs">
+            <input type="checkbox" name="several" value="true" class="checkbox" />
+            Allow several (for a choice)
+          </label>
+          <p class="text-xs text-base-content/60">
+            Units and formulas are set in board settings.
+          </p>
+          <button type="submit" class="btn btn-primary btn-sm w-full">Add field</button>
+        </form>
+      </div>
     </div>
     """
   end
