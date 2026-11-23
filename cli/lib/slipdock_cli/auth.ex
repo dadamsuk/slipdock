@@ -217,10 +217,17 @@ defmodule SlipdockCLI.Auth do
   end
 
   defp standing_lines(%{} = limits) do
+    # Only a free account's item count is an allowance it can run out of in
+    # the ordinary way. Everything else stated here is the server's guardrail
+    # (250,000 items, 1,000 boards, 10 GB by default), which applies to every
+    # account, unlimited ones included: stating it as "of 250000" read as a
+    # card limit on an account that has none (#3655).
+    free? = limits["free"] == true
+
     [
-      usage_line("items", limits["items"], &Integer.to_string/1),
-      usage_line("boards", limits["boards"], &Integer.to_string/1),
-      usage_line("files", limits["storage"], &human_bytes/1),
+      usage_line("items", limits["items"], free?, &Integer.to_string/1),
+      usage_line("boards", limits["boards"], false, &Integer.to_string/1),
+      usage_line("files", limits["storage"], false, &human_bytes/1),
       trial_line(limits["trial"])
     ]
     |> Enum.filter(& &1)
@@ -228,10 +235,21 @@ defmodule SlipdockCLI.Auth do
 
   defp standing_lines(_limits), do: []
 
-  defp usage_line(name, %{"limited?" => true} = s, format),
-    do: "#{name}: #{format.(s["used"])} of #{format.(s["limit"])} used"
+  defp usage_line(name, %{"limited?" => true} = s, allowance?, format) do
+    if allowance? or near_limit?(s),
+      do: "#{name}: #{format.(s["used"])} of #{format.(s["limit"])} used",
+      else: "#{name}: #{format.(s["used"])} used"
+  end
 
-  defp usage_line(_name, _status, _format), do: nil
+  defp usage_line(_name, _status, _allowance?, _format), do: nil
+
+  # The server's warning rule (`Slipdock.Quota.warning?/2`): within a fifth
+  # of the limit, a guardrail is worth stating, whoever the account is.
+  defp near_limit?(%{"limit" => limit, "remaining" => remaining})
+       when is_integer(limit) and is_integer(remaining),
+       do: remaining <= max(div(limit, 5), 1)
+
+  defp near_limit?(_status), do: false
 
   defp trial_line(%{"applies?" => true, "expired?" => true}),
     do: "free trial: over — nothing new can be added"
