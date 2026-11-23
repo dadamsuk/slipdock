@@ -10,7 +10,6 @@ defmodule SlipdockWeb.SwimlaneComponents do
   alias Slipdock.Fields.People
   alias Slipdock.Palette
   alias Slipdock.Swimlanes.Config
-  alias Slipdock.Table
 
   @section_title "text-2xs font-semibold uppercase tracking-wide text-base-content/60"
 
@@ -890,6 +889,88 @@ defmodule SlipdockWeb.SwimlaneComponents do
     """
   end
 
+  attr :view, :string, required: true, doc: ~s("table", "outline" or "prioritise")
+  attr :config, Config, required: true
+  attr :board, :any, required: true
+  attr :section_title, :any, required: true
+  attr :size_label, :string, required: true
+
+  # The Display menu's Columns (#3665): every column a view can show but its
+  # first, in the reader's order, each with a box to show it and a grip to
+  # drag it (or press ↑/↓ on) into place. The table's shown columns are
+  # `fields[]` (or `fields_compact[]`), sent in the order they are drawn; the
+  # outline's and Prioritise's are `outline_cols[]` / `prio_cols[]`, with a
+  # `-key` before each box so an unticked one is kept, hidden, in its place.
+  defp columns_chooser(assigns) do
+    table? = assigns.view == "table"
+
+    name =
+      if table?,
+        do: "#{Config.cols_key(assigns.config, "table")}[]",
+        else: "#{Config.cols_key(assigns.config, assigns.view)}[]"
+
+    assigns =
+      assign(assigns,
+        table?: table?,
+        name: name,
+        order: Slipdock.ViewColumns.order(assigns.config, assigns.view, assigns.board),
+        dom_id:
+          if(table?,
+            do: "display-fields-#{assigns.size_label}",
+            else: "display-cols-#{assigns.view}"
+          )
+      )
+
+    ~H"""
+    <div id={@dom_id}>
+      <p class={["mb-1.5", @section_title]}>
+        Columns{if @table?, do: " · #{@size_label}"}
+      </p>
+      <input :if={@table?} type="hidden" name={@name} value="title" />
+      <ul
+        id={"#{@dom_id}-list"}
+        class="max-h-72 space-y-0.5 overflow-y-auto"
+        phx-hook="Sortable"
+        data-id={@view}
+        data-group={"cols-#{@view}"}
+        data-event="col_move"
+        data-handle=".col-grip"
+        data-keep-focus="true"
+      >
+        <li
+          :for={{key, label, shown?} <- @order}
+          id={"col-#{@view}-#{String.replace(key, ":", "-")}"}
+          data-id={key}
+          class="flex items-center gap-1 rounded-field text-sm hover:bg-base-200/60"
+        >
+          <button
+            type="button"
+            class="col-grip btn btn-ghost btn-xs btn-square cursor-grab touch-none"
+            id={"col-grip-#{@view}-#{String.replace(key, ":", "-")}"}
+            title={"Drag to move #{label}, or press ↑ or ↓"}
+            aria-label={"Move #{label}"}
+            phx-keydown="col_key"
+            phx-value-view={@view}
+            phx-value-col={key}
+          >
+            <.icon name="hero-bars-2" class="size-3.5 text-base-content/50" />
+          </button>
+          <label class="flex flex-1 cursor-pointer items-center gap-2 py-0.5">
+            <input :if={!@table?} type="hidden" name={@name} value={"-" <> key} />
+            <input type="checkbox" name={@name} value={key} checked={shown?} class="checkbox" />
+            {label}
+          </label>
+        </li>
+      </ul>
+      <p class="mt-1.5 text-xs text-base-content/60">
+        {if @table?,
+          do: "Comfortable and compact tables each keep their own columns.",
+          else: "Drag to reorder."} Drag a heading's edge to resize; double-click it to reset.
+      </p>
+    </div>
+    """
+  end
+
   attr :mode, :atom, required: true
   attr :config, Config, required: true
 
@@ -908,8 +989,7 @@ defmodule SlipdockWeb.SwimlaneComponents do
       assign(assigns,
         section_title: @section_title,
         compact?: compact?,
-        size_label: if(compact?, do: "compact", else: "comfortable"),
-        table_fields: Config.table_fields(assigns.config)
+        size_label: if(compact?, do: "compact", else: "comfortable")
       )
 
     ~H"""
@@ -989,33 +1069,14 @@ defmodule SlipdockWeb.SwimlaneComponents do
             </option>
           </select>
         </div>
-        <div :if={@mode == :table} id={"display-fields-#{@size_label}"}>
-          <p class={["mb-1.5", @section_title]}>Columns · {@size_label}</p>
-          <input
-            type="hidden"
-            name={if @compact?, do: "fields_compact[]", else: "fields[]"}
-            value="title"
-          />
-          <div class="grid grid-cols-2 gap-x-2 gap-y-1">
-            <label
-              :for={{key, label, _} <- Table.fields(@board)}
-              :if={key != "title"}
-              class="flex cursor-pointer items-center gap-2 text-sm"
-            >
-              <input
-                type="checkbox"
-                name={if @compact?, do: "fields_compact[]", else: "fields[]"}
-                value={key}
-                checked={key in @table_fields}
-                class="checkbox"
-              />
-              {label}
-            </label>
-          </div>
-          <p class="mt-1.5 text-xs text-base-content/60">
-            Comfortable and compact tables each keep their own columns.
-          </p>
-        </div>
+        <.columns_chooser
+          :if={@mode in [:table, :outline, :prioritise]}
+          view={Atom.to_string(@mode)}
+          config={@config}
+          board={@board}
+          section_title={@section_title}
+          size_label={@size_label}
+        />
         <div :if={@mode == :narrative} id="display-tell">
           <p class={["mb-1.5", @section_title]}>Tell</p>
           <input type="hidden" name="tell[]" value="" />

@@ -62,15 +62,15 @@ defmodule Slipdock.Table do
   end
 
   @doc """
-  The visible fields in display order for the config's density; the title is
-  always shown first.
+  The visible fields for the config's density, in the order the reader put
+  them (#3665); the title is always shown first.
   """
   def visible_fields(%Config{} = config, board \\ nil) do
-    chosen = Config.table_fields(config)
+    all = fields(board || %{})
 
-    Enum.filter(fields(board || %{}), fn {key, _, _} ->
-      key == "title" or Enum.member?(chosen, key)
-    end)
+    for key <- ["title" | Config.table_fields(config) -- ["title"]],
+        field = List.keyfind(all, key, 0),
+        do: field
   end
 
   @doc """

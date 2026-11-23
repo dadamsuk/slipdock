@@ -43,7 +43,8 @@ defmodule SlipdockWeb.TableLiveTest do
              "id"
            ]
 
-    assert Config.from_query(%{"fields" => "id,bogus,tags"}).fields == ["tags", "id"]
+    # The reader's order is kept (#3665); unknown keys are dropped.
+    assert Config.from_query(%{"fields" => "id,bogus,tags"}).fields == ["id", "tags"]
     # A submitted form without a fields chooser keeps the current fields.
     assert Config.from_form(%{"rows" => "tag"}, %Config{fields: ["id"]}).fields == ["id"]
   end

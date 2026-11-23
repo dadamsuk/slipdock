@@ -341,6 +341,55 @@ defmodule SlipdockWeb.SlipdockComponents.Chrome do
     """
   end
 
+  @doc """
+  The CSS variable that holds a column's dragged width (#3665): `--cw-<key>`,
+  a custom field's `f:12` as `f-12`.
+  """
+  def col_var(key), do: "--cw-" <> String.replace(key, ":", "-")
+
+  @doc """
+  The `style` that puts a view's dragged column widths on the element that
+  draws its columns, as `col_var/1` variables the cells read.
+  """
+  def col_vars(%Slipdock.Swimlanes.Config{} = config, view) do
+    config
+    |> Slipdock.Swimlanes.Config.col_widths(view)
+    |> Enum.map_join(" ", fn {key, px} -> "#{col_var(key)}: #{px}px;" end)
+  end
+
+  attr :view, :string, required: true, doc: ~s("table", "outline" or "prioritise")
+  attr :key, :string, required: true, doc: "the column's key"
+  attr :label, :string, required: true
+  attr :target, :string, required: true, doc: "a selector for the element holding the widths"
+
+  @doc """
+  The handle on a column heading's right edge (#3665), in a `relative`
+  heading: dragged (or ←/→ when focused) it sets the column's width, and a
+  double-click (or Enter) puts it back. The `ColumnResize` hook
+  (`assets/js/column_resize.js`) moves the column as it is dragged and sends
+  `col_width` when it is let go.
+  """
+  def col_resize(assigns) do
+    assigns = assign(assigns, var: col_var(assigns.key))
+
+    ~H"""
+    <span
+      id={"col-resize-#{@view}-#{String.replace(@key, ":", "-")}"}
+      phx-hook="ColumnResize"
+      data-view={@view}
+      data-col={@key}
+      data-var={@var}
+      data-target={@target}
+      role="separator"
+      aria-orientation="vertical"
+      aria-label={"Resize #{@label}"}
+      tabindex="0"
+      title="Drag to resize · double-click to reset"
+      class="col-resize absolute inset-y-0 -right-1 z-10 w-2 cursor-col-resize touch-none select-none border-r-2 border-transparent hover:border-primary/50 focus-visible:border-primary focus-visible:outline-none data-[dragging]:border-primary"
+    ></span>
+    """
+  end
+
   attr :dir, :string, required: true
 
   defp sort_arrow(assigns) do

@@ -19,11 +19,16 @@ defmodule SlipdockWeb.PrioritiseComponents do
 
   def prioritise_view(assigns) do
     p = assigns.prioritise
+    scoring = p.inputs ++ p.formulas
+    all = ["priority", "votes"] ++ Enum.map(scoring, &"f:#{&1.id}")
 
     assigns =
       assign(assigns,
         p: p,
-        columns: 5 + length(p.inputs) + length(p.formulas),
+        # The columns after the card, in the reader's order (#3665).
+        cols: Config.shown_cols(assigns.config, "prioritise", all),
+        scoring: Map.new(scoring, &{"f:#{&1.id}", &1}),
+        widths: Config.col_widths(assigns.config, "prioritise"),
         votes_pct: if(p.votes.budget > 0, do: div(p.votes.spent * 100, p.votes.budget), else: 0)
       )
 
@@ -93,24 +98,28 @@ defmodule SlipdockWeb.PrioritiseComponents do
         :if={!@narrow and @p.entries != []}
         id="prioritise-table"
         class="table table-sm table-pin-rows w-full text-sm"
+        style={col_vars(@config, "prioritise")}
       >
         <thead>
           <tr class="bg-base-100 text-xs uppercase tracking-wide text-base-content/60">
             <th class="w-10 text-right">#</th>
-            <th>Card</th>
-            <th class="w-32"><.sort_header sort="priority" label="Priority" config={@config} /></th>
-            <th class="w-36"><.sort_header sort="votes" label="Votes" config={@config} /></th>
-            <th :for={f <- @p.inputs} class="whitespace-nowrap">
-              <.sort_header
-                :if={FieldDefinition.numeric?(f)}
-                sort={"f:#{f.id}"}
-                label={f.name}
-                config={@config}
-              />
-              <span :if={not FieldDefinition.numeric?(f)}>{f.name}</span>
+            <th class="relative" style={"width: var(#{col_var("card")}, auto);"}>
+              Card
+              <.col_resize view="prioritise" key="card" label="Card" target="#prioritise-table" />
             </th>
-            <th :for={f <- @p.formulas} class="whitespace-nowrap text-right">
-              <.sort_header sort={"f:#{f.id}"} label={f.name} config={@config} />
+            <th
+              :for={key <- @cols}
+              class={["relative whitespace-nowrap", formula?(@scoring[key]) && "text-right"]}
+              data-col={key}
+              style={prio_th_width(key)}
+            >
+              <.prio_heading key={key} field={@scoring[key]} config={@config} />
+              <.col_resize
+                view="prioritise"
+                key={key}
+                label={prio_label(key, @scoring[key])}
+                target="#prioritise-table"
+              />
             </th>
           </tr>
         </thead>
@@ -127,7 +136,7 @@ defmodule SlipdockWeb.PrioritiseComponents do
                 {entry.rank}
               </span>
             </td>
-            <td class="max-w-md">
+            <td class={["max-w-md", Map.has_key?(@widths, "card") && "max-w-0 overflow-hidden"]}>
               <div class="flex min-w-0 items-center gap-2">
                 <span
                   :if={entry.card.color}
@@ -156,31 +165,21 @@ defmodule SlipdockWeb.PrioritiseComponents do
                 </span>
               </div>
             </td>
-            <td>
-              <.priority_select
-                :if={@can_write}
-                id={"prio-priority-#{item_id(entry.card)}"}
-                card_id={item_id(entry.card)}
-                priority={entry.card.priority}
-              />
-              <.priority_badge :if={!@can_write} priority={entry.card.priority} />
-            </td>
-            <td>
-              <.vote_control card={entry.card} mine={entry.mine} votes={@p.votes} />
-            </td>
-            <td :for={f <- @p.inputs} class="whitespace-nowrap">
-              <.field_input
-                field={f}
-                item={entry.card}
+            <td
+              :for={key <- @cols}
+              class={[
+                (key not in ~w(priority votes) and not formula?(@scoring[key])) && "whitespace-nowrap",
+                formula?(@scoring[key]) && "text-right font-semibold",
+                Map.has_key?(@widths, key) && "max-w-0 overflow-hidden"
+              ]}
+            >
+              <.prio_cell
+                key={key}
+                field={@scoring[key]}
+                entry={entry}
+                votes={@p.votes}
                 can_write={@can_write}
-                id={"prio-field-#{item_id(entry.card)}-#{f.id}"}
-                event="prio_field"
-                params={[{"card_id", item_id(entry.card)}]}
-                look={:bare}
               />
-            </td>
-            <td :for={f <- @p.formulas} class="text-right font-semibold">
-              {Fields.format(f, Fields.value(entry.card, f)) || "—"}
             </td>
           </tr>
         </tbody>
@@ -328,5 +327,88 @@ defmodule SlipdockWeb.PrioritiseComponents do
       </span>
     </div>
     """
+  end
+
+  attr :key, :string, required: true
+  attr :field, :any, required: true, doc: "the scoring field an `f:<id>` key names, else nil"
+  attr :config, Config, required: true
+
+  defp prio_heading(%{key: "priority"} = assigns),
+    do: ~H|<.sort_header sort="priority" label="Priority" config={@config} />|
+
+  defp prio_heading(%{key: "votes"} = assigns),
+    do: ~H|<.sort_header sort="votes" label="Votes" config={@config} />|
+
+  defp prio_heading(assigns) do
+    ~H"""
+    <.sort_header
+      :if={formula?(@field) or FieldDefinition.numeric?(@field)}
+      sort={@key}
+      label={@field.name}
+      config={@config}
+    />
+    <span :if={not formula?(@field) and not FieldDefinition.numeric?(@field)}>{@field.name}</span>
+    """
+  end
+
+  attr :key, :string, required: true
+  attr :field, :any, required: true
+  attr :entry, :map, required: true
+  attr :votes, :map, required: true
+  attr :can_write, :boolean, required: true
+
+  defp prio_cell(%{key: "priority"} = assigns) do
+    ~H"""
+    <.priority_select
+      :if={@can_write}
+      id={"prio-priority-#{item_id(@entry.card)}"}
+      card_id={item_id(@entry.card)}
+      priority={@entry.card.priority}
+    />
+    <.priority_badge :if={!@can_write} priority={@entry.card.priority} />
+    """
+  end
+
+  defp prio_cell(%{key: "votes"} = assigns) do
+    ~H"""
+    <.vote_control card={@entry.card} mine={@entry.mine} votes={@votes} />
+    """
+  end
+
+  defp prio_cell(assigns) do
+    ~H"""
+    <%= if formula?(@field) do %>
+      {Fields.format(@field, Fields.value(@entry.card, @field)) || "—"}
+    <% else %>
+      <.field_input
+        field={@field}
+        item={@entry.card}
+        can_write={@can_write}
+        id={"prio-field-#{item_id(@entry.card)}-#{@field.id}"}
+        event="prio_field"
+        params={[{"card_id", item_id(@entry.card)}]}
+        look={:bare}
+      />
+    <% end %>
+    """
+  end
+
+  defp formula?(%{kind: "formula"}), do: true
+  defp formula?(_), do: false
+
+  defp prio_label("priority", _), do: "Priority"
+  defp prio_label("votes", _), do: "Votes"
+  defp prio_label(_, field), do: field.name
+
+  # The priority and votes columns keep their own widths until dragged.
+  defp prio_th_width(key) do
+    default =
+      case key do
+        "priority" -> "8rem"
+        "votes" -> "9rem"
+        _ -> "auto"
+      end
+
+    "width: var(#{col_var(key)}, #{default});"
   end
 end

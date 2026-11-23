@@ -376,7 +376,8 @@ and MCP) and a link to the page that covers it.
   [calendar](calendar.md),
   [outline](roll-ups-the-outline-and-my-work.md) and
   [prioritise](prioritise.md) — each with filters, display
-  options and saved views that can be shared or published.
+  options and saved views that can be shared or published; the table,
+  outline and prioritise columns can be reordered, hidden and resized.
 - **Card views** — [choose what you see of a card](card-views.md),
   on its front and opened, for every board, one board or one list, each
   level changing only what it names; named views to apply anywhere, a saved

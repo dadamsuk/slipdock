@@ -63,7 +63,11 @@ when something beneath it matches. The **+** beside a card's title (shown on
 hover, always on a touch screen) opens a row under it for adding subcards; a
 card with none yet gets its subcards board, from the *Simple* template, with
 the first one. A long outline is paged at 250 rows (a collapsed card counts
-as one), with Previous, Next and the page count under the list. A card stays
+as one), with Previous, Next and the page count under the list. *Display*
+lists the columns after the card: drag them (or ↑/↓ on a grip) into another
+order and untick any to hide it; drag a heading's right edge to resize a
+column, and double-click it to reset. The view's link and a saved view keep
+the layout. A card stays
 on one page with all of its subcards where they fit, so a page ends between
 top-level cards; only a card with more than a page beneath it is split, and
 the next page starts with the cards above again, marked *continued*. The same levels control on the

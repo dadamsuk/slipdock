@@ -30,6 +30,8 @@ defmodule SlipdockWeb.OutlineComponents do
       assign(assigns,
         compact?: assigns.config.density == "compact",
         show: show,
+        # The columns after the card, in the reader's order (#3665).
+        cols: Config.shown_cols(assigns.config, "outline", Config.outline_col_keys()),
         paged: paged,
         loops: page_loops(paged.nodes, show, assigns.collapsed)
       )
@@ -47,19 +49,21 @@ defmodule SlipdockWeb.OutlineComponents do
         :if={@outline.nodes != []}
         id="outline"
         class={["min-w-0 sm:min-w-[60rem]", if(@compact?, do: "text-2xs", else: "text-xs")]}
+        style={"--ol-cols: #{grid_cols(@cols)}; " <> col_vars(@config, "outline")}
       >
         <div class="ol-row ol-head sticky top-0 z-10 border-b border-base-300 bg-base-100 section-label">
-          <div class="flex items-center gap-2 px-3 py-1.5">
+          <div class="relative flex items-center gap-2 px-3 py-1.5" data-col="card">
             Card
             <span class="badge badge-ghost badge-sm font-mono normal-case tracking-normal">
               {@outline.done}/{@outline.total} done
             </span>
+            <.col_resize view="outline" key="card" label="Card" target="#outline" />
           </div>
-          <div class="px-2 py-1.5">List</div>
-          <div class="px-2 py-1.5">Progress</div>
-          <div class="px-2 py-1.5">Schedule</div>
-          <div class="px-2 py-1.5">Health</div>
-          <div></div>
+          <div :for={key <- @cols} class="relative px-2 py-1.5" data-col={key}>
+            {col_label(key)}
+            <.col_resize view="outline" key={key} label={col_label(key)} target="#outline" />
+          </div>
+          <div data-col="actions"></div>
         </div>
         <.outline_rows
           nodes={@paged.nodes}
@@ -68,6 +72,7 @@ defmodule SlipdockWeb.OutlineComponents do
           can_write={@can_write}
           compact={@compact?}
           show={@show}
+          cols={@cols}
           quick_preview={@quick_preview}
           adding={@adding}
           loops={@loops}
@@ -98,6 +103,7 @@ defmodule SlipdockWeb.OutlineComponents do
   attr :can_write, :boolean, required: true
   attr :compact, :boolean, required: true
   attr :show, :any, required: true, doc: "MapSet of facet keys to render on each row"
+  attr :cols, :list, required: true, doc: "the columns after the card, in order"
   attr :quick_preview, :map, default: %{}
   attr :adding, :any, default: nil
   attr :loops, :map, default: %{}, doc: "the runner loop holding each row's card, by id"
@@ -120,6 +126,7 @@ defmodule SlipdockWeb.OutlineComponents do
         <div
           class="flex min-w-0 items-center gap-1.5 py-1 pr-2"
           style={"padding-left: #{0.5 + node.level * 1.5}rem"}
+          data-col="card"
         >
           <button
             :if={node.children != []}
@@ -234,37 +241,11 @@ defmodule SlipdockWeb.OutlineComponents do
             size="xs"
           />
         </div>
-        <div class="flex items-center px-2 text-xs text-base-content/60">
-          <span class="truncate" title={node.list}>{node.list}</span>
-        </div>
-        <div class="flex items-center gap-2 px-2">
-          <%= if node.stats.children > 0 do %>
-            <progress
-              class={[
-                "progress h-1.5 w-20",
-                cond do
-                  node.stats.done == node.stats.total -> "progress-success"
-                  node.stats.health == :blocked -> "progress-error"
-                  node.stats.health == :late -> "progress-warning"
-                  true -> "progress-primary"
-                end
-              ]}
-              value={node.stats.done}
-              max={max(node.stats.total, 1)}
-            ></progress>
-            <span class="font-mono text-xs text-base-content/70">
-              {node.stats.done}/{node.stats.total}
-            </span>
-          <% end %>
-        </div>
-        <div class="flex flex-wrap items-center gap-1 px-2 text-xs">
-          <.schedule_range card={node.card} />
-        </div>
-        <div class="flex items-center gap-1 px-2">
-          <.health_pill :if={node.stats.health != :ok} health={node.stats.health} />
-          <.stated_pill :if={node.stats.stated} health={node.stats.stated} with_label={false} />
-        </div>
-        <div class="flex items-center justify-end pr-2 opacity-0 transition group-hover/row:opacity-100 focus-within:opacity-100 no-hover:opacity-100">
+        <.ol_cell :for={col <- @cols} col={col} node={node} />
+        <div
+          data-col="actions"
+          class="flex items-center justify-end pr-2 opacity-0 transition group-hover/row:opacity-100 focus-within:opacity-100 no-hover:opacity-100"
+        >
           <.link
             :if={node.sub_board_id}
             navigate={~p"/boards/#{node.sub_board_id}/outline"}
@@ -293,6 +274,7 @@ defmodule SlipdockWeb.OutlineComponents do
         can_write={@can_write}
         compact={@compact}
         show={@show}
+        cols={@cols}
         quick_preview={@quick_preview}
         adding={@adding}
         loops={@loops}
@@ -416,4 +398,82 @@ defmodule SlipdockWeb.OutlineComponents do
 
   defp fmt(%Date{} = d), do: Dates.short(d)
   defp fmt(_), do: ""
+
+  @col_labels %{
+    "list" => "List",
+    "progress" => "Progress",
+    "schedule" => "Schedule",
+    "health" => "Health"
+  }
+  @col_widths %{
+    "list" => "8rem",
+    "progress" => "10rem",
+    "schedule" => "13rem",
+    "health" => "6.5rem"
+  }
+
+  defp col_label(key), do: Map.fetch!(@col_labels, key)
+
+  # The rows' grid: the card, the shown columns in order, then the actions,
+  # each its dragged width (`col_var/1`) or its own.
+  defp grid_cols(cols) do
+    Enum.join(
+      ["var(#{col_var("card")}, minmax(0, 1fr))"] ++
+        Enum.map(cols, &"var(#{col_var(&1)}, #{Map.fetch!(@col_widths, &1)})") ++ ["3rem"],
+      " "
+    )
+  end
+
+  attr :col, :string, required: true
+  attr :node, :map, required: true
+
+  defp ol_cell(%{col: "list"} = assigns) do
+    ~H"""
+    <div data-col="list" class="flex min-w-0 items-center px-2 text-xs text-base-content/60">
+      <span class="truncate" title={@node.list}>{@node.list}</span>
+    </div>
+    """
+  end
+
+  defp ol_cell(%{col: "progress"} = assigns) do
+    ~H"""
+    <div data-col="progress" class="flex min-w-0 items-center gap-2 overflow-hidden px-2">
+      <%= if @node.stats.children > 0 do %>
+        <progress
+          class={[
+            "progress h-1.5 w-20",
+            cond do
+              @node.stats.done == @node.stats.total -> "progress-success"
+              @node.stats.health == :blocked -> "progress-error"
+              @node.stats.health == :late -> "progress-warning"
+              true -> "progress-primary"
+            end
+          ]}
+          value={@node.stats.done}
+          max={max(@node.stats.total, 1)}
+        ></progress>
+        <span class="font-mono text-xs text-base-content/70">
+          {@node.stats.done}/{@node.stats.total}
+        </span>
+      <% end %>
+    </div>
+    """
+  end
+
+  defp ol_cell(%{col: "schedule"} = assigns) do
+    ~H"""
+    <div data-col="schedule" class="flex min-w-0 flex-wrap items-center gap-1 px-2 text-xs">
+      <.schedule_range card={@node.card} />
+    </div>
+    """
+  end
+
+  defp ol_cell(%{col: "health"} = assigns) do
+    ~H"""
+    <div data-col="health" class="flex min-w-0 items-center gap-1 overflow-hidden px-2">
+      <.health_pill :if={@node.stats.health != :ok} health={@node.stats.health} />
+      <.stated_pill :if={@node.stats.stated} health={@node.stats.stated} with_label={false} />
+    </div>
+    """
+  end
 end

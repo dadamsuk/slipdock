@@ -79,7 +79,8 @@ defmodule Slipdock.Swimlanes.ConfigDisplayTest do
 
     test "display_keys/0 are the Display menu's" do
       assert Enum.sort(Config.display_keys()) ==
-               ~w(color_by density fields fields_compact place tell width)
+               ~w(color_by density fields fields_compact outline_cols outline_widths place
+                  prio_cols prio_widths tell width widths widths_compact)
     end
   end
 end

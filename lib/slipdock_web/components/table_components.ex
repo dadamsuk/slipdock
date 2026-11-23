@@ -33,6 +33,7 @@ defmodule SlipdockWeb.TableComponents do
     assigns =
       assign(assigns,
         fields: Table.visible_fields(assigns.config, assigns.board),
+        widths: Config.col_widths(assigns.config, "table"),
         first_column: List.first(assigns.board.columns),
         # The column just added from the header (#3610) is focused on the
         # first row it has.
@@ -69,18 +70,21 @@ defmodule SlipdockWeb.TableComponents do
             "table table-pin-rows w-full",
             if(@config.density == "compact", do: "table-xs", else: "table-sm")
           ]}
+          style={col_vars(@config, "table")}
         >
           <thead>
             <tr class="bg-base-100 text-xs uppercase tracking-wide text-base-content/60">
+              <%!-- A dragged width (#3665) is a variable on the table,
+                    read here; without one a column takes its own. --%>
               <th
                 :for={{key, label, sort} <- @fields}
-                class={[
-                  key == "title" && "w-[40%] min-w-64",
-                  Enum.member?(~w(completed id), key) && "w-16"
-                ]}
+                class="relative"
+                data-col={key}
+                style={th_width(key)}
               >
                 <.sort_header :if={sort} sort={sort} label={label} config={@config} />
                 <span :if={!sort}>{label}</span>
+                <.col_resize view="table" key={key} label={label} target="#card-table" />
               </th>
               <th :if={@can_edit_fields} class="w-10 text-right" data-role="add-field-column">
                 <.add_field_header board={@board} />
@@ -139,7 +143,11 @@ defmodule SlipdockWeb.TableComponents do
                     the title truncates (full title on hover). --%>
               <td
                 :for={{key, _label, _} <- @fields}
-                class={["align-middle", key == "title" && "max-w-0"]}
+                class={[
+                  "align-middle",
+                  key == "title" && "max-w-0",
+                  Map.has_key?(@widths, key) && "max-w-0 overflow-hidden"
+                ]}
               >
                 <fieldset disabled={!@can_write} class="contents">
                   <div
@@ -807,5 +815,18 @@ defmodule SlipdockWeb.TableComponents do
     ~H"""
     <span class="font-mono text-xs text-base-content/50">#{@card.id}</span>
     """
+  end
+
+  # A heading's width: the dragged one when there is one (`col_var/1`), else
+  # the title's 40% (at least 16rem), the narrow done and id columns' 4rem,
+  # or the content's.
+  defp th_width(key) do
+    var = col_var(key)
+
+    case key do
+      "title" -> "width: var(#{var}, 40%); min-width: var(#{var}, 16rem);"
+      k when k in ~w(completed id) -> "width: var(#{var}, 4rem);"
+      _ -> "width: var(#{var}, auto);"
+    end
   end
 end

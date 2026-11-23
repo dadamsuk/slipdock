@@ -324,7 +324,12 @@ defmodule SlipdockWeb.TableViewLiveTest do
       assert has_element?(view, "#{row} td.max-w-0 div.min-w-0")
       refute has_element?(view, "#{row} td.max-w-0 input")
       refute has_element?(view, "#{row} td.max-w-0 select")
-      assert has_element?(view, "#card-table thead th.w-\\[40\\%\\]", "Title")
+
+      assert has_element?(
+               view,
+               ~s{#card-table thead th[data-col=title][style*="width: var(--cw-title, 40%)"]},
+               "Title"
+             )
     end
 
     test "a card with nothing set leaves its cells empty", %{conn: conn, plain: plain} = ctx do
