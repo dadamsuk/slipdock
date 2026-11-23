@@ -613,7 +613,7 @@ defmodule SlipdockCLI.Render do
         "#{r["name"]} (#{r["pool"]}) · #{r["status"]}" <>
           case r["current"] do
             nil -> ""
-            c -> " · job ##{c["job_id"]} card ##{c["card_id"]} for #{span(c["elapsed"])}"
+            c -> " · job ##{c["job_id"]} #{job_subject(c)} for #{span(c["elapsed"])}"
           end
       )
 
@@ -638,11 +638,15 @@ defmodule SlipdockCLI.Render do
       Enum.each(s["recent_jobs"], fn j ->
         IO.puts(
           "  ##{j["job_id"]}  #{j["outcome"]}#{if j["reason"], do: ": #{j["reason"]}", else: ""}" <>
-            "  #{span(j["duration"])}  card ##{j["card_id"]} #{j["title"]}"
+            "  #{span(j["duration"])}  #{job_subject(j)}"
         )
       end)
     end
   end
+
+  # A release job or a probe has no card: say its kind instead (#3666).
+  defp job_subject(%{"card_id" => nil} = j), do: "#{j["kind"] || "no card"} job"
+  defp job_subject(j), do: String.trim_trailing("card ##{j["card_id"]} #{j["title"]}")
 
   defp oldest_wait(nil), do: ""
 

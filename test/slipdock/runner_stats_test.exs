@@ -110,6 +110,7 @@ defmodule Slipdock.RunnerStatsTest do
 
     assert r.current == %{
              job_id: running.id,
+             kind: "claude",
              card_id: card.id,
              board_id: ctx.board.id,
              title: "Busy",

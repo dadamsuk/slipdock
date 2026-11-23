@@ -143,6 +143,27 @@ defmodule SlipdockWeb.VisualiseRunnersTest do
     assert has_element?(view, "#runners .overflow-x-auto #recent-jobs")
   end
 
+  # A release job (#2835) or a probe (#2580) has no card: the page opened
+  # on the `slipdock` board crashed on one, building a card link (#3666).
+  test "a job with no card: its kind in the table and as the runner's job, no card link",
+       %{conn: conn} = ctx do
+    done = job(ctx, "done", 60, 2, %{kind: "release", card_id: nil})
+    running = job(ctx, "running", 5, nil, %{kind: "release", card_id: nil})
+    seen(ctx, running.id)
+
+    {:ok, view, _} = live(conn, ~p"/boards/#{ctx.board}/visualise")
+
+    assert has_element?(view, "#job-#{done.id}", "release job")
+    assert has_element?(view, "#job-#{done.id}", "Done")
+    refute has_element?(view, "#job-#{done.id} a")
+    assert has_element?(view, "#job-#{running.id}", "Running")
+
+    assert has_element?(view, "#runner-#{ctx.runner.id}-status", "Running")
+    assert has_element?(view, "#runner-#{ctx.runner.id}-current", "Job ##{running.id} · release")
+    assert has_element?(view, "#runner-#{ctx.runner.id}-current", "release job")
+    refute has_element?(view, "#runner-#{ctx.runner.id}-current a")
+  end
+
   test "a job claimed or finished updates the section live", %{conn: conn} = ctx do
     seen(ctx)
     {:ok, view, _} = live(conn, ~p"/boards/#{ctx.board}/visualise")
