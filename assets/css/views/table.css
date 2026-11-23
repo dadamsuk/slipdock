@@ -30,3 +30,15 @@ table#card-table form[data-derived] .date-field-placeholder { font-style: italic
 /* Tags on one line: each chip truncates past 8rem, and "+N" says the rest. */
 #card-table .table-tag { display: inline-flex; flex: 0 1 auto; min-width: 0; max-width: 8rem; }
 #card-table .table-tag > span { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Renaming in place (#3670): the cell shows its title and a pencil (on a
+   hover screen, only while the row is hovered or focused); `data-editing`,
+   set by the pencil, swaps both for the title's input. */
+#card-table [data-title-cell]:not([data-editing]) [data-role="title-form"],
+#card-table [data-title-cell][data-editing] [data-role="title-text"],
+#card-table [data-title-cell][data-editing] [data-role="title-extra"],
+#card-table [data-title-cell][data-editing] [data-role="title-edit"] { display: none; }
+/* Hidden until hover only where there is hover: a touch screen shows it (UX-6). */
+@media (hover: hover) {
+  table#card-table tbody tr:not(:hover) [data-title-cell]:not(:focus-within) .table-rename { opacity: 0; }
+}

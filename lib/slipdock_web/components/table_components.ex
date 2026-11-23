@@ -387,7 +387,7 @@ defmodule SlipdockWeb.TableComponents do
 
   defp cell(%{field: "title"} = assigns) do
     ~H"""
-    <div class="flex min-w-0 items-center gap-2">
+    <div class="flex min-w-0 items-center gap-2" data-title-cell>
       <span :if={@card.color} class={["size-2 shrink-0 rounded-full", Palette.dot(@card.color)]}></span>
       <%!-- A placed wiki page's icon opens the document; its title opens the
             panel, exactly as it does on the board. --%>
@@ -399,6 +399,7 @@ defmodule SlipdockWeb.TableComponents do
       <span
         role="link"
         tabindex="0"
+        data-role="title-text"
         class={[
           "cursor-pointer truncate text-left font-medium hover:underline",
           @card.completed && "text-base-content/50"
@@ -408,13 +409,56 @@ defmodule SlipdockWeb.TableComponents do
       >
         {@card.title}
       </span>
+      <%!-- Renaming in place (#3670): the pencil puts `data-editing` on the
+            cell, which swaps the title for an input (table.css); Enter or
+            leaving it saves (`table_update` field=title). The title itself
+            still opens the card. An attribute, not a class: JS sets a class
+            a frame later, after the focus would have found the input hidden.
+            Set client-side, it survives the patch the save brings. --%>
+      <form
+        :if={@can_write}
+        id={"title-#{item_id(@card)}"}
+        data-role="title-form"
+        class="min-w-0 flex-1"
+        phx-change="table_update"
+        phx-submit={JS.push("table_update") |> title_done()}
+      >
+        <input type="hidden" name="card_id" value={item_id(@card)} />
+        <input type="hidden" name="field" value="title" />
+        <input
+          type="text"
+          id={"title-input-#{item_id(@card)}"}
+          name="value"
+          value={@card.title}
+          required
+          phx-debounce="blur"
+          phx-blur={title_done()}
+          aria-label="Title"
+          class="input field-bare w-full font-medium"
+        />
+      </form>
       <span
         :if={(@card.description || "") != ""}
+        data-role="title-extra"
         class="shrink-0 text-base-content/40"
         title="Has description"
       >
         <.icon name="hero-bars-3-bottom-left" class="size-3.5" />
       </span>
+      <button
+        :if={@can_write}
+        type="button"
+        data-role="title-edit"
+        class="table-rename btn btn-ghost btn-xs btn-square shrink-0"
+        aria-label="Rename"
+        title="Rename"
+        phx-click={
+          JS.set_attribute({"data-editing", "true"}, to: {:closest, "[data-title-cell]"})
+          |> JS.focus(to: "#title-input-#{item_id(@card)}")
+        }
+      >
+        <.icon name="hero-pencil" class="size-3.5" />
+      </button>
     </div>
     """
   end
@@ -655,9 +699,27 @@ defmodule SlipdockWeb.TableComponents do
     """
   end
 
+  # A writer picks the colour here (#3670); a reader reads its name.
   defp cell(%{field: "color"} = assigns) do
     ~H"""
-    <span :if={@card.color} class="inline-flex items-center gap-1 text-xs"><span class={[
+    <form
+      :if={@can_write}
+      phx-change="table_update"
+      phx-submit="table_update"
+      id={"color-#{item_id(@card)}"}
+      class="flex items-center gap-1"
+    >
+      <input type="hidden" name="card_id" value={item_id(@card)} />
+      <input type="hidden" name="field" value="color" />
+      <span :if={@card.color} class={["size-3 shrink-0 rounded-full", Palette.dot(@card.color)]}></span>
+      <select name="value" class="select field-bare w-28 text-xs" aria-label="Colour">
+        <option value="" selected={is_nil(@card.color)}></option>
+        <option :for={{name, label} <- Palette.all()} value={name} selected={name == @card.color}>
+          {label}
+        </option>
+      </select>
+    </form>
+    <span :if={!@can_write and @card.color} class="inline-flex items-center gap-1 text-xs"><span class={[
       "size-3 rounded-full",
       Palette.dot(@card.color)
     ]}></span> {Palette.label(@card.color)}</span>
@@ -829,4 +891,8 @@ defmodule SlipdockWeb.TableComponents do
       _ -> "width: var(#{var}, auto);"
     end
   end
+
+  # Ends a rename (#3670): the cell shows its title again.
+  defp title_done(js \\ %JS{}),
+    do: JS.remove_attribute(js, "data-editing", to: {:closest, "[data-title-cell]"})
 end
