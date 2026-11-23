@@ -151,8 +151,8 @@ and the Claude apps connect; discovery starts from the `401` that `/mcp`
 answers without a token). It offers a small set of tools rather
 than the whole API: `whoami`, `get_guide` (this text, short; `section` for the
 rest), `list_boards`,
-`get_board`, `list_cards` (`full: true`: every card as `get_card`
-gives it, so a whole board reads in one call), `get_card`, `search`, `ask` (a
+`get_board`, `list_cards` (`full: true`: each card as `get_card`
+gives it, a page of them in one call), `get_card`, `search`, `ask` (a
 model call, so slower), `read_page`, `list_pages`, `page_info`, `page_history`, `activity` (a
 board's log, or one card's), `download_file` (a file, by
 attachment id; `link: true`, a URL to curl), `list_automations`, and for
@@ -191,6 +191,14 @@ never its description (`descriptions: true` adds it) or comments: `get_card`
 has those. Done and dropped lists are trimmed (`get_board`: the newest 5 and
 `left_out`; `list_cards`: left out, `done_left_out`, unless `column` names
 one or `open` is false); `include_done: true` gives them all.
+
+`list_cards` answers one page (#3654): `limit` cards (50 by default, 20
+with `full: true`, 200 at most) from `offset` (0 by default), with `total`
+matching. `truncated: true` means more match than the page holds, not that
+the board ends there: ask again with `offset` set to the answer's
+`next_offset` (`null` once nothing is left), or narrow it with filters.
+`GET /api/boards/:id/cards` and `slipdock cards` aren't paged: they give
+every card that matches.
 
 ### The AI key, and which model answers
 
@@ -1373,6 +1381,8 @@ the server (`/boards/3/cards/57`), not absolute.
 `pages` placed in it), in order, so one call draws the board; a card
 inside a list has `column: null`, since the list it sits in says that.
 Reach for `/boards/1/cards` when you want a filter, not to fill the lists.
+Neither is paged; MCP `list_cards` is, 200 cards at most a call, and its
+`next_offset` is the `offset` for the next page.
 
 ```sh
 curl -s -H "$H" B/api/boards/1

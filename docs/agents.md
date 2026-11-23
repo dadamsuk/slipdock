@@ -247,6 +247,13 @@ lists are trimmed: `get_board` shows a done list's newest 5 and its
 unless `column` names one or `open` is false. `include_done: true` gives
 them all.
 
+`list_cards` answers one page: `limit` cards (50 by default, 20 with
+`full: true`, 200 at most) from `offset` (0 by default), and `total`
+matching. `truncated: true` means more cards match than the page holds,
+not that the board ends there: call it again with `offset` set to the
+answer's `next_offset`, until `next_offset` is `null`, or narrow it with
+filters. `GET /api/boards/:id/cards` and `slipdock cards` aren't paged.
+
 Files move without passing through the model: with a shell, `upload_file`
 with `card` (or `page`) and `link: true` answers with a single-use
 `upload_url`, good for ten minutes and needing no token, and
@@ -644,7 +651,8 @@ move-check <item-id> --before <item-id>`); `move_card` takes
 `index` (`top`, `bottom` the default, or a place from 0) and
 `board` to send a card, subcards and all, to another board; `list_cards`
 takes `archived` (`exclude`, the default, `include` or `only`) and `full:
-true` for every card as `get_card` gives it; and
+true` for each card as `get_card` gives it (a page at a time:
+`offset: next_offset` for the next); and
 `archive_card` puts a card away or, with `restore`, brings it back, as
 `archive_board` does for a board you own. The deletes cannot be undone, so
 each has to be meant: `delete_card` needs `confirm: true`, `delete_board`

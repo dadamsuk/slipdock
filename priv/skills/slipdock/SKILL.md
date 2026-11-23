@@ -35,7 +35,9 @@ root board; a `move_card` or copy into the tree by anyone else leaves off the ta
 names them in `tags_dropped`). `get_board` and `list_cards` give a brief of each card, with no
 description or comments, and leave out (or trim to the newest 5) the done lists unless
 `include_done: true`: read a card's description with `get_card` (or every one with `descriptions: true`). `list_cards` with `full: true` reads
-every card in full (comments, checklist, docs) in one call instead of a `get_card` each. `update_card` also sets dependencies
+a page of cards in full (comments, checklist, docs) in one call instead of a `get_card` each. `list_cards`
+answers one page (50 cards, 20 with `full`, `limit` up to 200): `truncated: true` means more match, not
+that the board ends there, so ask again with `offset` set to the answer's `next_offset` until it is `null`. `update_card` also sets dependencies
 and works the checklist. `list_pages` lists a board's wiki (`tree: true` nests it, as `page tree`
 does), and `read_page` reads one. `page_info` answers what `page links`, `page sections`,
 `page wanted` and `page resolve` do — ask it for `sections` before a `write_page` section edit

@@ -28,8 +28,8 @@ defmodule SlipdockWeb.MCP.Tools.ListCards do
   def description,
     do:
       "Cards on a board in brief, in list order, done lists left out unless include_done. " <>
-        "Next thing to do: column = the ready list, open = true, deps = \"ready\", " <>
-        "no_assignee = true, take the first. full = true: as get_card."
+        "Ready work: open, deps \"ready\", no_assignee in the ready list. full: as get_card. " <>
+        "One page: truncated = more match; the rest is offset = next_offset."
 
   @impl true
   def input_schema do
@@ -98,7 +98,15 @@ defmodule SlipdockWeb.MCP.Tools.ListCards do
         limit: %{
           type: "integer",
           description:
-            "At most this many (default 50, or #{@full_default} when full; max #{@max})."
+            "At most this many on the page (default 50, or #{@full_default} when full; " <>
+              "max #{@max}). A truncated answer is one page, not the whole board: " <>
+              "ask again with offset = next_offset for the rest."
+        },
+        offset: %{
+          type: "integer",
+          description:
+            "Skip this many matching cards first (default 0): the answer's next_offset, " <>
+              "to read the page after it."
         }
       },
       required: ["board"],
@@ -120,26 +128,44 @@ defmodule SlipdockWeb.MCP.Tools.ListCards do
          :ok <- Boards.check_column(board, filters["column"]) do
       listed = Authorize.visible(auth, Boards.Cards.list_cards(board, filters))
       cards = leave_out_done(listed, board, filters, opts.all_done)
-      page = Enum.take(cards, opts.limit)
+      {page, paging} = page(cards, opts)
 
       {:ok,
        %{
          board: %{id: board.id, code: board.code, name: board.name},
-         total: length(cards),
-         truncated: length(cards) > opts.limit,
          cards: lines(board, page, context, opts)
        }
+       |> Map.merge(paging)
        |> put_left_out(length(listed) - length(cards))
        |> Map.merge(V.paused(board))}
     end
+  end
+
+  # One page of the matching cards (#3654), and where the next one starts:
+  # nil once this page reaches the end.
+  defp page(cards, %{offset: offset, limit: limit}) do
+    total = length(cards)
+    next = offset + limit
+    more = total > next
+
+    {cards |> Enum.drop(offset) |> Enum.take(limit),
+     %{total: total, offset: offset, truncated: more, next_offset: if(more, do: next)}}
   end
 
   defp options(args) do
     with {:ok, full} <- Args.boolean(args, "full", false),
          {:ok, all_done} <- Args.boolean(args, "include_done", false),
          {:ok, descriptions} <- Args.boolean(args, "descriptions", false),
-         {:ok, limit} <- Args.limit(args, "limit", if(full, do: @full_default, else: 50), @max) do
-      {:ok, %{full: full, all_done: all_done, descriptions: descriptions, limit: limit}}
+         {:ok, limit} <- Args.limit(args, "limit", if(full, do: @full_default, else: 50), @max),
+         {:ok, offset} <- Args.offset(args, "offset") do
+      {:ok,
+       %{
+         full: full,
+         all_done: all_done,
+         descriptions: descriptions,
+         limit: limit,
+         offset: offset
+       }}
     end
   end
 

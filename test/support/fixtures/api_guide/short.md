@@ -30,8 +30,8 @@ and the Claude apps connect; discovery starts from the `401` that `/mcp`
 answers without a token). It offers a small set of tools rather
 than the whole API: `whoami`, `get_guide` (this text, short; `section` for the
 rest), `list_boards`,
-`get_board`, `list_cards` (`full: true`: every card as `get_card`
-gives it, so a whole board reads in one call), `get_card`, `search`, `ask` (a
+`get_board`, `list_cards` (`full: true`: each card as `get_card`
+gives it, a page of them in one call), `get_card`, `search`, `ask` (a
 model call, so slower), `read_page`, `list_pages`, `page_info`, `page_history`, `activity` (a
 board's log, or one card's), `download_file` (a file, by
 attachment id; `link: true`, a URL to curl), `list_automations`, and for
