@@ -209,6 +209,20 @@ descriptions: true</code>
     adds each description), and leave out
     or trim the done lists unless asked with <code>
 include_done</code>
+. <code>
+list_cards</code>
+
+    answers one page (200 cards at most): <code>
+truncated: true</code>
+
+    means more cards match, not that the board ends there, so ask again with <code>
+offset</code>
+
+    set to the answer&#39;s <code>
+next_offset</code>
+
+    until it is <code>
+null</code>
 .
   </p>
 </div>

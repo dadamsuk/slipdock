@@ -370,6 +370,8 @@ the server (`/boards/3/cards/57`), not absolute.
 `pages` placed in it), in order, so one call draws the board; a card
 inside a list has `column: null`, since the list it sits in says that.
 Reach for `/boards/1/cards` when you want a filter, not to fill the lists.
+Neither is paged; MCP `list_cards` is, 200 cards at most a call, and its
+`next_offset` is the `offset` for the next page.
 
 ```sh
 curl -s -H "$H" B/api/boards/1
