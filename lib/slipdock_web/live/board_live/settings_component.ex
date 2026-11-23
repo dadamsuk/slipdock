@@ -32,7 +32,7 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
   alias SlipdockWeb.BoardLive.SettingsComponent.Panels
   alias SlipdockWeb.BoardLive.Sharing
 
-  @events ~w(validate_board save_board set_board_color add_field delete_field toggle_field_sum
+  @events ~w(validate_board save_board set_board_color edit_field delete_field toggle_field_sum
     toggle_field_on_cards toggle_field_several confirm_field_single cancel_field_single
     install_preset add_milestone delete_milestone delete_board archive_board unarchive_board
     save_as_template share revoke_grant set_sprint_sources set_gardening deploy_setup
@@ -46,6 +46,7 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
     {"general", "General", "hero-adjustments-horizontal"},
     {"features", "Features", "hero-squares-plus"},
     {"planning", "Planning", "hero-calendar-days"},
+    {"fields", "Fields", "hero-table-cells"},
     {"deploys", "Deploys", "hero-rocket-launch"},
     {"gardening", "Gardening", "hero-sparkles"},
     {"sharing", "Sharing", "hero-user-group"},
@@ -80,7 +81,9 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
          panel_notice: nil,
          # The choice field whose Allow several is being switched off while
          # cards hold several: it asks before keeping the first (#3611).
-         several_confirm: nil
+         several_confirm: nil,
+         # The field open in the Fields tab's editor (#3647), by id.
+         editing_field: nil
        )}
 
   # A deploy arrived on this board while the panel is open (the board page
@@ -88,6 +91,20 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
   @impl true
   def update(%{deployment_arrived: deployment}, socket),
     do: {:ok, assign(socket, deploy_arrived: deployment)}
+
+  # The Fields tab's editors (#3647) say when they have saved or been
+  # cancelled. The board reloads by itself as the tree changes.
+  def update(%{field_editor: {_editor, {:saved, field}}}, socket) do
+    verb = if socket.assigns.editing_field == field.id, do: "Saved", else: "Added"
+
+    {:ok,
+     socket
+     |> assign(editing_field: nil)
+     |> notice(:info, "#{verb} the field “#{field.name}”.")}
+  end
+
+  def update(%{field_editor: {_editor, :cancelled}}, socket),
+    do: {:ok, assign(socket, editing_field: nil)}
 
   def update(%{board: board, current_user: user} = assigns, socket) do
     can_manage = Access.board_permission(user, board) == :owner
@@ -312,32 +329,15 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
     {:noreply, socket}
   end
 
-  defp event("add_field", params, socket) do
-    attrs = %{
-      "name" => params["name"],
-      "kind" => params["kind"],
-      "sum" => params["sum"] == "true",
-      "options" => parse_options(params["options"]),
-      "config" =>
-        cond do
-          params["kind"] == "formula" ->
-            %{"mode" => "expression", "expression" => params["expression"]}
+  # A field opens in the Fields tab's editor; the same again closes it.
+  defp event("edit_field", %{"id" => id}, socket) do
+    editing =
+      case Fields.get_board_field(root_id(socket), id) do
+        %FieldDefinition{id: id} when id != socket.assigns.editing_field -> id
+        _ -> nil
+      end
 
-          params["kind"] == "select" and params["several"] == "true" ->
-            %{"several" => true}
-
-          true ->
-            %{}
-        end
-    }
-
-    case Fields.create_field(socket.assigns.board, attrs) do
-      {:ok, _} ->
-        {:noreply, update(socket, :form_key, &(&1 + 1))}
-
-      {:error, cs} ->
-        {:noreply, notice(socket, :error, "Couldn't add the field: #{field_errors(cs)}")}
-    end
+    {:noreply, assign(socket, editing_field: editing)}
   end
 
   defp event("delete_field", %{"id" => id}, socket) do
@@ -465,6 +465,7 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
       <.settings_modal
         form_key={@form_key}
         several_confirm={@several_confirm}
+        editing_field={@editing_field}
         board={@board}
         form={@board_form}
         close_path={@close_path}
@@ -533,6 +534,7 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
 
   attr :form_key, :integer, default: 0
   attr :several_confirm, :any, default: nil
+  attr :editing_field, :any, default: nil
   attr :can_manage, :boolean, default: false
   attr :source_choices, :list, default: []
   attr :hotkey, :integer, default: nil
@@ -608,7 +610,13 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
           target={@target}
           source_choices={@source_choices}
           form_key={@form_key}
+        />
+        <Panels.fields_panel
+          board={@board}
+          tab={@tab}
+          target={@target}
           several_confirm={@several_confirm}
+          editing_field={@editing_field}
         />
         <Panels.gardening_panel board={@board} tab={@tab} target={@target} />
         <Panels.sharing_panel

@@ -23,11 +23,11 @@ made in. `slipdock table <board>` prints the same thing in the terminal.
 **Custom fields as columns.** Each of the board's custom fields can be a
 column (*Display*), and a writer edits its values in place, as on the card.
 Whoever may change the board's fields (a writer of the tree's top board,
-as in board settings) has a **+** at the end of the header: give the field
-a name and a type (and a choice its options, and whether it allows
-several), and it is added as a column
-with its first cell ready to type in. Units, a formula's expression and
-the rest are set in board settings.
+as in board settings) has a **+** at the end of the header. It opens the
+field editor board settings' Fields tab uses: a name, a type (Text unless
+you pick another) and that type's settings, such as a choice's options or
+a number's least and most. The field is added as a column with its first
+cell ready to type in. A formula is set up on the Fields tab.
 
 ---
 

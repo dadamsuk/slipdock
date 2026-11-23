@@ -345,7 +345,7 @@ defmodule Slipdock.Fields do
 
   def format(%FieldDefinition{kind: "rating"}, n) when is_number(n), do: "#{round(n)}"
   def format(%FieldDefinition{kind: "date"}, %Date{} = d), do: Calendar.strftime(d, "%-d %b %Y")
-  def format(%FieldDefinition{kind: "text"}, t), do: t
+  def format(%FieldDefinition{kind: kind}, t) when kind in ~w(text email), do: t
   def format(%FieldDefinition{kind: "url"}, url) when is_binary(url), do: url_host(url)
   # On reads "Yes"; off is shown as nothing, as an empty field is.
   def format(%FieldDefinition{kind: "checkbox"}, n), do: if(n == 1.0, do: "Yes")
@@ -389,17 +389,41 @@ defmodule Slipdock.Fields do
 
   def web_link?(_), do: false
 
+  # Something, an @, something, a dot, something: no spaces and one @. It is
+  # what a person means by an address; whether mail reaches it is not ours
+  # to know.
+  @email ~r/\A[^\s@]+@[^\s@]+\.[^\s@.]+\z/u
+
+  @doc """
+  Whether `text` is an address an email field takes (#3647): one `@` with
+  something before it, and a domain with a dot after it, without spaces.
+  """
+  def email?(text) when is_binary(text), do: Regex.match?(@email, text)
+  def email?(_), do: false
+
   @doc """
   Whether a value written straight to storage, not through `set_value/3`
   (an import), keeps to `field`'s kind: `:ok`, or `{:error, message}` in
   the words a form gets. A URL field's text must be an http(s) link
-  (#3613); other kinds have no check here yet.
+  (#3613), an email field's an address and a text field's no longer than
+  its most characters (#3647), and a person field's people members (#3614).
   """
   def check_stored(%FieldDefinition{kind: "url"} = field, %{text: text}) do
     if is_nil(text) or web_link?(text),
       do: :ok,
       else: {:error, url_refusal(field)}
   end
+
+  # An email field's text must be an address, and a text field's no longer
+  # than its most characters (#3647).
+  def check_stored(%FieldDefinition{kind: "email"} = field, %{text: text}) do
+    if is_nil(text) or email?(text),
+      do: :ok,
+      else: {:error, email_refusal(field)}
+  end
+
+  def check_stored(%FieldDefinition{kind: "text"} = field, %{text: text}) when is_binary(text),
+    do: within_length(field, text)
 
   # A person field's ids must each be a current member of the tree (#3614):
   # an imported document's people are another tree's.
@@ -414,6 +438,18 @@ defmodule Slipdock.Fields do
 
   defp url_refusal(field),
     do: "#{field.name} needs an http or https link, like https://example.com."
+
+  defp email_refusal(field),
+    do: "#{field.name} needs an email address, like name@example.com."
+
+  defp within_length(%FieldDefinition{config: %{"max_length" => max}} = field, text)
+       when is_integer(max) do
+    if String.length(text) <= max,
+      do: :ok,
+      else: {:error, "#{field.name} takes at most #{max} characters."}
+  end
+
+  defp within_length(_field, _text), do: :ok
 
   @doc "A URL field's value as it is shown: its host, without a leading `www.`."
   def url_host(url) do
@@ -588,7 +624,18 @@ defmodule Slipdock.Fields do
     end
   end
 
-  defp cast(%FieldDefinition{kind: "text"}, raw), do: {:ok, %{text: String.trim(to_string(raw))}}
+  defp cast(%FieldDefinition{kind: "text"} = field, raw) do
+    text = String.trim(to_string(raw))
+    with :ok <- within_length(field, text), do: {:ok, %{text: text}}
+  end
+
+  defp cast(%FieldDefinition{kind: "email"} = field, raw) do
+    email = raw |> to_string() |> String.trim()
+
+    if email?(email),
+      do: {:ok, %{text: email}},
+      else: {:error, email_refusal(field)}
+  end
 
   defp cast(%FieldDefinition{kind: "url"} = field, raw) do
     url = raw |> to_string() |> String.trim()

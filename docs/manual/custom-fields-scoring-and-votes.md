@@ -2,13 +2,21 @@
 
 ## Custom fields, scoring and votes
 
-Board settings (root boards) hold the tree's **fields**, and only a writer
-of the root board adds, changes or removes one, from any door, as with tags;
-anyone who can edit a card sets its values. The fields are: number (with
-optional min, max, unit), rating (1–5 by default), choice (each option with
-an optional weight and colour), date, text, URL (one http or https link,
-shown as its host and opening in a new tab; anything else is refused),
-checkbox (on or off; an empty
+Board settings (root boards) hold the tree's **fields**, on a **Fields**
+tab of their own (Planning links to it): a table of them with their
+switches, an Edit that opens a field in the field editor, and Delete. Only a
+writer of the root board adds, changes or removes one, from any door, as
+with tags; anyone who can edit a card sets its values. The editor shows the
+settings the chosen type takes, and the table view's **+** opens the same
+editor. A field's type is fixed once it exists. The fields are: text (the
+default; an optional most characters, and nothing else needed), number
+(optional least and most, which a value must keep within, a step and a
+unit), rating (2 to 10 stars, 5 by default), choice (its options are rows
+to add, rename, give a value and colour, reorder and remove; a renamed
+option keeps its cards), date, URL (one http or https link, shown as its
+host and opening in a new tab; anything else is refused), email (one
+address, like name@example.com, shown as a mail link; anything else is
+refused), checkbox (on or off; an empty
 one counts as off, and it is 1 or 0 in a formula), person (several of the
 board tree's members), and **formula**. Every field
 has a short key, used in formulas as `{key}`; a formula is an arithmetic
@@ -74,7 +82,7 @@ totals in table group headers.
 The board's **Filter** menu has a *Fields* section with one filter per
 field, suited to its type: options to pick for a choice, a least number of
 stars for a rating, a min and max for a number or formula, a from and to
-for a date, words to find for text or a URL, On or Off for a checkbox (Off
+for a date, words to find for text, a URL or an email, On or Off for a checkbox (Off
 keeps the cards with it empty), and Me and the members for a person field. Every view's Filter menu has the
 same section, and the filters are kept in the address and in a saved view
 like the others, so a reload or a saved view brings them back; a filter on

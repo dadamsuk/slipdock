@@ -228,7 +228,8 @@
   status line at the top of the card and the comments' times keep up with
   the clock in the browser, without a reload
 - **Custom fields** per board tree (number, rating, choice with weights,
-  date, text, URL, checkbox, person; a choice field can allow several options
+  date, text, URL, email, checkbox, person, each with the settings its type
+  takes, on board settings' Fields tab; a choice field can allow several options
   per card, and a person field holds several of the tree's members, a former
   member kept and marked)
   and **formula fields** with RICE, ICE and value/effort

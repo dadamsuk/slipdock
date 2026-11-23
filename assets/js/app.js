@@ -130,9 +130,12 @@ Hooks.AnchoredPopover = {
     this.el.addEventListener("beforetoggle", e => {
       if (e.newState === "open") this.place()
     })
-    // A form in the menu closes it when sent: its submit button can't, as
-    // the browser ignores `popovertarget` on a form's submit button.
-    this.el.addEventListener("submit", () => this.el.hidePopover())
+    // The server closes a menu whose form has done its work (the table's
+    // add-field editor, #3647). Closing it on submit would hide a refusal,
+    // which shows in the form.
+    this.handleEvent("popover:hide", ({id}) => {
+      if (id === this.el.id && this.el.matches(":popover-open")) this.el.hidePopover()
+    })
     // Escape closes the menu and nothing else: on the card panel the modal
     // closes on Escape too, from the window, so the menu takes it first.
     this.onKey = e => {

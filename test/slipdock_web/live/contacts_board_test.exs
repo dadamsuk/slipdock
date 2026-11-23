@@ -25,7 +25,19 @@ defmodule SlipdockWeb.ContactsBoardTest do
     %{board: board, mate: mate, ada: ada, grace: grace}
   end
 
-  defp add(view, attrs), do: view |> form("#add-field-form", attrs) |> render_submit()
+  @editor "#table-field-editor-form"
+
+  # The table header's field editor (#3647): the type first, as a person
+  # picks it, then the rest.
+  defp add(view, %{"kind" => kind} = attrs) do
+    view |> form(@editor, %{"kind" => kind}) |> render_change()
+
+    for _ <- 2..map_size(Map.get(attrs, "options", %{}))//1,
+        do: view |> element("#{@editor} [data-role=add-choice]") |> render_click()
+
+    view |> form(@editor, attrs) |> render_submit()
+  end
+
   defp card(card), do: Boards.Cards.get_card!(card.id)
 
   test "every column comes from the table header, one of each new kind", ctx do
@@ -37,13 +49,13 @@ defmodule SlipdockWeb.ContactsBoardTest do
     add(view, %{
       "name" => "Groups",
       "kind" => "select",
-      "options" => "Friend, Work",
+      "options" => %{"0" => %{"label" => "Friend"}, "1" => %{"label" => "Work"}},
       "several" => "true"
     })
 
-    add(view, %{"name" => "Subscribed", "kind" => "checkbox", "options" => ""})
-    add(view, %{"name" => "Website", "kind" => "url", "options" => ""})
-    add(view, %{"name" => "Owner", "kind" => "person", "options" => ""})
+    add(view, %{"name" => "Subscribed", "kind" => "checkbox"})
+    add(view, %{"name" => "Website", "kind" => "url"})
+    add(view, %{"name" => "Owner", "kind" => "person"})
     # Each add patches the address with its column; the last has all four.
     path = Enum.reduce(1..4, nil, fn _, _ -> assert_patch(view) end)
 

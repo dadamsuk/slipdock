@@ -141,12 +141,15 @@ defmodule SlipdockWeb.SeveralChoiceFieldLiveTest do
          %{conn: conn, board: board} do
       {:ok, view, _} = live(conn, ~p"/boards/#{board}/settings")
 
+      editor = "#field-editor-new-form"
+      view |> form(editor, %{"kind" => "select"}) |> render_change()
+      view |> element("#{editor} [data-role=add-choice]") |> render_click()
+
       view
-      |> form("#field-form-0", %{
+      |> form(editor, %{
         "name" => "Team",
         "kind" => "select",
-        "options" => "Red, Blue",
-        "expression" => "",
+        "options" => %{"0" => %{"label" => "Red"}, "1" => %{"label" => "Blue"}},
         "several" => "true"
       })
       |> render_submit()

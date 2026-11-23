@@ -41,9 +41,13 @@ defmodule SlipdockWeb.BoardSettingsFormTest do
   test "every panel is the 40rem column", %{conn: conn, board: board} do
     view = open(conn, board)
 
-    for {key, _, _} <- SettingsComponent.tabs() do
+    for {key, _, _} <- SettingsComponent.tabs(), key != "fields" do
       assert "settings-column" in classes(view, "#settings-panel-#{key}"), key
     end
+
+    # Fields (#3647) is a table of the tree's fields, as wide as the modal;
+    # its form, the new field's editor, is the 40rem column.
+    assert "settings-column" in classes(view, "#settings-panel-fields #new-field")
 
     # The rule itself, in the view's stylesheet.
     css = File.read!("assets/css/views/board-settings.css")
