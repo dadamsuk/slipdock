@@ -85,7 +85,7 @@ try {
   if (!page.url().includes('fields=title%2Ctags%2Ccolumn%2Cpriority')) fail(`URL after the move: ${page.url()}`)
   // The menu stays open and in the new order.
   const menu = await page.$$eval('#display-fields-comfortable-list > li', els => els.map(e => e.dataset.id))
-  if (menu.slice(0, 3).join() !== 'tags,column,priority') fail(`menu after the move: ${menu}`)
+  if (menu.slice(0, 4).join() !== 'title,tags,column,priority') fail(`menu after the move: ${menu}`)
   // The menu stays open, the grip keeps its focus, and ↓ moves it on a place.
   const focused = await page.evaluate(() => document.activeElement.id)
   if (focused !== 'col-grip-table-tags') fail(`after the drop focus is on "${focused}"`)
@@ -102,6 +102,28 @@ try {
   order = await headings('#card-table thead tr')
   if (order.join() !== 'title,tags,column,priority') fail(`↑ on the Tags grip gave ${order}`)
   console.log('ok: ↑ and ↓ on a grip move its column, the menu open throughout')
+
+  // The title moves and hides like the rest (#3748).
+  await page.focus('#col-grip-table-title')
+  await page.keyboard.press('ArrowDown')
+  await settle()
+  await page.keyboard.press('ArrowDown')
+  await settle()
+  order = await headings('#card-table thead tr')
+  if (order.join() !== 'tags,column,title,priority') fail(`↓↓ on the Title grip gave ${order}`)
+  const titleCell = await page.$eval('#card-table tbody tr[id^=row-] td:nth-child(3)', td => td.textContent)
+  if (!/epic|Second card/.test(titleCell)) fail(`the third cell is not the title: ${titleCell}`)
+  await page.uncheck('#col-table-title input[type=checkbox]')
+  await settle()
+  order = await headings('#card-table thead tr')
+  if (order.join() !== 'tags,column,priority') fail(`unticking Title gave ${order}`)
+  if (!(await page.isVisible('#display-fields-comfortable-list'))) fail('the Display menu shut after unticking')
+  await page.check('#col-table-title input[type=checkbox]')
+  await settle()
+  await dragGrip('table', 'title', 'tags')
+  order = await headings('#card-table thead tr')
+  if (order.join() !== 'title,tags,column,priority') fail(`Title back first gave ${order}`)
+  console.log('ok: the Title column is dragged, hidden and shown again like the others')
 
   await page.keyboard.press('Escape')
   await page.mouse.click(700, 800)

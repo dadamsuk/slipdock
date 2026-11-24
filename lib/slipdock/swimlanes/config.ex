@@ -454,7 +454,13 @@ defmodule Slipdock.Swimlanes.Config do
   as `"-key"`, and show a key they don't name.
   """
   def col_order(%__MODULE__{} = config, "table", all) do
-    chosen = Enum.filter(table_fields(config), &Enum.member?(all, &1))
+    # A table with no columns shows its title (`Slipdock.Table.visible_fields/2`).
+    chosen =
+      case Enum.filter(table_fields(config), &Enum.member?(all, &1)) do
+        [] -> Enum.filter(["title"], &Enum.member?(all, &1))
+        chosen -> chosen
+      end
+
     Enum.map(chosen, &{&1, true}) ++ for(k <- all, not Enum.member?(chosen, k), do: {k, false})
   end
 
@@ -496,12 +502,9 @@ defmodule Slipdock.Swimlanes.Config do
     end
   end
 
-  defp put_col_order(config, "table", _all, order) do
-    # The title is always first, and named so, as the Display form sends it.
-    Map.put(config, cols_key(config, "table"), [
-      "title" | for({k, true} <- order, k != "title", do: k)
-    ])
-  end
+  # The title moves and hides like any other column (#3748).
+  defp put_col_order(config, "table", _all, order),
+    do: Map.put(config, cols_key(config, "table"), for({k, true} <- order, do: k))
 
   # A list that says only what the view does anyway (every column shown, in
   # its own order) is no list at all.

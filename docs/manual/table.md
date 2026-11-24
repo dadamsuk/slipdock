@@ -31,8 +31,9 @@ made in. `slipdock table <board>` prints the same thing in the terminal.
 
 **Arranging the columns.** *Display* lists the columns in the order the
 table draws them: drag one by its grip (or focus the grip and press ↑ or
-↓) to move it, and tick or untick it to show or hide it. The title is
-always first. Drag the right edge of a heading to make the column wider or
+↓) to move it, and tick or untick it to show or hide it. The title is one of them: it can
+go anywhere, or be hidden (with every column unticked the table still shows
+the title). Drag the right edge of a heading to make the column wider or
 narrower (←/→ when the edge has focus); double-click it to put the column
 back to its own width. The order and widths are part of the view, like the
 filters: they are in the link, a saved view keeps them, and comfortable and
