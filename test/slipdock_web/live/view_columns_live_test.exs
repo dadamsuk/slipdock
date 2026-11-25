@@ -43,7 +43,7 @@ defmodule SlipdockWeb.ViewColumnsLiveTest do
 
       assert heading_keys(view, "#card-table thead") == ~w(title tags priority)
       # The menu: the shown columns in order, then the hidden ones in their own.
-      assert ["tags", "priority", "column" | _] = menu_keys(view, "table")
+      assert ["title", "tags", "priority", "column" | _] = menu_keys(view, "table")
       assert has_element?(view, "#col-table-tags input[type=checkbox][checked]")
       refute has_element?(view, "#col-table-column input[type=checkbox][checked]")
     end
@@ -102,6 +102,35 @@ defmodule SlipdockWeb.ViewColumnsLiveTest do
       |> render_change()
 
       assert heading_keys(view, "#card-table thead") == ~w(title priority tags)
+    end
+
+    test "the title can be unticked, and moved like any other column (#3748)", %{
+      conn: conn,
+      board: board,
+      card: card
+    } do
+      {:ok, view, _} = live(conn, ~p"/boards/#{board}/table?fields=title,priority,tags")
+
+      assert has_element?(view, "#col-table-title input[type=checkbox][checked]")
+
+      render_hook(view, "col_move", %{"id" => "title", "to" => "table", "before" => nil})
+      assert_patch(view, ~p"/boards/#{board}/table?fields=priority%2Ctags%2Ctitle")
+      assert heading_keys(view, "#card-table thead") == ~w(priority tags title)
+      assert has_element?(view, "#card-table tbody td:nth-child(3)", card.title)
+
+      view |> element("#col-grip-table-title") |> render_keydown(%{"key" => "ArrowUp"})
+      assert heading_keys(view, "#card-table thead") == ~w(priority title tags)
+
+      # Unticked: the form sends the other boxes after its empty marker.
+      view |> form("#swim-config", %{"fields" => ["", "priority", "tags"]}) |> render_change()
+      assert heading_keys(view, "#card-table thead") == ~w(priority tags)
+      refute has_element?(view, "#card-table tbody", card.title)
+      refute has_element?(view, "#col-table-title input[type=checkbox][checked]")
+
+      # Every box unticked: the title comes back rather than an empty table.
+      view |> form("#swim-config", %{"fields" => [""]}) |> render_change()
+      assert heading_keys(view, "#card-table thead") == ~w(title)
+      assert has_element?(view, "#col-table-title input[type=checkbox][checked]")
     end
 
     test "a heading's edge sets the column's width, and a double-click puts it back", %{

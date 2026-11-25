@@ -895,10 +895,12 @@ defmodule SlipdockWeb.SwimlaneComponents do
   attr :section_title, :any, required: true
   attr :size_label, :string, required: true
 
-  # The Display menu's Columns (#3665): every column a view can show but its
-  # first, in the reader's order, each with a box to show it and a grip to
+  # The Display menu's Columns (#3665): every column a view can show but the
+  # outline's and Prioritise's card (the table's title is among them, #3748),
+  # in the reader's order, each with a box to show it and a grip to
   # drag it (or press ↑/↓ on) into place. The table's shown columns are
-  # `fields[]` (or `fields_compact[]`), sent in the order they are drawn; the
+  # `fields[]` (or `fields_compact[]`), sent in the order they are drawn after
+  # an empty one, so unticking every box still sends the list; the
   # outline's and Prioritise's are `outline_cols[]` / `prio_cols[]`, with a
   # `-key` before each box so an unticked one is kept, hidden, in its place.
   defp columns_chooser(assigns) do
@@ -926,7 +928,7 @@ defmodule SlipdockWeb.SwimlaneComponents do
       <p class={["mb-1.5", @section_title]}>
         Columns{if @table?, do: " · #{@size_label}"}
       </p>
-      <input :if={@table?} type="hidden" name={@name} value="title" />
+      <input :if={@table?} type="hidden" name={@name} value="" />
       <ul
         id={"#{@dom_id}-list"}
         class="max-h-72 space-y-0.5 overflow-y-auto"
@@ -957,7 +959,16 @@ defmodule SlipdockWeb.SwimlaneComponents do
           </button>
           <label class="flex flex-1 cursor-pointer items-center gap-2 py-0.5">
             <input :if={!@table?} type="hidden" name={@name} value={"-" <> key} />
-            <input type="checkbox" name={@name} value={key} checked={shown?} class="checkbox" />
+            <%!-- An id, so the Sortable hook gives the box its focus back
+                  when the patch moves its row and the menu stays open. --%>
+            <input
+              type="checkbox"
+              id={"col-box-#{@view}-#{String.replace(key, ":", "-")}"}
+              name={@name}
+              value={key}
+              checked={shown?}
+              class="checkbox"
+            />
             {label}
           </label>
         </li>

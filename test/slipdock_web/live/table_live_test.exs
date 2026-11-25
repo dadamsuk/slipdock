@@ -37,8 +37,8 @@ defmodule SlipdockWeb.TableLiveTest do
              {"Low", ["Bravo"]}
            ]
 
+    # The title is a column like the rest (#3748): not named, not shown.
     assert Enum.map(Table.visible_fields(%Config{fields: ["due_date", "id"]}), &elem(&1, 0)) == [
-             "title",
              "due_date",
              "id"
            ]

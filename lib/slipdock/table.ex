@@ -63,14 +63,16 @@ defmodule Slipdock.Table do
 
   @doc """
   The visible fields for the config's density, in the order the reader put
-  them (#3665); the title is always shown first.
+  them (#3665), the title among them (#3748). A table with none shows the
+  title, so it is never a table of nothing.
   """
   def visible_fields(%Config{} = config, board \\ nil) do
     all = fields(board || %{})
 
-    for key <- ["title" | Config.table_fields(config) -- ["title"]],
-        field = List.keyfind(all, key, 0),
-        do: field
+    case for(key <- Config.table_fields(config), field = List.keyfind(all, key, 0), do: field) do
+      [] -> [List.keyfind(all, "title", 0)]
+      shown -> shown
+    end
   end
 
   @doc """

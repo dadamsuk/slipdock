@@ -2,9 +2,9 @@ defmodule Slipdock.ViewColumns do
   @moduledoc """
   The columns of the board views that have them — the table, the outline and
   Prioritise (#3665): which a reader may show, hide and move, and in what
-  order they are drawn. The first column (the table's title, the outline's
-  and Prioritise's card) is always shown, first, and isn't among them. The
-  order, what is hidden and each column's width live in the view's
+  order they are drawn. The table's title is one of them like any other
+  (#3748); the outline's and Prioritise's card is always shown, first, and
+  isn't among theirs (it carries the outline's tree). The order, what is hidden and each column's width live in the view's
   `Slipdock.Swimlanes.Config` (see `Config.col_order/3`, `Config.col_widths/2`).
   """
 
@@ -22,13 +22,13 @@ defmodule Slipdock.ViewColumns do
   @doc "The views with columns, as their mode names."
   def views, do: @views
 
-  @doc "The column that is always first in a view."
-  def first("table"), do: "title"
+  @doc "The column that is always first in a view: none in the table."
+  def first("table"), do: nil
   def first(_), do: "card"
 
   @doc "A view's movable columns as `{key, label}`, in the view's own order."
   def choosable("table", board) do
-    for {key, label, _} <- Table.fields(board || %{}), key != "title", do: {key, label}
+    for {key, label, _} <- Table.fields(board || %{}), do: {key, label}
   end
 
   def choosable("outline", _board) do

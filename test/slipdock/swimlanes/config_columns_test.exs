@@ -31,7 +31,7 @@ defmodule Slipdock.Swimlanes.ConfigColumnsTest do
 
       moved = Config.move_col(config, "table", ~w(priority tags), "tags", "priority")
 
-      assert moved.fields_compact == ["title", "tags", "priority"]
+      assert moved.fields_compact == ["tags", "priority"]
       assert moved.fields == ["priority", "tags"]
     end
 
@@ -39,7 +39,6 @@ defmodule Slipdock.Swimlanes.ConfigColumnsTest do
       config = %Config{fields: ["tags"]}
 
       assert Config.move_col(config, "table", ~w(priority tags), "priority", "tags").fields == [
-               "title",
                "tags"
              ]
     end
@@ -49,13 +48,49 @@ defmodule Slipdock.Swimlanes.ConfigColumnsTest do
       all = ~w(column priority tags due_date)
 
       assert Config.move_col(config, "table", all, "tags", "column").fields ==
-               ~w(title tags column priority)
+               ~w(tags column priority)
 
       assert Config.move_col(config, "table", all, "column", nil).fields ==
-               ~w(title priority tags column)
+               ~w(priority tags column)
 
       # A key the view doesn't have changes nothing.
       assert Config.move_col(config, "table", all, "bogus", "column") == config
+    end
+  end
+
+  describe "the table's title (#3748)" do
+    @table ~w(title column priority tags)
+
+    test "moves like any other column, and isn't put back first" do
+      config = %Config{fields: ~w(title column priority)}
+
+      moved = Config.move_col(config, "table", @table, "title", nil)
+      assert moved.fields == ~w(column priority title)
+
+      assert Config.move_col(moved, "table", @table, "title", "priority").fields ==
+               ~w(column title priority)
+    end
+
+    test "hidden, it is listed after the shown columns, unticked" do
+      config = Config.from_query(%{"fields" => "priority,column"})
+
+      assert config.fields == ~w(priority column)
+
+      assert Config.col_order(config, "table", @table) ==
+               [{"priority", true}, {"column", true}, {"title", false}, {"tags", false}]
+    end
+
+    test "a table with no columns lists its title as shown, and draws it" do
+      config = Config.from_form(%{"fields" => [""]}, %Config{mode: "table"})
+
+      assert config.fields == []
+      assert {"title", true} in Config.col_order(config, "table", @table)
+      assert [{"title", "Title", "title"}] = Slipdock.Table.visible_fields(config)
+    end
+
+    test "a view that names its title first, as every one did, draws it first" do
+      fields = Slipdock.Table.visible_fields(%Config{fields: ~w(title priority)})
+      assert Enum.map(fields, &elem(&1, 0)) == ~w(title priority)
     end
   end
 
